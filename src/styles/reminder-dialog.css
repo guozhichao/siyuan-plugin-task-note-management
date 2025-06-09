@@ -1,0 +1,61 @@
+/* ...existing code... */
+
+.reminder-date-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.reminder-date-container input[type="date"] {
+    flex: 1;
+    min-width: 0;
+}
+
+.reminder-date-container input[type="date"]:first-child {
+    flex: 1;
+}
+
+.reminder-date-container input[type="date"]:last-child {
+    flex: 1;
+    opacity: 0.8;
+}
+
+.reminder-date-container input[type="date"]:last-child:focus {
+    opacity: 1;
+}
+
+.reminder-arrow {
+    color: var(--b3-theme-on-surface-light);
+    font-size: 14px;
+    font-weight: 500;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.reminder-date-container input[type="date"]:last-child::placeholder {
+    color: var(--b3-theme-on-surface-light);
+    font-size: 12px;
+}
+
+/* 空值时的样式 */
+.reminder-date-container input[type="date"]:last-child:placeholder-shown {
+    opacity: 0.6;
+    border-style: dashed;
+}
+
+/* 响应式布局 */
+@media (max-width: 480px) {
+    .reminder-date-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+    }
+
+    .reminder-arrow {
+        align-self: center;
+        transform: rotate(90deg);
+    }
+}
+
+/* ...existing code... */

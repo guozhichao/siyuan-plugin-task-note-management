@@ -1,0 +1,409 @@
+.reminder-panel {
+    padding: 8px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.reminder-header {
+    margin-bottom: 12px;
+}
+
+.reminder-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    margin-bottom: 8px;
+
+    .reminder-icon {
+        font-size: 16px;
+    }
+
+    .reminder-badge {
+        background: var(--b3-theme-error);
+        color: white;
+        border-radius: 50%;
+        min-width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: bold;
+        margin-left: 4px; // 给徽章添加一点左边距
+    }
+}
+
+.reminder-controls {
+    .b3-select {
+        width: 100%;
+    }
+}
+
+.reminder-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.reminder-empty {
+    text-align: center;
+    color: var(--b3-theme-on-surface-light);
+    padding: 20px;
+}
+
+.reminder-item {
+    border: 1px solid var(--b3-theme-surface-lighter);
+    border-radius: 4px;
+    margin-bottom: 8px;
+    padding: 8px;
+
+    &--overdue {
+        border-color: var(--b3-theme-error-light);
+        background: var(--b3-theme-error-lighter);
+    }
+}
+
+.reminder-item__content {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.reminder-item__info {
+    flex: 1;
+}
+
+.reminder-item__title {
+    font-weight: 500;
+    cursor: pointer;
+    margin-bottom: 4px;
+    color: var(--b3-theme-on-background);
+    text-decoration: none;
+    transition: color 0.2s ease;
+
+    &:hover {
+        color: var(--b3-theme-primary);
+        text-decoration: underline;
+    }
+}
+
+.reminder-item__time {
+    font-size: 12px;
+    color: var(--b3-theme-on-surface-light);
+    cursor: pointer;
+
+    &:hover {
+        color: var(--b3-theme-primary);
+    }
+}
+
+.reminder-overdue-label {
+    color: var(--b3-theme-error);
+    font-weight: 500;
+    margin-left: 8px;
+}
+
+.reminder-dialog {
+    .b3-form__group {
+        margin-bottom: 16px;
+    }
+
+    .b3-form__label {
+        display: block;
+        margin-bottom: 4px;
+        font-weight: 500;
+    }
+
+    .b3-form__desc {
+        font-size: 12px;
+        color: var(--b3-theme-on-surface-light);
+        margin-top: 4px;
+    }
+}
+
+.reminder-item__note {
+    font-size: 12px;
+    color: var(--b3-card-success-color);
+    margin-top: 4px;
+    padding: 4px 8px;
+    background: var(--b3-card-success-background);
+    border-radius: 4px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* 悬浮窗口中的提醒面板样式 */
+#floatReminderPanel {
+    .reminder-panel {
+        height: 100%;
+        padding: 4px;
+    }
+
+    .reminder-list {
+        max-height: 320px;
+        overflow-y: auto;
+    }
+}
+
+/* 停靠栏徽章样式 */
+.reminder-dock-badge {
+    position: absolute !important;
+    top: 2px !important;
+    right: 2px !important;
+    background: var(--b3-theme-error) !important;
+    color: white !important;
+    border-radius: 50% !important;
+    min-width: 14px !important;
+    height: 14px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 10px !important;
+    font-weight: bold !important;
+    line-height: 1 !important;
+    z-index: 1 !important;
+    pointer-events: none !important;
+}
+
+/* 确保停靠栏图标有相对定位 */
+.dock__item[data-type="reminder_dock"] {
+    position: relative !important;
+}
+
+// 提醒徽章样式
+.reminder-badge,
+.reminder-dock-badge {
+    background: var(--b3-theme-error);
+    color: white;
+    border-radius: 50%;
+    min-width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: bold;
+    line-height: 1;
+    z-index: 1;
+}
+
+// 日历视图样式
+.reminder-calendar-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    padding: 8px;
+}
+
+.reminder-calendar-toolbar {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    align-items: center;
+}
+
+.reminder-calendar-view-group {
+    display: flex;
+    gap: 4px;
+}
+
+.reminder-calendar-container {
+    flex: 1;
+    overflow: auto;
+    background-color: var(--b3-theme-background);
+}
+
+// 修改日历样式以适应思源主题
+.fc {
+    --fc-border-color: var(--b3-border-color);
+    --fc-button-bg-color: var(--b3-theme-primary);
+    --fc-button-border-color: var(--b3-theme-primary);
+    --fc-button-hover-bg-color: var(--b3-theme-primary-light);
+    --fc-button-hover-border-color: var(--b3-theme-primary-light);
+    --fc-event-bg-color: var(--b3-theme-primary);
+    --fc-event-border-color: var(--b3-theme-primary);
+    --fc-page-bg-color: var(--b3-theme-background);
+    --fc-today-bg-color: var(--b3-theme-surface-light);
+}
+
+.fc .fc-button {
+    font-family: inherit;
+}
+
+.fc-event-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+// 提醒事件样式
+.reminder-calendar-event-wrapper {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    width: 100%;
+    padding: 2px 4px;
+}
+
+.reminder-calendar-event-checkbox {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.reminder-calendar-event-content {
+    flex: 1;
+    overflow: hidden;
+}
+
+.reminder-calendar-event-content.completed {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+.reminder-calendar-event-note {
+    font-size: 0.85em;
+    opacity: 0.8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+// 提醒面板样式
+.reminder-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.reminder-panel__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    border-bottom: 1px solid var(--b3-border-color);
+}
+
+.reminder-panel__title {
+    font-weight: bold;
+    flex: 1;
+}
+
+.reminder-panel__actions {
+    display: flex;
+    gap: 4px;
+    margin-left: auto; // 确保按钮容器靠右
+}
+
+.reminder-panel__content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+/* 跨天日期设置样式 */
+.reminder-date-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+
+    input[type="date"] {
+        flex: 1;
+        min-width: 0;
+    }
+
+    input[type="date"]:first-child {
+        flex: 1;
+    }
+
+    input[type="date"]:last-child {
+        flex: 1;
+        opacity: 0.8;
+        border-style: dashed;
+
+        &:focus {
+            opacity: 1;
+            border-style: solid;
+        }
+
+        &:not(:placeholder-shown) {
+            opacity: 1;
+            border-style: solid;
+        }
+    }
+}
+
+.reminder-arrow {
+    color: var(--b3-theme-on-surface-light, #666);
+    font-size: 14px;
+    font-weight: 500;
+    flex-shrink: 0;
+    user-select: none;
+    opacity: 0.7;
+}
+
+.reminder-end-date::placeholder {
+    color: var(--b3-theme-on-surface-light, #999);
+    font-size: 12px;
+}
+
+/* 响应式布局 */
+@media (max-width: 480px) {
+    .reminder-date-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+
+        .reminder-arrow {
+            align-self: center;
+            transform: rotate(90deg);
+        }
+    }
+}
+
+.existing-reminders-container {
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid var(--b3-border-color);
+    border-radius: 4px;
+    padding: 8px;
+
+    .reminder-empty {
+        text-align: center;
+        color: var(--b3-theme-on-surface-light);
+        font-size: 12px;
+        padding: 16px;
+    }
+}
+
+.reminder-item--compact {
+    padding: 8px;
+    border-radius: 4px;
+    background: var(--b3-theme-surface);
+    margin-bottom: 4px;
+
+    .reminder-item__title {
+        font-size: 13px;
+        font-weight: 500;
+        margin-bottom: 4px;
+    }
+
+    .reminder-item__time {
+        font-size: 12px;
+        color: var(--b3-theme-on-surface-light);
+
+        &:hover {
+            color: var(--b3-theme-primary);
+            text-decoration: underline;
+        }
+    }
+
+    .reminder-item__note {
+        font-size: 11px;
+        color: var(--b3-theme-on-surface-light);
+        margin-top: 4px;
+        font-style: italic;
+    }
+}
