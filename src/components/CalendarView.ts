@@ -72,6 +72,16 @@ export class CalendarView {
             eventResize: this.handleEventResize.bind(this),
             dateClick: this.handleDateClick.bind(this),
             events: await this.getEvents(),
+            // 设置今天的背景颜色为淡绿色
+            dayCellClassNames: (arg) => {
+                const today = new Date();
+                const cellDate = arg.date;
+                
+                if (cellDate.toDateString() === today.toDateString()) {
+                    return ['fc-today-custom'];
+                }
+                return [];
+            },
             // 添加右键菜单支持
             eventDidMount: (info) => {
                 info.el.addEventListener('contextmenu', (e) => {
@@ -82,6 +92,9 @@ export class CalendarView {
         });
 
         this.calendar.render();
+
+        // 添加自定义样式
+        this.addCustomStyles();
 
         // 监听提醒更新事件
         window.addEventListener('reminderUpdated', this.refreshEvents.bind(this));
@@ -513,7 +526,7 @@ export class CalendarView {
 
             if (reminderData[reminderId]) {
                 const isCurrentlyAllDay = calendarEvent.allDay;
-                
+
                 if (isCurrentlyAllDay) {
                     // 修改为定时事件，设置默认时间
                     reminderData[reminderId].time = "09:00";
@@ -538,7 +551,7 @@ export class CalendarView {
 
     private async showTimeEditDialog(calendarEvent: any) {
         const reminder = calendarEvent.extendedProps;
-        
+
         const dialog = new Dialog({
             title: "修改提醒时间",
             content: `
@@ -676,5 +689,24 @@ export class CalendarView {
             console.error('保存时间修改失败:', error);
             showMessage('保存失败，请重试');
         }
+    }
+
+    private addCustomStyles() {
+        // 检查是否已经添加过样式
+        if (document.querySelector('#reminder-calendar-custom-styles')) {
+            return;
+        }
+
+        const style = document.createElement('style');
+        style.id = 'reminder-calendar-custom-styles';
+        style.textContent = `
+            .fc-today-custom {
+                background-color:hsl(120, 42.90%, 95.90%) !important;
+            }
+            .fc-today-custom:hover {
+                background-color: #e8f5e8 !important;
+            }
+        `;
+        document.head.appendChild(style);
     }
 }
