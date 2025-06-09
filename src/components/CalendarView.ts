@@ -2,7 +2,7 @@ import { Calendar } from '@fullcalendar/core';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { showMessage, confirm, openTab, Menu } from "siyuan";
+import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
 import { readReminderData, writeReminderData, getBlockByID } from "../api";
 import { getLocalDateTime } from "../utils/dateUtils";
 
@@ -103,6 +103,24 @@ export class CalendarView {
             label: calendarEvent.extendedProps.completed ? "标记为未完成" : "标记为已完成",
             click: () => {
                 this.toggleEventCompleted(calendarEvent);
+            }
+        });
+
+        menu.addSeparator();
+
+        menu.addItem({
+            iconHTML: calendarEvent.allDay ? "⏰" : "📅",
+            label: calendarEvent.allDay ? "修改为定时事件" : "修改为全天事件",
+            click: () => {
+                this.toggleAllDayEvent(calendarEvent);
+            }
+        });
+
+        menu.addItem({
+            iconHTML: "📝",
+            label: "修改时间",
+            click: () => {
+                this.showTimeEditDialog(calendarEvent);
             }
         });
 
@@ -485,6 +503,178 @@ export class CalendarView {
             this.calendar.render();
         } catch (error) {
             console.error('刷新事件失败:', error);
+        }
+    }
+
+    private async toggleAllDayEvent(calendarEvent: any) {
+        try {
+            const reminderId = calendarEvent.id;
+            const reminderData = await readReminderData();
+
+            if (reminderData[reminderId]) {
+                const isCurrentlyAllDay = calendarEvent.allDay;
+                
+                if (isCurrentlyAllDay) {
+                    // 修改为定时事件，设置默认时间
+                    reminderData[reminderId].time = "09:00";
+                    delete reminderData[reminderId].endTime;
+                } else {
+                    // 修改为全天事件，删除时间信息
+                    delete reminderData[reminderId].time;
+                    delete reminderData[reminderId].endTime;
+                }
+
+                await writeReminderData(reminderData);
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                await this.refreshEvents();
+
+                showMessage(isCurrentlyAllDay ? '已修改为定时事件' : '已修改为全天事件');
+            }
+        } catch (error) {
+            console.error('切换全天事件失败:', error);
+            showMessage('切换失败，请重试');
+        }
+    }
+
+    private async showTimeEditDialog(calendarEvent: any) {
+        const reminder = calendarEvent.extendedProps;
+        
+        const dialog = new Dialog({
+            title: "修改提醒时间",
+            content: `
+                <div class="time-edit-dialog">
+                    <div class="b3-dialog__content">
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">开始日期</label>
+                            <input type="date" id="editReminderDate" class="b3-text-field" value="${reminder.date}" required>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">结束日期（可选）</label>
+                            <input type="date" id="editReminderEndDate" class="b3-text-field" value="${reminder.endDate || ''}" placeholder="留空表示单日事件">
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">提醒时间</label>
+                            <input type="time" id="editReminderTime" class="b3-text-field" value="${reminder.time || ''}">
+                            <div class="b3-form__desc">留空表示全天提醒</div>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-checkbox">
+                                <input type="checkbox" id="editNoSpecificTime" ${!reminder.time ? 'checked' : ''}>
+                                <span class="b3-checkbox__graphic"></span>
+                                <span class="b3-checkbox__label">全天提醒</span>
+                            </label>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">备注</label>
+                            <textarea id="editReminderNote" class="b3-text-field" placeholder="输入提醒备注..." rows="3">${reminder.note || ''}</textarea>
+                        </div>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="editCancelBtn">取消</button>
+                        <button class="b3-button b3-button--primary" id="editConfirmBtn">保存</button>
+                    </div>
+                </div>
+            `,
+            width: "400px",
+            height: "380px"
+        });
+
+        // 绑定事件处理逻辑
+        const cancelBtn = dialog.element.querySelector('#editCancelBtn') as HTMLButtonElement;
+        const confirmBtn = dialog.element.querySelector('#editConfirmBtn') as HTMLButtonElement;
+        const noTimeCheckbox = dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
+        const timeInput = dialog.element.querySelector('#editReminderTime') as HTMLInputElement;
+        const startDateInput = dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
+        const endDateInput = dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
+        const noteInput = dialog.element.querySelector('#editReminderNote') as HTMLTextAreaElement;
+
+        cancelBtn.addEventListener('click', () => {
+            dialog.destroy();
+        });
+
+        confirmBtn.addEventListener('click', async () => {
+            await this.saveTimeEdit(calendarEvent.id, dialog);
+        });
+
+        noTimeCheckbox.addEventListener('change', () => {
+            timeInput.disabled = noTimeCheckbox.checked;
+            if (noTimeCheckbox.checked) {
+                timeInput.value = '';
+            }
+        });
+
+        startDateInput.addEventListener('change', () => {
+            const startDate = startDateInput.value;
+            const endDate = endDateInput.value;
+
+            if (endDate && endDate < startDate) {
+                endDateInput.value = startDate;
+                showMessage('结束日期已自动调整为开始日期');
+            }
+
+            endDateInput.min = startDate;
+        });
+
+        endDateInput.addEventListener('change', () => {
+            const startDate = startDateInput.value;
+            const endDate = endDateInput.value;
+
+            if (endDate && endDate < startDate) {
+                endDateInput.value = startDate;
+                showMessage('结束日期不能早于开始日期');
+            }
+        });
+    }
+
+    private async saveTimeEdit(reminderId: string, dialog: any) {
+        const dateInput = dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
+        const endDateInput = dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
+        const timeInput = dialog.element.querySelector('#editReminderTime') as HTMLInputElement;
+        const noTimeCheckbox = dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
+        const noteInput = dialog.element.querySelector('#editReminderNote') as HTMLTextAreaElement;
+
+        const date = dateInput.value;
+        const endDate = endDateInput.value;
+        const time = noTimeCheckbox.checked ? undefined : timeInput.value;
+        const note = noteInput.value.trim() || undefined;
+
+        if (!date) {
+            showMessage('请选择提醒日期');
+            return;
+        }
+
+        if (endDate && endDate < date) {
+            showMessage('结束日期不能早于开始日期');
+            return;
+        }
+
+        try {
+            const reminderData = await readReminderData();
+            if (reminderData[reminderId]) {
+                reminderData[reminderId].date = date;
+                reminderData[reminderId].time = time;
+                reminderData[reminderId].note = note;
+
+                if (endDate && endDate !== date) {
+                    reminderData[reminderId].endDate = endDate;
+                } else {
+                    delete reminderData[reminderId].endDate;
+                }
+
+                await writeReminderData(reminderData);
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                await this.refreshEvents();
+
+                const isSpanning = endDate && endDate !== date;
+                const timeStr = time ? ` ${time}` : '';
+                const dateStr = isSpanning ? `${date} → ${endDate}${timeStr}` : `${date}${timeStr}`;
+                showMessage(`提醒时间已更新为: ${dateStr}`);
+
+                dialog.destroy();
+            }
+        } catch (error) {
+            console.error('保存时间修改失败:', error);
+            showMessage('保存失败，请重试');
         }
     }
 }
