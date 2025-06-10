@@ -292,9 +292,9 @@ export class ReminderEditDialog {
         try {
             const originalId = instanceData.originalId;
             const instanceDate = instanceData.instanceDate;
-            
+
             const reminderData = await readReminderData();
-            
+
             if (!reminderData[originalId]) {
                 throw new Error('原始事件不存在');
             }

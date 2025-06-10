@@ -885,7 +885,7 @@ export class CalendarView {
         try {
             const reminderData = await readReminderData();
             const originalReminder = reminderData[originalId];
-            
+
             if (!originalReminder) {
                 showMessage(t("reminderDataNotExist"));
                 return;
@@ -924,9 +924,9 @@ export class CalendarView {
                 try {
                     const originalId = calendarEvent.extendedProps.originalId;
                     const instanceDate = calendarEvent.extendedProps.date;
-                    
+
                     await this.addExcludedDate(originalId, instanceDate);
-                    
+
                     showMessage(t("instanceDeleted"));
                     await this.refreshEvents();
                     window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -942,7 +942,7 @@ export class CalendarView {
         // 为原始重复事件添加排除日期
         try {
             const reminderData = await readReminderData();
-            
+
             if (reminderData[originalId]) {
                 if (!reminderData[originalId].repeat) {
                     throw new Error('不是重复事件');
@@ -973,9 +973,9 @@ export class CalendarView {
         try {
             const originalId = instanceData.originalId;
             const instanceDate = instanceData.instanceDate;
-            
+
             const reminderData = await readReminderData();
-            
+
             if (!reminderData[originalId]) {
                 throw new Error('原始事件不存在');
             }
@@ -998,7 +998,7 @@ export class CalendarView {
             };
 
             await writeReminderData(reminderData);
-            
+
             showMessage(t("instanceModified"));
         } catch (error) {
             console.error('保存实例修改失败:', error);

@@ -248,11 +248,11 @@ export class ReminderPanel {
 
             // 处理重复事件 - 生成重复实例
             const allReminders = [];
-            
+
             reminders.forEach((reminder: any) => {
                 // 添加原始事件
                 allReminders.push(reminder);
-                
+
                 // 如果有重复设置，生成重复事件实例
                 if (reminder.repeat?.enabled) {
                     const now = new Date();
@@ -260,7 +260,7 @@ export class ReminderPanel {
                     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
                     const startDate = monthStart.toISOString().split('T')[0];
                     const endDate = monthEnd.toISOString().split('T')[0];
-                    
+
                     const repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
                     repeatInstances.forEach(instance => {
                         // 跳过与原始事件相同日期的实例
@@ -675,8 +675,8 @@ export class ReminderPanel {
             const repeatIcon = document.createElement('span');
             repeatIcon.className = 'reminder-repeat-icon';
             repeatIcon.textContent = '🔄';
-            repeatIcon.title = reminder.repeat?.enabled ? 
-                getRepeatDescription(reminder.repeat) : 
+            repeatIcon.title = reminder.repeat?.enabled ?
+                getRepeatDescription(reminder.repeat) :
                 t("repeatInstance");
             repeatIcon.style.cssText = `
                 font-size: 12px;
@@ -750,7 +750,7 @@ export class ReminderPanel {
         try {
             const reminderData = await readReminderData();
             const originalReminder = reminderData[originalId];
-            
+
             if (originalReminder) {
                 this.showTimeEditDialog(originalReminder);
             } else {
@@ -841,7 +841,7 @@ export class ReminderPanel {
         try {
             const reminderData = await readReminderData();
             const originalReminder = reminderData[originalId];
-            
+
             if (originalReminder) {
                 this.deleteReminder(originalReminder);
             } else {

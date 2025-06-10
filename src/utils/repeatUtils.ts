@@ -55,12 +55,12 @@ export function generateRepeatInstances(
             }
 
             // 检查是否符合重复规则且不在排除列表中
-            if (shouldGenerateInstance(currentDate, reminder.date, repeatConfig) && 
+            if (shouldGenerateInstance(currentDate, reminder.date, repeatConfig) &&
                 !excludeDates.includes(currentDateStr)) {
-                
+
                 // 检查是否有针对此实例的修改
                 const modification = instanceModifications[currentDateStr];
-                
+
                 const instance: RepeatInstance = {
                     date: modification?.date || currentDateStr,
                     time: modification?.time || reminder.time,
