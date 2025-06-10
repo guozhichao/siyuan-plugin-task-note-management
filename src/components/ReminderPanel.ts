@@ -14,10 +14,12 @@ export class ReminderPanel {
     private currentSort: string = 'time';
     private reminderUpdatedHandler: () => void;
     private sortConfigUpdatedHandler: (event: CustomEvent) => void;
+    private closeCallback?: () => void; // 添加关闭回调
 
-    constructor(container: HTMLElement, plugin?: any) {
+    constructor(container: HTMLElement, plugin?: any, closeCallback?: () => void) {
         this.container = container;
         this.plugin = plugin;
+        this.closeCallback = closeCallback; // 存储关闭回调
 
         // 创建事件处理器
         this.reminderUpdatedHandler = () => {
@@ -461,6 +463,14 @@ export class ReminderPanel {
 
             if (response.ok) {
                 window.open(`siyuan://blocks/${blockId}`, '_self');
+                
+                // 跳转成功后，如果是悬浮面板，自动关闭对话框
+                if (this.closeCallback) {
+                    // 延迟关闭，确保跳转操作完成
+                    setTimeout(() => {
+                        this.closeCallback();
+                    }, 100);
+                }
             } else {
                 throw new Error('无法获取块信息');
             }

@@ -124,7 +124,10 @@ export default class ReminderPlugin extends Plugin {
         // 在悬浮窗口中创建提醒面板
         const floatContainer = dialog.element.querySelector('#floatReminderPanel') as HTMLElement;
         if (floatContainer) {
-            new ReminderPanel(floatContainer, this);
+            // 传递关闭对话框的回调函数
+            new ReminderPanel(floatContainer, this, () => {
+                dialog.destroy();
+            });
         }
     }
 
