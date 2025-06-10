@@ -1,15 +1,26 @@
 import { showMessage, Dialog } from "siyuan";
 import { readReminderData, writeReminderData } from "../api";
 import { t } from "../utils/i18n";
+import { RepeatSettingsDialog, RepeatConfig } from "./RepeatSettingsDialog";
+import { getRepeatDescription } from "../utils/repeatUtils";
 
 export class ReminderEditDialog {
     private dialog: Dialog;
     private reminder: any;
     private onSaved?: () => void;
+    private repeatConfig: RepeatConfig; // 添加重复配置
 
     constructor(reminder: any, onSaved?: () => void) {
         this.reminder = reminder;
         this.onSaved = onSaved;
+
+        // 初始化重复配置
+        this.repeatConfig = reminder.repeat || {
+            enabled: false,
+            type: 'daily',
+            interval: 1,
+            endType: 'never'
+        };
     }
 
     public show() {
@@ -70,6 +81,18 @@ export class ReminderEditDialog {
                             <span class="b3-checkbox__label">${t("allDayReminder")}</span>
                         </label>
                     </div>
+                    
+                    <!-- 添加重复设置 -->
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">${t("repeatSettings")}</label>
+                        <div class="repeat-setting-container">
+                            <button type="button" id="editRepeatSettingsBtn" class="b3-button b3-button--outline" style="width: 100%;">
+                                <span id="editRepeatDescription">${this.repeatConfig.enabled ? getRepeatDescription(this.repeatConfig) : t("noRepeat")}</span>
+                                <svg class="b3-button__icon" style="margin-left: auto;"><use xlink:href="#iconRight"></use></svg>
+                            </button>
+                        </div>
+                    </div>
+                    
                     <div class="b3-form__group">
                         <label class="b3-form__label">${t("reminderNote")}</label>
                         <textarea id="editReminderNote" class="b3-text-field" placeholder="${t("enterReminderNote")}" rows="3" style="width: 100%;resize: vertical; min-height: 60px;">${this.reminder.note || ''}</textarea>
@@ -138,6 +161,28 @@ export class ReminderEditDialog {
                 showMessage(t("endDateCannotBeEarlier"));
             }
         });
+
+        // 重复设置按钮
+        const editRepeatSettingsBtn = this.dialog.element.querySelector('#editRepeatSettingsBtn') as HTMLButtonElement;
+        editRepeatSettingsBtn?.addEventListener('click', () => {
+            this.showRepeatSettingsDialog();
+        });
+    }
+
+    private showRepeatSettingsDialog() {
+        const repeatDialog = new RepeatSettingsDialog(this.repeatConfig, (config: RepeatConfig) => {
+            this.repeatConfig = config;
+            this.updateRepeatDescription();
+        });
+        repeatDialog.show();
+    }
+
+    private updateRepeatDescription() {
+        const repeatDescription = this.dialog.element.querySelector('#editRepeatDescription') as HTMLElement;
+        if (repeatDescription) {
+            const description = this.repeatConfig.enabled ? getRepeatDescription(this.repeatConfig) : t("noRepeat");
+            repeatDescription.textContent = description;
+        }
     }
 
     private async saveTimeEdit() {
@@ -179,6 +224,7 @@ export class ReminderEditDialog {
                 reminderData[this.reminder.id].time = time;
                 reminderData[this.reminder.id].note = note;
                 reminderData[this.reminder.id].priority = priority;
+                reminderData[this.reminder.id].repeat = this.repeatConfig.enabled ? this.repeatConfig : undefined; // 保存重复配置
 
                 if (endDate && endDate !== date) {
                     reminderData[this.reminder.id].endDate = endDate;
@@ -189,10 +235,17 @@ export class ReminderEditDialog {
                 await writeReminderData(reminderData);
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
+                // 显示保存成功消息，包含重复信息
                 const isSpanning = endDate && endDate !== date;
                 const timeStr = time ? ` ${time}` : '';
                 const dateStr = isSpanning ? `${date} → ${endDate}${timeStr}` : `${date}${timeStr}`;
-                showMessage(t("reminderUpdated") + `: ${dateStr}`);
+                let successMessage = t("reminderUpdated") + `: ${dateStr}`;
+
+                if (this.repeatConfig.enabled) {
+                    successMessage += `，${getRepeatDescription(this.repeatConfig)}`;
+                }
+
+                showMessage(successMessage);
 
                 // 调用保存回调
                 if (this.onSaved) {

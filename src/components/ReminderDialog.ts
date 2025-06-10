@@ -3,7 +3,9 @@ import { readReminderData, writeReminderData, getBlockByID } from "../api";
 import { getLocalDateString, getLocalTimeString, compareDateStrings } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { ReminderEditDialog } from "./ReminderEditDialog";
+import { RepeatSettingsDialog, RepeatConfig } from "./RepeatSettingsDialog";
 import { t } from "../utils/i18n";
+import { getRepeatDescription } from "../utils/repeatUtils";
 
 export class ReminderDialog {
     private blockId: string;
@@ -12,9 +14,18 @@ export class ReminderDialog {
     private reminderUpdatedHandler: () => void;
     private currentSort: string = 'time';
     private sortConfigUpdatedHandler: (event: CustomEvent) => void;
+    private repeatConfig: RepeatConfig; // 添加重复配置
 
     constructor(blockId: string) {
         this.blockId = blockId;
+
+        // 初始化重复配置
+        this.repeatConfig = {
+            enabled: false,
+            type: 'daily',
+            interval: 1,
+            endType: 'never'
+        };
 
         // 创建事件处理器
         this.reminderUpdatedHandler = () => {
@@ -113,6 +124,18 @@ export class ReminderDialog {
                                 <span class="b3-checkbox__label">${t("noSpecificTime")}</span>
                             </label>
                         </div>
+                        
+                        <!-- 添加重复设置 -->
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${t("repeatSettings")}</label>
+                            <div class="repeat-setting-container">
+                                <button type="button" id="repeatSettingsBtn" class="b3-button b3-button--outline" style="width: 100%;">
+                                    <span id="repeatDescription">${t("noRepeat")}</span>
+                                    <svg class="b3-button__icon" style="margin-left: auto;"><use xlink:href="#iconRight"></use></svg>
+                                </button>
+                            </div>
+                        </div>
+                        
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("reminderNoteOptional")}</label>
                             <textarea id="reminderNote" class="b3-text-field" placeholder="${t("enterReminderNote")}" rows="3" style="width: 100%;resize: vertical; min-height: 60px;"></textarea>
@@ -131,7 +154,7 @@ export class ReminderDialog {
                 </div>
             `,
             width: "450px",
-            height: "700px"
+            height: "750px"
         });
 
         this.bindEvents();
@@ -151,6 +174,7 @@ export class ReminderDialog {
         const startDateInput = this.dialog.element.querySelector('#reminderDate') as HTMLInputElement;
         const endDateInput = this.dialog.element.querySelector('#reminderEndDate') as HTMLInputElement;
         const prioritySelector = this.dialog.element.querySelector('#prioritySelector') as HTMLElement;
+        const repeatSettingsBtn = this.dialog.element.querySelector('#repeatSettingsBtn') as HTMLButtonElement;
 
         // 优先级选择事件
         prioritySelector.addEventListener('click', (e) => {
@@ -206,6 +230,27 @@ export class ReminderDialog {
                 showMessage(t("endDateCannotBeEarlier"));
             }
         });
+
+        // 重复设置按钮
+        repeatSettingsBtn?.addEventListener('click', () => {
+            this.showRepeatSettingsDialog();
+        });
+    }
+
+    private showRepeatSettingsDialog() {
+        const repeatDialog = new RepeatSettingsDialog(this.repeatConfig, (config: RepeatConfig) => {
+            this.repeatConfig = config;
+            this.updateRepeatDescription();
+        });
+        repeatDialog.show();
+    }
+
+    private updateRepeatDescription() {
+        const repeatDescription = this.dialog.element.querySelector('#repeatDescription') as HTMLElement;
+        if (repeatDescription) {
+            const description = this.repeatConfig.enabled ? getRepeatDescription(this.repeatConfig) : t("noRepeat");
+            repeatDescription.textContent = description;
+        }
     }
 
     private async saveReminder() {
@@ -246,11 +291,12 @@ export class ReminderDialog {
             const reminder = {
                 id: reminderId,
                 blockId: this.blockId,
-                title: title, // 使用用户输入的标题
+                title: title,
                 date: date,
                 completed: false,
                 priority: priority,
-                createdAt: new Date().toISOString()
+                createdAt: new Date().toISOString(),
+                repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined // 添加重复配置
             };
 
             if (endDate && endDate !== date) {
@@ -268,11 +314,19 @@ export class ReminderDialog {
             reminderData[reminderId] = reminder;
             await writeReminderData(reminderData);
 
+            // 显示保存成功消息，包含重复信息
+            let successMessage = t("reminderSaved");
             if (endDate && endDate !== date) {
-                showMessage(t("reminderSaved") + `：${date} → ${endDate}${time ? ` ${time}` : ''}`);
+                successMessage += `：${date} → ${endDate}${time ? ` ${time}` : ''}`;
             } else {
-                showMessage(t("reminderSaved") + `：${date}${time ? ` ${time}` : ''}`);
+                successMessage += `：${date}${time ? ` ${time}` : ''}`;
             }
+
+            if (this.repeatConfig.enabled) {
+                successMessage += `，${getRepeatDescription(this.repeatConfig)}`;
+            }
+
+            showMessage(successMessage);
 
             // 触发更新事件
             window.dispatchEvent(new CustomEvent('reminderUpdated'));

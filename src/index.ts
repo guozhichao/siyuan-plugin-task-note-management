@@ -18,6 +18,8 @@ import { ensureReminderDataFile } from "./api";
 import { CalendarView } from "./components/CalendarView";
 import { getLocalDateString, getLocalTimeString, compareDateStrings } from "./utils/dateUtils";
 import { t, setPluginInstance } from "./utils/i18n";
+import { RepeatConfig } from "./components/RepeatSettingsDialog";
+import { getRepeatDescription } from "./utils/repeatUtils";
 
 const STORAGE_NAME = "reminder-config";
 const TAB_TYPE = "reminder_calendar_tab";
@@ -318,8 +320,16 @@ export default class ReminderPlugin extends Plugin {
     }
 
     private showBatchReminderDialog(blockIds: string[]) {
-        const today = getLocalDateString(); // 使用本地日期
-        const currentTime = getLocalTimeString(); // 使用本地时间
+        const today = getLocalDateString();
+        const currentTime = getLocalTimeString();
+
+        // 初始化重复配置
+        let batchRepeatConfig: RepeatConfig = {
+            enabled: false,
+            type: 'daily',
+            interval: 1,
+            endType: 'never'
+        };
 
         const dialog = new Dialog({
             title: t("batchSetReminderBlocks", { count: blockIds.length.toString() }),
@@ -368,6 +378,18 @@ export default class ReminderPlugin extends Plugin {
                                 <span class="b3-checkbox__label">${t("noSpecificTime")}</span>
                             </label>
                         </div>
+                        
+                        <!-- 添加重复设置 -->
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${t("repeatSettings")}</label>
+                            <div class="repeat-setting-container">
+                                <button type="button" id="batchRepeatSettingsBtn" class="b3-button b3-button--outline" style="width: 100%;">
+                                    <span id="batchRepeatDescription">${t("noRepeat")}</span>
+                                    <svg class="b3-button__icon" style="margin-left: auto;"><use xlink:href="#iconRight"></use></svg>
+                                </button>
+                            </div>
+                        </div>
+                        
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("reminderNoteOptional")}</label>
                             <textarea id="batchReminderNote" class="b3-text-field" placeholder="${t("enterReminderNote")}" rows="3" style="resize: vertical; min-height: 60px;"></textarea>
@@ -383,7 +405,7 @@ export default class ReminderPlugin extends Plugin {
                 </div>
             `,
             width: "450px",
-            height: "480px"
+            height: "530px"
         });
 
         // 绑定事件
@@ -394,6 +416,7 @@ export default class ReminderPlugin extends Plugin {
         const startDateInput = dialog.element.querySelector('#batchReminderDate') as HTMLInputElement;
         const endDateInput = dialog.element.querySelector('#batchReminderEndDate') as HTMLInputElement;
         const prioritySelector = dialog.element.querySelector('#batchPrioritySelector') as HTMLElement;
+        const batchRepeatSettingsBtn = dialog.element.querySelector('#batchRepeatSettingsBtn') as HTMLButtonElement;
 
         // 优先级选择事件
         prioritySelector.addEventListener('click', (e) => {
@@ -405,12 +428,30 @@ export default class ReminderPlugin extends Plugin {
             }
         });
 
+        // 重复设置按钮
+        batchRepeatSettingsBtn?.addEventListener('click', () => {
+            const { RepeatSettingsDialog } = require("./components/RepeatSettingsDialog");
+            const repeatDialog = new RepeatSettingsDialog(batchRepeatConfig, (config: RepeatConfig) => {
+                batchRepeatConfig = config;
+                updateBatchRepeatDescription();
+            });
+            repeatDialog.show();
+        });
+
+        const updateBatchRepeatDescription = () => {
+            const repeatDescription = dialog.element.querySelector('#batchRepeatDescription') as HTMLElement;
+            if (repeatDescription) {
+                const description = batchRepeatConfig.enabled ? getRepeatDescription(batchRepeatConfig) : t("noRepeat");
+                repeatDescription.textContent = description;
+            }
+        };
+
         cancelBtn.addEventListener('click', () => {
             dialog.destroy();
         });
 
         confirmBtn.addEventListener('click', async () => {
-            await this.saveBatchReminders(blockIds, dialog);
+            await this.saveBatchReminders(blockIds, dialog, batchRepeatConfig);
         });
 
         noTimeCheckbox.addEventListener('change', () => {
@@ -444,7 +485,7 @@ export default class ReminderPlugin extends Plugin {
         });
     }
 
-    private async saveBatchReminders(blockIds: string[], dialog: Dialog) {
+    private async saveBatchReminders(blockIds: string[], dialog: Dialog, repeatConfig?: RepeatConfig) {
         const dateInput = dialog.element.querySelector('#batchReminderDate') as HTMLInputElement;
         const endDateInput = dialog.element.querySelector('#batchReminderEndDate') as HTMLInputElement;
         const timeInput = dialog.element.querySelector('#batchReminderTime') as HTMLInputElement;
@@ -487,7 +528,8 @@ export default class ReminderPlugin extends Plugin {
                             date: date,
                             completed: false,
                             priority: priority,
-                            createdAt: new Date().toISOString()
+                            createdAt: new Date().toISOString(),
+                            repeat: repeatConfig?.enabled ? repeatConfig : undefined // 添加重复配置
                         };
 
                         if (endDate && endDate !== date) {
@@ -521,12 +563,14 @@ export default class ReminderPlugin extends Plugin {
                 const dateStr = isSpanning ? `${date} → ${endDate}${timeStr}` : `${date}${timeStr}`;
                 const spanningText = isSpanning ? t("spanning") : '';
                 const failureText = failureCount > 0 ? t("batchFailure", { count: failureCount.toString() }) : '';
+                const repeatText = repeatConfig?.enabled ? `，${getRepeatDescription(repeatConfig)}` : '';
+
                 showMessage(t("batchSuccess", {
                     count: successCount.toString(),
                     spanning: spanningText,
                     date: dateStr,
                     failure: failureText
-                }));
+                }) + repeatText);
             } else {
                 showMessage(t("batchSetFailed"));
             }
