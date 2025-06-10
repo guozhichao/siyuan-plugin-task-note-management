@@ -347,33 +347,6 @@ export class ReminderDialog {
         window.dispatchEvent(new CustomEvent('reminderUpdated'));
     }
 
-    private async loadExistingReminder() {
-        try {
-            const reminderData = await readReminderData();
-            const blockReminders = Object.values(reminderData).filter((reminder: any) =>
-                reminder && reminder.blockId === this.blockId
-            );
-
-            const container = this.dialog.element.querySelector('#existingReminders') as HTMLElement;
-
-            if (blockReminders.length > 0 && container) {
-                const today = getLocalDateString();
-                container.innerHTML = '';
-
-                // 应用当前排序方式
-                this.sortReminders(blockReminders);
-
-                blockReminders.forEach((reminder: any) => {
-                    const reminderEl = this.createReminderElement(reminder, today);
-                    container.appendChild(reminderEl);
-                });
-            } else if (container) {
-                container.innerHTML = '<div class="reminder-empty">暂无现有提醒</div>';
-            }
-        } catch (error) {
-            console.error('加载现有提醒失败:', error);
-        }
-    }
 
     // 添加排序方法
     private sortReminders(reminders: any[]) {

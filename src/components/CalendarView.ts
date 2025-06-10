@@ -101,6 +101,7 @@ export class CalendarView {
         window.addEventListener('reminderUpdated', this.refreshEvents.bind(this));
     }
 
+
     private showEventContextMenu(event: MouseEvent, calendarEvent: any) {
         const menu = new Menu("calendarEventContextMenu");
 
@@ -676,5 +677,31 @@ export class CalendarView {
             }
         `;
         document.head.appendChild(style);
+    }
+
+    private async showTimeEditDialog(calendarEvent: any) {
+        try {
+            const reminderId = calendarEvent.id;
+            const reminderData = await readReminderData();
+
+            if (reminderData[reminderId]) {
+                const reminder = reminderData[reminderId];
+
+                const editDialog = new ReminderEditDialog(reminder, async () => {
+                    // 刷新日历事件
+                    await this.refreshEvents();
+
+                    // 触发全局更新事件
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                });
+
+                editDialog.show();
+            } else {
+                showMessage('提醒数据不存在');
+            }
+        } catch (error) {
+            console.error('打开修改对话框失败:', error);
+            showMessage('打开修改对话框失败，请重试');
+        }
     }
 }
