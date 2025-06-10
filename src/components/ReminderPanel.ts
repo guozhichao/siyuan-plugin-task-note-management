@@ -837,6 +837,12 @@ export class ReminderPanel {
         });
     }
 
+    private async showTimeEditDialog(reminder: any) {
+        const editDialog = new ReminderEditDialog(reminder, () => {
+            this.loadReminders();
+        });
+        editDialog.show();
+    }
     private async deleteOriginalReminder(originalId: string) {
         try {
             const reminderData = await readReminderData();
@@ -852,7 +858,33 @@ export class ReminderPanel {
             showMessage(t("deleteReminderFailed"));
         }
     }
+    private async deleteReminder(reminder: any) {
+        const result = await confirm(
+            t("deleteReminder"),
+            t("confirmDelete", { title: reminder.title }),
+            () => {
+                this.performDeleteReminder(reminder.id);
+            }
+        );
+    }
+    private async performDeleteReminder(reminderId: string) {
+        try {
+            const reminderData = await readReminderData();
 
+            if (reminderData[reminderId]) {
+                delete reminderData[reminderId];
+                await writeReminderData(reminderData);
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                showMessage(t("reminderDeleted"));
+                this.loadReminders();
+            } else {
+                showMessage(t("reminderNotExist"));
+            }
+        } catch (error) {
+            console.error('删除提醒失败:', error);
+            showMessage(t("deleteReminderFailed"));
+        }
+    }
     private updateReminderCounts(overdueCount: number, todayCount: number, upcomingCount: number, completedCount: number) {
         // 更新各个标签的提醒数量
         const overdueTab = this.container.querySelector('.reminder-tab[data-filter="overdue"]');
