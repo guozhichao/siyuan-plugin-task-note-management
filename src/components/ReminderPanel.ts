@@ -158,10 +158,19 @@ export class ReminderPanel {
         // 筛选控件
         const controls = document.createElement('div');
         controls.className = 'reminder-controls';
+        controls.style.cssText = `
+            display: flex;
+            gap: 8px;
+            width: 100%;
+        `;
 
         // 时间筛选
         this.filterSelect = document.createElement('select');
         this.filterSelect.className = 'b3-select';
+        this.filterSelect.style.cssText = `
+            flex: 1;
+            min-width: 0;
+        `;
         this.filterSelect.innerHTML = `
             <option value="today" selected>${t("todayReminders")}</option>
             <option value="tomorrow">${t("tomorrowReminders")}</option>
@@ -178,6 +187,10 @@ export class ReminderPanel {
         // 分类筛选
         this.categoryFilterSelect = document.createElement('select');
         this.categoryFilterSelect.className = 'b3-select';
+        this.categoryFilterSelect.style.cssText = `
+            flex: 1;
+            min-width: 0;
+        `;
         this.categoryFilterSelect.addEventListener('change', () => {
             this.currentCategoryFilter = this.categoryFilterSelect.value;
             this.loadReminders();
@@ -823,20 +836,6 @@ export class ReminderPanel {
         const titleContainer = document.createElement('div');
         titleContainer.className = 'reminder-item__title-container';
 
-        // 添加分类显示
-        if (reminder.categoryId) {
-            const category = this.categoryManager.getCategoryById(reminder.categoryId);
-            if (category) {
-                const categoryEl = document.createElement('div');
-                categoryEl.className = 'reminder-category-tag';
-                categoryEl.innerHTML = `
-                    <div class="category-dot" style="background-color: ${category.color};"></div>
-                    <span class="category-name">${category.name}</span>
-                `;
-                titleContainer.appendChild(categoryEl);
-            }
-        }
-
         // 标题
         const titleEl = document.createElement('a');
         titleEl.className = 'reminder-item__title';
@@ -917,6 +916,27 @@ export class ReminderPanel {
 
         infoEl.appendChild(titleContainer);
         infoEl.appendChild(timeContainer);
+
+        // 添加分类显示（移动到时间信息下方）
+        if (reminder.categoryId) {
+            const category = this.categoryManager.getCategoryById(reminder.categoryId);
+            if (category) {
+                const categoryContainer = document.createElement('div');
+                categoryContainer.className = 'reminder-item__category-container';
+                categoryContainer.style.cssText = `
+                    margin-top: 4px;
+                `;
+
+                const categoryEl = document.createElement('div');
+                categoryEl.className = 'reminder-category-tag';
+                categoryEl.innerHTML = `
+                    <div class="category-dot" style="background-color: ${category.color};"></div>
+                    <span class="category-name">${category.name}</span>
+                `;
+                categoryContainer.appendChild(categoryEl);
+                infoEl.appendChild(categoryContainer);
+            }
+        }
 
         // 备注
         if (reminder.note) {
