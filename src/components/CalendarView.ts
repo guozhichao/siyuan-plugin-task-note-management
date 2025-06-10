@@ -533,6 +533,26 @@ export class CalendarView {
             eventEl.appendChild(noteEl);
         }
 
+        // 添加重复图标（如果是重复事件）
+        if (eventInfo.event.extendedProps.isRepeated || eventInfo.event.extendedProps.repeat?.enabled) {
+            const repeatIcon = document.createElement('div');
+            repeatIcon.className = 'reminder-repeat-indicator';
+
+            if (eventInfo.event.extendedProps.isRepeated) {
+                // 重复事件实例
+                repeatIcon.classList.add('instance');
+                repeatIcon.innerHTML = '🔄';
+                repeatIcon.title = t("repeatInstance");
+            } else if (eventInfo.event.extendedProps.repeat?.enabled) {
+                // 原始重复事件
+                repeatIcon.classList.add('recurring');
+                repeatIcon.innerHTML = '🔁';
+                repeatIcon.title = t("repeatSeries");
+            }
+
+            wrapper.appendChild(repeatIcon);
+        }
+
         wrapper.appendChild(checkbox);
         wrapper.appendChild(eventEl);
 
@@ -1322,7 +1342,7 @@ export class CalendarView {
 
         let eventObj: any = {
             id: eventId,
-            title: reminder.title || t("unnamedNote"),
+            title: reminder.title || t("unnamedNote"), // 移除标题前的重复图标
             backgroundColor: backgroundColor,
             borderColor: borderColor,
             textColor: isCompleted ? '#999999' : '#ffffff',
@@ -1372,13 +1392,6 @@ export class CalendarView {
                 eventObj.allDay = true;
                 eventObj.display = 'block';
             }
-        }
-
-        // 为重复事件添加图标标识
-        if (isRepeated) {
-            eventObj.title = '🔄 ' + eventObj.title;
-        } else if (reminder.repeat?.enabled) {
-            eventObj.title = '🔁 ' + eventObj.title;
         }
 
         // 添加分类信息到标题

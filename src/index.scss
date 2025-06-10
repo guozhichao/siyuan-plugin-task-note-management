@@ -266,6 +266,7 @@
     gap: 4px;
     width: 100%;
     padding: 2px 4px;
+    position: relative; // 为绝对定位的图标提供参考点
 }
 
 .reminder-calendar-event-checkbox {
@@ -289,6 +290,32 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+// 周期重复图标样式
+.reminder-repeat-indicator {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 12px;
+    height: 12px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    z-index: 2;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.reminder-repeat-indicator.recurring {
+    color: #2196F3; // 原始重复事件用蓝色
+}
+
+.reminder-repeat-indicator.instance {
+    color: #FF9800; // 重复实例用橙色
 }
 
 // 提醒面板样式
