@@ -279,12 +279,15 @@ export class CalendarView {
                 const newStartDate = info.event.start;
                 const newEndDate = info.event.end;
 
-                if (originalReminder.endDate) {
-                    if (newEndDate) {
-                        const { dateStr: startDateStr } = getLocalDateTime(newStartDate);
+                // 使用本地时间处理日期和时间
+                const { dateStr: startDateStr, timeStr: startTimeStr } = getLocalDateTime(newStartDate);
+
+                if (newEndDate) {
+                    if (info.event.allDay) {
+                        // 全天事件：FullCalendar 的结束日期是排他的，需要减去一天
                         const endDate = new Date(newEndDate);
                         endDate.setDate(endDate.getDate() - 1);
-                        const endDateStr = endDate.toISOString().split('T')[0];
+                        const { dateStr: endDateStr } = getLocalDateTime(endDate);
 
                         reminderData[reminderId].date = startDateStr;
 
@@ -293,37 +296,46 @@ export class CalendarView {
                         } else {
                             delete reminderData[reminderId].endDate;
                         }
-                    } else {
-                        const { dateStr: startDateStr, timeStr } = getLocalDateTime(newStartDate);
-                        reminderData[reminderId].date = startDateStr;
-                        delete reminderData[reminderId].endDate;
 
-                        if (!info.event.allDay && timeStr) {
-                            reminderData[reminderId].time = timeStr;
+                        // 全天事件删除时间信息
+                        delete reminderData[reminderId].time;
+                        delete reminderData[reminderId].endTime;
+                    } else {
+                        // 定时事件：使用本地时间处理
+                        const { dateStr: endDateStr, timeStr: endTimeStr } = getLocalDateTime(newEndDate);
+
+                        reminderData[reminderId].date = startDateStr;
+
+                        if (startTimeStr) {
+                            reminderData[reminderId].time = startTimeStr;
+                        }
+
+                        if (endDateStr !== startDateStr) {
+                            // 跨天的定时事件
+                            reminderData[reminderId].endDate = endDateStr;
+                            if (endTimeStr) {
+                                reminderData[reminderId].endTime = endTimeStr;
+                            }
+                        } else {
+                            // 同一天的定时事件
+                            delete reminderData[reminderId].endDate;
+                            if (endTimeStr) {
+                                reminderData[reminderId].endTime = endTimeStr;
+                            } else {
+                                delete reminderData[reminderId].endTime;
+                            }
                         }
                     }
                 } else {
-                    if (newEndDate && info.event.allDay) {
-                        const { dateStr: startDateStr } = getLocalDateTime(newStartDate);
-                        const endDate = new Date(newEndDate);
-                        endDate.setDate(endDate.getDate() - 1);
-                        const endDateStr = endDate.toISOString().split('T')[0];
+                    // 单日事件
+                    reminderData[reminderId].date = startDateStr;
+                    delete reminderData[reminderId].endDate;
+                    delete reminderData[reminderId].endTime;
 
-                        reminderData[reminderId].date = startDateStr;
-
-                        if (endDateStr !== startDateStr) {
-                            reminderData[reminderId].endDate = endDateStr;
-                            delete reminderData[reminderId].time;
-                        }
-                    } else {
-                        const { dateStr: startDateStr, timeStr } = getLocalDateTime(newStartDate);
-                        reminderData[reminderId].date = startDateStr;
-
-                        if (!info.event.allDay && timeStr) {
-                            reminderData[reminderId].time = timeStr;
-                        } else if (info.event.allDay) {
-                            delete reminderData[reminderId].time;
-                        }
+                    if (!info.event.allDay && startTimeStr) {
+                        reminderData[reminderId].time = startTimeStr;
+                    } else if (info.event.allDay) {
+                        delete reminderData[reminderId].time;
                     }
                 }
 
