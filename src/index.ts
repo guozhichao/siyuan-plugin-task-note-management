@@ -35,7 +35,7 @@ export default class ReminderPlugin extends Plugin {
 
         // 添加顶栏按钮
         this.topBarElement = this.addTopBar({
-            icon: "iconCalendar",
+            icon: "iconClock",
             title: "时间提醒",
             position: "left",
             callback: () => this.openReminderFloatPanel()
@@ -46,7 +46,7 @@ export default class ReminderPlugin extends Plugin {
             config: {
                 position: "LeftTop",
                 size: { width: 300, height: 400 },
-                icon: "iconCalendar",
+                icon: "iconClock",
                 title: "时间提醒",
                 hotkey: "⌥⌘R"
             },
