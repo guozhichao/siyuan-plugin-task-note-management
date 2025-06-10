@@ -600,7 +600,7 @@ export class ReminderPanel {
             console.error('打开块失败:', error);
 
             // 询问用户是否删除无效的提醒
-            const result = await confirm(
+            await confirm(
                 t("openNoteFailedDelete"),
                 t("noteBlockDeleted"),
                 async () => {
@@ -860,89 +860,116 @@ export class ReminderPanel {
         }
     }
 
+    /**
+     * [MODIFIED] This function has been refactored to handle all reminder types
+     * and provide a consistent context menu as per user request.
+     */
     private showReminderContextMenu(event: MouseEvent, reminder: any) {
         const menu = new Menu("reminderContextMenu");
 
-        // 对于重复事件实例，提供不同的选项
+        // Helper to create priority submenu items, to avoid code repetition.
+        const createPriorityMenuItems = () => {
+            const menuItems = [];
+            const priorities = [
+                { key: 'high', label: t("high"), icon: '🔴' },
+                { key: 'medium', label: t("medium"), icon: '🟡' },
+                { key: 'low', label: t("low"), icon: '🔵' },
+                { key: 'none', label: t("none"), icon: '⚫' }
+            ];
+
+            const currentPriority = reminder.priority || 'none';
+
+            priorities.forEach(priority => {
+                menuItems.push({
+                    iconHTML: priority.icon,
+                    label: priority.label,
+                    current: currentPriority === priority.key, // Visually indicate the current priority
+                    click: () => {
+                        // For instances, priority is set on the original event.
+                        const targetId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
+                        this.setPriority(targetId, priority.key);
+                    }
+                });
+            });
+            return menuItems;
+        };
+
         if (reminder.isRepeatInstance) {
+            // --- Menu for a REPEAT INSTANCE ---
             menu.addItem({
                 iconHTML: "📝",
                 label: t("modifyThisInstance"),
-                click: () => {
-                    this.editInstanceReminder(reminder);
-                }
+                click: () => this.editInstanceReminder(reminder)
             });
-
             menu.addItem({
                 iconHTML: "📝",
-                label: t("modifyAllInstances"),
-                click: () => {
-                    // 直接从当前实例开始修改（分割系列）
-                    this.editInstanceAsNewSeries(reminder);
-                }
+                label: t("modifyAllInstances"), // This will split the series
+                click: () => this.editInstanceAsNewSeries(reminder)
             });
-        } else {
             menu.addItem({
-                iconHTML: "📝",
-                label: t("modify"),
-                click: () => {
-                    this.showTimeEditDialog(reminder);
-                }
+                iconHTML: "🎯",
+                label: t("setPriority"),
+                submenu: createPriorityMenuItems()
             });
-        }
-
-        // 添加优先级设置子菜单
-        const priorityMenuItems = [];
-        const priorities = [
-            { key: 'high', label: t("high"), color: '#e74c3c', icon: '🔴' },
-            { key: 'medium', label: t("medium"), color: '#f39c12', icon: '🟡' },
-            { key: 'low', label: t("low"), color: '#3498db', icon: '🔵' },
-            { key: 'none', label: t("none"), color: '#95a5a6', icon: '⚫' }
-        ];
-
-        priorities.forEach(priority => {
-            priorityMenuItems.push({
-                iconHTML: priority.icon,
-                label: priority.label,
-                click: () => {
-                    // 对于重复事件实例，设置原始事件的优先级
-                    const targetId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
-                    this.setPriority(targetId, priority.key);
-                }
-            });
-        });
-
-        menu.addItem({
-            iconHTML: "🎯",
-            label: t("setPriority"),
-            submenu: priorityMenuItems
-        });
-
-        menu.addSeparator();
-
-        if (reminder.isRepeatInstance) {
+            menu.addSeparator();
             menu.addItem({
                 iconHTML: "🗑️",
                 label: t("deleteThisInstance"),
-                click: () => {
-                    this.deleteInstanceOnly(reminder);
-                }
+                click: () => this.deleteInstanceOnly(reminder)
             });
-
             menu.addItem({
                 iconHTML: "🗑️",
                 label: t("deleteAllInstances"),
-                click: () => {
-                    this.deleteOriginalReminder(reminder.originalId);
-                }
+                click: () => this.deleteOriginalReminder(reminder.originalId)
             });
+
+        } else if (reminder.repeat?.enabled) {
+            // --- Menu for the ORIGINAL RECURRING EVENT (User Request) ---
+            // This logic has been completely updated based on the new request.
+            menu.addItem({
+                iconHTML: "📝",
+                label: t("modifyThisInstance"), // "修改并分割系列"
+                click: () => this.splitRecurringReminder(reminder)
+            });
+            menu.addItem({
+                iconHTML: "📝",
+                label: t("modifyAllInstances"), // Edits the entire series template
+                click: () => this.showTimeEditDialog(reminder)
+            });
+            menu.addItem({
+                iconHTML: "🎯",
+                label: t("setPriority"),
+                submenu: createPriorityMenuItems()
+            });
+            menu.addSeparator();
+            menu.addItem({
+                iconHTML: "🗑️",
+                label: t("deleteThisInstance"), // "跳过首次发生"
+                click: () => this.skipFirstOccurrence(reminder)
+            });
+            menu.addItem({
+                iconHTML: "🗑️",
+                label: t("deleteAllInstances"), // Deletes the entire series
+                click: () => this.deleteReminder(reminder)
+            });
+
         } else {
+            // --- Menu for a SIMPLE, NON-RECURRING EVENT ---
+            menu.addItem({
+                iconHTML: "📝",
+                label: t("modify"),
+                click: () => this.showTimeEditDialog(reminder)
+            });
+            menu.addItem({
+                iconHTML: "🎯",
+                label: t("setPriority"),
+                submenu: createPriorityMenuItems()
+            });
+            menu.addSeparator();
             menu.addItem({
                 iconHTML: "🗑️",
                 label: t("deleteReminder"),
-                click: () => {
-                    this.deleteReminder(reminder);
-                }
+                click: () => this.deleteReminder(reminder)
             });
         }
 
@@ -952,248 +979,226 @@ export class ReminderPanel {
         });
     }
 
-    // 新增：将实例作为新系列编辑（分割系列）
-    private async editInstanceAsNewSeries(reminder: any) {
-        try {
-            const originalId = reminder.originalId;
-            const instanceDate = reminder.date;
-            
-            const reminderData = await readReminderData();
-            const originalReminder = reminderData[originalId];
+    /**
+     * [NEW] Calculates the next occurrence date based on the repeat settings.
+     * @param startDateStr The starting date string (YYYY-MM-DD).
+     * @param repeat The repeat configuration object from RepeatConfig.
+     * @returns A Date object for the next occurrence.
+     */
+    private calculateNextDate(startDateStr: string, repeat: any): Date {
+        const startDate = new Date(startDateStr + 'T12:00:00');
+        if (isNaN(startDate.getTime())) {
+            console.error("Invalid start date for cycle calculation:", startDateStr);
+            return null;
+        }
 
-            if (!originalReminder) {
-                showMessage(t("reminderDataNotExist"));
-                return;
-            }
+        if (!repeat || !repeat.enabled) {
+            return null;
+        }
 
-            // 1. 在当前实例日期的前一天结束原始系列
-            const untilDate = new Date(instanceDate + 'T12:00:00Z');
-            untilDate.setUTCDate(untilDate.getUTCDate() - 1);
-            const newEndDateStr = untilDate.toISOString().split('T')[0];
+        switch (repeat.type) {
+            case 'daily':
+                return this.calculateDailyNext(startDate, repeat.interval || 1);
 
-            // 更新原始系列的结束日期
-            if (!originalReminder.repeat) { 
-                originalReminder.repeat = {}; 
-            }
-            originalReminder.repeat.endDate = newEndDateStr;
+            case 'weekly':
+                return this.calculateWeeklyNext(startDate, repeat.interval || 1);
 
-            // 2. 创建新的重复事件系列
-            const newReminder = JSON.parse(JSON.stringify(originalReminder));
+            case 'monthly':
+                return this.calculateMonthlyNext(startDate, repeat.interval || 1);
 
-            // 清理新提醒
-            delete newReminder.repeat.endDate;
-            delete newReminder.repeat.excludeDates;
-            delete newReminder.repeat.instanceModifications;
-            delete newReminder.repeat.completedInstances;
+            case 'yearly':
+                return this.calculateYearlyNext(startDate, repeat.interval || 1);
 
-            // 生成新的提醒ID
-            const blockId = originalReminder.blockId || originalReminder.id;
-            const newId = `${blockId}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-            newReminder.id = newId;
+            case 'custom':
+                return this.calculateCustomNext(startDate, repeat);
 
-            // 3. 设置新系列的开始日期为当前实例日期
-            newReminder.date = instanceDate;
-            newReminder.endDate = reminder.endDate;
-            newReminder.time = reminder.time;
-            newReminder.endTime = reminder.endTime;
+            case 'ebbinghaus':
+                return this.calculateEbbinghausNext(startDate, repeat.ebbinghausPattern || [1, 2, 4, 7, 15]);
 
-            // 4. 保存修改
-            reminderData[originalId] = originalReminder;
-            reminderData[newId] = newReminder;
-            await writeReminderData(reminderData);
-
-            // 5. 打开编辑对话框编辑新系列
-            const editDialog = new ReminderEditDialog(newReminder, async () => {
-                this.loadReminders();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
-            });
-            editDialog.show();
-
-        } catch (error) {
-            console.error('分割重复事件系列失败:', error);
-            showMessage(t("operationFailed"));
+            default:
+                console.error("Unknown repeat type:", repeat.type);
+                return null;
         }
     }
 
-    // 新增：编辑重复事件实例
-    private async editInstanceReminder(reminder: any) {
-        try {
-            const reminderData = await readReminderData();
-            const originalReminder = reminderData[reminder.originalId];
+    /**
+     * Calculate next daily occurrence
+     */
+    private calculateDailyNext(startDate: Date, interval: number): Date {
+        const nextDate = new Date(startDate);
+        nextDate.setDate(nextDate.getDate() + interval);
+        return nextDate;
+    }
 
-            if (!originalReminder) {
-                showMessage(t("reminderDataNotExist"));
-                return;
-            }
+    /**
+     * Calculate next weekly occurrence
+     */
+    private calculateWeeklyNext(startDate: Date, interval: number): Date {
+        const nextDate = new Date(startDate);
+        nextDate.setDate(nextDate.getDate() + (7 * interval));
+        return nextDate;
+    }
 
-            // 检查实例级别的修改（包括备注）
-            const instanceModifications = originalReminder.repeat?.instanceModifications || {};
-            const instanceMod = instanceModifications[reminder.date];
+    /**
+     * Calculate next monthly occurrence
+     */
+    private calculateMonthlyNext(startDate: Date, interval: number): Date {
+        const nextDate = new Date(startDate);
+        nextDate.setMonth(nextDate.getMonth() + interval);
 
-            // 创建实例数据，包含当前实例的特定信息
-            const instanceData = {
-                ...originalReminder,
-                id: reminder.id,
-                date: reminder.date,
-                endDate: reminder.endDate,
-                time: reminder.time,
-                endTime: reminder.endTime,
-                // 修改备注逻辑：只有实例有明确的备注时才使用，否则为空
-                note: instanceMod?.note || '',  // 每个实例的备注都是独立的，默认为空
-                isInstance: true,
-                originalId: reminder.originalId,
-                instanceDate: reminder.date
-            };
-
-            const editDialog = new ReminderEditDialog(instanceData, async () => {
-                this.loadReminders();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
-            });
-            editDialog.show();
-        } catch (error) {
-            console.error('打开实例编辑对话框失败:', error);
-            showMessage(t("openModifyDialogFailed"));
+        // Handle month overflow (e.g., Jan 31 + 1 month should be Feb 28/29, not Mar 3)
+        if (nextDate.getDate() !== startDate.getDate()) {
+            nextDate.setDate(0); // Set to last day of previous month
         }
+
+        return nextDate;
     }
 
-    // 新增：删除单个重复事件实例
-    private async deleteInstanceOnly(reminder: any) {
-        const result = await confirm(
-            t("deleteThisInstance"),
-            t("confirmDeleteInstance"),
-            async () => {
-                try {
-                    const originalId = reminder.originalId;
-                    const instanceDate = reminder.date;
+    /**
+     * Calculate next yearly occurrence
+     */
+    private calculateYearlyNext(startDate: Date, interval: number): Date {
+        const nextDate = new Date(startDate);
+        nextDate.setFullYear(nextDate.getFullYear() + interval);
 
-                    await this.addExcludedDate(originalId, instanceDate);
-
-                    showMessage(t("instanceDeleted"));
-                    this.loadReminders();
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                } catch (error) {
-                    console.error('删除重复实例失败:', error);
-                    showMessage(t("deleteInstanceFailed"));
-                }
-            }
-        );
-    }
-
-    // 新增：为原始重复事件添加排除日期
-    private async addExcludedDate(originalId: string, excludeDate: string) {
-        try {
-            const reminderData = await readReminderData();
-
-            if (reminderData[originalId]) {
-                if (!reminderData[originalId].repeat) {
-                    throw new Error('不是重复事件');
-                }
-
-                // 初始化排除日期列表
-                if (!reminderData[originalId].repeat.excludeDates) {
-                    reminderData[originalId].repeat.excludeDates = [];
-                }
-
-                // 添加排除日期（如果还没有的话）
-                if (!reminderData[originalId].repeat.excludeDates.includes(excludeDate)) {
-                    reminderData[originalId].repeat.excludeDates.push(excludeDate);
-                }
-
-                await writeReminderData(reminderData);
-            } else {
-                throw new Error('原始事件不存在');
-            }
-        } catch (error) {
-            console.error('添加排除日期失败:', error);
-            throw error;
+        // Handle leap year edge case (Feb 29 -> Feb 28)
+        if (nextDate.getDate() !== startDate.getDate()) {
+            nextDate.setDate(0); // Set to last day of previous month
         }
+
+        return nextDate;
     }
 
-    private async showTimeEditDialog(reminder: any) {
-        const editDialog = new ReminderEditDialog(reminder, () => {
-            this.loadReminders();
-        });
-        editDialog.show();
-    }
+    /**
+     * Calculate next custom occurrence
+     */
+    private calculateCustomNext(startDate: Date, repeat: any): Date {
+        // For custom repeats, use the first available option
+        // Priority: weekDays > monthDays > months
 
-    // 新增：删除单个重复事件实例
-    private async deleteInstanceOnly(reminder: any) {
-        const result = await confirm(
-            t("deleteThisInstance"),
-            t("confirmDeleteInstance"),
-            async () => {
-                try {
-                    const originalId = reminder.originalId;
-                    const instanceDate = reminder.date;
-
-                    await this.addExcludedDate(originalId, instanceDate);
-
-                    showMessage(t("instanceDeleted"));
-                    this.loadReminders();
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                } catch (error) {
-                    console.error('删除重复实例失败:', error);
-                    showMessage(t("deleteInstanceFailed"));
-                }
-            }
-        );
-    }
-
-    // 新增：为原始重复事件添加排除日期
-    private async addExcludedDate(originalId: string, excludeDate: string) {
-        try {
-            const reminderData = await readReminderData();
-
-            if (reminderData[originalId]) {
-                if (!reminderData[originalId].repeat) {
-                    throw new Error('不是重复事件');
-                }
-
-                // 初始化排除日期列表
-                if (!reminderData[originalId].repeat.excludeDates) {
-                    reminderData[originalId].repeat.excludeDates = [];
-                }
-
-                // 添加排除日期（如果还没有的话）
-                if (!reminderData[originalId].repeat.excludeDates.includes(excludeDate)) {
-                    reminderData[originalId].repeat.excludeDates.push(excludeDate);
-                }
-
-                await writeReminderData(reminderData);
-            } else {
-                throw new Error('原始事件不存在');
-            }
-        } catch (error) {
-            console.error('添加排除日期失败:', error);
-            throw error;
+        if (repeat.weekDays && repeat.weekDays.length > 0) {
+            return this.calculateNextWeekday(startDate, repeat.weekDays);
         }
-    }
 
-    private async showTimeEditDialog(reminder: any) {
-        const editDialog = new ReminderEditDialog(reminder, () => {
-            this.loadReminders();
-        });
-        editDialog.show();
-    }
-
-    private async deleteOriginalReminder(originalId: string) {
-        try {
-            const reminderData = await readReminderData();
-            const originalReminder = reminderData[originalId];
-
-            if (originalReminder) {
-                this.deleteReminder(originalReminder);
-            } else {
-                showMessage(t("reminderDataNotExist"));
-            }
-        } catch (error) {
-            console.error('获取原始提醒失败:', error);
-            showMessage(t("deleteReminderFailed"));
+        if (repeat.monthDays && repeat.monthDays.length > 0) {
+            return this.calculateNextMonthday(startDate, repeat.monthDays);
         }
+
+        if (repeat.months && repeat.months.length > 0) {
+            return this.calculateNextMonth(startDate, repeat.months);
+        }
+
+        // Fallback to daily if no custom options
+        return this.calculateDailyNext(startDate, 1);
+    }
+
+    /**
+     * Calculate next occurrence based on weekdays
+     */
+    private calculateNextWeekday(startDate: Date, weekDays: number[]): Date {
+        const nextDate = new Date(startDate);
+        const currentWeekday = nextDate.getDay();
+
+        // Sort weekdays and find next one
+        const sortedWeekdays = [...weekDays].sort((a, b) => a - b);
+
+        // Find next weekday in the same week
+        let nextWeekday = sortedWeekdays.find(day => day > currentWeekday);
+
+        if (nextWeekday !== undefined) {
+            // Next occurrence is this week
+            const daysToAdd = nextWeekday - currentWeekday;
+            nextDate.setDate(nextDate.getDate() + daysToAdd);
+        } else {
+            // Next occurrence is next week, use first weekday
+            const daysToAdd = 7 - currentWeekday + sortedWeekdays[0];
+            nextDate.setDate(nextDate.getDate() + daysToAdd);
+        }
+
+        return nextDate;
+    }
+
+    /**
+     * Calculate next occurrence based on month days
+     */
+    private calculateNextMonthday(startDate: Date, monthDays: number[]): Date {
+        const nextDate = new Date(startDate);
+        const currentDay = nextDate.getDate();
+
+        // Sort month days and find next one
+        const sortedDays = [...monthDays].sort((a, b) => a - b);
+
+        // Find next day in the same month
+        let nextDay = sortedDays.find(day => day > currentDay);
+
+        if (nextDay !== undefined) {
+            // Check if the day exists in current month
+            const tempDate = new Date(nextDate.getFullYear(), nextDate.getMonth(), nextDay);
+            if (tempDate.getMonth() === nextDate.getMonth()) {
+                nextDate.setDate(nextDay);
+                return nextDate;
+            }
+        }
+
+        // Next occurrence is next month, use first day
+        nextDate.setMonth(nextDate.getMonth() + 1);
+        const firstDay = sortedDays[0];
+
+        // Ensure the day exists in the target month
+        const lastDayOfMonth = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate();
+        nextDate.setDate(Math.min(firstDay, lastDayOfMonth));
+
+        return nextDate;
+    }
+
+    /**
+     * Calculate next occurrence based on months
+     */
+    private calculateNextMonth(startDate: Date, months: number[]): Date {
+        const nextDate = new Date(startDate);
+        const currentMonth = nextDate.getMonth() + 1; // Convert to 1-based
+
+        // Sort months and find next one
+        const sortedMonths = [...months].sort((a, b) => a - b);
+
+        // Find next month in the same year
+        let nextMonth = sortedMonths.find(month => month > currentMonth);
+
+        if (nextMonth !== undefined) {
+            // Next occurrence is this year
+            nextDate.setMonth(nextMonth - 1); // Convert back to 0-based
+        } else {
+            // Next occurrence is next year, use first month
+            nextDate.setFullYear(nextDate.getFullYear() + 1);
+            nextDate.setMonth(sortedMonths[0] - 1); // Convert back to 0-based
+        }
+
+        // Handle day overflow for months with fewer days
+        const lastDayOfMonth = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate();
+        if (nextDate.getDate() > lastDayOfMonth) {
+            nextDate.setDate(lastDayOfMonth);
+        }
+
+        return nextDate;
+    }
+
+    /**
+     * Calculate next ebbinghaus occurrence
+     */
+    private calculateEbbinghausNext(startDate: Date, pattern: number[]): Date {
+        // For ebbinghaus, we need to track which step we're on
+        // This is a simplified version - in practice, you'd need to track state
+        const nextDate = new Date(startDate);
+
+        // Use the first interval in the pattern as default
+        const firstInterval = pattern[0] || 1;
+        nextDate.setDate(nextDate.getDate() + firstInterval);
+
+        return nextDate;
     }
 
     private async deleteReminder(reminder: any) {
-        const result = await confirm(
+        await confirm(
             t("deleteReminder"),
             t("confirmDelete", { title: reminder.title }),
             () => {
@@ -1324,5 +1329,297 @@ export class ReminderPanel {
                 </div>
             </div>
         `;
+    }
+
+    /**
+     * [NEW] Ends the current recurring series and starts a new one from the next cycle.
+     * @param reminder The original recurring reminder to split.
+     */
+    private async splitRecurringReminder(reminder: any) {
+        try {
+            const reminderData = await readReminderData();
+            const originalReminder = reminderData[reminder.id];
+            if (!originalReminder || !originalReminder.repeat?.enabled) {
+                showMessage(t("operationFailed"));
+                return;
+            }
+
+            // 1. Calculate the next occurrence date
+            const nextDate = this.calculateNextDate(originalReminder.date, originalReminder.repeat);
+            if (!nextDate) {
+                showMessage(t("operationFailed") + ": " + t("invalidRepeatConfig"));
+                return;
+            }
+            const nextDateStr = getLocalDateString(nextDate);
+
+            // 2. Duplicate the reminder to create a new series
+            const newReminder = JSON.parse(JSON.stringify(originalReminder));
+            const blockId = newReminder.blockId || newReminder.id;
+            newReminder.id = `${blockId}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            newReminder.date = nextDateStr;
+
+            // Also shift endDate if it exists
+            if (newReminder.endDate && originalReminder.date) {
+                try {
+                    const duration = new Date(newReminder.endDate).getTime() - new Date(originalReminder.date).getTime();
+                    if (!isNaN(duration)) {
+                        const newEndDate = new Date(nextDate.getTime() + duration);
+                        newReminder.endDate = getLocalDateString(newEndDate);
+                    }
+                } catch (e) { /* ignore date parsing errors */ }
+            }
+
+            // 3. End the original series on its start date
+            originalReminder.repeat.endDate = originalReminder.date;
+
+            // 4. Save changes
+            reminderData[originalReminder.id] = originalReminder;
+            reminderData[newReminder.id] = newReminder;
+            await writeReminderData(reminderData);
+
+
+            this.loadReminders();
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+        } catch (error) {
+            console.error('分割重复事件系列失败:', error);
+            showMessage(t("operationFailed"));
+        }
+    }
+
+    /**
+     * [NEW] Skips the first occurrence of a recurring series by moving its start date to the next cycle.
+     * @param reminder The original recurring reminder to modify.
+     */
+    private async skipFirstOccurrence(reminder: any) {
+        await confirm(
+            t("deleteThisInstance"),
+            t("confirmDeleteInstance"),
+            async () => {
+                try {
+                    const reminderData = await readReminderData();
+                    const originalReminder = reminderData[reminder.id];
+                    if (!originalReminder || !originalReminder.repeat?.enabled) {
+                        showMessage(t("operationFailed"));
+                        return;
+                    }
+
+                    // 1. Calculate next occurrence date
+                    const nextDate = this.calculateNextDate(originalReminder.date, originalReminder.repeat);
+                    if (!nextDate) {
+                        showMessage(t("operationFailed") + ": " + t("invalidRepeatConfig"));
+                        return;
+                    }
+                    const nextDateStr = getLocalDateString(nextDate);
+
+                    // Also calculate the duration for shifting endDate
+                    let duration = 0;
+                    if (originalReminder.endDate && originalReminder.date) {
+                        try {
+                            const d = new Date(originalReminder.endDate).getTime() - new Date(originalReminder.date).getTime();
+                            if (!isNaN(d)) duration = d;
+                        } catch (e) { /* ignore date parsing errors */ }
+                    }
+
+                    // 2. Update the start date of the original reminder
+                    originalReminder.date = nextDateStr;
+
+                    // 3. Update the end date if it exists
+                    if (originalReminder.endDate) {
+                        const newEndDate = new Date(nextDate.getTime() + duration);
+                        originalReminder.endDate = getLocalDateString(newEndDate);
+                    }
+
+                    // 4. Save changes
+                    reminderData[originalReminder.id] = originalReminder;
+                    await writeReminderData(reminderData);
+                    this.loadReminders();
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                } catch (error) {
+                    console.error('跳过第一次事件失败:', error);
+                    showMessage(t("operationFailed"));
+                }
+            }
+        );
+    }
+
+    // 新增：将实例作为新系列编辑（分割系列）
+    private async editInstanceAsNewSeries(reminder: any) {
+        try {
+            const originalId = reminder.originalId;
+            const instanceDate = reminder.date;
+
+            const reminderData = await readReminderData();
+            const originalReminder = reminderData[originalId];
+
+            if (!originalReminder) {
+                showMessage(t("reminderDataNotExist"));
+                return;
+            }
+
+            // 1. 在当前实例日期的前一天结束原始系列
+            const untilDate = new Date(instanceDate + 'T12:00:00Z');
+            untilDate.setUTCDate(untilDate.getUTCDate() - 1);
+            const newEndDateStr = untilDate.toISOString().split('T')[0];
+
+            // 更新原始系列的结束日期
+            if (!originalReminder.repeat) {
+                originalReminder.repeat = {};
+            }
+            originalReminder.repeat.endDate = newEndDateStr;
+
+            // 2. 创建新的重复事件系列
+            const newReminder = JSON.parse(JSON.stringify(originalReminder));
+
+            // 清理新提醒
+            delete newReminder.repeat.endDate;
+            delete newReminder.repeat.excludeDates;
+            delete newReminder.repeat.instanceModifications;
+            delete newReminder.repeat.completedInstances;
+
+            // 生成新的提醒ID
+            const blockId = originalReminder.blockId || originalReminder.id;
+            const newId = `${blockId}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            newReminder.id = newId;
+
+            // 3. 设置新系列的开始日期为当前实例日期
+            newReminder.date = instanceDate;
+            newReminder.endDate = reminder.endDate;
+            newReminder.time = reminder.time;
+            newReminder.endTime = reminder.endTime;
+
+            // 4. 保存修改
+            reminderData[originalId] = originalReminder;
+            reminderData[newId] = newReminder;
+            await writeReminderData(reminderData);
+
+            // 5. 打开编辑对话框编辑新系列
+            const editDialog = new ReminderEditDialog(newReminder, async () => {
+                this.loadReminders();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            });
+            editDialog.show();
+
+        } catch (error) {
+            console.error('分割重复事件系列失败:', error);
+            showMessage(t("operationFailed"));
+        }
+    }
+
+    // 新增：编辑重复事件实例
+    private async editInstanceReminder(reminder: any) {
+        try {
+            const reminderData = await readReminderData();
+            const originalReminder = reminderData[reminder.originalId];
+
+            if (!originalReminder) {
+                showMessage(t("reminderDataNotExist"));
+                return;
+            }
+
+            // 检查实例级别的修改（包括备注）
+            const instanceModifications = originalReminder.repeat?.instanceModifications || {};
+            const instanceMod = instanceModifications[reminder.date];
+
+            // 创建实例数据，包含当前实例的特定信息
+            const instanceData = {
+                ...originalReminder,
+                id: reminder.id,
+                date: reminder.date,
+                endDate: reminder.endDate,
+                time: reminder.time,
+                endTime: reminder.endTime,
+                // 修改备注逻辑：只有实例有明确的备注时才使用，否则为空
+                note: instanceMod?.note || '',  // 每个实例的备注都是独立的，默认为空
+                isInstance: true,
+                originalId: reminder.originalId,
+                instanceDate: reminder.date
+            };
+
+            const editDialog = new ReminderEditDialog(instanceData, async () => {
+                this.loadReminders();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            });
+            editDialog.show();
+        } catch (error) {
+            console.error('打开实例编辑对话框失败:', error);
+            showMessage(t("openModifyDialogFailed"));
+        }
+    }
+
+    // 新增：删除单个重复事件实例
+    private async deleteInstanceOnly(reminder: any) {
+        await confirm(
+            t("deleteThisInstance"),
+            t("confirmDeleteInstance"),
+            async () => {
+                try {
+                    const originalId = reminder.originalId;
+                    const instanceDate = reminder.date;
+
+                    await this.addExcludedDate(originalId, instanceDate);
+
+                    showMessage(t("instanceDeleted"));
+                    this.loadReminders();
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                } catch (error) {
+                    console.error('删除重复实例失败:', error);
+                    showMessage(t("deleteInstanceFailed"));
+                }
+            }
+        );
+    }
+
+    // 新增：为原始重复事件添加排除日期
+    private async addExcludedDate(originalId: string, excludeDate: string) {
+        try {
+            const reminderData = await readReminderData();
+
+            if (reminderData[originalId]) {
+                if (!reminderData[originalId].repeat) {
+                    throw new Error('不是重复事件');
+                }
+
+                // 初始化排除日期列表
+                if (!reminderData[originalId].repeat.excludeDates) {
+                    reminderData[originalId].repeat.excludeDates = [];
+                }
+
+                // 添加排除日期（如果还没有的话）
+                if (!reminderData[originalId].repeat.excludeDates.includes(excludeDate)) {
+                    reminderData[originalId].repeat.excludeDates.push(excludeDate);
+                }
+
+                await writeReminderData(reminderData);
+            } else {
+                throw new Error('原始事件不存在');
+            }
+        } catch (error) {
+            console.error('添加排除日期失败:', error);
+            throw error;
+        }
+    }
+
+    private async showTimeEditDialog(reminder: any) {
+        const editDialog = new ReminderEditDialog(reminder, () => {
+            this.loadReminders();
+        });
+        editDialog.show();
+    }
+
+    private async deleteOriginalReminder(originalId: string) {
+        try {
+            const reminderData = await readReminderData();
+            const originalReminder = reminderData[originalId];
+
+            if (originalReminder) {
+                this.deleteReminder(originalReminder);
+            } else {
+                showMessage(t("reminderDataNotExist"));
+            }
+        } catch (error) {
+            console.error('获取原始提醒失败:', error);
+            showMessage(t("deleteReminderFailed"));
+        }
     }
 }
