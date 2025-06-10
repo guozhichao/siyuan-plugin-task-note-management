@@ -521,7 +521,7 @@ export default class ReminderPlugin extends Plugin {
                 const dateStr = isSpanning ? `${date} → ${endDate}${timeStr}` : `${date}${timeStr}`;
                 const spanningText = isSpanning ? t("spanning") : '';
                 const failureText = failureCount > 0 ? t("batchFailure", { count: failureCount.toString() }) : '';
-                showMessage(t("batchSuccess", { 
+                showMessage(t("batchSuccess", {
                     count: successCount.toString(),
                     spanning: spanningText,
                     date: dateStr,
@@ -591,9 +591,9 @@ export default class ReminderPlugin extends Plugin {
 
                 if (shouldRemind && !reminder.notified) {
                     const noteText = reminder.note ? t("noteText", { note: reminder.note }) : '';
-                    showMessage(t("reminderNotification", { 
+                    showMessage(t("reminderNotification", {
                         title: reminder.title || t("unnamedNote"),
-                        note: noteText 
+                        note: noteText
                     }), 5000);
                     reminder.notified = true;
                     hasUpdates = true;
