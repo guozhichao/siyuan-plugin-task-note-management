@@ -148,6 +148,7 @@ export default class ReminderPlugin extends Plugin {
     private async updateBadges() {
         try {
             const { readReminderData } = await import("./api");
+            const { generateRepeatInstances } = await import("./utils/repeatUtils");
             const reminderData = await readReminderData();
 
             if (!reminderData || typeof reminderData !== 'object') {
@@ -164,18 +165,36 @@ export default class ReminderPlugin extends Plugin {
                     return;
                 }
 
-                let shouldCount = false;
+                // 处理非重复事件
+                if (!reminder.repeat?.enabled) {
+                    let shouldCount = false;
+                    if (reminder.endDate) {
+                        shouldCount = (compareDateStrings(reminder.date, today) <= 0 &&
+                            compareDateStrings(today, reminder.endDate) <= 0) ||
+                            compareDateStrings(reminder.endDate, today) < 0;
+                    } else {
+                        shouldCount = reminder.date === today || compareDateStrings(reminder.date, today) < 0;
+                    }
 
-                if (reminder.endDate) {
-                    shouldCount = (compareDateStrings(reminder.date, today) <= 0 &&
-                        compareDateStrings(today, reminder.endDate) <= 0) ||
-                        compareDateStrings(reminder.endDate, today) < 0;
+                    if (shouldCount) {
+                        uncompletedCount++;
+                    }
                 } else {
-                    shouldCount = reminder.date === today || compareDateStrings(reminder.date, today) < 0;
-                }
+                    // 处理重复事件 - 生成今天的实例并检查是否完成
+                    const instances = generateRepeatInstances(reminder, today, today);
+                    instances.forEach(instance => {
+                        if (!instance.completed) {
+                            uncompletedCount++;
+                        }
+                    });
 
-                if (shouldCount) {
-                    uncompletedCount++;
+                    // 如果今天是原始事件日期且未完成，也要计算
+                    if (reminder.date === today && !reminder.completed) {
+                        const completedInstances = reminder.repeat.completedInstances || [];
+                        if (!completedInstances.includes(today)) {
+                            uncompletedCount++;
+                        }
+                    }
                 }
             });
 

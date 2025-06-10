@@ -270,6 +270,14 @@ export class ReminderPanel {
                     repeatInstances.forEach(instance => {
                         // 跳过与原始事件相同日期的实例
                         if (instance.date !== reminder.date) {
+                            // 检查实例级别的完成状态
+                            const completedInstances = reminder.repeat?.completedInstances || [];
+                            const isInstanceCompleted = completedInstances.includes(instance.date);
+
+                            // 检查实例级别的修改（包括备注）
+                            const instanceModifications = reminder.repeat?.instanceModifications || {};
+                            const instanceMod = instanceModifications[instance.date];
+
                             const instanceReminder = {
                                 ...reminder,
                                 id: instance.instanceId,
@@ -278,7 +286,10 @@ export class ReminderPanel {
                                 time: instance.time,
                                 endTime: instance.endTime,
                                 isRepeatInstance: true,
-                                originalId: instance.originalId
+                                originalId: instance.originalId,
+                                completed: isInstanceCompleted, // 使用实例级别的完成状态
+                                // 使用实例级别的备注，如果没有则使用原始备注
+                                note: instanceMod?.note !== undefined ? instanceMod.note : reminder.note
                             };
 
                             // 对于明天的提醒，只保留最近的一个实例
@@ -507,10 +518,42 @@ export class ReminderPanel {
         });
     }
 
-    private async toggleReminder(reminderId: string, completed: boolean) {
+    private async toggleReminder(reminderId: string, completed: boolean, isRepeatInstance?: boolean, instanceDate?: string) {
         try {
             const reminderData = await readReminderData();
-            if (reminderData[reminderId]) {
+
+            if (isRepeatInstance && instanceDate) {
+                // 处理重复事件实例的完成状态
+                // 对于重复事件实例，直接使用传入的 reminderId 作为原始ID
+                const originalId = reminderId; // 这里 reminderId 应该是原始ID
+
+                if (reminderData[originalId]) {
+                    // 初始化已完成实例列表
+                    if (!reminderData[originalId].repeat.completedInstances) {
+                        reminderData[originalId].repeat.completedInstances = [];
+                    }
+
+                    const completedInstances = reminderData[originalId].repeat.completedInstances;
+
+                    if (completed) {
+                        // 添加到已完成列表
+                        if (!completedInstances.includes(instanceDate)) {
+                            completedInstances.push(instanceDate);
+                        }
+                    } else {
+                        // 从已完成列表中移除
+                        const index = completedInstances.indexOf(instanceDate);
+                        if (index > -1) {
+                            completedInstances.splice(index, 1);
+                        }
+                    }
+
+                    await writeReminderData(reminderData);
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    this.loadReminders();
+                }
+            } else if (reminderData[reminderId]) {
+                // 处理普通事件的完成状态
                 reminderData[reminderId].completed = completed;
                 await writeReminderData(reminderData);
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -673,14 +716,27 @@ export class ReminderPanel {
         const contentEl = document.createElement('div');
         contentEl.className = 'reminder-item__content';
 
-        // 复选框
+        // 复选框 - 修复完成状态检查
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
-        checkbox.checked = reminder.completed || false;
+
+        // 正确设置复选框状态
+        if (reminder.isRepeatInstance) {
+            // 对于重复事件实例，使用实例级别的完成状态
+            checkbox.checked = reminder.completed || false;
+        } else {
+            // 对于普通事件，使用事件本身的完成状态
+            checkbox.checked = reminder.completed || false;
+        }
+
         checkbox.addEventListener('change', () => {
-            // 对于重复事件实例，操作原始事件
-            const targetId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
-            this.toggleReminder(targetId, checkbox.checked);
+            if (reminder.isRepeatInstance) {
+                // 对于重复事件实例，使用原始ID和实例日期
+                this.toggleReminder(reminder.originalId, checkbox.checked, true, reminder.date);
+            } else {
+                // 对于普通事件，使用原有逻辑
+                this.toggleReminder(reminder.id, checkbox.checked);
+            }
         });
 
         // 信息容器
@@ -811,6 +867,14 @@ export class ReminderPanel {
         if (reminder.isRepeatInstance) {
             menu.addItem({
                 iconHTML: "📝",
+                label: t("modifyThisInstance"),
+                click: () => {
+                    this.editInstanceReminder(reminder);
+                }
+            });
+
+            menu.addItem({
+                iconHTML: "📝",
                 label: t("modifyAllInstances"),
                 click: () => {
                     this.editOriginalReminder(reminder.originalId);
@@ -858,6 +922,14 @@ export class ReminderPanel {
         if (reminder.isRepeatInstance) {
             menu.addItem({
                 iconHTML: "🗑️",
+                label: t("deleteThisInstance"),
+                click: () => {
+                    this.deleteInstanceOnly(reminder);
+                }
+            });
+
+            menu.addItem({
+                iconHTML: "🗑️",
                 label: t("deleteAllInstances"),
                 click: () => {
                     this.deleteOriginalReminder(reminder.originalId);
@@ -879,12 +951,102 @@ export class ReminderPanel {
         });
     }
 
+    // 新增：编辑重复事件实例
+    private async editInstanceReminder(reminder: any) {
+        try {
+            const reminderData = await readReminderData();
+            const originalReminder = reminderData[reminder.originalId];
+
+            if (!originalReminder) {
+                showMessage(t("reminderDataNotExist"));
+                return;
+            }
+
+            // 创建实例数据，包含当前实例的特定信息
+            const instanceData = {
+                ...originalReminder,
+                id: reminder.id,
+                date: reminder.date,
+                endDate: reminder.endDate,
+                time: reminder.time,
+                endTime: reminder.endTime,
+                note: reminder.note, // 使用实例级别的备注
+                isInstance: true,
+                originalId: reminder.originalId,
+                instanceDate: reminder.date
+            };
+
+            const editDialog = new ReminderEditDialog(instanceData, async () => {
+                this.loadReminders();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            });
+            editDialog.show();
+        } catch (error) {
+            console.error('打开实例编辑对话框失败:', error);
+            showMessage(t("openModifyDialogFailed"));
+        }
+    }
+
+    // 新增：删除单个重复事件实例
+    private async deleteInstanceOnly(reminder: any) {
+        const result = await confirm(
+            t("deleteThisInstance"),
+            t("confirmDeleteInstance"),
+            async () => {
+                try {
+                    const originalId = reminder.originalId;
+                    const instanceDate = reminder.date;
+
+                    await this.addExcludedDate(originalId, instanceDate);
+
+                    showMessage(t("instanceDeleted"));
+                    this.loadReminders();
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                } catch (error) {
+                    console.error('删除重复实例失败:', error);
+                    showMessage(t("deleteInstanceFailed"));
+                }
+            }
+        );
+    }
+
+    // 新增：为原始重复事件添加排除日期
+    private async addExcludedDate(originalId: string, excludeDate: string) {
+        try {
+            const reminderData = await readReminderData();
+
+            if (reminderData[originalId]) {
+                if (!reminderData[originalId].repeat) {
+                    throw new Error('不是重复事件');
+                }
+
+                // 初始化排除日期列表
+                if (!reminderData[originalId].repeat.excludeDates) {
+                    reminderData[originalId].repeat.excludeDates = [];
+                }
+
+                // 添加排除日期（如果还没有的话）
+                if (!reminderData[originalId].repeat.excludeDates.includes(excludeDate)) {
+                    reminderData[originalId].repeat.excludeDates.push(excludeDate);
+                }
+
+                await writeReminderData(reminderData);
+            } else {
+                throw new Error('原始事件不存在');
+            }
+        } catch (error) {
+            console.error('添加排除日期失败:', error);
+            throw error;
+        }
+    }
+
     private async showTimeEditDialog(reminder: any) {
         const editDialog = new ReminderEditDialog(reminder, () => {
             this.loadReminders();
         });
         editDialog.show();
     }
+
     private async deleteOriginalReminder(originalId: string) {
         try {
             const reminderData = await readReminderData();
@@ -900,6 +1062,7 @@ export class ReminderPanel {
             showMessage(t("deleteReminderFailed"));
         }
     }
+
     private async deleteReminder(reminder: any) {
         const result = await confirm(
             t("deleteReminder"),
@@ -909,6 +1072,7 @@ export class ReminderPanel {
             }
         );
     }
+
     private async performDeleteReminder(reminderId: string) {
         try {
             const reminderData = await readReminderData();
@@ -927,6 +1091,7 @@ export class ReminderPanel {
             showMessage(t("deleteReminderFailed"));
         }
     }
+
     private updateReminderCounts(overdueCount: number, todayCount: number, upcomingCount: number, completedCount: number) {
         // 更新各个标签的提醒数量
         const overdueTab = this.container.querySelector('.reminder-tab[data-filter="overdue"]');
@@ -966,6 +1131,7 @@ export class ReminderPanel {
             }
         }
     }
+
     private async setPriority(reminderId: string, priority: string) {
         try {
             const reminderData = await readReminderData();

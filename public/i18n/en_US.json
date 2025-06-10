@@ -202,5 +202,10 @@
     "allInstances": "All Instances",
     "instanceTimeUpdated": "Instance time updated",
     "updateInstanceFailed": "Failed to update instance",
-    "toggleAllDayFailed": "Failed to toggle all day event"
+    "toggleAllDayFailed": "Failed to toggle all day event",
+    "instanceCompleted": "Instance completed",
+    "instanceUncompleted": "Instance uncompleted",
+    "completeThisInstance": "Complete This Instance",
+    "uncompleteThisInstance": "Uncomplete This Instance",
+    "instanceCompletionToggled": "Instance completion status toggled"
 }

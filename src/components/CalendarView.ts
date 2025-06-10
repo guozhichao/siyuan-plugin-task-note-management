@@ -441,25 +441,61 @@ export class CalendarView {
 
     private async toggleEventCompleted(event) {
         try {
-            // 获取正确的提醒ID - 对于重复事件实例，使用原始ID
-            const reminderId = event.extendedProps.isRepeated ?
-                event.extendedProps.originalId :
-                event.id;
-
             const reminderData = await readReminderData();
 
-            if (reminderData[reminderId]) {
-                reminderData[reminderId].completed = !reminderData[reminderId].completed;
-                await writeReminderData(reminderData);
+            if (event.extendedProps.isRepeated) {
+                // 处理重复事件实例
+                const originalId = event.extendedProps.originalId;
+                const instanceDate = event.extendedProps.date;
 
-                // 更新事件的显示状态
-                event.setExtendedProp('completed', reminderData[reminderId].completed);
+                if (reminderData[originalId]) {
+                    // 初始化已完成实例列表
+                    if (!reminderData[originalId].repeat) {
+                        reminderData[originalId].repeat = {};
+                    }
+                    if (!reminderData[originalId].repeat.completedInstances) {
+                        reminderData[originalId].repeat.completedInstances = [];
+                    }
 
-                // 触发更新事件
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    const completedInstances = reminderData[originalId].repeat.completedInstances;
+                    const isCompleted = completedInstances.includes(instanceDate);
 
-                // 立即刷新事件显示以更新所有重复实例
-                await this.refreshEvents();
+                    if (isCompleted) {
+                        // 从已完成列表中移除
+                        const index = completedInstances.indexOf(instanceDate);
+                        if (index > -1) {
+                            completedInstances.splice(index, 1);
+                        }
+                    } else {
+                        // 添加到已完成列表
+                        completedInstances.push(instanceDate);
+                    }
+
+                    await writeReminderData(reminderData);
+
+                    // 触发更新事件
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+                    // 立即刷新事件显示
+                    await this.refreshEvents();
+                }
+            } else {
+                // 处理普通事件
+                const reminderId = event.id;
+
+                if (reminderData[reminderId]) {
+                    reminderData[reminderId].completed = !reminderData[reminderId].completed;
+                    await writeReminderData(reminderData);
+
+                    // 更新事件的显示状态
+                    event.setExtendedProp('completed', reminderData[reminderId].completed);
+
+                    // 触发更新事件
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+                    // 立即刷新事件显示
+                    await this.refreshEvents();
+                }
             }
         } catch (error) {
             console.error('切换事件完成状态失败:', error);
@@ -985,12 +1021,23 @@ export class CalendarView {
                     repeatInstances.forEach(instance => {
                         // 跳过与原始事件相同日期的实例
                         if (instance.date !== reminder.date) {
+                            // 检查实例级别的完成状态
+                            const completedInstances = reminder.repeat?.completedInstances || [];
+                            const isInstanceCompleted = completedInstances.includes(instance.date);
+
+                            // 检查实例级别的修改（包括备注）
+                            const instanceModifications = reminder.repeat?.instanceModifications || {};
+                            const instanceMod = instanceModifications[instance.date];
+
                             const instanceReminder = {
                                 ...reminder,
                                 date: instance.date,
                                 endDate: instance.endDate,
                                 time: instance.time,
-                                endTime: instance.endTime
+                                endTime: instance.endTime,
+                                completed: isInstanceCompleted, // 使用实例级别的完成状态
+                                // 使用实例级别的备注，如果没有则使用原始备注
+                                note: instanceMod?.note !== undefined ? instanceMod.note : reminder.note
                             };
                             this.addEventToList(events, instanceReminder, instance.instanceId, true, instance.originalId);
                         }
@@ -1030,8 +1077,18 @@ export class CalendarView {
                 break;
         }
 
+        // 检查完成状态 - 正确处理重复事件实例的完成状态
+        let isCompleted = false;
+        if (isRepeated && originalId) {
+            // 重复事件实例的完成状态已经在传入的reminder对象中设置
+            isCompleted = reminder.completed || false;
+        } else {
+            // 普通事件的完成状态
+            isCompleted = reminder.completed || false;
+        }
+
         // 如果任务已完成，使用灰色
-        if (reminder.completed) {
+        if (isCompleted) {
             backgroundColor = '#e3e3e3';
             borderColor = '#e3e3e3';
         }
@@ -1047,10 +1104,10 @@ export class CalendarView {
             title: reminder.title || t("unnamedNote"),
             backgroundColor: backgroundColor,
             borderColor: borderColor,
-            textColor: reminder.completed ? '#999999' : '#ffffff',
+            textColor: isCompleted ? '#999999' : '#ffffff',
             className: `reminder-priority-${priority} ${isRepeated ? 'reminder-repeated' : ''}`,
             extendedProps: {
-                completed: reminder.completed || false,
+                completed: isCompleted,
                 note: reminder.note || '',
                 date: reminder.date,
                 endDate: reminder.endDate || null,
@@ -1128,6 +1185,10 @@ export class CalendarView {
                 return;
             }
 
+            // 检查实例级别的修改（包括备注）
+            const instanceModifications = originalReminder.repeat?.instanceModifications || {};
+            const instanceMod = instanceModifications[instanceDate];
+
             // 创建实例数据，包含当前实例的特定信息
             const instanceData = {
                 ...originalReminder,
@@ -1136,6 +1197,8 @@ export class CalendarView {
                 endDate: calendarEvent.extendedProps.endDate,
                 time: calendarEvent.extendedProps.time,
                 endTime: calendarEvent.extendedProps.endTime,
+                // 使用实例级别的备注，如果没有则使用原始备注
+                note: instanceMod?.note !== undefined ? instanceMod.note : originalReminder.note,
                 isInstance: true,
                 originalId: originalId,
                 instanceDate: instanceDate

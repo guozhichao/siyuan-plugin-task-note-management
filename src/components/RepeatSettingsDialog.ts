@@ -12,6 +12,20 @@ export interface RepeatConfig {
     endCount?: number; // 重复次数限制
     endType: 'never' | 'date' | 'count'; // 结束类型
     ebbinghausPattern?: number[]; // 艾宾浩斯重复模式（天数间隔）
+    excludeDates?: string[]; // 排除的日期列表
+    instanceModifications?: {
+        [date: string]: {
+            title?: string;
+            date?: string;
+            endDate?: string;
+            time?: string;
+            endTime?: string;
+            note?: string; // 实例级别的备注
+            priority?: string;
+            modifiedAt?: string;
+        }
+    }; // 实例修改列表
+    completedInstances?: string[]; // 已完成的实例日期列表
 }
 
 export class RepeatSettingsDialog {

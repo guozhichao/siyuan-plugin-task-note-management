@@ -300,23 +300,27 @@ export class ReminderEditDialog {
             }
 
             // 初始化实例修改列表
+            if (!reminderData[originalId].repeat) {
+                reminderData[originalId].repeat = {};
+            }
             if (!reminderData[originalId].repeat.instanceModifications) {
                 reminderData[originalId].repeat.instanceModifications = {};
             }
 
-            // 保存此实例的修改数据
+            // 保存此实例的修改数据（包括备注）
             reminderData[originalId].repeat.instanceModifications[instanceDate] = {
                 title: instanceData.title,
                 date: instanceData.date,
                 endDate: instanceData.endDate,
                 time: instanceData.time,
                 endTime: instanceData.endTime,
-                note: instanceData.note,
+                note: instanceData.note, // 保存实例级别的备注
                 priority: instanceData.priority,
                 modifiedAt: new Date().toISOString()
             };
 
             await writeReminderData(reminderData);
+
         } catch (error) {
             console.error('保存实例修改失败:', error);
             throw error;

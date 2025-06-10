@@ -10,6 +10,7 @@ export interface RepeatInstance {
     instanceId: string; // 实例标识符
     originalId: string; // 原始提醒ID
     isRepeatedInstance: boolean;
+    completed?: boolean; // 添加实例级别的完成状态
 }
 
 /**
@@ -45,6 +46,8 @@ export function generateRepeatInstances(
     const excludeDates = repeatConfig.excludeDates || [];
     // 获取实例修改列表
     const instanceModifications = repeatConfig.instanceModifications || {};
+    // 获取已完成实例列表
+    const completedInstances = repeatConfig.completedInstances || [];
 
     // 检查重复结束条件
     const hasEndDate = repeatConfig.endType === 'date' && repeatConfig.endDate;
@@ -71,6 +74,9 @@ export function generateRepeatInstances(
                 // 检查是否有针对此实例的修改
                 const modification = instanceModifications[currentDateStr];
 
+                // 检查此实例是否已完成
+                const isInstanceCompleted = completedInstances.includes(currentDateStr);
+
                 const instance: RepeatInstance = {
                     date: modification?.date || currentDateStr,
                     time: modification?.time || reminder.time,
@@ -78,7 +84,8 @@ export function generateRepeatInstances(
                     endTime: modification?.endTime || reminder.endTime,
                     instanceId: `${reminder.id}_${currentDateStr}`,
                     originalId: reminder.id,
-                    isRepeatedInstance: true
+                    isRepeatedInstance: true,
+                    completed: isInstanceCompleted // 设置实例级别的完成状态
                 };
 
                 instances.push(instance);
