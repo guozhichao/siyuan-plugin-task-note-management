@@ -613,7 +613,7 @@ export class CalendarView {
                 return;
             }
 
-            // 用户拖动了后续实例。我们必须“分割”系列。
+            // 用户拖动了后续实例。我们必须"分割"系列。
             // 1. 在拖动实例原始日期的前一天结束原始系列。
             const untilDate = new Date(oldInstanceDateStr + 'T12:00:00Z'); // 使用中午以避免夏令时问题
             untilDate.setUTCDate(untilDate.getUTCDate() - 1);
@@ -634,7 +634,9 @@ export class CalendarView {
             delete newReminder.repeat.instanceModifications;
             delete newReminder.repeat.completedInstances;
 
-            const newId = `reminder-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            // 使用原始事件的blockId生成新的提醒ID
+            const blockId = originalReminder.blockId || originalReminder.id;
+            const newId = `${blockId}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
             newReminder.id = newId;
 
             // 3. 根据拖放信息更新这个新系列的日期/时间。
