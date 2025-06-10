@@ -7,10 +7,10 @@ import { getRepeatDescription } from "../utils/repeatUtils";
 export class ReminderEditDialog {
     private dialog: Dialog;
     private reminder: any;
-    private onSaved?: () => void;
+    private onSaved?: (modifiedReminder?: any) => void; // 修改回调函数签名
     private repeatConfig: RepeatConfig; // 添加重复配置
 
-    constructor(reminder: any, onSaved?: () => void) {
+    constructor(reminder: any, onSaved?: (modifiedReminder?: any) => void) { // 修改参数类型
         this.reminder = reminder;
         this.onSaved = onSaved;
 
@@ -25,7 +25,8 @@ export class ReminderEditDialog {
 
     public show() {
         this.dialog = new Dialog({
-            title: this.reminder.isInstance ? t("modifyInstance") : t("modifyEvent"),
+            title: this.reminder.isInstance ? t("modifyInstance") :
+                this.reminder.isSplitOperation ? t("modifyAndSplit") : t("modifyEvent"), // 增加分割操作标题
             content: this.createDialogContent(),
             width: "400px",
             height: this.reminder.isInstance ? "500px" : "600px" // 实例修改对话框稍小一些
@@ -42,6 +43,13 @@ export class ReminderEditDialog {
                         <div class="b3-form__group">
                             <div class="b3-form__desc" style="color: var(--b3-theme-primary);">
                                 ${t("editingInstanceDesc")}
+                            </div>
+                        </div>
+                    ` : ''}
+                    ${this.reminder.isSplitOperation ? `
+                        <div class="b3-form__group">
+                            <div class="b3-form__desc" style="color: var(--b3-theme-primary);">
+                                ${t("editingForSplitDesc")}
                             </div>
                         </div>
                     ` : ''}
@@ -109,7 +117,9 @@ export class ReminderEditDialog {
                 </div>
                 <div class="b3-dialog__action">
                     <button class="b3-button b3-button--cancel" id="editCancelBtn">${t("cancel")}</button>
-                    <button class="b3-button b3-button--primary" id="editConfirmBtn">${t("save")}</button>
+                    <button class="b3-button b3-button--primary" id="editConfirmBtn">
+                        ${this.reminder.isSplitOperation ? t("splitAndSave") : t("save")}
+                    </button>
                 </div>
             </div>
         `;
@@ -226,6 +236,28 @@ export class ReminderEditDialog {
         }
 
         try {
+            if (this.reminder.isSplitOperation) {
+                // 分割操作 - 构建修改后的数据并通过回调传递
+                const modifiedReminder = {
+                    ...this.reminder,
+                    title: title,
+                    date: date,
+                    endDate: endDate,
+                    time: time,
+                    note: note,
+                    priority: priority,
+                    repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined
+                };
+
+                // 调用分割回调
+                if (this.onSaved) {
+                    await this.onSaved(modifiedReminder);
+                }
+
+                this.dialog.destroy();
+                return;
+            }
+
             if (this.reminder.isInstance) {
                 // 保存重复事件实例的修改
                 await this.saveInstanceModification({
@@ -275,7 +307,7 @@ export class ReminderEditDialog {
 
             showMessage(successMessage);
 
-            // 调用保存回调
+            // 调用保存回调（不传递参数，表示正常保存）
             if (this.onSaved) {
                 this.onSaved();
             }

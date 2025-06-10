@@ -1344,7 +1344,7 @@ export class ReminderPanel {
                 return;
             }
 
-            // 1. Calculate the next occurrence date
+            // 计算原始事件的下一个周期日期
             const nextDate = this.calculateNextDate(originalReminder.date, originalReminder.repeat);
             if (!nextDate) {
                 showMessage(t("operationFailed") + ": " + t("invalidRepeatConfig"));
@@ -1352,95 +1352,104 @@ export class ReminderPanel {
             }
             const nextDateStr = getLocalDateString(nextDate);
 
-            // 2. Duplicate the reminder to create a new series
-            const newReminder = JSON.parse(JSON.stringify(originalReminder));
-            const blockId = newReminder.blockId || newReminder.id;
-            newReminder.id = `${blockId}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-            newReminder.date = nextDateStr;
+            // 创建用于编辑的临时数据，用于修改原始事件（第一次发生）
+            const editData = {
+                ...originalReminder,
+                // 保持原始事件的日期和时间，用户可以修改这个单次事件
+                // 保持原始ID用于识别这是分割操作
+                isSplitOperation: true,
+                originalId: reminder.id,
+                nextCycleDate: nextDateStr, // 保存下一个周期日期，用于创建新系列
+                // 如果原事件有结束日期，计算下一个周期的结束日期
+                nextCycleEndDate: originalReminder.endDate ? this.calculateEndDateForSplit(originalReminder, nextDate) : undefined
+            };
 
-            // Also shift endDate if it exists
-            if (newReminder.endDate && originalReminder.date) {
-                try {
-                    const duration = new Date(newReminder.endDate).getTime() - new Date(originalReminder.date).getTime();
-                    if (!isNaN(duration)) {
-                        const newEndDate = new Date(nextDate.getTime() + duration);
-                        newReminder.endDate = getLocalDateString(newEndDate);
-                    }
-                } catch (e) { /* ignore date parsing errors */ }
-            }
-
-            // 3. End the original series on its start date
-            originalReminder.repeat.endDate = originalReminder.date;
-
-            // 4. Save changes
-            reminderData[originalReminder.id] = originalReminder;
-            reminderData[newReminder.id] = newReminder;
-            await writeReminderData(reminderData);
-
-
-            this.loadReminders();
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            // 打开编辑对话框
+            const editDialog = new ReminderEditDialog(editData, async (modifiedReminder) => {
+                // 编辑完成后执行分割逻辑
+                await this.performSplitOperation(originalReminder, modifiedReminder);
+            });
+            editDialog.show();
 
         } catch (error) {
-            console.error('分割重复事件系列失败:', error);
+            console.error('开始分割重复事件系列失败:', error);
             showMessage(t("operationFailed"));
         }
     }
 
     /**
-     * [NEW] Skips the first occurrence of a recurring series by moving its start date to the next cycle.
-     * @param reminder The original recurring reminder to modify.
+     * [MODIFIED] Performs the actual split operation after user edits the reminder
+     * @param originalReminder The original recurring reminder
+     * @param modifiedReminder The modified reminder data from edit dialog
      */
-    private async skipFirstOccurrence(reminder: any) {
-        await confirm(
-            t("deleteThisInstance"),
-            t("confirmDeleteInstance"),
-            async () => {
-                try {
-                    const reminderData = await readReminderData();
-                    const originalReminder = reminderData[reminder.id];
-                    if (!originalReminder || !originalReminder.repeat?.enabled) {
-                        showMessage(t("operationFailed"));
-                        return;
-                    }
+    private async performSplitOperation(originalReminder: any, modifiedReminder: any) {
+        try {
+            const reminderData = await readReminderData();
 
-                    // 1. Calculate next occurrence date
-                    const nextDate = this.calculateNextDate(originalReminder.date, originalReminder.repeat);
-                    if (!nextDate) {
-                        showMessage(t("operationFailed") + ": " + t("invalidRepeatConfig"));
-                        return;
-                    }
-                    const nextDateStr = getLocalDateString(nextDate);
+            // 1. 修改原始事件为单次事件（应用用户的修改）
+            const singleReminder = {
+                ...originalReminder,
+                // 应用用户修改的数据到单次事件
+                title: modifiedReminder.title,
+                date: modifiedReminder.date,
+                time: modifiedReminder.time,
+                endDate: modifiedReminder.endDate,
+                endTime: modifiedReminder.endTime,
+                note: modifiedReminder.note,
+                priority: modifiedReminder.priority,
+                // 移除重复设置，变成单次事件
+                repeat: undefined
+            };
 
-                    // Also calculate the duration for shifting endDate
-                    let duration = 0;
-                    if (originalReminder.endDate && originalReminder.date) {
-                        try {
-                            const d = new Date(originalReminder.endDate).getTime() - new Date(originalReminder.date).getTime();
-                            if (!isNaN(d)) duration = d;
-                        } catch (e) { /* ignore date parsing errors */ }
-                    }
+            // 2. 创建新的重复事件系列，保持原始时间设置
+            const newReminder = JSON.parse(JSON.stringify(originalReminder));
 
-                    // 2. Update the start date of the original reminder
-                    originalReminder.date = nextDateStr;
+            // 清理新提醒的重复历史数据
+            delete newReminder.repeat.endDate;
+            delete newReminder.repeat.excludeDates;
+            delete newReminder.repeat.instanceModifications;
+            delete newReminder.repeat.completedInstances;
 
-                    // 3. Update the end date if it exists
-                    if (originalReminder.endDate) {
-                        const newEndDate = new Date(nextDate.getTime() + duration);
-                        originalReminder.endDate = getLocalDateString(newEndDate);
-                    }
+            // 生成新的提醒ID
+            const blockId = originalReminder.blockId || originalReminder.id;
+            const newId = `${blockId}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            newReminder.id = newId;
 
-                    // 4. Save changes
-                    reminderData[originalReminder.id] = originalReminder;
-                    await writeReminderData(reminderData);
-                    this.loadReminders();
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                } catch (error) {
-                    console.error('跳过第一次事件失败:', error);
-                    showMessage(t("operationFailed"));
-                }
+            // 3. 设置新系列从下一个周期开始，保持原始时间设置
+            newReminder.date = modifiedReminder.nextCycleDate;
+            newReminder.endDate = modifiedReminder.nextCycleEndDate;
+            // 保持原始的时间设置，不应用用户修改
+            newReminder.time = originalReminder.time;
+            newReminder.endTime = originalReminder.endTime;
+            newReminder.title = originalReminder.title;
+            newReminder.note = originalReminder.note;
+            newReminder.priority = originalReminder.priority;
+
+            // 如果用户修改了重复设置，应用到新系列
+            if (modifiedReminder.repeat && modifiedReminder.repeat.enabled) {
+                newReminder.repeat = { ...modifiedReminder.repeat };
+                // 确保新系列没有结束日期限制
+                delete newReminder.repeat.endDate;
+            } else {
+                // 如果用户禁用了重复，保持原始重复设置
+                newReminder.repeat = { ...originalReminder.repeat };
+                delete newReminder.repeat.endDate;
             }
-        );
+
+            // 4. 保存修改
+            reminderData[originalReminder.id] = singleReminder;
+            reminderData[newId] = newReminder;
+            await writeReminderData(reminderData);
+
+            // 5. 更新界面
+            this.loadReminders();
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            showMessage(t("seriesSplitSuccess"));
+
+        } catch (error) {
+            console.error('执行分割重复事件系列失败:', error);
+            showMessage(t("operationFailed"));
+        }
     }
 
     // 新增：将实例作为新系列编辑（分割系列）
