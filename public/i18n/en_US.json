@@ -192,5 +192,6 @@
     "modifyInstance": "Modify This Instance",
     "instanceDeleted": "Instance deleted",
     "instanceModified": "Instance modified",
-    "editingInstanceDesc": "Editing a single instance of recurring event. Changes will only affect this occurrence."
+    "editingInstanceDesc": "Editing a single instance of recurring event. Changes will only affect this occurrence.",
+    "priorityUpdated": "Priority updated"
 }

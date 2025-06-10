@@ -192,5 +192,6 @@
     "modifyInstance": "修改此实例",
     "instanceDeleted": "已删除此实例",
     "instanceModified": "已修改此实例",
-    "editingInstanceDesc": "正在编辑重复事件的单个实例，修改只会影响这一次事件。"
+    "editingInstanceDesc": "正在编辑重复事件的单个实例，修改只会影响这一次事件。",
+    "priorityUpdated": "优先级已更新"
 }
