@@ -537,7 +537,7 @@ export class CalendarView {
         const reminderId = info.event.id;
         const originalReminder = info.event.extendedProps;
 
-        // 如果是重复事件实例，询问用户是否应用于所有实例
+        // 如果是重复事件实例，询问用户如何应用更改
         if (originalReminder.isRepeated) {
             const result = await this.askApplyToAllInstances();
 
@@ -552,11 +552,13 @@ export class CalendarView {
                 return;
             }
 
-            // 如果选择 'all'，继续使用原始ID更新所有实例
-            const originalId = originalReminder.originalId;
-            await this.updateEventTime(originalId, info, false);
+            if (result === 'all') {
+                // 更新此实例及所有未来实例
+                await this.updateRecurringEventSeries(info);
+                return;
+            }
         } else {
-            // 非重复事件，直接更新
+            // 非重复事件，或重复事件的原始事件，直接更新
             await this.updateEventTime(reminderId, info, false);
         }
     }
@@ -565,7 +567,7 @@ export class CalendarView {
         const reminderId = info.event.id;
         const originalReminder = info.event.extendedProps;
 
-        // 如果是重复事件实例，询问用户是否应用于所有实例
+        // 如果是重复事件实例，询问用户如何应用更改
         if (originalReminder.isRepeated) {
             const result = await this.askApplyToAllInstances();
 
@@ -580,12 +582,111 @@ export class CalendarView {
                 return;
             }
 
-            // 如果选择 'all'，继续使用原始ID更新所有实例
-            const originalId = originalReminder.originalId;
-            await this.updateEventTime(originalId, info, true);
+            if (result === 'all') {
+                // 更新此实例及所有未来实例
+                await this.updateRecurringEventSeries(info);
+                return;
+            }
         } else {
-            // 非重复事件，直接更新
+            // 非重复事件，或重复事件的原始事件，直接更新
             await this.updateEventTime(reminderId, info, true);
+        }
+    }
+
+    private async updateRecurringEventSeries(info: any) {
+        try {
+            const originalId = info.event.extendedProps.originalId;
+            const reminderData = await readReminderData();
+            const originalReminder = reminderData[originalId];
+
+            if (!originalReminder) {
+                throw new Error('Original reminder not found.');
+            }
+
+            const oldInstanceDateStr = info.oldEvent.startStr.split('T')[0];
+            const originalSeriesStartDate = new Date(originalReminder.date + 'T00:00:00Z');
+            const movedInstanceOriginalDate = new Date(oldInstanceDateStr + 'T00:00:00Z');
+
+            // 如果用户拖动了系列中的第一个事件，我们将更新整个系列的开始日期
+            if (originalSeriesStartDate.getTime() === movedInstanceOriginalDate.getTime()) {
+                await this.updateEventTime(originalId, info, info.event.end !== info.oldEvent.end);
+                return;
+            }
+
+            // 用户拖动了后续实例。我们必须“分割”系列。
+            // 1. 在拖动实例原始日期的前一天结束原始系列。
+            const untilDate = new Date(oldInstanceDateStr + 'T12:00:00Z'); // 使用中午以避免夏令时问题
+            untilDate.setUTCDate(untilDate.getUTCDate() - 1);
+            const newEndDateStr = untilDate.toISOString().split('T')[0];
+
+            // 根据用户反馈，使用 `repeat.endDate` 而不是 `repeat.until` 来终止系列。
+            if (!originalReminder.repeat) { originalReminder.repeat = {}; }
+            originalReminder.repeat.endDate = newEndDateStr;
+
+            // 2. 为新的、修改过的系列创建一个新的重复事件。
+            const newReminder = JSON.parse(JSON.stringify(originalReminder));
+
+            // 清理新提醒以开始新的生命周期。
+            // 它不应从原始事件继承系列结束日期。
+            delete newReminder.repeat.endDate;
+            // 同时清除旧系列的实例特定数据。
+            delete newReminder.repeat.excludeDates;
+            delete newReminder.repeat.instanceModifications;
+            delete newReminder.repeat.completedInstances;
+
+            const newId = `reminder-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            newReminder.id = newId;
+
+            // 3. 根据拖放信息更新这个新系列的日期/时间。
+            const newStart = info.event.start;
+            const newEnd = info.event.end;
+
+            const { dateStr, timeStr } = getLocalDateTime(newStart);
+            newReminder.date = dateStr; // 这是新系列的开始日期
+
+            if (info.event.allDay) {
+                delete newReminder.time;
+                delete newReminder.endTime;
+                delete newReminder.endDate; // 重置并在下面重新计算
+            } else {
+                newReminder.time = timeStr || null;
+            }
+
+            if (newEnd) {
+                if (info.event.allDay) {
+                    const inclusiveEnd = new Date(newEnd);
+                    inclusiveEnd.setDate(inclusiveEnd.getDate() - 1);
+                    const { dateStr: endDateStr } = getLocalDateTime(inclusiveEnd);
+                    if (endDateStr !== newReminder.date) {
+                        newReminder.endDate = endDateStr;
+                    }
+                } else {
+                    const { dateStr: endDateStr, timeStr: endTimeStr } = getLocalDateTime(newEnd);
+                    if (endDateStr !== newReminder.date) {
+                        newReminder.endDate = endDateStr;
+                    } else {
+                        delete newReminder.endDate;
+                    }
+                    newReminder.endTime = endTimeStr || null;
+                }
+            } else {
+                delete newReminder.endDate;
+                delete newReminder.endTime;
+            }
+
+            // 4. 保存修改后的原始提醒和新的提醒。
+            reminderData[originalId] = originalReminder;
+            reminderData[newId] = newReminder;
+            await writeReminderData(reminderData);
+
+            showMessage(t("eventTimeUpdated"));
+            await this.refreshEvents();
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+        } catch (error) {
+            console.error('更新重复事件系列失败:', error);
+            showMessage(t("operationFailed"));
+            info.revert();
         }
     }
 
