@@ -140,7 +140,7 @@ export class ReminderPanel {
         this.filterSelect.className = 'b3-select';
         this.filterSelect.innerHTML = `
             <option value="today" selected>${t("todayReminders")}</option>
-            <option value="future">${t("futureReminders")}</option>
+            <option value="tomorrow">${t("tomorrowReminders")}</option>
             <option value="overdue">${t("overdueReminders")}</option>
             <option value="completed">${t("completedReminders")}</option>
             <option value="all">${t("allReminders")}</option>
@@ -242,12 +242,17 @@ export class ReminderPanel {
             }
 
             const today = getLocalDateString(); // 使用本地日期
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tomorrowStr = getLocalDateString(tomorrow);
+            
             const reminders = Object.values(reminderData).filter((reminder: any) => {
                 return reminder && typeof reminder === 'object' && reminder.id && reminder.date;
             });
 
             // 处理重复事件 - 生成重复实例
             const allReminders = [];
+            const repeatInstancesMap = new Map(); // 用于去重重复事件实例
 
             reminders.forEach((reminder: any) => {
                 // 添加原始事件
@@ -275,10 +280,21 @@ export class ReminderPanel {
                                 isRepeatInstance: true,
                                 originalId: instance.originalId
                             };
-                            allReminders.push(instanceReminder);
+                            
+                            // 对于明天的提醒，只保留最近的一个实例
+                            const key = `${reminder.id}_${instance.date}`;
+                            if (!repeatInstancesMap.has(key) || 
+                                compareDateStrings(instance.date, repeatInstancesMap.get(key).date) < 0) {
+                                repeatInstancesMap.set(key, instanceReminder);
+                            }
                         }
                     });
                 }
+            });
+
+            // 添加去重后的重复事件实例
+            repeatInstancesMap.forEach(instance => {
+                allReminders.push(instance);
             });
 
             // 分类提醒 - 正确处理过期跨天提醒
@@ -308,20 +324,44 @@ export class ReminderPanel {
                 return reminder.date === today || compareDateStrings(reminder.date, today) < 0;
             });
 
-            const upcoming = allReminders.filter((reminder: any) => {
-                if (reminder.completed) return false;
+            // 明天提醒：只包含明天的提醒，重复事件只显示最近的实例
+            const tomorrowReminders = [];
+            const tomorrowInstancesMap = new Map();
+            
+            allReminders.forEach((reminder: any) => {
+                if (reminder.completed) return;
 
-                // 对于跨天事件，检查开始日期是否在未来
+                let isTomorrow = false;
                 if (reminder.endDate) {
-                    return compareDateStrings(reminder.date, today) > 0;
+                    // 跨天事件：开始日期是明天
+                    isTomorrow = reminder.date === tomorrowStr;
                 } else {
-                    return compareDateStrings(reminder.date, today) > 0;
+                    // 单日事件：日期是明天
+                    isTomorrow = reminder.date === tomorrowStr;
                 }
+
+                if (isTomorrow) {
+                    if (reminder.isRepeatInstance) {
+                        // 对于重复事件实例，只保留原始事件ID的最近实例
+                        const originalId = reminder.originalId;
+                        if (!tomorrowInstancesMap.has(originalId) || 
+                            compareDateStrings(reminder.date, tomorrowInstancesMap.get(originalId).date) < 0) {
+                            tomorrowInstancesMap.set(originalId, reminder);
+                        }
+                    } else {
+                        tomorrowReminders.push(reminder);
+                    }
+                }
+            });
+
+            // 添加去重后的明天重复事件实例
+            tomorrowInstancesMap.forEach(instance => {
+                tomorrowReminders.push(instance);
             });
 
             const completed = allReminders.filter((reminder: any) => reminder.completed);
 
-            this.updateReminderCounts(overdue.length, todayReminders.length, upcoming.length, completed.length);
+            this.updateReminderCounts(overdue.length, todayReminders.length, tomorrowReminders.length, completed.length);
 
             // 根据当前选中的标签显示对应的提醒
             let displayReminders = [];
@@ -332,15 +372,15 @@ export class ReminderPanel {
                 case 'today':
                     displayReminders = todayReminders; // 包含过期提醒
                     break;
-                case 'future':
-                    displayReminders = upcoming;
+                case 'tomorrow':
+                    displayReminders = tomorrowReminders;
                     break;
                 case 'completed':
                     displayReminders = completed;
                     break;
                 case 'all':
                 default:
-                    displayReminders = [...todayReminders, ...upcoming];
+                    displayReminders = [...todayReminders, ...tomorrowReminders];
             }
 
             this.renderReminders(displayReminders);
@@ -358,6 +398,10 @@ export class ReminderPanel {
 
         const filter = this.filterSelect.value;
         const today = getLocalDateString();
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = getLocalDateString(tomorrow);
+        
         const reminders = Array.isArray(reminderData) ? reminderData : Object.values(reminderData).filter((reminder: any) => {
             if (!reminder || typeof reminder !== 'object' || !reminder.id) return false;
 
@@ -373,12 +417,12 @@ export class ReminderPanel {
                     }
                     // 单日事件：今日或过期
                     return reminder.date === today || compareDateStrings(reminder.date, today) < 0;
-                case 'future':
+                case 'tomorrow':
                     if (reminder.completed) return false;
                     if (reminder.endDate) {
-                        return compareDateStrings(reminder.date, today) > 0;
+                        return reminder.date === tomorrowStr;
                     }
-                    return compareDateStrings(reminder.date, today) > 0;
+                    return reminder.date === tomorrowStr;
                 case 'overdue':
                     if (reminder.completed) return false;
                     if (reminder.endDate) {
@@ -397,7 +441,7 @@ export class ReminderPanel {
         if (reminders.length === 0) {
             const filterNames = {
                 'today': t("noTodayReminders"),
-                'future': t("noFutureReminders"),
+                'tomorrow': t("noTomorrowReminders"),
                 'overdue': t("noOverdueReminders"),
                 'completed': t("noCompletedReminders"),
                 'all': t("noAllReminders")
