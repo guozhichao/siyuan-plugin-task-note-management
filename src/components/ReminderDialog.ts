@@ -1,12 +1,15 @@
 import { showMessage, Dialog, Menu, confirm } from "siyuan";
 import { readReminderData, writeReminderData, getBlockByID } from "../api";
 import { getLocalDateString, getLocalTimeString, compareDateStrings } from "../utils/dateUtils";
+import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 
 export class ReminderDialog {
     private blockId: string;
     private dialog: Dialog;
     private blockContent: string = '';
-    private reminderUpdatedHandler: () => void; // 添加事件处理器引用
+    private reminderUpdatedHandler: () => void;
+    private currentSort: string = 'time';
+    private sortConfigUpdatedHandler: (event: CustomEvent) => void;
 
     constructor(blockId: string) {
         this.blockId = blockId;
@@ -16,6 +19,27 @@ export class ReminderDialog {
             // 重新加载现有提醒列表
             this.loadExistingReminder();
         };
+
+        this.sortConfigUpdatedHandler = (event: CustomEvent) => {
+            const { sortMethod } = event.detail;
+            if (sortMethod !== this.currentSort) {
+                this.currentSort = sortMethod;
+                this.loadExistingReminder(); // 重新排序现有提醒
+            }
+        };
+
+        // 加载排序配置
+        this.loadSortConfig();
+    }
+
+    // 加载排序配置
+    private async loadSortConfig() {
+        try {
+            this.currentSort = await loadSortConfig();
+        } catch (error) {
+            console.error('加载排序配置失败:', error);
+            this.currentSort = 'time';
+        }
     }
 
     async show() {
@@ -113,6 +137,8 @@ export class ReminderDialog {
 
         // 监听提醒更新事件
         window.addEventListener('reminderUpdated', this.reminderUpdatedHandler);
+        // 监听排序配置更新事件
+        window.addEventListener('sortConfigUpdated', this.sortConfigUpdatedHandler);
     }
 
     private bindEvents() {
@@ -333,10 +359,8 @@ export class ReminderDialog {
                 const today = getLocalDateString();
                 container.innerHTML = '';
 
-                // 按创建时间倒序排列
-                blockReminders.sort((a: any, b: any) =>
-                    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                );
+                // 应用当前排序方式
+                this.sortReminders(blockReminders);
 
                 blockReminders.forEach((reminder: any) => {
                     const reminderEl = this.createReminderElement(reminder, today);
@@ -350,75 +374,48 @@ export class ReminderDialog {
         }
     }
 
-    private createReminderElement(reminder: any, today: string): HTMLElement {
-        const element = document.createElement('div');
-        element.className = 'reminder-item reminder-item--compact';
-        element.setAttribute('data-id', reminder.id);
+    // 添加排序方法
+    private sortReminders(reminders: any[]) {
+        const sortType = this.currentSort;
 
-        // 添加右键菜单支持
-        element.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            this.showReminderContextMenu(e, reminder);
-        });
+        reminders.sort((a: any, b: any) => {
+            switch (sortType) {
+                case 'time':
+                    // 按时间排序：先按日期，再按时间
+                    const dateA = new Date(a.date + (a.time ? `T${a.time}` : 'T00:00'));
+                    const dateB = new Date(b.date + (b.time ? `T${b.time}` : 'T00:00'));
+                    return dateA.getTime() - dateB.getTime();
 
-        // 标题
-        const titleEl = document.createElement('div');
-        titleEl.className = 'reminder-item__title';
-        titleEl.textContent = reminder.title;
-        element.appendChild(titleEl);
+                case 'priority':
+                    // 按优先级排序：高 > 中 > 低 > 无，相同优先级按时间排序
+                    const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
+                    const priorityA = priorityOrder[a.priority || 'none'] || 0;
+                    const priorityB = priorityOrder[b.priority || 'none'] || 0;
 
-        // 时间信息 - 添加点击编辑功能
-        const timeEl = document.createElement('div');
-        timeEl.className = 'reminder-item__time';
-        const timeText = this.formatReminderTime(reminder.date, reminder.time, today, reminder.endDate);
-        timeEl.textContent = timeText;
-        timeEl.style.cursor = 'pointer';
-        timeEl.style.color = 'var(--b3-theme-primary)';
-        timeEl.title = '点击修改时间';
+                    if (priorityA !== priorityB) {
+                        return priorityB - priorityA; // 降序：高优先级在前
+                    }
 
-        // 添加时间点击编辑事件
-        timeEl.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.showTimeEditDialog(reminder);
-        });
+                    // 相同优先级按时间排序
+                    const timeDateA = new Date(a.date + (a.time ? `T${a.time}` : 'T00:00'));
+                    const timeDateB = new Date(b.date + (b.time ? `T${b.time}` : 'T00:00'));
+                    return timeDateA.getTime() - timeDateB.getTime();
 
-        element.appendChild(timeEl);
+                case 'title':
+                    // 按标题排序
+                    const titleA = (a.title || '').toLowerCase();
+                    const titleB = (b.title || '').toLowerCase();
+                    return titleA.localeCompare(titleB, 'zh-CN');
 
-        // 如果有备注，显示备注
-        if (reminder.note) {
-            const noteEl = document.createElement('div');
-            noteEl.className = 'reminder-item__note';
-            noteEl.textContent = reminder.note;
-            element.appendChild(noteEl);
-        }
+                case 'created':
+                    // 按创建时间排序
+                    const createdA = new Date(a.createdAt || '1970-01-01');
+                    const createdB = new Date(b.createdAt || '1970-01-01');
+                    return createdB.getTime() - createdA.getTime(); // 降序：最新创建的在前
 
-        return element;
-    }
-
-    private showReminderContextMenu(event: MouseEvent, reminder: any) {
-        const menu = new Menu("reminderDialogContextMenu");
-
-        menu.addItem({
-            iconHTML: "📝",
-            label: "修改",
-            click: () => {
-                this.showTimeEditDialog(reminder);
+                default:
+                    return 0;
             }
-        });
-
-        menu.addSeparator();
-
-        menu.addItem({
-            iconHTML: "🗑️",
-            label: "删除提醒",
-            click: () => {
-                this.deleteReminder(reminder);
-            }
-        });
-
-        menu.open({
-            x: event.clientX,
-            y: event.clientY
         });
     }
 
@@ -645,10 +642,85 @@ export class ReminderDialog {
         }
     }
 
+    private createReminderElement(reminder: any, today: string): HTMLElement {
+        const element = document.createElement('div');
+        element.className = 'reminder-item reminder-item--compact';
+        element.setAttribute('data-id', reminder.id);
+
+        // 添加右键菜单支持
+        element.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            this.showReminderContextMenu(e, reminder);
+        });
+
+        // 标题
+        const titleEl = document.createElement('div');
+        titleEl.className = 'reminder-item__title';
+        titleEl.textContent = reminder.title;
+        element.appendChild(titleEl);
+
+        // 时间信息 - 添加点击编辑功能
+        const timeEl = document.createElement('div');
+        timeEl.className = 'reminder-item__time';
+        const timeText = this.formatReminderTime(reminder.date, reminder.time, today, reminder.endDate);
+        timeEl.textContent = timeText;
+        timeEl.style.cursor = 'pointer';
+        timeEl.style.color = 'var(--b3-theme-primary)';
+        timeEl.title = '点击修改时间';
+
+        // 添加时间点击编辑事件
+        timeEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.showTimeEditDialog(reminder);
+        });
+
+        element.appendChild(timeEl);
+
+        // 如果有备注，显示备注
+        if (reminder.note) {
+            const noteEl = document.createElement('div');
+            noteEl.className = 'reminder-item__note';
+            noteEl.textContent = reminder.note;
+            element.appendChild(noteEl);
+        }
+
+        return element;
+    }
+
+    private showReminderContextMenu(event: MouseEvent, reminder: any) {
+        const menu = new Menu("reminderDialogContextMenu");
+
+        menu.addItem({
+            iconHTML: "📝",
+            label: "修改",
+            click: () => {
+                this.showTimeEditDialog(reminder);
+            }
+        });
+
+        menu.addSeparator();
+
+        menu.addItem({
+            iconHTML: "🗑️",
+            label: "删除提醒",
+            click: () => {
+                this.deleteReminder(reminder);
+            }
+        });
+
+        menu.open({
+            x: event.clientX,
+            y: event.clientY
+        });
+    }
+
     // 添加清理方法
     private cleanup() {
         if (this.reminderUpdatedHandler) {
             window.removeEventListener('reminderUpdated', this.reminderUpdatedHandler);
+        }
+        if (this.sortConfigUpdatedHandler) {
+            window.removeEventListener('sortConfigUpdated', this.sortConfigUpdatedHandler);
         }
     }
 }
