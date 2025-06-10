@@ -1003,6 +1003,39 @@ export class ReminderPanel {
             return menuItems;
         };
 
+        // Helper to create category submenu items
+        const createCategoryMenuItems = () => {
+            const menuItems = [];
+            const categories = this.categoryManager.getCategories();
+            const currentCategoryId = reminder.categoryId;
+
+            // Add "无分类" option
+            menuItems.push({
+                iconHTML: "❌",
+                label: "无分类",
+                current: !currentCategoryId,
+                click: () => {
+                    const targetId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
+                    this.setCategory(targetId, null);
+                }
+            });
+
+            // Add existing categories
+            categories.forEach(category => {
+                menuItems.push({
+                    iconHTML: category.icon || "📁",
+                    label: category.name,
+                    current: currentCategoryId === category.id,
+                    click: () => {
+                        const targetId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
+                        this.setCategory(targetId, category.id);
+                    }
+                });
+            });
+
+            return menuItems;
+        };
+
         if (reminder.isRepeatInstance) {
             // --- Menu for a REPEAT INSTANCE ---
             menu.addItem({
@@ -1019,6 +1052,11 @@ export class ReminderPanel {
                 iconHTML: "🎯",
                 label: t("setPriority"),
                 submenu: createPriorityMenuItems()
+            });
+            menu.addItem({
+                iconHTML: "🏷️",
+                label: "设置分类",
+                submenu: createCategoryMenuItems()
             });
             menu.addSeparator();
             menu.addItem({
@@ -1050,6 +1088,11 @@ export class ReminderPanel {
                 label: t("setPriority"),
                 submenu: createPriorityMenuItems()
             });
+            menu.addItem({
+                iconHTML: "🏷️",
+                label: "设置分类",
+                submenu: createCategoryMenuItems()
+            });
             menu.addSeparator();
             menu.addItem({
                 iconHTML: "🗑️",
@@ -1073,6 +1116,11 @@ export class ReminderPanel {
                 iconHTML: "🎯",
                 label: t("setPriority"),
                 submenu: createPriorityMenuItems()
+            });
+            menu.addItem({
+                iconHTML: "🏷️",
+                label: "设置分类",
+                submenu: createCategoryMenuItems()
             });
             menu.addSeparator();
             menu.addItem({
@@ -1389,6 +1437,29 @@ export class ReminderPanel {
             }
         } catch (error) {
             console.error('设置优先级失败:', error);
+            showMessage(t("operationFailed"));
+        }
+    }
+
+    private async setCategory(reminderId: string, categoryId: string | null) {
+        try {
+            const reminderData = await readReminderData();
+            if (reminderData[reminderId]) {
+                reminderData[reminderId].categoryId = categoryId;
+                await writeReminderData(reminderData);
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                this.loadReminders();
+                
+                // 获取分类名称用于提示
+                const categoryName = categoryId ? 
+                    this.categoryManager.getCategoryById(categoryId)?.name || "未知分类" : 
+                    "无分类";
+                showMessage(`已设置分类为：${categoryName}`);
+            } else {
+                showMessage(t("reminderNotExist"));
+            }
+        } catch (error) {
+            console.error('设置分类失败:', error);
             showMessage(t("operationFailed"));
         }
     }

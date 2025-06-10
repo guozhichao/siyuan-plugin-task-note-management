@@ -172,8 +172,8 @@ export class ReminderDialog {
                     </div>
                 </div>
             `,
-            width: "450px",
-            height: "800px" // 增加高度以容纳分类选择器
+            width: "500px",
+            height: "950px" // 增加高度以容纳分类选择器
         });
 
         this.bindEvents();
