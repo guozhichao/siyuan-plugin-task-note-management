@@ -187,5 +187,6 @@
     "deleteInstanceNotImplemented": "Delete single repeat instance feature not yet implemented",
     "deleteInstanceFailed": "Failed to delete repeat instance",
     "cannotMoveRepeatInstance": "Cannot move repeat event instance, please edit the original event",
-    "cannotResizeRepeatInstance": "Cannot resize repeat event instance, please edit the original event"
+    "cannotResizeRepeatInstance": "Cannot resize repeat event instance, please edit the original event",
+    "repeatInstance": "Repeat event instance"
 }

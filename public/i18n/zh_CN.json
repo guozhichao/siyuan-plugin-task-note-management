@@ -187,5 +187,6 @@
     "deleteInstanceNotImplemented": "删除单个重复实例功能暂未实现",
     "deleteInstanceFailed": "删除重复实例失败",
     "cannotMoveRepeatInstance": "无法移动重复事件实例，请编辑原始事件",
-    "cannotResizeRepeatInstance": "无法调整重复事件实例大小，请编辑原始事件"
+    "cannotResizeRepeatInstance": "无法调整重复事件实例大小，请编辑原始事件",
+    "repeatInstance": "重复事件实例"
 }
