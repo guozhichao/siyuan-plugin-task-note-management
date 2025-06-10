@@ -245,7 +245,7 @@ export class ReminderPanel {
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
             const tomorrowStr = getLocalDateString(tomorrow);
-            
+
             const reminders = Object.values(reminderData).filter((reminder: any) => {
                 return reminder && typeof reminder === 'object' && reminder.id && reminder.date;
             });
@@ -280,10 +280,10 @@ export class ReminderPanel {
                                 isRepeatInstance: true,
                                 originalId: instance.originalId
                             };
-                            
+
                             // 对于明天的提醒，只保留最近的一个实例
                             const key = `${reminder.id}_${instance.date}`;
-                            if (!repeatInstancesMap.has(key) || 
+                            if (!repeatInstancesMap.has(key) ||
                                 compareDateStrings(instance.date, repeatInstancesMap.get(key).date) < 0) {
                                 repeatInstancesMap.set(key, instanceReminder);
                             }
@@ -327,7 +327,7 @@ export class ReminderPanel {
             // 明天提醒：只包含明天的提醒，重复事件只显示最近的实例
             const tomorrowReminders = [];
             const tomorrowInstancesMap = new Map();
-            
+
             allReminders.forEach((reminder: any) => {
                 if (reminder.completed) return;
 
@@ -344,7 +344,7 @@ export class ReminderPanel {
                     if (reminder.isRepeatInstance) {
                         // 对于重复事件实例，只保留原始事件ID的最近实例
                         const originalId = reminder.originalId;
-                        if (!tomorrowInstancesMap.has(originalId) || 
+                        if (!tomorrowInstancesMap.has(originalId) ||
                             compareDateStrings(reminder.date, tomorrowInstancesMap.get(originalId).date) < 0) {
                             tomorrowInstancesMap.set(originalId, reminder);
                         }
@@ -401,7 +401,7 @@ export class ReminderPanel {
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
         const tomorrowStr = getLocalDateString(tomorrow);
-        
+
         const reminders = Array.isArray(reminderData) ? reminderData : Object.values(reminderData).filter((reminder: any) => {
             if (!reminder || typeof reminder !== 'object' || !reminder.id) return false;
 
