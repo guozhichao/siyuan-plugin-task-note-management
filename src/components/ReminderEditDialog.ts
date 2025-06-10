@@ -46,16 +46,9 @@ export class ReminderEditDialog {
                             </div>
                         </div>
                     ` : ''}
-                    ${this.reminder.isSplitOperation ? `
-                        <div class="b3-form__group">
-                            <div class="b3-form__desc" style="color: var(--b3-theme-primary);">
-                                ${t("editingForSplitDesc")}
-                            </div>
-                        </div>
-                    ` : ''}
                     <div class="b3-form__group">
                         <label class="b3-form__label">${t("eventTitle")}</label>
-                        <input type="text" id="editReminderTitle" class="b3-text-field" value="${this.reminder.title || ''}" placeholder="${t("enterReminderTitle")}">
+                        <input type="text" id="editReminderTitle" class="b3-text-field" value="${this.reminder.title || ''}" placeholder="${t("enterReminderTitle")}" style="width: 100%;" >
                     </div>
                     <div class="b3-form__group">
                         <label class="b3-form__label">${t("priority")}</label>

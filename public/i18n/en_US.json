@@ -207,5 +207,10 @@
     "instanceUncompleted": "Instance uncompleted",
     "completeThisInstance": "Complete This Instance",
     "uncompleteThisInstance": "Uncomplete This Instance",
-    "instanceCompletionToggled": "Instance completion status toggled"
+    "instanceCompletionToggled": "Instance completion status toggled",
+    "modifyAndSplit": "Modify and Split Series",
+    "editingForSplitDesc": "Editing the first occurrence will split the recurring series. A new series will start from the next cycle.",
+    "splitAndSave": "Split and Save",
+    "seriesSplitSuccess": "Recurring series split successfully",
+    "invalidRepeatConfig": "Invalid repeat configuration"
 }
