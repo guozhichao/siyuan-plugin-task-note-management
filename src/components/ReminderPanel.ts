@@ -3,6 +3,7 @@ import { readReminderData, writeReminderData, getBlockByID } from "../api";
 import { getLocalDateString, compareDateStrings } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { ReminderEditDialog } from "./ReminderEditDialog";
+import { t } from "../utils/i18n";
 
 export class ReminderPanel {
     private container: HTMLElement;
@@ -82,7 +83,7 @@ export class ReminderPanel {
         iconSpan.textContent = '⏰';
 
         const titleSpan = document.createElement('span');
-        titleSpan.textContent = '时间提醒';
+        titleSpan.textContent = t("timeReminder");
 
         titleContainer.appendChild(iconSpan);
         titleContainer.appendChild(titleSpan);
@@ -97,7 +98,7 @@ export class ReminderPanel {
             const calendarBtn = document.createElement('button');
             calendarBtn.className = 'b3-button b3-button--outline';
             calendarBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconCalendar"></use></svg>';
-            calendarBtn.title = '日历视图';
+            calendarBtn.title = t("calendarView");
             calendarBtn.addEventListener('click', () => {
                 this.plugin.openCalendarTab();
             });
@@ -108,7 +109,7 @@ export class ReminderPanel {
         this.sortButton = document.createElement('button');
         this.sortButton.className = 'b3-button b3-button--outline';
         this.sortButton.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconSort"></use></svg>';
-        this.sortButton.title = '排序方式';
+        this.sortButton.title = t("sortBy");
         this.sortButton.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -120,7 +121,7 @@ export class ReminderPanel {
         const refreshBtn = document.createElement('button');
         refreshBtn.className = 'b3-button b3-button--outline';
         refreshBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>';
-        refreshBtn.title = '刷新';
+        refreshBtn.title = t("refresh");
         refreshBtn.addEventListener('click', () => {
             this.loadReminders();
         });
@@ -137,11 +138,11 @@ export class ReminderPanel {
         this.filterSelect = document.createElement('select');
         this.filterSelect.className = 'b3-select';
         this.filterSelect.innerHTML = `
-            <option value="today">今日提醒</option>
-            <option value="future">未来提醒</option>
-            <option value="overdue">过期提醒</option>
-            <option value="completed">已完成</option>
-            <option value="all">全部提醒</option>
+            <option value="today">${t("todayReminders")}</option>
+            <option value="future">${t("futureReminders")}</option>
+            <option value="overdue">${t("overdueReminders")}</option>
+            <option value="completed">${t("completedReminders")}</option>
+            <option value="all">${t("allReminders")}</option>
         `;
         this.filterSelect.addEventListener('change', () => {
             this.currentTab = this.filterSelect.value;
@@ -167,10 +168,10 @@ export class ReminderPanel {
             const menu = new Menu("reminderSortMenu");
 
             const sortOptions = [
-                { key: 'time', label: '按时间排序', icon: '🕐' },
-                { key: 'priority', label: '按优先级排序', icon: '🎯' },
-                { key: 'title', label: '按标题排序', icon: '📝' },
-                { key: 'created', label: '按创建时间排序', icon: '📅' }
+                { key: 'time', label: t("sortByTime"), icon: '🕐' },
+                { key: 'priority', label: t("sortByPriority"), icon: '🎯' },
+                { key: 'title', label: t("sortByTitle"), icon: '📝' },
+                { key: 'created', label: t("sortByCreated"), icon: '📅' }
             ];
 
             sortOptions.forEach(option => {
@@ -225,7 +226,7 @@ export class ReminderPanel {
     // 更新排序按钮的提示文本
     private updateSortButtonTitle() {
         if (this.sortButton) {
-            this.sortButton.title = `排序方式: ${getSortMethodName(this.currentSort)}`;
+            this.sortButton.title = `${t("sortBy")}: ${getSortMethodName(this.currentSort)}`;
         }
     }
 
@@ -309,13 +310,13 @@ export class ReminderPanel {
             this.renderReminders(displayReminders);
         } catch (error) {
             console.error('加载提醒失败:', error);
-            showMessage('加载提醒失败');
+            showMessage(t("loadRemindersFailed"));
         }
     }
 
     private renderReminders(reminderData: any) {
         if (!reminderData || typeof reminderData !== 'object') {
-            this.remindersContainer.innerHTML = '<div class="reminder-empty">暂无提醒事项</div>';
+            this.remindersContainer.innerHTML = `<div class="reminder-empty">${t("noReminders")}</div>`;
             return;
         }
 
@@ -359,13 +360,13 @@ export class ReminderPanel {
 
         if (reminders.length === 0) {
             const filterNames = {
-                'today': '今日',
-                'future': '未来',
-                'overdue': '过期',
-                'completed': '已完成',
-                'all': ''
+                'today': t("noTodayReminders"),
+                'future': t("noFutureReminders"),
+                'overdue': t("noOverdueReminders"),
+                'completed': t("noCompletedReminders"),
+                'all': t("noAllReminders")
             };
-            this.remindersContainer.innerHTML = `<div class="reminder-empty">暂无${filterNames[filter]}提醒事项</div>`;
+            this.remindersContainer.innerHTML = `<div class="reminder-empty">${filterNames[filter] || t("noReminders")}</div>`;
             return;
         }
 
@@ -439,7 +440,7 @@ export class ReminderPanel {
             }
         } catch (error) {
             console.error('切换提醒状态失败:', error);
-            showMessage('操作失败，请重试');
+            showMessage(t("operationFailed"));
         }
     }
 
@@ -479,14 +480,14 @@ export class ReminderPanel {
 
             // 询问用户是否删除无效的提醒
             const result = await confirm(
-                "打开笔记失败",
-                "该笔记块可能已被删除，是否删除相关的提醒？",
+                t("openNoteFailedDelete"),
+                t("noteBlockDeleted"),
                 async () => {
                     // 查找并删除相关提醒
                     await this.deleteRemindersByBlockId(blockId);
                 },
                 () => {
-                    showMessage('打开笔记失败，该块可能已被删除');
+                    showMessage(t("openNoteFailed"));
                 }
             );
         }
@@ -503,9 +504,9 @@ export class ReminderPanel {
 
         let dateStr = '';
         if (date === today) {
-            dateStr = '今天';
+            dateStr = t("today");
         } else if (date === tomorrowStr) {
-            dateStr = '明天';
+            dateStr = t("tomorrow");
         } else if (compareDateStrings(date, today) < 0) {
             // 过期日期也显示为相对时间
             const reminderDate = new Date(date + 'T00:00:00');
@@ -525,9 +526,9 @@ export class ReminderPanel {
         if (endDate && endDate !== date) {
             let endDateStr = '';
             if (endDate === today) {
-                endDateStr = '今天';
+                endDateStr = t("today");
             } else if (endDate === tomorrowStr) {
-                endDateStr = '明天';
+                endDateStr = t("tomorrow");
             } else if (compareDateStrings(endDate, today) < 0) {
                 const endReminderDate = new Date(endDate + 'T00:00:00');
                 endDateStr = endReminderDate.toLocaleDateString('zh-CN', {
@@ -548,6 +549,7 @@ export class ReminderPanel {
 
         return time ? `${dateStr} ${time}` : dateStr;
     }
+
     private async deleteRemindersByBlockId(blockId: string) {
         try {
             const reminderData = await readReminderData();
@@ -565,14 +567,14 @@ export class ReminderPanel {
             if (deletedCount > 0) {
                 await writeReminderData(reminderData);
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                showMessage(`已删除 ${deletedCount} 个相关提醒`);
+                showMessage(t("deletedRelatedReminders", { count: deletedCount.toString() }));
                 this.loadReminders();
             } else {
-                showMessage('未找到相关提醒');
+                showMessage(t("noRelatedReminders"));
             }
         } catch (error) {
             console.error('删除相关提醒失败:', error);
-            showMessage('删除相关提醒失败');
+            showMessage(t("deleteRelatedRemindersFailed"));
         }
     }
 
@@ -608,7 +610,7 @@ export class ReminderPanel {
         // 标题 - 使用blockId来跳转
         const titleEl = document.createElement('a');
         titleEl.className = 'reminder-item__title';
-        titleEl.textContent = reminder.title || '未命名笔记';
+        titleEl.textContent = reminder.title || t("unnamedNote");
         titleEl.href = '#';
         titleEl.addEventListener('click', (e) => {
             e.preventDefault();
@@ -621,16 +623,16 @@ export class ReminderPanel {
         const timeText = this.formatReminderTime(reminder.date, reminder.time, today, reminder.endDate);
         timeEl.textContent = timeText;
         timeEl.style.cursor = 'pointer';
-        timeEl.title = '点击修改时间';
+        timeEl.title = t("clickToModifyTime");
 
         // 添加优先级标签
         if (priority !== 'none') {
             const priorityLabel = document.createElement('span');
             priorityLabel.className = `reminder-priority-label ${priority}`;
             const priorityNames = {
-                'high': '高',
-                'medium': '中',
-                'low': '低'
+                'high': t("highPriority"),
+                'medium': t("mediumPriority"),
+                'low': t("lowPriority")
             };
             priorityLabel.innerHTML = `<div class="priority-dot ${priority}"></div>${priorityNames[priority]}`;
             timeEl.appendChild(priorityLabel);
@@ -645,7 +647,7 @@ export class ReminderPanel {
         if (isOverdue) {
             const overdueLabel = document.createElement('span');
             overdueLabel.className = 'reminder-overdue-label';
-            overdueLabel.textContent = '已过期';
+            overdueLabel.textContent = t("overdue");
             timeEl.appendChild(overdueLabel);
         }
 
@@ -672,7 +674,7 @@ export class ReminderPanel {
 
         menu.addItem({
             iconHTML: "📝",
-            label: "修改",
+            label: t("modify"),
             click: () => {
                 this.showTimeEditDialog(reminder);
             }
@@ -681,10 +683,10 @@ export class ReminderPanel {
         // 添加优先级设置子菜单
         const priorityMenuItems = [];
         const priorities = [
-            { key: 'high', label: '高优先级', color: '#e74c3c', icon: '🔴' },
-            { key: 'medium', label: '中优先级', color: '#f39c12', icon: '🟡' },
-            { key: 'low', label: '低优先级', color: '#3498db', icon: '🔵' },
-            { key: 'none', label: '无优先级', color: '#95a5a6', icon: '⚫' }
+            { key: 'high', label: t("high"), color: '#e74c3c', icon: '🔴' },
+            { key: 'medium', label: t("medium"), color: '#f39c12', icon: '🟡' },
+            { key: 'low', label: t("low"), color: '#3498db', icon: '🔵' },
+            { key: 'none', label: t("none"), color: '#95a5a6', icon: '⚫' }
         ];
 
         priorities.forEach(priority => {
@@ -699,7 +701,7 @@ export class ReminderPanel {
 
         menu.addItem({
             iconHTML: "🎯",
-            label: "设置优先级",
+            label: t("setPriority"),
             submenu: priorityMenuItems
         });
 
@@ -707,7 +709,7 @@ export class ReminderPanel {
 
         menu.addItem({
             iconHTML: "🗑️",
-            label: "删除提醒",
+            label: t("deleteReminder"),
             click: () => {
                 this.deleteReminder(reminder);
             }
@@ -718,15 +720,17 @@ export class ReminderPanel {
             y: event.clientY
         });
     }
+
     private async deleteReminder(reminder: any) {
         const result = await confirm(
-            "删除提醒",
-            `确定要删除提醒"${reminder.title}"吗？此操作无法撤销。`,
+            t("deleteReminder"),
+            t("confirmDelete", { title: reminder.title }),
             () => {
                 this.performDeleteReminder(reminder.id);
             }
         );
     }
+
     private async setPriority(reminderId: string, priority: string) {
         try {
             const reminderData = await readReminderData();
@@ -737,16 +741,16 @@ export class ReminderPanel {
                 this.loadReminders();
 
                 const priorityNames = {
-                    'high': '高优先级',
-                    'medium': '中优先级',
-                    'low': '低优先级',
-                    'none': '无优先级'
+                    'high': t("high"),
+                    'medium': t("medium"),
+                    'low': t("low"),
+                    'none': t("none")
                 };
-                showMessage(`已设置为${priorityNames[priority]}`);
+                showMessage(t("prioritySet", { priority: priorityNames[priority] }));
             }
         } catch (error) {
             console.error('设置优先级失败:', error);
-            showMessage('设置优先级失败，请重试');
+            showMessage(t("setPriorityFailed"));
         }
     }
 
@@ -758,14 +762,14 @@ export class ReminderPanel {
                 delete reminderData[reminderId];
                 await writeReminderData(reminderData);
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                showMessage('提醒已删除');
+                showMessage(t("reminderDeleted"));
                 this.loadReminders();
             } else {
-                showMessage('提醒不存在');
+                showMessage(t("reminderNotExist"));
             }
         } catch (error) {
             console.error('删除提醒失败:', error);
-            showMessage('删除提醒失败，请重试');
+            showMessage(t("deleteReminderFailed"));
         }
     }
 

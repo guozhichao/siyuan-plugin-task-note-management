@@ -6,6 +6,7 @@ import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
 import { readReminderData, writeReminderData, getBlockByID } from "../api";
 import { getLocalDateTime } from "../utils/dateUtils";
 import { ReminderEditDialog } from "./ReminderEditDialog";
+import { t } from "../utils/i18n";
 
 export class CalendarView {
     private container: HTMLElement;
@@ -35,19 +36,19 @@ export class CalendarView {
 
         const monthBtn = document.createElement('button');
         monthBtn.className = 'b3-button b3-button--outline';
-        monthBtn.textContent = '月';
+        monthBtn.textContent = t("month");
         monthBtn.addEventListener('click', () => this.calendar.changeView('dayGridMonth'));
         viewGroup.appendChild(monthBtn);
 
         const weekBtn = document.createElement('button');
         weekBtn.className = 'b3-button b3-button--outline';
-        weekBtn.textContent = '周';
+        weekBtn.textContent = t("week");
         weekBtn.addEventListener('click', () => this.calendar.changeView('timeGridWeek'));
         viewGroup.appendChild(weekBtn);
 
         const dayBtn = document.createElement('button');
         dayBtn.className = 'b3-button b3-button--outline';
-        dayBtn.textContent = '日';
+        dayBtn.textContent = t("day");
         dayBtn.addEventListener('click', () => this.calendar.changeView('timeGridDay'));
         viewGroup.appendChild(dayBtn);
 
@@ -213,7 +214,7 @@ export class CalendarView {
 
         menu.addItem({
             iconHTML: "📖",
-            label: "打开笔记",
+            label: t("openNote"),
             click: () => {
                 this.handleEventClick({ event: calendarEvent });
             }
@@ -221,7 +222,7 @@ export class CalendarView {
 
         menu.addItem({
             iconHTML: "✅",
-            label: calendarEvent.extendedProps.completed ? "标记为未完成" : "标记为已完成",
+            label: calendarEvent.extendedProps.completed ? t("markAsUncompleted") : t("markAsCompleted"),
             click: () => {
                 this.toggleEventCompleted(calendarEvent);
             }
@@ -232,10 +233,10 @@ export class CalendarView {
         // 添加优先级设置子菜单
         const priorityMenuItems = [];
         const priorities = [
-            { key: 'high', label: '高优先级', color: '#e74c3c', icon: '🔴' },
-            { key: 'medium', label: '中优先级', color: '#f39c12', icon: '🟡' },
-            { key: 'low', label: '低优先级', color: '#3498db', icon: '🔵' },
-            { key: 'none', label: '无优先级', color: '#95a5a6', icon: '⚫' }
+            { key: 'high', label: t("high"), color: '#e74c3c', icon: '🔴' },
+            { key: 'medium', label: t("medium"), color: '#f39c12', icon: '🟡' },
+            { key: 'low', label: t("low"), color: '#3498db', icon: '🔵' },
+            { key: 'none', label: t("none"), color: '#95a5a6', icon: '⚫' }
         ];
 
         priorities.forEach(priority => {
@@ -250,13 +251,13 @@ export class CalendarView {
 
         menu.addItem({
             iconHTML: "🎯",
-            label: "设置优先级",
+            label: t("setPriority"),
             submenu: priorityMenuItems
         });
 
         menu.addItem({
             iconHTML: calendarEvent.allDay ? "⏰" : "📅",
-            label: calendarEvent.allDay ? "修改为定时事件" : "修改为全天事件",
+            label: calendarEvent.allDay ? t("changeToTimed") : t("changeToAllDay"),
             click: () => {
                 this.toggleAllDayEvent(calendarEvent);
             }
@@ -264,7 +265,7 @@ export class CalendarView {
 
         menu.addItem({
             iconHTML: "📝",
-            label: "修改",
+            label: t("modify"),
             click: () => {
                 this.showTimeEditDialog(calendarEvent);
             }
@@ -274,7 +275,7 @@ export class CalendarView {
 
         menu.addItem({
             iconHTML: "🗑️",
-            label: "删除提醒",
+            label: t("deleteReminder"),
             click: () => {
                 this.deleteEvent(calendarEvent);
             }
@@ -301,24 +302,24 @@ export class CalendarView {
                 await this.refreshEvents();
 
                 const priorityNames = {
-                    'high': '高优先级',
-                    'medium': '中优先级',
-                    'low': '低优先级',
-                    'none': '无优先级'
+                    'high': t("high"),
+                    'medium': t("medium"),
+                    'low': t("low"),
+                    'none': t("none")
                 };
-                showMessage(`已设置为${priorityNames[priority]}`);
+                showMessage(t("prioritySet", { priority: priorityNames[priority] }));
             }
         } catch (error) {
             console.error('设置优先级失败:', error);
-            showMessage('设置优先级失败，请重试');
+            showMessage(t("setPriorityFailed"));
         }
     }
 
     private async deleteEvent(calendarEvent: any) {
         const reminder = calendarEvent.extendedProps;
         const result = await confirm(
-            "删除提醒",
-            `确定要删除提醒"${calendarEvent.title}"吗？此操作无法撤销。`,
+            t("deleteReminder"),
+            t("confirmDelete", { title: calendarEvent.title }),
             () => {
                 this.performDeleteEvent(calendarEvent.id);
             }
@@ -336,13 +337,13 @@ export class CalendarView {
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
                 await this.refreshEvents();
 
-                showMessage('提醒已删除');
+                showMessage(t("reminderDeleted"));
             } else {
-                showMessage('提醒不存在');
+                showMessage(t("reminderNotExist"));
             }
         } catch (error) {
             console.error('删除提醒失败:', error);
-            showMessage('删除提醒失败，请重试');
+            showMessage(t("deleteReminderFailed"));
         }
     }
 
@@ -418,14 +419,14 @@ export class CalendarView {
 
             // 询问用户是否删除无效的提醒
             const result = await confirm(
-                "打开笔记失败",
-                "该笔记块可能已被删除，是否删除相关的提醒？",
+                t("openNoteFailedDelete"),
+                t("noteBlockDeleted"),
                 async () => {
                     // 删除当前提醒
                     await this.performDeleteEvent(info.event.id);
                 },
                 () => {
-                    showMessage('打开笔记失败，该块可能已被删除');
+                    showMessage(t("openNoteFailed"));
                 }
             );
         }
@@ -507,14 +508,14 @@ export class CalendarView {
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
-                showMessage('已更新事件时间');
+                showMessage(t("eventTimeUpdated"));
                 await this.refreshEvents();
             } else {
                 throw new Error('提醒数据不存在');
             }
         } catch (error) {
             console.error('更新事件时间失败:', error);
-            showMessage('更新事件时间失败，请重试');
+            showMessage(t("operationFailed"));
             info.revert();
         }
     }
@@ -592,14 +593,14 @@ export class CalendarView {
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
-                showMessage('已更新事件时间');
+                showMessage(t("eventTimeUpdated"));
                 await this.refreshEvents();
             } else {
                 throw new Error('提醒数据不存在');
             }
         } catch (error) {
             console.error('调整事件大小失败:', error);
-            showMessage('调整事件大小失败，请重试');
+            showMessage(t("toggleFailed"));
             info.revert();
         }
     }
@@ -608,7 +609,7 @@ export class CalendarView {
         // 点击日期，可以添加新的提醒
         const date = info.dateStr;
         // 这里可以打开创建提醒对话框，但需要选择一个块ID
-        showMessage('请先在文档中选择一个块，然后为其创建提醒');
+        showMessage(t("selectBlockFirst"));
     }
 
     private async getEvents() {
@@ -650,7 +651,7 @@ export class CalendarView {
 
                 let eventObj: any = {
                     id: reminder.id,
-                    title: reminder.title || '未命名笔记',
+                    title: reminder.title || t("unnamedNote"),
                     backgroundColor: backgroundColor,
                     borderColor: borderColor,
                     textColor: reminder.completed ? '#999999' : '#ffffff',
@@ -686,7 +687,7 @@ export class CalendarView {
 
                         // 如果有时间信息，在标题中显示
                         if (reminder.time) {
-                            eventObj.title = `${reminder.title || '未命名笔记'} (${reminder.time})`;
+                            eventObj.title = `${reminder.title || t("unnamedNote")} (${reminder.time})`;
                         }
                     }
                 } else {
@@ -711,7 +712,7 @@ export class CalendarView {
             return events;
         } catch (error) {
             console.error('获取事件数据失败:', error);
-            showMessage('加载提醒数据失败');
+            showMessage(t("loadReminderDataFailed"));
             return [];
         }
     }
@@ -761,11 +762,11 @@ export class CalendarView {
 
                 await this.refreshEvents();
 
-                showMessage(isCurrentlyAllDay ? '已修改为定时事件' : '已修改为全天事件');
+                showMessage(isCurrentlyAllDay ? t("changedToTimed") : t("changedToAllDay"));
             }
         } catch (error) {
             console.error('切换全天事件失败:', error);
-            showMessage('切换失败，请重试');
+            showMessage(t("toggleFailed"));
         }
     }
 
@@ -806,11 +807,11 @@ export class CalendarView {
 
                 editDialog.show();
             } else {
-                showMessage('提醒数据不存在');
+                showMessage(t("reminderDataNotExist"));
             }
         } catch (error) {
             console.error('打开修改对话框失败:', error);
-            showMessage('打开修改对话框失败，请重试');
+            showMessage(t("openModifyDialogFailed"));
         }
     }
 

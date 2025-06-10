@@ -17,6 +17,7 @@ import { ReminderPanel } from "./components/ReminderPanel";
 import { ensureReminderDataFile } from "./api";
 import { CalendarView } from "./components/CalendarView";
 import { getLocalDateString, getLocalTimeString, compareDateStrings } from "./utils/dateUtils";
+import { t, setPluginInstance } from "./utils/i18n";
 
 const STORAGE_NAME = "reminder-config";
 const TAB_TYPE = "reminder_calendar_tab";
@@ -31,13 +32,21 @@ export default class ReminderPlugin extends Plugin {
     async onload() {
         console.log("Reminder Plugin loaded");
 
+        // 设置插件实例引用，使i18n工具能够访问插件的i18n数据
+        setPluginInstance(this);
+
         // 确保提醒数据文件存在
         await ensureReminderDataFile();
 
+        // 直接初始化，不再需要延迟
+        this.initializeUI();
+    }
+
+    private initializeUI() {
         // 添加顶栏按钮
         this.topBarElement = this.addTopBar({
             icon: "iconClock",
-            title: "时间提醒",
+            title: t("timeReminder"),
             position: "left",
             callback: () => this.openReminderFloatPanel()
         });
@@ -48,7 +57,7 @@ export default class ReminderPlugin extends Plugin {
                 position: "LeftTop",
                 size: { width: 300, height: 400 },
                 icon: "iconClock",
-                title: "时间提醒",
+                title: t("timeReminder"),
                 hotkey: "⌥⌘R"
             },
             data: {},
@@ -123,7 +132,7 @@ export default class ReminderPlugin extends Plugin {
     private openReminderFloatPanel() {
         // 创建悬浮窗口
         const dialog = new Dialog({
-            title: "时间提醒",
+            title: t("timeReminder"),
             content: '<div id="floatReminderPanel" style="height: 400px;"></div>',
             width: "350px",
             height: "450px",
@@ -275,7 +284,7 @@ export default class ReminderPlugin extends Plugin {
 
         detail.menu.addItem({
             iconHTML: "⏰",
-            label: "设置时间提醒",
+            label: t("setTimeReminder"),
             click: () => {
                 if (documentId) {
                     const dialog = new ReminderDialog(documentId);
@@ -289,7 +298,7 @@ export default class ReminderPlugin extends Plugin {
         // 添加提醒菜单项
         detail.menu.addItem({
             iconHTML: "⏰",
-            label: detail.blockElements.length > 1 ? `设置时间提醒 (${detail.blockElements.length}个块)` : "设置时间提醒",
+            label: detail.blockElements.length > 1 ? t("batchSetReminderBlocks", { count: detail.blockElements.length.toString() }) : t("setTimeReminder"),
             click: () => {
                 if (detail.blockElements && detail.blockElements.length > 0) {
                     // 获取所有选中块的ID
@@ -321,63 +330,63 @@ export default class ReminderPlugin extends Plugin {
         const currentTime = getLocalTimeString(); // 使用本地时间
 
         const dialog = new Dialog({
-            title: `批量设置时间提醒 (${blockIds.length}个块)`,
+            title: t("batchSetReminderBlocks", { count: blockIds.length.toString() }),
             content: `
                 <div class="batch-reminder-dialog">
                     <div class="b3-dialog__content">
                         <div class="fn__hr"></div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">优先级</label>
+                            <label class="b3-form__label">${t("priority")}</label>
                             <div class="priority-selector" id="batchPrioritySelector">
                                 <div class="priority-option" data-priority="high">
                                     <div class="priority-dot high"></div>
-                                    <span>高</span>
+                                    <span>${t("highPriority")}</span>
                                 </div>
                                 <div class="priority-option" data-priority="medium">
                                     <div class="priority-dot medium"></div>
-                                    <span>中</span>
+                                    <span>${t("mediumPriority")}</span>
                                 </div>
                                 <div class="priority-option" data-priority="low">
                                     <div class="priority-dot low"></div>
-                                    <span>低</span>
+                                    <span>${t("lowPriority")}</span>
                                 </div>
                                 <div class="priority-option selected" data-priority="none">
                                     <div class="priority-dot none"></div>
-                                    <span>无</span>
+                                    <span>${t("noPriority")}</span>
                                 </div>
                             </div>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">提醒日期</label>
+                            <label class="b3-form__label">${t("reminderDate")}</label>
                             <div class="reminder-date-container">
                                 <input type="date" id="batchReminderDate" class="b3-text-field" value="${today}" required>
                                 <span class="reminder-arrow">→</span>
-                                <input type="date" id="batchReminderEndDate" class="b3-text-field reminder-end-date" placeholder="结束日期（可选）" title="设置跨天事件的结束日期，留空表示单日事件">
+                                <input type="date" id="batchReminderEndDate" class="b3-text-field reminder-end-date" placeholder="${t("endDateOptional")}" title="${t("spanningEventDesc")}">
                             </div>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">提醒时间（可选）</label>
+                            <label class="b3-form__label">${t("reminderTimeOptional")}</label>
                             <input type="time" id="batchReminderTime" class="b3-text-field" value="${currentTime}">
-                            <div class="b3-form__desc">不设置时间则全天提醒</div>
+                            <div class="b3-form__desc">${t("noTimeDesc")}</div>
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-checkbox">
                                 <input type="checkbox" id="batchNoSpecificTime">
                                 <span class="b3-checkbox__graphic"></span>
-                                <span class="b3-checkbox__label">不设置具体时间</span>
+                                <span class="b3-checkbox__label">${t("noSpecificTime")}</span>
                             </label>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">备注（可选）</label>
-                            <textarea id="batchReminderNote" class="b3-text-field" placeholder="输入提醒备注..." rows="3" style="resize: vertical; min-height: 60px;"></textarea>
+                            <label class="b3-form__label">${t("reminderNoteOptional")}</label>
+                            <textarea id="batchReminderNote" class="b3-text-field" placeholder="${t("enterReminderNote")}" rows="3" style="resize: vertical; min-height: 60px;"></textarea>
                         </div>
                         <div class="b3-form__group">
-                            <div class="b3-form__desc">将为以下 ${blockIds.length} 个块设置相同的提醒时间</div>
+                            <div class="b3-form__desc">${t("batchSetReminderDesc", { count: blockIds.length.toString() })}</div>
                         </div>
                     </div>
                     <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="batchCancelBtn">取消</button>
-                        <button class="b3-button b3-button--primary" id="batchConfirmBtn">批量设置</button>
+                        <button class="b3-button b3-button--cancel" id="batchCancelBtn">${t("cancel")}</button>
+                        <button class="b3-button b3-button--primary" id="batchConfirmBtn">${t("batchSet")}</button>
                     </div>
                 </div>
             `,
@@ -426,7 +435,7 @@ export default class ReminderPlugin extends Plugin {
 
             if (endDate && endDate < startDate) {
                 endDateInput.value = startDate;
-                showMessage('结束日期已自动调整为开始日期');
+                showMessage(t("endDateAdjusted"));
             }
 
             endDateInput.min = startDate;
@@ -438,7 +447,7 @@ export default class ReminderPlugin extends Plugin {
 
             if (endDate && endDate < startDate) {
                 endDateInput.value = startDate;
-                showMessage('结束日期不能早于开始日期');
+                showMessage(t("endDateCannotBeEarlier"));
             }
         });
     }
@@ -458,12 +467,12 @@ export default class ReminderPlugin extends Plugin {
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
 
         if (!date) {
-            showMessage('请选择提醒日期');
+            showMessage(t("pleaseSelectDate"));
             return;
         }
 
         if (endDate && endDate < date) {
-            showMessage('结束日期不能早于开始日期');
+            showMessage(t("endDateCannotBeEarlier"));
             return;
         }
 
@@ -482,7 +491,7 @@ export default class ReminderPlugin extends Plugin {
                         const reminder = {
                             id: reminderId,
                             blockId: blockId,
-                            title: block.content || '未命名笔记',
+                            title: block.content || t("unnamedNote"),
                             date: date,
                             completed: false,
                             priority: priority,
@@ -518,9 +527,16 @@ export default class ReminderPlugin extends Plugin {
                 const isSpanning = endDate && endDate !== date;
                 const timeStr = time ? ` ${time}` : '';
                 const dateStr = isSpanning ? `${date} → ${endDate}${timeStr}` : `${date}${timeStr}`;
-                showMessage(`成功为 ${successCount} 个块设置${isSpanning ? '跨天' : ''}提醒: ${dateStr}${failureCount > 0 ? `，${failureCount} 个失败` : ''}`);
+                const spanningText = isSpanning ? t("spanning") : '';
+                const failureText = failureCount > 0 ? t("batchFailure", { count: failureCount.toString() }) : '';
+                showMessage(t("batchSuccess", { 
+                    count: successCount.toString(),
+                    spanning: spanningText,
+                    date: dateStr,
+                    failure: failureText
+                }));
             } else {
-                showMessage('批量设置提醒失败，请重试');
+                showMessage(t("batchSetFailed"));
             }
 
             dialog.destroy();
@@ -528,7 +544,7 @@ export default class ReminderPlugin extends Plugin {
 
         } catch (error) {
             console.error('批量保存提醒失败:', error);
-            showMessage('批量保存提醒失败，请重试');
+            showMessage(t("batchSaveFailed"));
         }
     }
 
@@ -582,8 +598,11 @@ export default class ReminderPlugin extends Plugin {
                 const shouldRemind = isToday && (!reminder.time || reminder.time <= currentTime);
 
                 if (shouldRemind && !reminder.notified) {
-                    const noteText = reminder.note ? `\n备注: ${reminder.note}` : '';
-                    showMessage(`⏰ 提醒: ${reminder.title || '未命名笔记'}${noteText}`, 5000);
+                    const noteText = reminder.note ? t("noteText", { note: reminder.note }) : '';
+                    showMessage(t("reminderNotification", { 
+                        title: reminder.title || t("unnamedNote"),
+                        note: noteText 
+                    }), 5000);
                     reminder.notified = true;
                     hasUpdates = true;
                 }
@@ -607,15 +626,13 @@ export default class ReminderPlugin extends Plugin {
         openTab({
             app: this.app,
             custom: {
-                title: '日历视图',
+                title: t("calendarView"),
                 icon: 'iconCalendar',
                 id: this.name + TAB_TYPE,
                 data: {}
             }
         });
     }
-
-
 
     private addBreadcrumbReminderButton(protyle: any) {
         if (!protyle || !protyle.element) return;
@@ -634,7 +651,7 @@ export default class ReminderPlugin extends Plugin {
         // 创建提醒按钮
         const reminderBtn = document.createElement('button');
         reminderBtn.className = 'reminder-breadcrumb-btn block__icon fn__flex-center ariaLabel';
-        reminderBtn.setAttribute('aria-label', '设置文档提醒');
+        reminderBtn.setAttribute('aria-label', t("setDocumentReminder"));
         reminderBtn.innerHTML = `
             <svg class="b3-list-item__graphic"><use xlink:href="#iconClock"></use></svg>
         `;
@@ -668,7 +685,7 @@ export default class ReminderPlugin extends Plugin {
                 const dialog = new ReminderDialog(documentId);
                 dialog.show();
             } else {
-                showMessage('无法获取文档ID');
+                showMessage(t("cannotGetDocumentId"));
             }
         });
 

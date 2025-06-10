@@ -3,6 +3,7 @@ import { readReminderData, writeReminderData, getBlockByID } from "../api";
 import { getLocalDateString, getLocalTimeString, compareDateStrings } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { ReminderEditDialog } from "./ReminderEditDialog";
+import { t } from "../utils/i18n";
 
 export class ReminderDialog {
     private blockId: string;
@@ -48,13 +49,13 @@ export class ReminderDialog {
         try {
             const block = await getBlockByID(this.blockId);
             if (!block) {
-                showMessage('选择的笔记块不存在，无法创建提醒');
+                showMessage(t("blockNotExist"));
                 return;
             }
-            this.blockContent = block?.content || '未命名笔记';
+            this.blockContent = block?.content || t("unnamedNote");
         } catch (error) {
             console.error('获取块内容失败:', error);
-            showMessage('无法获取笔记内容，可能该块已被删除');
+            showMessage(t("cannotGetNoteContent"));
             return;
         }
 
@@ -62,70 +63,70 @@ export class ReminderDialog {
         const currentTime = getLocalTimeString();
 
         this.dialog = new Dialog({
-            title: "设置时间提醒",
+            title: t("setTimeReminder"),
             content: `
                 <div class="reminder-dialog">
                     <div class="b3-dialog__content">
                         <div class="fn__hr"></div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">事件标题</label>
-                            <input type="text" id="reminderTitle" class="b3-text-field" value="${this.blockContent}" placeholder="请输入事件标题">
+                            <label class="b3-form__label">${t("eventTitle")}</label>
+                            <input type="text" id="reminderTitle" class="b3-text-field" value="${this.blockContent}" placeholder="${t("enterReminderTitle")}">
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">优先级</label>
+                            <label class="b3-form__label">${t("priority")}</label>
                             <div class="priority-selector" id="prioritySelector">
                                 <div class="priority-option" data-priority="high">
                                     <div class="priority-dot high"></div>
-                                    <span>高</span>
+                                    <span>${t("highPriority")}</span>
                                 </div>
                                 <div class="priority-option" data-priority="medium">
                                     <div class="priority-dot medium"></div>
-                                    <span>中</span>
+                                    <span>${t("mediumPriority")}</span>
                                 </div>
                                 <div class="priority-option" data-priority="low">
                                     <div class="priority-dot low"></div>
-                                    <span>低</span>
+                                    <span>${t("lowPriority")}</span>
                                 </div>
                                 <div class="priority-option selected" data-priority="none">
                                     <div class="priority-dot none"></div>
-                                    <span>无</span>
+                                    <span>${t("noPriority")}</span>
                                 </div>
                             </div>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">提醒日期</label>
+                            <label class="b3-form__label">${t("reminderDate")}</label>
                             <div class="reminder-date-container">
                                 <input type="date" id="reminderDate" class="b3-text-field" value="${today}" required>
                                 <span class="reminder-arrow">→</span>
-                                <input type="date" id="reminderEndDate" class="b3-text-field reminder-end-date" placeholder="结束日期（可选）" title="设置跨天事件的结束日期，留空表示单日事件">
+                                <input type="date" id="reminderEndDate" class="b3-text-field reminder-end-date" placeholder="${t("endDateOptional")}" title="${t("spanningEventDesc")}">
                             </div>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">提醒时间（可选）</label>
+                            <label class="b3-form__label">${t("reminderTimeOptional")}</label>
                             <input type="time" id="reminderTime" class="b3-text-field" value="${currentTime}">
-                            <div class="b3-form__desc">不设置时间则全天提醒</div>
+                            <div class="b3-form__desc">${t("noTimeDesc")}</div>
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-checkbox">
                                 <input type="checkbox" id="noSpecificTime">
                                 <span class="b3-checkbox__graphic"></span>
-                                <span class="b3-checkbox__label">不设置具体时间</span>
+                                <span class="b3-checkbox__label">${t("noSpecificTime")}</span>
                             </label>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">备注（可选）</label>
-                            <textarea id="reminderNote" class="b3-text-field" placeholder="输入提醒备注..." rows="3" style="width: 100%;resize: vertical; min-height: 60px;"></textarea>
+                            <label class="b3-form__label">${t("reminderNoteOptional")}</label>
+                            <textarea id="reminderNote" class="b3-text-field" placeholder="${t("enterReminderNote")}" rows="3" style="width: 100%;resize: vertical; min-height: 60px;"></textarea>
                         </div>
                         
                         <!-- 添加现有提醒显示区域 -->
                         <div class="b3-form__group">
-                            <label class="b3-form__label">现有提醒</label>
+                            <label class="b3-form__label">${t("existingReminders")}</label>
                             <div id="existingReminders" class="existing-reminders-container"></div>
                         </div>
                     </div>
                     <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="cancelBtn">取消</button>
-                        <button class="b3-button b3-button--primary" id="confirmBtn">确定</button>
+                        <button class="b3-button b3-button--cancel" id="cancelBtn">${t("cancel")}</button>
+                        <button class="b3-button b3-button--primary" id="confirmBtn">${t("save")}</button>
                     </div>
                 </div>
             `,
@@ -188,7 +189,7 @@ export class ReminderDialog {
             // 如果结束日期已设置且早于开始日期，自动调整
             if (endDate && endDate < startDate) {
                 endDateInput.value = startDate;
-                showMessage('结束日期已自动调整为开始日期');
+                showMessage(t("endDateAdjusted"));
             }
 
             // 设置结束日期的最小值
@@ -202,7 +203,7 @@ export class ReminderDialog {
 
             if (endDate && endDate < startDate) {
                 endDateInput.value = startDate;
-                showMessage('结束日期不能早于开始日期');
+                showMessage(t("endDateCannotBeEarlier"));
             }
         });
     }
@@ -224,17 +225,17 @@ export class ReminderDialog {
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
 
         if (!title) {
-            showMessage('请输入事件标题');
+            showMessage(t("pleaseEnterTitle"));
             return;
         }
 
         if (!date) {
-            showMessage('请选择提醒日期');
+            showMessage(t("pleaseSelectDate"));
             return;
         }
 
         if (endDate && endDate < date) {
-            showMessage('结束日期不能早于开始日期');
+            showMessage(t("endDateCannotBeEarlier"));
             return;
         }
 
@@ -268,9 +269,9 @@ export class ReminderDialog {
             await writeReminderData(reminderData);
 
             if (endDate && endDate !== date) {
-                showMessage(`已设置跨天提醒：${date} → ${endDate}${time ? ` ${time}` : ''}`);
+                showMessage(t("reminderSaved") + `：${date} → ${endDate}${time ? ` ${time}` : ''}`);
             } else {
-                showMessage(`已设置提醒：${date}${time ? ` ${time}` : ''}`);
+                showMessage(t("reminderSaved") + `：${date}${time ? ` ${time}` : ''}`);
             }
 
             // 触发更新事件
@@ -280,7 +281,7 @@ export class ReminderDialog {
             this.dialog.destroy();
         } catch (error) {
             console.error('保存提醒失败:', error);
-            showMessage('保存提醒失败，请重试');
+            showMessage(t("saveReminderFailed"));
         }
     }
 
@@ -295,9 +296,9 @@ export class ReminderDialog {
 
         let dateStr = '';
         if (date === today) {
-            dateStr = '今天';
+            dateStr = t("today");
         } else if (date === tomorrowStr) {
-            dateStr = '明天';
+            dateStr = t("tomorrow");
         } else if (compareDateStrings(date, today) < 0) {
             // 过期日期也显示为相对时间
             const reminderDate = new Date(date + 'T00:00:00');
@@ -317,9 +318,9 @@ export class ReminderDialog {
         if (endDate && endDate !== date) {
             let endDateStr = '';
             if (endDate === today) {
-                endDateStr = '今天';
+                endDateStr = t("today");
             } else if (endDate === tomorrowStr) {
-                endDateStr = '明天';
+                endDateStr = t("tomorrow");
             } else if (compareDateStrings(endDate, today) < 0) {
                 const endReminderDate = new Date(endDate + 'T00:00:00');
                 endDateStr = endReminderDate.toLocaleDateString('zh-CN', {
@@ -395,8 +396,8 @@ export class ReminderDialog {
 
     private async deleteReminder(reminder: any) {
         const result = await confirm(
-            "删除提醒",
-            `确定要删除提醒"${reminder.title}"吗？此操作无法撤销。`,
+            t("deleteReminder"),
+            t("confirmDelete", { title: reminder.title }),
             () => {
                 this.performDeleteReminder(reminder.id);
             }
@@ -416,13 +417,13 @@ export class ReminderDialog {
 
                 await this.loadExistingReminder();
 
-                showMessage('提醒已删除');
+                showMessage(t("reminderDeleted"));
             } else {
-                showMessage('提醒不存在');
+                showMessage(t("reminderNotExist"));
             }
         } catch (error) {
             console.error('删除提醒失败:', error);
-            showMessage('删除提醒失败，请重试');
+            showMessage(t("deleteReminderFailed"));
         }
     }
 
@@ -454,7 +455,7 @@ export class ReminderDialog {
                     container.appendChild(reminderEl);
                 });
             } else if (container) {
-                container.innerHTML = '<div class="reminder-empty">暂无现有提醒</div>';
+                container.innerHTML = `<div class="reminder-empty">${t("noExistingReminders")}</div>`;
             }
         } catch (error) {
             console.error('加载现有提醒失败:', error);
@@ -485,7 +486,7 @@ export class ReminderDialog {
         timeEl.textContent = timeText;
         timeEl.style.cursor = 'pointer';
         timeEl.style.color = 'var(--b3-theme-primary)';
-        timeEl.title = '点击修改时间';
+        timeEl.title = t("clickToModifyTime");
 
         // 添加时间点击编辑事件
         timeEl.addEventListener('click', (e) => {
@@ -511,7 +512,7 @@ export class ReminderDialog {
 
         menu.addItem({
             iconHTML: "📝",
-            label: "修改",
+            label: t("modify"),
             click: () => {
                 this.showTimeEditDialog(reminder);
             }
@@ -521,7 +522,7 @@ export class ReminderDialog {
 
         menu.addItem({
             iconHTML: "🗑️",
-            label: "删除提醒",
+            label: t("deleteReminder"),
             click: () => {
                 this.deleteReminder(reminder);
             }

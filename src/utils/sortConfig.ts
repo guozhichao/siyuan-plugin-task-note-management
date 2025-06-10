@@ -1,4 +1,5 @@
 import { getFile, putFile } from "../api";
+import { t } from "./i18n";
 
 const SORT_CONFIG_PATH = 'data/storage/petal/siyuan-plugin-reminder/sort_methods.json';
 
@@ -50,11 +51,12 @@ export async function saveSortConfig(sortMethod: string): Promise<void> {
 }
 
 export function getSortMethodName(sortMethod: string): string {
-    const sortNames = {
-        'time': '按时间排序',
-        'priority': '按优先级排序',
-        'title': '按标题排序',
-        'created': '按创建时间排序'
+    const sortMethodNames = {
+        'time': t("sortByTime"),
+        'priority': t("sortByPriority"),
+        'title': t("sortByTitle"),
+        'created': t("sortByCreated")
     };
-    return sortNames[sortMethod] || '按时间排序';
+
+    return sortMethodNames[sortMethod] || t("sortByTime");
 }
