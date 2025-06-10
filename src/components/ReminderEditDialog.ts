@@ -16,7 +16,7 @@ export class ReminderEditDialog {
             title: "修改事件",
             content: this.createDialogContent(),
             width: "400px",
-            height: "650px"
+            height: "600px"
         });
 
         this.bindEvents();
@@ -52,11 +52,9 @@ export class ReminderEditDialog {
                         </div>
                     </div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">开始日期</label>
+                        <label class="b3-form__label">提醒日期</label>
                         <input type="date" id="editReminderDate" class="b3-text-field" value="${this.reminder.date}" required>
-                    </div>
-                    <div class="b3-form__group">
-                        <label class="b3-form__label">结束日期（可选）</label>
+                        <span class="reminder-arrow">→</span>
                         <input type="date" id="editReminderEndDate" class="b3-text-field" value="${this.reminder.endDate || ''}" placeholder="留空表示单日事件">
                     </div>
                     <div class="b3-form__group">

@@ -123,21 +123,26 @@
 
 
 }
+
 .time-edit-dialog {
 
     .b3-form__group {
-            margin-bottom: 16px;
-        }
+        margin-bottom: 16px;
+    }
+
     .b3-form__label {
-            display: block;
-            margin-bottom: 4px;
-            font-weight: 500;
-        }
+        display: block;
+        margin-bottom: 4px;
+        font-weight: 500;
+    }
+
     .b3-form__desc {
         font-size: 12px;
         color: var(--b3-theme-on-surface-light);
-        margin-top: 4px;   }
+        margin-top: 4px;
+    }
 }
+
 .reminder-item__note {
     font-size: 12px;
     color: var(--b3-card-success-color);
@@ -435,10 +440,12 @@
     color: var(--b3-card-error-color) !important;
     background-color: transparent !important;
 }
+
 .reminder-priority-medium {
     border-left: 4px solid var(--b3-card-warning-color) !important;
     background-color: var(--b3-card-warning-background) !important;
 }
+
 .reminder-priority-medium .reminder-item__note {
     color: var(--b3-card-warning-color) !important;
     background-color: var(--b3-card-warning-background) !important;
@@ -449,6 +456,7 @@
     border-left: 4px solid var(--b3-card-info-color) !important;
     background-color: var(--b3-card-info-background) !important;
 }
+
 .reminder-priority-low .reminder-item__note {
     color: var(--b3-card-info-color) !important;
     background-color: var(--b3-card-info-background) !important;
@@ -470,15 +478,18 @@
     border-color: var(--b3-card-error-color) !important;
     color: var(--b3-card-error-color) !important;
 }
-.fc-event.reminder-priority-high .reminder-calendar-event-content{
+
+.fc-event.reminder-priority-high .reminder-calendar-event-content {
     color: var(--b3-card-error-color) !important;
 }
+
 .fc-event.reminder-priority-medium {
     background-color: var(--b3-card-warning-background) !important;
     border-color: var(--b3-card-warning-color) !important;
     color: var(--b3-card-warning-color) !important;
 
 }
+
 .fc-event.reminder-priority-medium .reminder-calendar-event-content {
     color: var(--b3-card-warning-color) !important;
 }
@@ -488,14 +499,16 @@
     border-color: var(--b3-card-info-color) !important;
     color: var(--b3-card-info-color) !important;
 }
+
 .fc-event.reminder-priority-low .reminder-calendar-event-content {
     color: var(--b3-card-info-color) !important;
 }
 
 .fc-event.reminder-priority-none {
-    background-color: #c6d1c8!important;
+    background-color: #c6d1c8 !important;
     color: var(--b3-theme-on-background) !important;
 }
+
 .fc-event.reminder-priority-none .reminder-calendar-event-content {
     color: #000 !important;
 }
