@@ -192,13 +192,16 @@ export class ReminderDialog {
 
         try {
             const categories = this.categoryManager.getCategories();
+            
+            // 获取该块的历史分类
+            const defaultCategoryId = await this.getBlockDefaultCategory();
 
             // 清空并重新构建
             categorySelector.innerHTML = '';
 
             // 添加无分类选项
             const noCategoryEl = document.createElement('div');
-            noCategoryEl.className = 'category-option selected'; // 默认选中
+            noCategoryEl.className = `category-option ${!defaultCategoryId ? 'selected' : ''}`;
             noCategoryEl.setAttribute('data-category', '');
             noCategoryEl.innerHTML = `
                 <div class="category-dot none"></div>
@@ -209,7 +212,7 @@ export class ReminderDialog {
             // 添加所有分类选项
             categories.forEach(category => {
                 const categoryEl = document.createElement('div');
-                categoryEl.className = 'category-option';
+                categoryEl.className = `category-option ${category.id === defaultCategoryId ? 'selected' : ''}`;
                 categoryEl.setAttribute('data-category', category.id);
                 categoryEl.innerHTML = `
                     <div class="category-dot" style="background-color: ${category.color};"></div>
@@ -221,6 +224,63 @@ export class ReminderDialog {
         } catch (error) {
             console.error('渲染分类选择器失败:', error);
             categorySelector.innerHTML = '<div class="category-error">加载分类失败</div>';
+        }
+    }
+
+    // 添加获取块默认分类的方法
+    private async getBlockDefaultCategory(): Promise<string | null> {
+        try {
+            const reminderData = await readReminderData();
+            const blockReminders = Object.values(reminderData).filter((reminder: any) =>
+                reminder && reminder.blockId === this.blockId && reminder.categoryId
+            );
+
+            if (blockReminders.length === 0) {
+                return null;
+            }
+
+            // 统计分类使用频率和最近使用时间
+            const categoryStats = new Map<string, { count: number; lastUsed: string }>();
+
+            blockReminders.forEach((reminder: any) => {
+                if (reminder.categoryId) {
+                    const current = categoryStats.get(reminder.categoryId);
+                    const createdAt = reminder.createdAt || '1970-01-01T00:00:00Z';
+                    
+                    if (current) {
+                        current.count++;
+                        if (createdAt > current.lastUsed) {
+                            current.lastUsed = createdAt;
+                        }
+                    } else {
+                        categoryStats.set(reminder.categoryId, {
+                            count: 1,
+                            lastUsed: createdAt
+                        });
+                    }
+                }
+            });
+
+            // 按使用频率排序，频率相同时按最近使用时间排序
+            const sortedCategories = Array.from(categoryStats.entries()).sort((a, b) => {
+                const [categoryIdA, statsA] = a;
+                const [categoryIdB, statsB] = b;
+                
+                // 首先按使用频率排序
+                if (statsA.count !== statsB.count) {
+                    return statsB.count - statsA.count;
+                }
+                
+                // 频率相同时按最近使用时间排序
+                return new Date(statsB.lastUsed).getTime() - new Date(statsA.lastUsed).getTime();
+            });
+
+            // 返回最常用且最近使用的分类ID
+            return sortedCategories.length > 0 ? sortedCategories[0][0] : null;
+
+        } catch (error) {
+            console.error('获取块默认分类失败:', error);
+            return null;
         }
     }
 
