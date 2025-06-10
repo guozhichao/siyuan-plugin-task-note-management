@@ -1,6 +1,7 @@
 import { showMessage, Dialog } from "siyuan";
 import { readReminderData, writeReminderData } from "../api";
 import { CategoryManager, Category } from "../utils/categoryManager";
+import { CategoryManageDialog } from "./CategoryManageDialog";
 import { t } from "../utils/i18n";
 import { RepeatSettingsDialog, RepeatConfig } from "./RepeatSettingsDialog";
 import { getRepeatDescription } from "../utils/repeatUtils";
@@ -58,7 +59,11 @@ export class ReminderEditDialog {
                         <input type="text" id="editReminderTitle" class="b3-text-field" value="${this.reminder.title || ''}" placeholder="${t("enterReminderTitle")}" style="width: 100%;" >
                     </div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">事件分类</label>
+                        <label class="b3-form__label">事件分类
+                            <button type="button" id="editManageCategoriesBtn" class="b3-button b3-button--outline" title="管理分类">
+                                <svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg>
+                            </button>
+                        </label>
                         <div class="category-selector" id="editCategorySelector">
                             <!-- 分类选择器将在这里渲染 -->
                         </div>
@@ -171,6 +176,7 @@ export class ReminderEditDialog {
         const endDateInput = this.dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
         const prioritySelector = this.dialog.element.querySelector('#editPrioritySelector') as HTMLElement;
         const categorySelector = this.dialog.element.querySelector('#editCategorySelector') as HTMLElement;
+        const editManageCategoriesBtn = this.dialog.element.querySelector('#editManageCategoriesBtn') as HTMLButtonElement;
 
         // 优先级选择事件
         prioritySelector.addEventListener('click', (e) => {
@@ -227,6 +233,11 @@ export class ReminderEditDialog {
                 endDateInput.value = startDate;
                 showMessage(t("endDateCannotBeEarlier"));
             }
+        });
+
+        // 管理分类按钮事件
+        editManageCategoriesBtn?.addEventListener('click', () => {
+            this.showCategoryManageDialog();
         });
 
         // 重复设置按钮
@@ -419,5 +430,15 @@ export class ReminderEditDialog {
             console.error('保存实例修改失败:', error);
             throw error;
         }
+    }
+
+    private showCategoryManageDialog() {
+        const categoryDialog = new CategoryManageDialog(() => {
+            // 分类更新后重新渲染分类选择器
+            this.renderCategorySelector();
+            // 触发全局提醒更新事件
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+        });
+        categoryDialog.show();
     }
 }
