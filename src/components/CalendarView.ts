@@ -4,7 +4,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
 import { readReminderData, writeReminderData, getBlockByID } from "../api";
-import { getLocalDateTime } from "../utils/dateUtils";
+import { getLocalDateString, getLocalDateTime } from "../utils/dateUtils";
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { t } from "../utils/i18n";
 import { generateRepeatInstances, RepeatInstance } from "../utils/repeatUtils";
@@ -238,6 +238,23 @@ export class CalendarView {
                     this.showTimeEditDialogForSeries(calendarEvent);
                 }
             });
+        } else if (calendarEvent.extendedProps.repeat?.enabled) {
+            // 对于周期原始事件，提供与实例一致的选项
+            menu.addItem({
+                iconHTML: "📝",
+                label: t("modifyThisInstance"),
+                click: () => {
+                    this.splitRecurringEvent(calendarEvent);
+                }
+            });
+
+            menu.addItem({
+                iconHTML: "📝",
+                label: t("modifyAllInstances"),
+                click: () => {
+                    this.showTimeEditDialog(calendarEvent);
+                }
+            });
         } else {
             menu.addItem({
                 iconHTML: "📝",
@@ -299,6 +316,23 @@ export class CalendarView {
                 label: t("deleteThisInstance"),
                 click: () => {
                     this.deleteInstanceOnly(calendarEvent);
+                }
+            });
+
+            menu.addItem({
+                iconHTML: "🗑️",
+                label: t("deleteAllInstances"),
+                click: () => {
+                    this.deleteEvent(calendarEvent);
+                }
+            });
+        } else if (calendarEvent.extendedProps.repeat?.enabled) {
+            // 对于周期原始事件，提供与实例一致的删除选项
+            menu.addItem({
+                iconHTML: "🗑️",
+                label: t("deleteThisInstance"),
+                click: () => {
+                    this.skipFirstOccurrence(calendarEvent);
                 }
             });
 
@@ -1391,5 +1425,282 @@ export class CalendarView {
         if (this.container) {
             this.container.innerHTML = '';
         }
+    }
+
+    /**
+     * 分割重复事件系列 - 修改原始事件并创建新系列
+     */
+    private async splitRecurringEvent(calendarEvent: any) {
+        try {
+            const reminder = calendarEvent.extendedProps;
+            const reminderData = await readReminderData();
+            const originalReminder = reminderData[calendarEvent.id];
+
+            if (!originalReminder || !originalReminder.repeat?.enabled) {
+                showMessage(t("operationFailed"));
+                return;
+            }
+
+            // 计算下一个周期日期
+            const nextDate = this.calculateNextDate(originalReminder.date, originalReminder.repeat);
+            if (!nextDate) {
+                showMessage(t("operationFailed") + ": " + t("invalidRepeatConfig"));
+                return;
+            }
+            const nextDateStr = getLocalDateTime(nextDate).dateStr;
+
+            // 创建用于编辑的临时数据
+            const editData = {
+                ...originalReminder,
+                isSplitOperation: true,
+                originalId: calendarEvent.id,
+                nextCycleDate: nextDateStr,
+                nextCycleEndDate: originalReminder.endDate ? this.calculateEndDateForSplit(originalReminder, nextDate) : undefined
+            };
+
+            // 打开编辑对话框
+            const editDialog = new ReminderEditDialog(editData, async (modifiedReminder) => {
+                await this.performSplitOperation(originalReminder, modifiedReminder);
+            });
+            editDialog.show();
+
+        } catch (error) {
+            console.error('分割重复事件系列失败:', error);
+            showMessage(t("operationFailed"));
+        }
+    }
+
+    /**
+     * 执行分割操作
+     */
+    private async performSplitOperation(originalReminder: any, modifiedReminder: any) {
+        try {
+            const reminderData = await readReminderData();
+
+            // 1. 修改原始事件为单次事件
+            const singleReminder = {
+                ...originalReminder,
+                title: modifiedReminder.title,
+                date: modifiedReminder.date,
+                time: modifiedReminder.time,
+                endDate: modifiedReminder.endDate,
+                endTime: modifiedReminder.endTime,
+                note: modifiedReminder.note,
+                priority: modifiedReminder.priority,
+                repeat: undefined
+            };
+
+            // 2. 创建新的重复事件系列
+            const newReminder = JSON.parse(JSON.stringify(originalReminder));
+
+            // 清理新提醒的重复历史数据
+            delete newReminder.repeat.endDate;
+            delete newReminder.repeat.excludeDates;
+            delete newReminder.repeat.instanceModifications;
+            delete newReminder.repeat.completedInstances;
+
+            // 生成新的提醒ID
+            const blockId = originalReminder.blockId || originalReminder.id;
+            const newId = `${blockId}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            newReminder.id = newId;
+
+            // 3. 设置新系列从下一个周期开始
+            newReminder.date = modifiedReminder.nextCycleDate;
+            newReminder.endDate = modifiedReminder.nextCycleEndDate;
+            newReminder.time = originalReminder.time;
+            newReminder.endTime = originalReminder.endTime;
+            newReminder.title = originalReminder.title;
+            newReminder.note = originalReminder.note;
+            newReminder.priority = originalReminder.priority;
+
+            // 应用重复设置
+            if (modifiedReminder.repeat && modifiedReminder.repeat.enabled) {
+                newReminder.repeat = { ...modifiedReminder.repeat };
+                delete newReminder.repeat.endDate;
+            } else {
+                newReminder.repeat = { ...originalReminder.repeat };
+                delete newReminder.repeat.endDate;
+            }
+
+            // 4. 保存修改
+            reminderData[originalReminder.id] = singleReminder;
+            reminderData[newId] = newReminder;
+            await writeReminderData(reminderData);
+
+            // 5. 更新界面
+            await this.refreshEvents();
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            showMessage(t("seriesSplitSuccess"));
+
+        } catch (error) {
+            console.error('执行分割重复事件系列失败:', error);
+            showMessage(t("operationFailed"));
+        }
+    }
+
+    /**
+     * 跳过首次发生 - 为原始事件添加排除日期
+     */
+
+    private async skipFirstOccurrence(reminder: any) {
+        await confirm(
+            t("deleteThisInstance"),
+            t("confirmSkipFirstOccurrence"),
+            async () => {
+                try {
+                    const reminderData = await readReminderData();
+                    const originalReminder = reminderData[reminder.id];
+
+                    if (!originalReminder || !originalReminder.repeat?.enabled) {
+                        showMessage(t("operationFailed"));
+                        return;
+                    }
+
+                    // 计算下一个周期的日期
+                    const nextDate = this.calculateNextDate(originalReminder.date, originalReminder.repeat);
+                    if (!nextDate) {
+                        showMessage(t("operationFailed") + ": " + t("invalidRepeatConfig"));
+                        return;
+                    }
+
+                    // 将周期事件的开始日期更新为下一个周期
+                    originalReminder.date = getLocalDateString(nextDate);
+
+                    // 如果是跨天事件，也需要更新结束日期
+                    if (originalReminder.endDate) {
+                        const originalStartDate = new Date(reminder.date + 'T12:00:00');
+                        const originalEndDate = new Date(originalReminder.endDate + 'T12:00:00');
+                        const daysDiff = Math.floor((originalEndDate.getTime() - originalStartDate.getTime()) / (1000 * 60 * 60 * 24));
+
+                        const newEndDate = new Date(nextDate);
+                        newEndDate.setDate(newEndDate.getDate() + daysDiff);
+                        originalReminder.endDate = getLocalDateString(newEndDate);
+                    }
+
+                    // 清理可能存在的首次发生相关的历史数据
+                    if (originalReminder.repeat.completedInstances) {
+                        const firstOccurrenceIndex = originalReminder.repeat.completedInstances.indexOf(reminder.date);
+                        if (firstOccurrenceIndex > -1) {
+                            originalReminder.repeat.completedInstances.splice(firstOccurrenceIndex, 1);
+                        }
+                    }
+
+                    if (originalReminder.repeat.instanceModifications && originalReminder.repeat.instanceModifications[reminder.date]) {
+                        delete originalReminder.repeat.instanceModifications[reminder.date];
+                    }
+
+                    if (originalReminder.repeat.excludeDates) {
+                        const firstOccurrenceIndex = originalReminder.repeat.excludeDates.indexOf(reminder.date);
+                        if (firstOccurrenceIndex > -1) {
+                            originalReminder.repeat.excludeDates.splice(firstOccurrenceIndex, 1);
+                        }
+                    }
+
+                    await writeReminderData(reminderData);
+                    showMessage(t("firstOccurrenceSkipped"));
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                } catch (error) {
+                    console.error('跳过首次发生失败:', error);
+                    showMessage(t("operationFailed"));
+                }
+            }
+        );
+    }
+
+    /**
+     * 计算下一个周期日期
+     */
+    private calculateNextDate(startDateStr: string, repeat: any): Date {
+        const startDate = new Date(startDateStr + 'T12:00:00');
+        if (isNaN(startDate.getTime())) {
+            console.error("Invalid start date for cycle calculation:", startDateStr);
+            return null;
+        }
+
+        if (!repeat || !repeat.enabled) {
+            return null;
+        }
+
+        switch (repeat.type) {
+            case 'daily':
+                return this.calculateDailyNext(startDate, repeat.interval || 1);
+            case 'weekly':
+                return this.calculateWeeklyNext(startDate, repeat.interval || 1);
+            case 'monthly':
+                return this.calculateMonthlyNext(startDate, repeat.interval || 1);
+            case 'yearly':
+                return this.calculateYearlyNext(startDate, repeat.interval || 1);
+            default:
+                console.error("Unknown repeat type:", repeat.type);
+                return null;
+        }
+    }
+
+    /**
+     * 计算每日重复的下一个日期
+     */
+    private calculateDailyNext(startDate: Date, interval: number): Date {
+        const nextDate = new Date(startDate);
+        nextDate.setDate(nextDate.getDate() + interval);
+        return nextDate;
+    }
+
+    /**
+     * 计算每周重复的下一个日期
+     */
+    private calculateWeeklyNext(startDate: Date, interval: number): Date {
+        const nextDate = new Date(startDate);
+        nextDate.setDate(nextDate.getDate() + (7 * interval));
+        return nextDate;
+    }
+
+    /**
+     * 计算每月重复的下一个日期
+     */
+    private calculateMonthlyNext(startDate: Date, interval: number): Date {
+        const nextDate = new Date(startDate);
+        nextDate.setMonth(nextDate.getMonth() + interval);
+
+        // 处理月份溢出
+        if (nextDate.getDate() !== startDate.getDate()) {
+            nextDate.setDate(0); // 设置为前一个月的最后一天
+        }
+
+        return nextDate;
+    }
+
+    /**
+     * 计算每年重复的下一个日期
+     */
+    private calculateYearlyNext(startDate: Date, interval: number): Date {
+        const nextDate = new Date(startDate);
+        nextDate.setFullYear(nextDate.getFullYear() + interval);
+
+        // 处理闰年边界情况
+        if (nextDate.getDate() !== startDate.getDate()) {
+            nextDate.setDate(0); // 设置为前一个月的最后一天
+        }
+
+        return nextDate;
+    }
+
+    /**
+     * 计算分割时的结束日期
+     */
+    private calculateEndDateForSplit(originalReminder: any, nextDate: Date): string {
+        if (!originalReminder.endDate) {
+            return undefined;
+        }
+
+        // 计算原始事件的持续天数
+        const originalStart = new Date(originalReminder.date + 'T00:00:00');
+        const originalEnd = new Date(originalReminder.endDate + 'T00:00:00');
+        const durationDays = Math.round((originalEnd.getTime() - originalStart.getTime()) / (1000 * 60 * 60 * 24));
+
+        // 为新系列计算结束日期
+        const newEndDate = new Date(nextDate);
+        newEndDate.setDate(newEndDate.getDate() + durationDays);
+
+        return getLocalDateTime(newEndDate).dateStr;
     }
 }
