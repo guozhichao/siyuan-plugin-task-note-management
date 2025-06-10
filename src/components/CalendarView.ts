@@ -230,7 +230,7 @@ export class CalendarView {
                 await writeReminderData(reminderData);
 
                 event.setExtendedProp('completed', reminderData[reminderId].completed);
-                
+
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
             }
@@ -342,10 +342,10 @@ export class CalendarView {
                 }
 
                 await writeReminderData(reminderData);
-                
+
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                
+
                 showMessage('已更新事件时间');
                 await this.refreshEvents();
             } else {
@@ -427,10 +427,10 @@ export class CalendarView {
                 }
 
                 await writeReminderData(reminderData);
-                
+
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                
+
                 showMessage('已更新事件时间');
                 await this.refreshEvents();
             } else {
@@ -560,10 +560,10 @@ export class CalendarView {
                 }
 
                 await writeReminderData(reminderData);
-                
+
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                
+
                 await this.refreshEvents();
 
                 showMessage(isCurrentlyAllDay ? '已修改为定时事件' : '已修改为全天事件');

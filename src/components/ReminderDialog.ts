@@ -10,7 +10,7 @@ export class ReminderDialog {
 
     constructor(blockId: string) {
         this.blockId = blockId;
-        
+
         // 创建事件处理器
         this.reminderUpdatedHandler = () => {
             // 重新加载现有提醒列表
@@ -89,7 +89,7 @@ export class ReminderDialog {
 
         this.bindEvents();
         await this.loadExistingReminder();
-        
+
         // 监听提醒更新事件
         window.addEventListener('reminderUpdated', this.reminderUpdatedHandler);
     }
@@ -213,7 +213,7 @@ export class ReminderDialog {
 
             // 触发更新事件
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
-            
+
             this.cleanup();
             this.dialog.destroy();
         } catch (error) {
@@ -407,7 +407,7 @@ export class ReminderDialog {
 
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                
+
                 await this.loadExistingReminder();
 
                 showMessage('提醒已删除');
@@ -556,10 +556,10 @@ export class ReminderDialog {
                 }
 
                 await writeReminderData(reminderData);
-                
+
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                
+
                 await this.loadExistingReminder();
 
                 const isSpanning = endDate && endDate !== date;

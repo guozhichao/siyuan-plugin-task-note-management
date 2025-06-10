@@ -13,12 +13,12 @@ export class ReminderPanel {
     constructor(container: HTMLElement, plugin?: any) {
         this.container = container;
         this.plugin = plugin;
-        
+
         // 创建事件处理器
         this.reminderUpdatedHandler = () => {
             this.loadReminders();
         };
-        
+
         this.initUI();
         this.loadReminders();
 
