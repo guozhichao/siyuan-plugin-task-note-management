@@ -193,5 +193,12 @@
     "instanceDeleted": "Instance deleted",
     "instanceModified": "Instance modified",
     "editingInstanceDesc": "Editing a single instance of recurring event. Changes will only affect this occurrence.",
-    "priorityUpdated": "Priority updated"
+    "priorityUpdated": "Priority updated",
+    "modifyRepeatEvent": "Modify Recurring Event",
+    "howToApplyChanges": "How to apply changes?",
+    "onlyThisInstance": "Only This Instance",
+    "allInstances": "All Instances",
+    "instanceTimeUpdated": "Instance time updated",
+    "updateInstanceFailed": "Failed to update instance",
+    "toggleAllDayFailed": "Failed to toggle all day event"
 }

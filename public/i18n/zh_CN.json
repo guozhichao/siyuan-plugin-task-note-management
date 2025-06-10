@@ -193,5 +193,12 @@
     "instanceDeleted": "已删除此实例",
     "instanceModified": "已修改此实例",
     "editingInstanceDesc": "正在编辑重复事件的单个实例，修改只会影响这一次事件。",
-    "priorityUpdated": "优先级已更新"
+    "priorityUpdated": "优先级已更新",
+    "modifyRepeatEvent": "修改重复事件",
+    "howToApplyChanges": "如何应用更改？",
+    "onlyThisInstance": "仅此实例",
+    "allInstances": "所有实例",
+    "instanceTimeUpdated": "实例时间已更新",
+    "updateInstanceFailed": "更新实例失败",
+    "toggleAllDayFailed": "切换全天事件失败"
 }

@@ -501,13 +501,190 @@ export class CalendarView {
         const reminderId = info.event.id;
         const originalReminder = info.event.extendedProps;
 
-        // 如果是重复事件实例，阻止拖拽并提示用户
+        // 如果是重复事件实例，询问用户是否应用于所有实例
         if (originalReminder.isRepeated) {
-            info.revert();
-            showMessage(t("cannotMoveRepeatInstance"));
-            return;
-        }
+            const result = await this.askApplyToAllInstances();
 
+            if (result === 'cancel') {
+                info.revert();
+                return;
+            }
+
+            if (result === 'single') {
+                // 只更新当前实例
+                await this.updateSingleInstance(info);
+                return;
+            }
+
+            // 如果选择 'all'，继续使用原始ID更新所有实例
+            const originalId = originalReminder.originalId;
+            await this.updateEventTime(originalId, info, false);
+        } else {
+            // 非重复事件，直接更新
+            await this.updateEventTime(reminderId, info, false);
+        }
+    }
+
+    private async handleEventResize(info) {
+        const reminderId = info.event.id;
+        const originalReminder = info.event.extendedProps;
+
+        // 如果是重复事件实例，询问用户是否应用于所有实例
+        if (originalReminder.isRepeated) {
+            const result = await this.askApplyToAllInstances();
+
+            if (result === 'cancel') {
+                info.revert();
+                return;
+            }
+
+            if (result === 'single') {
+                // 只更新当前实例
+                await this.updateSingleInstance(info);
+                return;
+            }
+
+            // 如果选择 'all'，继续使用原始ID更新所有实例
+            const originalId = originalReminder.originalId;
+            await this.updateEventTime(originalId, info, true);
+        } else {
+            // 非重复事件，直接更新
+            await this.updateEventTime(reminderId, info, true);
+        }
+    }
+
+    private async askApplyToAllInstances(): Promise<'single' | 'all' | 'cancel'> {
+        return new Promise((resolve) => {
+            const dialog = new Dialog({
+                title: t("modifyRepeatEvent"),
+                content: `
+                    <div class="b3-dialog__content">
+                        <div style="margin-bottom: 16px;">${t("howToApplyChanges")}</div>
+                        <div class="fn__flex fn__flex-justify-center" style="gap: 8px;">
+                            <button class="b3-button" id="btn-single">${t("onlyThisInstance")}</button>
+                            <button class="b3-button b3-button--primary" id="btn-all">${t("allInstances")}</button>
+                            <button class="b3-button b3-button--cancel" id="btn-cancel">${t("cancel")}</button>
+                        </div>
+                    </div>
+                `,
+                width: "400px",
+                height: "200px"
+            });
+
+            // 等待对话框渲染完成后添加事件监听器
+            setTimeout(() => {
+                const singleBtn = dialog.element.querySelector('#btn-single');
+                const allBtn = dialog.element.querySelector('#btn-all');
+                const cancelBtn = dialog.element.querySelector('#btn-cancel');
+
+                if (singleBtn) {
+                    singleBtn.addEventListener('click', () => {
+                        dialog.destroy();
+                        resolve('single');
+                    });
+                }
+
+                if (allBtn) {
+                    allBtn.addEventListener('click', () => {
+                        dialog.destroy();
+                        resolve('all');
+                    });
+                }
+
+                if (cancelBtn) {
+                    cancelBtn.addEventListener('click', () => {
+                        dialog.destroy();
+                        resolve('cancel');
+                    });
+                }
+
+                // 处理对话框关闭事件
+                const closeBtn = dialog.element.querySelector('.b3-dialog__close');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', () => {
+                        dialog.destroy();
+                        resolve('cancel');
+                    });
+                }
+            }, 100);
+        });
+    }
+
+    private async updateSingleInstance(info) {
+        try {
+            const originalId = info.event.extendedProps.originalId;
+            const instanceDate = info.event.extendedProps.date;
+            const newStartDate = info.event.start;
+            const newEndDate = info.event.end;
+
+            // 创建实例修改数据
+            const instanceModification = {
+                title: info.event.title.replace(/^🔄 /, ''), // 移除重复标识
+                priority: info.event.extendedProps.priority,
+                note: info.event.extendedProps.note
+            };
+
+            // 使用本地时间处理日期和时间
+            const { dateStr: startDateStr, timeStr: startTimeStr } = getLocalDateTime(newStartDate);
+
+            if (newEndDate) {
+                if (info.event.allDay) {
+                    // 全天事件：FullCalendar 的结束日期是排他的，需要减去一天
+                    const endDate = new Date(newEndDate);
+                    endDate.setDate(endDate.getDate() - 1);
+                    const { dateStr: endDateStr } = getLocalDateTime(endDate);
+
+                    instanceModification.date = startDateStr;
+                    if (endDateStr !== startDateStr) {
+                        instanceModification.endDate = endDateStr;
+                    }
+                } else {
+                    // 定时事件
+                    const { dateStr: endDateStr, timeStr: endTimeStr } = getLocalDateTime(newEndDate);
+
+                    instanceModification.date = startDateStr;
+                    if (startTimeStr) {
+                        instanceModification.time = startTimeStr;
+                    }
+
+                    if (endDateStr !== startDateStr) {
+                        instanceModification.endDate = endDateStr;
+                        if (endTimeStr) {
+                            instanceModification.endTime = endTimeStr;
+                        }
+                    } else {
+                        if (endTimeStr) {
+                            instanceModification.endTime = endTimeStr;
+                        }
+                    }
+                }
+            } else {
+                // 单日事件
+                instanceModification.date = startDateStr;
+                if (!info.event.allDay && startTimeStr) {
+                    instanceModification.time = startTimeStr;
+                }
+            }
+
+            // 保存实例修改
+            await this.saveInstanceModification({
+                originalId,
+                instanceDate,
+                ...instanceModification
+            });
+
+            showMessage(t("instanceTimeUpdated"));
+            await this.refreshEvents();
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+        } catch (error) {
+            console.error('更新单个实例失败:', error);
+            showMessage(t("updateInstanceFailed"));
+            info.revert();
+        }
+    }
+
+    private async updateEventTime(reminderId: string, info, isResize: boolean) {
         try {
             const reminderData = await readReminderData();
 
@@ -588,85 +765,146 @@ export class CalendarView {
                 throw new Error('提醒数据不存在');
             }
         } catch (error) {
-            console.error('更新事件时间失败:', error);
+            console.error(isResize ? '调整事件大小失败:' : '更新事件时间失败:', error);
             showMessage(t("operationFailed"));
             info.revert();
         }
     }
 
-    private async handleEventResize(info) {
-        const reminderId = info.event.id;
-        const originalReminder = info.event.extendedProps;
+    private async saveInstanceModification(instanceData: any) {
+        // 保存重复事件实例的修改
+        try {
+            const originalId = instanceData.originalId;
+            const instanceDate = instanceData.instanceDate;
 
-        // 如果是重复事件实例，阻止调整大小并提示用户
-        if (originalReminder.isRepeated) {
-            info.revert();
-            showMessage(t("cannotResizeRepeatInstance"));
+            const reminderData = await readReminderData();
+
+            if (!reminderData[originalId]) {
+                throw new Error('原始事件不存在');
+            }
+
+            // 初始化实例修改列表
+            if (!reminderData[originalId].repeat.instanceModifications) {
+                reminderData[originalId].repeat.instanceModifications = {};
+            }
+
+            // 保存此实例的修改数据
+            reminderData[originalId].repeat.instanceModifications[instanceDate] = {
+                title: instanceData.title,
+                date: instanceData.date,
+                endDate: instanceData.endDate,
+                time: instanceData.time,
+                endTime: instanceData.endTime,
+                note: instanceData.note,
+                priority: instanceData.priority,
+                modifiedAt: new Date().toISOString()
+            };
+
+            await writeReminderData(reminderData);
+
+        } catch (error) {
+            console.error('保存实例修改失败:', error);
+            throw error;
+        }
+    }
+
+    private addCustomStyles() {
+        // 检查是否已经添加过样式
+        if (document.querySelector('#reminder-calendar-custom-styles')) {
             return;
         }
 
+        const style = document.createElement('style');
+        style.id = 'reminder-calendar-custom-styles';
+        style.textContent = `
+            .fc-today-custom {
+                background-color:hsl(120, 42.90%, 95.90%) !important;
+            }
+            .fc-today-custom:hover {
+                background-color: #e8f5e8 !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    private async showTimeEditDialog(calendarEvent: any) {
         try {
+            // 对于重复事件实例，需要使用原始ID来获取原始提醒数据
+            const reminderId = calendarEvent.extendedProps.isRepeated ?
+                calendarEvent.extendedProps.originalId :
+                calendarEvent.id;
+
             const reminderData = await readReminderData();
 
             if (reminderData[reminderId]) {
-                const newStartDate = info.event.start;
-                const newEndDate = info.event.end;
+                const reminder = reminderData[reminderId];
 
-                if (newEndDate) {
-                    if (info.event.allDay) {
-                        // 全天事件：FullCalendar 的结束日期是排他的，需要减去一天
-                        const { dateStr: startDateStr } = getLocalDateTime(newStartDate);
-                        const { dateStr: endDateStr } = getLocalDateTime(new Date(newEndDate.getTime() - 24 * 60 * 60 * 1000));
+                const editDialog = new ReminderEditDialog(reminder, async () => {
+                    // 刷新日历事件
+                    await this.refreshEvents();
 
-                        reminderData[reminderId].date = startDateStr;
+                    // 触发全局更新事件
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                });
 
-                        if (endDateStr !== startDateStr) {
-                            reminderData[reminderId].endDate = endDateStr;
-                            // 全天事件删除时间信息
-                            delete reminderData[reminderId].time;
-                            delete reminderData[reminderId].endTime;
-                        } else {
-                            delete reminderData[reminderId].endDate;
-                            delete reminderData[reminderId].endTime;
-                        }
-                    } else {
-                        // 定时事件：处理开始和结束时间
-                        const { dateStr: startDateStr, timeStr: startTimeStr } = getLocalDateTime(newStartDate);
-                        const { dateStr: endDateStr, timeStr: endTimeStr } = getLocalDateTime(newEndDate);
+                editDialog.show();
+            } else {
+                showMessage(t("reminderDataNotExist"));
+            }
+        } catch (error) {
+            console.error('打开修改对话框失败:', error);
+            showMessage(t("openModifyDialogFailed"));
+        }
+    }
 
-                        reminderData[reminderId].date = startDateStr;
+    private async showTimeEditDialogForSeries(calendarEvent: any) {
+        try {
+            // 获取原始重复事件的ID
+            const originalId = calendarEvent.extendedProps.isRepeated ?
+                calendarEvent.extendedProps.originalId :
+                calendarEvent.id;
 
-                        if (startTimeStr) {
-                            reminderData[reminderId].time = startTimeStr;
-                        }
+            const reminderData = await readReminderData();
 
-                        // 保存结束时间信息
-                        if (endDateStr !== startDateStr) {
-                            // 跨天的定时事件
-                            reminderData[reminderId].endDate = endDateStr;
-                            if (endTimeStr) {
-                                reminderData[reminderId].endTime = endTimeStr;
-                            }
-                        } else {
-                            // 同一天的定时事件
-                            delete reminderData[reminderId].endDate;
-                            if (endTimeStr) {
-                                reminderData[reminderId].endTime = endTimeStr;
-                            }
-                        }
-                    }
-                } else {
-                    // 没有结束日期的情况
-                    const { dateStr: startDateStr, timeStr } = getLocalDateTime(newStartDate);
-                    reminderData[reminderId].date = startDateStr;
-                    delete reminderData[reminderId].endDate;
+            if (reminderData[originalId]) {
+                const reminder = reminderData[originalId];
+
+                const editDialog = new ReminderEditDialog(reminder, async () => {
+                    // 刷新日历事件
+                    await this.refreshEvents();
+
+                    // 触发全局更新事件
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                });
+
+                editDialog.show();
+            } else {
+                showMessage(t("reminderDataNotExist"));
+            }
+        } catch (error) {
+            console.error('打开系列修改对话框失败:', error);
+            showMessage(t("openModifyDialogFailed"));
+        }
+    }
+
+    private async toggleAllDayEvent(calendarEvent: any) {
+        try {
+            // 获取正确的提醒ID - 对于重复事件实例，使用原始ID
+            const reminderId = calendarEvent.extendedProps.isRepeated ?
+                calendarEvent.extendedProps.originalId :
+                calendarEvent.id;
+
+            const reminderData = await readReminderData();
+
+            if (reminderData[reminderId]) {
+                if (calendarEvent.allDay) {
+                    // 从全天改为定时：添加默认时间
+                    reminderData[reminderId].time = "09:00";
                     delete reminderData[reminderId].endTime;
-
-                    if (!info.event.allDay && timeStr) {
-                        reminderData[reminderId].time = timeStr;
-                    } else if (info.event.allDay) {
-                        delete reminderData[reminderId].time;
-                    }
+                } else {
+                    // 从定时改为全天：删除时间信息
+                    delete reminderData[reminderId].time;
+                    delete reminderData[reminderId].endTime;
                 }
 
                 await writeReminderData(reminderData);
@@ -674,17 +912,14 @@ export class CalendarView {
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
-                showMessage(t("eventTimeUpdated"));
-
                 // 立即刷新事件显示
                 await this.refreshEvents();
-            } else {
-                throw new Error('提醒数据不存在');
+
+                showMessage(calendarEvent.allDay ? t("changedToTimed") : t("changedToAllDay"));
             }
         } catch (error) {
-            console.error('调整事件大小失败:', error);
-            showMessage(t("toggleFailed"));
-            info.revert();
+            console.error('切换全天事件失败:', error);
+            showMessage(t("toggleAllDayFailed"));
         }
     }
 
@@ -869,8 +1104,10 @@ export class CalendarView {
 
         // 为重复事件添加图标标识
         if (isRepeated) {
+            // 如果是重复事件实例，添加实例标识
             eventObj.title = '🔄 ' + eventObj.title;
         } else if (reminder.repeat?.enabled) {
+            // 如果是原始重复事件，添加重复标识
             eventObj.title = '🔁 ' + eventObj.title;
         }
 
@@ -965,159 +1202,6 @@ export class CalendarView {
         } catch (error) {
             console.error('添加排除日期失败:', error);
             throw error;
-        }
-    }
-
-    private async saveInstanceModification(instanceData: any) {
-        // 保存重复事件实例的修改
-        try {
-            const originalId = instanceData.originalId;
-            const instanceDate = instanceData.instanceDate;
-
-            const reminderData = await readReminderData();
-
-            if (!reminderData[originalId]) {
-                throw new Error('原始事件不存在');
-            }
-
-            // 初始化实例修改列表
-            if (!reminderData[originalId].repeat.instanceModifications) {
-                reminderData[originalId].repeat.instanceModifications = {};
-            }
-
-            // 保存此实例的修改数据
-            reminderData[originalId].repeat.instanceModifications[instanceDate] = {
-                title: instanceData.title,
-                date: instanceData.date,
-                endDate: instanceData.endDate,
-                time: instanceData.time,
-                endTime: instanceData.endTime,
-                note: instanceData.note,
-                priority: instanceData.priority,
-                modifiedAt: new Date().toISOString()
-            };
-
-            await writeReminderData(reminderData);
-
-            showMessage(t("instanceModified"));
-        } catch (error) {
-            console.error('保存实例修改失败:', error);
-            throw error;
-        }
-    }
-
-    private addCustomStyles() {
-        // 检查是否已经添加过样式
-        if (document.querySelector('#reminder-calendar-custom-styles')) {
-            return;
-        }
-
-        const style = document.createElement('style');
-        style.id = 'reminder-calendar-custom-styles';
-        style.textContent = `
-            .fc-today-custom {
-                background-color:hsl(120, 42.90%, 95.90%) !important;
-            }
-            .fc-today-custom:hover {
-                background-color: #e8f5e8 !important;
-            }
-        `;
-        document.head.appendChild(style);
-    }
-
-    private async showTimeEditDialog(calendarEvent: any) {
-        try {
-            // 对于重复事件实例，需要使用原始ID来获取原始提醒数据
-            const reminderId = calendarEvent.extendedProps.isRepeated ?
-                calendarEvent.extendedProps.originalId :
-                calendarEvent.id;
-
-            const reminderData = await readReminderData();
-
-            if (reminderData[reminderId]) {
-                const reminder = reminderData[reminderId];
-
-                const editDialog = new ReminderEditDialog(reminder, async () => {
-                    // 刷新日历事件
-                    await this.refreshEvents();
-
-                    // 触发全局更新事件
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                });
-
-                editDialog.show();
-            } else {
-                showMessage(t("reminderDataNotExist"));
-            }
-        } catch (error) {
-            console.error('打开修改对话框失败:', error);
-            showMessage(t("openModifyDialogFailed"));
-        }
-    }
-
-    private async showTimeEditDialogForSeries(calendarEvent: any) {
-        try {
-            // 获取原始重复事件的ID
-            const originalId = calendarEvent.extendedProps.isRepeated ?
-                calendarEvent.extendedProps.originalId :
-                calendarEvent.id;
-
-            const reminderData = await readReminderData();
-
-            if (reminderData[originalId]) {
-                const reminder = reminderData[originalId];
-
-                const editDialog = new ReminderEditDialog(reminder, async () => {
-                    // 刷新日历事件
-                    await this.refreshEvents();
-
-                    // 触发全局更新事件
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                });
-
-                editDialog.show();
-            } else {
-                showMessage(t("reminderDataNotExist"));
-            }
-        } catch (error) {
-            console.error('打开系列修改对话框失败:', error);
-            showMessage(t("openModifyDialogFailed"));
-        }
-    }
-
-    private async toggleAllDayEvent(calendarEvent: any) {
-        try {
-            // 获取正确的提醒ID - 对于重复事件实例，使用原始ID
-            const reminderId = calendarEvent.extendedProps.isRepeated ?
-                calendarEvent.extendedProps.originalId :
-                calendarEvent.id;
-
-            const reminderData = await readReminderData();
-
-            if (reminderData[reminderId]) {
-                if (calendarEvent.allDay) {
-                    // 从全天改为定时：添加默认时间
-                    reminderData[reminderId].time = "09:00";
-                    delete reminderData[reminderId].endTime;
-                } else {
-                    // 从定时改为全天：删除时间信息
-                    delete reminderData[reminderId].time;
-                    delete reminderData[reminderId].endTime;
-                }
-
-                await writeReminderData(reminderData);
-
-                // 触发更新事件
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
-
-                // 立即刷新事件显示
-                await this.refreshEvents();
-
-                showMessage(calendarEvent.allDay ? t("changedToTimed") : t("changedToAllDay"));
-            }
-        } catch (error) {
-            console.error('切换全天事件失败:', error);
-            showMessage(t("toggleAllDayFailed"));
         }
     }
 
