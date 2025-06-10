@@ -36,7 +36,7 @@ export class ReminderEditDialog {
             <div class="reminder-dialog-content">
                 <div class="reminder-form-group">
                     <label>标题</label>
-                    <input type="text" id="reminderTitle" value="${this.reminder.title || ''}" readonly>
+                    <input type="text" id="reminderTitle" value="${this.reminder.title || ''}" placeholder="请输入提醒标题">
                 </div>
                 <div class="reminder-form-group">
                     <label>开始日期</label>
@@ -127,15 +127,22 @@ export class ReminderEditDialog {
     };
 
     private async save() {
+        const titleInput = this.dialog.querySelector('#reminderTitle') as HTMLInputElement;
         const dateInput = this.dialog.querySelector('#reminderDate') as HTMLInputElement;
         const endDateInput = this.dialog.querySelector('#reminderEndDate') as HTMLInputElement;
         const timeInput = this.dialog.querySelector('#reminderTime') as HTMLInputElement;
         const noteInput = this.dialog.querySelector('#reminderNote') as HTMLTextAreaElement;
 
+        const title = titleInput.value.trim();
         const date = dateInput.value;
         const endDate = endDateInput.value;
         const time = timeInput.value;
         const note = noteInput.value;
+
+        if (!title) {
+            showMessage('请输入提醒标题');
+            return;
+        }
 
         if (!date) {
             showMessage('请选择日期');
@@ -158,7 +165,7 @@ export class ReminderEditDialog {
             const newReminder = {
                 id: newReminderId,
                 blockId: blockId,
-                title: this.reminder.title,
+                title: title, // 使用用户输入的标题
                 date: date,
                 completed: false,
                 createdAt: new Date().toISOString()
@@ -200,6 +207,185 @@ export class ReminderEditDialog {
         const overlay = this.dialog.parentElement;
         if (overlay) {
             document.body.removeChild(overlay);
+        }
+    }
+
+    private showReminderContextMenu(event: MouseEvent, reminder: any) {
+        const menu = new Menu("reminderDialogContextMenu");
+
+        menu.addItem({
+            iconHTML: "📝",
+            label: "修改",
+            click: () => {
+                this.showTimeEditDialog(reminder);
+            }
+        });
+
+        menu.addSeparator();
+
+        menu.addItem({
+            iconHTML: "🗑️",
+            label: "删除提醒",
+            click: () => {
+                this.deleteReminder(reminder);
+            }
+        });
+
+        menu.open({
+            x: event.clientX,
+            y: event.clientY
+        });
+    }
+
+    private showTimeEditDialog(reminder: any) {
+        const dialog = new Dialog({
+            title: "修改提醒",
+            content: `
+                <div class="time-edit-dialog">
+                    <div class="b3-dialog__content">
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">标题</label>
+                            <input type="text" id="editReminderTitle" class="b3-text-field" value="${reminder.title || ''}" placeholder="请输入提醒标题">
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">开始日期</label>
+                            <input type="date" id="editReminderDate" class="b3-text-field" value="${reminder.date}" required>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">结束日期（可选）</label>
+                            <input type="date" id="editReminderEndDate" class="b3-text-field" value="${reminder.endDate || ''}" placeholder="留空表示单日事件">
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">提醒时间</label>
+                            <input type="time" id="editReminderTime" class="b3-text-field" value="${reminder.time || ''}">
+                            <div class="b3-form__desc">留空表示全天提醒</div>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-checkbox">
+                                <input type="checkbox" id="editNoSpecificTime" ${!reminder.time ? 'checked' : ''}>
+                                <span class="b3-checkbox__graphic"></span>
+                                <span class="b3-checkbox__label">全天提醒</span>
+                            </label>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">备注</label>
+                            <textarea id="editReminderNote" class="b3-text-field" placeholder="输入提醒备注..." rows="3">${reminder.note || ''}</textarea>
+                        </div>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="editCancelBtn">取消</button>
+                        <button class="b3-button b3-button--primary" id="editConfirmBtn">保存</button>
+                    </div>
+                </div>
+            `,
+            width: "400px",
+            height: "450px"
+        });
+
+        // 绑定事件
+        const cancelBtn = dialog.element.querySelector('#editCancelBtn') as HTMLButtonElement;
+        const confirmBtn = dialog.element.querySelector('#editConfirmBtn') as HTMLButtonElement;
+        const noTimeCheckbox = dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
+        const timeInput = dialog.element.querySelector('#editReminderTime') as HTMLInputElement;
+        const startDateInput = dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
+        const endDateInput = dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
+
+        cancelBtn.addEventListener('click', () => {
+            dialog.destroy();
+        });
+
+        confirmBtn.addEventListener('click', async () => {
+            await this.saveEdit(reminder.id, dialog);
+        });
+
+        noTimeCheckbox.addEventListener('change', () => {
+            timeInput.disabled = noTimeCheckbox.checked;
+            if (noTimeCheckbox.checked) {
+                timeInput.value = '';
+            }
+        });
+
+        // 日期验证
+        startDateInput.addEventListener('change', () => {
+            const startDate = startDateInput.value;
+            const endDate = endDateInput.value;
+
+            if (endDate && endDate < startDate) {
+                endDateInput.value = startDate;
+                showMessage('结束日期已自动调整为开始日期');
+            }
+
+            endDateInput.min = startDate;
+        });
+
+        endDateInput.addEventListener('change', () => {
+            const startDate = startDateInput.value;
+            const endDate = endDateInput.value;
+
+            if (endDate && endDate < startDate) {
+                endDateInput.value = startDate;
+                showMessage('结束日期不能早于开始日期');
+            }
+        });
+    }
+
+    private async saveEdit(reminderId: string, dialog: Dialog) {
+        const titleInput = dialog.element.querySelector('#editReminderTitle') as HTMLInputElement;
+        const dateInput = dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
+        const endDateInput = dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
+        const timeInput = dialog.element.querySelector('#editReminderTime') as HTMLInputElement;
+        const noTimeCheckbox = dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
+        const noteInput = dialog.element.querySelector('#editReminderNote') as HTMLTextAreaElement;
+
+        const title = titleInput.value.trim();
+        const date = dateInput.value;
+        const endDate = endDateInput.value;
+        const time = noTimeCheckbox.checked ? undefined : timeInput.value;
+        const note = noteInput.value.trim() || undefined;
+
+        if (!title) {
+            showMessage('请输入提醒标题');
+            return;
+        }
+
+        if (!date) {
+            showMessage('请选择提醒日期');
+            return;
+        }
+
+        if (endDate && endDate < date) {
+            showMessage('结束日期不能早于开始日期');
+            return;
+        }
+
+        try {
+            const reminderData = await readReminderData();
+            if (reminderData[reminderId]) {
+                reminderData[reminderId].title = title;
+                reminderData[reminderId].date = date;
+                reminderData[reminderId].time = time;
+                reminderData[reminderId].note = note;
+
+                if (endDate && endDate !== date) {
+                    reminderData[reminderId].endDate = endDate;
+                } else {
+                    delete reminderData[reminderId].endDate;
+                }
+
+                await writeReminderData(reminderData);
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                await this.loadExistingReminder();
+
+                const isSpanning = endDate && endDate !== date;
+                const timeStr = time ? ` ${time}` : '';
+                const dateStr = isSpanning ? `${date} → ${endDate}${timeStr}` : `${date}${timeStr}`;
+                showMessage(`提醒已更新: ${dateStr}`);
+
+                dialog.destroy();
+            }
+        } catch (error) {
+            console.error('保存修改失败:', error);
+            showMessage('保存失败，请重试');
         }
     }
 }

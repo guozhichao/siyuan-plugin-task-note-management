@@ -36,10 +36,8 @@ export class ReminderDialog {
                     <div class="b3-dialog__content">
                         <div class="fn__hr"></div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">笔记内容</label>
-                            <div class="b3-text-field" style="background: var(--b3-theme-surface-lighter); padding: 8px; border-radius: 4px; color: var(--b3-theme-on-surface);">
-                                ${this.blockContent}
-                            </div>
+                            <label class="b3-form__label">事件标题</label>
+                            <input type="text" id="reminderTitle" class="b3-text-field" value="${this.blockContent}" placeholder="请输入事件标题">
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">提醒日期</label>
@@ -140,16 +138,23 @@ export class ReminderDialog {
     }
 
     private async saveReminder() {
+        const titleInput = this.dialog.element.querySelector('#reminderTitle') as HTMLInputElement;
         const dateInput = this.dialog.element.querySelector('#reminderDate') as HTMLInputElement;
         const endDateInput = this.dialog.element.querySelector('#reminderEndDate') as HTMLInputElement;
         const timeInput = this.dialog.element.querySelector('#reminderTime') as HTMLInputElement;
         const noTimeCheckbox = this.dialog.element.querySelector('#noSpecificTime') as HTMLInputElement;
         const noteInput = this.dialog.element.querySelector('#reminderNote') as HTMLTextAreaElement;
 
+        const title = titleInput.value.trim();
         const date = dateInput.value;
         const endDate = endDateInput.value;
         const time = noTimeCheckbox.checked ? undefined : timeInput.value;
         const note = noteInput.value.trim() || undefined;
+
+        if (!title) {
+            showMessage('请输入事件标题');
+            return;
+        }
 
         if (!date) {
             showMessage('请选择提醒日期');
@@ -168,7 +173,7 @@ export class ReminderDialog {
             const reminder = {
                 id: reminderId,
                 blockId: this.blockId,
-                title: this.blockContent,
+                title: title, // 使用用户输入的标题
                 date: date,
                 completed: false,
                 createdAt: new Date().toISOString()
@@ -346,7 +351,7 @@ export class ReminderDialog {
 
         menu.addItem({
             iconHTML: "📝",
-            label: "修改时间",
+            label: "修改",
             click: () => {
                 this.showTimeEditDialog(reminder);
             }
@@ -401,10 +406,14 @@ export class ReminderDialog {
 
     private showTimeEditDialog(reminder: any) {
         const dialog = new Dialog({
-            title: "修改提醒时间",
+            title: "修改提醒",
             content: `
                 <div class="time-edit-dialog">
                     <div class="b3-dialog__content">
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">标题</label>
+                            <input type="text" id="editReminderTitle" class="b3-text-field" value="${reminder.title || ''}" placeholder="请输入提醒标题">
+                        </div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">开始日期</label>
                             <input type="date" id="editReminderDate" class="b3-text-field" value="${reminder.date}" required>
@@ -437,7 +446,7 @@ export class ReminderDialog {
                 </div>
             `,
             width: "400px",
-            height: "380px"
+            height: "450px"
         });
 
         // 绑定事件
@@ -464,7 +473,7 @@ export class ReminderDialog {
         });
 
         // 日期验证
-        startDateInput.addEventListener('change', () => {
+        startDateInput?.addEventListener('change', () => {
             const startDate = startDateInput.value;
             const endDate = endDateInput.value;
 
@@ -476,7 +485,7 @@ export class ReminderDialog {
             endDateInput.min = startDate;
         });
 
-        endDateInput.addEventListener('change', () => {
+        endDateInput?.addEventListener('change', () => {
             const startDate = startDateInput.value;
             const endDate = endDateInput.value;
 
@@ -488,16 +497,23 @@ export class ReminderDialog {
     }
 
     private async saveTimeEdit(reminderId: string, dialog: Dialog) {
+        const titleInput = dialog.element.querySelector('#editReminderTitle') as HTMLInputElement;
         const dateInput = dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
         const endDateInput = dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
         const timeInput = dialog.element.querySelector('#editReminderTime') as HTMLInputElement;
         const noTimeCheckbox = dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
         const noteInput = dialog.element.querySelector('#editReminderNote') as HTMLTextAreaElement;
 
+        const title = titleInput.value.trim();
         const date = dateInput.value;
         const endDate = endDateInput.value;
         const time = noTimeCheckbox.checked ? undefined : timeInput.value;
         const note = noteInput.value.trim() || undefined;
+
+        if (!title) {
+            showMessage('请输入提醒标题');
+            return;
+        }
 
         if (!date) {
             showMessage('请选择提醒日期');
@@ -512,6 +528,7 @@ export class ReminderDialog {
         try {
             const reminderData = await readReminderData();
             if (reminderData[reminderId]) {
+                reminderData[reminderId].title = title;
                 reminderData[reminderId].date = date;
                 reminderData[reminderId].time = time;
                 reminderData[reminderId].note = note;
@@ -529,12 +546,12 @@ export class ReminderDialog {
                 const isSpanning = endDate && endDate !== date;
                 const timeStr = time ? ` ${time}` : '';
                 const dateStr = isSpanning ? `${date} → ${endDate}${timeStr}` : `${date}${timeStr}`;
-                showMessage(`提醒时间已更新为: ${dateStr}`);
+                showMessage(`提醒已更新: ${dateStr}`);
 
                 dialog.destroy();
             }
         } catch (error) {
-            console.error('保存时间修改失败:', error);
+            console.error('保存修改失败:', error);
             showMessage('保存失败，请重试');
         }
     }
