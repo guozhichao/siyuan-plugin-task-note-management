@@ -47,6 +47,27 @@ export class ReminderDialog {
                             <input type="text" id="reminderTitle" class="b3-text-field" value="${this.blockContent}" placeholder="请输入事件标题">
                         </div>
                         <div class="b3-form__group">
+                            <label class="b3-form__label">优先级</label>
+                            <div class="priority-selector" id="prioritySelector">
+                                <div class="priority-option" data-priority="high">
+                                    <div class="priority-dot high"></div>
+                                    <span>高</span>
+                                </div>
+                                <div class="priority-option" data-priority="medium">
+                                    <div class="priority-dot medium"></div>
+                                    <span>中</span>
+                                </div>
+                                <div class="priority-option" data-priority="low">
+                                    <div class="priority-dot low"></div>
+                                    <span>低</span>
+                                </div>
+                                <div class="priority-option selected" data-priority="none">
+                                    <div class="priority-dot none"></div>
+                                    <span>无</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="b3-form__group">
                             <label class="b3-form__label">提醒日期</label>
                             <div class="reminder-date-container">
                                 <input type="date" id="reminderDate" class="b3-text-field" value="${today}" required>
@@ -84,7 +105,7 @@ export class ReminderDialog {
                 </div>
             `,
             width: "450px",
-            height: "600px"
+            height: "650px"
         });
 
         this.bindEvents();
@@ -101,6 +122,17 @@ export class ReminderDialog {
         const timeInput = this.dialog.element.querySelector('#reminderTime') as HTMLInputElement;
         const startDateInput = this.dialog.element.querySelector('#reminderDate') as HTMLInputElement;
         const endDateInput = this.dialog.element.querySelector('#reminderEndDate') as HTMLInputElement;
+        const prioritySelector = this.dialog.element.querySelector('#prioritySelector') as HTMLElement;
+
+        // 优先级选择事件
+        prioritySelector.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const option = target.closest('.priority-option') as HTMLElement;
+            if (option) {
+                prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+            }
+        });
 
         // 取消按钮
         cancelBtn?.addEventListener('click', () => {
@@ -155,12 +187,14 @@ export class ReminderDialog {
         const timeInput = this.dialog.element.querySelector('#reminderTime') as HTMLInputElement;
         const noTimeCheckbox = this.dialog.element.querySelector('#noSpecificTime') as HTMLInputElement;
         const noteInput = this.dialog.element.querySelector('#reminderNote') as HTMLTextAreaElement;
+        const selectedPriority = this.dialog.element.querySelector('#prioritySelector .priority-option.selected') as HTMLElement;
 
         const title = titleInput.value.trim();
         const date = dateInput.value;
         const endDate = endDateInput.value;
         const time = noTimeCheckbox.checked ? undefined : timeInput.value;
         const note = noteInput.value.trim() || undefined;
+        const priority = selectedPriority?.getAttribute('data-priority') || 'none';
 
         if (!title) {
             showMessage('请输入事件标题');
@@ -187,6 +221,7 @@ export class ReminderDialog {
                 title: title, // 使用用户输入的标题
                 date: date,
                 completed: false,
+                priority: priority,
                 createdAt: new Date().toISOString()
             };
 
@@ -431,6 +466,27 @@ export class ReminderDialog {
                             <input type="text" id="editReminderTitle" class="b3-text-field" value="${reminder.title || ''}" placeholder="请输入提醒标题">
                         </div>
                         <div class="b3-form__group">
+                            <label class="b3-form__label">优先级</label>
+                            <div class="priority-selector" id="editPrioritySelector">
+                                <div class="priority-option ${reminder.priority === 'high' ? 'selected' : ''}" data-priority="high">
+                                    <div class="priority-dot high"></div>
+                                    <span>高</span>
+                                </div>
+                                <div class="priority-option ${reminder.priority === 'medium' ? 'selected' : ''}" data-priority="medium">
+                                    <div class="priority-dot medium"></div>
+                                    <span>中</span>
+                                </div>
+                                <div class="priority-option ${reminder.priority === 'low' ? 'selected' : ''}" data-priority="low">
+                                    <div class="priority-dot low"></div>
+                                    <span>低</span>
+                                </div>
+                                <div class="priority-option ${(!reminder.priority || reminder.priority === 'none') ? 'selected' : ''}" data-priority="none">
+                                    <div class="priority-dot none"></div>
+                                    <span>无</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="b3-form__group">
                             <label class="b3-form__label">开始日期</label>
                             <input type="date" id="editReminderDate" class="b3-text-field" value="${reminder.date}" required>
                         </div>
@@ -462,7 +518,7 @@ export class ReminderDialog {
                 </div>
             `,
             width: "400px",
-            height: "450px"
+            height: "520px"
         });
 
         // 绑定事件
@@ -472,6 +528,17 @@ export class ReminderDialog {
         const timeInput = dialog.element.querySelector('#editReminderTime') as HTMLInputElement;
         const startDateInput = dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
         const endDateInput = dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
+        const prioritySelector = dialog.element.querySelector('#editPrioritySelector') as HTMLElement;
+
+        // 优先级选择事件
+        prioritySelector.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const option = target.closest('.priority-option') as HTMLElement;
+            if (option) {
+                prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+            }
+        });
 
         cancelBtn.addEventListener('click', () => {
             dialog.destroy();
@@ -519,12 +586,14 @@ export class ReminderDialog {
         const timeInput = dialog.element.querySelector('#editReminderTime') as HTMLInputElement;
         const noTimeCheckbox = dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
         const noteInput = dialog.element.querySelector('#editReminderNote') as HTMLTextAreaElement;
+        const selectedPriority = dialog.element.querySelector('#editPrioritySelector .priority-option.selected') as HTMLElement;
 
         const title = titleInput.value.trim();
         const date = dateInput.value;
         const endDate = endDateInput.value;
         const time = noTimeCheckbox.checked ? undefined : timeInput.value;
         const note = noteInput.value.trim() || undefined;
+        const priority = selectedPriority?.getAttribute('data-priority') || 'none';
 
         if (!title) {
             showMessage('请输入提醒标题');
@@ -548,6 +617,7 @@ export class ReminderDialog {
                 reminderData[reminderId].date = date;
                 reminderData[reminderId].time = time;
                 reminderData[reminderId].note = note;
+                reminderData[reminderId].priority = priority;
 
                 if (endDate && endDate !== date) {
                     reminderData[reminderId].endDate = endDate;

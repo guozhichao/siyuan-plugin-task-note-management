@@ -327,6 +327,62 @@ export class ReminderPanel {
         }
     }
 
+    private formatReminderTime(date: string, time?: string, today?: string, endDate?: string): string {
+        if (!today) {
+            today = getLocalDateString();
+        }
+
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = getLocalDateString(tomorrow);
+
+        let dateStr = '';
+        if (date === today) {
+            dateStr = '今天';
+        } else if (date === tomorrowStr) {
+            dateStr = '明天';
+        } else if (compareDateStrings(date, today) < 0) {
+            // 过期日期也显示为相对时间
+            const reminderDate = new Date(date + 'T00:00:00');
+            dateStr = reminderDate.toLocaleDateString('zh-CN', {
+                month: 'short',
+                day: 'numeric'
+            });
+        } else {
+            const reminderDate = new Date(date + 'T00:00:00');
+            dateStr = reminderDate.toLocaleDateString('zh-CN', {
+                month: 'short',
+                day: 'numeric'
+            });
+        }
+
+        // 处理跨天事件
+        if (endDate && endDate !== date) {
+            let endDateStr = '';
+            if (endDate === today) {
+                endDateStr = '今天';
+            } else if (endDate === tomorrowStr) {
+                endDateStr = '明天';
+            } else if (compareDateStrings(endDate, today) < 0) {
+                const endReminderDate = new Date(endDate + 'T00:00:00');
+                endDateStr = endReminderDate.toLocaleDateString('zh-CN', {
+                    month: 'short',
+                    day: 'numeric'
+                });
+            } else {
+                const endReminderDate = new Date(endDate + 'T00:00:00');
+                endDateStr = endReminderDate.toLocaleDateString('zh-CN', {
+                    month: 'short',
+                    day: 'numeric'
+                });
+            }
+
+            const timeStr = time ? ` ${time}` : '';
+            return `${dateStr} → ${endDateStr}${timeStr}`;
+        }
+
+        return time ? `${dateStr} ${time}` : dateStr;
+    }
     private async deleteRemindersByBlockId(blockId: string) {
         try {
             const reminderData = await readReminderData();
@@ -358,9 +414,10 @@ export class ReminderPanel {
     private createReminderElement(reminder: any, today: string): HTMLElement {
         const isOverdue = compareDateStrings(reminder.date, today) < 0 && !reminder.completed;
         const isSpanningDays = reminder.endDate && reminder.endDate !== reminder.date;
+        const priority = reminder.priority || 'none';
 
         const reminderEl = document.createElement('div');
-        reminderEl.className = `reminder-item ${isOverdue ? 'reminder-item--overdue' : ''} ${isSpanningDays ? 'reminder-item--spanning' : ''}`;
+        reminderEl.className = `reminder-item ${isOverdue ? 'reminder-item--overdue' : ''} ${isSpanningDays ? 'reminder-item--spanning' : ''} reminder-priority-${priority}`;
 
         // 添加右键菜单支持
         reminderEl.addEventListener('contextmenu', (e) => {
@@ -400,6 +457,19 @@ export class ReminderPanel {
         timeEl.textContent = timeText;
         timeEl.style.cursor = 'pointer';
         timeEl.title = '点击修改时间';
+
+        // 添加优先级标签
+        if (priority !== 'none') {
+            const priorityLabel = document.createElement('span');
+            priorityLabel.className = `reminder-priority-label ${priority}`;
+            const priorityNames = {
+                'high': '高',
+                'medium': '中',
+                'low': '低'
+            };
+            priorityLabel.innerHTML = `<div class="priority-dot ${priority}"></div>${priorityNames[priority]}`;
+            timeEl.appendChild(priorityLabel);
+        }
 
         // 添加时间点击编辑事件
         timeEl.addEventListener('click', (e) => {
@@ -443,6 +513,31 @@ export class ReminderPanel {
             }
         });
 
+        // 添加优先级设置子菜单
+        const priorityMenuItems = [];
+        const priorities = [
+            { key: 'high', label: '高优先级', color: '#e74c3c', icon: '🔴' },
+            { key: 'medium', label: '中优先级', color: '#f39c12', icon: '🟡' },
+            { key: 'low', label: '低优先级', color: '#3498db', icon: '🔵' },
+            { key: 'none', label: '无优先级', color: '#95a5a6', icon: '⚫' }
+        ];
+
+        priorities.forEach(priority => {
+            priorityMenuItems.push({
+                iconHTML: priority.icon,
+                label: priority.label,
+                click: () => {
+                    this.setPriority(reminder.id, priority.key);
+                }
+            });
+        });
+
+        menu.addItem({
+            iconHTML: "🎯",
+            label: "设置优先级",
+            submenu: priorityMenuItems
+        });
+
         menu.addSeparator();
 
         menu.addItem({
@@ -458,7 +553,6 @@ export class ReminderPanel {
             y: event.clientY
         });
     }
-
     private async deleteReminder(reminder: any) {
         const result = await confirm(
             "删除提醒",
@@ -468,6 +562,28 @@ export class ReminderPanel {
             }
         );
     }
+    private async setPriority(reminderId: string, priority: string) {
+        try {
+            const reminderData = await readReminderData();
+            if (reminderData[reminderId]) {
+                reminderData[reminderId].priority = priority;
+                await writeReminderData(reminderData);
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                this.loadReminders();
+
+                const priorityNames = {
+                    'high': '高优先级',
+                    'medium': '中优先级',
+                    'low': '低优先级',
+                    'none': '无优先级'
+                };
+                showMessage(`已设置为${priorityNames[priority]}`);
+            }
+        } catch (error) {
+            console.error('设置优先级失败:', error);
+            showMessage('设置优先级失败，请重试');
+        }
+    }
 
     private async performDeleteReminder(reminderId: string) {
         try {
@@ -476,11 +592,9 @@ export class ReminderPanel {
             if (reminderData[reminderId]) {
                 delete reminderData[reminderId];
                 await writeReminderData(reminderData);
-
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                this.loadReminders();
-
                 showMessage('提醒已删除');
+                this.loadReminders();
             } else {
                 showMessage('提醒不存在');
             }
@@ -488,63 +602,6 @@ export class ReminderPanel {
             console.error('删除提醒失败:', error);
             showMessage('删除提醒失败，请重试');
         }
-    }
-
-    private formatReminderTime(date: string, time?: string, today?: string, endDate?: string): string {
-        if (!today) {
-            today = getLocalDateString();
-        }
-
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const tomorrowStr = getLocalDateString(tomorrow);
-
-        let dateStr = '';
-        if (date === today) {
-            dateStr = '今天';
-        } else if (date === tomorrowStr) {
-            dateStr = '明天';
-        } else if (compareDateStrings(date, today) < 0) {
-            // 过期日期显示
-            const reminderDate = new Date(date + 'T00:00:00');
-            dateStr = reminderDate.toLocaleDateString('zh-CN', {
-                month: 'short',
-                day: 'numeric'
-            });
-        } else {
-            const reminderDate = new Date(date + 'T00:00:00');
-            dateStr = reminderDate.toLocaleDateString('zh-CN', {
-                month: 'short',
-                day: 'numeric'
-            });
-        }
-
-        // 处理跨天事件
-        if (endDate && endDate !== date) {
-            let endDateStr = '';
-            if (endDate === today) {
-                endDateStr = '今天';
-            } else if (endDate === tomorrowStr) {
-                endDateStr = '明天';
-            } else if (compareDateStrings(endDate, today) < 0) {
-                const endReminderDate = new Date(endDate + 'T00:00:00');
-                endDateStr = endReminderDate.toLocaleDateString('zh-CN', {
-                    month: 'short',
-                    day: 'numeric'
-                });
-            } else {
-                const endReminderDate = new Date(endDate + 'T00:00:00');
-                endDateStr = endReminderDate.toLocaleDateString('zh-CN', {
-                    month: 'short',
-                    day: 'numeric'
-                });
-            }
-
-            const timeStr = time ? ` ${time}` : '';
-            return `${dateStr} → ${endDateStr}${timeStr}`;
-        }
-
-        return time ? `${dateStr} ${time}` : dateStr;
     }
 
     private async showTimeEditDialog(reminder: any) {
@@ -556,6 +613,27 @@ export class ReminderPanel {
                         <div class="b3-form__group">
                             <label class="b3-form__label">标题</label>
                             <input type="text" id="editReminderTitle" class="b3-text-field" value="${reminder.title || ''}" placeholder="请输入提醒标题">
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">优先级</label>
+                            <div class="priority-selector" id="editPrioritySelector">
+                                <div class="priority-option ${reminder.priority === 'high' ? 'selected' : ''}" data-priority="high">
+                                    <div class="priority-dot high"></div>
+                                    <span>高</span>
+                                </div>
+                                <div class="priority-option ${reminder.priority === 'medium' ? 'selected' : ''}" data-priority="medium">
+                                    <div class="priority-dot medium"></div>
+                                    <span>中</span>
+                                </div>
+                                <div class="priority-option ${reminder.priority === 'low' ? 'selected' : ''}" data-priority="low">
+                                    <div class="priority-dot low"></div>
+                                    <span>低</span>
+                                </div>
+                                <div class="priority-option ${(!reminder.priority || reminder.priority === 'none') ? 'selected' : ''}" data-priority="none">
+                                    <div class="priority-dot none"></div>
+                                    <span>无</span>
+                                </div>
+                            </div>
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">开始日期</label>
@@ -589,7 +667,7 @@ export class ReminderPanel {
                 </div>
             `,
             width: "400px",
-            height: "450px"
+            height: "520px"
         });
 
         // 绑定事件处理逻辑
@@ -599,7 +677,17 @@ export class ReminderPanel {
         const timeInput = dialog.element.querySelector('#editReminderTime') as HTMLInputElement;
         const startDateInput = dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
         const endDateInput = dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
-        const noteInput = dialog.element.querySelector('#editReminderNote') as HTMLTextAreaElement;
+        const prioritySelector = dialog.element.querySelector('#editPrioritySelector') as HTMLElement;
+
+        // 优先级选择事件
+        prioritySelector.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const option = target.closest('.priority-option') as HTMLElement;
+            if (option) {
+                prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+            }
+        });
 
         cancelBtn.addEventListener('click', () => {
             dialog.destroy();
@@ -646,12 +734,14 @@ export class ReminderPanel {
         const timeInput = dialog.element.querySelector('#editReminderTime') as HTMLInputElement;
         const noTimeCheckbox = dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
         const noteInput = dialog.element.querySelector('#editReminderNote') as HTMLTextAreaElement;
+        const selectedPriority = dialog.element.querySelector('#editPrioritySelector .priority-option.selected') as HTMLElement;
 
         const title = titleInput.value.trim();
         const date = dateInput.value;
         const endDate = endDateInput.value;
         const time = noTimeCheckbox.checked ? undefined : timeInput.value;
         const note = noteInput.value.trim() || undefined;
+        const priority = selectedPriority?.getAttribute('data-priority') || 'none';
 
         if (!title) {
             showMessage('请输入提醒标题');
@@ -675,6 +765,7 @@ export class ReminderPanel {
                 reminderData[reminderId].date = date;
                 reminderData[reminderId].time = time;
                 reminderData[reminderId].note = note;
+                reminderData[reminderId].priority = priority;
 
                 if (endDate && endDate !== date) {
                     reminderData[reminderId].endDate = endDate;

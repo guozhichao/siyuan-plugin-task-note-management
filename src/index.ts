@@ -313,6 +313,27 @@ export default class ReminderPlugin extends Plugin {
                     <div class="b3-dialog__content">
                         <div class="fn__hr"></div>
                         <div class="b3-form__group">
+                            <label class="b3-form__label">优先级</label>
+                            <div class="priority-selector" id="batchPrioritySelector">
+                                <div class="priority-option" data-priority="high">
+                                    <div class="priority-dot high"></div>
+                                    <span>高</span>
+                                </div>
+                                <div class="priority-option" data-priority="medium">
+                                    <div class="priority-dot medium"></div>
+                                    <span>中</span>
+                                </div>
+                                <div class="priority-option" data-priority="low">
+                                    <div class="priority-dot low"></div>
+                                    <span>低</span>
+                                </div>
+                                <div class="priority-option selected" data-priority="none">
+                                    <div class="priority-dot none"></div>
+                                    <span>无</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="b3-form__group">
                             <label class="b3-form__label">提醒日期</label>
                             <div class="reminder-date-container">
                                 <input type="date" id="batchReminderDate" class="b3-text-field" value="${today}" required>
@@ -347,7 +368,7 @@ export default class ReminderPlugin extends Plugin {
                 </div>
             `,
             width: "450px",
-            height: "420px"
+            height: "480px"
         });
 
         // 绑定事件
@@ -357,6 +378,17 @@ export default class ReminderPlugin extends Plugin {
         const timeInput = dialog.element.querySelector('#batchReminderTime') as HTMLInputElement;
         const startDateInput = dialog.element.querySelector('#batchReminderDate') as HTMLInputElement;
         const endDateInput = dialog.element.querySelector('#batchReminderEndDate') as HTMLInputElement;
+        const prioritySelector = dialog.element.querySelector('#batchPrioritySelector') as HTMLElement;
+
+        // 优先级选择事件
+        prioritySelector.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const option = target.closest('.priority-option') as HTMLElement;
+            if (option) {
+                prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+            }
+        });
 
         cancelBtn.addEventListener('click', () => {
             dialog.destroy();
@@ -403,11 +435,13 @@ export default class ReminderPlugin extends Plugin {
         const timeInput = dialog.element.querySelector('#batchReminderTime') as HTMLInputElement;
         const noTimeCheckbox = dialog.element.querySelector('#batchNoSpecificTime') as HTMLInputElement;
         const noteInput = dialog.element.querySelector('#batchReminderNote') as HTMLTextAreaElement;
+        const selectedPriority = dialog.element.querySelector('#batchPrioritySelector .priority-option.selected') as HTMLElement;
 
         const date = dateInput.value;
         const endDate = endDateInput.value;
         const time = noTimeCheckbox.checked ? undefined : timeInput.value;
         const note = noteInput.value.trim() || undefined;
+        const priority = selectedPriority?.getAttribute('data-priority') || 'none';
 
         if (!date) {
             showMessage('请选择提醒日期');
@@ -437,6 +471,7 @@ export default class ReminderPlugin extends Plugin {
                             title: block.content || '未命名笔记',
                             date: date,
                             completed: false,
+                            priority: priority,
                             createdAt: new Date().toISOString()
                         };
 

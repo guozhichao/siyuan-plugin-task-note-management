@@ -121,6 +121,31 @@ export class CalendarView {
 
         menu.addSeparator();
 
+        // 添加优先级设置子菜单
+        const priorityMenuItems = [];
+        const priorities = [
+            { key: 'high', label: '高优先级', color: '#e74c3c', icon: '🔴' },
+            { key: 'medium', label: '中优先级', color: '#f39c12', icon: '🟡' },
+            { key: 'low', label: '低优先级', color: '#3498db', icon: '🔵' },
+            { key: 'none', label: '无优先级', color: '#95a5a6', icon: '⚫' }
+        ];
+
+        priorities.forEach(priority => {
+            priorityMenuItems.push({
+                iconHTML: priority.icon,
+                label: priority.label,
+                click: () => {
+                    this.setPriority(calendarEvent, priority.key);
+                }
+            });
+        });
+
+        menu.addItem({
+            iconHTML: "🎯",
+            label: "设置优先级",
+            submenu: priorityMenuItems
+        });
+
         menu.addItem({
             iconHTML: calendarEvent.allDay ? "⏰" : "📅",
             label: calendarEvent.allDay ? "修改为定时事件" : "修改为全天事件",
@@ -151,6 +176,34 @@ export class CalendarView {
             x: event.clientX,
             y: event.clientY
         });
+    }
+
+    private async setPriority(calendarEvent: any, priority: string) {
+        try {
+            const reminderId = calendarEvent.id;
+            const reminderData = await readReminderData();
+
+            if (reminderData[reminderId]) {
+                reminderData[reminderId].priority = priority;
+                await writeReminderData(reminderData);
+
+                // 触发更新事件
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+                await this.refreshEvents();
+
+                const priorityNames = {
+                    'high': '高优先级',
+                    'medium': '中优先级',
+                    'low': '低优先级',
+                    'none': '无优先级'
+                };
+                showMessage(`已设置为${priorityNames[priority]}`);
+            }
+        } catch (error) {
+            console.error('设置优先级失败:', error);
+            showMessage('设置优先级失败，请重试');
+        }
     }
 
     private async deleteEvent(calendarEvent: any) {
@@ -458,12 +511,42 @@ export class CalendarView {
             Object.values(reminderData).forEach((reminder: any) => {
                 if (!reminder || typeof reminder !== 'object') return;
 
+                const priority = reminder.priority || 'none';
+                let backgroundColor, borderColor;
+
+                // 根据优先级设置颜色
+                switch (priority) {
+                    case 'high':
+                        backgroundColor = '#e74c3c';
+                        borderColor = '#c0392b';
+                        break;
+                    case 'medium':
+                        backgroundColor = '#f39c12';
+                        borderColor = '#e67e22';
+                        break;
+                    case 'low':
+                        backgroundColor = '#3498db';
+                        borderColor = '#2980b9';
+                        break;
+                    default:
+                        backgroundColor = '#95a5a6';
+                        borderColor = '#7f8c8d';
+                        break;
+                }
+
+                // 如果任务已完成，使用灰色
+                if (reminder.completed) {
+                    backgroundColor = '#e3e3e3';
+                    borderColor = '#e3e3e3';
+                }
+
                 let eventObj: any = {
                     id: reminder.id,
                     title: reminder.title || '未命名笔记',
-                    backgroundColor: reminder.completed ? '#e3e3e3' : undefined,
-                    borderColor: reminder.completed ? '#e3e3e3' : undefined,
-                    textColor: reminder.completed ? '#999999' : undefined,
+                    backgroundColor: backgroundColor,
+                    borderColor: borderColor,
+                    textColor: reminder.completed ? '#999999' : '#ffffff',
+                    className: `reminder-priority-${priority}`,
                     extendedProps: {
                         completed: reminder.completed || false,
                         note: reminder.note || '',
@@ -471,6 +554,7 @@ export class CalendarView {
                         endDate: reminder.endDate || null,
                         time: reminder.time || null,
                         endTime: reminder.endTime || null,
+                        priority: priority,
                         blockId: reminder.blockId || reminder.id // 兼容旧数据格式
                     }
                 };
@@ -587,6 +671,27 @@ export class CalendarView {
                             <input type="text" id="editReminderTitle" class="b3-text-field" value="${calendarEvent.title || ''}" placeholder="请输入提醒标题">
                         </div>
                         <div class="b3-form__group">
+                            <label class="b3-form__label">优先级</label>
+                            <div class="priority-selector" id="editPrioritySelector">
+                                <div class="priority-option ${reminder.priority === 'high' ? 'selected' : ''}" data-priority="high">
+                                    <div class="priority-dot high"></div>
+                                    <span>高</span>
+                                </div>
+                                <div class="priority-option ${reminder.priority === 'medium' ? 'selected' : ''}" data-priority="medium">
+                                    <div class="priority-dot medium"></div>
+                                    <span>中</span>
+                                </div>
+                                <div class="priority-option ${reminder.priority === 'low' ? 'selected' : ''}" data-priority="low">
+                                    <div class="priority-dot low"></div>
+                                    <span>低</span>
+                                </div>
+                                <div class="priority-option ${(!reminder.priority || reminder.priority === 'none') ? 'selected' : ''}" data-priority="none">
+                                    <div class="priority-dot none"></div>
+                                    <span>无</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="b3-form__group">
                             <label class="b3-form__label">开始日期</label>
                             <input type="date" id="editReminderDate" class="b3-text-field" value="${reminder.date}" required>
                         </div>
@@ -618,7 +723,7 @@ export class CalendarView {
                 </div>
             `,
             width: "400px",
-            height: "450px"
+            height: "520px"
         });
 
         // 绑定事件处理逻辑
@@ -628,7 +733,17 @@ export class CalendarView {
         const timeInput = dialog.element.querySelector('#editReminderTime') as HTMLInputElement;
         const startDateInput = dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
         const endDateInput = dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
-        const noteInput = dialog.element.querySelector('#editReminderNote') as HTMLTextAreaElement;
+        const prioritySelector = dialog.element.querySelector('#editPrioritySelector') as HTMLElement;
+
+        // 优先级选择事件
+        prioritySelector.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const option = target.closest('.priority-option') as HTMLElement;
+            if (option) {
+                prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+            }
+        });
 
         cancelBtn.addEventListener('click', () => {
             dialog.destroy();
@@ -675,12 +790,14 @@ export class CalendarView {
         const timeInput = dialog.element.querySelector('#editReminderTime') as HTMLInputElement;
         const noTimeCheckbox = dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
         const noteInput = dialog.element.querySelector('#editReminderNote') as HTMLTextAreaElement;
+        const selectedPriority = dialog.element.querySelector('#editPrioritySelector .priority-option.selected') as HTMLElement;
 
         const title = titleInput.value.trim();
         const date = dateInput.value;
         const endDate = endDateInput.value;
         const time = noTimeCheckbox.checked ? undefined : timeInput.value;
         const note = noteInput.value.trim() || undefined;
+        const priority = selectedPriority?.getAttribute('data-priority') || 'none';
 
         if (!title) {
             showMessage('请输入提醒标题');
@@ -704,6 +821,7 @@ export class CalendarView {
                 reminderData[reminderId].date = date;
                 reminderData[reminderId].time = time;
                 reminderData[reminderId].note = note;
+                reminderData[reminderId].priority = priority;
 
                 if (endDate && endDate !== date) {
                     reminderData[reminderId].endDate = endDate;

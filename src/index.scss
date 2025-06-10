@@ -407,3 +407,164 @@
         font-style: italic;
     }
 }
+
+// 优先级颜色样式
+.reminder-priority-high {
+    border-left: 4px solid var(--b3-card-error-color) !important;
+    background-color: var(--b3-card-error-background) !important;
+}
+
+.reminder-priority-high .reminder-item__note {
+    border: 2px solid var(--b3-card-error-color) !important;
+    color: var(--b3-card-error-color) !important;
+    background-color: transparent !important;
+}
+.reminder-priority-medium {
+    border-left: 4px solid var(--b3-card-warning-color) !important;
+    background-color: var(--b3-card-warning-background) !important;
+}
+.reminder-priority-medium .reminder-item__note {
+    color: var(--b3-card-warning-color) !important;
+    background-color: var(--b3-card-warning-background) !important;
+    border: 2px solid var(--b3-card-warning-color) !important;
+}
+
+.reminder-priority-low {
+    border-left: 4px solid var(--b3-card-info-color) !important;
+    background-color: var(--b3-card-info-background) !important;
+}
+.reminder-priority-low .reminder-item__note {
+    color: var(--b3-card-info-color) !important;
+    background-color: var(--b3-card-info-background) !important;
+    border: 2px solid var(--b3-card-info-color) !important;
+}
+
+// .reminder-priority-none {
+//     border-left: 4px solid transparent !important;
+// }
+.reminder-priority-none .reminder-item__note {
+    color: var(--b3-theme-on-background) !important;
+    background-color: transparent !important;
+    border: 2px solid var(--b3-border-color) !important;
+}
+
+// 日历事件优先级样式
+.fc-event.reminder-priority-high {
+    background-color: var(--b3-card-error-background) !important;
+    border-color: var(--b3-card-error-color) !important;
+    color: var(--b3-card-error-color) !important;
+}
+.fc-event.reminder-priority-high .reminder-calendar-event-content{
+    color: var(--b3-card-error-color) !important;
+}
+.fc-event.reminder-priority-medium {
+    background-color: var(--b3-card-warning-background) !important;
+    border-color: var(--b3-card-warning-color) !important;
+    color: var(--b3-card-warning-color) !important;
+
+}
+.fc-event.reminder-priority-medium .reminder-calendar-event-content {
+    color: var(--b3-card-warning-color) !important;
+}
+
+.fc-event.reminder-priority-low {
+    background-color: var(--b3-card-info-background) !important;
+    border-color: var(--b3-card-info-color) !important;
+    color: var(--b3-card-info-color) !important;
+}
+.fc-event.reminder-priority-low .reminder-calendar-event-content {
+    color: var(--b3-card-info-color) !important;
+}
+
+.fc-event.reminder-priority-none {
+    background-color: #c6d1c8!important;
+    color: var(--b3-theme-on-background) !important;
+}
+.fc-event.reminder-priority-none .reminder-calendar-event-content {
+    color: #000 !important;
+}
+
+
+// 优先级选择器样式
+.priority-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.priority-option {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border: 1px solid var(--b3-border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--b3-theme-background);
+}
+
+.priority-option:hover {
+    background: var(--b3-theme-surface-light);
+}
+
+.priority-option.selected {
+    border-color: var(--b3-theme-primary);
+    background: var(--b3-theme-primary-lightest);
+}
+
+.priority-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.priority-dot.high {
+    background-color: #e74c3c;
+}
+
+.priority-dot.medium {
+    background-color: #f39c12;
+}
+
+.priority-dot.low {
+    background-color: #3498db;
+}
+
+.priority-dot.none {
+    background-color: #95a5a6;
+}
+
+// 优先级标签样式
+.reminder-priority-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: 8px;
+    font-weight: 500;
+}
+
+.reminder-priority-label.high {
+    background-color: rgba(231, 76, 60, 0.1);
+    color: #e74c3c;
+}
+
+.reminder-priority-label.medium {
+    background-color: rgba(243, 156, 18, 0.1);
+    color: #f39c12;
+}
+
+.reminder-priority-label.low {
+    background-color: rgba(52, 152, 219, 0.1);
+    color: #3498db;
+}
+
+.reminder-priority-label.none {
+    background-color: rgba(149, 165, 166, 0.1);
+    color: #95a5a6;
+}
