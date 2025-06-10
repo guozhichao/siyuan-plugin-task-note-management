@@ -1055,6 +1055,72 @@ export class CalendarView {
         }
     }
 
+    private async showTimeEditDialogForSeries(calendarEvent: any) {
+        try {
+            // 获取原始重复事件的ID
+            const originalId = calendarEvent.extendedProps.isRepeated ?
+                calendarEvent.extendedProps.originalId :
+                calendarEvent.id;
+
+            const reminderData = await readReminderData();
+
+            if (reminderData[originalId]) {
+                const reminder = reminderData[originalId];
+
+                const editDialog = new ReminderEditDialog(reminder, async () => {
+                    // 刷新日历事件
+                    await this.refreshEvents();
+
+                    // 触发全局更新事件
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                });
+
+                editDialog.show();
+            } else {
+                showMessage(t("reminderDataNotExist"));
+            }
+        } catch (error) {
+            console.error('打开系列修改对话框失败:', error);
+            showMessage(t("openModifyDialogFailed"));
+        }
+    }
+
+    private async toggleAllDayEvent(calendarEvent: any) {
+        try {
+            // 获取正确的提醒ID - 对于重复事件实例，使用原始ID
+            const reminderId = calendarEvent.extendedProps.isRepeated ?
+                calendarEvent.extendedProps.originalId :
+                calendarEvent.id;
+
+            const reminderData = await readReminderData();
+
+            if (reminderData[reminderId]) {
+                if (calendarEvent.allDay) {
+                    // 从全天改为定时：添加默认时间
+                    reminderData[reminderId].time = "09:00";
+                    delete reminderData[reminderId].endTime;
+                } else {
+                    // 从定时改为全天：删除时间信息
+                    delete reminderData[reminderId].time;
+                    delete reminderData[reminderId].endTime;
+                }
+
+                await writeReminderData(reminderData);
+
+                // 触发更新事件
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+                // 立即刷新事件显示
+                await this.refreshEvents();
+
+                showMessage(calendarEvent.allDay ? t("changedToTimed") : t("changedToAllDay"));
+            }
+        } catch (error) {
+            console.error('切换全天事件失败:', error);
+            showMessage(t("toggleAllDayFailed"));
+        }
+    }
+
     // 添加销毁方法
     destroy() {
         // 调用清理函数
