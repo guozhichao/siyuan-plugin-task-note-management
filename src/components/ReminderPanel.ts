@@ -1643,7 +1643,7 @@ export class ReminderPanel {
                 try {
                     const reminderData = await readReminderData();
                     const originalReminder = reminderData[reminder.id];
-                    
+
                     if (!originalReminder || !originalReminder.repeat?.enabled) {
                         showMessage(t("operationFailed"));
                         return;
@@ -1658,13 +1658,13 @@ export class ReminderPanel {
 
                     // 将周期事件的开始日期更新为下一个周期
                     originalReminder.date = getLocalDateString(nextDate);
-                    
+
                     // 如果是跨天事件，也需要更新结束日期
                     if (originalReminder.endDate) {
                         const originalStartDate = new Date(reminder.date + 'T12:00:00');
                         const originalEndDate = new Date(originalReminder.endDate + 'T12:00:00');
                         const daysDiff = Math.floor((originalEndDate.getTime() - originalStartDate.getTime()) / (1000 * 60 * 60 * 24));
-                        
+
                         const newEndDate = new Date(nextDate);
                         newEndDate.setDate(newEndDate.getDate() + daysDiff);
                         originalReminder.endDate = getLocalDateString(newEndDate);
