@@ -924,10 +924,22 @@ export class ReminderPanel {
             }
         }
     }
-
-    private updateBadge(reminderData: any, today: string) {
-        // 不再显示徽章，保持方法为空以维持兼容性
-        // 原有的"完成/总共"徽章显示逻辑已移除
+    private async setPriority(reminderId: string, priority: string) {
+        try {
+            const reminderData = await readReminderData();
+            if (reminderData[reminderId]) {
+                reminderData[reminderId].priority = priority;
+                await writeReminderData(reminderData);
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                this.loadReminders();
+                showMessage(t("priorityUpdated"));
+            } else {
+                showMessage(t("reminderNotExist"));
+            }
+        } catch (error) {
+            console.error('设置优先级失败:', error);
+            showMessage(t("operationFailed"));
+        }
     }
 
     private renderReminderItem(reminder: any): string {
