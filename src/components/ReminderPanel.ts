@@ -8,17 +8,29 @@ export class ReminderPanel {
     private filterSelect: HTMLSelectElement;
     private plugin: any;
     private currentTab: string = 'all'; // 当前选中的标签
+    private reminderUpdatedHandler: () => void; // 添加事件处理器引用
 
     constructor(container: HTMLElement, plugin?: any) {
         this.container = container;
         this.plugin = plugin;
+        
+        // 创建事件处理器
+        this.reminderUpdatedHandler = () => {
+            this.loadReminders();
+        };
+        
         this.initUI();
         this.loadReminders();
 
         // 监听提醒更新事件
-        window.addEventListener('reminderUpdated', () => {
-            this.loadReminders();
-        });
+        window.addEventListener('reminderUpdated', this.reminderUpdatedHandler);
+    }
+
+    // 添加销毁方法以清理事件监听器
+    public destroy() {
+        if (this.reminderUpdatedHandler) {
+            window.removeEventListener('reminderUpdated', this.reminderUpdatedHandler);
+        }
     }
 
     private initUI() {

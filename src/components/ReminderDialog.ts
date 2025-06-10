@@ -6,9 +6,16 @@ export class ReminderDialog {
     private blockId: string;
     private dialog: Dialog;
     private blockContent: string = '';
+    private reminderUpdatedHandler: () => void; // 添加事件处理器引用
 
     constructor(blockId: string) {
         this.blockId = blockId;
+        
+        // 创建事件处理器
+        this.reminderUpdatedHandler = () => {
+            // 重新加载现有提醒列表
+            this.loadExistingReminder();
+        };
     }
 
     async show() {
@@ -82,6 +89,9 @@ export class ReminderDialog {
 
         this.bindEvents();
         await this.loadExistingReminder();
+        
+        // 监听提醒更新事件
+        window.addEventListener('reminderUpdated', this.reminderUpdatedHandler);
     }
 
     private bindEvents() {
@@ -94,6 +104,7 @@ export class ReminderDialog {
 
         // 取消按钮
         cancelBtn?.addEventListener('click', () => {
+            this.cleanup();
             this.dialog.destroy();
         });
 
@@ -200,7 +211,10 @@ export class ReminderDialog {
                 showMessage(`已设置提醒：${date}${time ? ` ${time}` : ''}`);
             }
 
+            // 触发更新事件
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            
+            this.cleanup();
             this.dialog.destroy();
         } catch (error) {
             console.error('保存提醒失败:', error);
@@ -391,8 +405,10 @@ export class ReminderDialog {
                 delete reminderData[reminderId];
                 await writeReminderData(reminderData);
 
+                // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                await this.loadExistingReminder(); // 重新加载现有提醒列表
+                
+                await this.loadExistingReminder();
 
                 showMessage('提醒已删除');
             } else {
@@ -540,7 +556,10 @@ export class ReminderDialog {
                 }
 
                 await writeReminderData(reminderData);
+                
+                // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                
                 await this.loadExistingReminder();
 
                 const isSpanning = endDate && endDate !== date;
@@ -553,6 +572,13 @@ export class ReminderDialog {
         } catch (error) {
             console.error('保存修改失败:', error);
             showMessage('保存失败，请重试');
+        }
+    }
+
+    // 添加清理方法
+    private cleanup() {
+        if (this.reminderUpdatedHandler) {
+            window.removeEventListener('reminderUpdated', this.reminderUpdatedHandler);
         }
     }
 }
