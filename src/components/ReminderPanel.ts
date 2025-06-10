@@ -288,8 +288,8 @@ export class ReminderPanel {
                                 isRepeatInstance: true,
                                 originalId: instance.originalId,
                                 completed: isInstanceCompleted, // 使用实例级别的完成状态
-                                // 使用实例级别的备注，如果没有则使用原始备注
-                                note: instanceMod?.note !== undefined ? instanceMod.note : reminder.note
+                                // 修改备注逻辑：只有实例有明确的备注时才使用，否则为空
+                                note: instanceMod?.note || ''  // 每个实例的备注都是独立的，默认为空
                             };
 
                             // 对于明天的提醒，只保留最近的一个实例

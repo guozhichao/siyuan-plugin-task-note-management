@@ -1036,8 +1036,8 @@ export class CalendarView {
                                 time: instance.time,
                                 endTime: instance.endTime,
                                 completed: isInstanceCompleted, // 使用实例级别的完成状态
-                                // 使用实例级别的备注，如果没有则使用原始备注
-                                note: instanceMod?.note !== undefined ? instanceMod.note : reminder.note
+                                // 修改备注逻辑：只有实例有明确的备注时才使用，否则为空
+                                note: instanceMod?.note || ''  // 每个实例的备注都是独立的，默认为空
                             };
                             this.addEventToList(events, instanceReminder, instance.instanceId, true, instance.originalId);
                         }
@@ -1197,8 +1197,8 @@ export class CalendarView {
                 endDate: calendarEvent.extendedProps.endDate,
                 time: calendarEvent.extendedProps.time,
                 endTime: calendarEvent.extendedProps.endTime,
-                // 使用实例级别的备注，如果没有则使用原始备注
-                note: instanceMod?.note !== undefined ? instanceMod.note : originalReminder.note,
+                // 修改备注逻辑：只有实例有明确的备注时才使用，否则为空
+                note: instanceMod?.note || '',  // 每个实例的备注都是独立的，默认为空
                 isInstance: true,
                 originalId: originalId,
                 instanceDate: instanceDate

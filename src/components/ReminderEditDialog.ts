@@ -307,14 +307,15 @@ export class ReminderEditDialog {
                 reminderData[originalId].repeat.instanceModifications = {};
             }
 
-            // 保存此实例的修改数据（包括备注）
+            // 保存此实例的修改数据（包括独立的备注）
+            // 注意：这里明确保存实例的备注，即使为空字符串也要保存
             reminderData[originalId].repeat.instanceModifications[instanceDate] = {
                 title: instanceData.title,
                 date: instanceData.date,
                 endDate: instanceData.endDate,
                 time: instanceData.time,
                 endTime: instanceData.endTime,
-                note: instanceData.note, // 保存实例级别的备注
+                note: instanceData.note || '', // 明确保存备注，确保独立性
                 priority: instanceData.priority,
                 modifiedAt: new Date().toISOString()
             };
