@@ -85,6 +85,30 @@ export default class ReminderPlugin extends Plugin {
         });
     }
 
+    async onLayoutReady() {
+        // 在布局准备就绪后监听protyle切换事件
+        this.eventBus.on('switch-protyle', (e) => {
+            // 延迟添加按钮，确保protyle完全切换完成
+            setTimeout(() => {
+                this.addBreadcrumbReminderButton(e.detail.protyle);
+            }, 100);
+        });
+
+        // 为当前已存在的protyle添加按钮
+        this.addBreadcrumbButtonsToExistingProtyles();
+    }
+
+    private addBreadcrumbButtonsToExistingProtyles() {
+        // 查找所有现有的protyle并添加按钮
+        document.querySelectorAll('.protyle').forEach(protyleElement => {
+            // 尝试从元素中获取protyle实例
+            const protyle = (protyleElement as any).protyle;
+            if (protyle) {
+                this.addBreadcrumbReminderButton(protyle);
+            }
+        });
+    }
+
     private openReminderFloatPanel() {
         // 创建悬浮窗口
         const dialog = new Dialog({
@@ -542,7 +566,73 @@ export default class ReminderPlugin extends Plugin {
         });
     }
 
+
+
+    private addBreadcrumbReminderButton(protyle: any) {
+        if (!protyle || !protyle.element) return;
+
+        const breadcrumb = protyle.element.querySelector('.protyle-breadcrumb');
+        if (!breadcrumb) return;
+
+        // 检查是否已经添加过按钮
+        const existingButton = breadcrumb.querySelector('.reminder-breadcrumb-btn');
+        if (existingButton) return;
+
+        // 查找文档按钮
+        const docButton = breadcrumb.querySelector('button[data-type="doc"]');
+        if (!docButton) return;
+
+        // 创建提醒按钮
+        const reminderBtn = document.createElement('button');
+        reminderBtn.className = 'reminder-breadcrumb-btn block__icon fn__flex-center ariaLabel';
+        reminderBtn.setAttribute('aria-label', '设置文档提醒');
+        reminderBtn.innerHTML = `
+            <svg class="b3-list-item__graphic"><use xlink:href="#iconClock"></use></svg>
+        `;
+
+        // 设置按钮样式
+        reminderBtn.style.cssText = `
+            margin-right: 4px;
+            padding: 4px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            border-radius: 4px;
+            color: var(--b3-theme-on-background);
+            opacity: 0.7;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+        `;
+
+
+        // 点击事件
+        reminderBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const documentId = protyle.block?.rootID;
+            if (documentId) {
+                const dialog = new ReminderDialog(documentId);
+                dialog.show();
+            } else {
+                showMessage('无法获取文档ID');
+            }
+        });
+
+        // 在文档按钮前面插入提醒按钮
+        breadcrumb.insertBefore(reminderBtn, docButton);
+    }
+
     onunload() {
         console.log("Reminder Plugin unloaded");
+
+        // 清理所有面包屑按钮
+        document.querySelectorAll('.reminder-breadcrumb-btn').forEach(btn => {
+            btn.remove();
+        });
     }
 }
