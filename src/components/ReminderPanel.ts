@@ -1360,8 +1360,6 @@ export class ReminderPanel {
                 isSplitOperation: true,
                 originalId: reminder.id,
                 nextCycleDate: nextDateStr, // 保存下一个周期日期，用于创建新系列
-                // 如果原事件有结束日期，计算下一个周期的结束日期
-                nextCycleEndDate: originalReminder.endDate ? this.calculateEndDateForSplit(originalReminder, nextDate) : undefined
             };
 
             // 打开编辑对话框
@@ -1630,5 +1628,76 @@ export class ReminderPanel {
             console.error('获取原始提醒失败:', error);
             showMessage(t("deleteReminderFailed"));
         }
+    }
+
+    /**
+     * [MODIFIED] Skip the first occurrence of a recurring reminder
+     * This method advances the start date of the recurring reminder to the next cycle
+     * @param reminder The original recurring reminder
+     */
+    private async skipFirstOccurrence(reminder: any) {
+        await confirm(
+            t("deleteThisInstance"),
+            t("confirmSkipFirstOccurrence"),
+            async () => {
+                try {
+                    const reminderData = await readReminderData();
+                    const originalReminder = reminderData[reminder.id];
+                    
+                    if (!originalReminder || !originalReminder.repeat?.enabled) {
+                        showMessage(t("operationFailed"));
+                        return;
+                    }
+
+                    // 计算下一个周期的日期
+                    const nextDate = this.calculateNextDate(originalReminder.date, originalReminder.repeat);
+                    if (!nextDate) {
+                        showMessage(t("operationFailed") + ": " + t("invalidRepeatConfig"));
+                        return;
+                    }
+
+                    // 将周期事件的开始日期更新为下一个周期
+                    originalReminder.date = getLocalDateString(nextDate);
+                    
+                    // 如果是跨天事件，也需要更新结束日期
+                    if (originalReminder.endDate) {
+                        const originalStartDate = new Date(reminder.date + 'T12:00:00');
+                        const originalEndDate = new Date(originalReminder.endDate + 'T12:00:00');
+                        const daysDiff = Math.floor((originalEndDate.getTime() - originalStartDate.getTime()) / (1000 * 60 * 60 * 24));
+                        
+                        const newEndDate = new Date(nextDate);
+                        newEndDate.setDate(newEndDate.getDate() + daysDiff);
+                        originalReminder.endDate = getLocalDateString(newEndDate);
+                    }
+
+                    // 清理可能存在的首次发生相关的历史数据
+                    if (originalReminder.repeat.completedInstances) {
+                        const firstOccurrenceIndex = originalReminder.repeat.completedInstances.indexOf(reminder.date);
+                        if (firstOccurrenceIndex > -1) {
+                            originalReminder.repeat.completedInstances.splice(firstOccurrenceIndex, 1);
+                        }
+                    }
+
+                    if (originalReminder.repeat.instanceModifications && originalReminder.repeat.instanceModifications[reminder.date]) {
+                        delete originalReminder.repeat.instanceModifications[reminder.date];
+                    }
+
+                    if (originalReminder.repeat.excludeDates) {
+                        const firstOccurrenceIndex = originalReminder.repeat.excludeDates.indexOf(reminder.date);
+                        if (firstOccurrenceIndex > -1) {
+                            originalReminder.repeat.excludeDates.splice(firstOccurrenceIndex, 1);
+                        }
+                    }
+
+                    await writeReminderData(reminderData);
+                    showMessage(t("firstOccurrenceSkipped"));
+                    this.loadReminders();
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                } catch (error) {
+                    console.error('跳过首次发生失败:', error);
+                    showMessage(t("operationFailed"));
+                }
+            }
+        );
     }
 }

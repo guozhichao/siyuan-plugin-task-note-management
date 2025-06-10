@@ -211,5 +211,9 @@
     "modifyAndSplit": "修改此实例",
     "splitAndSave": "保存",
     "seriesSplitSuccess": "修改此实例成功",
-    "invalidRepeatConfig": "无效的重复配置"
+    "invalidRepeatConfig": "无效的重复配置",
+    "confirmSkipFirstOccurrence": "确定要跳过首次发生吗？重复事件将从下一个周期开始。",
+    "firstOccurrenceSkipped": "已跳过首次发生，重复事件将从下一个周期开始",
+    "skipFirstOccurrence": "跳过首次发生",
+    "skipThisOccurrence": "跳过此次发生"
 }

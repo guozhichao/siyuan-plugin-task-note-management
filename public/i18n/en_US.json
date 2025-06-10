@@ -212,5 +212,9 @@
     "editingForSplitDesc": "Editing the first occurrence will split the recurring series. A new series will start from the next cycle.",
     "splitAndSave": "Split and Save",
     "seriesSplitSuccess": "Recurring series split successfully",
-    "invalidRepeatConfig": "Invalid repeat configuration"
+    "invalidRepeatConfig": "Invalid repeat configuration",
+    "confirmSkipFirstOccurrence": "Are you sure to skip the first occurrence? The recurring event will start from the next cycle.",
+    "firstOccurrenceSkipped": "First occurrence skipped, recurring event will start from the next cycle",
+    "skipFirstOccurrence": "Skip First Occurrence",
+    "skipThisOccurrence": "Skip This Occurrence"
 }
