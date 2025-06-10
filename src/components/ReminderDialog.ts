@@ -2,6 +2,7 @@ import { showMessage, Dialog, Menu, confirm } from "siyuan";
 import { readReminderData, writeReminderData, getBlockByID } from "../api";
 import { getLocalDateString, getLocalTimeString, compareDateStrings } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
+import { ReminderEditDialog } from "./ReminderEditDialog";
 
 export class ReminderDialog {
     private blockId: string;
@@ -453,192 +454,37 @@ export class ReminderDialog {
     }
 
     private showTimeEditDialog(reminder: any) {
-        const dialog = new Dialog({
-            title: "修改提醒",
-            content: `
-                <div class="time-edit-dialog">
-                    <div class="b3-dialog__content">
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">标题</label>
-                            <input type="text" id="editReminderTitle" class="b3-text-field" value="${reminder.title || ''}" placeholder="请输入提醒标题">
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">优先级</label>
-                            <div class="priority-selector" id="editPrioritySelector">
-                                <div class="priority-option ${reminder.priority === 'high' ? 'selected' : ''}" data-priority="high">
-                                    <div class="priority-dot high"></div>
-                                    <span>高</span>
-                                </div>
-                                <div class="priority-option ${reminder.priority === 'medium' ? 'selected' : ''}" data-priority="medium">
-                                    <div class="priority-dot medium"></div>
-                                    <span>中</span>
-                                </div>
-                                <div class="priority-option ${reminder.priority === 'low' ? 'selected' : ''}" data-priority="low">
-                                    <div class="priority-dot low"></div>
-                                    <span>低</span>
-                                </div>
-                                <div class="priority-option ${(!reminder.priority || reminder.priority === 'none') ? 'selected' : ''}" data-priority="none">
-                                    <div class="priority-dot none"></div>
-                                    <span>无</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">开始日期</label>
-                            <input type="date" id="editReminderDate" class="b3-text-field" value="${reminder.date}" required>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">结束日期（可选）</label>
-                            <input type="date" id="editReminderEndDate" class="b3-text-field" value="${reminder.endDate || ''}" placeholder="留空表示单日事件">
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">提醒时间</label>
-                            <input type="time" id="editReminderTime" class="b3-text-field" value="${reminder.time || ''}">
-                            <div class="b3-form__desc">留空表示全天提醒</div>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-checkbox">
-                                <input type="checkbox" id="editNoSpecificTime" ${!reminder.time ? 'checked' : ''}>
-                                <span class="b3-checkbox__graphic"></span>
-                                <span class="b3-checkbox__label">全天提醒</span>
-                            </label>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">备注</label>
-                            <textarea id="editReminderNote" class="b3-text-field" placeholder="输入提醒备注..." rows="3" style="width: 100%;resize: vertical; min-height: 60px;">${reminder.note || ''}</textarea>
-                        </div>
-                    </div>
-                    <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="editCancelBtn">取消</button>
-                        <button class="b3-button b3-button--primary" id="editConfirmBtn">保存</button>
-                    </div>
-                </div>
-            `,
-            width: "400px",
-            height: "500px"
+        const editDialog = new ReminderEditDialog(reminder, () => {
+            this.loadExistingReminder();
         });
-
-        // 绑定事件
-        const cancelBtn = dialog.element.querySelector('#editCancelBtn') as HTMLButtonElement;
-        const confirmBtn = dialog.element.querySelector('#editConfirmBtn') as HTMLButtonElement;
-        const noTimeCheckbox = dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
-        const timeInput = dialog.element.querySelector('#editReminderTime') as HTMLInputElement;
-        const startDateInput = dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
-        const endDateInput = dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
-        const prioritySelector = dialog.element.querySelector('#editPrioritySelector') as HTMLElement;
-
-        // 优先级选择事件
-        prioritySelector.addEventListener('click', (e) => {
-            const target = e.target as HTMLElement;
-            const option = target.closest('.priority-option') as HTMLElement;
-            if (option) {
-                prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
-                option.classList.add('selected');
-            }
-        });
-
-        cancelBtn.addEventListener('click', () => {
-            dialog.destroy();
-        });
-
-        confirmBtn.addEventListener('click', async () => {
-            await this.saveTimeEdit(reminder.id, dialog);
-        });
-
-        noTimeCheckbox.addEventListener('change', () => {
-            timeInput.disabled = noTimeCheckbox.checked;
-            if (noTimeCheckbox.checked) {
-                timeInput.value = '';
-            }
-        });
-
-        // 日期验证
-        startDateInput?.addEventListener('change', () => {
-            const startDate = startDateInput.value;
-            const endDate = endDateInput.value;
-
-            if (endDate && endDate < startDate) {
-                endDateInput.value = startDate;
-                showMessage('结束日期已自动调整为开始日期');
-            }
-
-            endDateInput.min = startDate;
-        });
-
-        endDateInput?.addEventListener('change', () => {
-            const startDate = startDateInput.value;
-            const endDate = endDateInput.value;
-
-            if (endDate && endDate < startDate) {
-                endDateInput.value = startDate;
-                showMessage('结束日期不能早于开始日期');
-            }
-        });
+        editDialog.show();
     }
 
-    private async saveTimeEdit(reminderId: string, dialog: Dialog) {
-        const titleInput = dialog.element.querySelector('#editReminderTitle') as HTMLInputElement;
-        const dateInput = dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
-        const endDateInput = dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
-        const timeInput = dialog.element.querySelector('#editReminderTime') as HTMLInputElement;
-        const noTimeCheckbox = dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
-        const noteInput = dialog.element.querySelector('#editReminderNote') as HTMLTextAreaElement;
-        const selectedPriority = dialog.element.querySelector('#editPrioritySelector .priority-option.selected') as HTMLElement;
-
-        const title = titleInput.value.trim();
-        const date = dateInput.value;
-        const endDate = endDateInput.value;
-        const time = noTimeCheckbox.checked ? undefined : timeInput.value;
-        const note = noteInput.value.trim() || undefined;
-        const priority = selectedPriority?.getAttribute('data-priority') || 'none';
-
-        if (!title) {
-            showMessage('请输入提醒标题');
-            return;
-        }
-
-        if (!date) {
-            showMessage('请选择提醒日期');
-            return;
-        }
-
-        if (endDate && endDate < date) {
-            showMessage('结束日期不能早于开始日期');
-            return;
-        }
-
+    private async loadExistingReminder() {
         try {
             const reminderData = await readReminderData();
-            if (reminderData[reminderId]) {
-                reminderData[reminderId].title = title;
-                reminderData[reminderId].date = date;
-                reminderData[reminderId].time = time;
-                reminderData[reminderId].note = note;
-                reminderData[reminderId].priority = priority;
+            const blockReminders = Object.values(reminderData).filter((reminder: any) =>
+                reminder && reminder.blockId === this.blockId
+            );
 
-                if (endDate && endDate !== date) {
-                    reminderData[reminderId].endDate = endDate;
-                } else {
-                    delete reminderData[reminderId].endDate;
-                }
+            const container = this.dialog.element.querySelector('#existingReminders') as HTMLElement;
 
-                await writeReminderData(reminderData);
+            if (blockReminders.length > 0 && container) {
+                const today = getLocalDateString();
+                container.innerHTML = '';
 
-                // 触发更新事件
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                // 应用当前排序方式
+                this.sortReminders(blockReminders);
 
-                await this.loadExistingReminder();
-
-                const isSpanning = endDate && endDate !== date;
-                const timeStr = time ? ` ${time}` : '';
-                const dateStr = isSpanning ? `${date} → ${endDate}${timeStr}` : `${date}${timeStr}`;
-                showMessage(`提醒已更新: ${dateStr}`);
-
-                dialog.destroy();
+                blockReminders.forEach((reminder: any) => {
+                    const reminderEl = this.createReminderElement(reminder, today);
+                    container.appendChild(reminderEl);
+                });
+            } else if (container) {
+                container.innerHTML = '<div class="reminder-empty">暂无现有提醒</div>';
             }
         } catch (error) {
-            console.error('保存修改失败:', error);
-            showMessage('保存失败，请重试');
+            console.error('加载现有提醒失败:', error);
         }
     }
 
