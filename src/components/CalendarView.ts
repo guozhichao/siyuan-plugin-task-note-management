@@ -11,6 +11,8 @@ export class CalendarView {
     private container: HTMLElement;
     private calendar: Calendar;
     private plugin: any;
+    private resizeObserver: ResizeObserver;
+    private resizeTimeout: number;
 
     constructor(container: HTMLElement, plugin: any) {
         this.container = container;
@@ -99,8 +101,112 @@ export class CalendarView {
 
         // 监听提醒更新事件
         window.addEventListener('reminderUpdated', this.refreshEvents.bind(this));
+
+        // 添加窗口大小变化监听器
+        this.addResizeListeners();
     }
 
+    private addResizeListeners() {
+        // 窗口大小变化监听器
+        const handleResize = () => {
+            this.debounceResize();
+        };
+
+        window.addEventListener('resize', handleResize);
+
+        // 使用 ResizeObserver 监听容器大小变化
+        if (typeof ResizeObserver !== 'undefined') {
+            this.resizeObserver = new ResizeObserver(() => {
+                this.debounceResize();
+            });
+            this.resizeObserver.observe(this.container);
+        }
+
+        // 监听标签页切换和显示事件
+        const handleVisibilityChange = () => {
+            if (!document.hidden && this.isCalendarVisible()) {
+                this.debounceResize();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        // 监听标签页激活事件
+        const handleTabShow = () => {
+            if (this.isCalendarVisible()) {
+                this.debounceResize();
+            }
+        };
+
+        // 使用 MutationObserver 监听容器的显示状态变化
+        const mutationObserver = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'attributes' &&
+                    (mutation.attributeName === 'style' || mutation.attributeName === 'class')) {
+                    if (this.isCalendarVisible()) {
+                        this.debounceResize();
+                    }
+                }
+            });
+        });
+
+        // 监听父级容器的变化
+        let currentElement = this.container.parentElement;
+        while (currentElement) {
+            mutationObserver.observe(currentElement, {
+                attributes: true,
+                attributeFilter: ['style', 'class']
+            });
+            currentElement = currentElement.parentElement;
+            // 只监听几层父级，避免监听过多元素
+            if (currentElement === document.body) break;
+        }
+
+        // 清理函数
+        const cleanup = () => {
+            window.removeEventListener('resize', handleResize);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            if (this.resizeObserver) {
+                this.resizeObserver.disconnect();
+            }
+            mutationObserver.disconnect();
+            if (this.resizeTimeout) {
+                clearTimeout(this.resizeTimeout);
+            }
+        };
+
+        // 将清理函数绑定到容器，以便在组件销毁时调用
+        (this.container as any)._calendarCleanup = cleanup;
+    }
+
+    private debounceResize() {
+        if (this.resizeTimeout) {
+            clearTimeout(this.resizeTimeout);
+        }
+
+        this.resizeTimeout = window.setTimeout(() => {
+            if (this.calendar && this.isCalendarVisible()) {
+                try {
+                    this.calendar.updateSize();
+                    this.calendar.render();
+                } catch (error) {
+                    console.error('重新渲染日历失败:', error);
+                }
+            }
+        }, 100);
+    }
+
+    private isCalendarVisible(): boolean {
+        // 检查容器是否可见
+        const containerRect = this.container.getBoundingClientRect();
+        const isVisible = containerRect.width > 0 && containerRect.height > 0;
+
+        // 检查容器是否在视口中或父级容器是否可见
+        const style = window.getComputedStyle(this.container);
+        const isDisplayed = style.display !== 'none' && style.visibility !== 'hidden';
+
+        return isVisible && isDisplayed;
+    }
 
     private showEventContextMenu(event: MouseEvent, calendarEvent: any) {
         const menu = new Menu("calendarEventContextMenu");
@@ -620,8 +726,11 @@ export class CalendarView {
             // 添加新事件
             this.calendar.addEventSource(events);
 
-            // 强制重新渲染日历
-            this.calendar.render();
+            // 强制重新渲染日历并更新大小
+            if (this.isCalendarVisible()) {
+                this.calendar.updateSize();
+                this.calendar.render();
+            }
         } catch (error) {
             console.error('刷新事件失败:', error);
         }
@@ -702,6 +811,25 @@ export class CalendarView {
         } catch (error) {
             console.error('打开修改对话框失败:', error);
             showMessage('打开修改对话框失败，请重试');
+        }
+    }
+
+    // 添加销毁方法
+    destroy() {
+        // 调用清理函数
+        const cleanup = (this.container as any)._calendarCleanup;
+        if (cleanup) {
+            cleanup();
+        }
+
+        // 销毁日历实例
+        if (this.calendar) {
+            this.calendar.destroy();
+        }
+
+        // 清理容器
+        if (this.container) {
+            this.container.innerHTML = '';
         }
     }
 }

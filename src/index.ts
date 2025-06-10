@@ -26,6 +26,7 @@ export default class ReminderPlugin extends Plugin {
     private reminderPanel: ReminderPanel;
     private topBarElement: HTMLElement;
     private dockElement: HTMLElement;
+    private calendarViews: Map<string, any> = new Map();
 
     async onload() {
         console.log("Reminder Plugin loaded");
@@ -64,6 +65,16 @@ export default class ReminderPlugin extends Plugin {
             type: TAB_TYPE,
             init: (tab) => {
                 const calendarView = new CalendarView(tab.element, this);
+                // 保存实例引用用于清理
+                this.calendarViews.set(tab.id, calendarView);
+            },
+            destroy: (tab) => {
+                // 清理日历视图实例
+                const calendarView = this.calendarViews.get(tab.id);
+                if (calendarView && typeof calendarView.destroy === 'function') {
+                    calendarView.destroy();
+                }
+                this.calendarViews.delete(tab.id);
             }
         });
 
@@ -667,6 +678,14 @@ export default class ReminderPlugin extends Plugin {
 
     onunload() {
         console.log("Reminder Plugin unloaded");
+
+        // 清理所有日历视图实例
+        this.calendarViews.forEach((calendarView) => {
+            if (calendarView && typeof calendarView.destroy === 'function') {
+                calendarView.destroy();
+            }
+        });
+        this.calendarViews.clear();
 
         // 清理所有面包屑按钮
         document.querySelectorAll('.reminder-breadcrumb-btn').forEach(btn => {
