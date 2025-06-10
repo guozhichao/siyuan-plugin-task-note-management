@@ -76,14 +76,6 @@ export default class ReminderPlugin extends Plugin {
                 const calendarView = new CalendarView(tab.element, this);
                 // 保存实例引用用于清理
                 this.calendarViews.set(tab.id, calendarView);
-            },
-            destroy: (tab) => {
-                // 清理日历视图实例
-                const calendarView = this.calendarViews.get(tab.id);
-                if (calendarView && typeof calendarView.destroy === 'function') {
-                    calendarView.destroy();
-                }
-                this.calendarViews.delete(tab.id);
             }
         });
 
