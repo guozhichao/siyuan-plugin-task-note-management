@@ -16,6 +16,7 @@ import { ReminderDialog } from "./components/ReminderDialog";
 import { ReminderPanel } from "./components/ReminderPanel";
 import { ensureReminderDataFile } from "./api";
 import { CalendarView } from "./components/CalendarView";
+import { CategoryManager } from "./utils/categoryManager";
 import { getLocalDateString, getLocalTimeString, compareDateStrings } from "./utils/dateUtils";
 import { t, setPluginInstance } from "./utils/i18n";
 import { RepeatConfig } from "./components/RepeatSettingsDialog";
@@ -30,15 +31,20 @@ export default class ReminderPlugin extends Plugin {
     private topBarElement: HTMLElement;
     private dockElement: HTMLElement;
     private calendarViews: Map<string, any> = new Map();
+    private categoryManager: CategoryManager; // 添加分类管理器
 
     async onload() {
         console.log("Reminder Plugin loaded");
 
-        // 设置插件实例引用，使i18n工具能够访问插件的i18n数据
+        // 设置插件实例引用
         setPluginInstance(this);
 
         // 确保提醒数据文件存在
         await ensureReminderDataFile();
+
+        // 初始化分类管理器
+        this.categoryManager = CategoryManager.getInstance();
+        await this.categoryManager.initialize();
 
         // 直接初始化，不再需要延迟
         this.initializeUI();
@@ -180,7 +186,7 @@ export default class ReminderPlugin extends Plugin {
                         uncompletedCount++;
                     }
                 } else {
-                    // 处理重复事件 - 生成今天的实例并检查是否完成
+                    // 处理重复事件
                     const instances = generateRepeatInstances(reminder, today, today);
                     instances.forEach(instance => {
                         if (!instance.completed) {
@@ -188,7 +194,6 @@ export default class ReminderPlugin extends Plugin {
                         }
                     });
 
-                    // 如果今天是原始事件日期且未完成，也要计算
                     if (reminder.date === today && !reminder.completed) {
                         const completedInstances = reminder.repeat.completedInstances || [];
                         if (!completedInstances.includes(today)) {
@@ -357,6 +362,12 @@ export default class ReminderPlugin extends Plugin {
                     <div class="b3-dialog__content">
                         <div class="fn__hr"></div>
                         <div class="b3-form__group">
+                            <label class="b3-form__label">事件分类</label>
+                            <div class="category-selector" id="batchCategorySelector">
+                                <!-- 分类选择器将在这里渲染 -->
+                            </div>
+                        </div>
+                        <div class="b3-form__group">
                             <label class="b3-form__label">${t("priority")}</label>
                             <div class="priority-selector" id="batchPrioritySelector">
                                 <div class="priority-option" data-priority="high">
@@ -424,8 +435,11 @@ export default class ReminderPlugin extends Plugin {
                 </div>
             `,
             width: "450px",
-            height: "530px"
+            height: "580px" // 增加高度以容纳分类选择器
         });
+
+        // 渲染分类选择器
+        this.renderBatchCategorySelector(dialog);
 
         // 绑定事件
         const cancelBtn = dialog.element.querySelector('#batchCancelBtn') as HTMLButtonElement;
@@ -435,6 +449,7 @@ export default class ReminderPlugin extends Plugin {
         const startDateInput = dialog.element.querySelector('#batchReminderDate') as HTMLInputElement;
         const endDateInput = dialog.element.querySelector('#batchReminderEndDate') as HTMLInputElement;
         const prioritySelector = dialog.element.querySelector('#batchPrioritySelector') as HTMLElement;
+        const categorySelector = dialog.element.querySelector('#batchCategorySelector') as HTMLElement;
         const batchRepeatSettingsBtn = dialog.element.querySelector('#batchRepeatSettingsBtn') as HTMLButtonElement;
 
         // 优先级选择事件
@@ -443,6 +458,16 @@ export default class ReminderPlugin extends Plugin {
             const option = target.closest('.priority-option') as HTMLElement;
             if (option) {
                 prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+            }
+        });
+
+        // 分类选择事件
+        categorySelector.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const option = target.closest('.category-option') as HTMLElement;
+            if (option) {
+                categorySelector.querySelectorAll('.category-option').forEach(opt => opt.classList.remove('selected'));
                 option.classList.add('selected');
             }
         });
@@ -504,6 +529,37 @@ export default class ReminderPlugin extends Plugin {
         });
     }
 
+    private async renderBatchCategorySelector(dialog: Dialog) {
+        const categorySelector = dialog.element.querySelector('#batchCategorySelector') as HTMLElement;
+        if (!categorySelector) return;
+
+        try {
+            const categories = this.categoryManager.getCategories();
+
+            categorySelector.innerHTML = `
+                <div class="category-option selected" data-category="">
+                    <div class="category-dot none"></div>
+                    <span>无分类</span>
+                </div>
+            `;
+
+            categories.forEach(category => {
+                const categoryEl = document.createElement('div');
+                categoryEl.className = 'category-option';
+                categoryEl.setAttribute('data-category', category.id);
+                categoryEl.innerHTML = `
+                    <div class="category-dot" style="background-color: ${category.color};"></div>
+                    <span>${category.icon || ''} ${category.name}</span>
+                `;
+                categorySelector.appendChild(categoryEl);
+            });
+
+        } catch (error) {
+            console.error('渲染批量分类选择器失败:', error);
+            categorySelector.innerHTML = '<div class="category-error">加载分类失败</div>';
+        }
+    }
+
     private async saveBatchReminders(blockIds: string[], dialog: Dialog, repeatConfig?: RepeatConfig) {
         const dateInput = dialog.element.querySelector('#batchReminderDate') as HTMLInputElement;
         const endDateInput = dialog.element.querySelector('#batchReminderEndDate') as HTMLInputElement;
@@ -511,12 +567,14 @@ export default class ReminderPlugin extends Plugin {
         const noTimeCheckbox = dialog.element.querySelector('#batchNoSpecificTime') as HTMLInputElement;
         const noteInput = dialog.element.querySelector('#batchReminderNote') as HTMLTextAreaElement;
         const selectedPriority = dialog.element.querySelector('#batchPrioritySelector .priority-option.selected') as HTMLElement;
+        const selectedCategory = dialog.element.querySelector('#batchCategorySelector .category-option.selected') as HTMLElement;
 
         const date = dateInput.value;
         const endDate = endDateInput.value;
         const time = noTimeCheckbox.checked ? undefined : timeInput.value;
         const note = noteInput.value.trim() || undefined;
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
+        const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
 
         if (!date) {
             showMessage(t("pleaseSelectDate"));
@@ -547,8 +605,9 @@ export default class ReminderPlugin extends Plugin {
                             date: date,
                             completed: false,
                             priority: priority,
+                            categoryId: categoryId, // 添加分类ID
                             createdAt: new Date().toISOString(),
-                            repeat: repeatConfig?.enabled ? repeatConfig : undefined // 添加重复配置
+                            repeat: repeatConfig?.enabled ? repeatConfig : undefined
                         };
 
                         if (endDate && endDate !== date) {
@@ -584,12 +643,20 @@ export default class ReminderPlugin extends Plugin {
                 const failureText = failureCount > 0 ? t("batchFailure", { count: failureCount.toString() }) : '';
                 const repeatText = repeatConfig?.enabled ? `，${getRepeatDescription(repeatConfig)}` : '';
 
+                let categoryText = '';
+                if (categoryId) {
+                    const category = this.categoryManager.getCategoryById(categoryId);
+                    if (category) {
+                        categoryText = `，分类：${category.name}`;
+                    }
+                }
+
                 showMessage(t("batchSuccess", {
                     count: successCount.toString(),
                     spanning: spanningText,
                     date: dateStr,
                     failure: failureText
-                }) + repeatText);
+                }) + repeatText + categoryText);
             } else {
                 showMessage(t("batchSetFailed"));
             }

@@ -1,5 +1,6 @@
 import { showMessage, Dialog } from "siyuan";
 import { readReminderData, writeReminderData } from "../api";
+import { CategoryManager, Category } from "../utils/categoryManager";
 import { t } from "../utils/i18n";
 import { RepeatSettingsDialog, RepeatConfig } from "./RepeatSettingsDialog";
 import { getRepeatDescription } from "../utils/repeatUtils";
@@ -7,12 +8,14 @@ import { getRepeatDescription } from "../utils/repeatUtils";
 export class ReminderEditDialog {
     private dialog: Dialog;
     private reminder: any;
-    private onSaved?: (modifiedReminder?: any) => void; // 修改回调函数签名
-    private repeatConfig: RepeatConfig; // 添加重复配置
+    private onSaved?: (modifiedReminder?: any) => void;
+    private repeatConfig: RepeatConfig;
+    private categoryManager: CategoryManager; // 添加分类管理器
 
-    constructor(reminder: any, onSaved?: (modifiedReminder?: any) => void) { // 修改参数类型
+    constructor(reminder: any, onSaved?: (modifiedReminder?: any) => void) {
         this.reminder = reminder;
         this.onSaved = onSaved;
+        this.categoryManager = CategoryManager.getInstance(); // 初始化分类管理器
 
         // 初始化重复配置
         this.repeatConfig = reminder.repeat || {
@@ -23,16 +26,20 @@ export class ReminderEditDialog {
         };
     }
 
-    public show() {
+    public async show() {
+        // 初始化分类管理器
+        await this.categoryManager.initialize();
+
         this.dialog = new Dialog({
             title: this.reminder.isInstance ? t("modifyInstance") :
-                this.reminder.isSplitOperation ? t("modifyAndSplit") : t("modifyEvent"), // 增加分割操作标题
+                this.reminder.isSplitOperation ? t("modifyAndSplit") : t("modifyEvent"),
             content: this.createDialogContent(),
             width: "400px",
-            height: this.reminder.isInstance ? "500px" : "600px" // 实例修改对话框稍小一些
+            height: this.reminder.isInstance ? "550px" : "650px" // 增加高度以容纳分类选择器
         });
 
         this.bindEvents();
+        await this.renderCategorySelector(); // 渲染分类选择器
     }
 
     private createDialogContent(): string {
@@ -49,6 +56,12 @@ export class ReminderEditDialog {
                     <div class="b3-form__group">
                         <label class="b3-form__label">${t("eventTitle")}</label>
                         <input type="text" id="editReminderTitle" class="b3-text-field" value="${this.reminder.title || ''}" placeholder="${t("enterReminderTitle")}" style="width: 100%;" >
+                    </div>
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">事件分类</label>
+                        <div class="category-selector" id="editCategorySelector">
+                            <!-- 分类选择器将在这里渲染 -->
+                        </div>
                     </div>
                     <div class="b3-form__group">
                         <label class="b3-form__label">${t("priority")}</label>
@@ -118,6 +131,37 @@ export class ReminderEditDialog {
         `;
     }
 
+    private async renderCategorySelector() {
+        const categorySelector = this.dialog.element.querySelector('#editCategorySelector') as HTMLElement;
+        if (!categorySelector) return;
+
+        try {
+            const categories = this.categoryManager.getCategories();
+
+            categorySelector.innerHTML = `
+                <div class="category-option ${!this.reminder.categoryId ? 'selected' : ''}" data-category="">
+                    <div class="category-dot none"></div>
+                    <span>无分类</span>
+                </div>
+            `;
+
+            categories.forEach(category => {
+                const categoryEl = document.createElement('div');
+                categoryEl.className = `category-option ${this.reminder.categoryId === category.id ? 'selected' : ''}`;
+                categoryEl.setAttribute('data-category', category.id);
+                categoryEl.innerHTML = `
+                    <div class="category-dot" style="background-color: ${category.color};"></div>
+                    <span>${category.icon || ''} ${category.name}</span>
+                `;
+                categorySelector.appendChild(categoryEl);
+            });
+
+        } catch (error) {
+            console.error('渲染分类选择器失败:', error);
+            categorySelector.innerHTML = '<div class="category-error">加载分类失败</div>';
+        }
+    }
+
     private bindEvents() {
         const cancelBtn = this.dialog.element.querySelector('#editCancelBtn') as HTMLButtonElement;
         const confirmBtn = this.dialog.element.querySelector('#editConfirmBtn') as HTMLButtonElement;
@@ -126,6 +170,7 @@ export class ReminderEditDialog {
         const startDateInput = this.dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
         const endDateInput = this.dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
         const prioritySelector = this.dialog.element.querySelector('#editPrioritySelector') as HTMLElement;
+        const categorySelector = this.dialog.element.querySelector('#editCategorySelector') as HTMLElement;
 
         // 优先级选择事件
         prioritySelector.addEventListener('click', (e) => {
@@ -133,6 +178,16 @@ export class ReminderEditDialog {
             const option = target.closest('.priority-option') as HTMLElement;
             if (option) {
                 prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+            }
+        });
+
+        // 分类选择事件
+        categorySelector.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const option = target.closest('.category-option') as HTMLElement;
+            if (option) {
+                categorySelector.querySelectorAll('.category-option').forEach(opt => opt.classList.remove('selected'));
                 option.classList.add('selected');
             }
         });
@@ -205,6 +260,7 @@ export class ReminderEditDialog {
         const noTimeCheckbox = this.dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
         const noteInput = this.dialog.element.querySelector('#editReminderNote') as HTMLTextAreaElement;
         const selectedPriority = this.dialog.element.querySelector('#editPrioritySelector .priority-option.selected') as HTMLElement;
+        const selectedCategory = this.dialog.element.querySelector('#editCategorySelector .category-option.selected') as HTMLElement;
 
         const title = titleInput.value.trim();
         const date = dateInput.value;
@@ -212,6 +268,7 @@ export class ReminderEditDialog {
         const time = noTimeCheckbox.checked ? undefined : timeInput.value;
         const note = noteInput.value.trim() || undefined;
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
+        const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
 
         if (!title) {
             showMessage(t("pleaseEnterTitle"));
@@ -239,6 +296,7 @@ export class ReminderEditDialog {
                     time: time,
                     note: note,
                     priority: priority,
+                    categoryId: categoryId, // 添加分类ID
                     repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined
                 };
 
@@ -260,9 +318,10 @@ export class ReminderEditDialog {
                     date: date,
                     endDate: endDate,
                     time: time,
-                    endTime: this.reminder.endTime, // 保持原有的结束时间逻辑
+                    endTime: this.reminder.endTime,
                     note: note,
-                    priority: priority
+                    priority: priority,
+                    categoryId: categoryId // 添加分类ID
                 });
             } else {
                 // 保存普通事件或重复事件系列的修改
@@ -273,6 +332,7 @@ export class ReminderEditDialog {
                     reminderData[this.reminder.id].time = time;
                     reminderData[this.reminder.id].note = note;
                     reminderData[this.reminder.id].priority = priority;
+                    reminderData[this.reminder.id].categoryId = categoryId; // 添加分类ID
                     reminderData[this.reminder.id].repeat = this.repeatConfig.enabled ? this.repeatConfig : undefined;
 
                     if (endDate && endDate !== date) {
@@ -296,6 +356,14 @@ export class ReminderEditDialog {
 
             if (!this.reminder.isInstance && this.repeatConfig.enabled) {
                 successMessage += `，${getRepeatDescription(this.repeatConfig)}`;
+            }
+
+            // 添加分类信息到成功消息
+            if (categoryId) {
+                const category = this.categoryManager.getCategoryById(categoryId);
+                if (category) {
+                    successMessage += `，分类：${category.name}`;
+                }
             }
 
             showMessage(successMessage);
@@ -332,16 +400,16 @@ export class ReminderEditDialog {
                 reminderData[originalId].repeat.instanceModifications = {};
             }
 
-            // 保存此实例的修改数据（包括独立的备注）
-            // 注意：这里明确保存实例的备注，即使为空字符串也要保存
+            // 保存此实例的修改数据（包括分类）
             reminderData[originalId].repeat.instanceModifications[instanceDate] = {
                 title: instanceData.title,
                 date: instanceData.date,
                 endDate: instanceData.endDate,
                 time: instanceData.time,
                 endTime: instanceData.endTime,
-                note: instanceData.note || '', // 明确保存备注，确保独立性
+                note: instanceData.note || '',
                 priority: instanceData.priority,
+                categoryId: instanceData.categoryId, // 添加分类ID
                 modifiedAt: new Date().toISOString()
             };
 

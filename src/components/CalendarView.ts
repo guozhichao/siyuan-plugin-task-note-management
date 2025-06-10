@@ -6,6 +6,8 @@ import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
 import { readReminderData, writeReminderData, getBlockByID } from "../api";
 import { getLocalDateString, getLocalDateTime } from "../utils/dateUtils";
 import { ReminderEditDialog } from "./ReminderEditDialog";
+import { CategoryManager, Category } from "../utils/categoryManager";
+import { CategoryManageDialog } from "./CategoryManageDialog";
 import { t } from "../utils/i18n";
 import { generateRepeatInstances, RepeatInstance } from "../utils/repeatUtils";
 
@@ -15,14 +17,20 @@ export class CalendarView {
     private plugin: any;
     private resizeObserver: ResizeObserver;
     private resizeTimeout: number;
+    private categoryManager: CategoryManager; // 添加分类管理器
+    private currentCategoryFilter: string = 'all'; // 当前分类过滤
 
     constructor(container: HTMLElement, plugin: any) {
         this.container = container;
         this.plugin = plugin;
+        this.categoryManager = CategoryManager.getInstance(); // 初始化分类管理器
         this.initUI();
     }
 
     private async initUI() {
+        // 初始化分类管理器
+        await this.categoryManager.initialize();
+
         this.container.classList.add('reminder-calendar-view');
 
         // 创建工具栏
@@ -53,6 +61,33 @@ export class CalendarView {
         dayBtn.addEventListener('click', () => this.calendar.changeView('timeGridDay'));
         viewGroup.appendChild(dayBtn);
 
+        // 添加分类过滤器
+        const filterGroup = document.createElement('div');
+        filterGroup.className = 'reminder-calendar-filter-group';
+        toolbar.appendChild(filterGroup);
+
+        // 分类过滤下拉框
+        const categoryFilterSelect = document.createElement('select');
+        categoryFilterSelect.className = 'b3-select';
+        categoryFilterSelect.addEventListener('change', () => {
+            this.currentCategoryFilter = categoryFilterSelect.value;
+            this.refreshEvents();
+        });
+        filterGroup.appendChild(categoryFilterSelect);
+
+        // 渲染分类过滤器
+        await this.renderCategoryFilter(categoryFilterSelect);
+
+        // 分类管理按钮
+        const categoryManageBtn = document.createElement('button');
+        categoryManageBtn.className = 'b3-button b3-button--outline';
+        categoryManageBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconTags"></use></svg>';
+        categoryManageBtn.title = "管理分类";
+        categoryManageBtn.addEventListener('click', () => {
+            this.showCategoryManageDialog(categoryFilterSelect);
+        });
+        filterGroup.appendChild(categoryManageBtn);
+
         // 创建日历容器
         const calendarEl = document.createElement('div');
         calendarEl.className = 'reminder-calendar-container';
@@ -65,9 +100,9 @@ export class CalendarView {
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
-                right: '' // 我们使用自定义按钮来切换视图
+                right: ''
             },
-            editable: true, // 允许拖动事件
+            editable: true,
             selectable: true,
             locale: 'zh-cn',
             eventClassNames: 'reminder-calendar-event',
@@ -76,8 +111,7 @@ export class CalendarView {
             eventDrop: this.handleEventDrop.bind(this),
             eventResize: this.handleEventResize.bind(this),
             dateClick: this.handleDateClick.bind(this),
-            events: this.getEvents.bind(this), // 使用bind方法绑定上下文
-            // 设置今天的背景颜色为淡绿色
+            events: this.getEvents.bind(this),
             dayCellClassNames: (arg) => {
                 const today = new Date();
                 const cellDate = arg.date;
@@ -87,7 +121,6 @@ export class CalendarView {
                 }
                 return [];
             },
-            // 添加右键菜单支持
             eventDidMount: (info) => {
                 info.el.addEventListener('contextmenu', (e) => {
                     e.preventDefault();
@@ -101,11 +134,44 @@ export class CalendarView {
         // 添加自定义样式
         this.addCustomStyles();
 
-        // 监听提醒更新事件 - 确保在所有方法定义后再绑定
+        // 监听提醒更新事件
         window.addEventListener('reminderUpdated', () => this.refreshEvents());
 
         // 添加窗口大小变化监听器
         this.addResizeListeners();
+    }
+
+    private async renderCategoryFilter(selectElement: HTMLSelectElement) {
+        try {
+            const categories = this.categoryManager.getCategories();
+
+            selectElement.innerHTML = `
+                <option value="all" ${this.currentCategoryFilter === 'all' ? 'selected' : ''}>全部分类</option>
+                <option value="none" ${this.currentCategoryFilter === 'none' ? 'selected' : ''}>无分类</option>
+            `;
+
+            categories.forEach(category => {
+                const optionEl = document.createElement('option');
+                optionEl.value = category.id;
+                optionEl.textContent = `${category.icon || ''} ${category.name}`;
+                optionEl.selected = this.currentCategoryFilter === category.id;
+                selectElement.appendChild(optionEl);
+            });
+
+        } catch (error) {
+            console.error('渲染分类过滤器失败:', error);
+            selectElement.innerHTML = '<option value="all">全部分类</option>';
+        }
+    }
+
+    private showCategoryManageDialog(categoryFilterSelect: HTMLSelectElement) {
+        const categoryDialog = new CategoryManageDialog(() => {
+            // 分类更新后重新渲染过滤器和事件
+            this.renderCategoryFilter(categoryFilterSelect);
+            this.refreshEvents();
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+        });
+        categoryDialog.show();
     }
 
     private addResizeListeners() {
@@ -1131,14 +1197,13 @@ export class CalendarView {
             const reminderData = await readReminderData();
             const events = [];
 
-            // 获取当前视图的日期范围，添加安全检查
+            // 获取当前视图的日期范围
             let startDate, endDate;
             if (this.calendar && this.calendar.view) {
                 const currentView = this.calendar.view;
                 startDate = currentView.activeStart.toISOString().split('T')[0];
                 endDate = currentView.activeEnd.toISOString().split('T')[0];
             } else {
-                // 如果calendar还没有初始化，使用默认范围
                 const now = new Date();
                 const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
                 const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -1148,6 +1213,9 @@ export class CalendarView {
 
             Object.values(reminderData).forEach((reminder: any) => {
                 if (!reminder || typeof reminder !== 'object') return;
+
+                // 应用分类过滤
+                if (!this.passesCategoryFilter(reminder)) return;
 
                 // 添加原始事件
                 this.addEventToList(events, reminder, reminder.id, false);
@@ -1162,7 +1230,7 @@ export class CalendarView {
                             const completedInstances = reminder.repeat?.completedInstances || [];
                             const isInstanceCompleted = completedInstances.includes(instance.date);
 
-                            // 检查实例级别的修改（包括备注）
+                            // 检查实例级别的修改
                             const instanceModifications = reminder.repeat?.instanceModifications || {};
                             const instanceMod = instanceModifications[instance.date];
 
@@ -1172,9 +1240,8 @@ export class CalendarView {
                                 endDate: instance.endDate,
                                 time: instance.time,
                                 endTime: instance.endTime,
-                                completed: isInstanceCompleted, // 使用实例级别的完成状态
-                                // 修改备注逻辑：只有实例有明确的备注时才使用，否则为空
-                                note: instanceMod?.note || ''  // 每个实例的备注都是独立的，默认为空
+                                completed: isInstanceCompleted,
+                                note: instanceMod?.note || ''
                             };
                             this.addEventToList(events, instanceReminder, instance.instanceId, true, instance.originalId);
                         }
@@ -1190,37 +1257,54 @@ export class CalendarView {
         }
     }
 
+    private passesCategoryFilter(reminder: any): boolean {
+        if (this.currentCategoryFilter === 'all') {
+            return true;
+        }
+
+        if (this.currentCategoryFilter === 'none') {
+            return !reminder.categoryId;
+        }
+
+        return reminder.categoryId === this.currentCategoryFilter;
+    }
+
     private addEventToList(events: any[], reminder: any, eventId: string, isRepeated: boolean, originalId?: string) {
         const priority = reminder.priority || 'none';
         let backgroundColor, borderColor;
 
-        // 根据优先级设置颜色
-        switch (priority) {
-            case 'high':
-                backgroundColor = '#e74c3c';
-                borderColor = '#c0392b';
-                break;
-            case 'medium':
-                backgroundColor = '#f39c12';
-                borderColor = '#e67e22';
-                break;
-            case 'low':
-                backgroundColor = '#3498db';
-                borderColor = '#2980b9';
-                break;
-            default:
-                backgroundColor = '#95a5a6';
-                borderColor = '#7f8c8d';
-                break;
+        // 如果有分类，使用分类颜色；否则使用优先级颜色
+        if (reminder.categoryId) {
+            const categoryStyle = this.categoryManager.getCategoryStyle(reminder.categoryId);
+            backgroundColor = categoryStyle.backgroundColor;
+            borderColor = categoryStyle.borderColor;
+        } else {
+            // 根据优先级设置颜色
+            switch (priority) {
+                case 'high':
+                    backgroundColor = '#e74c3c';
+                    borderColor = '#c0392b';
+                    break;
+                case 'medium':
+                    backgroundColor = '#f39c12';
+                    borderColor = '#e67e22';
+                    break;
+                case 'low':
+                    backgroundColor = '#3498db';
+                    borderColor = '#2980b9';
+                    break;
+                default:
+                    backgroundColor = '#95a5a6';
+                    borderColor = '#7f8c8d';
+                    break;
+            }
         }
 
-        // 检查完成状态 - 正确处理重复事件实例的完成状态
+        // 检查完成状态
         let isCompleted = false;
         if (isRepeated && originalId) {
-            // 重复事件实例的完成状态已经在传入的reminder对象中设置
             isCompleted = reminder.completed || false;
         } else {
-            // 普通事件的完成状态
             isCompleted = reminder.completed || false;
         }
 
@@ -1232,7 +1316,7 @@ export class CalendarView {
 
         // 重复事件使用稍微不同的样式
         if (isRepeated) {
-            backgroundColor = backgroundColor + 'dd'; // 添加透明度
+            backgroundColor = backgroundColor + 'dd';
             borderColor = borderColor + 'dd';
         }
 
@@ -1251,6 +1335,7 @@ export class CalendarView {
                 time: reminder.time || null,
                 endTime: reminder.endTime || null,
                 priority: priority,
+                categoryId: reminder.categoryId,
                 blockId: reminder.blockId || reminder.id,
                 isRepeated: isRepeated,
                 originalId: originalId || reminder.id,
@@ -1260,31 +1345,24 @@ export class CalendarView {
 
         // 处理跨天事件
         if (reminder.endDate) {
-            // 跨天事件
             if (reminder.time && reminder.endTime) {
-                // 跨天定时事件
                 eventObj.start = `${reminder.date}T${reminder.time}:00`;
                 eventObj.end = `${reminder.endDate}T${reminder.endTime}:00`;
                 eventObj.allDay = false;
             } else {
-                // 跨天全天事件
                 eventObj.start = reminder.date;
-                // FullCalendar 需要结束日期为下一天才能正确显示跨天事件
                 const endDate = new Date(reminder.endDate);
                 endDate.setDate(endDate.getDate() + 1);
                 eventObj.end = endDate.toISOString().split('T')[0];
                 eventObj.allDay = true;
 
-                // 如果有时间信息，在标题中显示
                 if (reminder.time) {
                     eventObj.title = `${reminder.title || t("unnamedNote")} (${reminder.time})`;
                 }
             }
         } else {
-            // 单日事件
             if (reminder.time) {
                 eventObj.start = `${reminder.date}T${reminder.time}:00`;
-                // 如果有结束时间，设置结束时间
                 if (reminder.endTime) {
                     eventObj.end = `${reminder.date}T${reminder.endTime}:00`;
                 }
@@ -1298,11 +1376,17 @@ export class CalendarView {
 
         // 为重复事件添加图标标识
         if (isRepeated) {
-            // 如果是重复事件实例，添加实例标识
             eventObj.title = '🔄 ' + eventObj.title;
         } else if (reminder.repeat?.enabled) {
-            // 如果是原始重复事件，添加重复标识
             eventObj.title = '🔁 ' + eventObj.title;
+        }
+
+        // 添加分类信息到标题
+        if (reminder.categoryId) {
+            const category = this.categoryManager.getCategoryById(reminder.categoryId);
+            if (category && category.icon) {
+                eventObj.title = `${category.icon} ${eventObj.title}`;
+            }
         }
 
         events.push(eventObj);

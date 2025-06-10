@@ -4,9 +4,10 @@ import { getLocalDateString, getLocalTimeString, compareDateStrings } from "../u
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { RepeatSettingsDialog, RepeatConfig } from "./RepeatSettingsDialog";
+import { CategoryManager, Category } from "../utils/categoryManager";
 import { t } from "../utils/i18n";
 import { getRepeatDescription } from "../utils/repeatUtils";
-
+import { CategoryManageDialog } from "./CategoryManageDialog";
 export class ReminderDialog {
     private blockId: string;
     private dialog: Dialog;
@@ -14,10 +15,12 @@ export class ReminderDialog {
     private reminderUpdatedHandler: () => void;
     private currentSort: string = 'time';
     private sortConfigUpdatedHandler: (event: CustomEvent) => void;
-    private repeatConfig: RepeatConfig; // 添加重复配置
+    private repeatConfig: RepeatConfig;
+    private categoryManager: CategoryManager; // 添加分类管理器
 
     constructor(blockId: string) {
         this.blockId = blockId;
+        this.categoryManager = CategoryManager.getInstance(); // 初始化分类管理器
 
         // 初始化重复配置
         this.repeatConfig = {
@@ -70,6 +73,9 @@ export class ReminderDialog {
             return;
         }
 
+        // 初始化分类管理器
+        await this.categoryManager.initialize();
+
         const today = getLocalDateString();
         const currentTime = getLocalTimeString();
 
@@ -81,7 +87,20 @@ export class ReminderDialog {
                         <div class="fn__hr"></div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("eventTitle")}</label>
-                            <input type="text" id="reminderTitle" class="b3-text-field" value="${this.blockContent}" placeholder="${t("enterReminderTitle")}">
+                            <input type="text" id="reminderTitle" class="b3-text-field" value="${this.blockContent}" placeholder="${t("enterReminderTitle")}" style="width: 100%;" required>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">事件分类
+                                <button type="button" id="manageCategoriesBtn" class="b3-button b3-button--outline" title="管理分类">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg>
+                                </button>
+                                </label>
+                            <div class="category-selector-container">
+                                <div class="category-selector" id="categorySelector">
+                                    <!-- 分类选择器将在这里渲染 -->
+                                </div>
+ 
+                            </div>
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("priority")}</label>
@@ -154,16 +173,55 @@ export class ReminderDialog {
                 </div>
             `,
             width: "450px",
-            height: "750px"
+            height: "800px" // 增加高度以容纳分类选择器
         });
 
         this.bindEvents();
+        await this.renderCategorySelector(); // 渲染分类选择器
         await this.loadExistingReminder();
 
         // 监听提醒更新事件
         window.addEventListener('reminderUpdated', this.reminderUpdatedHandler);
         // 监听排序配置更新事件
         window.addEventListener('sortConfigUpdated', this.sortConfigUpdatedHandler);
+    }
+
+    private async renderCategorySelector() {
+        const categorySelector = this.dialog.element.querySelector('#categorySelector') as HTMLElement;
+        if (!categorySelector) return;
+
+        try {
+            const categories = this.categoryManager.getCategories();
+
+            // 清空并重新构建
+            categorySelector.innerHTML = '';
+
+            // 添加无分类选项
+            const noCategoryEl = document.createElement('div');
+            noCategoryEl.className = 'category-option selected'; // 默认选中
+            noCategoryEl.setAttribute('data-category', '');
+            noCategoryEl.innerHTML = `
+                <div class="category-dot none"></div>
+                <span>无分类</span>
+            `;
+            categorySelector.appendChild(noCategoryEl);
+
+            // 添加所有分类选项
+            categories.forEach(category => {
+                const categoryEl = document.createElement('div');
+                categoryEl.className = 'category-option';
+                categoryEl.setAttribute('data-category', category.id);
+                categoryEl.innerHTML = `
+                    <div class="category-dot" style="background-color: ${category.color};"></div>
+                    <span>${category.icon ? category.icon + ' ' : ''}${category.name}</span>
+                `;
+                categorySelector.appendChild(categoryEl);
+            });
+
+        } catch (error) {
+            console.error('渲染分类选择器失败:', error);
+            categorySelector.innerHTML = '<div class="category-error">加载分类失败</div>';
+        }
     }
 
     private bindEvents() {
@@ -174,7 +232,9 @@ export class ReminderDialog {
         const startDateInput = this.dialog.element.querySelector('#reminderDate') as HTMLInputElement;
         const endDateInput = this.dialog.element.querySelector('#reminderEndDate') as HTMLInputElement;
         const prioritySelector = this.dialog.element.querySelector('#prioritySelector') as HTMLElement;
+        const categorySelector = this.dialog.element.querySelector('#categorySelector') as HTMLElement;
         const repeatSettingsBtn = this.dialog.element.querySelector('#repeatSettingsBtn') as HTMLButtonElement;
+        const manageCategoriesBtn = this.dialog.element.querySelector('#manageCategoriesBtn') as HTMLButtonElement;
 
         // 优先级选择事件
         prioritySelector.addEventListener('click', (e) => {
@@ -183,6 +243,28 @@ export class ReminderDialog {
             if (option) {
                 prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
                 option.classList.add('selected');
+            }
+        });
+
+        // 分类选择事件 - 修复交互问题
+        categorySelector.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const target = e.target as HTMLElement;
+            const option = target.closest('.category-option') as HTMLElement;
+            if (option) {
+                // 移除所有选中状态
+                categorySelector.querySelectorAll('.category-option').forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                // 添加选中状态
+                option.classList.add('selected');
+
+                // 添加视觉反馈
+                option.style.transform = 'scale(0.98)';
+                setTimeout(() => {
+                    option.style.transform = '';
+                }, 100);
             }
         });
 
@@ -235,6 +317,11 @@ export class ReminderDialog {
         repeatSettingsBtn?.addEventListener('click', () => {
             this.showRepeatSettingsDialog();
         });
+
+        // 管理分类按钮事件
+        manageCategoriesBtn?.addEventListener('click', () => {
+            this.showCategoryManageDialog();
+        });
     }
 
     private showRepeatSettingsDialog() {
@@ -253,6 +340,18 @@ export class ReminderDialog {
         }
     }
 
+    private showCategoryManageDialog() {
+        const categoryDialog = new CategoryManageDialog(() => {
+            // 分类更新后重新渲染分类选择器
+            this.renderCategorySelector();
+            // 重新加载现有提醒列表以反映分类变化
+            this.loadExistingReminder();
+            // 触发全局提醒更新事件
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+        });
+        categoryDialog.show();
+    }
+
     private async saveReminder() {
         const titleInput = this.dialog.element.querySelector('#reminderTitle') as HTMLInputElement;
         const dateInput = this.dialog.element.querySelector('#reminderDate') as HTMLInputElement;
@@ -261,6 +360,7 @@ export class ReminderDialog {
         const noTimeCheckbox = this.dialog.element.querySelector('#noSpecificTime') as HTMLInputElement;
         const noteInput = this.dialog.element.querySelector('#reminderNote') as HTMLTextAreaElement;
         const selectedPriority = this.dialog.element.querySelector('#prioritySelector .priority-option.selected') as HTMLElement;
+        const selectedCategory = this.dialog.element.querySelector('#categorySelector .category-option.selected') as HTMLElement;
 
         const title = titleInput.value.trim();
         const date = dateInput.value;
@@ -268,6 +368,7 @@ export class ReminderDialog {
         const time = noTimeCheckbox.checked ? undefined : timeInput.value;
         const note = noteInput.value.trim() || undefined;
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
+        const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
 
         if (!title) {
             showMessage(t("pleaseEnterTitle"));
@@ -295,8 +396,9 @@ export class ReminderDialog {
                 date: date,
                 completed: false,
                 priority: priority,
+                categoryId: categoryId, // 添加分类ID
                 createdAt: new Date().toISOString(),
-                repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined // 添加重复配置
+                repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined
             };
 
             if (endDate && endDate !== date) {
@@ -324,6 +426,14 @@ export class ReminderDialog {
 
             if (this.repeatConfig.enabled) {
                 successMessage += `，${getRepeatDescription(this.repeatConfig)}`;
+            }
+
+            // 添加分类信息到成功消息
+            if (categoryId) {
+                const category = this.categoryManager.getCategoryById(categoryId);
+                if (category) {
+                    successMessage += `，分类：${category.name}`;
+                }
             }
 
             showMessage(successMessage);
@@ -527,11 +637,31 @@ export class ReminderDialog {
             this.showReminderContextMenu(e, reminder);
         });
 
+        // 标题容器，包含分类和标题
+        const titleContainer = document.createElement('div');
+        titleContainer.className = 'reminder-item__title-container';
+
+        // 添加分类显示
+        if (reminder.categoryId) {
+            const category = this.categoryManager.getCategoryById(reminder.categoryId);
+            if (category) {
+                const categoryEl = document.createElement('div');
+                categoryEl.className = 'reminder-category-label';
+                categoryEl.innerHTML = `
+                    <div class="category-dot" style="background-color: ${category.color};"></div>
+                    <span class="category-name">${category.name}</span>
+                `;
+                titleContainer.appendChild(categoryEl);
+            }
+        }
+
         // 标题
         const titleEl = document.createElement('div');
         titleEl.className = 'reminder-item__title';
         titleEl.textContent = reminder.title;
-        element.appendChild(titleEl);
+        titleContainer.appendChild(titleEl);
+
+        element.appendChild(titleContainer);
 
         // 时间信息 - 添加点击编辑功能
         const timeEl = document.createElement('div');
