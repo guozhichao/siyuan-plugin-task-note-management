@@ -1,6 +1,6 @@
 import { showMessage, confirm, Dialog, Menu } from "siyuan";
 import { readReminderData, writeReminderData, getBlockByID } from "../api";
-import { getLocalDateString, compareDateStrings } from "../utils/dateUtils";
+import { getLocalDateString, compareDateStrings, getLocalDateTime } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { t } from "../utils/i18n";
@@ -877,7 +877,8 @@ export class ReminderPanel {
                 iconHTML: "📝",
                 label: t("modifyAllInstances"),
                 click: () => {
-                    this.editOriginalReminder(reminder.originalId);
+                    // 直接从当前实例开始修改（分割系列）
+                    this.editInstanceAsNewSeries(reminder);
                 }
             });
         } else {
@@ -951,6 +952,69 @@ export class ReminderPanel {
         });
     }
 
+    // 新增：将实例作为新系列编辑（分割系列）
+    private async editInstanceAsNewSeries(reminder: any) {
+        try {
+            const originalId = reminder.originalId;
+            const instanceDate = reminder.date;
+            
+            const reminderData = await readReminderData();
+            const originalReminder = reminderData[originalId];
+
+            if (!originalReminder) {
+                showMessage(t("reminderDataNotExist"));
+                return;
+            }
+
+            // 1. 在当前实例日期的前一天结束原始系列
+            const untilDate = new Date(instanceDate + 'T12:00:00Z');
+            untilDate.setUTCDate(untilDate.getUTCDate() - 1);
+            const newEndDateStr = untilDate.toISOString().split('T')[0];
+
+            // 更新原始系列的结束日期
+            if (!originalReminder.repeat) { 
+                originalReminder.repeat = {}; 
+            }
+            originalReminder.repeat.endDate = newEndDateStr;
+
+            // 2. 创建新的重复事件系列
+            const newReminder = JSON.parse(JSON.stringify(originalReminder));
+
+            // 清理新提醒
+            delete newReminder.repeat.endDate;
+            delete newReminder.repeat.excludeDates;
+            delete newReminder.repeat.instanceModifications;
+            delete newReminder.repeat.completedInstances;
+
+            // 生成新的提醒ID
+            const blockId = originalReminder.blockId || originalReminder.id;
+            const newId = `${blockId}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            newReminder.id = newId;
+
+            // 3. 设置新系列的开始日期为当前实例日期
+            newReminder.date = instanceDate;
+            newReminder.endDate = reminder.endDate;
+            newReminder.time = reminder.time;
+            newReminder.endTime = reminder.endTime;
+
+            // 4. 保存修改
+            reminderData[originalId] = originalReminder;
+            reminderData[newId] = newReminder;
+            await writeReminderData(reminderData);
+
+            // 5. 打开编辑对话框编辑新系列
+            const editDialog = new ReminderEditDialog(newReminder, async () => {
+                this.loadReminders();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            });
+            editDialog.show();
+
+        } catch (error) {
+            console.error('分割重复事件系列失败:', error);
+            showMessage(t("operationFailed"));
+        }
+    }
+
     // 新增：编辑重复事件实例
     private async editInstanceReminder(reminder: any) {
         try {
@@ -962,6 +1026,10 @@ export class ReminderPanel {
                 return;
             }
 
+            // 检查实例级别的修改（包括备注）
+            const instanceModifications = originalReminder.repeat?.instanceModifications || {};
+            const instanceMod = instanceModifications[reminder.date];
+
             // 创建实例数据，包含当前实例的特定信息
             const instanceData = {
                 ...originalReminder,
@@ -970,7 +1038,8 @@ export class ReminderPanel {
                 endDate: reminder.endDate,
                 time: reminder.time,
                 endTime: reminder.endTime,
-                note: reminder.note, // 使用实例级别的备注
+                // 修改备注逻辑：只有实例有明确的备注时才使用，否则为空
+                note: instanceMod?.note || '',  // 每个实例的备注都是独立的，默认为空
                 isInstance: true,
                 originalId: reminder.originalId,
                 instanceDate: reminder.date
@@ -985,6 +1054,66 @@ export class ReminderPanel {
             console.error('打开实例编辑对话框失败:', error);
             showMessage(t("openModifyDialogFailed"));
         }
+    }
+
+    // 新增：删除单个重复事件实例
+    private async deleteInstanceOnly(reminder: any) {
+        const result = await confirm(
+            t("deleteThisInstance"),
+            t("confirmDeleteInstance"),
+            async () => {
+                try {
+                    const originalId = reminder.originalId;
+                    const instanceDate = reminder.date;
+
+                    await this.addExcludedDate(originalId, instanceDate);
+
+                    showMessage(t("instanceDeleted"));
+                    this.loadReminders();
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                } catch (error) {
+                    console.error('删除重复实例失败:', error);
+                    showMessage(t("deleteInstanceFailed"));
+                }
+            }
+        );
+    }
+
+    // 新增：为原始重复事件添加排除日期
+    private async addExcludedDate(originalId: string, excludeDate: string) {
+        try {
+            const reminderData = await readReminderData();
+
+            if (reminderData[originalId]) {
+                if (!reminderData[originalId].repeat) {
+                    throw new Error('不是重复事件');
+                }
+
+                // 初始化排除日期列表
+                if (!reminderData[originalId].repeat.excludeDates) {
+                    reminderData[originalId].repeat.excludeDates = [];
+                }
+
+                // 添加排除日期（如果还没有的话）
+                if (!reminderData[originalId].repeat.excludeDates.includes(excludeDate)) {
+                    reminderData[originalId].repeat.excludeDates.push(excludeDate);
+                }
+
+                await writeReminderData(reminderData);
+            } else {
+                throw new Error('原始事件不存在');
+            }
+        } catch (error) {
+            console.error('添加排除日期失败:', error);
+            throw error;
+        }
+    }
+
+    private async showTimeEditDialog(reminder: any) {
+        const editDialog = new ReminderEditDialog(reminder, () => {
+            this.loadReminders();
+        });
+        editDialog.show();
     }
 
     // 新增：删除单个重复事件实例
