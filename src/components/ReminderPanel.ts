@@ -463,7 +463,7 @@ export class ReminderPanel {
 
             if (response.ok) {
                 window.open(`siyuan://blocks/${blockId}`, '_self');
-                
+
                 // 跳转成功后，如果是悬浮面板，自动关闭对话框
                 if (this.closeCallback) {
                     // 延迟关闭，确保跳转操作完成
