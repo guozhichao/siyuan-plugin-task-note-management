@@ -811,7 +811,7 @@ export class ReminderPanel {
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">备注</label>
-                            <textarea id="editReminderNote" class="b3-text-field" placeholder="输入提醒备注..." rows="3">${reminder.note || ''}</textarea>
+                            <textarea id="editReminderNote" class="b3-text-field" placeholder="输入提醒备注..." rows="3" style="width: 100%;resize: vertical; min-height: 60px;">${reminder.note || ''}</textarea>
                         </div>
                     </div>
                     <div class="b3-dialog__action">
@@ -821,7 +821,7 @@ export class ReminderPanel {
                 </div>
             `,
             width: "400px",
-            height: "520px"
+            height: "450px"
         });
 
         // 绑定事件处理逻辑

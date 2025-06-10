@@ -113,7 +113,7 @@ export class ReminderDialog {
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">备注（可选）</label>
-                            <textarea id="reminderNote" class="b3-text-field" placeholder="输入提醒备注..." rows="3" style="resize: vertical; min-height: 60px;"></textarea>
+                            <textarea id="reminderNote" class="b3-text-field" placeholder="输入提醒备注..." rows="3" style="width: 100%;resize: vertical; min-height: 60px;"></textarea>
                         </div>
                         
                         <!-- 添加现有提醒显示区域 -->
@@ -129,7 +129,7 @@ export class ReminderDialog {
                 </div>
             `,
             width: "450px",
-            height: "650px"
+            height: "700px"
         });
 
         this.bindEvents();
@@ -505,7 +505,7 @@ export class ReminderDialog {
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">备注</label>
-                            <textarea id="editReminderNote" class="b3-text-field" placeholder="输入提醒备注..." rows="3">${reminder.note || ''}</textarea>
+                            <textarea id="editReminderNote" class="b3-text-field" placeholder="输入提醒备注..." rows="3" style="width: 100%;resize: vertical; min-height: 60px;">${reminder.note || ''}</textarea>
                         </div>
                     </div>
                     <div class="b3-dialog__action">
@@ -515,7 +515,7 @@ export class ReminderDialog {
                 </div>
             `,
             width: "400px",
-            height: "520px"
+            height: "500px"
         });
 
         // 绑定事件
