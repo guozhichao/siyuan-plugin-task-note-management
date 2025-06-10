@@ -31,6 +31,11 @@ export function generateRepeatInstances(
     const endDateObj = new Date(endDate + 'T23:59:59');
     let instanceCount = 0;
 
+    // 获取排除日期列表
+    const excludeDates = repeatConfig.excludeDates || [];
+    // 获取实例修改列表
+    const instanceModifications = repeatConfig.instanceModifications || {};
+
     // 检查重复结束条件
     const hasEndDate = repeatConfig.endType === 'date' && repeatConfig.endDate;
     const hasEndCount = repeatConfig.endType === 'count' && repeatConfig.endCount;
@@ -49,13 +54,18 @@ export function generateRepeatInstances(
                 break;
             }
 
-            // 检查是否符合重复规则
-            if (shouldGenerateInstance(currentDate, reminder.date, repeatConfig)) {
+            // 检查是否符合重复规则且不在排除列表中
+            if (shouldGenerateInstance(currentDate, reminder.date, repeatConfig) && 
+                !excludeDates.includes(currentDateStr)) {
+                
+                // 检查是否有针对此实例的修改
+                const modification = instanceModifications[currentDateStr];
+                
                 const instance: RepeatInstance = {
-                    date: currentDateStr,
-                    time: reminder.time,
-                    endDate: reminder.endDate ? addDaysToDate(currentDateStr, getDaysDifference(reminder.date, reminder.endDate)) : undefined,
-                    endTime: reminder.endTime,
+                    date: modification?.date || currentDateStr,
+                    time: modification?.time || reminder.time,
+                    endDate: modification?.endDate || (reminder.endDate ? addDaysToDate(modification?.date || currentDateStr, getDaysDifference(reminder.date, reminder.endDate)) : undefined),
+                    endTime: modification?.endTime || reminder.endTime,
                     instanceId: `${reminder.id}_${currentDateStr}`,
                     originalId: reminder.id,
                     isRepeatedInstance: true

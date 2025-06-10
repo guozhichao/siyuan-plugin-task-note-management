@@ -674,7 +674,7 @@ export class ReminderPanel {
         if (reminder.repeat?.enabled || reminder.isRepeatInstance) {
             const repeatIcon = document.createElement('span');
             repeatIcon.className = 'reminder-repeat-icon';
-            repeatIcon.textContent = '♻️';
+            repeatIcon.textContent = '🔄';
             repeatIcon.title = reminder.repeat?.enabled ? 
                 getRepeatDescription(reminder.repeat) : 
                 t("repeatInstance");

@@ -188,5 +188,9 @@
     "deleteInstanceFailed": "Failed to delete repeat instance",
     "cannotMoveRepeatInstance": "Cannot move repeat event instance, please edit the original event",
     "cannotResizeRepeatInstance": "Cannot resize repeat event instance, please edit the original event",
-    "repeatInstance": "Repeat event instance"
+    "repeatInstance": "Repeat event instance",
+    "modifyInstance": "Modify This Instance",
+    "instanceDeleted": "Instance deleted",
+    "instanceModified": "Instance modified",
+    "editingInstanceDesc": "Editing a single instance of recurring event. Changes will only affect this occurrence."
 }

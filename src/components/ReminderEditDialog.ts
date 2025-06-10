@@ -25,10 +25,10 @@ export class ReminderEditDialog {
 
     public show() {
         this.dialog = new Dialog({
-            title: t("modifyEvent"),
+            title: this.reminder.isInstance ? t("modifyInstance") : t("modifyEvent"),
             content: this.createDialogContent(),
             width: "400px",
-            height: "600px"
+            height: this.reminder.isInstance ? "500px" : "600px" // 实例修改对话框稍小一些
         });
 
         this.bindEvents();
@@ -38,6 +38,13 @@ export class ReminderEditDialog {
         return `
             <div class="time-edit-dialog">
                 <div class="b3-dialog__content">
+                    ${this.reminder.isInstance ? `
+                        <div class="b3-form__group">
+                            <div class="b3-form__desc" style="color: var(--b3-theme-primary);">
+                                ${t("editingInstanceDesc")}
+                            </div>
+                        </div>
+                    ` : ''}
                     <div class="b3-form__group">
                         <label class="b3-form__label">${t("eventTitle")}</label>
                         <input type="text" id="editReminderTitle" class="b3-text-field" value="${this.reminder.title || ''}" placeholder="${t("enterReminderTitle")}">
@@ -82,7 +89,8 @@ export class ReminderEditDialog {
                         </label>
                     </div>
                     
-                    <!-- 添加重复设置 -->
+                    ${!this.reminder.isInstance ? `
+                    <!-- 重复设置只在非实例修改时显示 -->
                     <div class="b3-form__group">
                         <label class="b3-form__label">${t("repeatSettings")}</label>
                         <div class="repeat-setting-container">
@@ -92,6 +100,7 @@ export class ReminderEditDialog {
                             </button>
                         </div>
                     </div>
+                    ` : ''}
                     
                     <div class="b3-form__group">
                         <label class="b3-form__label">${t("reminderNote")}</label>
@@ -217,46 +226,100 @@ export class ReminderEditDialog {
         }
 
         try {
-            const reminderData = await readReminderData();
-            if (reminderData[this.reminder.id]) {
-                reminderData[this.reminder.id].title = title;
-                reminderData[this.reminder.id].date = date;
-                reminderData[this.reminder.id].time = time;
-                reminderData[this.reminder.id].note = note;
-                reminderData[this.reminder.id].priority = priority;
-                reminderData[this.reminder.id].repeat = this.repeatConfig.enabled ? this.repeatConfig : undefined; // 保存重复配置
+            if (this.reminder.isInstance) {
+                // 保存重复事件实例的修改
+                await this.saveInstanceModification({
+                    originalId: this.reminder.originalId,
+                    instanceDate: this.reminder.instanceDate,
+                    title: title,
+                    date: date,
+                    endDate: endDate,
+                    time: time,
+                    endTime: this.reminder.endTime, // 保持原有的结束时间逻辑
+                    note: note,
+                    priority: priority
+                });
+            } else {
+                // 保存普通事件或重复事件系列的修改
+                const reminderData = await readReminderData();
+                if (reminderData[this.reminder.id]) {
+                    reminderData[this.reminder.id].title = title;
+                    reminderData[this.reminder.id].date = date;
+                    reminderData[this.reminder.id].time = time;
+                    reminderData[this.reminder.id].note = note;
+                    reminderData[this.reminder.id].priority = priority;
+                    reminderData[this.reminder.id].repeat = this.repeatConfig.enabled ? this.repeatConfig : undefined;
 
-                if (endDate && endDate !== date) {
-                    reminderData[this.reminder.id].endDate = endDate;
-                } else {
-                    delete reminderData[this.reminder.id].endDate;
+                    if (endDate && endDate !== date) {
+                        reminderData[this.reminder.id].endDate = endDate;
+                    } else {
+                        delete reminderData[this.reminder.id].endDate;
+                    }
+
+                    await writeReminderData(reminderData);
                 }
-
-                await writeReminderData(reminderData);
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
-
-                // 显示保存成功消息，包含重复信息
-                const isSpanning = endDate && endDate !== date;
-                const timeStr = time ? ` ${time}` : '';
-                const dateStr = isSpanning ? `${date} → ${endDate}${timeStr}` : `${date}${timeStr}`;
-                let successMessage = t("reminderUpdated") + `: ${dateStr}`;
-
-                if (this.repeatConfig.enabled) {
-                    successMessage += `，${getRepeatDescription(this.repeatConfig)}`;
-                }
-
-                showMessage(successMessage);
-
-                // 调用保存回调
-                if (this.onSaved) {
-                    this.onSaved();
-                }
-
-                this.dialog.destroy();
             }
+
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+            // 显示保存成功消息
+            const isSpanning = endDate && endDate !== date;
+            const timeStr = time ? ` ${time}` : '';
+            const dateStr = isSpanning ? `${date} → ${endDate}${timeStr}` : `${date}${timeStr}`;
+            let successMessage = this.reminder.isInstance ? t("instanceModified") : t("reminderUpdated");
+            successMessage += `: ${dateStr}`;
+
+            if (!this.reminder.isInstance && this.repeatConfig.enabled) {
+                successMessage += `，${getRepeatDescription(this.repeatConfig)}`;
+            }
+
+            showMessage(successMessage);
+
+            // 调用保存回调
+            if (this.onSaved) {
+                this.onSaved();
+            }
+
+            this.dialog.destroy();
         } catch (error) {
             console.error('保存修改失败:', error);
             showMessage(t("saveReminderFailed"));
+        }
+    }
+
+    private async saveInstanceModification(instanceData: any) {
+        // 保存重复事件实例的修改
+        try {
+            const originalId = instanceData.originalId;
+            const instanceDate = instanceData.instanceDate;
+            
+            const reminderData = await readReminderData();
+            
+            if (!reminderData[originalId]) {
+                throw new Error('原始事件不存在');
+            }
+
+            // 初始化实例修改列表
+            if (!reminderData[originalId].repeat.instanceModifications) {
+                reminderData[originalId].repeat.instanceModifications = {};
+            }
+
+            // 保存此实例的修改数据
+            reminderData[originalId].repeat.instanceModifications[instanceDate] = {
+                title: instanceData.title,
+                date: instanceData.date,
+                endDate: instanceData.endDate,
+                time: instanceData.time,
+                endTime: instanceData.endTime,
+                note: instanceData.note,
+                priority: instanceData.priority,
+                modifiedAt: new Date().toISOString()
+            };
+
+            await writeReminderData(reminderData);
+        } catch (error) {
+            console.error('保存实例修改失败:', error);
+            throw error;
         }
     }
 }
