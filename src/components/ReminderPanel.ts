@@ -395,13 +395,6 @@ export class ReminderPanel {
             this.showTimeEditDialog(reminder);
         });
 
-        if (isSpanningDays) {
-            const spanLabel = document.createElement('span');
-            spanLabel.className = 'reminder-span-label';
-            spanLabel.textContent = '跨天';
-            timeEl.appendChild(spanLabel);
-        }
-
         if (isOverdue) {
             const overdueLabel = document.createElement('span');
             overdueLabel.className = 'reminder-overdue-label';
