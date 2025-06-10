@@ -416,8 +416,6 @@ export class ReminderPanel {
             this.remindersContainer.appendChild(reminderEl);
         });
 
-        // 更新标题中的徽章
-        this.updateBadge(reminderData, today);
     }
 
     // 添加排序方法

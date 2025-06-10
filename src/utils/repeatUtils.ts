@@ -13,6 +13,16 @@ export interface RepeatInstance {
 }
 
 /**
+ * 将 Date 对象转换为 YYYY-MM-DD 格式的本地日期字符串
+ */
+function getLocalDateString(date: Date): string {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+/**
  * 生成重复事件实例
  */
 export function generateRepeatInstances(
@@ -42,7 +52,7 @@ export function generateRepeatInstances(
     const repeatEndDate = hasEndDate ? new Date(repeatConfig.endDate + 'T23:59:59') : null;
 
     while (currentDate <= endDateObj && instanceCount < maxInstances) {
-        const currentDateStr = currentDate.toISOString().split('T')[0];
+        const currentDateStr = getLocalDateString(currentDate); // 使用本地日期字符串
 
         // 检查是否在生成范围内
         if (compareDateStrings(currentDateStr, startDate) >= 0) {
@@ -204,7 +214,7 @@ function getDaysDifference(startDate: string, endDate: string): number {
 function addDaysToDate(dateStr: string, days: number): string {
     const date = new Date(dateStr + 'T00:00:00');
     date.setDate(date.getDate() + days);
-    return date.toISOString().split('T')[0];
+    return getLocalDateString(date); // 使用本地日期字符串
 }
 
 /**
