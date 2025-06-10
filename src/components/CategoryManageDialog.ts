@@ -93,20 +93,19 @@ export class CategoryManageDialog {
         categoryEl.className = 'category-item';
         categoryEl.innerHTML = `
             <div class="category-info">
-                <div class="category-icon" style="background-color: ${category.color};">
-                    ${category.icon || '📁'}
+                <div class="category-visual">
+                    <div class="category-icon" style="background-color: ${category.color};">
+                        ${category.icon || '📁'}
+                    </div>
+                    <div class="category-color-preview" style="background-color: ${category.color};"></div>
                 </div>
-                <div class="category-details">
-                    <div class="category-name">${category.name}</div>
-                    <div class="category-id">${category.id}</div>
-                </div>
-                <div class="category-color-preview" style="background-color: ${category.color};"></div>
+                <div class="category-name">${category.name}</div>
             </div>
             <div class="category-actions">
-                <button class="b3-button b3-button--outline" data-action="edit" data-id="${category.id}">
+                <button class="b3-button b3-button--outline category-edit-btn" data-action="edit" data-id="${category.id}" title="编辑分类">
                     <svg class="b3-button__icon"><use xlink:href="#iconEdit"></use></svg>
                 </button>
-                <button class="b3-button b3-button--outline" data-action="delete" data-id="${category.id}">
+                <button class="b3-button b3-button--outline category-delete-btn" data-action="delete" data-id="${category.id}" title="删除分类">
                     <svg class="b3-button__icon"><use xlink:href="#iconTrashcan"></use></svg>
                 </button>
             </div>
