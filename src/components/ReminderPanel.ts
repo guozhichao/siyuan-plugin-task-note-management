@@ -447,11 +447,8 @@ export class ReminderPanel {
                 let isTomorrow = false;
                 if (reminder.endDate) {
                     // 跨天事件：明天在事件的时间范围内
-                    isTomorrow = (compareDateStrings(reminder.date, tomorrowStr) <= 0 &&
-                        compareDateStrings(tomorrowStr, reminder.endDate) <= 0) &&
-                        // 但不应该在今天已经显示的事件中重复
-                        !(compareDateStrings(reminder.date, today) <= 0 &&
-                            compareDateStrings(today, reminder.endDate) <= 0);
+                    isTomorrow = compareDateStrings(reminder.date, tomorrowStr) <= 0 &&
+                        compareDateStrings(tomorrowStr, reminder.endDate) <= 0;
                 } else {
                     // 单日事件：明天的事件
                     isTomorrow = reminder.date === tomorrowStr;
@@ -566,11 +563,9 @@ export class ReminderPanel {
                 case 'tomorrow':
                     if (reminder.completed) return false;
                     if (reminder.endDate) {
-                        // 跨天事件：明天在事件的时间范围内，但今天不在范围内
-                        return (compareDateStrings(reminder.date, tomorrowStr) <= 0 &&
-                            compareDateStrings(tomorrowStr, reminder.endDate) <= 0) &&
-                            !(compareDateStrings(reminder.date, today) <= 0 &&
-                                compareDateStrings(today, reminder.endDate) <= 0);
+                        // 跨天事件：明天在事件的时间范围内
+                        return compareDateStrings(reminder.date, tomorrowStr) <= 0 &&
+                            compareDateStrings(tomorrowStr, reminder.endDate) <= 0;
                     } else {
                         // 单日事件：明天的事件
                         return reminder.date === tomorrowStr;
