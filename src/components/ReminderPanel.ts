@@ -476,10 +476,10 @@ export class ReminderPanel {
                 // 过去七天：仅包括过去7天内的提醒（不包括今天之后的）
                 const reminderStartDate = reminder.date;
                 const reminderEndDate = reminder.endDate || reminder.date;
-                
+
                 // 事件必须在过去7天到昨天之间
                 return compareDateStrings(sevenDaysAgoStr, reminderStartDate) <= 0 &&
-                       compareDateStrings(reminderEndDate, today) < 0;
+                    compareDateStrings(reminderEndDate, today) < 0;
             });
 
             const completed = filteredReminders.filter((reminder: any) => reminder.completed);
@@ -585,10 +585,10 @@ export class ReminderPanel {
                     // 修改过去七天的筛选逻辑：仅包括过去7天内的提醒
                     const reminderStartDate = reminder.date;
                     const reminderEndDate = reminder.endDate || reminder.date;
-                    
+
                     // 事件必须在过去7天到昨天之间
                     return compareDateStrings(sevenDaysAgoStr, reminderStartDate) <= 0 &&
-                           compareDateStrings(reminderEndDate, today) < 0;
+                        compareDateStrings(reminderEndDate, today) < 0;
                 default:
                     return true;
             }
