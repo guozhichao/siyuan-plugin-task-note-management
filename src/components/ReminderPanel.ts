@@ -24,6 +24,9 @@ export class ReminderPanel {
     private closeCallback?: () => void;
     private categoryManager: CategoryManager; // 添加分类管理器
 
+    // 添加静态变量来跟踪当前活动的番茄钟
+    private static currentPomodoroTimer: PomodoroTimer | null = null;
+
     constructor(container: HTMLElement, plugin?: any, closeCallback?: () => void) {
         this.container = container;
         this.plugin = plugin;
@@ -69,6 +72,9 @@ export class ReminderPanel {
         if (this.sortConfigUpdatedHandler) {
             window.removeEventListener('sortConfigUpdated', this.sortConfigUpdatedHandler);
         }
+
+        // 清理当前番茄钟实例
+        ReminderPanel.clearCurrentPomodoroTimer();
     }
 
     // 加载排序配置
@@ -1204,11 +1210,43 @@ export class ReminderPanel {
             return;
         }
 
+        // 如果已经有活动的番茄钟，先关闭它
+        if (ReminderPanel.currentPomodoroTimer) {
+            try {
+                ReminderPanel.currentPomodoroTimer.close();
+                ReminderPanel.currentPomodoroTimer = null;
+            } catch (error) {
+                console.error('关闭之前的番茄钟失败:', error);
+            }
+        }
+
         const settings = this.plugin.getPomodoroSettings();
         const pomodoroTimer = new PomodoroTimer(reminder, settings);
+        
+        // 设置当前活动的番茄钟实例
+        ReminderPanel.currentPomodoroTimer = pomodoroTimer;
+        
+
+        
         pomodoroTimer.show();
     }
 
+    // 添加静态方法获取当前番茄钟实例
+    public static getCurrentPomodoroTimer(): PomodoroTimer | null {
+        return ReminderPanel.currentPomodoroTimer;
+    }
+
+    // 添加静态方法清理当前番茄钟实例
+    public static clearCurrentPomodoroTimer(): void {
+        if (ReminderPanel.currentPomodoroTimer) {
+            try {
+                ReminderPanel.currentPomodoroTimer.destroy();
+            } catch (error) {
+                console.error('清理番茄钟实例失败:', error);
+            }
+            ReminderPanel.currentPomodoroTimer = null;
+        }
+    }
 
     /**
      * [NEW] Calculates the next occurrence date based on the repeat settings.
