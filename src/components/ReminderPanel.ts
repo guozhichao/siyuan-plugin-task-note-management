@@ -1222,12 +1222,12 @@ export class ReminderPanel {
 
         const settings = this.plugin.getPomodoroSettings();
         const pomodoroTimer = new PomodoroTimer(reminder, settings);
-        
+
         // 设置当前活动的番茄钟实例
         ReminderPanel.currentPomodoroTimer = pomodoroTimer;
-        
 
-        
+
+
         pomodoroTimer.show();
     }
 
@@ -1561,10 +1561,10 @@ export class ReminderPanel {
                 await writeReminderData(reminderData);
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
                 this.loadReminders();
-                
+
                 // 获取分类名称用于提示
-                const categoryName = categoryId ? 
-                    this.categoryManager.getCategoryById(categoryId)?.name || "未知分类" : 
+                const categoryName = categoryId ?
+                    this.categoryManager.getCategoryById(categoryId)?.name || "未知分类" :
                     "无分类";
                 showMessage(`已设置分类为：${categoryName}`);
             } else {
