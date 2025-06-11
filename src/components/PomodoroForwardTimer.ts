@@ -23,6 +23,7 @@ export class PomodoroForwardTimer {
     private isWorkPhase: boolean = true;
     private isLongBreak: boolean = false;
     private timeElapsed: number = 0; // 正计时：已经过的时间
+    private breakTimeLeft: number = 0; // 休息倒计时：剩余时间
     private completedPomodoros: number = 0; // 完成的番茄数量
     private timer: number = null;
     private isExpanded: boolean = true;
@@ -501,7 +502,30 @@ export class PomodoroForwardTimer {
             color: var(--b3-theme-on-surface);
             font-variant-numeric: tabular-nums;
             line-height: 1.2;
+            cursor: pointer;
+            user-select: none;
+            border-radius: 4px;
+            padding: 2px 4px;
+            transition: background-color 0.2s;
         `;
+        this.timeDisplay.title = '双击编辑休息时间';
+
+        // 添加双击事件监听器
+        this.timeDisplay.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.editBreakTime();
+        });
+
+        // 添加悬停效果
+        this.timeDisplay.addEventListener('mouseenter', () => {
+            if (!this.isWorkPhase) {
+                this.timeDisplay.style.backgroundColor = 'var(--b3-theme-surface-hover)';
+            }
+        });
+        this.timeDisplay.addEventListener('mouseleave', () => {
+            this.timeDisplay.style.backgroundColor = 'transparent';
+        });
 
         // 番茄数量显示
         this.pomodoroCountDisplay = document.createElement('div');
@@ -699,20 +723,42 @@ export class PomodoroForwardTimer {
     }
 
     private updateDisplay() {
-        const minutes = Math.floor(this.timeElapsed / 60);
-        const seconds = this.timeElapsed % 60;
+        let displayTime: number;
+        let minutes: number;
+        let seconds: number;
+
+        if (this.isWorkPhase) {
+            // 工作时间：正计时显示
+            displayTime = this.timeElapsed;
+            minutes = Math.floor(displayTime / 60);
+            seconds = displayTime % 60;
+        } else {
+            // 休息时间：倒计时显示
+            displayTime = this.breakTimeLeft;
+            minutes = Math.floor(displayTime / 60);
+            seconds = displayTime % 60;
+        }
+
         this.timeDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
-        // 正计时进度条逻辑：根据番茄时长计算当前番茄的进度
-        const pomodoroLength = this.isWorkPhase ?
-            this.settings.workDuration * 60 :
-            (this.isLongBreak ? this.settings.longBreakDuration * 60 : this.settings.breakDuration * 60);
-
-        const currentCycleTime = this.timeElapsed % pomodoroLength;
-        const progress = currentCycleTime / pomodoroLength;
+        // 进度条逻辑
+        let progress: number;
         const circumference = 2 * Math.PI * 36;
-        const offset = circumference * (1 - progress);
 
+        if (this.isWorkPhase) {
+            // 工作时间：根据番茄时长计算当前番茄的进度
+            const pomodoroLength = this.settings.workDuration * 60;
+            const currentCycleTime = this.timeElapsed % pomodoroLength;
+            progress = currentCycleTime / pomodoroLength;
+        } else {
+            // 休息时间：倒计时进度
+            const totalBreakTime = this.isLongBreak ?
+                this.settings.longBreakDuration * 60 :
+                this.settings.breakDuration * 60;
+            progress = (totalBreakTime - this.breakTimeLeft) / totalBreakTime;
+        }
+
+        const offset = circumference * (1 - progress);
         this.circularProgress.style.strokeDashoffset = offset.toString();
 
         // 更新颜色和状态显示
@@ -796,21 +842,33 @@ export class PomodoroForwardTimer {
         }
 
         this.timer = window.setInterval(() => {
-            this.timeElapsed++;
-            this.updateDisplay();
-
-            // 检查是否完成一个番茄
             if (this.isWorkPhase) {
+                // 工作时间：正计时
+                this.timeElapsed++;
+
+                // 检查是否完成一个番茄
                 const pomodoroLength = this.settings.workDuration * 60;
                 const currentCycleTime = this.timeElapsed % pomodoroLength;
 
                 if (currentCycleTime === 0 && this.timeElapsed > 0) {
                     this.completePomodoroPhase();
                 }
+            } else {
+                // 休息时间：倒计时
+                this.breakTimeLeft--;
+
+                // 检查休息时间是否结束
+                if (this.breakTimeLeft <= 0) {
+                    this.completeBreakPhase();
+                }
             }
+
+            this.updateDisplay();
         }, 1000);
 
-        showMessage(`正计时已开始：${this.isWorkPhase ? '工作时间' : (this.isLongBreak ? '长时休息' : '短时休息')}`);
+        const phaseText = this.isWorkPhase ? '工作时间' : (this.isLongBreak ? '长时休息' : '短时休息');
+        const modeText = this.isWorkPhase ? '正计时' : '倒计时';
+        showMessage(`${phaseText}${modeText}已开始`);
     }
 
     private pauseTimer() {
@@ -851,17 +909,26 @@ export class PomodoroForwardTimer {
         }
 
         this.timer = window.setInterval(() => {
-            this.timeElapsed++;
-            this.updateDisplay();
-
             if (this.isWorkPhase) {
+                // 工作时间：正计时
+                this.timeElapsed++;
+
                 const pomodoroLength = this.settings.workDuration * 60;
                 const currentCycleTime = this.timeElapsed % pomodoroLength;
 
                 if (currentCycleTime === 0 && this.timeElapsed > 0) {
                     this.completePomodoroPhase();
                 }
+            } else {
+                // 休息时间：倒计时
+                this.breakTimeLeft--;
+
+                if (this.breakTimeLeft <= 0) {
+                    this.completeBreakPhase();
+                }
             }
+
+            this.updateDisplay();
         }, 1000);
     }
 
@@ -905,9 +972,10 @@ export class PomodoroForwardTimer {
         this.isRunning = false;
         this.isPaused = false;
         this.timeElapsed = 0;
+        this.breakTimeLeft = this.settings.breakDuration * 60; // 设置短时休息倒计时
 
         this.updateDisplay();
-        showMessage('🍵 开始短时休息正计时');
+        showMessage('🍵 开始短时休息倒计时');
     }
 
     private async startLongBreak() {
@@ -927,9 +995,10 @@ export class PomodoroForwardTimer {
         this.isRunning = false;
         this.isPaused = false;
         this.timeElapsed = 0;
+        this.breakTimeLeft = this.settings.longBreakDuration * 60; // 设置长时休息倒计时
 
         this.updateDisplay();
-        showMessage('🧘 开始长时休息正计时');
+        showMessage('🧘 开始长时休息倒计时');
     }
 
     private resetTimer() {
@@ -938,6 +1007,7 @@ export class PomodoroForwardTimer {
         this.isWorkPhase = true;
         this.isLongBreak = false;
         this.timeElapsed = 0;
+        this.breakTimeLeft = 0;
         this.completedPomodoros = 0;
         this.statusDisplay.textContent = '工作时间';
 
@@ -950,30 +1020,49 @@ export class PomodoroForwardTimer {
         this.updateDisplay();
     }
 
-    private async completePomodoroPhase() {
-
-
-        this.completedPomodoros++;
-
-        // 记录完成的工作番茄
-        if (this.isWorkPhase) {
-            console.log('开始记录工作会话...');
-            const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
-            const eventTitle = this.reminder.title || '番茄专注';
-
-            await this.recordManager.recordWorkSession(
-                this.settings.workDuration,
-                eventId,
-                eventTitle,
-                this.settings.workDuration,
-                true
-            );
-
-            // 更新提醒的番茄数量
-            await this.updateReminderPomodoroCount();
-
-            showMessage(`🍅 完成第 ${this.completedPomodoros} 个番茄钟！`, 3000);
+    /**
+     * 完成休息阶段
+     */
+    private async completeBreakPhase() {
+        if (this.timer) {
+            clearInterval(this.timer);
+            this.timer = null;
         }
+
+        // 停止所有背景音
+        this.stopAllAudio();
+
+        // 播放结束提示音
+        if (this.endAudio) {
+            await this.safePlayAudio(this.endAudio);
+        }
+
+        // 记录完成的休息时间
+        const breakDuration = this.isLongBreak ? this.settings.longBreakDuration : this.settings.breakDuration;
+        const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
+        const eventTitle = this.reminder.title || '番茄专注';
+
+        console.log('开始记录休息会话...');
+        await this.recordManager.recordBreakSession(
+            breakDuration,
+            eventId,
+            eventTitle,
+            breakDuration,
+            this.isLongBreak,
+            true // 完成状态
+        );
+
+        const breakType = this.isLongBreak ? '长时休息' : '短时休息';
+        showMessage(`☕ ${breakType}结束！可以开始下一个工作阶段`, 3000);
+
+        // 切换到工作阶段
+        this.isWorkPhase = true;
+        this.isLongBreak = false;
+        this.isRunning = false;
+        this.isPaused = false;
+        this.breakTimeLeft = 0;
+
+        this.updateDisplay();
 
         // 延迟更新统计显示
         setTimeout(() => {
@@ -1023,6 +1112,168 @@ export class PomodoroForwardTimer {
         } catch (error) {
             console.error('更新提醒番茄数量失败:', error);
         }
+    }
+
+    /**
+     * 编辑休息时间功能（仅限休息阶段）
+     */
+    private editBreakTime() {
+        // 只能在休息阶段编辑时间
+        if (this.isWorkPhase) {
+            return;
+        }
+
+        // 如果正在运行且未暂停，则不允许编辑
+        if (this.isRunning && !this.isPaused) {
+            showMessage('请先暂停计时器再编辑时间', 2000);
+            return;
+        }
+
+        // 获取当前剩余时间（分钟）
+        const currentMinutes = Math.floor(this.breakTimeLeft / 60);
+        const currentSeconds = this.breakTimeLeft % 60;
+        const currentTimeString = `${currentMinutes.toString().padStart(2, '0')}:${currentSeconds.toString().padStart(2, '0')}`;
+
+        // 创建输入框
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = currentTimeString;
+        input.style.cssText = `
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--b3-theme-on-surface);
+            background: var(--b3-theme-surface);
+            border: 2px solid var(--b3-theme-primary);
+            border-radius: 4px;
+            padding: 2px 4px;
+            width: 80px;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+            outline: none;
+        `;
+        input.placeholder = 'MM:SS';
+
+        // 替换时间显示
+        const parent = this.timeDisplay.parentNode;
+        parent.replaceChild(input, this.timeDisplay);
+        input.focus();
+        input.select();
+
+        // 处理输入完成
+        const finishEdit = () => {
+            const inputValue = input.value.trim();
+            let newTimeInSeconds = this.parseTimeStringToSeconds(inputValue);
+
+            if (newTimeInSeconds === null) {
+                showMessage('时间格式无效，请使用 MM:SS 格式（如 15:00）', 3000);
+                parent.replaceChild(this.timeDisplay, input);
+                return;
+            }
+
+            // 限制时间范围（1秒到99分59秒）
+            if (newTimeInSeconds < 1 || newTimeInSeconds > 5999) {
+                showMessage('休息时间必须在 00:01 到 99:59 之间', 3000);
+                parent.replaceChild(this.timeDisplay, input);
+                return;
+            }
+
+            // 更新剩余时间
+            this.breakTimeLeft = newTimeInSeconds;
+
+            // 同时更新对应的休息时间设置（以分钟为单位）
+            const newDurationMinutes = Math.ceil(newTimeInSeconds / 60);
+            if (this.isLongBreak) {
+                this.settings.longBreakDuration = newDurationMinutes;
+            } else {
+                this.settings.breakDuration = newDurationMinutes;
+            }
+
+            // 恢复时间显示
+            parent.replaceChild(this.timeDisplay, input);
+            this.updateDisplay();
+
+            const minutes = Math.floor(newTimeInSeconds / 60);
+            const seconds = newTimeInSeconds % 60;
+            const breakType = this.isLongBreak ? '长时休息' : '短时休息';
+            showMessage(`${breakType}剩余时间已设置为 ${minutes}:${seconds.toString().padStart(2, '0')}`, 2000);
+        };
+
+        // 处理取消编辑
+        const cancelEdit = () => {
+            parent.replaceChild(this.timeDisplay, input);
+        };
+
+        // 事件监听
+        input.addEventListener('blur', finishEdit);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                finishEdit();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelEdit();
+            }
+        });
+
+        // 限制输入格式
+        input.addEventListener('input', (e) => {
+            let value = input.value;
+            // 移除非数字和冒号字符
+            value = value.replace(/[^0-9:]/g, '');
+
+            // 确保格式为 MM:SS
+            if (value.length > 5) {
+                value = value.substring(0, 5);
+            }
+
+            // 自动添加冒号
+            if (value.length === 2 && value.indexOf(':') === -1) {
+                value += ':';
+            }
+
+            input.value = value;
+        });
+    }
+
+    /**
+     * 解析时间字符串为秒数（用于休息倒计时设置）
+     */
+    private parseTimeStringToSeconds(timeStr: string): number | null {
+        if (!timeStr) return null;
+
+        let minutes = 0;
+        let seconds = 0;
+
+        // MM:SS 格式
+        if (timeStr.includes(':')) {
+            const parts = timeStr.split(':');
+            if (parts.length !== 2) return null;
+
+            minutes = parseInt(parts[0], 10);
+            seconds = parseInt(parts[1], 10);
+        } else {
+            // 纯数字，视为分钟
+            minutes = parseInt(timeStr, 10);
+            seconds = 0;
+        }
+
+        // 验证数值有效性
+        if (isNaN(minutes) || isNaN(seconds)) return null;
+        if (minutes < 0 || seconds < 0) return null;
+        if (seconds >= 60) return null;
+
+        return minutes * 60 + seconds;
+    }
+
+    /**
+     * 解析时间字符串为分钟数（用于休息时间设置）
+     */
+    private parseTimeStringToMinutes(timeStr: string): number | null {
+        const totalSeconds = this.parseTimeStringToSeconds(timeStr);
+        if (totalSeconds === null) return null;
+
+        // 向上取整到分钟
+        return Math.ceil(totalSeconds / 60);
     }
 
     show() {

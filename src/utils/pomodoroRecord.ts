@@ -196,7 +196,7 @@ export class PomodoroRecordManager {
         // 更新统计数据
         this.records[today].totalBreakTime += breakMinutes;
 
-        console.log('记录休息会话后:', JSON.stringify(this.records[today]));
+        // console.log('记录休息会话后:', JSON.stringify(this.records[today]));
 
         await this.saveRecords();
     }

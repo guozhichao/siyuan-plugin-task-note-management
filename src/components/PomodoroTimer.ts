@@ -517,7 +517,28 @@ export class PomodoroTimer {
             color: var(--b3-theme-on-surface);
             font-variant-numeric: tabular-nums;
             line-height: 1.2;
+            cursor: pointer;
+            user-select: none;
+            border-radius: 4px;
+            padding: 2px 4px;
+            transition: background-color 0.2s;
         `;
+        this.timeDisplay.title = '双击编辑时间';
+        
+        // 添加双击事件监听器
+        this.timeDisplay.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.editTime();
+        });
+
+        // 添加悬停效果
+        this.timeDisplay.addEventListener('mouseenter', () => {
+            this.timeDisplay.style.backgroundColor = 'var(--b3-theme-surface-hover)';
+        });
+        this.timeDisplay.addEventListener('mouseleave', () => {
+            this.timeDisplay.style.backgroundColor = 'transparent';
+        });
 
         timeInfo.appendChild(this.statusDisplay);
         timeInfo.appendChild(this.timeDisplay);
@@ -1106,5 +1127,145 @@ export class PomodoroTimer {
         if (this.container && this.container.parentNode) {
             this.container.parentNode.removeChild(this.container);
         }
+    }
+
+    /**
+     * 编辑时间功能
+     */
+    private editTime() {
+        // 如果正在运行且未暂停，则不允许编辑
+        if (this.isRunning && !this.isPaused) {
+            showMessage('请先暂停计时器再编辑时间', 2000);
+            return;
+        }
+
+        const currentMinutes = Math.floor(this.timeLeft / 60);
+        const currentSeconds = this.timeLeft % 60;
+        const currentTimeString = `${currentMinutes.toString().padStart(2, '0')}:${currentSeconds.toString().padStart(2, '0')}`;
+
+        // 创建输入框
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = currentTimeString;
+        input.style.cssText = `
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--b3-theme-on-surface);
+            background: var(--b3-theme-surface);
+            border: 2px solid var(--b3-theme-primary);
+            border-radius: 4px;
+            padding: 2px 4px;
+            width: 80px;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+            outline: none;
+        `;
+        input.placeholder = 'MM:SS';
+
+        // 替换时间显示
+        const parent = this.timeDisplay.parentNode;
+        parent.replaceChild(input, this.timeDisplay);
+        input.focus();
+        input.select();
+
+        // 处理输入完成
+        const finishEdit = () => {
+            const inputValue = input.value.trim();
+            let newTimeLeft = this.parseTimeString(inputValue);
+
+            if (newTimeLeft === null) {
+                showMessage('时间格式无效，请使用 MM:SS 格式（如 25:00）', 3000);
+                // 恢复原来的显示
+                parent.replaceChild(this.timeDisplay, input);
+                return;
+            }
+
+            // 限制时间范围（1秒到999分59秒）
+            if (newTimeLeft < 1 || newTimeLeft > 59999) {
+                showMessage('时间必须在 00:01 到 999:59 之间', 3000);
+                parent.replaceChild(this.timeDisplay, input);
+                return;
+            }
+
+            // 更新时间
+            this.timeLeft = newTimeLeft;
+            this.totalTime = newTimeLeft;
+
+            // 恢复时间显示
+            parent.replaceChild(this.timeDisplay, input);
+            this.updateDisplay();
+
+            const minutes = Math.floor(newTimeLeft / 60);
+            const seconds = newTimeLeft % 60;
+            const phaseText = this.isWorkPhase ? '工作时间' : (this.isLongBreak ? '长时休息' : '短时休息');
+            showMessage(`${phaseText}已设置为 ${minutes}:${seconds.toString().padStart(2, '0')}`, 2000);
+        };
+
+        // 处理取消编辑
+        const cancelEdit = () => {
+            parent.replaceChild(this.timeDisplay, input);
+        };
+
+        // 事件监听
+        input.addEventListener('blur', finishEdit);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                finishEdit();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelEdit();
+            }
+        });
+
+        // 限制输入格式
+        input.addEventListener('input', (e) => {
+            let value = input.value;
+            // 移除非数字和冒号字符
+            value = value.replace(/[^0-9:]/g, '');
+            
+            // 确保格式为 MM:SS
+            if (value.length > 5) {
+                value = value.substring(0, 5);
+            }
+            
+            // 自动添加冒号
+            if (value.length === 2 && value.indexOf(':') === -1) {
+                value += ':';
+            }
+            
+            input.value = value;
+        });
+    }
+
+    /**
+     * 解析时间字符串为秒数
+     */
+    private parseTimeString(timeStr: string): number | null {
+        if (!timeStr) return null;
+
+        // 支持多种格式
+        let minutes = 0;
+        let seconds = 0;
+
+        // MM:SS 格式
+        if (timeStr.includes(':')) {
+            const parts = timeStr.split(':');
+            if (parts.length !== 2) return null;
+
+            minutes = parseInt(parts[0], 10);
+            seconds = parseInt(parts[1], 10);
+        } else {
+            // 纯数字，视为分钟
+            minutes = parseInt(timeStr, 10);
+            seconds = 0;
+        }
+
+        // 验证数值有效性
+        if (isNaN(minutes) || isNaN(seconds)) return null;
+        if (minutes < 0 || seconds < 0) return null;
+        if (seconds >= 60) return null;
+
+        return minutes * 60 + seconds;
     }
 }
