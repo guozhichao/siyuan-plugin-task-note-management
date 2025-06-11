@@ -83,8 +83,17 @@ export default class ReminderPlugin extends Plugin {
             key: "pomodoroBreakDuration",
             value: 5,
             type: "number",
-            title: "番茄钟休息时长（分钟）",
-            description: "设置番茄钟休息阶段的时长，默认5分钟"
+            title: "番茄钟短时休息时长（分钟）",
+            description: "设置番茄钟短时休息阶段的时长，默认5分钟"
+        });
+
+        // 番茄钟长时休息时长设置
+        this.settingUtils.addItem({
+            key: "pomodoroLongBreakDuration",
+            value: 30,
+            type: "number",
+            title: "番茄钟长时休息时长（分钟）",
+            description: "设置番茄钟长时休息阶段的时长，默认30分钟"
         });
 
         // 工作时背景音设置
@@ -114,6 +123,7 @@ export default class ReminderPlugin extends Plugin {
         return {
             workDuration: this.settingUtils.get("pomodoroWorkDuration") || 25,
             breakDuration: this.settingUtils.get("pomodoroBreakDuration") || 5,
+            longBreakDuration: this.settingUtils.get("pomodoroLongBreakDuration") || 30,
             workSound: this.settingUtils.get("pomodoroWorkSound") || "",
             endSound: this.settingUtils.get("pomodoroEndSound") || ""
         };

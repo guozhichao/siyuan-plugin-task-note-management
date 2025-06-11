@@ -20,6 +20,7 @@ export class PomodoroTimer {
     private isRunning: boolean = false;
     private isPaused: boolean = false;
     private isWorkPhase: boolean = true;
+    private isLongBreak: boolean = false; // 添加长时休息标识
     private timeLeft: number = 0;
     private totalTime: number = 0;
     private timer: number = null;
@@ -116,7 +117,7 @@ export class PomodoroTimer {
             align-items: center;
             gap: 8px;
         `;
-        title.innerHTML = `<span style="font-size: 16px;">🍅</span><span>${this.reminder.title || '番茄专注'}</span>`;
+        title.innerHTML = `<span style="font-size: 16px;">🍅</span><span></span>`;
 
         const headerButtons = document.createElement('div');
         headerButtons.style.cssText = `
@@ -124,6 +125,58 @@ export class PomodoroTimer {
             align-items: center;
             gap: 4px;
         `;
+
+        // 短时休息按钮
+        const shortBreakBtn = document.createElement('button');
+        shortBreakBtn.className = 'pomodoro-break-btn';
+        shortBreakBtn.style.cssText = `
+            background: none;
+            border: none;
+            color: var(--b3-theme-on-surface);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            font-size: 14px;
+            line-height: 1;
+            opacity: 0.7;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+        shortBreakBtn.innerHTML = '🍵';
+        shortBreakBtn.title = '短时休息';
+        shortBreakBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.startShortBreak();
+        });
+
+        // 长时休息按钮
+        const longBreakBtn = document.createElement('button');
+        longBreakBtn.className = 'pomodoro-break-btn';
+        longBreakBtn.style.cssText = `
+            background: none;
+            border: none;
+            color: var(--b3-theme-on-surface);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            font-size: 14px;
+            line-height: 1;
+            opacity: 0.7;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+        longBreakBtn.innerHTML = '🧘';
+        longBreakBtn.title = '长时休息';
+        longBreakBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.startLongBreak();
+        });
 
         // 展开/折叠按钮
         this.expandToggleBtn = document.createElement('button');
@@ -172,6 +225,8 @@ export class PomodoroTimer {
             this.close();
         });
 
+        headerButtons.appendChild(shortBreakBtn);
+        headerButtons.appendChild(longBreakBtn);
         headerButtons.appendChild(this.expandToggleBtn);
         headerButtons.appendChild(closeBtn);
         header.appendChild(title);
@@ -183,6 +238,23 @@ export class PomodoroTimer {
         content.style.cssText = `
             padding: 16px;
         `;
+
+        // 事件名称显示（新增）
+        const eventTitle = document.createElement('div');
+        eventTitle.className = 'pomodoro-event-title';
+        eventTitle.style.cssText = `
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--b3-theme-on-surface);
+            text-align: center;
+            border-radius: 6px;
+            border: 1px solid var(--b3-theme-border);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        `;
+        eventTitle.textContent = this.reminder.title || '番茄专注';
+        eventTitle.title = this.reminder.title || '番茄专注'; // 添加 tooltip 显示完整标题
 
         // 主要布局容器
         const mainContainer = document.createElement('div');
@@ -403,6 +475,7 @@ export class PomodoroTimer {
         this.statsContainer.appendChild(todayStats);
         this.statsContainer.appendChild(weekStats);
 
+        content.appendChild(eventTitle);
         content.appendChild(mainContainer);
         content.appendChild(this.statsContainer);
 
@@ -532,9 +605,22 @@ export class PomodoroTimer {
 
         this.circularProgress.style.strokeDashoffset = offset.toString();
 
-        // 更新颜色
-        const color = this.isWorkPhase ? '#FF6B6B' : '#4CAF50';
+        // 更新颜色和状态显示
+        let color = '#FF6B6B'; // 默认工作时间颜色
+        let statusText = '工作时间';
+
+        if (!this.isWorkPhase) {
+            if (this.isLongBreak) {
+                color = '#9C27B0'; // 长时休息用紫色
+                statusText = '长时休息';
+            } else {
+                color = '#4CAF50'; // 短时休息用绿色
+                statusText = '短时休息';
+            }
+        }
+
         this.circularProgress.setAttribute('stroke', color);
+        this.statusDisplay.textContent = statusText;
 
         // 更新按钮状态
         if (!this.isRunning) {
@@ -635,10 +721,61 @@ export class PomodoroTimer {
         }, 1000);
     }
 
+    private startShortBreak() {
+        // 停止当前计时器
+        if (this.timer) {
+            clearInterval(this.timer);
+            this.timer = null;
+        }
+
+        // 停止工作背景音
+        if (this.workAudio) {
+            this.workAudio.pause();
+            this.workAudio.currentTime = 0;
+        }
+
+        // 设置短时休息
+        this.isWorkPhase = false;
+        this.isLongBreak = false;
+        this.isRunning = false;
+        this.isPaused = false;
+        this.timeLeft = this.settings.breakDuration * 60;
+        this.totalTime = this.timeLeft;
+
+        this.updateDisplay();
+        showMessage('🍵 开始短时休息');
+    }
+
+    private startLongBreak() {
+        // 停止当前计时器
+        if (this.timer) {
+            clearInterval(this.timer);
+            this.timer = null;
+        }
+
+        // 停止工作背景音
+        if (this.workAudio) {
+            this.workAudio.pause();
+            this.workAudio.currentTime = 0;
+        }
+
+        // 设置长时休息
+        this.isWorkPhase = false;
+        this.isLongBreak = true;
+        this.isRunning = false;
+        this.isPaused = false;
+        this.timeLeft = this.settings.longBreakDuration * 60;
+        this.totalTime = this.timeLeft;
+
+        this.updateDisplay();
+        showMessage('🧘 开始长时休息');
+    }
+
     private resetTimer() {
         this.isRunning = false;
         this.isPaused = false;
         this.isWorkPhase = true;
+        this.isLongBreak = false;
         this.statusDisplay.textContent = '工作时间';
 
         if (this.timer) {
@@ -684,15 +821,19 @@ export class PomodoroTimer {
 
             showMessage('🍅 工作时间结束！开始休息吧～', 3000);
             this.isWorkPhase = false;
-            this.statusDisplay.textContent = '休息时间';
+            this.isLongBreak = false; // 默认进入短时休息
+            this.statusDisplay.textContent = '短时休息';
             this.timeLeft = this.settings.breakDuration * 60;
         } else {
             // 记录完成的休息时间
+            const breakDuration = this.isLongBreak ? this.settings.longBreakDuration : this.settings.breakDuration;
             console.log('开始记录休息会话...');
-            await this.recordManager.recordBreakSession(this.settings.breakDuration);
+            await this.recordManager.recordBreakSession(breakDuration);
 
-            showMessage('☕ 休息结束！准备开始下一个番茄钟', 3000);
+            const breakType = this.isLongBreak ? '长时休息' : '短时休息';
+            showMessage(`☕ ${breakType}结束！准备开始下一个番茄钟`, 3000);
             this.isWorkPhase = true;
+            this.isLongBreak = false;
             this.statusDisplay.textContent = '工作时间';
             this.timeLeft = this.settings.workDuration * 60;
         }
