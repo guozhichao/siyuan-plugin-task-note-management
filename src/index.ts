@@ -23,7 +23,7 @@ import { RepeatConfig } from "./components/RepeatSettingsDialog";
 import { getRepeatDescription } from "./utils/repeatUtils";
 import { SettingUtils } from "./libs/setting-utils";
 import { PomodoroRecordManager } from "./utils/pomodoroRecord";
-
+import { RepeatSettingsDialog } from "./components/RepeatSettingsDialog";
 const STORAGE_NAME = "reminder-config";
 const SETTINGS_NAME = "reminder-settings";
 const TAB_TYPE = "reminder_calendar_tab";
@@ -514,10 +514,7 @@ export default class ReminderPlugin extends Plugin {
                         
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("reminderNoteOptional")}</label>
-                            <textarea id="batchReminderNote" class="b3-text-field" placeholder="${t("enterReminderNote")}" rows="3" style="resize: vertical; min-height: 60px;"></textarea>
-                        </div>
-                        <div class="b3-form__group">
-                            <div class="b3-form__desc">${t("batchSetReminderDesc", { count: blockIds.length.toString() })}</div>
+                            <textarea id="batchReminderNote" class="b3-text-field" placeholder="${t("enterReminderNote")}" rows="3" style="resize: vertical; min-height: 60px;width: 100%;"></textarea>
                         </div>
                     </div>
                     <div class="b3-dialog__action">
@@ -527,7 +524,7 @@ export default class ReminderPlugin extends Plugin {
                 </div>
             `,
             width: "450px",
-            height: "580px" // 增加高度以容纳分类选择器
+            height: "750px" // 增加高度以容纳分类选择器
         });
 
         // 渲染分类选择器
@@ -566,7 +563,7 @@ export default class ReminderPlugin extends Plugin {
 
         // 重复设置按钮
         batchRepeatSettingsBtn?.addEventListener('click', () => {
-            const { RepeatSettingsDialog } = require("./components/RepeatSettingsDialog");
+
             const repeatDialog = new RepeatSettingsDialog(batchRepeatConfig, (config: RepeatConfig) => {
                 batchRepeatConfig = config;
                 updateBatchRepeatDescription();
