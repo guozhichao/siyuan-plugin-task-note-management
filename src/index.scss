@@ -856,9 +856,14 @@
             }
         }
 
-        .pomodoro-close {
+        .pomodoro-close,
+        .pomodoro-expand-toggle {
+            position: relative;
+            z-index: 10;
+
             &:hover {
                 background: rgba(255, 255, 255, 0.1);
+                opacity: 1;
             }
         }
     }
@@ -874,14 +879,36 @@
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
         }
 
-        button {
+        .circle-control-btn {
+            transition: all 0.2s ease;
+            position: relative;
+            z-index: 10;
+
             &:hover {
-                transform: translateY(-1px);
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+                background: rgba(255, 255, 255, 0.1);
+                transform: scale(1.1);
             }
 
             &:active {
-                transform: translateY(0);
+                transform: scale(0.95);
+            }
+        }
+
+        // SVG 圆环样式
+        svg {
+            circle {
+                transition: stroke-dashoffset 0.5s ease, stroke 0.3s ease;
+            }
+
+            // 确保背景圆环显示
+            circle:first-child {
+                stroke: #e0e0e0;
+                opacity: 0.3;
+            }
+
+            // 进度圆环
+            circle:last-child {
+                filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
             }
         }
     }
@@ -895,10 +922,31 @@
             background: rgba(40, 40, 40, 0.8);
             border-bottom-color: rgba(255, 255, 255, 0.1);
         }
+
+        .circle-control-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        // 暗色主题下的圆环底色
+        svg circle:first-child {
+            stroke: #555;
+            opacity: 0.4;
+        }
     }
 
     /* 动画效果 */
     animation: pomodoroFadeIn 0.3s ease-out;
+
+    /* 紧凑布局优化 */
+    .pomodoro-stats {
+        >div {
+            padding: 0 6px;
+        }
+
+        >div:first-child {
+            border-right: 1px solid var(--b3-theme-border);
+        }
+    }
 }
 
 @keyframes pomodoroFadeIn {
@@ -913,8 +961,24 @@
     }
 }
 
-/* 进度条动画 */
-.pomodoro-timer-window .pomodoro-content div[style*="background: #FF6B6B"],
-.pomodoro-timer-window .pomodoro-content div[style*="background: #4CAF50"] {
-    transition: width 1s linear, background-color 0.3s ease;
+/* 圆环进度动画 */
+.pomodoro-timer-window svg circle[stroke-dasharray] {
+    animation: progressRotate 0.5s ease-out;
+}
+
+@keyframes progressRotate {
+    from {
+        stroke-dashoffset: 226.19;
+    }
+}
+
+/* 响应式调整 */
+@media (max-width: 320px) {
+    .pomodoro-timer-window {
+        width: 260px;
+
+        .pomodoro-content {
+            padding: 12px;
+        }
+    }
 }

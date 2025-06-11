@@ -71,7 +71,7 @@ export class PomodoroTimer {
             position: fixed;
             top: 100px;
             right: 20px;
-            width: 320px;
+            width: 280px;
             background: var(--b3-theme-background);
             border: 1px solid var(--b3-theme-border);
             border-radius: 12px;
@@ -80,7 +80,7 @@ export class PomodoroTimer {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             user-select: none;
             backdrop-filter: blur(16px);
-            transition: all 0.3s ease;
+            transition: transform 0.2s ease, opacity 0.2s ease;
             overflow: hidden;
         `;
 
@@ -137,7 +137,11 @@ export class PomodoroTimer {
         `;
         this.expandToggleBtn.innerHTML = this.isExpanded ? '📉' : '📈';
         this.expandToggleBtn.title = this.isExpanded ? '折叠' : '展开';
-        this.expandToggleBtn.addEventListener('click', () => this.toggleExpand());
+        this.expandToggleBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.toggleExpand();
+        });
 
         const closeBtn = document.createElement('button');
         closeBtn.className = 'pomodoro-close';
@@ -154,7 +158,11 @@ export class PomodoroTimer {
             transition: opacity 0.2s;
         `;
         closeBtn.innerHTML = '×';
-        closeBtn.addEventListener('click', () => this.close());
+        closeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.close();
+        });
 
         headerButtons.appendChild(this.expandToggleBtn);
         headerButtons.appendChild(closeBtn);
@@ -165,92 +173,78 @@ export class PomodoroTimer {
         const content = document.createElement('div');
         content.className = 'pomodoro-content';
         content.style.cssText = `
-            padding: 20px;
+            padding: 16px;
         `;
 
-        // 圆环进度条容器
+        // 主要布局容器
+        const mainContainer = document.createElement('div');
+        mainContainer.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+        `;
+
+        // 左侧圆环进度条
         const progressContainer = document.createElement('div');
         progressContainer.style.cssText = `
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 20px;
-        `;
-
-        // 左侧时间和状态信息
-        const timeInfo = document.createElement('div');
-        timeInfo.style.cssText = `
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        `;
-
-        this.statusDisplay = document.createElement('div');
-        this.statusDisplay.className = 'pomodoro-status';
-        this.statusDisplay.style.cssText = `
-            font-size: 12px;
-            color: var(--b3-theme-on-surface-variant);
-            font-weight: 500;
-        `;
-        this.statusDisplay.textContent = '工作时间';
-
-        this.timeDisplay = document.createElement('div');
-        this.timeDisplay.className = 'pomodoro-time';
-        this.timeDisplay.style.cssText = `
-            font-size: 28px;
-            font-weight: 700;
-            color: var(--b3-theme-on-surface);
-            font-variant-numeric: tabular-nums;
-            line-height: 1;
-        `;
-
-        timeInfo.appendChild(this.statusDisplay);
-        timeInfo.appendChild(this.timeDisplay);
-
-        // 右侧圆环进度条
-        const circularContainer = document.createElement('div');
-        circularContainer.style.cssText = `
             position: relative;
             width: 80px;
             height: 80px;
-            margin-left: 20px;
+            flex-shrink: 0;
         `;
 
-        this.circularProgress = document.createElement('div');
-        this.circularProgress.className = 'circular-progress';
+        // 创建 SVG 圆环
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.style.cssText = `
+            width: 80px;
+            height: 80px;
+            transform: rotate(-90deg);
+        `;
+        svg.setAttribute('viewBox', '0 0 80 80');
+
+        // 背景圆环 - 修复灰色底色
+        const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        bgCircle.setAttribute('cx', '40');
+        bgCircle.setAttribute('cy', '40');
+        bgCircle.setAttribute('r', '36');
+        bgCircle.setAttribute('fill', 'none');
+        bgCircle.setAttribute('stroke', '#e0e0e0');
+        bgCircle.setAttribute('stroke-width', '6');
+        bgCircle.setAttribute('opacity', '0.3');
+
+        // 进度圆环
+        this.circularProgress = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        this.circularProgress.setAttribute('cx', '40');
+        this.circularProgress.setAttribute('cy', '40');
+        this.circularProgress.setAttribute('r', '36');
+        this.circularProgress.setAttribute('fill', 'none');
+        this.circularProgress.setAttribute('stroke', '#FF6B6B');
+        this.circularProgress.setAttribute('stroke-width', '6');
+        this.circularProgress.setAttribute('stroke-linecap', 'round');
+
+        // 计算圆环周长并设置初始状态
+        const circumference = 2 * Math.PI * 36;
         this.circularProgress.style.cssText = `
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: conic-gradient(#FF6B6B 0deg, var(--b3-theme-surface-variant) 0deg);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            transition: background 0.3s ease;
+            stroke-dasharray: ${circumference};
+            stroke-dashoffset: ${circumference};
+            transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease;
         `;
 
-        const circularInner = document.createElement('div');
-        circularInner.style.cssText = `
-            width: 64px;
-            height: 64px;
-            border-radius: 50%;
-            background: var(--b3-theme-background);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            z-index: 1;
-        `;
+        svg.appendChild(bgCircle);
+        svg.appendChild(this.circularProgress);
 
-        // 控制按钮容器（在圆环中心）
-        const controlsInCircle = document.createElement('div');
-        controlsInCircle.style.cssText = `
+        // 圆环中心的控制按钮容器
+        const centerContainer = document.createElement('div');
+        centerContainer.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 4px;
+            gap: 2px;
         `;
 
         this.startPauseBtn = document.createElement('button');
@@ -259,14 +253,16 @@ export class PomodoroTimer {
             background: none;
             border: none;
             cursor: pointer;
-            font-size: 18px;
+            font-size: 20px;
             color: var(--b3-theme-on-surface);
-            padding: 4px;
-            border-radius: 4px;
+            padding: 6px;
+            border-radius: 50%;
             transition: all 0.2s;
             display: flex;
             align-items: center;
             justify-content: center;
+            width: 36px;
+            height: 36px;
         `;
         this.startPauseBtn.innerHTML = '▶️';
         this.startPauseBtn.addEventListener('click', () => this.toggleTimer());
@@ -279,24 +275,59 @@ export class PomodoroTimer {
             cursor: pointer;
             font-size: 16px;
             color: var(--b3-theme-on-surface);
-            padding: 4px;
-            border-radius: 4px;
+            padding: 6px;
+            border-radius: 50%;
             transition: all 0.2s;
             display: none;
             align-items: center;
             justify-content: center;
+            width: 32px;
+            height: 32px;
         `;
         this.stopBtn.innerHTML = '⏹';
         this.stopBtn.addEventListener('click', () => this.resetTimer());
 
-        controlsInCircle.appendChild(this.startPauseBtn);
-        controlsInCircle.appendChild(this.stopBtn);
-        circularInner.appendChild(controlsInCircle);
-        this.circularProgress.appendChild(circularInner);
-        circularContainer.appendChild(this.circularProgress);
+        centerContainer.appendChild(this.startPauseBtn);
+        centerContainer.appendChild(this.stopBtn);
 
-        progressContainer.appendChild(timeInfo);
-        progressContainer.appendChild(circularContainer);
+        progressContainer.appendChild(svg);
+        progressContainer.appendChild(centerContainer);
+
+        // 右侧时间和状态信息
+        const timeInfo = document.createElement('div');
+        timeInfo.style.cssText = `
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        `;
+
+        this.statusDisplay = document.createElement('div');
+        this.statusDisplay.className = 'pomodoro-status';
+        this.statusDisplay.style.cssText = `
+            font-size: 12px;
+            color: var(--b3-theme-on-surface-variant);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        `;
+        this.statusDisplay.textContent = '工作时间';
+
+        this.timeDisplay = document.createElement('div');
+        this.timeDisplay.className = 'pomodoro-time';
+        this.timeDisplay.style.cssText = `
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--b3-theme-on-surface);
+            font-variant-numeric: tabular-nums;
+            line-height: 1.2;
+        `;
+
+        timeInfo.appendChild(this.statusDisplay);
+        timeInfo.appendChild(this.timeDisplay);
+
+        mainContainer.appendChild(progressContainer);
+        mainContainer.appendChild(timeInfo);
 
         // 统计信息容器
         this.statsContainer = document.createElement('div');
@@ -304,10 +335,9 @@ export class PomodoroTimer {
         this.statsContainer.style.cssText = `
             display: ${this.isExpanded ? 'flex' : 'none'};
             justify-content: space-between;
-            padding: 16px;
+            padding: 12px;
             background: var(--b3-theme-surface);
             border-radius: 8px;
-            margin-top: 16px;
             transition: all 0.3s ease;
         `;
 
@@ -365,7 +395,7 @@ export class PomodoroTimer {
         this.statsContainer.appendChild(todayStats);
         this.statsContainer.appendChild(weekStats);
 
-        content.appendChild(progressContainer);
+        content.appendChild(mainContainer);
         content.appendChild(this.statsContainer);
 
         this.container.appendChild(header);
@@ -388,12 +418,27 @@ export class PomodoroTimer {
         let initialY = 0;
 
         handle.addEventListener('mousedown', (e) => {
+            // 检查是否点击的是按钮
+            if (e.target.closest('button')) {
+                return;
+            }
+
             e.preventDefault();
             isDragging = true;
 
             const rect = this.container.getBoundingClientRect();
             initialX = e.clientX - rect.left;
             initialY = e.clientY - rect.top;
+
+            // 设置拖拽时的样式，避免闪烁
+            this.container.style.transition = 'none';
+            this.container.style.pointerEvents = 'none';
+
+            // 恢复按钮的指针事件
+            const buttons = this.container.querySelectorAll('button');
+            buttons.forEach(btn => {
+                btn.style.pointerEvents = 'auto';
+            });
 
             document.addEventListener('mousemove', drag);
             document.addEventListener('mouseup', stopDrag);
@@ -420,6 +465,11 @@ export class PomodoroTimer {
 
         const stopDrag = () => {
             isDragging = false;
+
+            // 恢复样式
+            this.container.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+            this.container.style.pointerEvents = 'auto';
+
             document.removeEventListener('mousemove', drag);
             document.removeEventListener('mouseup', stopDrag);
         };
@@ -467,25 +517,35 @@ export class PomodoroTimer {
         const seconds = this.timeLeft % 60;
         this.timeDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
-        // 更新圆环进度
+        // 更新 SVG 圆环进度
         const progress = ((this.totalTime - this.timeLeft) / this.totalTime);
-        const degrees = progress * 360;
-        const color = this.isWorkPhase ? '#FF6B6B' : '#4CAF50';
+        const circumference = 2 * Math.PI * 36; // r=36
+        const offset = circumference * (1 - progress);
 
-        this.circularProgress.style.background = `conic-gradient(${color} ${degrees}deg, var(--b3-theme-surface-variant) ${degrees}deg)`;
+        this.circularProgress.style.strokeDashoffset = offset.toString();
+
+        // 更新颜色
+        const color = this.isWorkPhase ? '#FF6B6B' : '#4CAF50';
+        this.circularProgress.setAttribute('stroke', color);
 
         // 更新按钮状态
         if (!this.isRunning) {
             this.startPauseBtn.innerHTML = '▶️';
             this.startPauseBtn.style.display = 'flex';
+            this.startPauseBtn.style.width = '36px';
+            this.startPauseBtn.style.height = '36px';
             this.stopBtn.style.display = 'none';
         } else if (this.isPaused) {
             this.startPauseBtn.innerHTML = '▶️';
             this.startPauseBtn.style.display = 'flex';
+            this.startPauseBtn.style.width = '32px';
+            this.startPauseBtn.style.height = '32px';
             this.stopBtn.style.display = 'flex';
         } else {
             this.startPauseBtn.innerHTML = '⏸';
             this.startPauseBtn.style.display = 'flex';
+            this.startPauseBtn.style.width = '36px';
+            this.startPauseBtn.style.height = '36px';
             this.stopBtn.style.display = 'none';
         }
     }
@@ -505,7 +565,6 @@ export class PomodoroTimer {
     private startTimer() {
         this.isRunning = true;
         this.isPaused = false;
-        this.startPauseBtn.textContent = '暂停';
 
         // 播放工作背景音
         if (this.isWorkPhase && this.workAudio) {
@@ -526,7 +585,6 @@ export class PomodoroTimer {
 
     private pauseTimer() {
         this.isPaused = true;
-        this.startPauseBtn.textContent = '继续';
 
         if (this.timer) {
             clearInterval(this.timer);
@@ -541,7 +599,6 @@ export class PomodoroTimer {
 
     private resumeTimer() {
         this.isPaused = false;
-        this.startPauseBtn.textContent = '暂停';
 
         // 恢复背景音
         if (this.isWorkPhase && this.workAudio) {
@@ -562,7 +619,6 @@ export class PomodoroTimer {
         this.isRunning = false;
         this.isPaused = false;
         this.isWorkPhase = true;
-        this.startPauseBtn.textContent = '开始';
         this.statusDisplay.textContent = '工作时间';
 
         if (this.timer) {
