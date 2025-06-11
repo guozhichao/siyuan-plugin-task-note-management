@@ -109,7 +109,7 @@
     "toggleFailed": "切换失败，请重试",
     "openModifyDialogFailed": "打开修改对话框失败，请重试",
     "loadReminderDataFailed": "加载提醒数据失败",
-    "selectBlockFirst": "请先在文档中选择一个块，然后为其创建提醒",
+    "selectBlockFirst": "请先在文档中选择一个块，然后为其创建提醒。\n「防弹笔记法」不推荐凭空创建任务，应该在任务笔记或者项目笔记规划事项再安排时间提醒",
     "existingReminders": "现有提醒",
     "noExistingReminders": "暂无现有提醒",
     "month": "月",
