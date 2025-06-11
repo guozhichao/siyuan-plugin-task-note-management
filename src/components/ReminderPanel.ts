@@ -8,6 +8,7 @@ import { CategoryManageDialog } from "./CategoryManageDialog";
 import { t } from "../utils/i18n";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
 import { PomodoroTimer } from "./PomodoroTimer";
+import { PomodoroForwardTimer } from "./PomodoroForwardTimer";
 
 export class ReminderPanel {
     private container: HTMLElement;
@@ -26,6 +27,8 @@ export class ReminderPanel {
 
     // 添加静态变量来跟踪当前活动的番茄钟
     private static currentPomodoroTimer: PomodoroTimer | null = null;
+    // 添加静态变量来跟踪当前活动的正计时番茄钟
+    private static currentPomodoroForwardTimer: PomodoroForwardTimer | null = null;
 
     constructor(container: HTMLElement, plugin?: any, closeCallback?: () => void) {
         this.container = container;
@@ -75,6 +78,7 @@ export class ReminderPanel {
 
         // 清理当前番茄钟实例
         ReminderPanel.clearCurrentPomodoroTimer();
+        ReminderPanel.clearCurrentPomodoroForwardTimer();
     }
 
     // 加载排序配置
@@ -1125,6 +1129,11 @@ export class ReminderPanel {
                 label: "开始番茄钟",
                 click: () => this.startPomodoro(reminder)
             });
+            menu.addItem({
+                iconHTML: "⏰",
+                label: "开始正计时",
+                click: () => this.startPomodoroForward(reminder)
+            });
 
         } else if (reminder.repeat?.enabled) {
             // --- Menu for the ORIGINAL RECURRING EVENT (User Request) ---
@@ -1167,6 +1176,11 @@ export class ReminderPanel {
                 label: "开始番茄钟",
                 click: () => this.startPomodoro(reminder)
             });
+            menu.addItem({
+                iconHTML: "⏰",
+                label: "开始正计时",
+                click: () => this.startPomodoroForward(reminder)
+            });
 
         } else {
             // --- Menu for a SIMPLE, NON-RECURRING EVENT ---
@@ -1193,6 +1207,11 @@ export class ReminderPanel {
                 click: () => this.startPomodoro(reminder)
             });
             menu.addItem({
+                iconHTML: "⏰",
+                label: "开始正计时",
+                click: () => this.startPomodoroForward(reminder)
+            });
+            menu.addItem({
                 iconHTML: "🗑️",
                 label: t("deleteReminder"),
                 click: () => this.deleteReminder(reminder)
@@ -1204,6 +1223,7 @@ export class ReminderPanel {
             y: event.clientY
         });
     }
+
     private startPomodoro(reminder: any) {
         if (!this.plugin) {
             showMessage("无法启动番茄钟：插件实例不可用");
@@ -1231,6 +1251,41 @@ export class ReminderPanel {
         pomodoroTimer.show();
     }
 
+    private startPomodoroForward(reminder: any) {
+        if (!this.plugin) {
+            showMessage("无法启动正计时：插件实例不可用");
+            return;
+        }
+
+        // 如果已经有活动的正计时番茄钟，先关闭它
+        if (ReminderPanel.currentPomodoroForwardTimer) {
+            try {
+                ReminderPanel.currentPomodoroForwardTimer.close();
+                ReminderPanel.currentPomodoroForwardTimer = null;
+            } catch (error) {
+                console.error('关闭之前的正计时番茄钟失败:', error);
+            }
+        }
+
+        // 如果有倒计时番茄钟在运行，也先关闭它
+        if (ReminderPanel.currentPomodoroTimer) {
+            try {
+                ReminderPanel.currentPomodoroTimer.close();
+                ReminderPanel.currentPomodoroTimer = null;
+            } catch (error) {
+                console.error('关闭倒计时番茄钟失败:', error);
+            }
+        }
+
+        const settings = this.plugin.getPomodoroSettings();
+        const pomodoroForwardTimer = new PomodoroForwardTimer(reminder, settings);
+
+        // 设置当前活动的正计时番茄钟实例
+        ReminderPanel.currentPomodoroForwardTimer = pomodoroForwardTimer;
+
+        pomodoroForwardTimer.show();
+    }
+
     // 添加静态方法获取当前番茄钟实例
     public static getCurrentPomodoroTimer(): PomodoroTimer | null {
         return ReminderPanel.currentPomodoroTimer;
@@ -1245,6 +1300,23 @@ export class ReminderPanel {
                 console.error('清理番茄钟实例失败:', error);
             }
             ReminderPanel.currentPomodoroTimer = null;
+        }
+    }
+
+    // 添加静态方法获取当前正计时番茄钟实例
+    public static getCurrentPomodoroForwardTimer(): PomodoroForwardTimer | null {
+        return ReminderPanel.currentPomodoroForwardTimer;
+    }
+
+    // 添加静态方法清理当前正计时番茄钟实例
+    public static clearCurrentPomodoroForwardTimer(): void {
+        if (ReminderPanel.currentPomodoroForwardTimer) {
+            try {
+                ReminderPanel.currentPomodoroForwardTimer.destroy();
+            } catch (error) {
+                console.error('清理正计时番茄钟实例失败:', error);
+            }
+            ReminderPanel.currentPomodoroForwardTimer = null;
         }
     }
 
