@@ -20,12 +20,12 @@
     "desktop-window"
   ],
   "displayName": {
-    "en_US": "Time Reminder",
-    "zh_CN": "时间提醒"
+    "en_US": "Task Note Management",
+    "zh_CN": "任务笔记管理"
   },
   "description": {
-    "en_US": "A powerful time reminder plugin for SiYuan notes that supports document and block reminders, calendar view, and real-time notifications",
-    "zh_CN": "一款任务笔记时间提醒插件，用于践行防弹笔记法而开发，支持文档和块提醒、日历视图查看行事历、番茄钟专注等功能"
+    "en_US": "A plugin for SiYuan Note that implements task management features, developed to practice the Bullet Journal method. It supports document and block reminders, calendar view for scheduling, Pomodoro focus timer, and more.",
+    "zh_CN": "一款在思源笔记里实现任务笔记管理功能的插件，为了践行防弹笔记法而开发。支持文档和块提醒、日历视图查看行事历、番茄钟专注等功能"
   },
   "readme": {
     "en_US": "README.md",
