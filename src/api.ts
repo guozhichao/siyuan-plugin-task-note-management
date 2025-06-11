@@ -542,3 +542,62 @@ export async function ensureReminderDataFile(): Promise<void> {
         await writeReminderData({});
     }
 }
+
+// **************************************** Bookmark Management ****************************************
+
+/**
+ * 设置块的书签
+ * @param blockId 块ID
+ * @param bookmark 书签内容，如 "⏰"
+ */
+export async function setBlockBookmark(blockId: string, bookmark: string): Promise<any> {
+    const data = {
+        id: blockId,
+        attrs: {
+            bookmark: bookmark
+        }
+    };
+    return request('/api/attr/setBlockAttrs', data);
+}
+
+/**
+ * 移除块的书签
+ * @param blockId 块ID
+ */
+export async function removeBlockBookmark(blockId: string): Promise<any> {
+    const data = {
+        id: blockId,
+        attrs: {
+            bookmark: ""
+        }
+    };
+    return request('/api/attr/setBlockAttrs', data);
+}
+
+/**
+ * 检查并更新块的提醒书签状态
+ * @param blockId 块ID
+ */
+export async function updateBlockReminderBookmark(blockId: string): Promise<void> {
+    try {
+        const reminderData = await readReminderData();
+
+        // 查找该块的所有提醒
+        const blockReminders = Object.values(reminderData).filter((reminder: any) =>
+            reminder && reminder.blockId === blockId
+        );
+
+        // 检查是否有未完成的提醒
+        const hasIncompleteReminders = blockReminders.some((reminder: any) => !reminder.completed);
+
+        if (hasIncompleteReminders) {
+            // 如果有未完成的提醒，确保有⏰书签
+            await setBlockBookmark(blockId, "⏰");
+        } else {
+            // 如果没有未完成的提醒，移除书签
+            await removeBlockBookmark(blockId);
+        }
+    } catch (error) {
+        console.error('更新块提醒书签失败:', error);
+    }
+}

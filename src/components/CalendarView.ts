@@ -3,7 +3,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
-import { readReminderData, writeReminderData, getBlockByID } from "../api";
+import { readReminderData, writeReminderData, getBlockByID, updateBlockReminderBookmark } from "../api";
 import { getLocalDateString, getLocalDateTime } from "../utils/dateUtils";
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
@@ -486,8 +486,14 @@ export class CalendarView {
             const reminderData = await readReminderData();
 
             if (reminderData[reminderId]) {
+                const blockId = reminderData[reminderId].blockId;
                 delete reminderData[reminderId];
                 await writeReminderData(reminderData);
+
+                // 更新块的书签状态
+                if (blockId) {
+                    await updateBlockReminderBookmark(blockId);
+                }
 
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
@@ -593,6 +599,12 @@ export class CalendarView {
 
                     await writeReminderData(reminderData);
 
+                    // 更新块的书签状态
+                    const blockId = reminderData[originalId].blockId;
+                    if (blockId) {
+                        await updateBlockReminderBookmark(blockId);
+                    }
+
                     // 触发更新事件
                     window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
@@ -604,8 +616,14 @@ export class CalendarView {
                 const reminderId = event.id;
 
                 if (reminderData[reminderId]) {
+                    const blockId = reminderData[reminderId].blockId;
                     reminderData[reminderId].completed = !reminderData[reminderId].completed;
                     await writeReminderData(reminderData);
+
+                    // 更新块的书签状态
+                    if (blockId) {
+                        await updateBlockReminderBookmark(blockId);
+                    }
 
                     // 更新事件的显示状态
                     event.setExtendedProp('completed', reminderData[reminderId].completed);
@@ -1665,9 +1683,9 @@ export class CalendarView {
 
                     // 如果是跨天事件，也需要更新结束日期
                     if (originalReminder.endDate) {
-                        const originalStartDate = new Date(reminder.date + 'T12:00:00');
-                        const originalEndDate = new Date(originalReminder.endDate + 'T12:00:00');
-                        const daysDiff = Math.floor((originalEndDate.getTime() - originalStartDate.getTime()) / (1000 * 60 * 60 * 24));
+                        const originalStart = new Date(reminder.date + 'T12:00:00');
+                        const originalEnd = new Date(originalReminder.endDate + 'T12:00:00');
+                        const daysDiff = Math.floor((originalEnd.getTime() - originalStart.getTime()) / (1000 * 60 * 60 * 24));
 
                         const newEndDate = new Date(nextDate);
                         newEndDate.setDate(newEndDate.getDate() + daysDiff);

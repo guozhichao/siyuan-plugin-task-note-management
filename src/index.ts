@@ -14,7 +14,7 @@ import {
 import "./index.scss";
 import { ReminderDialog } from "./components/ReminderDialog";
 import { ReminderPanel } from "./components/ReminderPanel";
-import { ensureReminderDataFile } from "./api";
+import { ensureReminderDataFile, updateBlockReminderBookmark } from "./api";
 import { CalendarView } from "./components/CalendarView";
 import { CategoryManager } from "./utils/categoryManager";
 import { getLocalDateString, getLocalTimeString, compareDateStrings } from "./utils/dateUtils";
@@ -684,6 +684,7 @@ export default class ReminderPlugin extends Plugin {
 
             let successCount = 0;
             let failureCount = 0;
+            const successfulBlockIds: string[] = [];
 
             for (const blockId of blockIds) {
                 try {
@@ -717,6 +718,7 @@ export default class ReminderPlugin extends Plugin {
 
                         reminderData[reminderId] = reminder;
                         successCount++;
+                        successfulBlockIds.push(blockId);
                     } else {
                         failureCount++;
                     }
@@ -727,6 +729,15 @@ export default class ReminderPlugin extends Plugin {
             }
 
             await writeReminderData(reminderData);
+
+            // 为所有成功创建提醒的块添加书签
+            for (const blockId of successfulBlockIds) {
+                try {
+                    await updateBlockReminderBookmark(blockId);
+                } catch (error) {
+                    console.error(`更新块 ${blockId} 书签失败:`, error);
+                }
+            }
 
             if (successCount > 0) {
                 const isSpanning = endDate && endDate !== date;

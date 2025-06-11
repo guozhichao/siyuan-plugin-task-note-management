@@ -1,5 +1,5 @@
 import { showMessage, confirm, Dialog, Menu } from "siyuan";
-import { readReminderData, writeReminderData, getBlockByID } from "../api";
+import { readReminderData, writeReminderData, getBlockByID, updateBlockReminderBookmark } from "../api";
 import { getLocalDateString, compareDateStrings, getLocalDateTime } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { ReminderEditDialog } from "./ReminderEditDialog";
@@ -673,13 +673,27 @@ export class ReminderPanel {
                     }
 
                     await writeReminderData(reminderData);
+
+                    // 更新块的书签状态
+                    const blockId = reminderData[originalId].blockId;
+                    if (blockId) {
+                        await updateBlockReminderBookmark(blockId);
+                    }
+
                     window.dispatchEvent(new CustomEvent('reminderUpdated'));
                     this.loadReminders();
                 }
             } else if (reminderData[reminderId]) {
                 // 处理普通事件的完成状态
+                const blockId = reminderData[reminderId].blockId;
                 reminderData[reminderId].completed = completed;
                 await writeReminderData(reminderData);
+
+                // 更新块的书签状态
+                if (blockId) {
+                    await updateBlockReminderBookmark(blockId);
+                }
+
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
                 this.loadReminders();
             }
@@ -811,6 +825,10 @@ export class ReminderPanel {
 
             if (deletedCount > 0) {
                 await writeReminderData(reminderData);
+
+                // 更新块的书签状态（应该会移除书签，因为没有提醒了）
+                await updateBlockReminderBookmark(blockId);
+
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
                 showMessage(t("deletedRelatedReminders", { count: deletedCount.toString() }));
                 this.loadReminders();
@@ -1577,8 +1595,15 @@ export class ReminderPanel {
             const reminderData = await readReminderData();
 
             if (reminderData[reminderId]) {
+                const blockId = reminderData[reminderId].blockId;
                 delete reminderData[reminderId];
                 await writeReminderData(reminderData);
+
+                // 更新块的书签状态
+                if (blockId) {
+                    await updateBlockReminderBookmark(blockId);
+                }
+
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
                 showMessage(t("reminderDeleted"));
                 this.loadReminders();

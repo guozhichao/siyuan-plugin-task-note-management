@@ -1,5 +1,5 @@
 import { showMessage, Dialog, Menu, confirm } from "siyuan";
-import { readReminderData, writeReminderData, getBlockByID } from "../api";
+import { readReminderData, writeReminderData, getBlockByID, updateBlockReminderBookmark } from "../api";
 import { getLocalDateString, getLocalTimeString, compareDateStrings } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { ReminderEditDialog } from "./ReminderEditDialog";
@@ -192,7 +192,7 @@ export class ReminderDialog {
 
         try {
             const categories = this.categoryManager.getCategories();
-            
+
             // 获取该块的历史分类
             const defaultCategoryId = await this.getBlockDefaultCategory();
 
@@ -246,7 +246,7 @@ export class ReminderDialog {
                 if (reminder.categoryId) {
                     const current = categoryStats.get(reminder.categoryId);
                     const createdAt = reminder.createdAt || '1970-01-01T00:00:00Z';
-                    
+
                     if (current) {
                         current.count++;
                         if (createdAt > current.lastUsed) {
@@ -265,12 +265,12 @@ export class ReminderDialog {
             const sortedCategories = Array.from(categoryStats.entries()).sort((a, b) => {
                 const [categoryIdA, statsA] = a;
                 const [categoryIdB, statsB] = b;
-                
+
                 // 首先按使用频率排序
                 if (statsA.count !== statsB.count) {
                     return statsB.count - statsA.count;
                 }
-                
+
                 // 频率相同时按最近使用时间排序
                 return new Date(statsB.lastUsed).getTime() - new Date(statsA.lastUsed).getTime();
             });
@@ -476,6 +476,9 @@ export class ReminderDialog {
             reminderData[reminderId] = reminder;
             await writeReminderData(reminderData);
 
+            // 添加⏰书签到对应的块
+            await updateBlockReminderBookmark(this.blockId);
+
             // 显示保存成功消息，包含重复信息
             let successMessage = t("reminderSaved");
             if (endDate && endDate !== date) {
@@ -633,8 +636,14 @@ export class ReminderDialog {
             const reminderData = await readReminderData();
 
             if (reminderData[reminderId]) {
+                const blockId = reminderData[reminderId].blockId;
                 delete reminderData[reminderId];
                 await writeReminderData(reminderData);
+
+                // 更新块的书签状态
+                if (blockId) {
+                    await updateBlockReminderBookmark(blockId);
+                }
 
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
