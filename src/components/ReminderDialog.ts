@@ -16,11 +16,12 @@ export class ReminderDialog {
     private currentSort: string = 'time';
     private sortConfigUpdatedHandler: (event: CustomEvent) => void;
     private repeatConfig: RepeatConfig;
-    private categoryManager: CategoryManager; // 添加分类管理器
+    private categoryManager: CategoryManager;
+    private isAllDayDefault: boolean = true; // 添加全天事件默认标志
 
     constructor(blockId: string) {
         this.blockId = blockId;
-        this.categoryManager = CategoryManager.getInstance(); // 初始化分类管理器
+        this.categoryManager = CategoryManager.getInstance();
 
         // 初始化重复配置
         this.repeatConfig = {
@@ -132,16 +133,16 @@ export class ReminderDialog {
                             </div>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t("reminderTimeOptional")}</label>
-                            <input type="time" id="reminderTime" class="b3-text-field" value="${currentTime}">
-                            <div class="b3-form__desc">${t("noTimeDesc")}</div>
-                        </div>
-                        <div class="b3-form__group">
                             <label class="b3-checkbox">
-                                <input type="checkbox" id="noSpecificTime">
+                                <input type="checkbox" id="noSpecificTime" checked>
                                 <span class="b3-checkbox__graphic"></span>
                                 <span class="b3-checkbox__label">${t("noSpecificTime")}</span>
                             </label>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${t("reminderTimeOptional")}</label>
+                            <input type="time" id="reminderTime" class="b3-text-field" value="${currentTime}" disabled>
+                            <div class="b3-form__desc">${t("noTimeDesc")}</div>
                         </div>
                         
                         <!-- 添加重复设置 -->
@@ -157,7 +158,7 @@ export class ReminderDialog {
                         
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("reminderNoteOptional")}</label>
-                            <textarea id="reminderNote" class="b3-text-field" placeholder="${t("enterReminderNote")}" rows="3" style="width: 100%;resize: vertical; min-height: 60px;"></textarea>
+                            <textarea id="reminderNote" class="b3-text-field" placeholder="${t("enterReminderNote")}" rows="2" style="width: 100%;resize: vertical; min-height: 60px;"></textarea>
                         </div>
                         
                         <!-- 添加现有提醒显示区域 -->
@@ -173,11 +174,11 @@ export class ReminderDialog {
                 </div>
             `,
             width: "500px",
-            height: "950px" // 增加高度以容纳分类选择器
+            height: "950px"
         });
 
         this.bindEvents();
-        await this.renderCategorySelector(); // 渲染分类选择器
+        await this.renderCategorySelector();
         await this.loadExistingReminder();
 
         // 监听提醒更新事件
