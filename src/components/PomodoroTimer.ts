@@ -71,7 +71,7 @@ export class PomodoroTimer {
             position: fixed;
             top: 100px;
             right: 20px;
-            width: 280px;
+            width: 220px;
             background: var(--b3-theme-background);
             border: 1px solid var(--b3-theme-border);
             border-radius: 12px;
@@ -530,22 +530,31 @@ export class PomodoroTimer {
 
         // 更新按钮状态
         if (!this.isRunning) {
+            // 未开始状态：只显示播放按钮
             this.startPauseBtn.innerHTML = '▶️';
             this.startPauseBtn.style.display = 'flex';
             this.startPauseBtn.style.width = '36px';
             this.startPauseBtn.style.height = '36px';
+            this.startPauseBtn.style.fontSize = '20px';
             this.stopBtn.style.display = 'none';
         } else if (this.isPaused) {
+            // 暂停状态：显示继续按钮和停止按钮并列
             this.startPauseBtn.innerHTML = '▶️';
             this.startPauseBtn.style.display = 'flex';
-            this.startPauseBtn.style.width = '32px';
-            this.startPauseBtn.style.height = '32px';
+            this.startPauseBtn.style.width = '28px';
+            this.startPauseBtn.style.height = '28px';
+            this.startPauseBtn.style.fontSize = '16px';
             this.stopBtn.style.display = 'flex';
+            this.stopBtn.style.width = '28px';
+            this.stopBtn.style.height = '28px';
+            this.stopBtn.style.fontSize = '14px';
         } else {
+            // 运行状态：只显示暂停按钮
             this.startPauseBtn.innerHTML = '⏸';
             this.startPauseBtn.style.display = 'flex';
             this.startPauseBtn.style.width = '36px';
             this.startPauseBtn.style.height = '36px';
+            this.startPauseBtn.style.fontSize = '20px';
             this.stopBtn.style.display = 'none';
         }
     }
@@ -595,6 +604,9 @@ export class PomodoroTimer {
         if (this.workAudio) {
             this.workAudio.pause();
         }
+
+        // 更新显示状态，显示继续和停止按钮
+        this.updateDisplay();
     }
 
     private resumeTimer() {
