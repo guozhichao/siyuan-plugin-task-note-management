@@ -310,10 +310,10 @@ export class PomodoroRecordManager {
     getEventPomodoroCount(eventId: string, date?: string): number {
         const targetDate = date || this.getToday();
         const sessions = this.getDateSessions(targetDate);
-        
-        return sessions.filter(session => 
-            session.eventId === eventId && 
-            session.type === 'work' && 
+
+        return sessions.filter(session =>
+            session.eventId === eventId &&
+            session.type === 'work' &&
             session.completed
         ).length;
     }
@@ -324,7 +324,7 @@ export class PomodoroRecordManager {
     getEventFocusTime(eventId: string, date?: string): number {
         const targetDate = date || this.getToday();
         const sessions = this.getDateSessions(targetDate);
-        
+
         return sessions
             .filter(session => session.eventId === eventId && session.type === 'work')
             .reduce((total, session) => total + session.duration, 0);
@@ -337,14 +337,14 @@ export class PomodoroRecordManager {
         const sessions: PomodoroSession[] = [];
         const start = new Date(startDate);
         const end = new Date(endDate);
-        
+
         for (const date in this.records) {
             const recordDate = new Date(date);
             if (recordDate >= start && recordDate <= end) {
                 sessions.push(...this.records[date].sessions);
             }
         }
-        
+
         return sessions.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
     }
 
@@ -356,11 +356,11 @@ export class PomodoroRecordManager {
         const weekStart = new Date(today);
         weekStart.setDate(today.getDate() - today.getDay());
         weekStart.setHours(0, 0, 0, 0);
-        
+
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekStart.getDate() + 6);
         weekEnd.setHours(23, 59, 59, 999);
-        
+
         return this.getDateRangeSessions(
             weekStart.toISOString().split('T')[0],
             weekEnd.toISOString().split('T')[0]
@@ -372,7 +372,7 @@ export class PomodoroRecordManager {
      */
     getStatistics(startDate?: string, endDate?: string) {
         let sessions: PomodoroSession[];
-        
+
         if (startDate && endDate) {
             sessions = this.getDateRangeSessions(startDate, endDate);
         } else {
@@ -381,7 +381,7 @@ export class PomodoroRecordManager {
 
         const workSessions = sessions.filter(s => s.type === 'work' && s.completed);
         const breakSessions = sessions.filter(s => s.type !== 'work');
-        
+
         // 按事件分组统计
         const eventStats = new Map<string, {
             eventTitle: string;

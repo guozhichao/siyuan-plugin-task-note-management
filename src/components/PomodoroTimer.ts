@@ -980,7 +980,7 @@ export class PomodoroTimer {
             console.log('开始记录工作会话...');
             const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
             const eventTitle = this.reminder.title || '番茄专注';
-            
+
             await this.recordManager.recordWorkSession(
                 this.settings.workDuration,
                 eventId,
@@ -1002,7 +1002,7 @@ export class PomodoroTimer {
             const breakDuration = this.isLongBreak ? this.settings.longBreakDuration : this.settings.breakDuration;
             const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
             const eventTitle = this.reminder.title || '番茄专注';
-            
+
             console.log('开始记录休息会话...');
             await this.recordManager.recordBreakSession(
                 breakDuration,
