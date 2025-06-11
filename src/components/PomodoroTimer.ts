@@ -126,6 +126,32 @@ export class PomodoroTimer {
             gap: 4px;
         `;
 
+        // 工作时间按钮
+        const workBtn = document.createElement('button');
+        workBtn.className = 'pomodoro-work-btn';
+        workBtn.style.cssText = `
+            background: none;
+            border: none;
+            color: var(--b3-theme-on-surface);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            font-size: 14px;
+            line-height: 1;
+            opacity: 0.7;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+        workBtn.innerHTML = '💪';
+        workBtn.title = '工作时间';
+        workBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.startWorkTime();
+        });
+
         // 短时休息按钮
         const shortBreakBtn = document.createElement('button');
         shortBreakBtn.className = 'pomodoro-break-btn';
@@ -225,6 +251,7 @@ export class PomodoroTimer {
             this.close();
         });
 
+        headerButtons.appendChild(workBtn);
         headerButtons.appendChild(shortBreakBtn);
         headerButtons.appendChild(longBreakBtn);
         headerButtons.appendChild(this.expandToggleBtn);
@@ -719,6 +746,31 @@ export class PomodoroTimer {
                 this.completePhase();
             }
         }, 1000);
+    }
+
+    private startWorkTime() {
+        // 停止当前计时器
+        if (this.timer) {
+            clearInterval(this.timer);
+            this.timer = null;
+        }
+
+        // 停止工作背景音
+        if (this.workAudio) {
+            this.workAudio.pause();
+            this.workAudio.currentTime = 0;
+        }
+
+        // 设置工作时间
+        this.isWorkPhase = true;
+        this.isLongBreak = false;
+        this.isRunning = false;
+        this.isPaused = false;
+        this.timeLeft = this.settings.workDuration * 60;
+        this.totalTime = this.timeLeft;
+
+        this.updateDisplay();
+        showMessage('💪 开始工作时间');
     }
 
     private startShortBreak() {
