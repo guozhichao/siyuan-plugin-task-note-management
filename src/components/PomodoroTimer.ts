@@ -31,6 +31,7 @@ export class PomodoroTimer {
     private longBreakAudio: HTMLAudioElement = null;
     private endAudio: HTMLAudioElement = null;
     private recordManager: PomodoroRecordManager;
+    private audioInitialized: boolean = false; // 添加音频初始化标记
 
     constructor(reminder: any, settings: any) {
         this.reminder = reminder;
@@ -58,6 +59,7 @@ export class PomodoroTimer {
                 this.workAudio = new Audio(this.settings.workSound);
                 this.workAudio.loop = true;
                 this.workAudio.volume = 1;
+                this.workAudio.preload = 'auto'; // 预加载
             } catch (error) {
                 console.warn('无法加载工作背景音:', error);
             }
@@ -69,6 +71,7 @@ export class PomodoroTimer {
                 this.breakAudio = new Audio(this.settings.breakSound);
                 this.breakAudio.loop = true;
                 this.breakAudio.volume = 1;
+                this.breakAudio.preload = 'auto'; // 预加载
             } catch (error) {
                 console.warn('无法加载短时休息背景音:', error);
             }
@@ -80,6 +83,7 @@ export class PomodoroTimer {
                 this.longBreakAudio = new Audio(this.settings.longBreakSound);
                 this.longBreakAudio.loop = true;
                 this.longBreakAudio.volume = 1;
+                this.longBreakAudio.preload = 'auto'; // 预加载
             } catch (error) {
                 console.warn('无法加载长时休息背景音:', error);
             }
@@ -90,8 +94,69 @@ export class PomodoroTimer {
             try {
                 this.endAudio = new Audio(this.settings.endSound);
                 this.endAudio.volume = 1;
+                this.endAudio.preload = 'auto'; // 预加载
             } catch (error) {
                 console.warn('无法加载结束提示音:', error);
+            }
+        }
+    }
+
+    /**
+     * 初始化音频播放权限（在用户首次交互时调用）
+     */
+    private async initializeAudioPlayback() {
+        if (this.audioInitialized) return;
+
+        try {
+            // 尝试播放一个静音的音频来获取播放权限
+            const silentAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
+            await silentAudio.play();
+            silentAudio.pause();
+
+            // 预加载所有音频
+            const audioPromises = [];
+
+            if (this.workAudio) {
+                audioPromises.push(this.workAudio.load());
+            }
+            if (this.breakAudio) {
+                audioPromises.push(this.breakAudio.load());
+            }
+            if (this.longBreakAudio) {
+                audioPromises.push(this.longBreakAudio.load());
+            }
+            if (this.endAudio) {
+                audioPromises.push(this.endAudio.load());
+            }
+
+            await Promise.allSettled(audioPromises);
+            this.audioInitialized = true;
+            console.log('音频播放权限已获取');
+        } catch (error) {
+            console.warn('无法获取音频播放权限:', error);
+        }
+    }
+
+    /**
+     * 安全播放音频
+     */
+    private async safePlayAudio(audio: HTMLAudioElement) {
+        if (!audio) return;
+
+        try {
+            // 如果音频还未初始化，先尝试初始化
+            if (!this.audioInitialized) {
+                await this.initializeAudioPlayback();
+            }
+
+            await audio.play();
+        } catch (error) {
+            console.warn('音频播放失败:', error);
+
+            // 如果播放失败，尝试重新获取权限
+            if (error.name === 'NotAllowedError') {
+                console.log('尝试重新获取音频播放权限...');
+                this.audioInitialized = false;
             }
         }
     }
@@ -705,6 +770,11 @@ export class PomodoroTimer {
     }
 
     private toggleTimer() {
+        // 在用户首次交互时初始化音频
+        if (!this.audioInitialized) {
+            this.initializeAudioPlayback();
+        }
+
         if (!this.isRunning) {
             this.startTimer();
         } else {
@@ -716,18 +786,18 @@ export class PomodoroTimer {
         }
     }
 
-    private startTimer() {
+    private async startTimer() {
         this.isRunning = true;
         this.isPaused = false;
 
         // 播放对应的背景音
         if (this.isWorkPhase && this.workAudio) {
-            this.workAudio.play().catch(e => console.warn('无法播放工作背景音:', e));
+            await this.safePlayAudio(this.workAudio);
         } else if (!this.isWorkPhase) {
             if (this.isLongBreak && this.longBreakAudio) {
-                this.longBreakAudio.play().catch(e => console.warn('无法播放长时休息背景音:', e));
+                await this.safePlayAudio(this.longBreakAudio);
             } else if (!this.isLongBreak && this.breakAudio) {
-                this.breakAudio.play().catch(e => console.warn('无法播放短时休息背景音:', e));
+                await this.safePlayAudio(this.breakAudio);
             }
         }
 
@@ -766,17 +836,17 @@ export class PomodoroTimer {
         this.updateDisplay();
     }
 
-    private resumeTimer() {
+    private async resumeTimer() {
         this.isPaused = false;
 
         // 恢复对应的背景音
         if (this.isWorkPhase && this.workAudio) {
-            this.workAudio.play().catch(e => console.warn('无法播放工作背景音:', e));
+            await this.safePlayAudio(this.workAudio);
         } else if (!this.isWorkPhase) {
             if (this.isLongBreak && this.longBreakAudio) {
-                this.longBreakAudio.play().catch(e => console.warn('无法播放长时休息背景音:', e));
+                await this.safePlayAudio(this.longBreakAudio);
             } else if (!this.isLongBreak && this.breakAudio) {
-                this.breakAudio.play().catch(e => console.warn('无法播放短时休息背景音:', e));
+                await this.safePlayAudio(this.breakAudio);
             }
         }
 
@@ -790,7 +860,12 @@ export class PomodoroTimer {
         }, 1000);
     }
 
-    private startWorkTime() {
+    private async startWorkTime() {
+        // 在用户点击时初始化音频
+        if (!this.audioInitialized) {
+            await this.initializeAudioPlayback();
+        }
+
         // 停止当前计时器
         if (this.timer) {
             clearInterval(this.timer);
@@ -812,7 +887,12 @@ export class PomodoroTimer {
         showMessage('💪 开始工作时间');
     }
 
-    private startShortBreak() {
+    private async startShortBreak() {
+        // 在用户点击时初始化音频
+        if (!this.audioInitialized) {
+            await this.initializeAudioPlayback();
+        }
+
         // 停止当前计时器
         if (this.timer) {
             clearInterval(this.timer);
@@ -834,7 +914,12 @@ export class PomodoroTimer {
         showMessage('🍵 开始短时休息');
     }
 
-    private startLongBreak() {
+    private async startLongBreak() {
+        // 在用户点击时初始化音频
+        if (!this.audioInitialized) {
+            await this.initializeAudioPlayback();
+        }
+
         // 停止当前计时器
         if (this.timer) {
             clearInterval(this.timer);
@@ -887,7 +972,7 @@ export class PomodoroTimer {
 
         // 播放结束提示音
         if (this.endAudio) {
-            this.endAudio.play().catch(e => console.warn('无法播放结束提示音:', e));
+            await this.safePlayAudio(this.endAudio);
         }
 
         if (this.isWorkPhase) {
