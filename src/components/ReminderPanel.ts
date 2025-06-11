@@ -7,6 +7,7 @@ import { CategoryManager, Category } from "../utils/categoryManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { t } from "../utils/i18n";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
+import { PomodoroTimer } from "./PomodoroTimer";
 
 export class ReminderPanel {
     private container: HTMLElement;
@@ -1069,6 +1070,13 @@ export class ReminderPanel {
                 label: t("deleteAllInstances"),
                 click: () => this.deleteOriginalReminder(reminder.originalId)
             });
+            menu.addSeparator();
+            // 添加番茄钟选项
+            menu.addItem({
+                iconHTML: "🍅",
+                label: "开始番茄钟",
+                click: () => this.startPomodoro(reminder)
+            });
 
         } else if (reminder.repeat?.enabled) {
             // --- Menu for the ORIGINAL RECURRING EVENT (User Request) ---
@@ -1104,6 +1112,13 @@ export class ReminderPanel {
                 label: t("deleteAllInstances"), // Deletes the entire series
                 click: () => this.deleteReminder(reminder)
             });
+            menu.addSeparator();
+            // 添加番茄钟选项
+            menu.addItem({
+                iconHTML: "🍅",
+                label: "开始番茄钟",
+                click: () => this.startPomodoro(reminder)
+            });
 
         } else {
             // --- Menu for a SIMPLE, NON-RECURRING EVENT ---
@@ -1123,6 +1138,12 @@ export class ReminderPanel {
                 submenu: createCategoryMenuItems()
             });
             menu.addSeparator();
+            // 添加番茄钟选项
+            menu.addItem({
+                iconHTML: "🍅",
+                label: "开始番茄钟",
+                click: () => this.startPomodoro(reminder)
+            });
             menu.addItem({
                 iconHTML: "🗑️",
                 label: t("deleteReminder"),
@@ -1135,6 +1156,17 @@ export class ReminderPanel {
             y: event.clientY
         });
     }
+    private startPomodoro(reminder: any) {
+        if (!this.plugin) {
+            showMessage("无法启动番茄钟：插件实例不可用");
+            return;
+        }
+
+        const settings = this.plugin.getPomodoroSettings();
+        const pomodoroTimer = new PomodoroTimer(reminder, settings);
+        pomodoroTimer.show();
+    }
+
 
     /**
      * [NEW] Calculates the next occurrence date based on the repeat settings.

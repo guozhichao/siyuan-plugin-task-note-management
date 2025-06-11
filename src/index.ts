@@ -21,8 +21,11 @@ import { getLocalDateString, getLocalTimeString, compareDateStrings } from "./ut
 import { t, setPluginInstance } from "./utils/i18n";
 import { RepeatConfig } from "./components/RepeatSettingsDialog";
 import { getRepeatDescription } from "./utils/repeatUtils";
+import { SettingUtils } from "./libs/setting-utils";
+import { PomodoroRecordManager } from "./utils/pomodoroRecord";
 
 const STORAGE_NAME = "reminder-config";
+const SETTINGS_NAME = "reminder-settings";
 const TAB_TYPE = "reminder_calendar_tab";
 
 export default class ReminderPlugin extends Plugin {
@@ -31,7 +34,8 @@ export default class ReminderPlugin extends Plugin {
     private topBarElement: HTMLElement;
     private dockElement: HTMLElement;
     private calendarViews: Map<string, any> = new Map();
-    private categoryManager: CategoryManager; // 添加分类管理器
+    private categoryManager: CategoryManager;
+    private settingUtils: SettingUtils; // 添加设置工具
 
     async onload() {
         console.log("Reminder Plugin loaded");
@@ -39,8 +43,15 @@ export default class ReminderPlugin extends Plugin {
         // 设置插件实例引用
         setPluginInstance(this);
 
+        // 初始化设置
+        this.initSettings();
+
         // 确保提醒数据文件存在
         await ensureReminderDataFile();
+
+        // 初始化番茄钟记录管理器
+        const pomodoroRecordManager = PomodoroRecordManager.getInstance();
+        await pomodoroRecordManager.initialize();
 
         // 初始化分类管理器
         this.categoryManager = CategoryManager.getInstance();
@@ -48,6 +59,64 @@ export default class ReminderPlugin extends Plugin {
 
         // 直接初始化，不再需要延迟
         this.initializeUI();
+    }
+
+    private initSettings() {
+        this.settingUtils = new SettingUtils({
+            plugin: this,
+            name: SETTINGS_NAME,
+            width: "600px",
+            height: "400px"
+        });
+
+        // 番茄钟工作时长设置
+        this.settingUtils.addItem({
+            key: "pomodoroWorkDuration",
+            value: 25,
+            type: "number",
+            title: "番茄钟工作时长（分钟）",
+            description: "设置番茄钟工作阶段的时长，默认25分钟"
+        });
+
+        // 番茄钟休息时长设置
+        this.settingUtils.addItem({
+            key: "pomodoroBreakDuration",
+            value: 5,
+            type: "number",
+            title: "番茄钟休息时长（分钟）",
+            description: "设置番茄钟休息阶段的时长，默认5分钟"
+        });
+
+        // 工作时背景音设置
+        this.settingUtils.addItem({
+            key: "pomodoroWorkSound",
+            value: "",
+            type: "textinput",
+            title: "工作时背景音（可选）",
+            description: "设置工作时播放的背景音文件路径，留空则静音"
+        });
+
+        // 结束提示音设置
+        this.settingUtils.addItem({
+            key: "pomodoroEndSound",
+            value: "",
+            type: "textinput",
+            title: "结束提示音（可选）",
+            description: "设置番茄钟结束时的提示音文件路径，留空则静音"
+        });
+
+        // 加载设置
+        this.settingUtils.load();
+    }
+
+    // 获取番茄钟设置
+    getPomodoroSettings() {
+        return {
+            workDuration: this.settingUtils.get("pomodoroWorkDuration") || 25,
+            breakDuration: this.settingUtils.get("pomodoroBreakDuration") || 5,
+            workSound: this.settingUtils.get("pomodoroWorkSound") || "",
+            endSound: this.settingUtils.get("pomodoroEndSound") || ""
+        };
     }
 
     private initializeUI() {
