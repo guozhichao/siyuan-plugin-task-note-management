@@ -11,7 +11,7 @@ export interface Category {
 const DEFAULT_CATEGORIES: Category[] = [
     { id: 'work', name: '工作', color: '#e74c3c', icon: '🎯' },
     { id: 'study', name: '学习', color: '#3498db', icon: '📖' },
-    { id: 'life', name: '生活', color: '#27ae60', icon: '☘️' }
+    { id: 'life', name: '娱乐', color: '#27ae60', icon: '☘️' }
 ];
 
 const CATEGORIES_FILE_PATH = 'data/storage/petal/siyuan-plugin-task-note-management/categories.json';
