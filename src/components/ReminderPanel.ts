@@ -341,6 +341,11 @@ export class ReminderPanel {
             tomorrow.setDate(tomorrow.getDate() + 1);
             const tomorrowStr = getLocalDateString(tomorrow);
 
+            // 计算过去七天的日期范围
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // 包括今天，所以是-6
+            const sevenDaysAgoStr = getLocalDateString(sevenDaysAgo);
+
             const reminders = Object.values(reminderData).filter((reminder: any) => {
                 return reminder && typeof reminder === 'object' && reminder.id && reminder.date;
             });
@@ -457,6 +462,14 @@ export class ReminderPanel {
                 tomorrowReminders.push(instance);
             });
 
+            // 添加过去七天提醒的筛选
+            const pastSevenDaysReminders = filteredReminders.filter((reminder: any) => {
+                // 过去七天包括：已完成的、未完成的、过期的，只要在时间范围内
+                const reminderDate = reminder.endDate || reminder.date;
+                return compareDateStrings(sevenDaysAgoStr, reminderDate) <= 0 &&
+                    compareDateStrings(reminderDate, today) <= 0;
+            });
+
             const completed = filteredReminders.filter((reminder: any) => reminder.completed);
 
             this.updateReminderCounts(overdue.length, todayReminders.length, tomorrowReminders.length, completed.length);
@@ -477,6 +490,8 @@ export class ReminderPanel {
                     displayReminders = completed;
                     break;
                 case 'all':
+                    displayReminders = pastSevenDaysReminders;
+                    break;
                 default:
                     displayReminders = [...todayReminders, ...tomorrowReminders];
             }
@@ -513,6 +528,11 @@ export class ReminderPanel {
         tomorrow.setDate(tomorrow.getDate() + 1);
         const tomorrowStr = getLocalDateString(tomorrow);
 
+        // 计算过去七天的日期范围
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // 包括今天，所以是-6
+        const sevenDaysAgoStr = getLocalDateString(sevenDaysAgo);
+
         const reminders = Array.isArray(reminderData) ? reminderData : Object.values(reminderData).filter((reminder: any) => {
             if (!reminder || typeof reminder !== 'object' || !reminder.id) return false;
 
@@ -544,6 +564,10 @@ export class ReminderPanel {
                 case 'completed':
                     return reminder.completed;
                 case 'all':
+                    // 过去七天的提醒（包括今天）
+                    const reminderDate = reminder.endDate || reminder.date;
+                    return compareDateStrings(sevenDaysAgoStr, reminderDate) <= 0 &&
+                        compareDateStrings(reminderDate, today) <= 0;
                 default:
                     return true;
             }
