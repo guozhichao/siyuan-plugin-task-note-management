@@ -14,7 +14,7 @@ const DEFAULT_CATEGORIES: Category[] = [
     { id: 'life', name: '生活', color: '#27ae60', icon: '☘️' }
 ];
 
-const CATEGORIES_FILE_PATH = 'data/storage/petal/siyuan-plugin-task-reminder/categories.json';
+const CATEGORIES_FILE_PATH = 'data/storage/petal/siyuan-plugin-task-note-management/categories.json';
 
 export class CategoryManager {
     private static instance: CategoryManager;

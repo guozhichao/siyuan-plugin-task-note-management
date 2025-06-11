@@ -1,7 +1,7 @@
 import { getFile, putFile } from "../api";
 import { t } from "./i18n";
 
-const SORT_CONFIG_PATH = 'data/storage/petal/siyuan-plugin-task-reminder/sort_methods.json';
+const SORT_CONFIG_PATH = 'data/storage/petal/siyuan-plugin-task-note-management/sort_methods.json';
 
 interface SortConfig {
     currentSort: string;

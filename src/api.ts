@@ -517,12 +517,12 @@ export async function currentTime(): Promise<number> {
 export async function writeReminderData(data: any): Promise<any> {
     const content = JSON.stringify(data, null, 2);
     const blob = new Blob([content], { type: 'application/json' });
-    return putFile('data/storage/petal/siyuan-plugin-task-reminder/reminder.json', false, blob);
+    return putFile('data/storage/petal/siyuan-plugin-task-note-management/reminder.json', false, blob);
 }
 
 export async function readReminderData(): Promise<any> {
     try {
-        const content = await getFile('data/storage/petal/siyuan-plugin-task-reminder/reminder.json');
+        const content = await getFile('data/storage/petal/siyuan-plugin-task-note-management/reminder.json');
         if (!content) {
             return {};
         }

@@ -1,7 +1,7 @@
 {
-  "name": "siyuan-plugin-task-reminder",
+  "name": "siyuan-plugin-task-note-management",
   "author": "Achuan-2",
-  "url": "https://github.com/Achuan-2/siyuan-plugin-task-reminder",
+  "url": "https://github.com/Achuan-2/siyuan-plugin-task-note-management",
   "version": "0.1.0",
   "minAppVersion": "3.0.12",
   "backends": [
