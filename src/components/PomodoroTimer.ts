@@ -978,7 +978,16 @@ export class PomodoroTimer {
         if (this.isWorkPhase) {
             // 记录完成的工作番茄
             console.log('开始记录工作会话...');
-            await this.recordManager.recordWorkSession(this.settings.workDuration);
+            const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
+            const eventTitle = this.reminder.title || '番茄专注';
+            
+            await this.recordManager.recordWorkSession(
+                this.settings.workDuration,
+                eventId,
+                eventTitle,
+                this.settings.workDuration,
+                true // 完成状态
+            );
 
             // 更新提醒的番茄数量
             await this.updateReminderPomodoroCount();
@@ -991,8 +1000,18 @@ export class PomodoroTimer {
         } else {
             // 记录完成的休息时间
             const breakDuration = this.isLongBreak ? this.settings.longBreakDuration : this.settings.breakDuration;
+            const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
+            const eventTitle = this.reminder.title || '番茄专注';
+            
             console.log('开始记录休息会话...');
-            await this.recordManager.recordBreakSession(breakDuration);
+            await this.recordManager.recordBreakSession(
+                breakDuration,
+                eventId,
+                eventTitle,
+                breakDuration,
+                this.isLongBreak,
+                true // 完成状态
+            );
 
             const breakType = this.isLongBreak ? '长时休息' : '短时休息';
             showMessage(`☕ ${breakType}结束！准备开始下一个番茄钟`, 3000);
