@@ -1,5 +1,6 @@
 import { showMessage } from "siyuan";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
+import { readReminderData, writeReminderData } from "../api";
 
 export class PomodoroTimer {
     private reminder: any;
@@ -46,7 +47,7 @@ export class PomodoroTimer {
             try {
                 this.workAudio = new Audio(this.settings.workSound);
                 this.workAudio.loop = true;
-                this.workAudio.volume = 0.3;
+                this.workAudio.volume = 1;
             } catch (error) {
                 console.warn('无法加载工作背景音:', error);
             }
@@ -56,7 +57,7 @@ export class PomodoroTimer {
         if (this.settings.endSound) {
             try {
                 this.endAudio = new Audio(this.settings.endSound);
-                this.endAudio.volume = 0.7;
+                this.endAudio.volume = 1;
             } catch (error) {
                 console.warn('无法加载结束提示音:', error);
             }
@@ -182,7 +183,7 @@ export class PomodoroTimer {
             display: flex;
             align-items: center;
             gap: 16px;
-            margin-bottom: 16px;
+            margin-bottom: 10px;
         `;
 
         // 左侧圆环进度条
@@ -670,6 +671,9 @@ export class PomodoroTimer {
             // 记录完成的工作番茄
             await this.recordManager.recordWorkSession(this.settings.workDuration);
 
+            // 更新提醒的番茄数量
+            await this.updateReminderPomodoroCount();
+
             showMessage('🍅 工作时间结束！开始休息吧～', 3000);
             this.isWorkPhase = false;
             this.statusDisplay.textContent = '休息时间';
@@ -689,6 +693,45 @@ export class PomodoroTimer {
         this.isPaused = false;
         this.updateDisplay();
         this.updateStatsDisplay();
+    }
+
+    /**
+     * 更新提醒的番茄数量
+     */
+    private async updateReminderPomodoroCount() {
+        try {
+            const reminderData = await readReminderData();
+
+            // 根据提醒类型确定要更新的ID
+            let targetId: string;
+            if (this.reminder.isRepeatInstance) {
+                targetId = this.reminder.originalId;
+            } else {
+                targetId = this.reminder.id;
+            }
+
+            if (reminderData[targetId]) {
+                // 初始化番茄数量字段
+                if (typeof reminderData[targetId].pomodoroCount !== 'number') {
+                    reminderData[targetId].pomodoroCount = 0;
+                }
+
+                // 增加番茄数量
+                reminderData[targetId].pomodoroCount++;
+
+                // 保存更新
+                await writeReminderData(reminderData);
+
+                // 触发界面更新
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+                console.log(`提醒 ${targetId} 的番茄数量已更新为: ${reminderData[targetId].pomodoroCount}`);
+            } else {
+                console.warn('未找到对应的提醒项:', targetId);
+            }
+        } catch (error) {
+            console.error('更新提醒番茄数量失败:', error);
+        }
     }
 
     show() {

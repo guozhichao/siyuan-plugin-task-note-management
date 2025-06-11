@@ -62,6 +62,9 @@ export class PomodoroRecordManager {
     async recordWorkSession(workMinutes: number) {
         const today = new Date().toISOString().split('T')[0];
 
+        // 先加载最新的记录，确保获取到最新数据
+        await this.loadRecords();
+
         if (!this.records[today]) {
             this.records[today] = {
                 date: today,
@@ -71,7 +74,8 @@ export class PomodoroRecordManager {
             };
         }
 
-        this.records[today].workSessions++;
+        // 累加数据而不是覆盖
+        this.records[today].workSessions += 1;
         this.records[today].totalWorkTime += workMinutes;
 
         await this.saveRecords();
@@ -80,6 +84,9 @@ export class PomodoroRecordManager {
     async recordBreakSession(breakMinutes: number) {
         const today = new Date().toISOString().split('T')[0];
 
+        // 先加载最新的记录，确保获取到最新数据
+        await this.loadRecords();
+
         if (!this.records[today]) {
             this.records[today] = {
                 date: today,
@@ -89,6 +96,7 @@ export class PomodoroRecordManager {
             };
         }
 
+        // 累加数据而不是覆盖
         this.records[today].totalBreakTime += breakMinutes;
 
         await this.saveRecords();
@@ -113,6 +121,51 @@ export class PomodoroRecordManager {
         }
 
         return totalMinutes;
+    }
+
+    /**
+     * 获取指定提醒的番茄数量
+     */
+    async getReminderPomodoroCount(reminderId: string): Promise<number> {
+        try {
+            const { readReminderData } = await import("../api");
+            const reminderData = await readReminderData();
+
+            if (reminderData && reminderData[reminderId]) {
+                return reminderData[reminderId].pomodoroCount || 0;
+            }
+
+            return 0;
+        } catch (error) {
+            console.error('获取提醒番茄数量失败:', error);
+            return 0;
+        }
+    }
+
+    /**
+     * 获取今日所有提醒的总番茄数
+     */
+    async getTodayTotalPomodoroCount(): Promise<number> {
+        try {
+            const { readReminderData } = await import("../api");
+            const reminderData = await readReminderData();
+
+            if (!reminderData) return 0;
+
+            const today = new Date().toISOString().split('T')[0];
+            let totalCount = 0;
+
+            Object.values(reminderData).forEach((reminder: any) => {
+                if (reminder && reminder.date === today && reminder.pomodoroCount) {
+                    totalCount += reminder.pomodoroCount;
+                }
+            });
+
+            return totalCount;
+        } catch (error) {
+            console.error('获取今日总番茄数失败:', error);
+            return 0;
+        }
     }
 
     formatTime(minutes: number): string {

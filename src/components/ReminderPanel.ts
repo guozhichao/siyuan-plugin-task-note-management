@@ -849,6 +849,7 @@ export class ReminderPanel {
 
         titleContainer.appendChild(titleEl);
 
+
         // 时间信息容器
         const timeContainer = document.createElement('div');
         timeContainer.className = 'reminder-item__time-container';
@@ -938,7 +939,31 @@ export class ReminderPanel {
                 infoEl.appendChild(categoryContainer);
             }
         }
+        // 添加番茄数量显示（在分类）
+        const targetReminder = reminder.isRepeatInstance ?
+            (this.getOriginalReminder(reminder.originalId) || reminder) :
+            reminder;
 
+        if (targetReminder.pomodoroCount && targetReminder.pomodoroCount > 0) {
+            const pomodoroDisplay = document.createElement('div');
+            pomodoroDisplay.className = 'reminder-pomodoro-count';
+            pomodoroDisplay.style.cssText = `
+                font-size: 12px;
+                display: inline-flex;
+                align-items: center;
+                gap: 2px;
+            `;
+
+            // 生成番茄emoji
+            const tomatoEmojis = '🍅'.repeat(Math.min(targetReminder.pomodoroCount, 5));
+            const extraCount = targetReminder.pomodoroCount > 5 ? `+${targetReminder.pomodoroCount - 5}` : '';
+
+            pomodoroDisplay.innerHTML = `
+                <span title="完成的番茄钟数量: ${targetReminder.pomodoroCount}">${tomatoEmojis}${extraCount}</span>
+            `;
+
+            infoEl.appendChild(pomodoroDisplay);
+        }
         // 备注
         if (reminder.note) {
             const noteEl = document.createElement('div');
@@ -953,6 +978,23 @@ export class ReminderPanel {
 
         return reminderEl;
     }
+
+    /**
+     * 获取原始提醒数据（用于重复事件实例）
+     */
+    private getOriginalReminder(originalId: string): any {
+        try {
+            // 这里需要从缓存中获取原始提醒数据
+            // 为了性能考虑，我们可以在loadReminders时缓存这些数据
+            return this.originalRemindersCache?.[originalId] || null;
+        } catch (error) {
+            console.error('获取原始提醒失败:', error);
+            return null;
+        }
+    }
+
+    // 添加缓存属性
+    private originalRemindersCache: { [id: string]: any } = {};
 
     private async editOriginalReminder(originalId: string) {
         try {

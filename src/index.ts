@@ -675,6 +675,7 @@ export default class ReminderPlugin extends Plugin {
                             completed: false,
                             priority: priority,
                             categoryId: categoryId, // 添加分类ID
+                            pomodoroCount: 0, // 初始化番茄数量
                             createdAt: new Date().toISOString(),
                             repeat: repeatConfig?.enabled ? repeatConfig : undefined
                         };
