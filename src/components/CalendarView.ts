@@ -1403,6 +1403,20 @@ export class CalendarView {
                 eventObj.start = `${reminder.date}T${reminder.time}:00`;
                 if (reminder.endTime) {
                     eventObj.end = `${reminder.date}T${reminder.endTime}:00`;
+                } else {
+                    // 对于只有开始时间的提醒，设置30分钟的默认持续时间，但确保不跨天
+                    const startTime = new Date(`${reminder.date}T${reminder.time}:00`);
+                    const endTime = new Date(startTime);
+                    endTime.setMinutes(endTime.getMinutes() + 30);
+
+                    // 检查是否跨天，如果跨天则设置为当天23:59
+                    if (endTime.getDate() !== startTime.getDate()) {
+                        endTime.setDate(startTime.getDate());
+                        endTime.setHours(23, 59, 0, 0);
+                    }
+
+                    const endTimeStr = endTime.toTimeString().substring(0, 5);
+                    eventObj.end = `${reminder.date}T${endTimeStr}:00`;
                 }
                 eventObj.allDay = false;
             } else {
