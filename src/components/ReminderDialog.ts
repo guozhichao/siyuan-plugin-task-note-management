@@ -700,6 +700,11 @@ export class ReminderDialog {
         element.className = 'reminder-item reminder-item--compact';
         element.setAttribute('data-id', reminder.id);
 
+        // 根据完成状态设置透明度
+        if (reminder.completed) {
+            element.style.opacity = '0.5';
+        }
+
         // 添加右键菜单支持
         element.addEventListener('contextmenu', (e) => {
             e.preventDefault();
