@@ -105,6 +105,17 @@ export default class ReminderPlugin extends Plugin {
             description: "设置工作时播放的背景音文件路径，留空则静音"
         });
 
+        // 短时休息背景音设置
+        this.settingUtils.addItem({
+            key: "pomodoroBreakSound",
+            value: "",
+            type: "textinput",
+            title: "休息背景音（可选）",
+            description: "设置休息时播放的背景音文件路径，留空则静音"
+        });
+
+
+
         // 结束提示音设置
         this.settingUtils.addItem({
             key: "pomodoroEndSound",
@@ -125,6 +136,8 @@ export default class ReminderPlugin extends Plugin {
             breakDuration: this.settingUtils.get("pomodoroBreakDuration") || 5,
             longBreakDuration: this.settingUtils.get("pomodoroLongBreakDuration") || 30,
             workSound: this.settingUtils.get("pomodoroWorkSound") || "",
+            breakSound: this.settingUtils.get("pomodoroBreakSound") || "",
+            longBreakSound: this.settingUtils.get("pomodoroBreakSound") || "",
             endSound: this.settingUtils.get("pomodoroEndSound") || ""
         };
     }
