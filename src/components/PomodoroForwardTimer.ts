@@ -338,7 +338,7 @@ export class PomodoroForwardTimer {
         const content = document.createElement('div');
         content.className = 'pomodoro-content';
         content.style.cssText = `
-            padding: 16px;
+            padding: 10px 16px 16px 16px;;
         `;
 
         // 事件名称显示
@@ -354,6 +354,8 @@ export class PomodoroForwardTimer {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            margin-bottom: 5px
+
         `;
         eventTitle.textContent = this.reminder.title || '番茄专注';
         eventTitle.title = this.reminder.title || '番茄专注';
