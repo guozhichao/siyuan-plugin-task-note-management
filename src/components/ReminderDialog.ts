@@ -701,19 +701,6 @@ export class ReminderDialog {
         const titleContainer = document.createElement('div');
         titleContainer.className = 'reminder-item__title-container';
 
-        // 添加分类显示
-        if (reminder.categoryId) {
-            const category = this.categoryManager.getCategoryById(reminder.categoryId);
-            if (category) {
-                const categoryEl = document.createElement('div');
-                categoryEl.className = 'reminder-category-label';
-                categoryEl.innerHTML = `
-                    <div class="category-dot" style="background-color: ${category.color};"></div>
-                    <span class="category-name">${category.name}</span>
-                `;
-                titleContainer.appendChild(categoryEl);
-            }
-        }
 
         // 标题
         const titleEl = document.createElement('div');
