@@ -41,7 +41,7 @@
     "reminderNoteOptional": "备注（可选）",
     "eventTitle": "事件标题",
     "allDayReminder": "全天提醒",
-    "noSpecificTime": "不设置具体时间",
+    "noSpecificTime": "不设置具体提醒时间",
     "endDate": "结束日期",
     "endDateOptional": "结束日期（可选）",
     "spanningEventDesc": "设置跨天事件的结束日期，留空表示单日事件",
