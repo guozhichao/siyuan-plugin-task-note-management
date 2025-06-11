@@ -327,7 +327,7 @@ export default class ReminderPlugin extends Plugin {
     private setDockBadge(count: number) {
 
         // 查找停靠栏图标
-        const dockIcon = document.querySelector('.dock__item[data-type="siyuna-plugin-reminderreminder_dock"]');
+        const dockIcon = document.querySelector('.dock__item[data-type="siyuan-plugin-reminderreminder_dock"]');
         if (!dockIcon) return;
 
         // 移除现有徽章

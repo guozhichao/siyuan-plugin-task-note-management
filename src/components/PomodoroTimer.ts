@@ -36,6 +36,13 @@ export class PomodoroTimer {
         this.totalTime = this.timeLeft;
         this.recordManager = PomodoroRecordManager.getInstance();
 
+        this.initComponents();
+    }
+
+    private async initComponents() {
+        // 确保记录管理器已初始化
+        await this.recordManager.initialize();
+
         this.initAudio();
         this.createWindow();
         this.updateStatsDisplay();
@@ -669,6 +676,7 @@ export class PomodoroTimer {
 
         if (this.isWorkPhase) {
             // 记录完成的工作番茄
+            console.log('开始记录工作会话...');
             await this.recordManager.recordWorkSession(this.settings.workDuration);
 
             // 更新提醒的番茄数量
@@ -680,6 +688,7 @@ export class PomodoroTimer {
             this.timeLeft = this.settings.breakDuration * 60;
         } else {
             // 记录完成的休息时间
+            console.log('开始记录休息会话...');
             await this.recordManager.recordBreakSession(this.settings.breakDuration);
 
             showMessage('☕ 休息结束！准备开始下一个番茄钟', 3000);
@@ -692,7 +701,11 @@ export class PomodoroTimer {
         this.isRunning = false;
         this.isPaused = false;
         this.updateDisplay();
-        this.updateStatsDisplay();
+
+        // 延迟更新统计显示，确保数据已保存
+        setTimeout(() => {
+            this.updateStatsDisplay();
+        }, 100);
     }
 
     /**
@@ -735,7 +748,7 @@ export class PomodoroTimer {
     }
 
     show() {
-        this.container.style.display = 'block';
+        // this.container.style.display = 'block';
     }
 
     close() {
