@@ -409,29 +409,35 @@ export class ReminderPanel {
             // 应用分类过滤
             const filteredReminders = this.applyCategoryFilter(allReminders);
 
-            // 分类提醒
+            // 分类提醒 - 改进过期判断逻辑
             const overdue = filteredReminders.filter((reminder: any) => {
                 if (reminder.completed) return false;
 
+                // 对于跨天事件，以结束日期判断是否过期
                 if (reminder.endDate) {
                     return compareDateStrings(reminder.endDate, today) < 0;
                 } else {
+                    // 对于单日事件，以开始日期判断是否过期
                     return compareDateStrings(reminder.date, today) < 0;
                 }
             });
 
+            // 今日提醒 - 改进跨天事件判断逻辑，包含过期事项
             const todayReminders = filteredReminders.filter((reminder: any) => {
                 if (reminder.completed) return false;
 
                 if (reminder.endDate) {
+                    // 跨天事件：只要今天在事件的时间范围内就显示，或者事件已过期但结束日期在今天之前
                     return (compareDateStrings(reminder.date, today) <= 0 &&
                         compareDateStrings(today, reminder.endDate) <= 0) ||
                         compareDateStrings(reminder.endDate, today) < 0;
+                } else {
+                    // 单日事件：今天或过期的都显示在今日
+                    return reminder.date === today || compareDateStrings(reminder.date, today) < 0;
                 }
-                return reminder.date === today || compareDateStrings(reminder.date, today) < 0;
             });
 
-            // 明天提醒
+            // 明天提醒 - 改进跨天事件判断逻辑
             const tomorrowReminders = [];
             const tomorrowInstancesMap = new Map();
 
@@ -440,8 +446,14 @@ export class ReminderPanel {
 
                 let isTomorrow = false;
                 if (reminder.endDate) {
-                    isTomorrow = reminder.date === tomorrowStr;
+                    // 跨天事件：明天在事件的时间范围内
+                    isTomorrow = (compareDateStrings(reminder.date, tomorrowStr) <= 0 &&
+                        compareDateStrings(tomorrowStr, reminder.endDate) <= 0) &&
+                        // 但不应该在今天已经显示的事件中重复
+                        !(compareDateStrings(reminder.date, today) <= 0 &&
+                          compareDateStrings(today, reminder.endDate) <= 0);
                 } else {
+                    // 单日事件：明天的事件
                     isTomorrow = reminder.date === tomorrowStr;
                 }
 
@@ -465,9 +477,9 @@ export class ReminderPanel {
             // 添加过去七天提醒的筛选
             const pastSevenDaysReminders = filteredReminders.filter((reminder: any) => {
                 // 过去七天包括：已完成的、未完成的、过期的，只要在时间范围内
-                const reminderDate = reminder.endDate || reminder.date;
-                return compareDateStrings(sevenDaysAgoStr, reminderDate) <= 0 &&
-                    compareDateStrings(reminderDate, today) <= 0;
+                const reminderEndDate = reminder.endDate || reminder.date;
+                return compareDateStrings(sevenDaysAgoStr, reminder.date) <= 0 &&
+                    compareDateStrings(reminderEndDate, today) >= 0;
             });
 
             const completed = filteredReminders.filter((reminder: any) => reminder.completed);
@@ -539,35 +551,43 @@ export class ReminderPanel {
             switch (filter) {
                 case 'today':
                     if (reminder.completed) return false;
-                    // 包含过期提醒和今日提醒
                     if (reminder.endDate) {
-                        // 跨天事件：包含今天或已过期
+                        // 跨天事件：今天在事件的时间范围内，或者事件已过期
                         return (compareDateStrings(reminder.date, today) <= 0 &&
                             compareDateStrings(today, reminder.endDate) <= 0) ||
                             compareDateStrings(reminder.endDate, today) < 0;
+                    } else {
+                        // 单日事件：今日或过期
+                        return reminder.date === today || compareDateStrings(reminder.date, today) < 0;
                     }
-                    // 单日事件：今日或过期
-                    return reminder.date === today || compareDateStrings(reminder.date, today) < 0;
                 case 'tomorrow':
                     if (reminder.completed) return false;
                     if (reminder.endDate) {
+                        // 跨天事件：明天在事件的时间范围内，但今天不在范围内
+                        return (compareDateStrings(reminder.date, tomorrowStr) <= 0 &&
+                            compareDateStrings(tomorrowStr, reminder.endDate) <= 0) &&
+                            !(compareDateStrings(reminder.date, today) <= 0 &&
+                              compareDateStrings(today, reminder.endDate) <= 0);
+                    } else {
+                        // 单日事件：明天的事件
                         return reminder.date === tomorrowStr;
                     }
-                    return reminder.date === tomorrowStr;
                 case 'overdue':
                     if (reminder.completed) return false;
                     if (reminder.endDate) {
+                        // 跨天事件：结束日期已过期
                         return compareDateStrings(reminder.endDate, today) < 0;
                     } else {
+                        // 单日事件：开始日期已过期
                         return compareDateStrings(reminder.date, today) < 0;
                     }
                 case 'completed':
                     return reminder.completed;
                 case 'all':
                     // 过去七天的提醒（包括今天）
-                    const reminderDate = reminder.endDate || reminder.date;
-                    return compareDateStrings(sevenDaysAgoStr, reminderDate) <= 0 &&
-                        compareDateStrings(reminderDate, today) <= 0;
+                    const reminderEndDate = reminder.endDate || reminder.date;
+                    return compareDateStrings(sevenDaysAgoStr, reminder.date) <= 0 &&
+                        compareDateStrings(reminderEndDate, today) >= 0;
                 default:
                     return true;
             }
@@ -842,7 +862,18 @@ export class ReminderPanel {
     }
 
     private createReminderElement(reminder: any, today: string): HTMLElement {
-        const isOverdue = compareDateStrings(reminder.date, today) < 0 && !reminder.completed;
+        // 改进过期判断逻辑
+        let isOverdue = false;
+        if (!reminder.completed) {
+            if (reminder.endDate) {
+                // 跨天事件：以结束日期判断是否过期
+                isOverdue = compareDateStrings(reminder.endDate, today) < 0;
+            } else {
+                // 单日事件：以开始日期判断是否过期
+                isOverdue = compareDateStrings(reminder.date, today) < 0;
+            }
+        }
+
         const isSpanningDays = reminder.endDate && reminder.endDate !== reminder.date;
         const priority = reminder.priority || 'none';
 
