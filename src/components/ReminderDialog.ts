@@ -18,6 +18,7 @@ export class ReminderDialog {
     private repeatConfig: RepeatConfig;
     private categoryManager: CategoryManager;
     private isAllDayDefault: boolean = true; // 添加全天事件默认标志
+    private documentId: string = ''; // 添加文档ID字段
 
     constructor(blockId: string) {
         this.blockId = blockId;
@@ -68,6 +69,8 @@ export class ReminderDialog {
                 return;
             }
             this.blockContent = block?.content || t("unnamedNote");
+            // 获取文档ID - 如果blockId就是文档ID，则直接使用，否则获取根块ID
+            this.documentId = block.root_id || this.blockId;
         } catch (error) {
             console.error('获取块内容失败:', error);
             showMessage(t("cannotGetNoteContent"));
@@ -176,6 +179,7 @@ export class ReminderDialog {
 
         this.bindEvents();
         await this.renderCategorySelector();
+        await this.renderPrioritySelector(); // 添加优先级渲染
         await this.loadExistingReminder();
 
         // 监听提醒更新事件
@@ -191,8 +195,8 @@ export class ReminderDialog {
         try {
             const categories = this.categoryManager.getCategories();
 
-            // 获取该块的历史分类
-            const defaultCategoryId = await this.getBlockDefaultCategory();
+            // 获取默认分类：优先块历史，其次文档历史
+            const defaultCategoryId = await this.getDefaultCategory();
 
             // 清空并重新构建，使用横向布局
             categorySelector.innerHTML = '';
@@ -220,7 +224,258 @@ export class ReminderDialog {
         }
     }
 
-    // 添加获取块默认分类的方法
+    // 添加优先级渲染方法
+    private async renderPrioritySelector() {
+        const prioritySelector = this.dialog.element.querySelector('#prioritySelector') as HTMLElement;
+        if (!prioritySelector) return;
+
+        try {
+            // 获取默认优先级：优先块历史，其次文档历史
+            const defaultPriority = await this.getDefaultPriority();
+
+            // 更新选中状态
+            prioritySelector.querySelectorAll('.priority-option').forEach(option => {
+                const priority = option.getAttribute('data-priority');
+                if (priority === defaultPriority) {
+                    option.classList.add('selected');
+                } else {
+                    option.classList.remove('selected');
+                }
+            });
+
+        } catch (error) {
+            console.error('渲染优先级选择器失败:', error);
+        }
+    }
+
+    // 修改获取默认分类的方法
+    private async getDefaultCategory(): Promise<string | null> {
+        try {
+            // 1. 优先获取块的历史分类
+            const blockCategoryId = await this.getBlockDefaultCategory();
+            if (blockCategoryId) {
+                return blockCategoryId;
+            }
+
+            // 2. 如果块没有历史分类，且块不是文档本身，则获取文档的历史分类
+            if (this.blockId !== this.documentId) {
+                const documentCategoryId = await this.getDocumentDefaultCategory();
+                if (documentCategoryId) {
+                    return documentCategoryId;
+                }
+            }
+
+            return null;
+
+        } catch (error) {
+            console.error('获取默认分类失败:', error);
+            return null;
+        }
+    }
+
+    // 获取文档默认分类的方法
+    private async getDocumentDefaultCategory(): Promise<string | null> {
+        try {
+            const reminderData = await readReminderData();
+            const documentReminders = Object.values(reminderData).filter((reminder: any) =>
+                reminder && reminder.blockId === this.documentId && reminder.categoryId
+            );
+
+            if (documentReminders.length === 0) {
+                return null;
+            }
+
+            // 统计分类使用频率和最近使用时间
+            const categoryStats = new Map<string, { count: number; lastUsed: string }>();
+
+            documentReminders.forEach((reminder: any) => {
+                if (reminder.categoryId) {
+                    const current = categoryStats.get(reminder.categoryId);
+                    const createdAt = reminder.createdAt || '1970-01-01T00:00:00Z';
+
+                    if (current) {
+                        current.count++;
+                        if (createdAt > current.lastUsed) {
+                            current.lastUsed = createdAt;
+                        }
+                    } else {
+                        categoryStats.set(reminder.categoryId, {
+                            count: 1,
+                            lastUsed: createdAt
+                        });
+                    }
+                }
+            });
+
+            // 按使用频率排序，频率相同时按最近使用时间排序
+            const sortedCategories = Array.from(categoryStats.entries()).sort((a, b) => {
+                const [categoryIdA, statsA] = a;
+                const [categoryIdB, statsB] = b;
+
+                if (statsA.count !== statsB.count) {
+                    return statsB.count - statsA.count;
+                }
+
+                return new Date(statsB.lastUsed).getTime() - new Date(statsA.lastUsed).getTime();
+            });
+
+            return sortedCategories.length > 0 ? sortedCategories[0][0] : null;
+
+        } catch (error) {
+            console.error('获取文档默认分类失败:', error);
+            return null;
+        }
+    }
+
+    // 添加获取默认优先级的方法
+    private async getDefaultPriority(): Promise<string> {
+        try {
+            // 1. 优先获取块的历史优先级
+            const blockPriority = await this.getBlockDefaultPriority();
+            if (blockPriority && blockPriority !== 'none') {
+                return blockPriority;
+            }
+
+            // 2. 如果块没有历史优先级，且块不是文档本身，则获取文档的历史优先级
+            if (this.blockId !== this.documentId) {
+                const documentPriority = await this.getDocumentDefaultPriority();
+                if (documentPriority && documentPriority !== 'none') {
+                    return documentPriority;
+                }
+            }
+
+            return 'none'; // 默认无优先级
+
+        } catch (error) {
+            console.error('获取默认优先级失败:', error);
+            return 'none';
+        }
+    }
+
+    // 获取块默认优先级的方法
+    private async getBlockDefaultPriority(): Promise<string> {
+        try {
+            const reminderData = await readReminderData();
+            const blockReminders = Object.values(reminderData).filter((reminder: any) =>
+                reminder && reminder.blockId === this.blockId && reminder.priority
+            );
+
+            if (blockReminders.length === 0) {
+                return 'none';
+            }
+
+            // 统计优先级使用频率和最近使用时间
+            const priorityStats = new Map<string, { count: number; lastUsed: string }>();
+
+            blockReminders.forEach((reminder: any) => {
+                const priority = reminder.priority || 'none';
+                if (priority !== 'none') {
+                    const current = priorityStats.get(priority);
+                    const createdAt = reminder.createdAt || '1970-01-01T00:00:00Z';
+
+                    if (current) {
+                        current.count++;
+                        if (createdAt > current.lastUsed) {
+                            current.lastUsed = createdAt;
+                        }
+                    } else {
+                        priorityStats.set(priority, {
+                            count: 1,
+                            lastUsed: createdAt
+                        });
+                    }
+                }
+            });
+
+            if (priorityStats.size === 0) {
+                return 'none';
+            }
+
+            // 按使用频率排序，频率相同时按最近使用时间排序
+            const sortedPriorities = Array.from(priorityStats.entries()).sort((a, b) => {
+                const [priorityA, statsA] = a;
+                const [priorityB, statsB] = b;
+
+                if (statsA.count !== statsB.count) {
+                    return statsB.count - statsA.count;
+                }
+
+                return new Date(statsB.lastUsed).getTime() - new Date(statsA.lastUsed).getTime();
+            });
+
+            return sortedPriorities[0][0];
+
+        } catch (error) {
+            console.error('获取块默认优先级失败:', error);
+            return 'none';
+        }
+    }
+
+    // 获取文档默认优先级的方法
+    private async getDocumentDefaultPriority(): Promise<string> {
+        try {
+            const reminderData = await readReminderData();
+            const documentReminders = Object.values(reminderData).filter((reminder: any) =>
+                reminder && reminder.blockId === this.documentId && reminder.priority
+            );
+
+            if (documentReminders.length === 0) {
+                return 'none';
+            }
+
+            // 统计优先级使用频率和最近使用时间
+            const priorityStats = new Map<string, { count: number; lastUsed: string }>();
+
+            documentReminders.forEach((reminder: any) => {
+                const priority = reminder.priority || 'none';
+                if (priority !== 'none') {
+                    const current = priorityStats.get(priority);
+                    const createdAt = reminder.createdAt || '1970-01-01T00:00:00Z';
+
+                    if (current) {
+                        current.count++;
+                        if (createdAt > current.lastUsed) {
+                            current.lastUsed = createdAt;
+                        }
+                    } else {
+                        priorityStats.set(priority, {
+                            count: 1,
+                            lastUsed: createdAt
+                        });
+                    }
+                }
+            });
+
+            if (priorityStats.size === 0) {
+                return 'none';
+            }
+
+            // 按使用频率排序，频率相同时按最近使用时间排序
+            const sortedPriorities = Array.from(priorityStats.entries()).sort((a, b) => {
+                const [priorityA, statsA] = a;
+                const [priorityB, statsB] = b;
+
+                if (statsA.count !== statsB.count) {
+                    return statsB.count - statsA.count;
+                }
+
+                return new Date(statsB.lastUsed).getTime() - new Date(statsA.lastUsed).getTime();
+            });
+
+            // 如果文档之前设置过优先级，且当前是给文档添加提醒，则默认为高优先级
+            if (this.blockId === this.documentId && sortedPriorities.length > 0) {
+                return 'high';
+            }
+
+            return sortedPriorities[0][0];
+
+        } catch (error) {
+            console.error('获取文档默认优先级失败:', error);
+            return 'none';
+        }
+    }
+
+    // 修改现有的 getBlockDefaultCategory 方法名以保持一致性
     private async getBlockDefaultCategory(): Promise<string | null> {
         try {
             const reminderData = await readReminderData();
