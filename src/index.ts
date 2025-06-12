@@ -108,7 +108,7 @@ export default class ReminderPlugin extends Plugin {
         // 工作时背景音设置
         this.settingUtils.addItem({
             key: "pomodoroWorkSound",
-            value: "",
+            value: "/plugins/siyuan-plugin-task-note-management/audios/background_music.mp3",
             type: "textinput",
             title: "工作时背景音（可选）",
             description: "设置工作时播放的背景音文件路径，留空则静音"
@@ -117,18 +117,24 @@ export default class ReminderPlugin extends Plugin {
         // 短时休息背景音设置
         this.settingUtils.addItem({
             key: "pomodoroBreakSound",
-            value: "",
+            value: "/plugins/siyuan-plugin-task-note-management/audios/background_music.mp3",
             type: "textinput",
             title: "休息背景音（可选）",
             description: "设置休息时播放的背景音文件路径，留空则静音"
         });
-
-
+        // 长时休息背景音设置
+        this.settingUtils.addItem({
+            key: "pomodoroLongBreakSound",
+            value: "/plugins/siyuan-plugin-task-note-management/audios/background_music.mp3",
+            type: "textinput",
+            title: "长时休息背景音（可选）",
+            description: "设置长时休息时播放的背景音文件路径，留空则静音"
+        });
 
         // 结束提示音设置
         this.settingUtils.addItem({
             key: "pomodoroEndSound",
-            value: "",
+            value: "/plugins/siyuan-plugin-task-note-management/audios/end_music.mp3",
             type: "textinput",
             title: "结束提示音（可选）",
             description: "设置番茄钟结束时的提示音文件路径，留空则静音"
@@ -146,7 +152,7 @@ export default class ReminderPlugin extends Plugin {
             longBreakDuration: this.settingUtils.get("pomodoroLongBreakDuration") || 30,
             workSound: this.settingUtils.get("pomodoroWorkSound") || "",
             breakSound: this.settingUtils.get("pomodoroBreakSound") || "",
-            longBreakSound: this.settingUtils.get("pomodoroBreakSound") || "",
+            longBreakSound: this.settingUtils.get("pomodoroLongBreakSound") || "",
             endSound: this.settingUtils.get("pomodoroEndSound") || ""
         };
     }
