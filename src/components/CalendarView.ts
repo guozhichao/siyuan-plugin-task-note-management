@@ -300,6 +300,17 @@ export class CalendarView {
     }
 
     private showEventContextMenu(event: MouseEvent, calendarEvent: any) {
+        // 在显示右键菜单前先隐藏提示框
+        if (this.tooltip) {
+            this.hideEventTooltip();
+            // 清除任何待执行的提示框超时
+            if (this.tooltipTimeout) {
+                clearTimeout(this.tooltipTimeout);
+                this.tooltipTimeout = null;
+            }
+            this.isTooltipHovered = false;
+        }
+
         const menu = new Menu("calendarEventContextMenu");
 
         menu.addItem({
