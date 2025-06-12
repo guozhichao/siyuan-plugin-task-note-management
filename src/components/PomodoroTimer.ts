@@ -999,10 +999,7 @@ export class PomodoroTimer {
 
 
         // 更新标题图标
-        const titleIcon = this.container.querySelector('.pomodoro-title span');
-        if (titleIcon) {
-            titleIcon.textContent = this.isCountUp ? '🍅' : '🍅';
-        }
+
         this.modeToggleBtn.innerHTML = this.isCountUp ? '⏱️' : '⏳';
 
         // 重置状态
