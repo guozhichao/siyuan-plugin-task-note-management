@@ -1058,7 +1058,7 @@ export class ReminderPanel {
         const timeEl = document.createElement('div');
         timeEl.className = 'reminder-item__time';
         const timeText = this.formatReminderTime(reminder.date, reminder.time, today, reminder.endDate);
-        timeEl.textContent = timeText;
+        timeEl.textContent = '🕐'+timeText;
         timeEl.style.cursor = 'pointer';
         timeEl.title = t("clickToModifyTime");
 
