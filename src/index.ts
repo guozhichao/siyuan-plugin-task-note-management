@@ -634,21 +634,23 @@ export default class ReminderPlugin extends Plugin {
         try {
             const categories = this.categoryManager.getCategories();
 
-            categorySelector.innerHTML = `
-                <div class="category-option selected" data-category="">
-                    <div class="category-dot none"></div>
-                    <span>无分类</span>
-                </div>
-            `;
+            // 清空并重新构建，使用横向布局
+            categorySelector.innerHTML = '';
 
+            // 添加无分类选项
+            const noCategoryEl = document.createElement('div');
+            noCategoryEl.className = 'category-option selected';
+            noCategoryEl.setAttribute('data-category', '');
+            noCategoryEl.innerHTML = `<span>无分类</span>`;
+            categorySelector.appendChild(noCategoryEl);
+
+            // 添加所有分类选项
             categories.forEach(category => {
                 const categoryEl = document.createElement('div');
                 categoryEl.className = 'category-option';
                 categoryEl.setAttribute('data-category', category.id);
-                categoryEl.innerHTML = `
-                    <div class="category-dot" style="background-color: ${category.color};"></div>
-                    <span>${category.icon || ''} ${category.name}</span>
-                `;
+                categoryEl.style.backgroundColor = category.color;
+                categoryEl.innerHTML = `<span>${category.icon ? category.icon + ' ' : ''}${category.name}</span>`;
                 categorySelector.appendChild(categoryEl);
             });
 
@@ -700,6 +702,7 @@ export default class ReminderPlugin extends Plugin {
                         const reminder = {
                             id: reminderId,
                             blockId: blockId,
+                            docId: block.root_id || blockId, // 添加文档ID字段
                             title: block.content || t("unnamedNote"),
                             date: date,
                             completed: false,

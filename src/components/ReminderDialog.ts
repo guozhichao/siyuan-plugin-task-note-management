@@ -273,12 +273,12 @@ export class ReminderDialog {
         }
     }
 
-    // 获取文档默认分类的方法
+    // 修改获取文档默认分类的方法
     private async getDocumentDefaultCategory(): Promise<string | null> {
         try {
             const reminderData = await readReminderData();
             const documentReminders = Object.values(reminderData).filter((reminder: any) =>
-                reminder && reminder.blockId === this.documentId && reminder.categoryId
+                reminder && (reminder.blockId === this.documentId || reminder.docId === this.documentId) && reminder.categoryId
             );
 
             if (documentReminders.length === 0) {
@@ -416,7 +416,7 @@ export class ReminderDialog {
         try {
             const reminderData = await readReminderData();
             const documentReminders = Object.values(reminderData).filter((reminder: any) =>
-                reminder && reminder.blockId === this.documentId && reminder.priority
+                reminder && (reminder.blockId === this.documentId || reminder.docId === this.documentId) && reminder.priority
             );
 
             if (documentReminders.length === 0) {
