@@ -453,6 +453,101 @@ export class CalendarView {
         });
     }
 
+    private async showInstanceEditDialog(calendarEvent: any) {
+        // 为重复事件实例显示编辑对话框
+        const originalId = calendarEvent.extendedProps.originalId;
+        const instanceDate = calendarEvent.extendedProps.date;
+
+        try {
+            const reminderData = await readReminderData();
+            const originalReminder = reminderData[originalId];
+
+            if (!originalReminder) {
+                showMessage(t("reminderDataNotExist"));
+                return;
+            }
+
+            // 检查实例级别的修改（包括备注）
+            const instanceModifications = originalReminder.repeat?.instanceModifications || {};
+            const instanceMod = instanceModifications[instanceDate];
+
+            // 创建实例数据，包含当前实例的特定信息
+            const instanceData = {
+                ...originalReminder,
+                id: calendarEvent.id,
+                date: calendarEvent.extendedProps.date,
+                endDate: calendarEvent.extendedProps.endDate,
+                time: calendarEvent.extendedProps.time,
+                endTime: calendarEvent.extendedProps.endTime,
+                // 修改备注逻辑：只有实例有明确的备注时才使用，否则为空
+                note: instanceMod?.note || '',  // 每个实例的备注都是独立的，默认为空
+                isInstance: true,
+                originalId: originalId,
+                instanceDate: instanceDate
+            };
+
+            const editDialog = new ReminderEditDialog(instanceData, async () => {
+                await this.refreshEvents();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            });
+            editDialog.show();
+        } catch (error) {
+            console.error('打开实例编辑对话框失败:', error);
+            showMessage(t("openModifyDialogFailed"));
+        }
+    }
+
+    private async deleteInstanceOnly(calendarEvent: any) {
+        // 删除重复事件的单个实例
+        const result = await confirm(
+            t("deleteThisInstance"),
+            t("confirmDeleteInstance"),
+            async () => {
+                try {
+                    const originalId = calendarEvent.extendedProps.originalId;
+                    const instanceDate = calendarEvent.extendedProps.date;
+
+                    await this.addExcludedDate(originalId, instanceDate);
+
+                    showMessage(t("instanceDeleted"));
+                    await this.refreshEvents();
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                } catch (error) {
+                    console.error('删除重复实例失败:', error);
+                    showMessage(t("deleteInstanceFailed"));
+                }
+            }
+        );
+    }
+    private async addExcludedDate(originalId: string, excludeDate: string) {
+        // 为原始重复事件添加排除日期
+        try {
+            const reminderData = await readReminderData();
+
+            if (reminderData[originalId]) {
+                if (!reminderData[originalId].repeat) {
+                    throw new Error('不是重复事件');
+                }
+
+                // 初始化排除日期列表
+                if (!reminderData[originalId].repeat.excludeDates) {
+                    reminderData[originalId].repeat.excludeDates = [];
+                }
+
+                // 添加排除日期（如果还没有的话）
+                if (!reminderData[originalId].repeat.excludeDates.includes(excludeDate)) {
+                    reminderData[originalId].repeat.excludeDates.push(excludeDate);
+                }
+
+                await writeReminderData(reminderData);
+            } else {
+                throw new Error('原始事件不存在');
+            }
+        } catch (error) {
+            console.error('添加排除日期失败:', error);
+            throw error;
+        }
+    }
     // 添加复制块引功能
     private async copyBlockRef(calendarEvent: any) {
         try {
