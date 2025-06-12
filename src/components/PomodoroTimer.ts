@@ -159,7 +159,7 @@ export class PomodoroTimer {
         this.container.className = 'pomodoro-timer-window';
         this.container.style.cssText = `
             position: fixed;
-            top: 100px;
+            bottom: 20px;
             right: 20px;
             width: 240px;
             background: var(--b3-theme-background);
@@ -705,9 +705,11 @@ export class PomodoroTimer {
             currentX = Math.max(0, Math.min(currentX, maxX));
             currentY = Math.max(0, Math.min(currentY, maxY));
 
+            // 清除原有的定位样式，使用left和top进行拖拽定位
             this.container.style.left = currentX + 'px';
             this.container.style.top = currentY + 'px';
             this.container.style.right = 'auto';
+            this.container.style.bottom = 'auto';
         };
 
         const stopDrag = () => {
