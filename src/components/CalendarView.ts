@@ -951,11 +951,15 @@ export class CalendarView {
             const newStartDate = info.event.start;
             const newEndDate = info.event.end;
 
+            // 检查是否需要重置通知状态
+            const shouldResetNotified = this.shouldResetNotification(newStartDate, info.event.allDay);
+
             // 创建实例修改数据
             const instanceModification = {
                 title: info.event.title.replace(/^🔄 /, ''), // 移除重复标识
                 priority: info.event.extendedProps.priority,
-                note: info.event.extendedProps.note
+                note: info.event.extendedProps.note,
+                notified: shouldResetNotified ? false : info.event.extendedProps.notified
             };
 
             // 使用本地时间处理日期和时间
@@ -1029,6 +1033,9 @@ export class CalendarView {
                 // 使用本地时间处理日期和时间
                 const { dateStr: startDateStr, timeStr: startTimeStr } = getLocalDateTime(newStartDate);
 
+                // 检查是否需要重置通知状态
+                const shouldResetNotified = this.shouldResetNotification(newStartDate, info.event.allDay);
+
                 if (newEndDate) {
                     if (info.event.allDay) {
                         // 全天事件：FullCalendar 的结束日期是排他的，需要减去一天
@@ -1086,6 +1093,11 @@ export class CalendarView {
                     }
                 }
 
+                // 重置通知状态
+                if (shouldResetNotified) {
+                    reminderData[reminderId].notified = false;
+                }
+
                 await writeReminderData(reminderData);
 
                 // 触发更新事件
@@ -1102,6 +1114,24 @@ export class CalendarView {
             console.error(isResize ? '调整事件大小失败:' : '更新事件时间失败:', error);
             showMessage(t("operationFailed"));
             info.revert();
+        }
+    }
+
+    private shouldResetNotification(newStartDate: Date, isAllDay: boolean): boolean {
+        try {
+            const now = new Date();
+
+            // 对于全天事件，只比较日期；对于定时事件，比较完整的日期时间
+            if (isAllDay) {
+                const newDateOnly = new Date(newStartDate.getFullYear(), newStartDate.getMonth(), newStartDate.getDate());
+                const todayOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                return newDateOnly >= todayOnly;
+            } else {
+                return newStartDate > now;
+            }
+        } catch (error) {
+            console.error('检查通知重置条件失败:', error);
+            return false;
         }
     }
 
@@ -1131,6 +1161,7 @@ export class CalendarView {
                 endTime: instanceData.endTime,
                 note: instanceData.note,
                 priority: instanceData.priority,
+                notified: instanceData.notified, // 添加通知状态
                 modifiedAt: new Date().toISOString()
             };
 

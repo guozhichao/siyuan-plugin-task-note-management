@@ -816,25 +816,26 @@ export default class ReminderPlugin extends Plugin {
                 return;
             }
 
-            // 检查今天是否已经提醒过 - 添加错误处理
+            // 检查单个时间提醒
+            await this.checkTimeReminders(reminderData, today, currentTime);
+
+            // 检查今天是否已经提醒过全天事件
             let hasNotifiedDailyToday = false;
             try {
                 hasNotifiedDailyToday = await hasNotifiedToday(today);
             } catch (error) {
                 console.warn('检查每日通知状态失败，可能是首次初始化:', error);
-                // 如果读取失败，尝试初始化通知记录文件
                 try {
                     const { ensureNotifyDataFile } = await import("./api");
                     await ensureNotifyDataFile();
                     hasNotifiedDailyToday = await hasNotifiedToday(today);
                 } catch (initError) {
                     console.warn('初始化通知记录文件失败:', initError);
-                    // 如果初始化也失败，则假设今天未通知过，继续执行
                     hasNotifiedDailyToday = false;
                 }
             }
 
-            // 如果今天已经提醒过，则不再提醒
+            // 如果今天已经提醒过全天事件，则不再提醒
             if (hasNotifiedDailyToday) {
                 return;
             }
@@ -1010,6 +1011,121 @@ export default class ReminderPlugin extends Plugin {
 
         } catch (error) {
             console.error("检查提醒失败:", error);
+        }
+    }
+
+    // 检查单个时间提醒
+    private async checkTimeReminders(reminderData: any, today: string, currentTime: string) {
+        try {
+            const { writeReminderData } = await import("./api");
+            const { generateRepeatInstances } = await import("./utils/repeatUtils");
+            let dataChanged = false;
+
+            for (const [reminderId, reminder] of Object.entries(reminderData)) {
+                if (!reminder || typeof reminder !== 'object') continue;
+
+                const reminderObj = reminder as any;
+
+                // 跳过已完成或没有时间的提醒
+                if (reminderObj.completed || !reminderObj.time) continue;
+
+                // 处理普通提醒
+                if (!reminderObj.repeat?.enabled) {
+                    if (this.shouldNotifyNow(reminderObj, today, currentTime)) {
+                        await this.showTimeReminder(reminderObj);
+                        // 标记为已提醒
+                        reminderObj.notified = true;
+                        dataChanged = true;
+                    }
+                } else {
+                    // 处理重复提醒
+                    const instances = generateRepeatInstances(reminderObj, today, today);
+
+                    for (const instance of instances) {
+                        // 检查实例是否需要提醒
+                        if (this.shouldNotifyNow(instance, today, currentTime)) {
+                            // 检查实例级别是否已提醒
+                            const notifiedInstances = reminderObj.repeat?.notifiedInstances || [];
+                            const instanceKey = `${instance.date}_${instance.time}`;
+
+                            if (!notifiedInstances.includes(instanceKey)) {
+                                await this.showTimeReminder(instance);
+
+                                // 标记实例已提醒
+                                if (!reminderObj.repeat) reminderObj.repeat = {};
+                                if (!reminderObj.repeat.notifiedInstances) reminderObj.repeat.notifiedInstances = [];
+                                reminderObj.repeat.notifiedInstances.push(instanceKey);
+                                dataChanged = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 如果数据有变化，保存到文件
+            if (dataChanged) {
+                await writeReminderData(reminderData);
+            }
+
+        } catch (error) {
+            console.error('检查时间提醒失败:', error);
+        }
+    }
+
+    // 判断是否应该现在提醒
+    private shouldNotifyNow(reminder: any, today: string, currentTime: string): boolean {
+        // 必须是今天的事件
+        if (reminder.date !== today) return false;
+
+        // 必须有时间
+        if (!reminder.time) return false;
+
+        // 已经提醒过了
+        if (reminder.notified) return false;
+
+
+
+        // 如果当前时间等于或超过提醒时间，且在提醒时间后的5分钟内
+        return true;
+    }
+
+
+    // 显示时间提醒
+    private async showTimeReminder(reminder: any) {
+        try {
+            // 获取分类信息
+            let categoryInfo = {};
+            if (reminder.categoryId) {
+                const category = this.categoryManager.getCategoryById(reminder.categoryId);
+                if (category) {
+                    categoryInfo = {
+                        categoryName: category.name,
+                        categoryColor: category.color,
+                        categoryIcon: category.icon
+                    };
+                }
+            }
+
+            const reminderInfo = {
+                id: reminder.id,
+                blockId: reminder.blockId,
+                title: reminder.title || t("unnamedNote"),
+                note: reminder.note,
+                priority: reminder.priority || 'none',
+                categoryId: reminder.categoryId,
+                time: reminder.time,
+                date: reminder.date,
+                endDate: reminder.endDate,
+                isAllDay: false,
+                isOverdue: false,
+                ...categoryInfo
+            };
+
+            // 显示单个提醒
+            NotificationDialog.show(reminderInfo);
+
+        } catch (error) {
+            console.error('显示时间提醒失败:', error);
         }
     }
 

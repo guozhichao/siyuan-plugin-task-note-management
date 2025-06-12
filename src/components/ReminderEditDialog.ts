@@ -308,6 +308,9 @@ export class ReminderEditDialog {
             return;
         }
 
+        // 检查新的日期时间是否在未来，如果是则重置通知状态
+        const shouldResetNotified = this.shouldResetNotification(date, time);
+
         try {
             if (this.reminder.isSplitOperation) {
                 // 分割操作 - 构建修改后的数据并通过回调传递
@@ -320,7 +323,8 @@ export class ReminderEditDialog {
                     note: note,
                     priority: priority,
                     categoryId: categoryId, // 添加分类ID
-                    repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined
+                    repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined,
+                    notified: shouldResetNotified ? false : this.reminder.notified
                 };
 
                 // 调用分割回调
@@ -344,7 +348,8 @@ export class ReminderEditDialog {
                     endTime: this.reminder.endTime,
                     note: note,
                     priority: priority,
-                    categoryId: categoryId // 添加分类ID
+                    categoryId: categoryId, // 添加分类ID
+                    notified: shouldResetNotified ? false : this.reminder.notified
                 });
             } else {
                 // 保存普通事件或重复事件系列的修改
@@ -357,6 +362,11 @@ export class ReminderEditDialog {
                     reminderData[this.reminder.id].priority = priority;
                     reminderData[this.reminder.id].categoryId = categoryId; // 添加分类ID
                     reminderData[this.reminder.id].repeat = this.repeatConfig.enabled ? this.repeatConfig : undefined;
+
+                    // 重置通知状态
+                    if (shouldResetNotified) {
+                        reminderData[this.reminder.id].notified = false;
+                    }
 
                     if (endDate && endDate !== date) {
                         reminderData[this.reminder.id].endDate = endDate;
@@ -403,6 +413,19 @@ export class ReminderEditDialog {
         }
     }
 
+    private shouldResetNotification(date: string, time?: string): boolean {
+        try {
+            const now = new Date();
+            const newDateTime = new Date(`${date}T${time || '00:00:00'}`);
+
+            // 如果新的日期时间在当前时间之后，应该重置通知状态
+            return newDateTime > now;
+        } catch (error) {
+            console.error('检查通知重置条件失败:', error);
+            return false;
+        }
+    }
+
     private async saveInstanceModification(instanceData: any) {
         // 保存重复事件实例的修改
         try {
@@ -430,9 +453,10 @@ export class ReminderEditDialog {
                 endDate: instanceData.endDate,
                 time: instanceData.time,
                 endTime: instanceData.endTime,
-                note: instanceData.note || '',
+                note: instanceData.note,
                 priority: instanceData.priority,
                 categoryId: instanceData.categoryId, // 添加分类ID
+                notified: instanceData.notified, // 添加通知状态
                 modifiedAt: new Date().toISOString()
             };
 
