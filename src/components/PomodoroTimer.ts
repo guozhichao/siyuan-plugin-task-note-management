@@ -46,6 +46,8 @@ export class PomodoroTimer {
     private recordManager: PomodoroRecordManager;
     private audioInitialized: boolean = false;
 
+    private isWindowClosed: boolean = false; // 新增：窗口关闭状态标记
+
     constructor(reminder: any, settings: any, isCountUp: boolean = false) {
         this.reminder = reminder;
         this.settings = settings;
@@ -1832,6 +1834,8 @@ export class PomodoroTimer {
     }
 
     close() {
+        this.isWindowClosed = true; // 标记窗口已关闭
+
         if (this.timer) {
             clearInterval(this.timer);
         }
@@ -1847,7 +1851,23 @@ export class PomodoroTimer {
     }
 
     destroy() {
+        this.isWindowClosed = true; // 标记窗口已关闭
         this.close();
+    }
+
+    /**
+     * 检查番茄钟窗口是否仍然存在
+     * @returns 如果窗口存在且未被关闭返回true，否则返回false
+     */
+    public isWindowActive(): boolean {
+        if (this.isWindowClosed) {
+            return false;
+        }
+
+        // 检查DOM元素是否仍然存在且在文档中
+        return this.container &&
+            this.container.parentNode &&
+            document.contains(this.container);
     }
 
     /**

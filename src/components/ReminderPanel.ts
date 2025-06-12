@@ -1294,8 +1294,8 @@ export class ReminderPanel {
             return;
         }
 
-        // 检查是否已经有活动的番茄钟
-        if (ReminderPanel.currentPomodoroTimer) {
+        // 检查是否已经有活动的番茄钟并且窗口仍然存在
+        if (ReminderPanel.currentPomodoroTimer && ReminderPanel.currentPomodoroTimer.isWindowActive()) {
             // 显示确认对话框
             confirm(
                 "替换当前番茄钟",
@@ -1309,10 +1309,14 @@ export class ReminderPanel {
                 }
             );
         } else {
-            // 没有活动番茄钟，直接启动
+            // 没有活动番茄钟或窗口已关闭，清理引用并直接启动
+            if (ReminderPanel.currentPomodoroTimer && !ReminderPanel.currentPomodoroTimer.isWindowActive()) {
+                ReminderPanel.currentPomodoroTimer = null;
+            }
             this.performStartPomodoroCountUp(reminder);
         }
     }
+
     private performStartPomodoroCountUp(reminder: any) {
         // 如果已经有活动的番茄钟，先关闭它
         if (ReminderPanel.currentPomodoroTimer) {
@@ -1376,8 +1380,8 @@ export class ReminderPanel {
             return;
         }
 
-        // 检查是否已经有活动的番茄钟
-        if (ReminderPanel.currentPomodoroTimer) {
+        // 检查是否已经有活动的番茄钟并且窗口仍然存在
+        if (ReminderPanel.currentPomodoroTimer && ReminderPanel.currentPomodoroTimer.isWindowActive()) {
             // 显示确认对话框
             confirm(
                 "替换当前番茄钟",
@@ -1391,10 +1395,14 @@ export class ReminderPanel {
                 }
             );
         } else {
-            // 没有活动番茄钟，直接启动
+            // 没有活动番茄钟或窗口已关闭，清理引用并直接启动
+            if (ReminderPanel.currentPomodoroTimer && !ReminderPanel.currentPomodoroTimer.isWindowActive()) {
+                ReminderPanel.currentPomodoroTimer = null;
+            }
             this.performStartPomodoro(reminder);
         }
     }
+
     private performStartPomodoro(reminder: any) {
         // 如果已经有活动的番茄钟，先关闭它
         if (ReminderPanel.currentPomodoroTimer) {
@@ -1422,9 +1430,16 @@ export class ReminderPanel {
     }
 
     // 添加静态方法清理当前番茄钟实例
+
+    // 添加静态方法清理当前番茄钟实例
     public static clearCurrentPomodoroTimer(): void {
         if (ReminderPanel.currentPomodoroTimer) {
             try {
+                // 检查窗口是否仍然活动，如果不活动则直接清理引用
+                if (!ReminderPanel.currentPomodoroTimer.isWindowActive()) {
+                    ReminderPanel.currentPomodoroTimer = null;
+                    return;
+                }
                 ReminderPanel.currentPomodoroTimer.destroy();
             } catch (error) {
                 console.error('清理番茄钟实例失败:', error);
