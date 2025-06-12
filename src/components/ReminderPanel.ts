@@ -1002,11 +1002,11 @@ export class ReminderPanel {
                     align-items: center;
                     gap: 4px;
                     padding: 2px 6px;
-                    background-color: ${category.color}20;
+                    background-color: ${category.color};
                     border: 1px solid ${category.color}40;
                     border-radius: 5px;
                     font-size: 11px;
-                    color: var(--b3-theme-on-surface);
+                    color: #fff;
                 `;
 
                 // 分别处理emoji和名称
