@@ -282,7 +282,7 @@ export class ReminderPanel {
                 docTitleEl.className = 'reminder-item__doc-title';
                 docTitleEl.style.cssText = `
                     font-size: 11px;
-                    color: var(--b3-theme-on-surface-light);
+                    color: var(--b3-theme-on-background);
                     margin-bottom: 2px;
                     opacity: 0.8;
                     cursor: pointer;
