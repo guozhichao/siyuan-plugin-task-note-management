@@ -526,94 +526,780 @@ export class ReminderPanel {
         });
     }
 
-    private renderReminders(reminderData: any) {
-        if (!reminderData || typeof reminderData !== 'object') {
-            this.remindersContainer.innerHTML = `<div class="reminder-empty">${t("noReminders")}</div>`;
-            return;
+    private async createReminderElement(reminder: any, today: string): Promise<HTMLElement> {
+        // 改进过期判断逻辑
+        let isOverdue = false;
+        if (!reminder.completed) {
+            if (reminder.endDate) {
+                // 跨天事件：以结束日期判断是否过期
+                isOverdue = compareDateStrings(reminder.endDate, today) < 0;
+            } else {
+                // 单日事件：以开始日期判断是否过期
+                isOverdue = compareDateStrings(reminder.date, today) < 0;
+            }
         }
 
-        const filter = this.filterSelect.value;
-        const today = getLocalDateString();
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const tomorrowStr = getLocalDateString(tomorrow);
+        const isSpanningDays = reminder.endDate && reminder.endDate !== reminder.date;
+        const priority = reminder.priority || 'none';
 
-        // 计算过去七天的日期范围
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7); // 改为-7，不包括今天
-        const sevenDaysAgoStr = getLocalDateString(sevenDaysAgo);
+        const reminderEl = document.createElement('div');
+        reminderEl.className = `reminder-item ${isOverdue ? 'reminder-item--overdue' : ''} ${isSpanningDays ? 'reminder-item--spanning' : ''} reminder-priority-${priority}`;
 
-        const reminders = Array.isArray(reminderData) ? reminderData : Object.values(reminderData).filter((reminder: any) => {
-            if (!reminder || typeof reminder !== 'object' || !reminder.id) return false;
+        // 添加右键菜单支持
+        reminderEl.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            this.showReminderContextMenu(e, reminder);
+        });
 
-            switch (filter) {
-                case 'today':
-                    if (reminder.completed) return false;
-                    if (reminder.endDate) {
-                        // 跨天事件：今天在事件的时间范围内，或者事件已过期
-                        return (compareDateStrings(reminder.date, today) <= 0 &&
-                            compareDateStrings(today, reminder.endDate) <= 0) ||
-                            compareDateStrings(reminder.endDate, today) < 0;
-                    } else {
-                        // 单日事件：今日或过期
-                        return reminder.date === today || compareDateStrings(reminder.date, today) < 0;
-                    }
-                case 'tomorrow':
-                    if (reminder.completed) return false;
-                    if (reminder.endDate) {
-                        // 跨天事件：明天在事件的时间范围内
-                        return compareDateStrings(reminder.date, tomorrowStr) <= 0 &&
-                            compareDateStrings(tomorrowStr, reminder.endDate) <= 0;
-                    } else {
-                        // 单日事件：明天的事件
-                        return reminder.date === tomorrowStr;
-                    }
-                case 'overdue':
-                    if (reminder.completed) return false;
-                    if (reminder.endDate) {
-                        // 跨天事件：结束日期已过期
-                        return compareDateStrings(reminder.endDate, today) < 0;
-                    } else {
-                        // 单日事件：开始日期已过期
-                        return compareDateStrings(reminder.date, today) < 0;
-                    }
-                case 'completed':
-                    return reminder.completed;
-                case 'all':
-                    // 修改过去七天的筛选逻辑：仅包括过去7天内的提醒
-                    const reminderStartDate = reminder.date;
-                    const reminderEndDate = reminder.endDate || reminder.date;
+        const contentEl = document.createElement('div');
+        contentEl.className = 'reminder-item__content';
 
-                    // 事件必须在过去7天到昨天之间
-                    return compareDateStrings(sevenDaysAgoStr, reminderStartDate) <= 0 &&
-                        compareDateStrings(reminderEndDate, today) < 0;
-                default:
-                    return true;
+        // 复选框
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+
+        // 正确设置复选框状态
+        if (reminder.isRepeatInstance) {
+            // 对于重复事件实例，使用实例级别的完成状态
+            checkbox.checked = reminder.completed || false;
+        } else {
+            // 对于普通事件，使用事件本身的完成状态
+            checkbox.checked = reminder.completed || false;
+        }
+
+        checkbox.addEventListener('change', () => {
+            if (reminder.isRepeatInstance) {
+                // 对于重复事件实例，使用原始ID和实例日期
+                this.toggleReminder(reminder.originalId, checkbox.checked, true, reminder.date);
+            } else {
+                // 对于普通事件，使用原有逻辑
+                this.toggleReminder(reminder.id, checkbox.checked);
             }
         });
 
-        if (reminders.length === 0) {
-            const filterNames = {
-                'today': t("noTodayReminders"),
-                'tomorrow': t("noTomorrowReminders"),
-                'overdue': t("noOverdueReminders"),
-                'completed': t("noCompletedReminders"),
-                'all': t("noPast7Reminders")
-            };
-            this.remindersContainer.innerHTML = `<div class="reminder-empty">${filterNames[filter] || t("noReminders")}</div>`;
-            return;
+        // 信息容器
+        const infoEl = document.createElement('div');
+        infoEl.className = 'reminder-item__info';
+
+        // 标题容器
+        const titleContainer = document.createElement('div');
+        titleContainer.className = 'reminder-item__title-container';
+
+        // 检查是否需要显示文档标题
+        if (reminder.docId && reminder.blockId !== reminder.docId) {
+            // 异步获取并显示文档标题
+            this.addDocumentTitle(titleContainer, reminder.docId);
         }
 
-        // 应用排序
-        this.sortReminders(reminders);
-
-        this.remindersContainer.innerHTML = '';
-
-        reminders.forEach((reminder: any) => {
-            const reminderEl = this.createReminderElement(reminder, today);
-            this.remindersContainer.appendChild(reminderEl);
+        // 标题
+        const titleEl = document.createElement('a');
+        titleEl.className = 'reminder-item__title';
+        titleEl.textContent = reminder.title || t("unnamedNote");
+        titleEl.href = '#';
+        titleEl.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.openBlock(reminder.blockId || reminder.id);
         });
 
+        titleContainer.appendChild(titleEl);
+
+        // 时间信息容器
+        const timeContainer = document.createElement('div');
+        timeContainer.className = 'reminder-item__time-container';
+        timeContainer.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        `;
+
+        // 添加重复图标
+        if (reminder.repeat?.enabled || reminder.isRepeatInstance) {
+            const repeatIcon = document.createElement('span');
+            repeatIcon.className = 'reminder-repeat-icon';
+            repeatIcon.textContent = '🔄';
+            repeatIcon.title = reminder.repeat?.enabled ?
+                getRepeatDescription(reminder.repeat) :
+                t("repeatInstance");
+            repeatIcon.style.cssText = `
+                font-size: 12px;
+                opacity: 0.7;
+                flex-shrink: 0;
+            `;
+            timeContainer.appendChild(repeatIcon);
+        }
+
+        // 时间信息
+        const timeEl = document.createElement('div');
+        timeEl.className = 'reminder-item__time';
+        const timeText = this.formatReminderTime(reminder.date, reminder.time, today, reminder.endDate);
+        timeEl.textContent = timeText;
+        timeEl.style.cursor = 'pointer';
+        timeEl.title = t("clickToModifyTime");
+
+        // 添加优先级标签
+        if (priority !== 'none') {
+            const priorityLabel = document.createElement('span');
+            priorityLabel.className = `reminder-priority-label ${priority}`;
+            const priorityNames = {
+                'high': t("highPriority"),
+                'medium': t("mediumPriority"),
+                'low': t("lowPriority")
+            };
+            priorityLabel.innerHTML = `<div class="priority-dot ${priority}"></div>${priorityNames[priority]}`;
+            timeEl.appendChild(priorityLabel);
+        }
+
+        // 添加时间点击编辑事件
+        timeEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // 对于重复事件实例，编辑原始事件
+            if (reminder.isRepeatInstance) {
+                this.editOriginalReminder(reminder.originalId);
+            } else {
+                this.showTimeEditDialog(reminder);
+            }
+        });
+
+        if (isOverdue) {
+            const overdueLabel = document.createElement('span');
+            overdueLabel.className = 'reminder-overdue-label';
+            overdueLabel.textContent = t("overdue");
+            timeEl.appendChild(overdueLabel);
+        }
+
+        timeContainer.appendChild(timeEl);
+
+        infoEl.appendChild(titleContainer);
+        infoEl.appendChild(timeContainer);
+
+        // 优化分类显示 - 确保emoji正确显示
+        if (reminder.categoryId) {
+            const category = this.categoryManager.getCategoryById(reminder.categoryId);
+            if (category) {
+                const categoryContainer = document.createElement('div');
+                categoryContainer.className = 'reminder-item__category-container';
+                categoryContainer.style.cssText = `
+                    margin-top: 4px;
+                `;
+
+                const categoryEl = document.createElement('div');
+                categoryEl.className = 'reminder-category-tag';
+                categoryEl.style.cssText = `
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    padding: 2px 6px;
+                    background-color: ${category.color};
+                    border: 1px solid ${category.color}40;
+                    border-radius: 5px;
+                    font-size: 11px;
+                    color: #fff;
+                `;
+
+                // 分别处理emoji和名称
+                if (category.icon) {
+                    const iconSpan = document.createElement('span');
+                    iconSpan.textContent = category.icon;
+                    iconSpan.style.cssText = `
+                        font-size: 12px;
+                        line-height: 1;
+                    `;
+                    categoryEl.appendChild(iconSpan);
+                }
+
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = category.name;
+                nameSpan.style.cssText = `
+                    font-size: 11px;
+                    font-weight: 500;
+                `;
+                categoryEl.appendChild(nameSpan);
+
+                categoryContainer.appendChild(categoryEl);
+                infoEl.appendChild(categoryContainer);
+            }
+        }
+
+        // 添加番茄数量显示（在分类后）
+        const targetReminder = reminder.isRepeatInstance ?
+            (this.getOriginalReminder(reminder.originalId) || reminder) :
+            reminder;
+
+        if (targetReminder.pomodoroCount && targetReminder.pomodoroCount > 0) {
+            const pomodoroDisplay = document.createElement('div');
+            pomodoroDisplay.className = 'reminder-pomodoro-count';
+            pomodoroDisplay.style.cssText = `
+                font-size: 12px;
+                display: inline-flex;
+                align-items: center;
+                gap: 2px;
+                margin-top: 2px;
+            `;
+
+            // 生成番茄emoji
+            const tomatoEmojis = '🍅'.repeat(Math.min(targetReminder.pomodoroCount, 5));
+            const extraCount = targetReminder.pomodoroCount > 5 ? `+${targetReminder.pomodoroCount - 5}` : '';
+
+            pomodoroDisplay.innerHTML = `
+                <span title="完成的番茄钟数量: ${targetReminder.pomodoroCount}">${tomatoEmojis}${extraCount}</span>
+            `;
+
+            infoEl.appendChild(pomodoroDisplay);
+        }
+
+        // 备注
+        if (reminder.note) {
+            const noteEl = document.createElement('div');
+            noteEl.className = 'reminder-item__note';
+            noteEl.textContent = reminder.note;
+            infoEl.appendChild(noteEl);
+        }
+
+        contentEl.appendChild(checkbox);
+        contentEl.appendChild(infoEl);
+        reminderEl.appendChild(contentEl);
+
+        return reminderEl;
+    }
+
+    /**
+     * 异步添加文档标题显示
+     * @param container 标题容器元素
+     * @param docId 文档ID
+     */
+    private async addDocumentTitle(container: HTMLElement, docId: string) {
+        try {
+            const docBlock = await getBlockByID(docId);
+            if (docBlock && docBlock.content) {
+                // 创建文档标题元素
+                const docTitleEl = document.createElement('div');
+                docTitleEl.className = 'reminder-item__doc-title';
+                docTitleEl.style.cssText = `
+                    font-size: 11px;
+                    color: var(--b3-theme-on-surface-light);
+                    margin-bottom: 2px;
+                    opacity: 0.8;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                `;
+
+                // 添加文档图标
+                const docIcon = document.createElement('span');
+                docIcon.innerHTML = '📄';
+                docIcon.style.fontSize = '10px';
+
+                // 添加文档标题文本
+                const docTitleText = document.createElement('span');
+                docTitleText.textContent = docBlock.content;
+                docTitleText.title = `所属文档: ${docBlock.content}`;
+
+                // 点击事件：打开文档
+                docTitleEl.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.openBlock(docId);
+                });
+
+                // 鼠标悬停效果
+                docTitleEl.addEventListener('mouseenter', () => {
+                    docTitleEl.style.color = 'var(--b3-theme-primary)';
+                });
+                docTitleEl.addEventListener('mouseleave', () => {
+                    docTitleEl.style.color = 'var(--b3-theme-on-surface-light)';
+                });
+
+                docTitleEl.appendChild(docIcon);
+                docTitleEl.appendChild(docTitleText);
+
+                // 将文档标题插入到容器的最前面
+                container.insertBefore(docTitleEl, container.firstChild);
+            }
+        } catch (error) {
+            console.warn('获取文档标题失败:', error);
+            // 静默失败，不影响主要功能
+        }
+    }
+
+    private async loadReminders() {
+        try {
+            const reminderData = await readReminderData();
+
+            if (!reminderData || typeof reminderData !== 'object') {
+                this.updateReminderCounts(0, 0, 0, 0);
+                this.renderReminders([]);
+                return;
+            }
+
+            const today = getLocalDateString();
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tomorrowStr = getLocalDateString(tomorrow);
+
+            // 计算过去七天的日期范围
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7); // 改为-7，不包括今天
+            const sevenDaysAgoStr = getLocalDateString(sevenDaysAgo);
+
+            const reminders = Object.values(reminderData).filter((reminder: any) => {
+                return reminder && typeof reminder === 'object' && reminder.id && reminder.date;
+            });
+
+            // 处理重复事件 - 生成重复实例
+            const allReminders = [];
+            const repeatInstancesMap = new Map();
+
+            reminders.forEach((reminder: any) => {
+                // 添加原始事件
+                allReminders.push(reminder);
+
+                // 如果有重复设置，生成重复事件实例
+                if (reminder.repeat?.enabled) {
+                    const now = new Date();
+                    const monthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+                    const startDate = monthStart.toISOString().split('T')[0];
+                    const endDate = monthEnd.toISOString().split('T')[0];
+
+                    const repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
+                    repeatInstances.forEach(instance => {
+                        // 跳过与原始事件相同日期的实例
+                        if (instance.date !== reminder.date) {
+                            // 检查实例级别的完成状态
+                            const completedInstances = reminder.repeat?.completedInstances || [];
+                            const isInstanceCompleted = completedInstances.includes(instance.date);
+
+                            // 检查实例级别的修改（包括备注）
+                            const instanceModifications = reminder.repeat?.instanceModifications || {};
+                            const instanceMod = instanceModifications[instance.date];
+
+                            const instanceReminder = {
+                                ...reminder,
+                                id: instance.instanceId,
+                                date: instance.date,
+                                endDate: instance.endDate,
+                                time: instance.time,
+                                endTime: instance.endTime,
+                                isRepeatInstance: true,
+                                originalId: instance.originalId,
+                                completed: isInstanceCompleted,
+                                note: instanceMod?.note || ''
+                            };
+
+                            const key = `${reminder.id}_${instance.date}`;
+                            if (!repeatInstancesMap.has(key) ||
+                                compareDateStrings(instance.date, repeatInstancesMap.get(key).date) < 0) {
+                                repeatInstancesMap.set(key, instanceReminder);
+                            }
+                        }
+                    });
+                }
+            });
+
+            // 添加去重后的重复事件实例
+            repeatInstancesMap.forEach(instance => {
+                allReminders.push(instance);
+            });
+
+            // 应用分类过滤
+            const filteredReminders = this.applyCategoryFilter(allReminders);
+
+            // 分类提醒 - 改进过期判断逻辑
+            const overdue = filteredReminders.filter((reminder: any) => {
+                if (reminder.completed) return false;
+
+                // 对于跨天事件，以结束日期判断是否过期
+                if (reminder.endDate) {
+                    return compareDateStrings(reminder.endDate, today) < 0;
+                } else {
+                    // 对于单日事件，以开始日期判断是否过期
+                    return compareDateStrings(reminder.date, today) < 0;
+                }
+            });
+
+            // 今日提醒 - 改进跨天事件判断逻辑，包含过期事项
+            const todayReminders = filteredReminders.filter((reminder: any) => {
+                if (reminder.completed) return false;
+
+                if (reminder.endDate) {
+                    // 跨天事件：只要今天在事件的时间范围内就显示，或者事件已过期但结束日期在今天之前
+                    return (compareDateStrings(reminder.date, today) <= 0 &&
+                        compareDateStrings(today, reminder.endDate) <= 0) ||
+                        compareDateStrings(reminder.endDate, today) < 0;
+                } else {
+                    // 单日事件：今天或过期的都显示在今日
+                    return reminder.date === today || compareDateStrings(reminder.date, today) < 0;
+                }
+            });
+
+            // 明天提醒 - 改进跨天事件判断逻辑
+            const tomorrowReminders = [];
+            const tomorrowInstancesMap = new Map();
+
+            filteredReminders.forEach((reminder: any) => {
+                if (reminder.completed) return;
+
+                let isTomorrow = false;
+                if (reminder.endDate) {
+                    // 跨天事件：明天在事件的时间范围内
+                    isTomorrow = compareDateStrings(reminder.date, tomorrowStr) <= 0 &&
+                        compareDateStrings(tomorrowStr, reminder.endDate) <= 0;
+                } else {
+                    // 单日事件：明天的事件
+                    isTomorrow = reminder.date === tomorrowStr;
+                }
+
+                if (isTomorrow) {
+                    if (reminder.isRepeatInstance) {
+                        const originalId = reminder.originalId;
+                        if (!tomorrowInstancesMap.has(originalId) ||
+                            compareDateStrings(reminder.date, tomorrowInstancesMap.get(originalId).date) < 0) {
+                            tomorrowInstancesMap.set(originalId, reminder);
+                        }
+                    } else {
+                        tomorrowReminders.push(reminder);
+                    }
+                }
+            });
+
+            tomorrowInstancesMap.forEach(instance => {
+                tomorrowReminders.push(instance);
+            });
+
+            // 修改过去七天提醒的筛选逻辑
+            const pastSevenDaysReminders = filteredReminders.filter((reminder: any) => {
+                // 过去七天：仅包括过去7天内的提醒（不包括今天之后的）
+                const reminderStartDate = reminder.date;
+                const reminderEndDate = reminder.endDate || reminder.date;
+
+                // 事件必须在过去7天到昨天之间
+                return compareDateStrings(sevenDaysAgoStr, reminderStartDate) <= 0 &&
+                    compareDateStrings(reminderEndDate, today) < 0;
+            });
+
+            const completed = filteredReminders.filter((reminder: any) => reminder.completed);
+
+            this.updateReminderCounts(overdue.length, todayReminders.length, tomorrowReminders.length, completed.length);
+
+            // 根据当前选中的标签显示对应的提醒
+            let displayReminders = [];
+            switch (this.currentTab) {
+                case 'overdue':
+                    displayReminders = overdue;
+                    break;
+                case 'today':
+                    displayReminders = todayReminders;
+                    break;
+                case 'tomorrow':
+                    displayReminders = tomorrowReminders;
+                    break;
+                case 'completed':
+                    displayReminders = completed;
+                    break;
+                case 'all':
+                    displayReminders = pastSevenDaysReminders;  // 使用真正的过去七天筛选
+                    break;
+                default:
+                    displayReminders = [...todayReminders, ...tomorrowReminders];
+            }
+
+            this.renderReminders(displayReminders);
+        } catch (error) {
+            console.error('加载提醒失败:', error);
+            showMessage(t("loadRemindersFailed"));
+        }
+    }
+
+    private applyCategoryFilter(reminders: any[]): any[] {
+        if (this.currentCategoryFilter === 'all') {
+            return reminders;
+        }
+
+        return reminders.filter(reminder => {
+            if (this.currentCategoryFilter === 'none') {
+                return !reminder.categoryId;
+            }
+            return reminder.categoryId === this.currentCategoryFilter;
+        });
+    }
+
+    private showCategoryManageDialog() {
+        const categoryDialog = new CategoryManageDialog(() => {
+            // 分类更新后重新渲染过滤器和提醒列表
+            this.renderCategoryFilter();
+            this.loadReminders();
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+        });
+        categoryDialog.show();
+    }
+
+    // 修复排序菜单方法
+    private showSortMenu(event: MouseEvent) {
+        try {
+            const menu = new Menu("reminderSortMenu");
+
+            const sortOptions = [
+                { key: 'time', label: t("sortByTime"), icon: '🕐' },
+                { key: 'priority', label: t("sortByPriority"), icon: '🎯' },
+                { key: 'title', label: t("sortByTitle"), icon: '📝' },
+                { key: 'created', label: t("sortByCreated"), icon: '📅' }
+            ];
+
+            sortOptions.forEach(option => {
+                menu.addItem({
+                    iconHTML: option.icon,
+                    label: option.label,
+                    current: this.currentSort === option.key,
+                    click: async () => {
+                        try {
+                            this.currentSort = option.key;
+                            this.updateSortButtonTitle();
+                            // 保存排序配置到文件
+                            await saveSortConfig(option.key);
+                            this.loadReminders();
+                        } catch (error) {
+                            console.error('保存排序配置失败:', error);
+                            // 即使保存失败也继续执行排序
+                            this.loadReminders();
+                        }
+                    }
+                });
+            });
+
+            // 使用按钮的位置信息来定位菜单
+            if (this.sortButton) {
+                const rect = this.sortButton.getBoundingClientRect();
+                const menuX = rect.left;
+                const menuY = rect.bottom + 4;
+
+                // 确保菜单在可视区域内
+                const maxX = window.innerWidth - 200; // 假设菜单宽度约200px
+                const maxY = window.innerHeight - 150; // 假设菜单高度约150px
+
+                menu.open({
+                    x: Math.min(menuX, maxX),
+                    y: Math.min(menuY, maxY)
+                });
+            } else {
+                // 备用定位方式：使用鼠标位置
+                menu.open({
+                    x: event.clientX,
+                    y: event.clientY
+                });
+            }
+        } catch (error) {
+            console.error('显示排序菜单失败:', error);
+            const currentName = getSortMethodName(this.currentSort);
+            console.log(`当前排序方式: ${currentName}`);
+        }
+    }
+
+    // 更新排序按钮的提示文本
+    private updateSortButtonTitle() {
+        if (this.sortButton) {
+            this.sortButton.title = `${t("sortBy")}: ${getSortMethodName(this.currentSort)}`;
+        }
+    }
+
+    private async loadReminders() {
+        try {
+            const reminderData = await readReminderData();
+
+            if (!reminderData || typeof reminderData !== 'object') {
+                this.updateReminderCounts(0, 0, 0, 0);
+                this.renderReminders([]);
+                return;
+            }
+
+            const today = getLocalDateString();
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tomorrowStr = getLocalDateString(tomorrow);
+
+            // 计算过去七天的日期范围
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7); // 改为-7，不包括今天
+            const sevenDaysAgoStr = getLocalDateString(sevenDaysAgo);
+
+            const reminders = Object.values(reminderData).filter((reminder: any) => {
+                return reminder && typeof reminder === 'object' && reminder.id && reminder.date;
+            });
+
+            // 处理重复事件 - 生成重复实例
+            const allReminders = [];
+            const repeatInstancesMap = new Map();
+
+            reminders.forEach((reminder: any) => {
+                // 添加原始事件
+                allReminders.push(reminder);
+
+                // 如果有重复设置，生成重复事件实例
+                if (reminder.repeat?.enabled) {
+                    const now = new Date();
+                    const monthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+                    const startDate = monthStart.toISOString().split('T')[0];
+                    const endDate = monthEnd.toISOString().split('T')[0];
+
+                    const repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
+                    repeatInstances.forEach(instance => {
+                        // 跳过与原始事件相同日期的实例
+                        if (instance.date !== reminder.date) {
+                            // 检查实例级别的完成状态
+                            const completedInstances = reminder.repeat?.completedInstances || [];
+                            const isInstanceCompleted = completedInstances.includes(instance.date);
+
+                            // 检查实例级别的修改（包括备注）
+                            const instanceModifications = reminder.repeat?.instanceModifications || {};
+                            const instanceMod = instanceModifications[instance.date];
+
+                            const instanceReminder = {
+                                ...reminder,
+                                id: instance.instanceId,
+                                date: instance.date,
+                                endDate: instance.endDate,
+                                time: instance.time,
+                                endTime: instance.endTime,
+                                isRepeatInstance: true,
+                                originalId: instance.originalId,
+                                completed: isInstanceCompleted,
+                                note: instanceMod?.note || ''
+                            };
+
+                            const key = `${reminder.id}_${instance.date}`;
+                            if (!repeatInstancesMap.has(key) ||
+                                compareDateStrings(instance.date, repeatInstancesMap.get(key).date) < 0) {
+                                repeatInstancesMap.set(key, instanceReminder);
+                            }
+                        }
+                    });
+                }
+            });
+
+            // 添加去重后的重复事件实例
+            repeatInstancesMap.forEach(instance => {
+                allReminders.push(instance);
+            });
+
+            // 应用分类过滤
+            const filteredReminders = this.applyCategoryFilter(allReminders);
+
+            // 分类提醒 - 改进过期判断逻辑
+            const overdue = filteredReminders.filter((reminder: any) => {
+                if (reminder.completed) return false;
+
+                // 对于跨天事件，以结束日期判断是否过期
+                if (reminder.endDate) {
+                    return compareDateStrings(reminder.endDate, today) < 0;
+                } else {
+                    // 对于单日事件，以开始日期判断是否过期
+                    return compareDateStrings(reminder.date, today) < 0;
+                }
+            });
+
+            // 今日提醒 - 改进跨天事件判断逻辑，包含过期事项
+            const todayReminders = filteredReminders.filter((reminder: any) => {
+                if (reminder.completed) return false;
+
+                if (reminder.endDate) {
+                    // 跨天事件：只要今天在事件的时间范围内就显示，或者事件已过期但结束日期在今天之前
+                    return (compareDateStrings(reminder.date, today) <= 0 &&
+                        compareDateStrings(today, reminder.endDate) <= 0) ||
+                        compareDateStrings(reminder.endDate, today) < 0;
+                } else {
+                    // 单日事件：今天或过期的都显示在今日
+                    return reminder.date === today || compareDateStrings(reminder.date, today) < 0;
+                }
+            });
+
+            // 明天提醒 - 改进跨天事件判断逻辑
+            const tomorrowReminders = [];
+            const tomorrowInstancesMap = new Map();
+
+            filteredReminders.forEach((reminder: any) => {
+                if (reminder.completed) return;
+
+                let isTomorrow = false;
+                if (reminder.endDate) {
+                    // 跨天事件：明天在事件的时间范围内
+                    isTomorrow = compareDateStrings(reminder.date, tomorrowStr) <= 0 &&
+                        compareDateStrings(tomorrowStr, reminder.endDate) <= 0;
+                } else {
+                    // 单日事件：明天的事件
+                    isTomorrow = reminder.date === tomorrowStr;
+                }
+
+                if (isTomorrow) {
+                    if (reminder.isRepeatInstance) {
+                        const originalId = reminder.originalId;
+                        if (!tomorrowInstancesMap.has(originalId) ||
+                            compareDateStrings(reminder.date, tomorrowInstancesMap.get(originalId).date) < 0) {
+                            tomorrowInstancesMap.set(originalId, reminder);
+                        }
+                    } else {
+                        tomorrowReminders.push(reminder);
+                    }
+                }
+            });
+
+            tomorrowInstancesMap.forEach(instance => {
+                tomorrowReminders.push(instance);
+            });
+
+            // 修改过去七天提醒的筛选逻辑
+            const pastSevenDaysReminders = filteredReminders.filter((reminder: any) => {
+                // 过去七天：仅包括过去7天内的提醒（不包括今天之后的）
+                const reminderStartDate = reminder.date;
+                const reminderEndDate = reminder.endDate || reminder.date;
+
+                // 事件必须在过去7天到昨天之间
+                return compareDateStrings(sevenDaysAgoStr, reminderStartDate) <= 0 &&
+                    compareDateStrings(reminderEndDate, today) < 0;
+            });
+
+            const completed = filteredReminders.filter((reminder: any) => reminder.completed);
+
+            this.updateReminderCounts(overdue.length, todayReminders.length, tomorrowReminders.length, completed.length);
+
+            // 根据当前选中的标签显示对应的提醒
+            let displayReminders = [];
+            switch (this.currentTab) {
+                case 'overdue':
+                    displayReminders = overdue;
+                    break;
+                case 'today':
+                    displayReminders = todayReminders;
+                    break;
+                case 'tomorrow':
+                    displayReminders = tomorrowReminders;
+                    break;
+                case 'completed':
+                    displayReminders = completed;
+                    break;
+                case 'all':
+                    displayReminders = pastSevenDaysReminders;  // 使用真正的过去七天筛选
+                    break;
+                default:
+                    displayReminders = [...todayReminders, ...tomorrowReminders];
+            }
+
+            // 修改为异步处理提醒元素创建
+            const createRemindersAsync = async () => {
+                for (const reminder of displayReminders) {
+                    const reminderEl = await this.createReminderElement(reminder, today);
+                    this.remindersContainer.appendChild(reminderEl);
+                }
+            };
+
+            this.remindersContainer.innerHTML = ''; // 清空容器
+            createRemindersAsync().catch(error => {
+                console.error('创建提醒元素失败:', error);
+            });
+        } catch (error) {
+            console.error('加载提醒失败:', error);
+            showMessage(t("loadRemindersFailed"));
+        }
     }
 
     // 添加排序方法
@@ -904,6 +1590,12 @@ export class ReminderPanel {
         const titleContainer = document.createElement('div');
         titleContainer.className = 'reminder-item__title-container';
 
+        // 检查是否需要显示文档标题
+        if (reminder.docId && reminder.blockId !== reminder.docId) {
+            // 异步获取并显示文档标题
+            this.addDocumentTitle(titleContainer, reminder.docId);
+        }
+
         // 标题
         const titleEl = document.createElement('a');
         titleEl.className = 'reminder-item__title';
@@ -1073,39 +1765,6 @@ export class ReminderPanel {
         reminderEl.appendChild(contentEl);
 
         return reminderEl;
-    }
-
-    /**
-     * 获取原始提醒数据（用于重复事件实例）
-     */
-    private getOriginalReminder(originalId: string): any {
-        try {
-            // 这里需要从缓存中获取原始提醒数据
-            // 为了性能考虑，我们可以在loadReminders时缓存这些数据
-            return this.originalRemindersCache?.[originalId] || null;
-        } catch (error) {
-            console.error('获取原始提醒失败:', error);
-            return null;
-        }
-    }
-
-    // 添加缓存属性
-    private originalRemindersCache: { [id: string]: any } = {};
-
-    private async editOriginalReminder(originalId: string) {
-        try {
-            const reminderData = await readReminderData();
-            const originalReminder = reminderData[originalId];
-
-            if (originalReminder) {
-                this.showTimeEditDialog(originalReminder);
-            } else {
-                showMessage(t("reminderDataNotExist"));
-            }
-        } catch (error) {
-            console.error('获取原始提醒失败:', error);
-            showMessage(t("openModifyDialogFailed"));
-        }
     }
 
     /**

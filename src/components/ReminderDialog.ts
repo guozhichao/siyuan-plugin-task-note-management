@@ -700,6 +700,7 @@ export class ReminderDialog {
             const reminder = {
                 id: reminderId,
                 blockId: this.blockId,
+                docId: this.documentId, // 添加文档ID字段
                 title: title,
                 date: date,
                 completed: false,
