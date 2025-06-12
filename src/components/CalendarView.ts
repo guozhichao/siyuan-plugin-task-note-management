@@ -466,7 +466,7 @@ export class CalendarView {
 
             // 复制到剪贴板
             await navigator.clipboard.writeText(blockRef);
-            showMessage("块引已复制到剪贴板");
+            // showMessage("块引已复制到剪贴板");
 
         } catch (error) {
             console.error('复制块引失败:', error);
