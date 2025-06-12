@@ -17,6 +17,12 @@ export class PomodoroTimer {
     private todayFocusDisplay: HTMLElement;
     private weekFocusDisplay: HTMLElement;
     private modeToggleBtn: HTMLElement;
+    private minimizeBtn: HTMLElement;
+    private minimizedView: HTMLElement;
+    private minimizedIcon: HTMLElement;
+    private minimizedBg: HTMLElement;
+    private minimizedOverlay: HTMLElement;
+    private restoreBtn: HTMLElement;
 
     private isRunning: boolean = false;
     private isPaused: boolean = false;
@@ -30,6 +36,7 @@ export class PomodoroTimer {
     private completedPomodoros: number = 0; // 完成的番茄数量
     private timer: number = null;
     private isExpanded: boolean = true;
+    private isMinimized: boolean = false;
     private startTime: number = 0; // 记录开始时间
 
     private workAudio: HTMLAudioElement = null;
@@ -174,6 +181,9 @@ export class PomodoroTimer {
             overflow: hidden;
         `;
 
+        // 创建最小化视图
+        this.createMinimizedView();
+
         // 标题栏
         const header = document.createElement('div');
         header.className = 'pomodoro-header';
@@ -198,7 +208,34 @@ export class PomodoroTimer {
             align-items: center;
             gap: 8px;
         `;
-        title.innerHTML = `<span style="font-size: 16px;">${this.isCountUp ? '🍅' : '🍅'}</span><span></span>`;
+
+        // 最小化按钮（替换原来的🍅图标）
+        this.minimizeBtn = document.createElement('button');
+        this.minimizeBtn.style.cssText = `
+            background: none;
+            border: none;
+            color: var(--b3-theme-on-surface);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            font-size: 16px;
+            line-height: 1;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+        this.minimizeBtn.innerHTML = '🍅';
+        this.minimizeBtn.title = '最小化';
+        this.minimizeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.toggleMinimize();
+        });
+
+        const titleText = document.createElement('span');
+        title.appendChild(this.minimizeBtn);
+        title.appendChild(titleText);
 
         const headerButtons = document.createElement('div');
         headerButtons.style.cssText = `
@@ -649,6 +686,7 @@ export class PomodoroTimer {
         content.appendChild(mainContainer);
         content.appendChild(this.statsContainer);
 
+        this.container.appendChild(this.minimizedView);
         this.container.appendChild(header);
         this.container.appendChild(content);
 
@@ -661,6 +699,131 @@ export class PomodoroTimer {
         document.body.appendChild(this.container);
     }
 
+    private createMinimizedView() {
+        this.minimizedView = document.createElement('div');
+        this.minimizedView.className = 'pomodoro-minimized-view';
+        this.minimizedView.style.display = 'none';
+
+        // 进度背景
+        this.minimizedBg = document.createElement('div');
+        this.minimizedBg.className = 'pomodoro-minimized-bg';
+
+        // 白色覆盖层
+        this.minimizedOverlay = document.createElement('div');
+        this.minimizedOverlay.className = 'pomodoro-minimized-overlay';
+
+        // 中心图标
+        this.minimizedIcon = document.createElement('div');
+        this.minimizedIcon.className = 'pomodoro-minimized-icon';
+        this.minimizedIcon.innerHTML = '🍅';
+
+        // 恢复按钮
+        this.restoreBtn = document.createElement('button');
+        this.restoreBtn.className = 'pomodoro-restore-btn';
+        this.restoreBtn.innerHTML = '↗';
+        this.restoreBtn.title = '恢复窗口';
+        this.restoreBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.restore();
+        });
+
+        this.minimizedView.appendChild(this.minimizedBg);
+        this.minimizedView.appendChild(this.minimizedOverlay);
+        this.minimizedView.appendChild(this.minimizedIcon);
+        this.minimizedView.appendChild(this.restoreBtn);
+
+        // 添加拖拽功能到最小化视图（但排除恢复按钮）
+        this.makeDraggable(this.minimizedView);
+    }
+
+    private toggleMinimize() {
+        if (this.isMinimized) {
+            this.restore();
+        } else {
+            this.minimize();
+        }
+    }
+
+    private minimize() {
+        this.isMinimized = true;
+
+        // 添加最小化动画类
+        this.container.classList.add('minimizing');
+
+        setTimeout(() => {
+            this.container.classList.remove('minimizing');
+            this.container.classList.add('minimized');
+            this.updateMinimizedDisplay();
+        }, 300);
+    }
+
+    private restore() {
+        this.isMinimized = false;
+
+        // 添加展开动画类
+        this.container.classList.remove('minimized');
+
+        setTimeout(() => {
+            // 恢复时不显示统计数据
+            this.isExpanded = false;
+            this.statsContainer.style.display = 'none';
+            this.expandToggleBtn.innerHTML = '📈';
+            this.expandToggleBtn.title = '展开';
+            this.updateDisplay();
+        }, 300);
+    }
+
+    private updateMinimizedDisplay() {
+        if (!this.isMinimized) return;
+
+        // 计算进度
+        let progress = 0;
+        let color = '#FF6B6B'; // 默认工作时间颜色
+
+        if (this.isCountUp) {
+            if (this.isWorkPhase) {
+                // 正计时工作时间：显示当前番茄的进度
+                const pomodoroLength = this.settings.workDuration * 60;
+                const currentCycleTime = this.timeElapsed % pomodoroLength;
+                progress = currentCycleTime / pomodoroLength;
+                color = '#FF6B6B';
+            } else {
+                // 正计时休息时间：显示休息进度
+                const totalBreakTime = this.isLongBreak ?
+                    this.settings.longBreakDuration * 60 :
+                    this.settings.breakDuration * 60;
+                progress = (totalBreakTime - this.breakTimeLeft) / totalBreakTime;
+                color = this.isLongBreak ? '#9C27B0' : '#4CAF50';
+            }
+        } else {
+            // 倒计时模式：显示完成进度
+            progress = (this.totalTime - this.timeLeft) / this.totalTime;
+            if (this.isWorkPhase) {
+                color = '#FF6B6B';
+            } else {
+                color = this.isLongBreak ? '#9C27B0' : '#4CAF50';
+            }
+        }
+
+        // 确保进度在0-1范围内
+        progress = Math.max(0, Math.min(1, progress));
+
+        // 转换为角度（360度 = 100%进度）
+        const angle = progress * 360;
+
+        // 更新CSS变量
+        this.minimizedBg.style.setProperty('--progress-color', color);
+        this.minimizedBg.style.setProperty('--progress-angle', `${angle}deg`);
+
+        // 更新图标
+        if (this.isWorkPhase) {
+            this.minimizedIcon.innerHTML = '🍅';
+        } else {
+            this.minimizedIcon.innerHTML = this.isLongBreak ? '🧘' : '🍵';
+        }
+    }
+
     private makeDraggable(handle: HTMLElement) {
         let isDragging = false;
         let currentX = 0;
@@ -669,27 +832,38 @@ export class PomodoroTimer {
         let initialY = 0;
 
         handle.addEventListener('mousedown', (e) => {
-            if (e.target.closest('button')) {
+            // 如果点击的是恢复按钮，不触发拖拽
+            if (e.target === this.restoreBtn) {
                 return;
             }
 
-            e.preventDefault();
-            isDragging = true;
+            // 如果是最小化视图，允许拖拽
+            if (this.isMinimized || !e.target.closest('button')) {
+                e.preventDefault();
+                isDragging = true;
 
-            const rect = this.container.getBoundingClientRect();
-            initialX = e.clientX - rect.left;
-            initialY = e.clientY - rect.top;
+                const rect = this.container.getBoundingClientRect();
+                initialX = e.clientX - rect.left;
+                initialY = e.clientY - rect.top;
 
-            this.container.style.transition = 'none';
-            this.container.style.pointerEvents = 'none';
+                this.container.style.transition = 'none';
+                this.container.style.pointerEvents = 'none';
 
-            const buttons = this.container.querySelectorAll('button');
-            buttons.forEach(btn => {
-                btn.style.pointerEvents = 'auto';
-            });
+                // 最小化状态下保持指针事件
+                if (this.isMinimized) {
+                    this.container.style.pointerEvents = 'auto';
+                    // 确保恢复按钮的事件不被阻止
+                    this.restoreBtn.style.pointerEvents = 'auto';
+                } else {
+                    const buttons = this.container.querySelectorAll('button');
+                    buttons.forEach(btn => {
+                        btn.style.pointerEvents = 'auto';
+                    });
+                }
 
-            document.addEventListener('mousemove', drag);
-            document.addEventListener('mouseup', stopDrag);
+                document.addEventListener('mousemove', drag);
+                document.addEventListener('mouseup', stopDrag);
+            }
         });
 
         const drag = (e) => {
@@ -834,15 +1008,15 @@ export class PomodoroTimer {
 
         // 更新颜色和状态显示
         let color = '#FF6B6B';
-        let statusText = '工作时间';
+        let statusText = '💪工作时间';
 
         if (!this.isWorkPhase) {
             if (this.isLongBreak) {
                 color = '#9C27B0';
-                statusText = '长时休息';
+                statusText = '🧘‍♀️长时休息';
             } else {
                 color = '#4CAF50';
-                statusText = '短时休息';
+                statusText = '🍵短时休息';
             }
         }
 
@@ -880,6 +1054,12 @@ export class PomodoroTimer {
             this.startPauseBtn.style.height = '36px';
             this.startPauseBtn.style.fontSize = '20px';
             this.stopBtn.style.display = 'none';
+        }
+
+        // 如果是最小化状态，更新最小化显示
+        if (this.isMinimized) {
+            this.updateMinimizedDisplay();
+            return;
         }
     }
 

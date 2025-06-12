@@ -123,6 +123,7 @@
 
 
 }
+
 .batch-reminder-dialog {
     .b3-form__group {
         margin-bottom: 16px;
@@ -657,7 +658,7 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    max-height: 120px;
+    max-height: 80px;
     overflow-y: auto;
     border: 1px solid var(--b3-border-color);
     border-radius: 4px;
@@ -966,6 +967,123 @@
             border-right: 1px solid var(--b3-theme-border);
         }
     }
+
+    /* 最小化视图样式 */
+    &.minimized {
+        width: 60px !important;
+        height: 60px !important;
+        border-radius: 50% !important;
+        overflow: visible !important;
+        padding: 0 !important;
+        background: transparent !important;
+        border: 2px solid rgba(255, 255, 255, 0.3) !important;
+        backdrop-filter: blur(8px) !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+
+        .pomodoro-header,
+        .pomodoro-content {
+            display: none !important;
+        }
+
+        .pomodoro-minimized-view {
+            display: flex !important;
+            width: 100%;
+            height: 100%;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            border-radius: 50%;
+            overflow: hidden;
+        }
+
+        .pomodoro-minimized-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: conic-gradient(from -90deg,
+                    var(--progress-color, #FF6B6B) var(--progress-angle, 0deg),
+                    rgba(255, 255, 255, 0.1) var(--progress-angle, 0deg));
+            transition: all 0.3s ease;
+        }
+
+        .pomodoro-minimized-icon {
+            position: relative;
+            z-index: 2;
+            font-size: 24px;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            user-select: none;
+            cursor: pointer;
+        }
+
+        .pomodoro-minimized-overlay {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            right: 2px;
+            bottom: 2px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            z-index: 1;
+        }
+
+        .pomodoro-restore-btn {
+            position: absolute;
+            top: 25px;
+            right: 21px;
+            width: 15px;
+            height: 15px;
+            background: var(--b3-theme-primary);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 10px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px #0003;
+            transition: all .2s ease;
+            z-index: 10;
+
+            &:hover {
+                background: var(--b3-theme-primary-light);
+                transform: scale(1.1);
+            }
+
+            &:active {
+                transform: scale(0.95);
+            }
+        }
+
+        &:hover .pomodoro-restore-btn {
+            display: flex;
+        }
+
+        /* 暗色主题适配 */
+        .b3-theme-dark & {
+            border-color: rgba(255, 255, 255, 0.2) !important;
+
+            .pomodoro-minimized-overlay {
+                background: rgba(30, 30, 30, 0.9);
+            }
+
+            .pomodoro-restore-btn {
+                background: var(--b3-theme-primary);
+            }
+        }
+    }
+
+    /* 从最小化恢复的动画 */
+    &.expanding {
+        animation: pomodoroExpand 0.3s ease-out forwards;
+    }
+
+    &.minimizing {
+        animation: pomodoroMinimize 0.3s ease-out forwards;
+    }
 }
 
 @keyframes pomodoroFadeIn {
@@ -991,13 +1109,41 @@
     }
 }
 
-/* 响应式调整 */
-@media (max-width: 320px) {
-    .pomodoro-timer-window {
-        width: 260px;
-
-        .pomodoro-content {
-            padding: 12px;
-        }
+@keyframes pomodoroMinimize {
+    from {
+        width: 240px;
+        height: auto;
+        border-radius: 12px;
     }
+
+    to {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+    }
+}
+
+@keyframes pomodoroExpand {
+    from {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+    }
+
+    to {
+        width: 240px;
+        height: auto;
+        border-radius: 12px;
+    }
+}
+
+.pomodoro-minimized-view {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
 }
