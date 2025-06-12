@@ -1766,7 +1766,10 @@ export class CalendarView {
         const parts: string[] = [];
 
         try {
-            // 1. 文档标题（如果存在docId）
+            // 1. 文档标题（修复：添加块级事件的父文档标题获取逻辑）
+            let docTitleAdded = false;
+            
+            // 首先检查是否有明确的docId
             if (reminder.docId) {
                 try {
                     const docBlock = await getBlockByID(reminder.docId);
@@ -1775,9 +1778,30 @@ export class CalendarView {
                             <span>📄</span>
                             <span title="所属文档">${this.escapeHtml(docBlock.content)}</span>
                         </div>`);
+                        docTitleAdded = true;
                     }
                 } catch (error) {
                     console.warn('获取文档标题失败:', error);
+                }
+            }
+            
+            // 如果没有docId但有blockId，且blockId不等于docId，尝试获取块的父文档
+            if (!docTitleAdded && reminder.blockId && reminder.blockId !== reminder.docId) {
+                try {
+                    const blockInfo = await getBlockByID(reminder.blockId);
+                    if (blockInfo && blockInfo.root_id && blockInfo.root_id !== reminder.blockId) {
+                        // 获取根文档的信息
+                        const rootBlock = await getBlockByID(blockInfo.root_id);
+                        if (rootBlock && rootBlock.content) {
+                            parts.push(`<div style="color: var(--b3-theme-on-surface-light); font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-align: left;">
+                                <span>📄</span>
+                                <span title="所属文档">${this.escapeHtml(rootBlock.content)}</span>
+                            </div>`);
+                            docTitleAdded = true;
+                        }
+                    }
+                } catch (error) {
+                    console.warn('获取块父文档标题失败:', error);
                 }
             }
 
