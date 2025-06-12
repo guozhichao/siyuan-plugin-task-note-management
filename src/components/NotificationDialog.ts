@@ -163,15 +163,18 @@ export class NotificationDialog {
             }
 
             .notification-content.priority-high {
-                border-left: 4px solid var(--b3-theme-error);
+                border-left: 4px solid var(--b3-card-error-color) !important;
+                background-color: var(--b3-card-error-background) !important;
             }
 
             .notification-content.priority-medium {
-                border-left: 4px solid var(--b3-theme-warning);
+                border-left: 4px solid var(--b3-card-warning-color) !important;
+                background-color: var(--b3-card-warning-background) !important;
             }
 
             .notification-content.priority-low {
-                border-left: 4px solid var(--b3-theme-info);
+                border-left: 4px solid var(--b3-card-info-color) !important;
+                background-color: var(--b3-card-info-background) !important;
             }
 
             .notification-header {
@@ -257,21 +260,22 @@ export class NotificationDialog {
             }
 
             .notification-priority .priority-dot {
-                width: 8px;
-                height: 8px;
+                width: 10px;
+                height: 10px;
                 border-radius: 50%;
+                flex-shrink: 0;
             }
 
             .notification-priority .priority-dot.high {
-                background: var(--b3-theme-error);
+                background-color: var(--b3-card-error-color);
             }
 
             .notification-priority .priority-dot.medium {
-                background: var(--b3-theme-warning);
+                background-color: var(--b3-card-warning-color);
             }
 
             .notification-priority .priority-dot.low {
-                background: var(--b3-theme-info);
+                background-color: var(--b3-card-info-color);
             }
 
             .notification-category {
@@ -298,6 +302,25 @@ export class NotificationDialog {
                 border-radius: 4px;
                 word-break: break-word;
                 border-left: 3px solid var(--b3-theme-primary-lighter);
+            }
+
+            /* 优先级对应的备注样式 */
+            .notification-content.priority-high .notification-note {
+                color: var(--b3-card-error-color) !important;
+                background-color: rgba(var(--b3-card-error-color-rgb), 0.1) !important;
+                border-left-color: var(--b3-card-error-color) !important;
+            }
+
+            .notification-content.priority-medium .notification-note {
+                color: var(--b3-card-warning-color) !important;
+                background-color: rgba(var(--b3-card-warning-color-rgb), 0.1) !important;
+                border-left-color: var(--b3-card-warning-color) !important;
+            }
+
+            .notification-content.priority-low .notification-note {
+                color: var(--b3-card-info-color) !important;
+                background-color: rgba(var(--b3-card-info-color-rgb), 0.1) !important;
+                border-left-color: var(--b3-card-info-color) !important;
             }
 
             @keyframes slideInRight {
