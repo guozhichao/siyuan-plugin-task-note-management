@@ -233,7 +233,9 @@ export class ReminderPanel {
             categories.forEach(category => {
                 const optionEl = document.createElement('option');
                 optionEl.value = category.id;
-                optionEl.textContent = `${category.icon || ''} ${category.name}`;
+                // 优化：确保emoji和名称都正确显示
+                const displayText = category.icon ? `${category.icon} ${category.name}` : category.name;
+                optionEl.textContent = displayText;
                 optionEl.selected = this.currentCategoryFilter === category.id;
                 this.categoryFilterSelect.appendChild(optionEl);
             });
@@ -914,7 +916,6 @@ export class ReminderPanel {
 
         titleContainer.appendChild(titleEl);
 
-
         // 时间信息容器
         const timeContainer = document.createElement('div');
         timeContainer.className = 'reminder-item__time-container';
@@ -984,7 +985,7 @@ export class ReminderPanel {
         infoEl.appendChild(titleContainer);
         infoEl.appendChild(timeContainer);
 
-        // 添加分类显示（移动到时间信息下方）
+        // 优化分类显示 - 确保emoji正确显示
         if (reminder.categoryId) {
             const category = this.categoryManager.getCategoryById(reminder.categoryId);
             if (category) {
@@ -996,15 +997,43 @@ export class ReminderPanel {
 
                 const categoryEl = document.createElement('div');
                 categoryEl.className = 'reminder-category-tag';
-                categoryEl.innerHTML = `
-                    <div class="category-dot" style="background-color: ${category.color};"></div>
-                    <span class="category-name">${category.name}</span>
+                categoryEl.style.cssText = `
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    padding: 2px 6px;
+                    background-color: ${category.color}20;
+                    border: 1px solid ${category.color}40;
+                    border-radius: 5px;
+                    font-size: 11px;
+                    color: var(--b3-theme-on-surface);
                 `;
+
+                // 分别处理emoji和名称
+                if (category.icon) {
+                    const iconSpan = document.createElement('span');
+                    iconSpan.textContent = category.icon;
+                    iconSpan.style.cssText = `
+                        font-size: 12px;
+                        line-height: 1;
+                    `;
+                    categoryEl.appendChild(iconSpan);
+                }
+
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = category.name;
+                nameSpan.style.cssText = `
+                    font-size: 11px;
+                    font-weight: 500;
+                `;
+                categoryEl.appendChild(nameSpan);
+
                 categoryContainer.appendChild(categoryEl);
                 infoEl.appendChild(categoryContainer);
             }
         }
-        // 添加番茄数量显示（在分类）
+
+        // 添加番茄数量显示（在分类后）
         const targetReminder = reminder.isRepeatInstance ?
             (this.getOriginalReminder(reminder.originalId) || reminder) :
             reminder;
@@ -1017,6 +1046,7 @@ export class ReminderPanel {
                 display: inline-flex;
                 align-items: center;
                 gap: 2px;
+                margin-top: 2px;
             `;
 
             // 生成番茄emoji
@@ -1029,6 +1059,7 @@ export class ReminderPanel {
 
             infoEl.appendChild(pomodoroDisplay);
         }
+
         // 备注
         if (reminder.note) {
             const noteEl = document.createElement('div');
@@ -1110,7 +1141,7 @@ export class ReminderPanel {
             return menuItems;
         };
 
-        // Helper to create category submenu items
+        // 优化分类子菜单项创建 - 确保emoji正确显示
         const createCategoryMenuItems = () => {
             const menuItems = [];
             const categories = this.categoryManager.getCategories();
@@ -1127,7 +1158,7 @@ export class ReminderPanel {
                 }
             });
 
-            // Add existing categories
+            // Add existing categories with proper emoji display
             categories.forEach(category => {
                 menuItems.push({
                     iconHTML: category.icon || "📁",
