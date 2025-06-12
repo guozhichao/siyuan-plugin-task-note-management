@@ -523,7 +523,7 @@ export async function writeReminderData(data: any): Promise<any> {
 export async function readReminderData(): Promise<any> {
     try {
         const content = await getFile('data/storage/petal/siyuan-plugin-task-note-management/reminder.json');
-        if (!content) {
+        if (!content || content?.code === 404) {
             await writeReminderData({});
             return {};
         }
@@ -552,7 +552,7 @@ const NOTIFY_FILE_PATH = "/data/storage/petal/siyuan-plugin-task-note-management
 export async function readNotifyData(): Promise<Record<string, boolean>> {
     try {
         const content = await getFile(NOTIFY_FILE_PATH);
-        if (!content) {
+        if (!content || content?.code === 404) {
             return {};
         }
         return typeof content === 'string' ? JSON.parse(content) : content;

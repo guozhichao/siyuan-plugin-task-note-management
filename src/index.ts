@@ -816,12 +816,22 @@ export default class ReminderPlugin extends Plugin {
                 return;
             }
 
-            // 检查今天是否已经提醒过
+            // 检查今天是否已经提醒过 - 添加错误处理
             let hasNotifiedDailyToday = false;
             try {
                 hasNotifiedDailyToday = await hasNotifiedToday(today);
             } catch (error) {
-                console.warn('检查每日通知状态失败:', error);
+                console.warn('检查每日通知状态失败，可能是首次初始化:', error);
+                // 如果读取失败，尝试初始化通知记录文件
+                try {
+                    const { ensureNotifyDataFile } = await import("./api");
+                    await ensureNotifyDataFile();
+                    hasNotifiedDailyToday = await hasNotifiedToday(today);
+                } catch (initError) {
+                    console.warn('初始化通知记录文件失败:', initError);
+                    // 如果初始化也失败，则假设今天未通知过，继续执行
+                    hasNotifiedDailyToday = false;
+                }
             }
 
             // 如果今天已经提醒过，则不再提醒
@@ -891,7 +901,7 @@ export default class ReminderPlugin extends Plugin {
                 allReminders.push(instance);
             });
 
-            // 筛选今日提醒 - 使用与ReminderPanel相同的逻辑
+            // 筛选今日提醒 - 进行分类和排序
             const todayReminders = allReminders.filter((reminder: any) => {
                 if (reminder.completed) return false;
 
@@ -984,11 +994,14 @@ export default class ReminderPlugin extends Plugin {
                 // 统一显示今日事项
                 NotificationDialog.showAllDayReminders(sortedReminders);
 
-                // 标记今天已提醒
-                try {
-                    await markNotifiedToday(today);
-                } catch (error) {
-                    console.warn('标记每日通知状态失败:', error);
+                // 标记今天已提醒 - 添加错误处理
+                if (remindersToShow.length > 0) {
+                    try {
+                        await markNotifiedToday(today);
+                    } catch (error) {
+                        console.warn('标记每日通知状态失败:', error);
+                        // 标记失败不影响主要功能，只记录警告
+                    }
                 }
             }
 
