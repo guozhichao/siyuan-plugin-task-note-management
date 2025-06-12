@@ -622,7 +622,7 @@ export class PomodoroTimer {
         centerContainer.addEventListener('mouseleave', () => {
             // 状态图标恢复
             statusIcon.style.opacity = '1';
-            
+
             // 隐藏所有按钮并重置位置
             this.startPauseBtn.style.opacity = '0';
             this.stopBtn.style.opacity = '0';
@@ -1165,7 +1165,7 @@ export class PomodoroTimer {
                 this.pauseTimer();
             }
         }
-        
+
         // 立即更新显示
         this.updateDisplay();
     }
@@ -1222,7 +1222,7 @@ export class PomodoroTimer {
         const phaseText = this.isWorkPhase ? '工作时间' : (this.isLongBreak ? '长时休息' : '短时休息');
         const modeText = (this.isCountUp && this.isWorkPhase) ? '正计时' : '倒计时';
         showMessage(`${phaseText}${modeText}已开始`);
-        
+
         // 更新显示
         this.updateDisplay();
     }
@@ -1293,7 +1293,7 @@ export class PomodoroTimer {
 
             this.updateDisplay();
         }, 1000);
-        
+
         // 更新显示
         this.updateDisplay();
     }
