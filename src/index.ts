@@ -24,6 +24,7 @@ import { getRepeatDescription } from "./utils/repeatUtils";
 import { SettingUtils } from "./libs/setting-utils";
 import { PomodoroRecordManager } from "./utils/pomodoroRecord";
 import { RepeatSettingsDialog } from "./components/RepeatSettingsDialog";
+import { NotificationDialog } from "./components/NotificationDialog";
 const STORAGE_NAME = "reminder-config";
 const SETTINGS_NAME = "reminder-settings";
 const TAB_TYPE = "reminder_calendar_tab";
@@ -786,6 +787,7 @@ export default class ReminderPlugin extends Plugin {
     private async checkReminders() {
         try {
             const { readReminderData, writeReminderData } = await import("./api");
+            const { generateRepeatInstances } = await import("./utils/repeatUtils");
             let reminderData = await readReminderData();
 
             // 检查数据是否有效，如果数据被损坏（包含错误信息），重新初始化
@@ -815,17 +817,74 @@ export default class ReminderPlugin extends Plugin {
                     return;
                 }
 
-                if (reminder.completed) return;
+                if (reminder.completed || reminder.notified) return;
 
-                const isToday = reminder.date === today;
-                const shouldRemind = isToday && (!reminder.time || reminder.time <= currentTime);
+                // 新的提醒逻辑
+                let shouldRemind = false;
 
-                if (shouldRemind && !reminder.notified) {
-                    const noteText = reminder.note ? t("noteText", { note: reminder.note }) : '';
-                    showMessage(t("reminderNotification", {
+                // 处理重复事件
+                if (reminder.repeat?.enabled) {
+                    const instances = generateRepeatInstances(reminder, today, today);
+                    const todayInstance = instances.find(instance => instance.date === today);
+
+                    if (todayInstance && !todayInstance.completed) {
+                        // 重复事件有具体时间才在当天提醒
+                        if (reminder.time && reminder.time <= currentTime) {
+                            shouldRemind = true;
+                        }
+                    }
+                } else {
+                    // 处理非重复事件
+                    const isToday = reminder.date === today;
+                    const isMultiDay = reminder.endDate && reminder.endDate !== reminder.date;
+                    const isTodayInRange = isMultiDay &&
+                        compareDateStrings(reminder.date, today) <= 0 &&
+                        compareDateStrings(today, reminder.endDate) <= 0;
+
+                    if (isToday) {
+                        // 当天事件：只有设置了具体时间才提醒
+                        if (reminder.time && reminder.time <= currentTime) {
+                            shouldRemind = true;
+                        }
+                    } else if (isTodayInRange) {
+                        // 多天事件的中间日期：只有设置了具体时间才提醒
+                        if (reminder.time && reminder.time <= currentTime) {
+                            shouldRemind = true;
+                        }
+                    }
+                }
+
+                if (shouldRemind) {
+                    // 获取分类信息
+                    let categoryInfo = {};
+                    if (reminder.categoryId) {
+                        const category = this.categoryManager.getCategoryById(reminder.categoryId);
+                        if (category) {
+                            categoryInfo = {
+                                categoryName: category.name,
+                                categoryColor: category.color,
+                                categoryIcon: category.icon
+                            };
+                        }
+                    }
+
+                    // 构建完整的提醒信息
+                    const reminderInfo = {
+                        id: reminder.id,
+                        blockId: reminder.blockId,
                         title: reminder.title || t("unnamedNote"),
-                        note: noteText
-                    }), 5000);
+                        note: reminder.note,
+                        priority: reminder.priority || 'none',
+                        categoryId: reminder.categoryId,
+                        time: reminder.time,
+                        date: reminder.date,
+                        endDate: reminder.endDate,
+                        ...categoryInfo
+                    };
+
+                    // 使用自定义通知对话框
+                    NotificationDialog.show(reminderInfo);
+
                     reminder.notified = true;
                     hasUpdates = true;
                 }
