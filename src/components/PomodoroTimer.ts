@@ -1,6 +1,6 @@
-import { showMessage } from "siyuan";
+import { showMessage, openTab } from "siyuan";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
-import { readReminderData, writeReminderData } from "../api";
+import { readReminderData, writeReminderData, getBlockByID } from "../api";
 
 export class PomodoroTimer {
     private reminder: any;
@@ -424,11 +424,30 @@ export class PomodoroTimer {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            margin-bottom: 5px
-
+            margin-bottom: 5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            padding: 4px 8px;
         `;
         eventTitle.textContent = this.reminder.title || '番茄专注';
-        eventTitle.title = this.reminder.title || '番茄专注';
+        eventTitle.title = `点击打开笔记: ${this.reminder.title || '番茄专注'}`;
+
+        // 添加悬停效果
+        eventTitle.addEventListener('mouseenter', () => {
+            eventTitle.style.backgroundColor = 'var(--b3-theme-surface-hover)';
+            eventTitle.style.borderColor = 'var(--b3-theme-primary)';
+        });
+        eventTitle.addEventListener('mouseleave', () => {
+            eventTitle.style.backgroundColor = 'transparent';
+            eventTitle.style.borderColor = 'var(--b3-theme-border)';
+        });
+
+        // 添加点击事件
+        eventTitle.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.openRelatedNote();
+        });
 
         // 主要布局容器
         const mainContainer = document.createElement('div');
@@ -1718,5 +1737,52 @@ export class PomodoroTimer {
 
     destroy() {
         this.close();
+    }
+
+    /**
+     * 打开相关笔记
+     */
+    private async openRelatedNote() {
+        try {
+            // 获取块ID
+            let blockId = this.reminder.blockId;
+
+            // 如果是重复事件实例，使用原始事件的blockId
+            if (this.reminder.isRepeatInstance && this.reminder.originalId) {
+                const reminderData = await readReminderData();
+                const originalReminder = reminderData[this.reminder.originalId];
+                if (originalReminder) {
+                    blockId = originalReminder.blockId;
+                }
+            }
+
+            if (!blockId) {
+                showMessage("无法获取笔记ID", 2000);
+                return;
+            }
+
+            // 检查块是否存在
+            const block = await getBlockByID(blockId);
+            if (!block) {
+                showMessage("笔记不存在或已被删除", 3000);
+                return;
+            }
+
+            // 打开笔记
+            openTab({
+                app: window.siyuan.ws.app,
+                doc: {
+                    id: blockId,
+                    action: "cb-get-hl",
+                    zoomIn: false
+                },
+            });
+
+            showMessage("正在打开笔记...", 1000);
+
+        } catch (error) {
+            console.error('打开笔记失败:', error);
+            showMessage("打开笔记失败", 2000);
+        }
     }
 }
