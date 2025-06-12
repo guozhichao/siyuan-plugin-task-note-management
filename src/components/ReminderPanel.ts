@@ -1,4 +1,4 @@
-import { showMessage, confirm, Dialog, Menu } from "siyuan";
+import { showMessage, confirm, Dialog, Menu, openTab } from "siyuan";
 import { readReminderData, writeReminderData, getBlockByID, updateBlockReminderBookmark } from "../api";
 import { getLocalDateString, compareDateStrings, getLocalDateTime } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
@@ -732,29 +732,14 @@ export class ReminderPanel {
                 throw new Error('块不存在');
             }
 
-            const response = await fetch('/api/block/getBlockBreadcrumb', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
+            openTab({
+                app: window.siyuan.ws.app,
+                doc: {
+                    id: blockId,
+                    action: "cb-get-hl",
+                    zoomIn: false
                 },
-                body: JSON.stringify({
-                    id: blockId
-                })
             });
-
-            if (response.ok) {
-                window.open(`siyuan://blocks/${blockId}`, '_self');
-
-                // 跳转成功后，如果是悬浮面板，自动关闭对话框
-                if (this.closeCallback) {
-                    // 延迟关闭，确保跳转操作完成
-                    setTimeout(() => {
-                        this.closeCallback();
-                    }, 100);
-                }
-            } else {
-                throw new Error('无法获取块信息');
-            }
         } catch (error) {
             console.error('打开块失败:', error);
 

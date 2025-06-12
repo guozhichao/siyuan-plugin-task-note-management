@@ -652,7 +652,15 @@ export class CalendarView {
                 throw new Error('块不存在');
             }
 
-            window.open(`siyuan://blocks/${blockId}`, '_self');
+
+            openTab({
+                app: window.siyuan.ws.app,
+                doc: {
+                    id: blockId,
+                    action: "cb-get-hl",
+                    zoomIn: false
+                },
+            });
         } catch (error) {
             console.error('打开笔记失败:', error);
 
