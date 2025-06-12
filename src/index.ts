@@ -50,6 +50,14 @@ export default class ReminderPlugin extends Plugin {
         // 确保提醒数据文件存在
         await ensureReminderDataFile();
 
+        // 确保通知记录文件存在
+        try {
+            const { ensureNotifyDataFile } = await import("./api");
+            await ensureNotifyDataFile();
+        } catch (error) {
+            console.warn('初始化通知记录文件失败:', error);
+        }
+
         // 初始化番茄钟记录管理器
         const pomodoroRecordManager = PomodoroRecordManager.getInstance();
         await pomodoroRecordManager.initialize();
@@ -773,10 +781,10 @@ export default class ReminderPlugin extends Plugin {
     }
 
     private startReminderCheck() {
-        // 每分钟检查一次提醒
+        // 每30s检查一次提醒
         setInterval(() => {
             this.checkReminders();
-        }, 60000);
+        }, 30000);
 
         // 启动时立即检查一次
         setTimeout(() => {
@@ -786,7 +794,7 @@ export default class ReminderPlugin extends Plugin {
 
     private async checkReminders() {
         try {
-            const { readReminderData, writeReminderData } = await import("./api");
+            const { readReminderData, writeReminderData, hasNotifiedToday, markNotifiedToday } = await import("./api");
             const { generateRepeatInstances } = await import("./utils/repeatUtils");
             let reminderData = await readReminderData();
 
@@ -799,11 +807,32 @@ export default class ReminderPlugin extends Plugin {
                 return;
             }
 
-            const today = getLocalDateString(); // 使用本地日期
-            const currentTime = getLocalTimeString(); // 使用本地时间
-            let hasUpdates = false;
+            const today = getLocalDateString();
+            const currentTime = getLocalTimeString();
+            const currentHour = parseInt(currentTime.split(':')[0]);
 
-            // 检查 reminderData 的每个值是否有效
+            // 只在6点后进行提醒检查
+            if (currentHour < 6) {
+                return;
+            }
+
+            // 检查今天是否已经提醒过
+            let hasNotifiedDailyToday = false;
+            try {
+                hasNotifiedDailyToday = await hasNotifiedToday(today);
+            } catch (error) {
+                console.warn('检查每日通知状态失败:', error);
+            }
+
+            // 如果今天已经提醒过，则不再提醒
+            if (hasNotifiedDailyToday) {
+                return;
+            }
+
+            // 处理重复事件 - 生成重复实例
+            const allReminders = [];
+            const repeatInstancesMap = new Map();
+
             Object.values(reminderData).forEach((reminder: any) => {
                 // 验证 reminder 对象是否有效
                 if (!reminder || typeof reminder !== 'object') {
@@ -817,82 +846,150 @@ export default class ReminderPlugin extends Plugin {
                     return;
                 }
 
-                if (reminder.completed || reminder.notified) return;
+                // 添加原始事件
+                allReminders.push(reminder);
 
-                // 新的提醒逻辑
-                let shouldRemind = false;
-
-                // 处理重复事件
+                // 如果有重复设置，生成重复事件实例
                 if (reminder.repeat?.enabled) {
-                    const instances = generateRepeatInstances(reminder, today, today);
-                    const todayInstance = instances.find(instance => instance.date === today);
+                    const repeatInstances = generateRepeatInstances(reminder, today, today);
+                    repeatInstances.forEach(instance => {
+                        // 跳过与原始事件相同日期的实例
+                        if (instance.date !== reminder.date) {
+                            // 检查实例级别的完成状态
+                            const completedInstances = reminder.repeat?.completedInstances || [];
+                            const isInstanceCompleted = completedInstances.includes(instance.date);
 
-                    if (todayInstance && !todayInstance.completed) {
-                        // 重复事件有具体时间才在当天提醒
-                        if (reminder.time && reminder.time <= currentTime) {
-                            shouldRemind = true;
-                        }
-                    }
-                } else {
-                    // 处理非重复事件
-                    const isToday = reminder.date === today;
-                    const isMultiDay = reminder.endDate && reminder.endDate !== reminder.date;
-                    const isTodayInRange = isMultiDay &&
-                        compareDateStrings(reminder.date, today) <= 0 &&
-                        compareDateStrings(today, reminder.endDate) <= 0;
+                            // 检查实例级别的修改（包括备注）
+                            const instanceModifications = reminder.repeat?.instanceModifications || {};
+                            const instanceMod = instanceModifications[instance.date];
 
-                    if (isToday) {
-                        // 当天事件：只有设置了具体时间才提醒
-                        if (reminder.time && reminder.time <= currentTime) {
-                            shouldRemind = true;
-                        }
-                    } else if (isTodayInRange) {
-                        // 多天事件的中间日期：只有设置了具体时间才提醒
-                        if (reminder.time && reminder.time <= currentTime) {
-                            shouldRemind = true;
-                        }
-                    }
-                }
-
-                if (shouldRemind) {
-                    // 获取分类信息
-                    let categoryInfo = {};
-                    if (reminder.categoryId) {
-                        const category = this.categoryManager.getCategoryById(reminder.categoryId);
-                        if (category) {
-                            categoryInfo = {
-                                categoryName: category.name,
-                                categoryColor: category.color,
-                                categoryIcon: category.icon
+                            const instanceReminder = {
+                                ...reminder,
+                                id: instance.instanceId,
+                                date: instance.date,
+                                endDate: instance.endDate,
+                                time: instance.time,
+                                endTime: instance.endTime,
+                                isRepeatInstance: true,
+                                originalId: instance.originalId,
+                                completed: isInstanceCompleted,
+                                note: instanceMod?.note || ''
                             };
+
+                            const key = `${reminder.id}_${instance.date}`;
+                            if (!repeatInstancesMap.has(key) ||
+                                compareDateStrings(instance.date, repeatInstancesMap.get(key).date) < 0) {
+                                repeatInstancesMap.set(key, instanceReminder);
+                            }
                         }
-                    }
-
-                    // 构建完整的提醒信息
-                    const reminderInfo = {
-                        id: reminder.id,
-                        blockId: reminder.blockId,
-                        title: reminder.title || t("unnamedNote"),
-                        note: reminder.note,
-                        priority: reminder.priority || 'none',
-                        categoryId: reminder.categoryId,
-                        time: reminder.time,
-                        date: reminder.date,
-                        endDate: reminder.endDate,
-                        ...categoryInfo
-                    };
-
-                    // 使用自定义通知对话框
-                    NotificationDialog.show(reminderInfo);
-
-                    reminder.notified = true;
-                    hasUpdates = true;
+                    });
                 }
             });
 
-            // 更新通知状态和徽章
-            if (hasUpdates) {
-                await writeReminderData(reminderData);
+            // 添加去重后的重复事件实例
+            repeatInstancesMap.forEach(instance => {
+                allReminders.push(instance);
+            });
+
+            // 筛选今日提醒 - 使用与ReminderPanel相同的逻辑
+            const todayReminders = allReminders.filter((reminder: any) => {
+                if (reminder.completed) return false;
+
+                if (reminder.endDate) {
+                    // 跨天事件：只要今天在事件的时间范围内就显示，或者事件已过期但结束日期在今天之前
+                    return (compareDateStrings(reminder.date, today) <= 0 &&
+                        compareDateStrings(today, reminder.endDate) <= 0) ||
+                        compareDateStrings(reminder.endDate, today) < 0;
+                } else {
+                    // 单日事件：今天或过期的都显示在今日
+                    return reminder.date === today || compareDateStrings(reminder.date, today) < 0;
+                }
+            });
+
+            // 收集需要提醒的今日事项
+            const remindersToShow: any[] = [];
+
+            todayReminders.forEach((reminder: any) => {
+                // 获取分类信息
+                let categoryInfo = {};
+                if (reminder.categoryId) {
+                    const category = this.categoryManager.getCategoryById(reminder.categoryId);
+                    if (category) {
+                        categoryInfo = {
+                            categoryName: category.name,
+                            categoryColor: category.color,
+                            categoryIcon: category.icon
+                        };
+                    }
+                }
+
+                // 判断是否全天事件
+                const isAllDay = !reminder.time || reminder.time === '';
+
+                // 构建完整的提醒信息
+                const reminderInfo = {
+                    id: reminder.id,
+                    blockId: reminder.blockId,
+                    title: reminder.title || t("unnamedNote"),
+                    note: reminder.note,
+                    priority: reminder.priority || 'none',
+                    categoryId: reminder.categoryId,
+                    time: reminder.time,
+                    date: reminder.date,
+                    endDate: reminder.endDate,
+                    isAllDay: isAllDay,
+                    isOverdue: reminder.endDate ?
+                        compareDateStrings(reminder.endDate, today) < 0 :
+                        compareDateStrings(reminder.date, today) < 0,
+                    ...categoryInfo
+                };
+
+                remindersToShow.push(reminderInfo);
+            });
+
+            // 显示今日提醒 - 进行分类和排序
+            if (remindersToShow.length > 0) {
+                // 对提醒事件进行分类
+                const overdueReminders = remindersToShow.filter(r => r.isOverdue);
+                const todayTimedReminders = remindersToShow.filter(r => !r.isOverdue && !r.isAllDay && r.time);
+                const todayNoTimeReminders = remindersToShow.filter(r => !r.isOverdue && !r.isAllDay && !r.time);
+                const todayAllDayReminders = remindersToShow.filter(r => !r.isOverdue && r.isAllDay);
+
+                // 对每个分类内部排序
+                // 过期事件：按日期排序（最早的在前）
+                overdueReminders.sort((a, b) => {
+                    const dateCompare = a.date.localeCompare(b.date);
+                    if (dateCompare !== 0) return dateCompare;
+                    // 同一天的按时间排序
+                    return (a.time || '').localeCompare(b.time || '');
+                });
+
+                // 今日有时间事件：按时间排序
+                todayTimedReminders.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+
+                // 今日无时间事件：按标题排序
+                todayNoTimeReminders.sort((a, b) => a.title.localeCompare(b.title));
+
+                // 全天事件：按标题排序
+                todayAllDayReminders.sort((a, b) => a.title.localeCompare(b.title));
+
+                // 合并排序后的数组：过期 -> 有时间 -> 无时间 -> 全天
+                const sortedReminders = [
+                    ...overdueReminders,
+                    ...todayTimedReminders,
+                    ...todayNoTimeReminders,
+                    ...todayAllDayReminders
+                ];
+
+                // 统一显示今日事项
+                NotificationDialog.showAllDayReminders(sortedReminders);
+
+                // 标记今天已提醒
+                try {
+                    await markNotifiedToday(today);
+                } catch (error) {
+                    console.warn('标记每日通知状态失败:', error);
+                }
             }
 
             // 更新徽章

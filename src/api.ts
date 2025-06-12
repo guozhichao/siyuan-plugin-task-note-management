@@ -524,6 +524,7 @@ export async function readReminderData(): Promise<any> {
     try {
         const content = await getFile('data/storage/petal/siyuan-plugin-task-note-management/reminder.json');
         if (!content) {
+            await writeReminderData({});
             return {};
         }
         return typeof content === 'string' ? JSON.parse(content) : content;
@@ -540,6 +541,73 @@ export async function ensureReminderDataFile(): Promise<void> {
         // 如果文件不存在，创建空的提醒数据文件
         console.log('创建初始提醒数据文件');
         await writeReminderData({});
+    }
+}
+
+// **************************************** Notification Record API ****************************************
+
+const NOTIFY_FILE_PATH = "/data/storage/petal/siyuan-plugin-task-note-management/notify.json";
+
+// 读取通知记录数据
+export async function readNotifyData(): Promise<Record<string, boolean>> {
+    try {
+        const content = await getFile(NOTIFY_FILE_PATH);
+        if (!content) {
+            return {};
+        }
+        return typeof content === 'string' ? JSON.parse(content) : content;
+    } catch (error) {
+        console.warn('读取通知记录文件失败:', error);
+        return {};
+    }
+}
+
+// 写入通知记录数据
+export async function writeNotifyData(data: Record<string, boolean>): Promise<void> {
+    try {
+        const content = JSON.stringify(data, null, 2);
+        const blob = new Blob([content], { type: 'application/json' });
+        await putFile(NOTIFY_FILE_PATH, false, blob);
+    } catch (error) {
+        console.error('写入通知记录文件失败:', error);
+        throw error;
+    }
+}
+
+// 确保通知记录文件存在
+export async function ensureNotifyDataFile(): Promise<void> {
+    try {
+        // 尝试读取文件
+        await readNotifyData();
+    } catch (error) {
+        console.log('通知记录文件不存在，创建新文件');
+        try {
+            await writeNotifyData({});
+        } catch (writeError) {
+            console.error('创建通知记录文件失败:', writeError);
+        }
+    }
+}
+
+// 检查某日期是否已提醒过全天事件
+export async function hasNotifiedToday(date: string): Promise<boolean> {
+    try {
+        const notifyData = await readNotifyData();
+        return notifyData[date] === true;
+    } catch (error) {
+        console.warn('检查通知记录失败:', error);
+        return false;
+    }
+}
+
+// 标记某日期已提醒全天事件
+export async function markNotifiedToday(date: string): Promise<void> {
+    try {
+        const notifyData = await readNotifyData();
+        notifyData[date] = true;
+        await writeNotifyData(notifyData);
+    } catch (error) {
+        console.error('标记通知记录失败:', error);
     }
 }
 
