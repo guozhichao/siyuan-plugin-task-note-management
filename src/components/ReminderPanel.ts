@@ -362,15 +362,21 @@ export class ReminderPanel {
                     current: this.currentSort === option.key,
                     click: async () => {
                         try {
+                            // 立即更新当前排序方式
                             this.currentSort = option.key;
                             this.updateSortButtonTitle();
+                            
                             // 保存排序配置到文件
                             await saveSortConfig(option.key);
-                            this.loadReminders();
+                            
+                            // 重新加载并排序提醒列表
+                            await this.loadReminders();
+                            
+                            console.log('排序已更新为:', option.key);
                         } catch (error) {
                             console.error('保存排序配置失败:', error);
                             // 即使保存失败也继续执行排序
-                            this.loadReminders();
+                            await this.loadReminders();
                         }
                     }
                 });
@@ -586,18 +592,21 @@ export class ReminderPanel {
                     displayReminders = [...todayReminders, ...tomorrowReminders];
             }
 
+            // 应用排序 - 确保在显示前排序
+            this.sortReminders(displayReminders);
+
             // 修改为异步处理提醒元素创建
             const createRemindersAsync = async () => {
+                this.remindersContainer.innerHTML = ''; // 先清空容器
+                
                 for (const reminder of displayReminders) {
                     const reminderEl = await this.createReminderElement(reminder, today);
                     this.remindersContainer.appendChild(reminderEl);
                 }
             };
 
-            this.remindersContainer.innerHTML = ''; // 清空容器
-            createRemindersAsync().catch(error => {
-                console.error('创建提醒元素失败:', error);
-            });
+            await createRemindersAsync();
+            
         } catch (error) {
             console.error('加载提醒失败:', error);
             showMessage(t("loadRemindersFailed"));
@@ -726,6 +735,7 @@ export class ReminderPanel {
     // 添加排序方法
     private sortReminders(reminders: any[]) {
         const sortType = this.currentSort;
+        console.log('应用排序方式:', sortType, '提醒数量:', reminders.length);
 
         reminders.sort((a: any, b: any) => {
             switch (sortType) {
@@ -763,9 +773,12 @@ export class ReminderPanel {
                     return createdB.getTime() - createdA.getTime(); // 降序：最新创建的在前
 
                 default:
+                    console.warn('未知的排序类型:', sortType);
                     return 0;
             }
         });
+        
+        console.log('排序完成，排序方式:', sortType);
     }
 
     private async toggleReminder(reminderId: string, completed: boolean, isRepeatInstance?: boolean, instanceDate?: string) {
@@ -2151,6 +2164,7 @@ export class ReminderPanel {
                 isInstance: true,
                 originalId: reminder.originalId,
                 instanceDate: reminder.date
+
             };
 
             const editDialog = new ReminderEditDialog(instanceData, async () => {
