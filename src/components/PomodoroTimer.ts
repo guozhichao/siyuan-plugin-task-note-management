@@ -516,25 +516,51 @@ export class PomodoroTimer {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 2px;
+            width: 60px;
+            height: 60px;
         `;
+
+        // 状态图标
+        const statusIcon = document.createElement('div');
+        statusIcon.className = 'pomodoro-status-icon';
+        statusIcon.style.cssText = `
+            font-size: 28px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            transition: opacity 0.2s ease;
+        `;
+        statusIcon.innerHTML = '🍅';
 
         this.startPauseBtn = document.createElement('button');
         this.startPauseBtn.className = 'circle-control-btn';
         this.startPauseBtn.style.cssText = `
-            background: none;
+            background: rgba(255, 255, 255, 0.9);
             border: none;
             cursor: pointer;
-            font-size: 20px;
+            font-size: 18px;
             color: var(--b3-theme-on-surface);
-            padding: 6px;
+            padding: 0;
             border-radius: 50%;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 36px;
-            height: 36px;
+            width: 32px;
+            height: 32px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(4px);
         `;
         this.startPauseBtn.innerHTML = '▶️';
         this.startPauseBtn.addEventListener('click', () => this.toggleTimer());
@@ -542,23 +568,68 @@ export class PomodoroTimer {
         this.stopBtn = document.createElement('button');
         this.stopBtn.className = 'circle-control-btn';
         this.stopBtn.style.cssText = `
-            background: none;
+            background: rgba(255, 255, 255, 0.9);
             border: none;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 14px;
             color: var(--b3-theme-on-surface);
-            padding: 6px;
+            padding: 0;
             border-radius: 50%;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
             display: none;
             align-items: center;
             justify-content: center;
-            width: 32px;
-            height: 32px;
+            width: 28px;
+            height: 28px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) translateX(16px);
+            opacity: 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(4px);
         `;
         this.stopBtn.innerHTML = '⏹';
         this.stopBtn.addEventListener('click', () => this.resetTimer());
 
+        // 添加悬浮效果
+        centerContainer.addEventListener('mouseenter', () => {
+            // 状态图标变透明
+            statusIcon.style.opacity = '0.3';
+
+            if (!this.isRunning) {
+                // 未运行状态：显示开始按钮
+                this.startPauseBtn.style.opacity = '1';
+            } else if (this.isPaused) {
+                // 暂停状态：显示继续按钮和停止按钮
+                this.startPauseBtn.style.opacity = '1';
+                this.stopBtn.style.opacity = '1';
+                this.startPauseBtn.style.transform = 'translate(-50%, -50%) translateX(-12px)';
+            } else {
+                // 运行状态：显示暂停按钮
+                this.startPauseBtn.style.opacity = '1';
+            }
+        });
+
+        centerContainer.addEventListener('mouseleave', () => {
+            // 状态图标恢复
+            statusIcon.style.opacity = '1';
+
+            if (!this.isRunning) {
+                // 未运行状态：隐藏开始按钮
+                this.startPauseBtn.style.opacity = '0';
+            } else if (this.isPaused) {
+                // 暂停状态：隐藏所有按钮，恢复位置
+                this.startPauseBtn.style.opacity = '0';
+                this.stopBtn.style.opacity = '0';
+                this.startPauseBtn.style.transform = 'translate(-50%, -50%)';
+            } else {
+                // 运行状态：隐藏暂停按钮
+                this.startPauseBtn.style.opacity = '0';
+            }
+        });
+
+        centerContainer.appendChild(statusIcon);
         centerContainer.appendChild(this.startPauseBtn);
         centerContainer.appendChild(this.stopBtn);
 
@@ -1027,20 +1098,29 @@ export class PomodoroTimer {
 
         // 更新颜色和状态显示
         let color = '#FF6B6B';
-        let statusText = '💪工作时间';
+        let statusText = '工作时间';
+        let statusIconHtml = '🍅';
 
         if (!this.isWorkPhase) {
             if (this.isLongBreak) {
                 color = '#9C27B0';
-                statusText = '🧘‍♀️长时休息';
+                statusText = '长时休息';
+                statusIconHtml = '🧘‍♀️';
             } else {
                 color = '#4CAF50';
-                statusText = '🍵短时休息';
+                statusText = '短时休息';
+                statusIconHtml = '🍵';
             }
         }
 
         this.circularProgress.setAttribute('stroke', color);
         this.statusDisplay.textContent = statusText;
+
+        // 更新状态图标
+        const statusIcon = this.container.querySelector('.pomodoro-status-icon');
+        if (statusIcon) {
+            statusIcon.innerHTML = statusIconHtml;
+        }
 
         // 更新番茄数量显示
         const pomodoroCountElement = this.container.querySelector('#pomodoroCount');
@@ -1051,27 +1131,16 @@ export class PomodoroTimer {
         // 更新按钮状态
         if (!this.isRunning) {
             this.startPauseBtn.innerHTML = '▶️';
-            this.startPauseBtn.style.display = 'flex';
-            this.startPauseBtn.style.width = '36px';
-            this.startPauseBtn.style.height = '36px';
-            this.startPauseBtn.style.fontSize = '20px';
+            this.startPauseBtn.style.opacity = '0'; // 默认隐藏
             this.stopBtn.style.display = 'none';
         } else if (this.isPaused) {
             this.startPauseBtn.innerHTML = '▶️';
-            this.startPauseBtn.style.display = 'flex';
-            this.startPauseBtn.style.width = '28px';
-            this.startPauseBtn.style.height = '28px';
-            this.startPauseBtn.style.fontSize = '16px';
+            this.startPauseBtn.style.opacity = '0'; // 默认隐藏
             this.stopBtn.style.display = 'flex';
-            this.stopBtn.style.width = '28px';
-            this.stopBtn.style.height = '28px';
-            this.stopBtn.style.fontSize = '14px';
+            this.stopBtn.style.opacity = '0'; // 默认隐藏
         } else {
             this.startPauseBtn.innerHTML = '⏸';
-            this.startPauseBtn.style.display = 'flex';
-            this.startPauseBtn.style.width = '36px';
-            this.startPauseBtn.style.height = '36px';
-            this.startPauseBtn.style.fontSize = '20px';
+            this.startPauseBtn.style.opacity = '0'; // 默认隐藏
             this.stopBtn.style.display = 'none';
         }
 
