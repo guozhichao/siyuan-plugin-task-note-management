@@ -1668,7 +1668,6 @@ export class CalendarView {
                     line-height: 1.4;
                     opacity: 0;
                     transition: opacity 0.2s ease-in-out;
-                    white-space: pre-wrap;
                     word-wrap: break-word;
                 `;
 
@@ -1768,11 +1767,11 @@ export class CalendarView {
 
         try {
             // 1. 文档标题（如果存在docId）
-            if (reminder.blockId && reminder.docId && reminder.blockId !== reminder.docId) {
+            if (reminder.docId) {
                 try {
                     const docBlock = await getBlockByID(reminder.docId);
                     if (docBlock && docBlock.content) {
-                        parts.push(`<div style="color: var(--b3-theme-on-surface-light); font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
+                        parts.push(`<div style="color: var(--b3-theme-on-surface-light); font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-align: left;">
                             <span>📄</span>
                             <span title="所属文档">${this.escapeHtml(docBlock.content)}</span>
                         </div>`);
@@ -1782,7 +1781,7 @@ export class CalendarView {
                 }
             }
 
-            // 2. 事项名称
+            // 2. 事项名称 - 明确设置居左显示
             let eventTitle = calendarEvent.title || t("unnamedNote");
 
             // 移除分类图标前缀（如果存在）
@@ -1796,7 +1795,7 @@ export class CalendarView {
                 }
             }
 
-            parts.push(`<div style="font-weight: 600; color: var(--b3-theme-on-surface); margin-bottom: 8px; font-size: 14px;">
+            parts.push(`<div style="font-weight: 600; color: var(--b3-theme-on-surface); margin-bottom: 8px; font-size: 14px; text-align: left; width: 100%;">
                 ${this.escapeHtml(eventTitle)}
             </div>`);
 
