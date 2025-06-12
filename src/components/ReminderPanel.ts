@@ -8,7 +8,6 @@ import { CategoryManageDialog } from "./CategoryManageDialog";
 import { t } from "../utils/i18n";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
 import { PomodoroTimer } from "./PomodoroTimer";
-import { PomodoroForwardTimer } from "./PomodoroForwardTimer";
 
 export class ReminderPanel {
     private container: HTMLElement;
@@ -27,8 +26,6 @@ export class ReminderPanel {
 
     // 添加静态变量来跟踪当前活动的番茄钟
     private static currentPomodoroTimer: PomodoroTimer | null = null;
-    // 添加静态变量来跟踪当前活动的正计时番茄钟
-    private static currentPomodoroForwardTimer: PomodoroForwardTimer | null = null;
 
     constructor(container: HTMLElement, plugin?: any, closeCallback?: () => void) {
         this.container = container;
@@ -78,7 +75,6 @@ export class ReminderPanel {
 
         // 清理当前番茄钟实例
         ReminderPanel.clearCurrentPomodoroTimer();
-        ReminderPanel.clearCurrentPomodoroForwardTimer();
     }
 
     // 加载排序配置
@@ -1104,9 +1100,8 @@ export class ReminderPanel {
                 menuItems.push({
                     iconHTML: priority.icon,
                     label: priority.label,
-                    current: currentPriority === priority.key, // Visually indicate the current priority
+                    current: currentPriority === priority.key,
                     click: () => {
-                        // For instances, priority is set on the original event.
                         const targetId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
                         this.setPriority(targetId, priority.key);
                     }
@@ -1162,7 +1157,7 @@ export class ReminderPanel {
             });
             menu.addItem({
                 iconHTML: "📝",
-                label: t("modifyAllInstances"), // This will split the series
+                label: t("modifyAllInstances"),
                 click: () => this.editInstanceAsNewSeries(reminder)
             });
             menu.addItem({
@@ -1187,34 +1182,32 @@ export class ReminderPanel {
                 click: () => this.deleteOriginalReminder(reminder.originalId)
             });
             menu.addSeparator();
-            // 添加番茄钟选项
             menu.addItem({
                 iconHTML: "🍅",
                 label: "开始番茄钟",
                 click: () => this.startPomodoro(reminder)
             });
             menu.addItem({
-                iconHTML: "⏰",
+                iconHTML: "⏱️",
                 label: "开始正计时",
-                click: () => this.startPomodoroForward(reminder)
+                click: () => this.startPomodoroCountUp(reminder)
             });
 
         } else if (reminder.repeat?.enabled) {
-            // --- Menu for the ORIGINAL RECURRING EVENT (User Request) ---
-            // This logic has been completely updated based on the new request.
+            // --- Menu for the ORIGINAL RECURRING EVENT ---
             menu.addItem({
                 iconHTML: "📋",
-                label: "复制块引",
+                label: "复制块引用",
                 click: () => this.copyBlockRef(reminder)
             });
             menu.addItem({
                 iconHTML: "📝",
-                label: t("modifyThisInstance"), // "修改并分割系列"
+                label: t("modifyThisInstance"),
                 click: () => this.splitRecurringReminder(reminder)
             });
             menu.addItem({
                 iconHTML: "📝",
-                label: t("modifyAllInstances"), // Edits the entire series template
+                label: t("modifyAllInstances"),
                 click: () => this.showTimeEditDialog(reminder)
             });
             menu.addItem({
@@ -1230,32 +1223,31 @@ export class ReminderPanel {
             menu.addSeparator();
             menu.addItem({
                 iconHTML: "🗑️",
-                label: t("deleteThisInstance"), // "跳过首次发生"
+                label: t("deleteThisInstance"),
                 click: () => this.skipFirstOccurrence(reminder)
             });
             menu.addItem({
                 iconHTML: "🗑️",
-                label: t("deleteAllInstances"), // Deletes the entire series
+                label: t("deleteAllInstances"),
                 click: () => this.deleteReminder(reminder)
             });
             menu.addSeparator();
-            // 添加番茄钟选项
             menu.addItem({
                 iconHTML: "🍅",
                 label: "开始番茄钟",
                 click: () => this.startPomodoro(reminder)
             });
             menu.addItem({
-                iconHTML: "⏰",
+                iconHTML: "⏱️",
                 label: "开始正计时",
-                click: () => this.startPomodoroForward(reminder)
+                click: () => this.startPomodoroCountUp(reminder)
             });
 
         } else {
             // --- Menu for a SIMPLE, NON-RECURRING EVENT ---
             menu.addItem({
                 iconHTML: "📋",
-                label: "复制块引",
+                label: "复制块引用",
                 click: () => this.copyBlockRef(reminder)
             });
             menu.addItem({
@@ -1274,16 +1266,15 @@ export class ReminderPanel {
                 submenu: createCategoryMenuItems()
             });
             menu.addSeparator();
-            // 添加番茄钟选项
             menu.addItem({
                 iconHTML: "🍅",
                 label: "开始番茄钟",
                 click: () => this.startPomodoro(reminder)
             });
             menu.addItem({
-                iconHTML: "⏰",
+                iconHTML: "⏱️",
                 label: "开始正计时",
-                click: () => this.startPomodoroForward(reminder)
+                click: () => this.startPomodoroCountUp(reminder)
             });
             menu.addItem({
                 iconHTML: "🗑️",
@@ -1297,7 +1288,32 @@ export class ReminderPanel {
             y: event.clientY
         });
     }
-    // 添加复制块引功能
+    private startPomodoroCountUp(reminder: any) {
+        if (!this.plugin) {
+            showMessage("无法启动番茄钟：插件实例不可用");
+            return;
+        }
+
+        // 如果已经有活动的番茄钟，先关闭它
+        if (ReminderPanel.currentPomodoroTimer) {
+            try {
+                ReminderPanel.currentPomodoroTimer.close();
+                ReminderPanel.currentPomodoroTimer = null;
+            } catch (error) {
+                console.error('关闭之前的番茄钟失败:', error);
+            }
+        }
+
+        const settings = this.plugin.getPomodoroSettings();
+        const pomodoroTimer = new PomodoroTimer(reminder, settings, true);
+
+        // 设置当前活动的番茄钟实例并直接切换到正计时模式
+        ReminderPanel.currentPomodoroTimer = pomodoroTimer;
+
+
+        pomodoroTimer.show();
+        showMessage("已启动正计时番茄钟", 2000);
+    }
     private async copyBlockRef(reminder: any) {
         try {
             // 获取块ID（对于重复事件实例，使用原始事件的blockId）
@@ -1357,44 +1373,35 @@ export class ReminderPanel {
         // 设置当前活动的番茄钟实例
         ReminderPanel.currentPomodoroTimer = pomodoroTimer;
 
-
-
         pomodoroTimer.show();
     }
 
     private startPomodoroForward(reminder: any) {
         if (!this.plugin) {
-            showMessage("无法启动正计时：插件实例不可用");
+            showMessage("无法启动番茄钟：插件实例不可用");
             return;
         }
 
-        // 如果已经有活动的正计时番茄钟，先关闭它
-        if (ReminderPanel.currentPomodoroForwardTimer) {
-            try {
-                ReminderPanel.currentPomodoroForwardTimer.close();
-                ReminderPanel.currentPomodoroForwardTimer = null;
-            } catch (error) {
-                console.error('关闭之前的正计时番茄钟失败:', error);
-            }
-        }
-
-        // 如果有倒计时番茄钟在运行，也先关闭它
+        // 如果已经有活动的番茄钟，先关闭它
         if (ReminderPanel.currentPomodoroTimer) {
             try {
                 ReminderPanel.currentPomodoroTimer.close();
                 ReminderPanel.currentPomodoroTimer = null;
             } catch (error) {
-                console.error('关闭倒计时番茄钟失败:', error);
+                console.error('关闭之前的番茄钟失败:', error);
             }
         }
 
         const settings = this.plugin.getPomodoroSettings();
-        const pomodoroForwardTimer = new PomodoroForwardTimer(reminder, settings);
+        const pomodoroTimer = new PomodoroTimer(reminder, settings);
 
-        // 设置当前活动的正计时番茄钟实例
-        ReminderPanel.currentPomodoroForwardTimer = pomodoroForwardTimer;
+        // 设置当前活动的番茄钟实例
+        ReminderPanel.currentPomodoroTimer = pomodoroTimer;
 
-        pomodoroForwardTimer.show();
+        pomodoroTimer.show();
+
+        // 提示用户可以在番茄钟界面切换到正计时模式
+        showMessage("已启动番茄钟，可点击模式切换按钮切换到正计时", 3000);
     }
 
     // 添加静态方法获取当前番茄钟实例
@@ -1411,23 +1418,6 @@ export class ReminderPanel {
                 console.error('清理番茄钟实例失败:', error);
             }
             ReminderPanel.currentPomodoroTimer = null;
-        }
-    }
-
-    // 添加静态方法获取当前正计时番茄钟实例
-    public static getCurrentPomodoroForwardTimer(): PomodoroForwardTimer | null {
-        return ReminderPanel.currentPomodoroForwardTimer;
-    }
-
-    // 添加静态方法清理当前正计时番茄钟实例
-    public static clearCurrentPomodoroForwardTimer(): void {
-        if (ReminderPanel.currentPomodoroForwardTimer) {
-            try {
-                ReminderPanel.currentPomodoroForwardTimer.destroy();
-            } catch (error) {
-                console.error('清理正计时番茄钟实例失败:', error);
-            }
-            ReminderPanel.currentPomodoroForwardTimer = null;
         }
     }
 

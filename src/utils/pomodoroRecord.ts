@@ -137,7 +137,7 @@ export class PomodoroRecordManager {
         const today = this.getToday();
         this.ensureTodayRecord(today);
 
-        console.log('记录工作会话前:', JSON.stringify(this.records[today]));
+        // console.log('记录工作会话前:', JSON.stringify(this.records[today]));
 
         // 创建详细的会话记录
         const session: PomodoroSession = {
@@ -161,7 +161,7 @@ export class PomodoroRecordManager {
         }
         this.records[today].totalWorkTime += workMinutes;
 
-        console.log('记录工作会话后:', JSON.stringify(this.records[today]));
+        // console.log('记录工作会话后:', JSON.stringify(this.records[today]));
 
         await this.saveRecords();
     }
@@ -175,7 +175,7 @@ export class PomodoroRecordManager {
         const today = this.getToday();
         this.ensureTodayRecord(today);
 
-        console.log('记录休息会话前:', JSON.stringify(this.records[today]));
+        // console.log('记录休息会话前:', JSON.stringify(this.records[today]));
 
         // 创建详细的会话记录
         const session: PomodoroSession = {
