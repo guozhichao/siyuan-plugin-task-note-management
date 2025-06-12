@@ -1768,7 +1768,7 @@ export class CalendarView {
         try {
             // 1. 文档标题（修复：添加块级事件的父文档标题获取逻辑）
             let docTitleAdded = false;
-            
+
             // 首先检查是否有明确的docId
             if (reminder.docId) {
                 try {
@@ -1784,7 +1784,7 @@ export class CalendarView {
                     console.warn('获取文档标题失败:', error);
                 }
             }
-            
+
             // 如果没有docId但有blockId，且blockId不等于docId，尝试获取块的父文档
             if (!docTitleAdded && reminder.blockId && reminder.blockId !== reminder.docId) {
                 try {
