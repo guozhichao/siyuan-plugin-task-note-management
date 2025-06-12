@@ -376,6 +376,17 @@ export class CalendarView {
 
         menu.addSeparator();
 
+        // 添加复制块引选项
+        menu.addItem({
+            iconHTML: "📋",
+            label: "复制块引",
+            click: () => {
+                this.copyBlockRef(calendarEvent);
+            }
+        });
+
+        menu.addSeparator();
+
         if (calendarEvent.extendedProps.isRepeated) {
             menu.addItem({
                 iconHTML: "🗑️",
@@ -423,6 +434,44 @@ export class CalendarView {
             x: event.clientX,
             y: event.clientY
         });
+    }
+
+    // 添加复制块引功能
+    private async copyBlockRef(calendarEvent: any) {
+        try {
+            // 获取块ID
+            const blockId = calendarEvent.extendedProps.blockId;
+
+            if (!blockId) {
+                showMessage("无法获取块ID");
+                return;
+            }
+
+            // 获取事件标题（移除可能存在的分类图标前缀）
+            let title = calendarEvent.title || t("unnamedNote");
+
+            // 移除分类图标（如果存在）
+            if (calendarEvent.extendedProps.categoryId) {
+                const category = this.categoryManager.getCategoryById(calendarEvent.extendedProps.categoryId);
+                if (category && category.icon) {
+                    const iconPrefix = `${category.icon} `;
+                    if (title.startsWith(iconPrefix)) {
+                        title = title.substring(iconPrefix.length);
+                    }
+                }
+            }
+
+            // 生成静态锚文本块引格式
+            const blockRef = `((${blockId} "${title}"))`;
+
+            // 复制到剪贴板
+            await navigator.clipboard.writeText(blockRef);
+            showMessage("块引已复制到剪贴板");
+
+        } catch (error) {
+            console.error('复制块引失败:', error);
+            showMessage("复制块引失败");
+        }
     }
 
     private async setPriority(calendarEvent: any, priority: string) {

@@ -1151,6 +1151,11 @@ export class ReminderPanel {
         if (reminder.isRepeatInstance) {
             // --- Menu for a REPEAT INSTANCE ---
             menu.addItem({
+                iconHTML: "📋",
+                label: "复制块引",
+                click: () => this.copyBlockRef(reminder)
+            });
+            menu.addItem({
                 iconHTML: "📝",
                 label: t("modifyThisInstance"),
                 click: () => this.editInstanceReminder(reminder)
@@ -1198,6 +1203,11 @@ export class ReminderPanel {
             // --- Menu for the ORIGINAL RECURRING EVENT (User Request) ---
             // This logic has been completely updated based on the new request.
             menu.addItem({
+                iconHTML: "📋",
+                label: "复制块引",
+                click: () => this.copyBlockRef(reminder)
+            });
+            menu.addItem({
                 iconHTML: "📝",
                 label: t("modifyThisInstance"), // "修改并分割系列"
                 click: () => this.splitRecurringReminder(reminder)
@@ -1244,6 +1254,11 @@ export class ReminderPanel {
         } else {
             // --- Menu for a SIMPLE, NON-RECURRING EVENT ---
             menu.addItem({
+                iconHTML: "📋",
+                label: "复制块引",
+                click: () => this.copyBlockRef(reminder)
+            });
+            menu.addItem({
                 iconHTML: "📝",
                 label: t("modify"),
                 click: () => this.showTimeEditDialog(reminder)
@@ -1282,7 +1297,44 @@ export class ReminderPanel {
             y: event.clientY
         });
     }
+    // 添加复制块引功能
+    private async copyBlockRef(reminder: any) {
+        try {
+            // 获取块ID（对于重复事件实例，使用原始事件的blockId）
+            const blockId = reminder.blockId || (reminder.isRepeatInstance ?
+                await this.getOriginalBlockId(reminder.originalId) :
+                reminder.id);
 
+            if (!blockId) {
+                showMessage("无法获取块ID");
+                return;
+            }
+
+            // 获取事件标题
+            const title = reminder.title || t("unnamedNote");
+
+            // 生成静态锚文本块引格式
+            const blockRef = `((${blockId} "${title}"))`;
+
+            // 复制到剪贴板
+            await navigator.clipboard.writeText(blockRef);
+
+        } catch (error) {
+            console.error('复制块引失败:', error);
+            showMessage("复制块引失败");
+        }
+    }
+    // 获取原始事件的blockId
+    private async getOriginalBlockId(originalId: string): Promise<string | null> {
+        try {
+            const reminderData = await readReminderData();
+            const originalReminder = reminderData[originalId];
+            return originalReminder?.blockId || originalId;
+        } catch (error) {
+            console.error('获取原始块ID失败:', error);
+            return null;
+        }
+    }
     private startPomodoro(reminder: any) {
         if (!this.plugin) {
             showMessage("无法启动番茄钟：插件实例不可用");
