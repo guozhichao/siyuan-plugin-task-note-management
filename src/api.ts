@@ -565,6 +565,11 @@ export async function setBlockBookmark(blockId: string, bookmark: string): Promi
  * @param blockId 块ID
  */
 export async function removeBlockBookmark(blockId: string): Promise<any> {
+    // 检测块是否存在
+    const block = await getBlockByID(blockId);
+    if (!block) {
+        return;
+    }
     const data = {
         id: blockId,
         attrs: {
