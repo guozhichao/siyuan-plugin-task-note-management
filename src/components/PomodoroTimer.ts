@@ -600,33 +600,35 @@ export class PomodoroTimer {
             if (!this.isRunning) {
                 // 未运行状态：显示开始按钮
                 this.startPauseBtn.style.opacity = '1';
+                this.startPauseBtn.style.transform = 'translate(-50%, -50%)';
+                this.stopBtn.style.opacity = '0';
+                this.stopBtn.style.display = 'none';
             } else if (this.isPaused) {
                 // 暂停状态：显示继续按钮和停止按钮
                 this.startPauseBtn.style.opacity = '1';
                 this.stopBtn.style.opacity = '1';
+                this.stopBtn.style.display = 'flex';
                 this.startPauseBtn.style.transform = 'translate(-50%, -50%) translateX(-12px)';
+                this.stopBtn.style.transform = 'translate(-50%, -50%) translateX(12px)';
             } else {
                 // 运行状态：显示暂停按钮
                 this.startPauseBtn.style.opacity = '1';
+                this.startPauseBtn.style.transform = 'translate(-50%, -50%)';
+                this.stopBtn.style.opacity = '0';
+                this.stopBtn.style.display = 'none';
             }
         });
 
         centerContainer.addEventListener('mouseleave', () => {
             // 状态图标恢复
             statusIcon.style.opacity = '1';
-
-            if (!this.isRunning) {
-                // 未运行状态：隐藏开始按钮
-                this.startPauseBtn.style.opacity = '0';
-            } else if (this.isPaused) {
-                // 暂停状态：隐藏所有按钮，恢复位置
-                this.startPauseBtn.style.opacity = '0';
-                this.stopBtn.style.opacity = '0';
-                this.startPauseBtn.style.transform = 'translate(-50%, -50%)';
-            } else {
-                // 运行状态：隐藏暂停按钮
-                this.startPauseBtn.style.opacity = '0';
-            }
+            
+            // 隐藏所有按钮并重置位置
+            this.startPauseBtn.style.opacity = '0';
+            this.stopBtn.style.opacity = '0';
+            this.stopBtn.style.display = 'none';
+            this.startPauseBtn.style.transform = 'translate(-50%, -50%)';
+            this.stopBtn.style.transform = 'translate(-50%, -50%) translateX(16px)';
         });
 
         centerContainer.appendChild(statusIcon);
@@ -1128,19 +1130,20 @@ export class PomodoroTimer {
             pomodoroCountElement.textContent = this.completedPomodoros.toString();
         }
 
-        // 更新按钮状态
+        // 更新按钮状态和位置
         if (!this.isRunning) {
             this.startPauseBtn.innerHTML = '▶️';
-            this.startPauseBtn.style.opacity = '0'; // 默认隐藏
+            // 重置按钮位置
+            this.startPauseBtn.style.transform = 'translate(-50%, -50%)';
             this.stopBtn.style.display = 'none';
         } else if (this.isPaused) {
             this.startPauseBtn.innerHTML = '▶️';
-            this.startPauseBtn.style.opacity = '0'; // 默认隐藏
             this.stopBtn.style.display = 'flex';
-            this.stopBtn.style.opacity = '0'; // 默认隐藏
+            // 暂停状态下不自动设置位置，让mouseenter事件处理
         } else {
             this.startPauseBtn.innerHTML = '⏸';
-            this.startPauseBtn.style.opacity = '0'; // 默认隐藏
+            // 重置按钮位置
+            this.startPauseBtn.style.transform = 'translate(-50%, -50%)';
             this.stopBtn.style.display = 'none';
         }
 
@@ -1165,6 +1168,9 @@ export class PomodoroTimer {
                 this.pauseTimer();
             }
         }
+        
+        // 立即更新显示
+        this.updateDisplay();
     }
 
     private async startTimer() {
@@ -1219,6 +1225,9 @@ export class PomodoroTimer {
         const phaseText = this.isWorkPhase ? '工作时间' : (this.isLongBreak ? '长时休息' : '短时休息');
         const modeText = (this.isCountUp && this.isWorkPhase) ? '正计时' : '倒计时';
         showMessage(`${phaseText}${modeText}已开始`);
+        
+        // 更新显示
+        this.updateDisplay();
     }
 
     private pauseTimer() {
@@ -1240,6 +1249,7 @@ export class PomodoroTimer {
             this.longBreakAudio.pause();
         }
 
+        // 更新显示
         this.updateDisplay();
     }
 
@@ -1286,6 +1296,9 @@ export class PomodoroTimer {
 
             this.updateDisplay();
         }, 1000);
+        
+        // 更新显示
+        this.updateDisplay();
     }
 
     private async startWorkTime() {
@@ -1398,6 +1411,11 @@ export class PomodoroTimer {
             this.timeLeft = this.settings.workDuration * 60;
             this.totalTime = this.timeLeft;
         }
+
+        // 重置按钮位置
+        this.startPauseBtn.style.transform = 'translate(-50%, -50%)';
+        this.stopBtn.style.display = 'none';
+        this.stopBtn.style.transform = 'translate(-50%, -50%) translateX(16px)';
 
         this.updateDisplay();
     }
