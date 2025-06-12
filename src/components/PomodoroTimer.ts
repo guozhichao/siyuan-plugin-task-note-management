@@ -1664,8 +1664,19 @@ export class PomodoroTimer {
         input.focus();
         input.select();
 
+        // 标记编辑状态，防止重复操作
+        let isEditingFinished = false;
+
         // 处理输入完成
         const finishEdit = () => {
+            if (isEditingFinished) return;
+            isEditingFinished = true;
+
+            // 检查输入框是否仍在父节点中
+            if (input.parentNode !== parent) {
+                return;
+            }
+
             const inputValue = input.value.trim();
             let newTimeInSeconds = this.parseTimeStringToSeconds(inputValue);
 
@@ -1704,7 +1715,13 @@ export class PomodoroTimer {
 
         // 处理取消编辑
         const cancelEdit = () => {
-            parent.replaceChild(this.timeDisplay, input);
+            if (isEditingFinished) return;
+            isEditingFinished = true;
+
+            // 检查输入框是否仍在父节点中
+            if (input.parentNode === parent) {
+                parent.replaceChild(this.timeDisplay, input);
+            }
         };
 
         // 事件监听
