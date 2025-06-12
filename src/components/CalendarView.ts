@@ -19,6 +19,7 @@ export class CalendarView {
     private resizeTimeout: number;
     private categoryManager: CategoryManager; // 添加分类管理器
     private currentCategoryFilter: string = 'all'; // 当前分类过滤
+    private tooltip: HTMLElement | null = null; // 添加提示框元素
 
     constructor(container: HTMLElement, plugin: any) {
         this.container = container;
@@ -125,6 +126,22 @@ export class CalendarView {
                 info.el.addEventListener('contextmenu', (e) => {
                     e.preventDefault();
                     this.showEventContextMenu(e, info.event);
+                });
+
+                // 添加鼠标悬浮事件监听器
+                info.el.addEventListener('mouseenter', (e) => {
+                    this.showEventTooltip(e, info.event);
+                });
+
+                info.el.addEventListener('mouseleave', () => {
+                    this.hideEventTooltip();
+                });
+
+                // 确保鼠标在tooltip上时不会隐藏
+                info.el.addEventListener('mousemove', (e) => {
+                    if (this.tooltip && this.tooltip.style.display !== 'none') {
+                        this.updateTooltipPosition(e);
+                    }
                 });
             }
         });
@@ -1525,105 +1542,334 @@ export class CalendarView {
         events.push(eventObj);
     }
 
-    private async showInstanceEditDialog(calendarEvent: any) {
-        // 为重复事件实例显示编辑对话框
-        const originalId = calendarEvent.extendedProps.originalId;
-        const instanceDate = calendarEvent.extendedProps.date;
-
+    private async showEventTooltip(event: MouseEvent, calendarEvent: any) {
         try {
-            const reminderData = await readReminderData();
-            const originalReminder = reminderData[originalId];
-
-            if (!originalReminder) {
-                showMessage(t("reminderDataNotExist"));
-                return;
+            // 创建提示框
+            if (!this.tooltip) {
+                this.tooltip = document.createElement('div');
+                this.tooltip.className = 'reminder-event-tooltip';
+                this.tooltip.style.cssText = `
+                    position: fixed;
+                    background: var(--b3-theme-surface);
+                    border: 1px solid var(--b3-theme-border);
+                    border-radius: 6px;
+                    padding: 12px;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                    z-index: 9999;
+                    max-width: 300px;
+                    font-size: 13px;
+                    line-height: 1.4;
+                    pointer-events: none;
+                    opacity: 0;
+                    transition: opacity 0.2s ease-in-out;
+                    white-space: pre-wrap;
+                    word-wrap: break-word;
+                `;
+                document.body.appendChild(this.tooltip);
             }
 
-            // 检查实例级别的修改（包括备注）
-            const instanceModifications = originalReminder.repeat?.instanceModifications || {};
-            const instanceMod = instanceModifications[instanceDate];
+            // 显示加载状态
+            this.tooltip.innerHTML = '<div style="color: var(--b3-theme-on-surface-light);">加载中...</div>';
+            this.tooltip.style.display = 'block';
+            this.updateTooltipPosition(event);
 
-            // 创建实例数据，包含当前实例的特定信息
-            const instanceData = {
-                ...originalReminder,
-                id: calendarEvent.id,
-                date: calendarEvent.extendedProps.date,
-                endDate: calendarEvent.extendedProps.endDate,
-                time: calendarEvent.extendedProps.time,
-                endTime: calendarEvent.extendedProps.endTime,
-                // 修改备注逻辑：只有实例有明确的备注时才使用，否则为空
-                note: instanceMod?.note || '',  // 每个实例的备注都是独立的，默认为空
-                isInstance: true,
-                originalId: originalId,
-                instanceDate: instanceDate
-            };
+            // 异步获取详细信息
+            const tooltipContent = await this.buildTooltipContent(calendarEvent);
 
-            const editDialog = new ReminderEditDialog(instanceData, async () => {
-                await this.refreshEvents();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
-            });
-            editDialog.show();
+            // 检查tooltip是否仍然存在（防止快速移动鼠标时的竞态条件）
+            if (this.tooltip && this.tooltip.style.display !== 'none') {
+                this.tooltip.innerHTML = tooltipContent;
+                this.tooltip.style.opacity = '1';
+            }
+
         } catch (error) {
-            console.error('打开实例编辑对话框失败:', error);
-            showMessage(t("openModifyDialogFailed"));
+            console.error('显示事件提示框失败:', error);
+            this.hideEventTooltip();
         }
     }
 
-    private async deleteInstanceOnly(calendarEvent: any) {
-        // 删除重复事件的单个实例
-        const result = await confirm(
-            t("deleteThisInstance"),
-            t("confirmDeleteInstance"),
-            async () => {
+    private hideEventTooltip() {
+        if (this.tooltip) {
+            this.tooltip.style.opacity = '0';
+            setTimeout(() => {
+                if (this.tooltip) {
+                    this.tooltip.style.display = 'none';
+                }
+            }, 200);
+        }
+    }
+
+    private updateTooltipPosition(event: MouseEvent) {
+        if (!this.tooltip) return;
+
+        const tooltipRect = this.tooltip.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        // 计算基础位置（鼠标右下方）
+        let left = event.clientX + 10;
+        let top = event.clientY + 10;
+
+        // 检查右边界
+        if (left + tooltipRect.width > viewportWidth) {
+            left = event.clientX - tooltipRect.width - 10;
+        }
+
+        // 检查下边界
+        if (top + tooltipRect.height > viewportHeight) {
+            top = event.clientY - tooltipRect.height - 10;
+        }
+
+        // 确保不超出左边界和上边界
+        left = Math.max(10, left);
+        top = Math.max(10, top);
+
+        this.tooltip.style.left = `${left}px`;
+        this.tooltip.style.top = `${top}px`;
+    }
+
+    private async buildTooltipContent(calendarEvent: any): Promise<string> {
+        const reminder = calendarEvent.extendedProps;
+        const parts: string[] = [];
+
+        try {
+            // 1. 文档标题（如果存在docId）
+            if (reminder.blockId && reminder.docId && reminder.blockId !== reminder.docId) {
                 try {
-                    const originalId = calendarEvent.extendedProps.originalId;
-                    const instanceDate = calendarEvent.extendedProps.date;
-
-                    await this.addExcludedDate(originalId, instanceDate);
-
-                    showMessage(t("instanceDeleted"));
-                    await this.refreshEvents();
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    const docBlock = await getBlockByID(reminder.docId);
+                    if (docBlock && docBlock.content) {
+                        parts.push(`<div style="color: var(--b3-theme-on-surface-light); font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
+                            <span>📄</span>
+                            <span title="所属文档">${this.escapeHtml(docBlock.content)}</span>
+                        </div>`);
+                    }
                 } catch (error) {
-                    console.error('删除重复实例失败:', error);
-                    showMessage(t("deleteInstanceFailed"));
+                    console.warn('获取文档标题失败:', error);
                 }
             }
-        );
+
+            // 2. 事项名称
+            let eventTitle = calendarEvent.title || t("unnamedNote");
+
+            // 移除分类图标前缀（如果存在）
+            if (reminder.categoryId) {
+                const category = this.categoryManager.getCategoryById(reminder.categoryId);
+                if (category && category.icon) {
+                    const iconPrefix = `${category.icon} `;
+                    if (eventTitle.startsWith(iconPrefix)) {
+                        eventTitle = eventTitle.substring(iconPrefix.length);
+                    }
+                }
+            }
+
+            parts.push(`<div style="font-weight: 600; color: var(--b3-theme-on-surface); margin-bottom: 8px; font-size: 14px;">
+                ${this.escapeHtml(eventTitle)}
+            </div>`);
+
+            // 3. 日期时间信息
+            const dateTimeInfo = this.formatEventDateTime(reminder);
+            if (dateTimeInfo) {
+                parts.push(`<div style="color: var(--b3-theme-on-surface); margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
+                    <span style="opacity: 0.7;">🕐</span>
+                    <span>${dateTimeInfo}</span>
+                </div>`);
+            }
+
+            // 4. 优先级信息
+            if (reminder.priority && reminder.priority !== 'none') {
+                const priorityInfo = this.formatPriorityInfo(reminder.priority);
+                if (priorityInfo) {
+                    parts.push(`<div style="color: var(--b3-theme-on-surface); margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
+                        ${priorityInfo}
+                    </div>`);
+                }
+            }
+
+            // 5. 分类信息
+            if (reminder.categoryId) {
+                const category = this.categoryManager.getCategoryById(reminder.categoryId);
+                if (category) {
+                    parts.push(`<div style="color: var(--b3-theme-on-surface); margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
+                        <span style="opacity: 0.7;">🏷️</span>
+                        <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; background-color: ${category.color}; border-radius: 4px; color: white; font-size: 11px;">
+                            ${category.icon ? `<span style="font-size: 12px;">${category.icon}</span>` : ''}
+                            <span>${this.escapeHtml(category.name)}</span>
+                        </span>
+                    </div>`);
+                }
+            }
+
+            // 6. 重复信息
+            if (reminder.isRepeated) {
+                parts.push(`<div style="color: var(--b3-theme-on-surface-light); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; font-size: 12px;">
+                    <span>🔄</span>
+                    <span>${t("repeatInstance")}</span>
+                </div>`);
+            } else if (reminder.repeat?.enabled) {
+                const repeatDescription = this.getRepeatDescription(reminder.repeat);
+                if (repeatDescription) {
+                    parts.push(`<div style="color: var(--b3-theme-on-surface-light); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; font-size: 12px;">
+                        <span>🔁</span>
+                        <span>${repeatDescription}</span>
+                    </div>`);
+                }
+            }
+
+            // 7. 备注信息
+            if (reminder.note && reminder.note.trim()) {
+                parts.push(`<div style="color: var(--b3-theme-on-surface-light); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--b3-theme-border); font-size: 12px;">
+                    <div style="margin-bottom: 4px; opacity: 0.7;">备注:</div>
+                    <div>${this.escapeHtml(reminder.note)}</div>
+                </div>`);
+            }
+
+            // 8. 完成状态
+            if (reminder.completed) {
+                parts.push(`<div style="color: var(--b3-theme-success); margin-top: 6px; display: flex; align-items: center; gap: 4px; font-size: 12px;">
+                    <span>✅</span>
+                    <span>已完成</span>
+                </div>`);
+            }
+
+            return parts.join('');
+
+        } catch (error) {
+            console.error('构建提示框内容失败:', error);
+            return `<div style="color: var(--b3-theme-error);">加载详情失败</div>`;
+        }
     }
 
-    private async addExcludedDate(originalId: string, excludeDate: string) {
-        // 为原始重复事件添加排除日期
+    /**
+     * 格式化事件日期时间信息
+     */
+    private formatEventDateTime(reminder: any): string {
         try {
-            const reminderData = await readReminderData();
+            const today = getLocalDateString();
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tomorrowStr = getLocalDateString(tomorrow);
 
-            if (reminderData[originalId]) {
-                if (!reminderData[originalId].repeat) {
-                    throw new Error('不是重复事件');
-                }
-
-                // 初始化排除日期列表
-                if (!reminderData[originalId].repeat.excludeDates) {
-                    reminderData[originalId].repeat.excludeDates = [];
-                }
-
-                // 添加排除日期（如果还没有的话）
-                if (!reminderData[originalId].repeat.excludeDates.includes(excludeDate)) {
-                    reminderData[originalId].repeat.excludeDates.push(excludeDate);
-                }
-
-                await writeReminderData(reminderData);
+            let dateStr = '';
+            if (reminder.date === today) {
+                dateStr = '今天';
+            } else if (reminder.date === tomorrowStr) {
+                dateStr = '明天';
             } else {
-                throw new Error('原始事件不存在');
+                const reminderDate = new Date(reminder.date + 'T00:00:00');
+                dateStr = reminderDate.toLocaleDateString('zh-CN', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    weekday: 'short'
+                });
+            }
+
+            // 处理跨天事件
+            if (reminder.endDate && reminder.endDate !== reminder.date) {
+                let endDateStr = '';
+                if (reminder.endDate === today) {
+                    endDateStr = '今天';
+                } else if (reminder.endDate === tomorrowStr) {
+                    endDateStr = '明天';
+                } else {
+                    const endReminderDate = new Date(reminder.endDate + 'T00:00:00');
+                    endDateStr = endReminderDate.toLocaleDateString('zh-CN', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        weekday: 'short'
+                    });
+                }
+
+                if (reminder.time || reminder.endTime) {
+                    const timeStr = reminder.time ? ` ${reminder.time}` : '';
+                    const endTimeStr = reminder.endTime ? ` ${reminder.endTime}` : '';
+                    return `${dateStr}${timeStr} → ${endDateStr}${endTimeStr}`;
+                } else {
+                    return `${dateStr} → ${endDateStr}`;
+                }
+            }
+
+            // 单日事件
+            if (reminder.time) {
+                if (reminder.endTime && reminder.endTime !== reminder.time) {
+                    return `${dateStr} ${reminder.time} - ${reminder.endTime}`;
+                } else {
+                    return `${dateStr} ${reminder.time}`;
+                }
+            }
+
+            return dateStr;
+
+        } catch (error) {
+            console.error('格式化日期时间失败:', error);
+            return reminder.date || '';
+        }
+    }
+
+    /**
+     * 格式化优先级信息
+     */
+    private formatPriorityInfo(priority: string): string {
+        const priorityMap = {
+            'high': { label: '高优先级', icon: '🔴', color: '#e74c3c' },
+            'medium': { label: '中优先级', icon: '🟡', color: '#f39c12' },
+            'low': { label: '低优先级', icon: '🔵', color: '#3498db' }
+        };
+
+        const priorityInfo = priorityMap[priority];
+        if (!priorityInfo) return '';
+
+        return `<span style="opacity: 0.7;">${priorityInfo.icon}</span>
+                <span style="color: ${priorityInfo.color};">${priorityInfo.label}</span>`;
+    }
+
+    /**
+     * 获取重复描述
+     */
+    private getRepeatDescription(repeat: any): string {
+        if (!repeat || !repeat.enabled) return '';
+
+        try {
+            switch (repeat.type) {
+                case 'daily':
+                    return repeat.interval === 1 ? '每日重复' : `每 ${repeat.interval} 天重复`;
+                case 'weekly':
+                    return repeat.interval === 1 ? '每周重复' : `每 ${repeat.interval} 周重复`;
+                case 'monthly':
+                    return repeat.interval === 1 ? '每月重复' : `每 ${repeat.interval} 月重复`;
+                case 'yearly':
+                    return repeat.interval === 1 ? '每年重复' : `每 ${repeat.interval} 年重复`;
+                case 'custom':
+                    return '自定义重复';
+                case 'ebbinghaus':
+                    return '艾宾浩斯重复';
+                default:
+                    return '重复事件';
             }
         } catch (error) {
-            console.error('添加排除日期失败:', error);
-            throw error;
+            console.error('获取重复描述失败:', error);
+            return '重复事件';
         }
+    }
+
+    /**
+     * HTML转义函数
+     */
+    private escapeHtml(text: string): string {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     // 添加销毁方法
     destroy() {
+        // 清理提示框
+        if (this.tooltip) {
+            this.tooltip.remove();
+            this.tooltip = null;
+        }
+
         // 调用清理函数
         const cleanup = (this.container as any)._calendarCleanup;
         if (cleanup) {
