@@ -168,6 +168,13 @@ export class NotificationDialog {
             return reminderDate < today;
         };
 
+        // 获取优先级文字
+        const getPriorityText = (priority: string) => {
+            return priority === 'high' ? '高' :
+                   priority === 'medium' ? '中' :
+                   priority === 'low' ? '低' : '';
+        };
+
         // 对提醒进行分类和排序
         const overdueReminders = reminders.filter(r => isOverdue(r));
         const todayTimedReminders = reminders.filter(r => !isOverdue(r) && !r.isAllDay && r.time);
@@ -201,6 +208,7 @@ export class NotificationDialog {
                 <div class="all-day-reminders-list">
                     ${sortedReminders.map(reminder => {
             const isReminderOverdue = isOverdue(reminder);
+            const priorityText = getPriorityText(reminder.priority);
             return `
                         <div class="all-day-reminder-item ${isReminderOverdue ? 'overdue' : ''}" data-block-id="${reminder.blockId}">
                             <div class="item-header">
@@ -209,7 +217,12 @@ export class NotificationDialog {
                                     ${this.escapeHtml(reminder.title)}
                                 </div>
                                 <div class="item-meta">
-                                    ${reminder.priority !== 'none' ? `<div class="priority-dot ${reminder.priority}"></div>` : ''}
+                                    ${reminder.priority !== 'none' ? `
+                                        <div class="priority-indicator">
+                                            <div class="priority-dot ${reminder.priority}"></div>
+                                            <span class="priority-text">${priorityText}</span>
+                                        </div>
+                                    ` : ''}
                                     ${reminder.categoryName ? `
                                         <div class="category-indicator">
                                             <div class="category-dot" style="background-color: ${reminder.categoryColor || '#666'};"></div>
@@ -523,7 +536,7 @@ export class NotificationDialog {
                 background-color: var(--b3-card-info-color);
             }
 
-            .category-indicator {
+            .category-indicator,.priority-indicator {
                 display: flex;
                 align-items: center;
                 gap: 3px;
