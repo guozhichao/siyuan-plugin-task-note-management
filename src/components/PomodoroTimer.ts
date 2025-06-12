@@ -1121,7 +1121,7 @@ export class PomodoroTimer {
             statusIcon.innerHTML = statusIconHtml;
         }
 
-        // 更新番茄数量显示
+        // 更新番茄数量
         const pomodoroCountElement = this.container.querySelector('#pomodoroCount');
         if (pomodoroCountElement) {
             pomodoroCountElement.textContent = this.completedPomodoros.toString();
@@ -1163,6 +1163,16 @@ export class PomodoroTimer {
                 this.resumeTimer();
             } else {
                 this.pauseTimer();
+                // 暂停后立即显示继续和停止按钮
+                const statusIcon = this.container.querySelector('.pomodoro-status-icon');
+                if (statusIcon) {
+                    statusIcon.style.opacity = '0.3';
+                }
+                this.startPauseBtn.style.opacity = '1';
+                this.stopBtn.style.opacity = '1';
+                this.stopBtn.style.display = 'flex';
+                this.startPauseBtn.style.transform = 'translate(-50%, -50%) translateX(-12px)';
+                this.stopBtn.style.transform = 'translate(-50%, -50%) translateX(12px)';
             }
         }
 
