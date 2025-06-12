@@ -20,6 +20,8 @@ export class CalendarView {
     private categoryManager: CategoryManager; // 添加分类管理器
     private currentCategoryFilter: string = 'all'; // 当前分类过滤
     private tooltip: HTMLElement | null = null; // 添加提示框元素
+    private tooltipTimeout: number | null = null; // 添加提示框超时控制
+    private isTooltipHovered: boolean = false; // 添加提示框悬浮状态
 
     constructor(container: HTMLElement, plugin: any) {
         this.container = container;
@@ -128,18 +130,18 @@ export class CalendarView {
                     this.showEventContextMenu(e, info.event);
                 });
 
-                // 添加鼠标悬浮事件监听器
+                // 改进的鼠标悬浮事件监听器
                 info.el.addEventListener('mouseenter', (e) => {
                     this.showEventTooltip(e, info.event);
                 });
 
                 info.el.addEventListener('mouseleave', () => {
-                    this.hideEventTooltip();
+                    this.hideEventTooltipWithDelay();
                 });
 
-                // 确保鼠标在tooltip上时不会隐藏
+                // 鼠标移动时更新提示框位置
                 info.el.addEventListener('mousemove', (e) => {
-                    if (this.tooltip && this.tooltip.style.display !== 'none') {
+                    if (this.tooltip && this.tooltip.style.display !== 'none' && this.tooltip.style.opacity === '1') {
                         this.updateTooltipPosition(e);
                     }
                 });
@@ -257,6 +259,10 @@ export class CalendarView {
             mutationObserver.disconnect();
             if (this.resizeTimeout) {
                 clearTimeout(this.resizeTimeout);
+            }
+            // 清理提示框超时
+            if (this.tooltipTimeout) {
+                clearTimeout(this.tooltipTimeout);
             }
         };
 
@@ -1639,6 +1645,12 @@ export class CalendarView {
 
     private async showEventTooltip(event: MouseEvent, calendarEvent: any) {
         try {
+            // 清除可能存在的隐藏超时
+            if (this.tooltipTimeout) {
+                clearTimeout(this.tooltipTimeout);
+                this.tooltipTimeout = null;
+            }
+
             // 创建提示框
             if (!this.tooltip) {
                 this.tooltip = document.createElement('div');
@@ -1654,12 +1666,26 @@ export class CalendarView {
                     max-width: 300px;
                     font-size: 13px;
                     line-height: 1.4;
-                    pointer-events: none;
                     opacity: 0;
                     transition: opacity 0.2s ease-in-out;
                     white-space: pre-wrap;
                     word-wrap: break-word;
                 `;
+
+                // 添加鼠标事件监听器
+                this.tooltip.addEventListener('mouseenter', () => {
+                    this.isTooltipHovered = true;
+                    if (this.tooltipTimeout) {
+                        clearTimeout(this.tooltipTimeout);
+                        this.tooltipTimeout = null;
+                    }
+                });
+
+                this.tooltip.addEventListener('mouseleave', () => {
+                    this.isTooltipHovered = false;
+                    this.hideEventTooltipWithDelay();
+                });
+
                 document.body.appendChild(this.tooltip);
             }
 
@@ -1687,11 +1713,24 @@ export class CalendarView {
         if (this.tooltip) {
             this.tooltip.style.opacity = '0';
             setTimeout(() => {
-                if (this.tooltip) {
+                if (this.tooltip && !this.isTooltipHovered) {
                     this.tooltip.style.display = 'none';
                 }
             }, 200);
         }
+    }
+
+    private hideEventTooltipWithDelay() {
+        // 延迟隐藏提示框，给用户时间移动鼠标到提示框上
+        if (this.tooltipTimeout) {
+            clearTimeout(this.tooltipTimeout);
+        }
+
+        this.tooltipTimeout = window.setTimeout(() => {
+            if (!this.isTooltipHovered) {
+                this.hideEventTooltip();
+            }
+        }, 300); // 300ms 延迟
     }
 
     private updateTooltipPosition(event: MouseEvent) {
@@ -1959,6 +1998,12 @@ export class CalendarView {
 
     // 添加销毁方法
     destroy() {
+        // 清理提示框超时
+        if (this.tooltipTimeout) {
+            clearTimeout(this.tooltipTimeout);
+            this.tooltipTimeout = null;
+        }
+
         // 清理提示框
         if (this.tooltip) {
             this.tooltip.remove();
