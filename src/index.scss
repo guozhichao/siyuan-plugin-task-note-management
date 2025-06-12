@@ -653,52 +653,125 @@
     align-items: flex-start;
 }
 
+// 分类选择器样式 - 横向排列
 .category-selector {
-    flex: 1;
     display: flex;
-    flex-direction: column;
-    gap: 4px;
-    max-height: 80px;
-    overflow-y: auto;
-    border: 1px solid var(--b3-border-color);
-    border-radius: 4px;
-    padding: 4px;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
 }
 
 .category-option {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 8px;
+    gap: 4px;
+    padding: 4px 8px;
+    border: 2px solid var(--b3-border-color);
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.2s ease;
+    background: var(--b3-theme-background);
+    font-size: 12px;
+    white-space: nowrap;
+    min-height: 28px;
+    box-sizing: border-box;
+    position: relative;
 }
 
 .category-option:hover {
-    background-color: var(--b3-list-hover);
+    background: var(--b3-theme-surface-light);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    border-color: var(--b3-theme-primary-light);
 }
 
 .category-option.selected {
-    background-color: var(--b3-theme-primary-lightest);
-    border: 1px solid var(--b3-theme-primary);
+    border: 3px solid var(--b3-theme-primary) !important;
+    box-shadow: 0 0 0 2px var(--b3-theme-primary-light), 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+    transform: scale(1.05) !important;
+    z-index: 2;
 }
 
-.category-dot {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
+.category-option.selected::after {
+    content: '✓';
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 16px;
+    height: 16px;
+    background: var(--b3-theme-primary);
+    color: white;
     border-radius: 50%;
-    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: bold;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    z-index: 3;
 }
 
-.category-dot.none {
-    background-color: var(--b3-border-color);
+// 无分类选项特殊样式
+.category-option[data-category=""] {
+    background: var(--b3-theme-background);
+    color: var(--b3-theme-on-surface-light);
+    border-style: dashed;
+    border-width: 2px;
+}
+
+.category-option[data-category=""]:hover {
+    background: var(--b3-theme-surface-light);
+    color: var(--b3-theme-on-background);
+    border-style: solid;
+}
+
+.category-option[data-category=""].selected {
+    background: var(--b3-theme-primary-lightest) !important;
+    color: var(--b3-theme-primary) !important;
+    border-style: solid !important;
+    border-color: var(--b3-theme-primary) !important;
+    font-weight: bold;
+}
+
+.category-option[data-category=""].selected::after {
+    background: var(--b3-theme-primary);
+    color: white;
+}
+
+// 有颜色的分类选项样式
+.category-option[data-category]:not([data-category=""]) {
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 255, 255, 0.3);
+    border-width: 2px;
+}
+
+.category-option[data-category]:not([data-category=""]):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    filter: brightness(1.1);
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+.category-option[data-category]:not([data-category=""]).selected {
+    border: 3px solid white !important;
+    box-shadow: 0 0 0 2px var(--b3-theme-primary), 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+    transform: scale(1.05) !important;
+    filter: brightness(1.2) saturate(1.2) !important;
+    font-weight: bold;
+}
+
+.category-option[data-category]:not([data-category=""]).selected::after {
+    background: white;
+    color: var(--b3-theme-primary);
+    border-color: var(--b3-theme-primary);
 }
 
 #manageCategoriesBtn {
     padding: 6px 8px;
     min-width: auto;
+    height: 28px; // 与分类选项高度保持一致
 }
 
 // 分类管理对话框样式

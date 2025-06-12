@@ -64,7 +64,7 @@ export class ReminderEditDialog {
                                 <svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg>
                             </button>
                         </label>
-                        <div class="category-selector" id="editCategorySelector">
+                        <div class="category-selector" id="editCategorySelector" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
                             <!-- 分类选择器将在这里渲染 -->
                         </div>
                     </div>
@@ -143,21 +143,23 @@ export class ReminderEditDialog {
         try {
             const categories = this.categoryManager.getCategories();
 
-            categorySelector.innerHTML = `
-                <div class="category-option ${!this.reminder.categoryId ? 'selected' : ''}" data-category="">
-                    <div class="category-dot none"></div>
-                    <span>无分类</span>
-                </div>
-            `;
+            // 清空并重新构建，使用横向布局
+            categorySelector.innerHTML = '';
 
+            // 添加无分类选项
+            const noCategoryEl = document.createElement('div');
+            noCategoryEl.className = `category-option ${!this.reminder.categoryId ? 'selected' : ''}`;
+            noCategoryEl.setAttribute('data-category', '');
+            noCategoryEl.innerHTML = `<span>无分类</span>`;
+            categorySelector.appendChild(noCategoryEl);
+
+            // 添加所有分类选项
             categories.forEach(category => {
                 const categoryEl = document.createElement('div');
                 categoryEl.className = `category-option ${this.reminder.categoryId === category.id ? 'selected' : ''}`;
                 categoryEl.setAttribute('data-category', category.id);
-                categoryEl.innerHTML = `
-                    <div class="category-dot" style="background-color: ${category.color};"></div>
-                    <span>${category.icon || ''} ${category.name}</span>
-                `;
+                categoryEl.style.backgroundColor = category.color;
+                categoryEl.innerHTML = `<span>${category.icon || ''} ${category.name}</span>`;
                 categorySelector.appendChild(categoryEl);
             });
 
@@ -188,13 +190,23 @@ export class ReminderEditDialog {
             }
         });
 
-        // 分类选择事件
+        // 分类选择事件 - 增强选中效果
         categorySelector.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
             const option = target.closest('.category-option') as HTMLElement;
             if (option) {
-                categorySelector.querySelectorAll('.category-option').forEach(opt => opt.classList.remove('selected'));
+                // 移除所有选中状态
+                categorySelector.querySelectorAll('.category-option').forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                // 添加选中状态
                 option.classList.add('selected');
+
+                // 添加点击反馈动画
+                option.style.transform = 'scale(0.9)';
+                setTimeout(() => {
+                    option.style.transform = '';
+                }, 150);
             }
         });
 
