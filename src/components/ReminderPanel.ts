@@ -1294,6 +1294,26 @@ export class ReminderPanel {
             return;
         }
 
+        // 检查是否已经有活动的番茄钟
+        if (ReminderPanel.currentPomodoroTimer) {
+            // 显示确认对话框
+            confirm(
+                "替换当前番茄钟",
+                `当前正在进行番茄钟任务，是否要停止当前任务并开始新的正计时番茄钟？`,
+                () => {
+                    // 用户确认替换
+                    this.performStartPomodoroCountUp(reminder);
+                },
+                () => {
+                    // 用户取消，不做任何操作
+                }
+            );
+        } else {
+            // 没有活动番茄钟，直接启动
+            this.performStartPomodoroCountUp(reminder);
+        }
+    }
+    private performStartPomodoroCountUp(reminder: any) {
         // 如果已经有活动的番茄钟，先关闭它
         if (ReminderPanel.currentPomodoroTimer) {
             try {
@@ -1309,7 +1329,6 @@ export class ReminderPanel {
 
         // 设置当前活动的番茄钟实例并直接切换到正计时模式
         ReminderPanel.currentPomodoroTimer = pomodoroTimer;
-
 
         pomodoroTimer.show();
         showMessage("已启动正计时番茄钟", 2000);
@@ -1357,6 +1376,26 @@ export class ReminderPanel {
             return;
         }
 
+        // 检查是否已经有活动的番茄钟
+        if (ReminderPanel.currentPomodoroTimer) {
+            // 显示确认对话框
+            confirm(
+                "替换当前番茄钟",
+                `当前正在进行番茄钟任务，是否要停止当前任务并开始新的番茄钟？`,
+                () => {
+                    // 用户确认替换
+                    this.performStartPomodoro(reminder);
+                },
+                () => {
+                    // 用户取消，不做任何操作
+                }
+            );
+        } else {
+            // 没有活动番茄钟，直接启动
+            this.performStartPomodoro(reminder);
+        }
+    }
+    private performStartPomodoro(reminder: any) {
         // 如果已经有活动的番茄钟，先关闭它
         if (ReminderPanel.currentPomodoroTimer) {
             try {
@@ -1376,33 +1415,6 @@ export class ReminderPanel {
         pomodoroTimer.show();
     }
 
-    private startPomodoroForward(reminder: any) {
-        if (!this.plugin) {
-            showMessage("无法启动番茄钟：插件实例不可用");
-            return;
-        }
-
-        // 如果已经有活动的番茄钟，先关闭它
-        if (ReminderPanel.currentPomodoroTimer) {
-            try {
-                ReminderPanel.currentPomodoroTimer.close();
-                ReminderPanel.currentPomodoroTimer = null;
-            } catch (error) {
-                console.error('关闭之前的番茄钟失败:', error);
-            }
-        }
-
-        const settings = this.plugin.getPomodoroSettings();
-        const pomodoroTimer = new PomodoroTimer(reminder, settings);
-
-        // 设置当前活动的番茄钟实例
-        ReminderPanel.currentPomodoroTimer = pomodoroTimer;
-
-        pomodoroTimer.show();
-
-        // 提示用户可以在番茄钟界面切换到正计时模式
-        showMessage("已启动番茄钟，可点击模式切换按钮切换到正计时", 3000);
-    }
 
     // 添加静态方法获取当前番茄钟实例
     public static getCurrentPomodoroTimer(): PomodoroTimer | null {
