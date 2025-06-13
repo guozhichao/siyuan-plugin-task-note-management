@@ -1,6 +1,6 @@
 import { showMessage, confirm, Dialog, Menu, openTab } from "siyuan";
 import { readReminderData, writeReminderData, getBlockByID, updateBlockReminderBookmark } from "../api";
-import { getLocalDateString, compareDateStrings, getLocalDateTime } from "../utils/dateUtils";
+import { getLocalDateString, compareDateStrings, getLocalDateTime, getLocalDateTimeString } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
@@ -975,28 +975,33 @@ export class ReminderPanel {
 
             if (isRepeatInstance && instanceDate) {
                 // 处理重复事件实例的完成状态
-                // 对于重复事件实例，直接使用传入的 reminderId 作为原始ID
                 const originalId = reminderId; // 这里 reminderId 应该是原始ID
 
                 if (reminderData[originalId]) {
-                    // 初始化已完成实例列表
+                    // 初始化已完成实例列表和完成时间记录
                     if (!reminderData[originalId].repeat.completedInstances) {
                         reminderData[originalId].repeat.completedInstances = [];
                     }
+                    if (!reminderData[originalId].repeat.completedTimes) {
+                        reminderData[originalId].repeat.completedTimes = {};
+                    }
 
                     const completedInstances = reminderData[originalId].repeat.completedInstances;
+                    const completedTimes = reminderData[originalId].repeat.completedTimes;
 
                     if (completed) {
-                        // 添加到已完成列表
+                        // 添加到已完成列表并记录完成时间
                         if (!completedInstances.includes(instanceDate)) {
                             completedInstances.push(instanceDate);
                         }
+                        completedTimes[instanceDate] = getLocalDateTimeString(new Date());
                     } else {
-                        // 从已完成列表中移除
+                        // 从已完成列表中移除并删除完成时间
                         const index = completedInstances.indexOf(instanceDate);
                         if (index > -1) {
                             completedInstances.splice(index, 1);
                         }
+                        delete completedTimes[instanceDate];
                     }
 
                     await writeReminderData(reminderData);
@@ -1014,6 +1019,14 @@ export class ReminderPanel {
                 // 处理普通事件的完成状态
                 const blockId = reminderData[reminderId].blockId;
                 reminderData[reminderId].completed = completed;
+
+                // 记录或清除完成时间
+                if (completed) {
+                    reminderData[reminderId].completedTime = getLocalDateTimeString(new Date());
+                } else {
+                    delete reminderData[reminderId].completedTime;
+                }
+
                 await writeReminderData(reminderData);
 
                 // 更新块的书签状态
@@ -1295,6 +1308,47 @@ export class ReminderPanel {
 
         timeContainer.appendChild(timeEl);
 
+        // 添加完成时间显示
+        if (reminder.completed) {
+            const completedTimeEl = document.createElement('div');
+            completedTimeEl.className = 'reminder-completed-time';
+            completedTimeEl.style.cssText = `
+                font-size: 11px;
+                color: var(--b3-theme-on-surface);
+                opacity: 0.7;
+                margin-top: 2px;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            `;
+
+            // 获取完成时间
+            let completedTime = null;
+            if (reminder.isRepeatInstance) {
+                // 重复事件实例的完成时间
+                const originalReminder = this.getOriginalReminder(reminder.originalId);
+                if (originalReminder && originalReminder.repeat?.completedTimes) {
+                    completedTime = originalReminder.repeat.completedTimes[reminder.date];
+                }
+            } else {
+                // 普通事件的完成时间
+                completedTime = reminder.completedTime;
+            }
+
+            if (completedTime) {
+                const completedIcon = document.createElement('span');
+                completedIcon.textContent = '✅';
+                completedIcon.style.cssText = 'font-size: 10px;';
+
+                const completedText = document.createElement('span');
+                completedText.textContent = `完成于${this.formatCompletedTime(completedTime)}`;
+
+                completedTimeEl.appendChild(completedIcon);
+                completedTimeEl.appendChild(completedText);
+                timeContainer.appendChild(completedTimeEl);
+            }
+        }
+
         infoEl.appendChild(titleContainer);
         infoEl.appendChild(timeContainer);
 
@@ -1387,6 +1441,45 @@ export class ReminderPanel {
 
         return reminderEl;
     }
+
+    /**
+     * 格式化完成时间显示
+     * @param completedTime 完成时间字符串
+     * @returns 格式化的时间显示
+     */
+    private formatCompletedTime(completedTime: string): string {
+        try {
+            const today = getLocalDateString();
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = getLocalDateString(yesterday);
+
+            // 解析完成时间
+            const completedDate = new Date(completedTime);
+            const completedDateStr = getLocalDateString(completedDate);
+
+            const timeStr = completedDate.toLocaleTimeString('zh-CN', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            if (completedDateStr === today) {
+                return `今天 ${timeStr}`;
+            } else if (completedDateStr === yesterdayStr) {
+                return `昨天 ${timeStr}`;
+            } else {
+                const dateStr = completedDate.toLocaleDateString('zh-CN', {
+                    month: 'short',
+                    day: 'numeric'
+                });
+                return `${dateStr} ${timeStr}`;
+            }
+        } catch (error) {
+            console.error('格式化完成时间失败:', error);
+            return completedTime;
+        }
+    }
+
 
     /**
      * [MODIFIED] This function has been refactored to handle all reminder types
