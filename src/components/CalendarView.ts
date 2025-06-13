@@ -3,7 +3,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
-import { readReminderData, writeReminderData, getBlockByID, updateBlockReminderBookmark } from "../api";
+import { readReminderData, writeReminderData, getBlockByID, sql, updateBlock, getBlockKramdown,  updateBlockReminderBookmark } from "../api";
 import { getLocalDateString, getLocalDateTime, getLocalDateTimeString } from "../utils/dateUtils";
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
@@ -792,6 +792,8 @@ export class CalendarView {
         return { domNodes: [wrapper] };
     }
 
+    // ...existing code...
+
     private async toggleEventCompleted(event) {
         try {
             const reminderData = await readReminderData();
@@ -837,6 +839,12 @@ export class CalendarView {
                     const blockId = reminderData[originalId].blockId;
                     if (blockId) {
                         await updateBlockReminderBookmark(blockId);
+                        // 完成时自动处理任务列表
+                        if (!isCompleted) {
+                            await this.handleTaskListCompletion(blockId);
+                        } else {
+                            await this.handleTaskListCompletionCancel(blockId);
+                        }
                     }
 
                     // 触发更新事件
@@ -867,6 +875,12 @@ export class CalendarView {
                     // 更新块的书签状态
                     if (blockId) {
                         await updateBlockReminderBookmark(blockId);
+                        // 完成时自动处理任务列表
+                        if (newCompletedState) {
+                            await this.handleTaskListCompletion(blockId);
+                        } else {
+                            await this.handleTaskListCompletionCancel(blockId);
+                        }
                     }
 
                     // 更新事件的显示状态
@@ -882,6 +896,160 @@ export class CalendarView {
         } catch (error) {
             console.error('切换事件完成状态失败:', error);
             showMessage('切换完成状态失败，请重试');
+        }
+    }
+
+    /**
+     * 处理任务列表的自动完成功能
+     * 当完成时间提醒事项时，检测是否为待办事项列表，如果是则自动打勾
+     * @param blockId 块ID
+     */
+    private async handleTaskListCompletion(blockId: string) {
+        try {
+            // 1. 检测块是否为待办事项列表
+            const isTaskList = await this.isTaskListBlock(blockId);
+            if (!isTaskList) {
+                return; // 不是待办事项列表，不需要处理
+            }
+
+            // 2. 获取块的 kramdown 内容
+            const kramdown = (await getBlockKramdown(blockId)).kramdown;
+            if (!kramdown) {
+                console.warn('无法获取块的 kramdown 内容:', blockId);
+                return;
+            }
+
+            // 3. 使用正则表达式匹配待办事项格式: ^- {: xxx}[ ]
+            const taskPattern = /^-\s*\{:[^}]*\}\[\s*\]/gm;
+
+            // 检查是否包含未完成的待办项
+            const hasUncompletedTasks = taskPattern.test(kramdown);
+
+            if (!hasUncompletedTasks) {
+                return; // 没有未完成的待办项，不需要处理
+            }
+
+            // 4. 将 ^- {: xxx}[ ] 替换为 ^- {: xxx}[X]
+            // 重置正则表达式的 lastIndex
+            taskPattern.lastIndex = 0;
+            const updatedKramdown = kramdown.replace(
+                /^(-\s*\{:[^}]*\})\[\s*\]/gm,
+                '$1[X]'
+            );
+
+            // 5. 更新块内容
+            await this.updateBlockWithKramdown(blockId, updatedKramdown);
+
+        } catch (error) {
+            console.error('处理任务列表完成状态失败:', error);
+            // 静默处理错误，不影响主要功能
+        }
+    }
+
+    /**
+     * 处理任务列表的取消完成功能
+     * 当取消完成时间提醒事项时，检测是否为待办事项列表，如果是则自动取消勾选
+     * @param blockId 块ID
+     */
+    private async handleTaskListCompletionCancel(blockId: string) {
+        try {
+            // 1. 检测块是否为待办事项列表
+            const isTaskList = await this.isTaskListBlock(blockId);
+            if (!isTaskList) {
+                return; // 不是待办事项列表，不需要处理
+            }
+
+            // 2. 获取块的 kramdown 内容
+            const kramdown = (await getBlockKramdown(blockId)).kramdown;
+            if (!kramdown) {
+                console.warn('无法获取块的 kramdown 内容:', blockId);
+                return;
+            }
+
+            // 3. 使用正则表达式匹配待办事项格式: ^- {: xxx}[X]
+            const taskPattern = /^-\s*\{:[^}]*\}\[X\]/gm;
+
+            // 检查是否包含完成的待办项
+            const hasCompletedTasks = taskPattern.test(kramdown);
+            if (!hasCompletedTasks) {
+                return; // 没有完成的待办项，不需要处理
+            }
+
+            // 4. 将 ^- {: xxx}[X] 替换为 ^- {: xxx}[ ]
+            // 重置正则表达式的 lastIndex
+            taskPattern.lastIndex = 0;
+            const updatedKramdown = kramdown.replace(
+                /^(-\s*\{:[^}]*\})\[X\]/gm,
+                '$1[ ]'
+            );
+
+            // 5. 更新块内容
+            await this.updateBlockWithKramdown(blockId, updatedKramdown);
+
+        } catch (error) {
+            console.error('处理任务列表取消完成状态失败:', error);
+            // 静默处理错误，不影响主要功能
+        }
+    }
+
+    /**
+     * 检测块是否为待办事项列表
+     * @param blockId 块ID
+     * @returns 是否为待办事项列表
+     */
+    private async isTaskListBlock(blockId: string): Promise<boolean> {
+        try {
+            // 使用 SQL 查询检测块类型
+            const sqlQuery = `SELECT type, subtype FROM blocks WHERE id = '${blockId}'`;
+            const result = await sql(sqlQuery);
+
+            if (result && result.length > 0) {
+                const block = result[0];
+                // 检查是否为待办事项列表：type='i' and subtype='t'
+                return block.type === 'i' && block.subtype === 't';
+            }
+
+            return false;
+        } catch (error) {
+            console.error('检测任务列表块失败:', error);
+            return false;
+        }
+    }
+
+    /**
+     * 使用 kramdown 更新块内容
+     * @param blockId 块ID
+     * @param kramdown kramdown 内容
+     */
+    private async updateBlockWithKramdown(blockId: string, kramdown: string) {
+        try {
+            const updateData = {
+                dataType: "markdown",
+                data: kramdown,
+                id: blockId
+            };
+
+            // 使用 updateBlock API 更新块
+            const response = await fetch('/api/block/updateBlock', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updateData)
+            });
+
+            if (!response.ok) {
+                throw new Error(`更新块失败: ${response.status} ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            if (result.code !== 0) {
+                throw new Error(`更新块失败: ${result.msg || '未知错误'}`);
+            }
+
+        } catch (error) {
+            console.error('更新块内容失败:', error);
+            throw error;
         }
     }
 
