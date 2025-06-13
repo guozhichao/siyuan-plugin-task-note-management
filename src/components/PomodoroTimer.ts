@@ -48,7 +48,7 @@ export class PomodoroTimer {
 
     private isWindowClosed: boolean = false; // 新增：窗口关闭状态标记
 
-    constructor(reminder: any, settings: any, isCountUp: boolean = false) {
+    constructor(reminder: any, settings: any, isCountUp: boolean = false, inheritState?: any) {
         this.reminder = reminder;
         this.settings = settings;
         this.isCountUp = isCountUp; // 设置计时模式
@@ -56,7 +56,70 @@ export class PomodoroTimer {
         this.totalTime = this.timeLeft;
         this.recordManager = PomodoroRecordManager.getInstance();
 
+        // 如果有继承状态，应用继承的状态
+        if (inheritState && inheritState.isRunning) {
+            this.applyInheritedState(inheritState);
+        }
+
         this.initComponents();
+    }
+
+    /**
+     * 应用继承的番茄钟状态
+     */
+    private applyInheritedState(inheritState: any) {
+        // 继承时间状态
+        this.isWorkPhase = inheritState.isWorkPhase;
+        this.isLongBreak = inheritState.isLongBreak;
+        this.timeElapsed = inheritState.timeElapsed || 0;
+        this.timeLeft = inheritState.timeLeft || this.settings.workDuration * 60;
+        this.breakTimeLeft = inheritState.breakTimeLeft || 0;
+        this.completedPomodoros = inheritState.completedPomodoros || 0;
+
+        // 继承运行状态
+        this.isRunning = inheritState.isRunning && !inheritState.isPaused;
+        this.isPaused = false; // 新番茄钟开始时不暂停
+
+        // 如果继承的是倒计时模式的状态，需要重新计算totalTime
+        if (!this.isCountUp) {
+            if (this.isWorkPhase) {
+                this.totalTime = this.settings.workDuration * 60;
+            } else if (this.isLongBreak) {
+                this.totalTime = this.settings.longBreakDuration * 60;
+            } else {
+                this.totalTime = this.settings.breakDuration * 60;
+            }
+        }
+
+        console.log('继承番茄钟状态:', {
+            isWorkPhase: this.isWorkPhase,
+            isLongBreak: this.isLongBreak,
+            timeElapsed: this.timeElapsed,
+            timeLeft: this.timeLeft,
+            breakTimeLeft: this.breakTimeLeft,
+            completedPomodoros: this.completedPomodoros,
+            isRunning: this.isRunning
+        });
+    }
+
+    /**
+     * 获取当前番茄钟状态，用于状态继承
+     */
+    public getCurrentState() {
+        return {
+            isRunning: this.isRunning,
+            isPaused: this.isPaused,
+            isWorkPhase: this.isWorkPhase,
+            isLongBreak: this.isLongBreak,
+            isCountUp: this.isCountUp,
+            timeElapsed: this.timeElapsed,
+            timeLeft: this.timeLeft,
+            breakTimeLeft: this.breakTimeLeft,
+            totalTime: this.totalTime,
+            completedPomodoros: this.completedPomodoros,
+            reminderTitle: this.reminder.title,
+            reminderId: this.reminder.id
+        };
     }
 
     private async initComponents() {
@@ -1805,7 +1868,12 @@ export class PomodoroTimer {
     }
 
     show() {
-        // Already shown in createWindow
+        // 如果番茄钟继承了运行状态，自动开始计时
+        setTimeout(() => {
+            if (this.isRunning && !this.isPaused) {
+                this.startTimer();
+            }
+        }, 100);
     }
 
     /**

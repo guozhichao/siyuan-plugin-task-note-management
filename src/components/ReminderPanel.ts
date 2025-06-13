@@ -1013,8 +1013,7 @@ export class ReminderPanel {
                 app: window.siyuan.ws.app,
                 doc: {
                     id: blockId,
-                    action: "cb-get-hl",
-                    zoomIn: false
+                    action: "cb-get-hl"
                 },
             });
         } catch (error) {
@@ -1571,92 +1570,6 @@ export class ReminderPanel {
             y: event.clientY
         });
     }
-    private startPomodoroCountUp(reminder: any) {
-        if (!this.plugin) {
-            showMessage("无法启动番茄钟：插件实例不可用");
-            return;
-        }
-
-        // 检查是否已经有活动的番茄钟并且窗口仍然存在
-        if (ReminderPanel.currentPomodoroTimer && ReminderPanel.currentPomodoroTimer.isWindowActive()) {
-            // 显示确认对话框
-            confirm(
-                "替换当前番茄钟",
-                `当前正在进行番茄钟任务，是否要停止当前任务并开始新的正计时番茄钟？`,
-                () => {
-                    // 用户确认替换
-                    this.performStartPomodoroCountUp(reminder);
-                },
-                () => {
-                    // 用户取消，不做任何操作
-                }
-            );
-        } else {
-            // 没有活动番茄钟或窗口已关闭，清理引用并直接启动
-            if (ReminderPanel.currentPomodoroTimer && !ReminderPanel.currentPomodoroTimer.isWindowActive()) {
-                ReminderPanel.currentPomodoroTimer = null;
-            }
-            this.performStartPomodoroCountUp(reminder);
-        }
-    }
-
-    private performStartPomodoroCountUp(reminder: any) {
-        // 如果已经有活动的番茄钟，先关闭它
-        if (ReminderPanel.currentPomodoroTimer) {
-            try {
-                ReminderPanel.currentPomodoroTimer.close();
-                ReminderPanel.currentPomodoroTimer = null;
-            } catch (error) {
-                console.error('关闭之前的番茄钟失败:', error);
-            }
-        }
-
-        const settings = this.plugin.getPomodoroSettings();
-        const pomodoroTimer = new PomodoroTimer(reminder, settings, true);
-
-        // 设置当前活动的番茄钟实例并直接切换到正计时模式
-        ReminderPanel.currentPomodoroTimer = pomodoroTimer;
-
-        pomodoroTimer.show();
-        showMessage("已启动正计时番茄钟", 2000);
-    }
-    private async copyBlockRef(reminder: any) {
-        try {
-            // 获取块ID（对于重复事件实例，使用原始事件的blockId）
-            const blockId = reminder.blockId || (reminder.isRepeatInstance ?
-                await this.getOriginalBlockId(reminder.originalId) :
-                reminder.id);
-
-            if (!blockId) {
-                showMessage("无法获取块ID");
-                return;
-            }
-
-            // 获取事件标题
-            const title = reminder.title || t("unnamedNote");
-
-            // 生成静态锚文本块引格式
-            const blockRef = `((${blockId} "${title}"))`;
-
-            // 复制到剪贴板
-            await navigator.clipboard.writeText(blockRef);
-
-        } catch (error) {
-            console.error('复制块引失败:', error);
-            showMessage("复制块引失败");
-        }
-    }
-    // 获取原始事件的blockId
-    private async getOriginalBlockId(originalId: string): Promise<string | null> {
-        try {
-            const reminderData = await readReminderData();
-            const originalReminder = reminderData[originalId];
-            return originalReminder?.blockId || originalId;
-        } catch (error) {
-            console.error('获取原始块ID失败:', error);
-            return null;
-        }
-    }
     private startPomodoro(reminder: any) {
         if (!this.plugin) {
             showMessage("无法启动番茄钟：插件实例不可用");
@@ -1665,13 +1578,29 @@ export class ReminderPanel {
 
         // 检查是否已经有活动的番茄钟并且窗口仍然存在
         if (ReminderPanel.currentPomodoroTimer && ReminderPanel.currentPomodoroTimer.isWindowActive()) {
+            // 获取当前番茄钟的状态
+            const currentState = ReminderPanel.currentPomodoroTimer.getCurrentState();
+            const currentTitle = currentState.reminderTitle || '当前任务';
+            const newTitle = reminder.title || '新任务';
+
+            let confirmMessage = `当前正在进行番茄钟任务："${currentTitle}"，是否要切换到新任务："${newTitle}"？`;
+
+            // 如果当前番茄钟正在运行，询问是否继承时间
+            if (currentState.isRunning && !currentState.isPaused) {
+                const timeDisplay = currentState.isWorkPhase ?
+                    `工作时间 ${Math.floor(currentState.timeElapsed / 60)}:${(currentState.timeElapsed % 60).toString().padStart(2, '0')}` :
+                    `休息时间 ${Math.floor(currentState.timeLeft / 60)}:${(currentState.timeLeft % 60).toString().padStart(2, '0')}`;
+
+                confirmMessage += `\n\n\n选择"确定"将继承当前进度继续计时。`;
+            }
+
             // 显示确认对话框
             confirm(
-                "替换当前番茄钟",
-                `当前正在进行番茄钟任务，是否要停止当前任务并开始新的番茄钟？`,
+                "切换番茄钟任务",
+                confirmMessage,
                 () => {
-                    // 用户确认替换
-                    this.performStartPomodoro(reminder);
+                    // 用户确认替换，传递当前状态
+                    this.performStartPomodoro(reminder, currentState);
                 },
                 () => {
                     // 用户取消，不做任何操作
@@ -1686,7 +1615,7 @@ export class ReminderPanel {
         }
     }
 
-    private performStartPomodoro(reminder: any) {
+    private performStartPomodoro(reminder: any, inheritState?: any) {
         // 如果已经有活动的番茄钟，先关闭它
         if (ReminderPanel.currentPomodoroTimer) {
             try {
@@ -1698,12 +1627,91 @@ export class ReminderPanel {
         }
 
         const settings = this.plugin.getPomodoroSettings();
-        const pomodoroTimer = new PomodoroTimer(reminder, settings);
+        const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState);
 
         // 设置当前活动的番茄钟实例
         ReminderPanel.currentPomodoroTimer = pomodoroTimer;
 
         pomodoroTimer.show();
+
+        // 如果继承了状态且原来正在运行，显示继承信息
+        if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
+            const phaseText = inheritState.isWorkPhase ? '工作时间' : '休息时间';
+            showMessage(`已切换任务并继承${phaseText}进度`, 2000);
+        }
+    }
+
+    private startPomodoroCountUp(reminder: any) {
+        if (!this.plugin) {
+            showMessage("无法启动番茄钟：插件实例不可用");
+            return;
+        }
+
+        // 检查是否已经有活动的番茄钟并且窗口仍然存在
+        if (ReminderPanel.currentPomodoroTimer && ReminderPanel.currentPomodoroTimer.isWindowActive()) {
+            // 获取当前番茄钟的状态
+            const currentState = ReminderPanel.currentPomodoroTimer.getCurrentState();
+            const currentTitle = currentState.reminderTitle || '当前任务';
+            const newTitle = reminder.title || '新任务';
+
+            let confirmMessage = `当前正在进行番茄钟任务："${currentTitle}"，是否要切换到新的正计时任务："${newTitle}"？`;
+
+            // 如果当前番茄钟正在运行，询问是否继承时间
+            if (currentState.isRunning && !currentState.isPaused) {
+                const timeDisplay = currentState.isWorkPhase ?
+                    `工作时间 ${Math.floor(currentState.timeElapsed / 60)}:${(currentState.timeElapsed % 60).toString().padStart(2, '0')}` :
+                    `休息时间 ${Math.floor(currentState.timeLeft / 60)}:${(currentState.timeLeft % 60).toString().padStart(2, '0')}`;
+
+                confirmMessage += `\n\n选择"确定"将继承当前进度继续计时。`;
+            }
+
+            // 显示确认对话框
+            confirm(
+                "切换到正计时番茄钟",
+                confirmMessage,
+                () => {
+                    // 用户确认替换，传递当前状态
+                    this.performStartPomodoroCountUp(reminder, currentState);
+                },
+                () => {
+                    // 用户取消，不做任何操作
+                }
+            );
+        } else {
+            // 没有活动番茄钟或窗口已关闭，清理引用并直接启动
+            if (ReminderPanel.currentPomodoroTimer && !ReminderPanel.currentPomodoroTimer.isWindowActive()) {
+                ReminderPanel.currentPomodoroTimer = null;
+            }
+            this.performStartPomodoroCountUp(reminder);
+        }
+    }
+
+    private performStartPomodoroCountUp(reminder: any, inheritState?: any) {
+        // 如果已经有活动的番茄钟，先关闭它
+        if (ReminderPanel.currentPomodoroTimer) {
+            try {
+                ReminderPanel.currentPomodoroTimer.close();
+                ReminderPanel.currentPomodoroTimer = null;
+            } catch (error) {
+                console.error('关闭之前的番茄钟失败:', error);
+            }
+        }
+
+        const settings = this.plugin.getPomodoroSettings();
+        const pomodoroTimer = new PomodoroTimer(reminder, settings, true, inheritState);
+
+        // 设置当前活动的番茄钟实例并直接切换到正计时模式
+        ReminderPanel.currentPomodoroTimer = pomodoroTimer;
+
+        pomodoroTimer.show();
+
+        // 如果继承了状态且原来正在运行，显示继承信息
+        if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
+            const phaseText = inheritState.isWorkPhase ? '工作时间' : '休息时间';
+            showMessage(`已切换到正计时模式并继承${phaseText}进度`, 2000);
+        } else {
+            showMessage("已启动正计时番茄钟", 2000);
+        }
     }
 
 
@@ -2455,6 +2463,43 @@ export class ReminderPanel {
                 }
             }
         );
+    }
+    private async copyBlockRef(reminder: any) {
+        try {
+            // 获取块ID（对于重复事件实例，使用原始事件的blockId）
+            const blockId = reminder.blockId || (reminder.isRepeatInstance ?
+                await this.getOriginalBlockId(reminder.originalId) :
+                reminder.id);
+
+            if (!blockId) {
+                showMessage("无法获取块ID");
+                return;
+            }
+
+            // 获取事件标题
+            const title = reminder.title || t("unnamedNote");
+
+            // 生成静态锚文本块引格式
+            const blockRef = `((${blockId} "${title}"))`;
+
+            // 复制到剪贴板
+            await navigator.clipboard.writeText(blockRef);
+
+        } catch (error) {
+            console.error('复制块引失败:', error);
+            showMessage("复制块引失败");
+        }
+    }
+    // 获取原始事件的blockId
+    private async getOriginalBlockId(originalId: string): Promise<string | null> {
+        try {
+            const reminderData = await readReminderData();
+            const originalReminder = reminderData[originalId];
+            return originalReminder?.blockId || originalId;
+        } catch (error) {
+            console.error('获取原始块ID失败:', error);
+            return null;
+        }
     }
 }
 
