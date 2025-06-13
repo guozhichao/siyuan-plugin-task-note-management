@@ -990,7 +990,7 @@ export class CalendarView {
             // 1. 在拖动实例原始日期的前一天结束原始系列。
             const untilDate = new Date(oldInstanceDateStr + 'T12:00:00Z'); // 使用中午以避免夏令时问题
             untilDate.setUTCDate(untilDate.getUTCDate() - 1);
-            const newEndDateStr = untilDate.toISOString().split('T')[0];
+            const newEndDateStr = getLocalDateString(untilDate);
 
             // 根据用户反馈，使用 `repeat.endDate` 而不是 `repeat.until` 来终止系列。
             if (!originalReminder.repeat) { originalReminder.repeat = {}; }
@@ -1340,7 +1340,7 @@ export class CalendarView {
                 note: instanceData.note,
                 priority: instanceData.priority,
                 notified: instanceData.notified, // 添加通知状态
-                modifiedAt: new Date().toISOString()
+                modifiedAt: getLocalDateString(new Date())
             };
 
             await writeReminderData(reminderData);
@@ -1505,14 +1505,14 @@ export class CalendarView {
             let startDate, endDate;
             if (this.calendar && this.calendar.view) {
                 const currentView = this.calendar.view;
-                startDate = currentView.activeStart.toISOString().split('T')[0];
-                endDate = currentView.activeEnd.toISOString().split('T')[0];
+                startDate = getLocalDateString(currentView.activeStart);
+                endDate = getLocalDateString(currentView.activeEnd);
             } else {
                 const now = new Date();
                 const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
                 const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-                startDate = monthStart.toISOString().split('T')[0];
-                endDate = monthEnd.toISOString().split('T')[0];
+                startDate = getLocalDateString(monthStart);
+                endDate = getLocalDateString(monthEnd);
             }
 
             // 预加载文档标题缓存
@@ -1731,7 +1731,7 @@ export class CalendarView {
                 eventObj.start = reminder.date;
                 const endDate = new Date(reminder.endDate);
                 endDate.setDate(endDate.getDate() + 1);
-                eventObj.end = endDate.toISOString().split('T')[0];
+                eventObj.end = getLocalDateString(endDate);
                 eventObj.allDay = true;
 
                 if (reminder.time) {

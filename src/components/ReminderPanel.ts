@@ -357,8 +357,7 @@ export class ReminderPanel {
             const sortOptions = [
                 { key: 'time', label: t("sortByTime"), icon: '🕐' },
                 { key: 'priority', label: t("sortByPriority"), icon: '🎯' },
-                { key: 'title', label: t("sortByTitle"), icon: '📝' },
-                { key: 'created', label: t("sortByCreated"), icon: '📅' }
+                { key: 'title', label: t("sortByTitle"), icon: '📝' }
             ];
 
             sortOptions.forEach(option => {
@@ -474,8 +473,8 @@ export class ReminderPanel {
                     const now = new Date();
                     const monthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
                     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
-                    const startDate = monthStart.toISOString().split('T')[0];
-                    const endDate = monthEnd.toISOString().split('T')[0];
+                    const startDate = getLocalDateString(monthStart);
+                    const endDate = getLocalDateString(monthEnd);
 
                     const repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
 
@@ -869,13 +868,9 @@ export class ReminderPanel {
                     result = this.compareByTitle(a, b);
                     break;
 
-                case 'created':
-                    result = this.compareByCreated(a, b);
-                    break;
-
                 default:
-                    console.warn('未知的排序类型:', sortType);
-                    return 0;
+                    console.warn('未知的排序类型:', sortType, '默认使用时间排序');
+                    result = this.compareByTime(a, b);
             }
             // 优先级升降序的结果相反
             if (sortType === 'priority') {
@@ -943,13 +938,6 @@ export class ReminderPanel {
         const titleA = (a.title || '').toLowerCase();
         const titleB = (b.title || '').toLowerCase();
         return titleA.localeCompare(titleB, 'zh-CN');
-    }
-
-    // 按创建时间比较
-    private compareByCreated(a: any, b: any): number {
-        const createdA = new Date(a.createdAt || '1970-01-01');
-        const createdB = new Date(b.createdAt || '1970-01-01');
-        return createdB.getTime() - createdA.getTime(); // 最新创建的在前（降序）
     }
 
     private async toggleReminder(reminderId: string, completed: boolean, isRepeatInstance?: boolean, instanceDate?: string) {
@@ -2231,9 +2219,10 @@ export class ReminderPanel {
             }
 
             // 1. 在当前实例日期的前一天结束原始系列
-            const untilDate = new Date(instanceDate + 'T12:00:00Z');
-            untilDate.setUTCDate(untilDate.getUTCDate() - 1);
-            const newEndDateStr = untilDate.toISOString().split('T')[0];
+            // 计算原始系列应该结束的日期（当前实例的前一天）
+            const untilDate = new Date(instanceDate);
+            untilDate.setDate(untilDate.getDate() - 1);
+            const newEndDateStr = getLocalDateString(untilDate);
 
             // 更新原始系列的结束日期
             if (!originalReminder.repeat) {
@@ -2468,3 +2457,5 @@ export class ReminderPanel {
         );
     }
 }
+
+
