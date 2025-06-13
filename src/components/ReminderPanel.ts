@@ -181,6 +181,7 @@ export class ReminderPanel {
         this.filterSelect.innerHTML = `
             <option value="today" selected>${t("todayReminders")}</option>
             <option value="tomorrow">${t("tomorrowReminders")}</option>
+            <option value="future7">${t("future7Reminders")}</option>
             <option value="overdue">${t("overdueReminders")}</option>
             <option value="completed">${t("completedReminders")}</option>
             <option value="all">${t("past7Reminders")}</option>
@@ -415,7 +416,7 @@ export class ReminderPanel {
             const reminderData = await readReminderData();
 
             if (!reminderData || typeof reminderData !== 'object') {
-                this.updateReminderCounts(0, 0, 0, 0);
+                this.updateReminderCounts(0, 0, 0, 0, 0);
                 this.renderReminders([]);
                 return;
             }
@@ -425,18 +426,24 @@ export class ReminderPanel {
             tomorrow.setDate(tomorrow.getDate() + 1);
             const tomorrowStr = getLocalDateString(tomorrow);
 
+            // 计算未来7天的日期范围
+            const future7Days = new Date();
+            future7Days.setDate(future7Days.getDate() + 7);
+            const future7DaysStr = getLocalDateString(future7Days);
+
             // 计算过去七天的日期范围
             const sevenDaysAgo = new Date();
-            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7); // 改为-7，不包括今天
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
             const sevenDaysAgoStr = getLocalDateString(sevenDaysAgo);
 
             const reminders = Object.values(reminderData).filter((reminder: any) => {
                 return reminder && typeof reminder === 'object' && reminder.id && reminder.date;
             });
 
-            // 处理重复事件 - 生成重复实例
+            // 处理重复事件 - 生成重复实例，但确保每个原始事件只显示一次最近的实例
             const allReminders = [];
             const repeatInstancesMap = new Map();
+            const processedOriginalIds = new Set(); // 跟踪已处理的原始事件
 
             reminders.forEach((reminder: any) => {
                 // 添加原始事件
@@ -444,6 +451,8 @@ export class ReminderPanel {
 
                 // 如果有重复设置，生成重复事件实例
                 if (reminder.repeat?.enabled) {
+                    processedOriginalIds.add(reminder.id);
+
                     const now = new Date();
                     const monthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
                     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
@@ -451,6 +460,11 @@ export class ReminderPanel {
                     const endDate = monthEnd.toISOString().split('T')[0];
 
                     const repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
+
+                    // 为每个原始事件只保留一个最近的未来实例
+                    let nearestFutureInstance = null;
+                    let nearestFutureDate = null;
+
                     repeatInstances.forEach(instance => {
                         // 跳过与原始事件相同日期的实例
                         if (instance.date !== reminder.date) {
@@ -475,13 +489,32 @@ export class ReminderPanel {
                                 note: instanceMod?.note || ''
                             };
 
-                            const key = `${reminder.id}_${instance.date}`;
-                            if (!repeatInstancesMap.has(key) ||
-                                compareDateStrings(instance.date, repeatInstancesMap.get(key).date) < 0) {
-                                repeatInstancesMap.set(key, instanceReminder);
+                            // 只在未来7天筛选中使用去重逻辑
+                            if (this.currentTab === 'future7') {
+                                // 只保留未来的实例，并选择最近的一个
+                                if (compareDateStrings(instance.date, today) > 0) {
+                                    if (!nearestFutureInstance ||
+                                        compareDateStrings(instance.date, nearestFutureDate) < 0) {
+                                        nearestFutureInstance = instanceReminder;
+                                        nearestFutureDate = instance.date;
+                                    }
+                                }
+                            } else {
+                                // 其他筛选保持原有逻辑
+                                const key = `${reminder.id}_${instance.date}`;
+                                if (!repeatInstancesMap.has(key) ||
+                                    compareDateStrings(instance.date, repeatInstancesMap.get(key).date) < 0) {
+                                    repeatInstancesMap.set(key, instanceReminder);
+                                }
                             }
                         }
                     });
+
+                    // 如果是未来7天筛选且找到了最近的未来实例，添加它
+                    if (this.currentTab === 'future7' && nearestFutureInstance) {
+                        const key = `${reminder.id}_future`;
+                        repeatInstancesMap.set(key, nearestFutureInstance);
+                    }
                 }
             });
 
@@ -555,6 +588,46 @@ export class ReminderPanel {
                 tomorrowReminders.push(instance);
             });
 
+            // 未来7天提醒 - 修改筛选逻辑，包括明天
+            const future7DaysReminders = [];
+            const future7InstancesMap = new Map();
+
+            filteredReminders.forEach((reminder: any) => {
+                if (reminder.completed) return;
+
+                let isFuture7Days = false;
+                const reminderStartDate = reminder.date;
+                const reminderEndDate = reminder.endDate || reminder.date;
+
+                // 修改：事件必须在明天到未来7天之间（包括明天）
+                if (reminder.endDate) {
+                    // 跨天事件：事件范围与未来7天有交集
+                    isFuture7Days = compareDateStrings(reminderStartDate, future7DaysStr) <= 0 &&
+                        compareDateStrings(tomorrowStr, reminderEndDate) <= 0;
+                } else {
+                    // 单日事件：在明天到未来7天之间（包括明天）
+                    isFuture7Days = compareDateStrings(tomorrowStr, reminderStartDate) <= 0 &&
+                        compareDateStrings(reminderStartDate, future7DaysStr) <= 0;
+                }
+
+                if (isFuture7Days) {
+                    if (reminder.isRepeatInstance) {
+                        const originalId = reminder.originalId;
+                        // 对于重复事件实例，只保留最近的一个
+                        if (!future7InstancesMap.has(originalId) ||
+                            compareDateStrings(reminder.date, future7InstancesMap.get(originalId).date) < 0) {
+                            future7InstancesMap.set(originalId, reminder);
+                        }
+                    } else {
+                        future7DaysReminders.push(reminder);
+                    }
+                }
+            });
+
+            future7InstancesMap.forEach(instance => {
+                future7DaysReminders.push(instance);
+            });
+
             // 修改过去七天提醒的筛选逻辑
             const pastSevenDaysReminders = filteredReminders.filter((reminder: any) => {
                 // 过去七天：仅包括过去7天内的提醒（不包括今天之后的）
@@ -568,7 +641,7 @@ export class ReminderPanel {
 
             const completed = filteredReminders.filter((reminder: any) => reminder.completed);
 
-            this.updateReminderCounts(overdue.length, todayReminders.length, tomorrowReminders.length, completed.length);
+            this.updateReminderCounts(overdue.length, todayReminders.length, tomorrowReminders.length, future7DaysReminders.length, completed.length);
 
             // 根据当前选中的标签显示对应的提醒
             let displayReminders = [];
@@ -582,11 +655,14 @@ export class ReminderPanel {
                 case 'tomorrow':
                     displayReminders = tomorrowReminders;
                     break;
+                case 'future7':
+                    displayReminders = future7DaysReminders;
+                    break;
                 case 'completed':
                     displayReminders = completed;
                     break;
                 case 'all':
-                    displayReminders = pastSevenDaysReminders;  // 使用真正的过去七天筛选
+                    displayReminders = pastSevenDaysReminders;
                     break;
                 default:
                     displayReminders = [...todayReminders, ...tomorrowReminders];
@@ -625,9 +701,14 @@ export class ReminderPanel {
         tomorrow.setDate(tomorrow.getDate() + 1);
         const tomorrowStr = getLocalDateString(tomorrow);
 
+        // 计算未来7天的日期范围
+        const future7Days = new Date();
+        future7Days.setDate(future7Days.getDate() + 7);
+        const future7DaysStr = getLocalDateString(future7Days);
+
         // 计算过去七天的日期范围
         const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7); // 改为-7，不包括今天
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         const sevenDaysAgoStr = getLocalDateString(sevenDaysAgo);
 
         const reminders = Array.isArray(reminderData) ? reminderData : Object.values(reminderData).filter((reminder: any) => {
@@ -655,6 +736,21 @@ export class ReminderPanel {
                         // 单日事件：明天的事件
                         return reminder.date === tomorrowStr;
                     }
+                case 'future7':
+                    if (reminder.completed) return false;
+
+                    const reminderStartDate = reminder.date;
+                    const reminderEndDate = reminder.endDate || reminder.date;
+
+                    if (reminder.endDate) {
+                        // 跨天事件：事件范围与未来7天有交集
+                        return compareDateStrings(reminderStartDate, future7DaysStr) <= 0 &&
+                            compareDateStrings(tomorrowStr, reminderEndDate) <= 0;
+                    } else {
+                        // 单日事件：在明天到未来7天之间（包括明天）
+                        return compareDateStrings(tomorrowStr, reminderStartDate) <= 0 &&
+                            compareDateStrings(reminderStartDate, future7DaysStr) <= 0;
+                    }
                 case 'overdue':
                     if (reminder.completed) return false;
                     if (reminder.endDate) {
@@ -668,12 +764,12 @@ export class ReminderPanel {
                     return reminder.completed;
                 case 'all':
                     // 修改过去七天的筛选逻辑：仅包括过去7天内的提醒
-                    const reminderStartDate = reminder.date;
-                    const reminderEndDate = reminder.endDate || reminder.date;
+                    const reminderStartDate2 = reminder.date;
+                    const reminderEndDate2 = reminder.endDate || reminder.date;
 
                     // 事件必须在过去7天到昨天之间
-                    return compareDateStrings(sevenDaysAgoStr, reminderStartDate) <= 0 &&
-                        compareDateStrings(reminderEndDate, today) < 0;
+                    return compareDateStrings(sevenDaysAgoStr, reminderStartDate2) <= 0 &&
+                        compareDateStrings(reminderEndDate2, today) < 0;
                 default:
                     return true;
             }
@@ -683,6 +779,7 @@ export class ReminderPanel {
             const filterNames = {
                 'today': t("noTodayReminders"),
                 'tomorrow': t("noTomorrowReminders"),
+                'future7': t("noFuture7Reminders"),
                 'overdue': t("noOverdueReminders"),
                 'completed': t("noCompletedReminders"),
                 'all': t("noPast7Reminders")
@@ -1826,44 +1923,16 @@ export class ReminderPanel {
         }
     }
 
-    private updateReminderCounts(overdueCount: number, todayCount: number, upcomingCount: number, completedCount: number) {
-        // 更新各个标签的提醒数量
-        const overdueTab = this.container.querySelector('.reminder-tab[data-filter="overdue"]');
-        const todayTab = this.container.querySelector('.reminder-tab[data-filter="today"]');
-        const upcomingTab = this.container.querySelector('.reminder-tab[data-filter="upcoming"]');
-        const completedTab = this.container.querySelector('.reminder-tab[data-filter="completed"]');
-
-        if (overdueTab) {
-            const badge = overdueTab.querySelector('.reminder-badge');
-            if (badge) {
-                badge.textContent = overdueCount > 99 ? '99+' : `${overdueCount}`;
-                badge.classList.toggle('hidden', overdueCount === 0);
-            }
-        }
-
-        if (todayTab) {
-            const badge = todayTab.querySelector('.reminder-badge');
-            if (badge) {
-                badge.textContent = todayCount > 99 ? '99+' : `${todayCount}`;
-                badge.classList.toggle('hidden', todayCount === 0);
-            }
-        }
-
-        if (upcomingTab) {
-            const badge = upcomingTab.querySelector('.reminder-badge');
-            if (badge) {
-                badge.textContent = upcomingCount > 99 ? '99+' : `${upcomingCount}`;
-                badge.classList.toggle('hidden', upcomingCount === 0);
-            }
-        }
-
-        if (completedTab) {
-            const badge = completedTab.querySelector('.reminder-badge');
-            if (badge) {
-                badge.textContent = completedCount > 99 ? '99+' : `${completedCount}`;
-                badge.classList.toggle('hidden', completedCount === 0);
-            }
-        }
+    private updateReminderCounts(overdueCount: number, todayCount: number, tomorrowCount: number, future7Count: number, completedCount: number) {
+        // 更新各个标签的提醒数量 - 添加未来7天的数量更新
+        // 这里可以根据需要添加UI更新逻辑
+        console.log('提醒数量统计:', {
+            overdue: overdueCount,
+            today: todayCount,
+            tomorrow: tomorrowCount,
+            future7: future7Count,
+            completed: completedCount
+        });
     }
 
     private async setPriority(reminderId: string, priority: string) {
