@@ -42,6 +42,8 @@ export class CalendarView {
         toolbar.className = 'reminder-calendar-toolbar';
         this.container.appendChild(toolbar);
 
+
+
         // 视图切换按钮
         const viewGroup = document.createElement('div');
         viewGroup.className = 'reminder-calendar-view-group';
@@ -65,11 +67,29 @@ export class CalendarView {
         dayBtn.addEventListener('click', () => this.calendar.changeView('timeGridDay'));
         viewGroup.appendChild(dayBtn);
 
+
         // 添加分类过滤器
         const filterGroup = document.createElement('div');
         filterGroup.className = 'reminder-calendar-filter-group';
         toolbar.appendChild(filterGroup);
-
+        // 刷新按钮
+        const refreshBtn = document.createElement('button');
+        refreshBtn.className = 'b3-button b3-button--outline';
+        refreshBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>';
+        refreshBtn.title = t("refresh");
+        refreshBtn.addEventListener('click', async () => {
+            refreshBtn.disabled = true;
+            try {
+                showMessage(t("refreshing") || "正在刷新...", 500);
+                await this.refreshEvents();
+            } catch (error) {
+                console.error('手动刷新失败:', error);
+                showMessage(t("refreshFailed") || "刷新失败");
+            } finally {
+                refreshBtn.disabled = false;
+            }
+        });
+        filterGroup.appendChild(refreshBtn);
         // 分类过滤下拉框
         const categoryFilterSelect = document.createElement('select');
         categoryFilterSelect.className = 'b3-select';
