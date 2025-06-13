@@ -188,6 +188,7 @@ export class ReminderPanel {
             <option value="tomorrow">${t("tomorrowReminders")}</option>
             <option value="future7">${t("future7Reminders")}</option>
             <option value="overdue">${t("overdueReminders")}</option>
+            <option value="todayCompleted">${t("todayCompletedReminders")}</option>
             <option value="completed">${t("completedReminders")}</option>
             <option value="all">${t("past7Reminders")}</option>
         `;
@@ -433,7 +434,7 @@ export class ReminderPanel {
             const reminderData = await readReminderData();
 
             if (!reminderData || typeof reminderData !== 'object') {
-                this.updateReminderCounts(0, 0, 0, 0, 0);
+                this.updateReminderCounts(0, 0, 0, 0, 0, 0);
                 this.renderReminders([]);
                 return;
             }
@@ -658,7 +659,21 @@ export class ReminderPanel {
 
             const completed = filteredReminders.filter((reminder: any) => reminder.completed);
 
-            this.updateReminderCounts(overdue.length, todayReminders.length, tomorrowReminders.length, future7DaysReminders.length, completed.length);
+            // 今日已完成 - 筛选今天完成的任务
+            const todayCompleted = filteredReminders.filter((reminder: any) => {
+                if (!reminder.completed) return false;
+
+                // 对于跨天事件，如果今天在事件范围内且已完成，则显示
+                if (reminder.endDate) {
+                    return compareDateStrings(reminder.date, today) <= 0 &&
+                        compareDateStrings(today, reminder.endDate) <= 0;
+                } else {
+                    // 对于单日事件，事件日期是今天且已完成
+                    return reminder.date === today;
+                }
+            });
+
+            this.updateReminderCounts(overdue.length, todayReminders.length, tomorrowReminders.length, future7DaysReminders.length, completed.length, todayCompleted.length);
 
             // 根据当前选中的标签显示对应的提醒
             let displayReminders = [];
@@ -677,6 +692,9 @@ export class ReminderPanel {
                     break;
                 case 'completed':
                     displayReminders = completed;
+                    break;
+                case 'todayCompleted':
+                    displayReminders = todayCompleted;
                     break;
                 case 'all':
                     displayReminders = pastSevenDaysReminders;
@@ -779,6 +797,16 @@ export class ReminderPanel {
                     }
                 case 'completed':
                     return reminder.completed;
+                case 'todayCompleted':
+                    if (!reminder.completed) return false;
+                    // 对于跨天事件，如果今天在事件范围内且已完成，则显示
+                    if (reminder.endDate) {
+                        return compareDateStrings(reminder.date, today) <= 0 &&
+                            compareDateStrings(today, reminder.endDate) <= 0;
+                    } else {
+                        // 对于单日事件，事件日期是今天且已完成
+                        return reminder.date === today;
+                    }
                 case 'all':
                     // 修改过去七天的筛选逻辑：仅包括过去7天内的提醒
                     const reminderStartDate2 = reminder.date;
@@ -799,6 +827,7 @@ export class ReminderPanel {
                 'future7': t("noFuture7Reminders"),
                 'overdue': t("noOverdueReminders"),
                 'completed': t("noCompletedReminders"),
+                'todayCompleted': "今日暂无已完成任务",
                 'all': t("noPast7Reminders")
             };
             this.remindersContainer.innerHTML = `<div class="reminder-empty">${filterNames[filter] || t("noReminders")}</div>`;
@@ -2021,15 +2050,16 @@ export class ReminderPanel {
         }
     }
 
-    private updateReminderCounts(overdueCount: number, todayCount: number, tomorrowCount: number, future7Count: number, completedCount: number) {
-        // 更新各个标签的提醒数量 - 添加未来7天的数量更新
+    private updateReminderCounts(overdueCount: number, todayCount: number, tomorrowCount: number, future7Count: number, completedCount: number, todayCompletedCount: number) {
+        // 更新各个标签的提醒数量 - 添加未来7天和今日已完成的数量更新
         // 这里可以根据需要添加UI更新逻辑
         console.log('提醒数量统计:', {
             overdue: overdueCount,
             today: todayCount,
             tomorrow: tomorrowCount,
             future7: future7Count,
-            completed: completedCount
+            completed: completedCount,
+            todayCompleted: todayCompletedCount
         });
     }
 
