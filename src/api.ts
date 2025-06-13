@@ -641,12 +641,22 @@ export async function removeBlockBookmark(blockId: string): Promise<any> {
     const data = {
         id: blockId,
         attrs: {
-            bookmark: ""
+            "bookmark": "✅", 
+            "custom-task-done": formatDate(new Date())
+
         }
     };
     return request('/api/attr/setBlockAttrs', data);
 }
+function formatDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // 月份从0开始，需+1
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
 
+    return `${year}-${month}-${day} ${hours}:${minutes}`;
+}
 /**
  * 检查并更新块的提醒书签状态
  * @param blockId 块ID

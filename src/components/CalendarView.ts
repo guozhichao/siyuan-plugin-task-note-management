@@ -728,12 +728,37 @@ export class CalendarView {
             this.toggleEventCompleted(eventInfo.event);
         });
 
-        // 添加事件内容
+        // 添加事件内容容器
         const eventEl = document.createElement('div');
         eventEl.className = 'reminder-calendar-event-content';
-        // 移除这里的 completed 类设置，因为现在由 FullCalendar 的 className 处理
-        eventEl.innerHTML = `<div class="fc-event-title">${eventInfo.event.title}</div>`;
 
+        // 只有当docId不等于blockId时才添加文档标题（表示这是块级事件）
+        if (eventInfo.event.extendedProps.docTitle &&
+            eventInfo.event.extendedProps.docId &&
+            eventInfo.event.extendedProps.blockId &&
+            eventInfo.event.extendedProps.docId !== eventInfo.event.extendedProps.blockId) {
+            const docTitleEl = document.createElement('div');
+            docTitleEl.className = 'reminder-calendar-event-doc-title';
+            docTitleEl.textContent = eventInfo.event.extendedProps.docTitle;
+            docTitleEl.style.cssText = `
+                font-size: 10px;
+                opacity: 0.7;
+                margin-bottom: 2px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                line-height: 1.2;
+            `;
+            eventEl.appendChild(docTitleEl);
+        }
+
+        // 添加事件标题
+        const titleEl = document.createElement('div');
+        titleEl.className = 'fc-event-title';
+        titleEl.innerHTML = eventInfo.event.title;
+        eventEl.appendChild(titleEl);
+
+        // 添加备注（如果存在）
         if (eventInfo.event.extendedProps.note) {
             const noteEl = document.createElement('div');
             noteEl.className = 'reminder-calendar-event-note';
@@ -1490,11 +1515,17 @@ export class CalendarView {
                 endDate = monthEnd.toISOString().split('T')[0];
             }
 
-            Object.values(reminderData).forEach((reminder: any) => {
-                if (!reminder || typeof reminder !== 'object') return;
+            // 预加载文档标题缓存
+            const docTitleCache = new Map<string, string>();
+
+            for (const reminder of Object.values(reminderData) as any[]) {
+                if (!reminder || typeof reminder !== 'object') continue;
 
                 // 应用分类过滤
-                if (!this.passesCategoryFilter(reminder)) return;
+                if (!this.passesCategoryFilter(reminder)) continue;
+
+                // 获取文档标题（如果还没有缓存）
+                await this.ensureDocTitle(reminder, docTitleCache);
 
                 // 添加原始事件
                 this.addEventToList(events, reminder, reminder.id, false);
@@ -1520,19 +1551,78 @@ export class CalendarView {
                                 time: instance.time,
                                 endTime: instance.endTime,
                                 completed: isInstanceCompleted,
-                                note: instanceMod?.note || ''
+                                note: instanceMod?.note || '',
+                                docTitle: reminder.docTitle // 保持文档标题
                             };
                             this.addEventToList(events, instanceReminder, instance.instanceId, true, instance.originalId);
                         }
                     });
                 }
-            });
+            }
 
             return events;
         } catch (error) {
             console.error('获取事件数据失败:', error);
             showMessage(t("loadReminderDataFailed"));
             return [];
+        }
+    }
+
+    /**
+     * 确保提醒对象包含文档标题
+     */
+    private async ensureDocTitle(reminder: any, docTitleCache: Map<string, string>) {
+        if (reminder.docTitle) {
+            return; // 已经有文档标题
+        }
+
+        try {
+            let docId = reminder.docId;
+            const blockId = reminder.blockId || reminder.id;
+
+            // 如果没有明确的docId，尝试从blockId获取
+            if (!docId && blockId) {
+                // 先检查缓存
+                if (docTitleCache.has(blockId)) {
+                    const cachedTitle = docTitleCache.get(blockId);
+                    reminder.docTitle = cachedTitle;
+                    return;
+                }
+
+                const blockInfo = await getBlockByID(blockId);
+                if (blockInfo && blockInfo.root_id && blockInfo.root_id !== blockId) {
+                    docId = blockInfo.root_id;
+                    reminder.docId = docId; // 同时设置docId
+                }
+            }
+
+            // 只有当docId存在且不等于blockId时才获取文档标题
+            if (docId && docId !== blockId) {
+                // 检查缓存
+                if (docTitleCache.has(docId)) {
+                    reminder.docTitle = docTitleCache.get(docId);
+                    return;
+                }
+
+                const docBlock = await getBlockByID(docId);
+                if (docBlock && docBlock.content) {
+                    const docTitle = docBlock.content.trim();
+                    reminder.docTitle = docTitle;
+                    docTitleCache.set(docId, docTitle);
+
+                    // 同时缓存blockId对应的文档标题
+                    if (blockId && blockId !== docId) {
+                        docTitleCache.set(blockId, docTitle);
+                    }
+                }
+            } else {
+                // 如果docId等于blockId，设置空字符串避免重复尝试
+                reminder.docTitle = '';
+            }
+        } catch (error) {
+            console.warn('获取文档标题失败:', error);
+            // 设置空字符串以避免重复尝试
+            reminder.docTitle = '';
         }
     }
 
@@ -1608,11 +1698,11 @@ export class CalendarView {
 
         let eventObj: any = {
             id: eventId,
-            title: reminder.title || t("unnamedNote"), // 移除标题前的重复图标
+            title: reminder.title || t("unnamedNote"),
             backgroundColor: backgroundColor,
             borderColor: borderColor,
             textColor: isCompleted ? '#999999' : '#ffffff',
-            className: classNames, // 使用构建的 className
+            className: classNames,
             extendedProps: {
                 completed: isCompleted,
                 note: reminder.note || '',
@@ -1623,6 +1713,8 @@ export class CalendarView {
                 priority: priority,
                 categoryId: reminder.categoryId,
                 blockId: reminder.blockId || reminder.id,
+                docId: reminder.docId, // 添加docId
+                docTitle: reminder.docTitle, // 添加文档标题
                 isRepeated: isRepeated,
                 originalId: originalId || reminder.id,
                 repeat: reminder.repeat
@@ -1875,27 +1967,23 @@ export class CalendarView {
         const parts: string[] = [];
 
         try {
-            // 1. 文档标题（修复：添加块级事件的父文档标题获取逻辑）
+            // 1. 文档标题（只有当docId不等于blockId时才显示）
             let docTitleAdded = false;
 
-            // 首先检查是否有明确的docId
-            if (reminder.docId) {
-                try {
-                    const docBlock = await getBlockByID(reminder.docId);
-                    if (docBlock && docBlock.content) {
-                        parts.push(`<div style="color: var(--b3-theme-on-background); font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-align: left;">
-                            <span>📄</span>
-                            <span title="所属文档">${this.escapeHtml(docBlock.content)}</span>
-                        </div>`);
-                        docTitleAdded = true;
-                    }
-                } catch (error) {
-                    console.warn('获取文档标题失败:', error);
-                }
+            // 只有当docId存在且不等于blockId时才显示文档标题
+            if (reminder.docTitle &&
+                reminder.docId &&
+                reminder.blockId &&
+                reminder.docId !== reminder.blockId) {
+                parts.push(`<div style="color: var(--b3-theme-on-background); font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-align: left;">
+                    <span>📄</span>
+                    <span title="所属文档">${this.escapeHtml(reminder.docTitle)}</span>
+                </div>`);
+                docTitleAdded = true;
             }
 
-            // 如果没有docId但有blockId，且blockId不等于docId，尝试获取块的父文档
-            if (!docTitleAdded && reminder.blockId && reminder.blockId !== reminder.docId) {
+            // 如果还没有文档标题且有blockId，尝试获取（这是一个备用逻辑）
+            if (!docTitleAdded && reminder.blockId) {
                 try {
                     const blockInfo = await getBlockByID(reminder.blockId);
                     if (blockInfo && blockInfo.root_id && blockInfo.root_id !== reminder.blockId) {
@@ -2022,6 +2110,7 @@ export class CalendarView {
                 dateStr = '明天';
             } else {
                 const reminderDate = new Date(reminder.date + 'T00:00:00');
+
                 dateStr = reminderDate.toLocaleDateString('zh-CN', {
                     year: 'numeric',
                     month: 'short',
