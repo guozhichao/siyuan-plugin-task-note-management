@@ -249,5 +249,7 @@
     "study": "学习",
     "life": "生活",
     "close": "关闭",
-    "refreshing": "正在刷新..."
+    "refreshing": "正在刷新...",
+    "ascending": "升序",
+    "descending": "降序"
 }

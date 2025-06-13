@@ -19,6 +19,7 @@ export class ReminderPanel {
     private currentTab: string = 'today';
     private currentCategoryFilter: string = 'all'; // 添加当前分类过滤
     private currentSort: string = 'time';
+    private currentSortOrder: 'asc' | 'desc' = 'asc';
     private reminderUpdatedHandler: () => void;
     private sortConfigUpdatedHandler: (event: CustomEvent) => void;
     private closeCallback?: () => void;
@@ -39,9 +40,10 @@ export class ReminderPanel {
         };
 
         this.sortConfigUpdatedHandler = (event: CustomEvent) => {
-            const { sortMethod } = event.detail;
-            if (sortMethod !== this.currentSort) {
-                this.currentSort = sortMethod;
+            const { method, order } = event.detail;
+            if (method !== this.currentSort || order !== this.currentSortOrder) {
+                this.currentSort = method;
+                this.currentSortOrder = order;
                 this.updateSortButtonTitle();
                 this.loadReminders();
             }
@@ -80,11 +82,14 @@ export class ReminderPanel {
     // 加载排序配置
     private async loadSortConfig() {
         try {
-            this.currentSort = await loadSortConfig();
+            const config = await loadSortConfig();
+            this.currentSort = config.method;
+            this.currentSortOrder = config.order;
             this.updateSortButtonTitle();
         } catch (error) {
             console.error('加载排序配置失败:', error);
             this.currentSort = 'time';
+            this.currentSortOrder = 'asc';
         }
     }
 
@@ -262,7 +267,7 @@ export class ReminderPanel {
     // 更新排序按钮的提示文本
     private updateSortButtonTitle() {
         if (this.sortButton) {
-            this.sortButton.title = `${t("sortBy")}: ${getSortMethodName(this.currentSort)}`;
+            this.sortButton.title = `${t("sortBy")}: ${getSortMethodName(this.currentSort, this.currentSortOrder)}`;
         }
     }
 
@@ -357,26 +362,40 @@ export class ReminderPanel {
             ];
 
             sortOptions.forEach(option => {
+                // 为每个排序方式添加升序和降序选项
                 menu.addItem({
                     iconHTML: option.icon,
-                    label: option.label,
-                    current: this.currentSort === option.key,
+                    label: `${option.label} (${t("ascending")})`,
+                    current: this.currentSort === option.key && this.currentSortOrder === 'asc',
                     click: async () => {
                         try {
-                            // 立即更新当前排序方式
                             this.currentSort = option.key;
+                            this.currentSortOrder = 'asc';
                             this.updateSortButtonTitle();
-
-                            // 保存排序配置到文件
-                            await saveSortConfig(option.key);
-
-                            // 重新加载并排序提醒列表
+                            await saveSortConfig(option.key, 'asc');
                             await this.loadReminders();
-
-                            console.log('排序已更新为:', option.key);
+                            console.log('排序已更新为:', option.key, 'asc');
                         } catch (error) {
                             console.error('保存排序配置失败:', error);
-                            // 即使保存失败也继续执行排序
+                            await this.loadReminders();
+                        }
+                    }
+                });
+
+                menu.addItem({
+                    iconHTML: option.icon,
+                    label: `${option.label} (${t("descending")})`,
+                    current: this.currentSort === option.key && this.currentSortOrder === 'desc',
+                    click: async () => {
+                        try {
+                            this.currentSort = option.key;
+                            this.currentSortOrder = 'desc';
+                            this.updateSortButtonTitle();
+                            await saveSortConfig(option.key, 'desc');
+                            await this.loadReminders();
+                            console.log('排序已更新为:', option.key, 'desc');
+                        } catch (error) {
+                            console.error('保存排序配置失败:', error);
                             await this.loadReminders();
                         }
                     }
@@ -390,15 +409,14 @@ export class ReminderPanel {
                 const menuY = rect.bottom + 4;
 
                 // 确保菜单在可视区域内
-                const maxX = window.innerWidth - 200; // 假设菜单宽度约200px
-                const maxY = window.innerHeight - 150; // 假设菜单高度约150px
+                const maxX = window.innerWidth - 200;
+                const maxY = window.innerHeight - 200;
 
                 menu.open({
                     x: Math.min(menuX, maxX),
                     y: Math.min(menuY, maxY)
                 });
             } else {
-                // 备用定位方式：使用鼠标位置
                 menu.open({
                     x: event.clientX,
                     y: event.clientY
@@ -406,7 +424,7 @@ export class ReminderPanel {
             }
         } catch (error) {
             console.error('显示排序菜单失败:', error);
-            const currentName = getSortMethodName(this.currentSort);
+            const currentName = getSortMethodName(this.currentSort, this.currentSortOrder);
             console.log(`当前排序方式: ${currentName}`);
         }
     }
@@ -832,50 +850,102 @@ export class ReminderPanel {
     // 添加排序方法
     private sortReminders(reminders: any[]) {
         const sortType = this.currentSort;
-        console.log('应用排序方式:', sortType, '提醒数量:', reminders.length);
+        const sortOrder = this.currentSortOrder;
+        console.log('应用排序方式:', sortType, sortOrder, '提醒数量:', reminders.length);
 
         reminders.sort((a: any, b: any) => {
+            let result = 0;
+
             switch (sortType) {
                 case 'time':
-                    // 按时间排序：先按日期，再按时间
-                    const dateA = new Date(a.date + (a.time ? `T${a.time}` : 'T00:00'));
-                    const dateB = new Date(b.date + (b.time ? `T${b.time}` : 'T00:00'));
-                    return dateA.getTime() - dateB.getTime();
+                    result = this.compareByTime(a, b);
+                    break;
 
                 case 'priority':
-                    // 按优先级排序：高 > 中 > 低 > 无，相同优先级按时间排序
-                    const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
-                    const priorityA = priorityOrder[a.priority || 'none'] || 0;
-                    const priorityB = priorityOrder[b.priority || 'none'] || 0;
-
-                    if (priorityA !== priorityB) {
-                        return priorityB - priorityA; // 降序：高优先级在前
-                    }
-
-                    // 相同优先级按时间排序
-                    const timeDateA = new Date(a.date + (a.time ? `T${a.time}` : 'T00:00'));
-                    const timeDateB = new Date(b.date + (b.time ? `T${b.time}` : 'T00:00'));
-                    return timeDateA.getTime() - timeDateB.getTime();
+                    result = this.compareByPriority(a, b);
+                    break;
 
                 case 'title':
-                    // 按标题排序
-                    const titleA = (a.title || '').toLowerCase();
-                    const titleB = (b.title || '').toLowerCase();
-                    return titleA.localeCompare(titleB, 'zh-CN');
+                    result = this.compareByTitle(a, b);
+                    break;
 
                 case 'created':
-                    // 按创建时间排序
-                    const createdA = new Date(a.createdAt || '1970-01-01');
-                    const createdB = new Date(b.createdAt || '1970-01-01');
-                    return createdB.getTime() - createdA.getTime(); // 降序：最新创建的在前
+                    result = this.compareByCreated(a, b);
+                    break;
 
                 default:
                     console.warn('未知的排序类型:', sortType);
                     return 0;
             }
+
+            // 应用升降序
+            return sortOrder === 'desc' ? -result : result;
         });
 
-        console.log('排序完成，排序方式:', sortType);
+        console.log('排序完成，排序方式:', sortType, sortOrder);
+    }
+
+    // 按时间比较（考虑跨天事件和优先级）
+    private compareByTime(a: any, b: any): number {
+        const dateA = new Date(a.date + (a.time ? `T${a.time}` : 'T00:00'));
+        const dateB = new Date(b.date + (b.time ? `T${b.time}` : 'T00:00'));
+
+        // 首先按日期时间排序
+        const timeDiff = dateA.getTime() - dateB.getTime();
+        if (timeDiff !== 0) {
+            return timeDiff;
+        }
+
+        // 时间相同时，考虑跨天事件和全天事件的优先级
+        const isSpanningA = a.endDate && a.endDate !== a.date;
+        const isSpanningB = b.endDate && b.endDate !== b.date;
+        const isAllDayA = !a.time;
+        const isAllDayB = !b.time;
+
+        // 跨天事件 > 有时间的单日事件 > 全天事件
+        if (isSpanningA && !isSpanningB) return -1;
+        if (!isSpanningA && isSpanningB) return 1;
+
+        if (!isSpanningA && !isSpanningB) {
+            // 都不是跨天事件，有时间的优先于全天事件
+            if (!isAllDayA && isAllDayB) return -1;
+            if (isAllDayA && !isAllDayB) return 1;
+        }
+
+        // 时间相同且类型相同时，按优先级排序
+        return this.compareByPriorityValue(a, b);
+    }
+
+    // 按优先级比较（优先级相同时按时间）
+    private compareByPriority(a: any, b: any): number {
+        const priorityDiff = this.compareByPriorityValue(a, b);
+        if (priorityDiff !== 0) {
+            return priorityDiff;
+        }
+        // 优先级相同时按时间排序
+        return this.compareByTime(a, b);
+    }
+
+    // 优先级数值比较
+    private compareByPriorityValue(a: any, b: any): number {
+        const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
+        const priorityA = priorityOrder[a.priority || 'none'] || 0;
+        const priorityB = priorityOrder[b.priority || 'none'] || 0;
+        return priorityB - priorityA; // 高优先级在前
+    }
+
+    // 按标题比较
+    private compareByTitle(a: any, b: any): number {
+        const titleA = (a.title || '').toLowerCase();
+        const titleB = (b.title || '').toLowerCase();
+        return titleA.localeCompare(titleB, 'zh-CN');
+    }
+
+    // 按创建时间比较
+    private compareByCreated(a: any, b: any): number {
+        const createdA = new Date(a.createdAt || '1970-01-01');
+        const createdB = new Date(b.createdAt || '1970-01-01');
+        return createdB.getTime() - createdA.getTime(); // 最新创建的在前（降序）
     }
 
     private async toggleReminder(reminderId: string, completed: boolean, isRepeatInstance?: boolean, instanceDate?: string) {
