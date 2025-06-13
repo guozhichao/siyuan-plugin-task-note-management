@@ -21,6 +21,7 @@ export class CalendarView {
     private currentCategoryFilter: string = 'all'; // 当前分类过滤
     private tooltip: HTMLElement | null = null; // 添加提示框元素
     private tooltipTimeout: number | null = null; // 添加提示框超时控制
+    private tooltipShowTimeout: number | null = null; // 添加提示框显示延迟控制
     private isTooltipHovered: boolean = false; // 添加提示框悬浮状态
 
     constructor(container: HTMLElement, plugin: any) {
@@ -130,12 +131,13 @@ export class CalendarView {
                     this.showEventContextMenu(e, info.event);
                 });
 
-                // 改进的鼠标悬浮事件监听器
+                // 改进的鼠标悬浮事件监听器 - 添加延迟显示
                 info.el.addEventListener('mouseenter', (e) => {
-                    this.showEventTooltip(e, info.event);
+                    this.scheduleShowEventTooltip(e, info.event);
                 });
 
                 info.el.addEventListener('mouseleave', () => {
+                    this.cancelScheduledTooltip();
                     this.hideEventTooltipWithDelay();
                 });
 
@@ -263,6 +265,10 @@ export class CalendarView {
             // 清理提示框超时
             if (this.tooltipTimeout) {
                 clearTimeout(this.tooltipTimeout);
+            }
+            // 清理提示框显示延迟超时
+            if (this.tooltipShowTimeout) {
+                clearTimeout(this.tooltipShowTimeout);
             }
         };
 
@@ -1705,7 +1711,7 @@ export class CalendarView {
             }
 
             // 显示加载状态
-            this.tooltip.innerHTML = '<div style="color: var(--b3-theme-on-surface-light);">加载中...</div>';
+            this.tooltip.innerHTML = '<div style="color: var(--b3-theme-on-surface-light); font-size: 12px;">加载中...</div>';
             this.tooltip.style.display = 'block';
             this.updateTooltipPosition(event);
 
@@ -1721,6 +1727,73 @@ export class CalendarView {
         } catch (error) {
             console.error('显示事件提示框失败:', error);
             this.hideEventTooltip();
+        }
+    }
+
+    /**
+     * 安排显示事件提示框（延迟显示）
+     */
+    private scheduleShowEventTooltip(event: MouseEvent, calendarEvent: any) {
+        // 清除之前的延迟显示定时器
+        if (this.tooltipShowTimeout) {
+            clearTimeout(this.tooltipShowTimeout);
+            this.tooltipShowTimeout = null;
+        }
+
+        // 清除隐藏定时器
+        if (this.tooltipTimeout) {
+            clearTimeout(this.tooltipTimeout);
+            this.tooltipTimeout = null;
+        }
+
+        // 如果提示框已经显示，直接更新内容和位置
+        if (this.tooltip && this.tooltip.style.display !== 'none') {
+            this.updateTooltipPosition(event);
+            this.updateTooltipContent(calendarEvent);
+            return;
+        }
+
+        // 设置延迟显示（500毫秒后显示）
+        this.tooltipShowTimeout = window.setTimeout(() => {
+            this.showEventTooltip(event, calendarEvent);
+            this.tooltipShowTimeout = null;
+        }, 500);
+    }
+
+    /**
+     * 取消安排的提示框显示
+     */
+    private cancelScheduledTooltip() {
+        if (this.tooltipShowTimeout) {
+            clearTimeout(this.tooltipShowTimeout);
+            this.tooltipShowTimeout = null;
+        }
+    }
+
+    /**
+     * 更新提示框内容（用于快速切换事件时）
+     */
+    private async updateTooltipContent(calendarEvent: any) {
+        if (!this.tooltip || this.tooltip.style.display === 'none') {
+            return;
+        }
+
+        try {
+            // 显示加载状态
+            this.tooltip.innerHTML = '<div style="color: var(--b3-theme-on-surface-light); font-size: 12px;">加载中...</div>';
+
+            // 异步获取详细信息
+            const tooltipContent = await this.buildTooltipContent(calendarEvent);
+
+            // 检查tooltip是否仍然存在
+            if (this.tooltip && this.tooltip.style.display !== 'none') {
+                this.tooltip.innerHTML = tooltipContent;
+            }
+        } catch (error) {
+            console.error('更新提示框内容失败:', error);
+            if (this.tooltip && this.tooltip.style.display !== 'none') {
+                this.tooltip.innerHTML = '<div style="color: var(--b3-theme-error); font-size: 12px;">加载失败</div>';
+            }
         }
     }
 
@@ -1745,7 +1818,7 @@ export class CalendarView {
             if (!this.isTooltipHovered) {
                 this.hideEventTooltip();
             }
-        }, 300); // 300ms 延迟
+        }, 200); // 200ms 延迟
     }
 
     private updateTooltipPosition(event: MouseEvent) {
@@ -2037,6 +2110,12 @@ export class CalendarView {
 
     // 添加销毁方法
     destroy() {
+        // 清理提示框显示延迟超时
+        if (this.tooltipShowTimeout) {
+            clearTimeout(this.tooltipShowTimeout);
+            this.tooltipShowTimeout = null;
+        }
+
         // 清理提示框超时
         if (this.tooltipTimeout) {
             clearTimeout(this.tooltipTimeout);
