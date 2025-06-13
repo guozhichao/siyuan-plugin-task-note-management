@@ -285,7 +285,7 @@ export class ReminderPanel {
                     font-size: 11px;
                     color: var(--b3-theme-on-background);
                     margin-bottom: 2px;
-                    opacity: 0.8;
+                    opacity: 1;
                     cursor: pointer;
                     display: flex;
                     align-items: center;
@@ -314,7 +314,7 @@ export class ReminderPanel {
                     docTitleEl.style.color = 'var(--b3-theme-primary)';
                 });
                 docTitleEl.addEventListener('mouseleave', () => {
-                    docTitleEl.style.color = 'var(--b3-theme-on-surface-light)';
+                    docTitleEl.style.color = 'var(--b3-theme-on-background)';
                 });
 
                 docTitleEl.appendChild(docIcon);

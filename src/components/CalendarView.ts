@@ -1883,7 +1883,7 @@ export class CalendarView {
                 try {
                     const docBlock = await getBlockByID(reminder.docId);
                     if (docBlock && docBlock.content) {
-                        parts.push(`<div style="color: var(--b3-theme-on-surface-light); font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-align: left;">
+                        parts.push(`<div style="color: var(--b3-theme-on-background); font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-align: left;">
                             <span>📄</span>
                             <span title="所属文档">${this.escapeHtml(docBlock.content)}</span>
                         </div>`);
@@ -1902,7 +1902,7 @@ export class CalendarView {
                         // 获取根文档的信息
                         const rootBlock = await getBlockByID(blockInfo.root_id);
                         if (rootBlock && rootBlock.content) {
-                            parts.push(`<div style="color: var(--b3-theme-on-surface-light); font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-align: left;">
+                            parts.push(`<div style="color: var(--b3-theme-on-background); font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-align: left;">
                                 <span>📄</span>
                                 <span title="所属文档">${this.escapeHtml(rootBlock.content)}</span>
                             </div>`);
