@@ -4,7 +4,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
 import { readReminderData, writeReminderData, getBlockByID, updateBlockReminderBookmark } from "../api";
-import { getLocalDateString, getLocalDateTime,getLocalDateTimeString } from "../utils/dateUtils";
+import { getLocalDateString, getLocalDateTime, getLocalDateTimeString } from "../utils/dateUtils";
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
@@ -852,16 +852,16 @@ export class CalendarView {
                 if (reminderData[reminderId]) {
                     const blockId = reminderData[reminderId].blockId;
                     const newCompletedState = !reminderData[reminderId].completed;
-                    
+
                     reminderData[reminderId].completed = newCompletedState;
-                    
+
                     // 记录或清除完成时间
                     if (newCompletedState) {
                         reminderData[reminderId].completedTime = getLocalDateTimeString(new Date());
                     } else {
                         delete reminderData[reminderId].completedTime;
                     }
-                    
+
                     await writeReminderData(reminderData);
 
                     // 更新块的书签状态
@@ -2096,22 +2096,27 @@ export class CalendarView {
 
             // 8. 完成状态和完成时间
             if (reminder.completed) {
-                // 获取完成时间
+                // 获取完成时间 - 修复逻辑
                 let completedTime = null;
-                if (reminder.isRepeated) {
-                    // 重复事件实例的完成时间
-                    try {
-                        const reminderData = await readReminderData();
+
+                try {
+                    const reminderData = await readReminderData();
+
+                    if (reminder.isRepeated) {
+                        // 重复事件实例的完成时间
                         const originalReminder = reminderData[reminder.originalId];
                         if (originalReminder && originalReminder.repeat?.completedTimes) {
                             completedTime = originalReminder.repeat.completedTimes[reminder.date];
                         }
-                    } catch (error) {
-                        console.error('获取重复事件完成时间失败:', error);
+                    } else {
+                        // 普通事件的完成时间 - 从最新的 reminderData 中获取
+                        const currentReminder = reminderData[calendarEvent.id];
+                        if (currentReminder) {
+                            completedTime = currentReminder.completedTime;
+                        }
                     }
-                } else {
-                    // 普通事件的完成时间
-                    completedTime = reminder.completedTime;
+                } catch (error) {
+                    console.error('获取完成时间失败:', error);
                 }
 
                 let completedInfo = `<div style="color: var(--b3-theme-success); margin-top: 6px; display: flex; align-items: center; gap: 4px; font-size: 12px;">
