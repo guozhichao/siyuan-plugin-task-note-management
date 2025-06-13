@@ -4,7 +4,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
 import { readReminderData, writeReminderData, getBlockByID, updateBlockReminderBookmark } from "../api";
-import { getLocalDateString, getLocalDateTime } from "../utils/dateUtils";
+import { getLocalDateString, getLocalDateTime,getLocalDateTimeString } from "../utils/dateUtils";
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
@@ -809,19 +809,26 @@ export class CalendarView {
                     if (!reminderData[originalId].repeat.completedInstances) {
                         reminderData[originalId].repeat.completedInstances = [];
                     }
+                    // 初始化完成时间记录
+                    if (!reminderData[originalId].repeat.completedTimes) {
+                        reminderData[originalId].repeat.completedTimes = {};
+                    }
 
                     const completedInstances = reminderData[originalId].repeat.completedInstances;
+                    const completedTimes = reminderData[originalId].repeat.completedTimes;
                     const isCompleted = completedInstances.includes(instanceDate);
 
                     if (isCompleted) {
-                        // 从已完成列表中移除
+                        // 从已完成列表中移除并删除完成时间
                         const index = completedInstances.indexOf(instanceDate);
                         if (index > -1) {
                             completedInstances.splice(index, 1);
                         }
+                        delete completedTimes[instanceDate];
                     } else {
-                        // 添加到已完成列表
+                        // 添加到已完成列表并记录完成时间
                         completedInstances.push(instanceDate);
+                        completedTimes[instanceDate] = getLocalDateTimeString(new Date());
                     }
 
                     await writeReminderData(reminderData);
@@ -844,7 +851,17 @@ export class CalendarView {
 
                 if (reminderData[reminderId]) {
                     const blockId = reminderData[reminderId].blockId;
-                    reminderData[reminderId].completed = !reminderData[reminderId].completed;
+                    const newCompletedState = !reminderData[reminderId].completed;
+                    
+                    reminderData[reminderId].completed = newCompletedState;
+                    
+                    // 记录或清除完成时间
+                    if (newCompletedState) {
+                        reminderData[reminderId].completedTime = getLocalDateTimeString(new Date());
+                    } else {
+                        delete reminderData[reminderId].completedTime;
+                    }
+                    
                     await writeReminderData(reminderData);
 
                     // 更新块的书签状态
@@ -853,7 +870,7 @@ export class CalendarView {
                     }
 
                     // 更新事件的显示状态
-                    event.setExtendedProp('completed', reminderData[reminderId].completed);
+                    event.setExtendedProp('completed', newCompletedState);
 
                     // 触发更新事件
                     window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -2077,12 +2094,38 @@ export class CalendarView {
                 </div>`);
             }
 
-            // 8. 完成状态
+            // 8. 完成状态和完成时间
             if (reminder.completed) {
-                parts.push(`<div style="color: var(--b3-theme-success); margin-top: 6px; display: flex; align-items: center; gap: 4px; font-size: 12px;">
+                // 获取完成时间
+                let completedTime = null;
+                if (reminder.isRepeated) {
+                    // 重复事件实例的完成时间
+                    try {
+                        const reminderData = await readReminderData();
+                        const originalReminder = reminderData[reminder.originalId];
+                        if (originalReminder && originalReminder.repeat?.completedTimes) {
+                            completedTime = originalReminder.repeat.completedTimes[reminder.date];
+                        }
+                    } catch (error) {
+                        console.error('获取重复事件完成时间失败:', error);
+                    }
+                } else {
+                    // 普通事件的完成时间
+                    completedTime = reminder.completedTime;
+                }
+
+                let completedInfo = `<div style="color: var(--b3-theme-success); margin-top: 6px; display: flex; align-items: center; gap: 4px; font-size: 12px;">
                     <span>✅</span>
-                    <span>已完成</span>
-                </div>`);
+                    <span>已完成</span>`;
+
+                // 如果有完成时间，添加完成时间显示
+                if (completedTime) {
+                    const formattedCompletedTime = this.formatCompletedTimeForTooltip(completedTime);
+                    completedInfo += `<span style="margin-left: 8px; opacity: 0.7;">${formattedCompletedTime}</span>`;
+                }
+
+                completedInfo += `</div>`;
+                parts.push(completedInfo);
             }
 
             return parts.join('');
@@ -2093,6 +2136,41 @@ export class CalendarView {
         }
     }
 
+    /**
+     * 格式化完成时间用于提示框显示
+     */
+    private formatCompletedTimeForTooltip(completedTime: string): string {
+        try {
+            const today = getLocalDateString();
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = getLocalDateString(yesterday);
+
+            // 解析完成时间
+            const completedDate = new Date(completedTime);
+            const completedDateStr = getLocalDateString(completedDate);
+
+            const timeStr = completedDate.toLocaleTimeString('zh-CN', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            if (completedDateStr === today) {
+                return `今天 ${timeStr}`;
+            } else if (completedDateStr === yesterdayStr) {
+                return `昨天 ${timeStr}`;
+            } else {
+                const dateStr = completedDate.toLocaleDateString('zh-CN', {
+                    month: 'short',
+                    day: 'numeric'
+                });
+                return `${dateStr} ${timeStr}`;
+            }
+        } catch (error) {
+            console.error('格式化完成时间失败:', error);
+            return completedTime;
+        }
+    }
     /**
      * 格式化事件日期时间信息
      */
