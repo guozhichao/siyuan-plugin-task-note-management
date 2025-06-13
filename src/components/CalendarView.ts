@@ -705,9 +705,7 @@ export class CalendarView {
         // 添加事件内容
         const eventEl = document.createElement('div');
         eventEl.className = 'reminder-calendar-event-content';
-        if (eventInfo.event.extendedProps.completed) {
-            eventEl.classList.add('completed');
-        }
+        // 移除这里的 completed 类设置，因为现在由 FullCalendar 的 className 处理
         eventEl.innerHTML = `<div class="fc-event-title">${eventInfo.event.title}</div>`;
 
         if (eventInfo.event.extendedProps.note) {
@@ -1575,13 +1573,20 @@ export class CalendarView {
             borderColor = borderColor + 'dd';
         }
 
+        // 构建 className，包含已完成状态
+        const classNames = [
+            `reminder-priority-${priority}`,
+            isRepeated ? 'reminder-repeated' : '',
+            isCompleted ? 'completed' : '' // 将 completed 类添加到 FullCalendar 事件元素上
+        ].filter(Boolean).join(' ');
+
         let eventObj: any = {
             id: eventId,
             title: reminder.title || t("unnamedNote"), // 移除标题前的重复图标
             backgroundColor: backgroundColor,
             borderColor: borderColor,
             textColor: isCompleted ? '#999999' : '#ffffff',
-            className: `reminder-priority-${priority} ${isRepeated ? 'reminder-repeated' : ''}`,
+            className: classNames, // 使用构建的 className
             extendedProps: {
                 completed: isCompleted,
                 note: reminder.note || '',

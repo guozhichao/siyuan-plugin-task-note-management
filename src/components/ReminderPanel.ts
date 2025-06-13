@@ -365,13 +365,13 @@ export class ReminderPanel {
                             // 立即更新当前排序方式
                             this.currentSort = option.key;
                             this.updateSortButtonTitle();
-                            
+
                             // 保存排序配置到文件
                             await saveSortConfig(option.key);
-                            
+
                             // 重新加载并排序提醒列表
                             await this.loadReminders();
-                            
+
                             console.log('排序已更新为:', option.key);
                         } catch (error) {
                             console.error('保存排序配置失败:', error);
@@ -598,7 +598,7 @@ export class ReminderPanel {
             // 修改为异步处理提醒元素创建
             const createRemindersAsync = async () => {
                 this.remindersContainer.innerHTML = ''; // 先清空容器
-                
+
                 for (const reminder of displayReminders) {
                     const reminderEl = await this.createReminderElement(reminder, today);
                     this.remindersContainer.appendChild(reminderEl);
@@ -606,7 +606,7 @@ export class ReminderPanel {
             };
 
             await createRemindersAsync();
-            
+
         } catch (error) {
             console.error('加载提醒失败:', error);
             showMessage(t("loadRemindersFailed"));
@@ -777,7 +777,7 @@ export class ReminderPanel {
                     return 0;
             }
         });
-        
+
         console.log('排序完成，排序方式:', sortType);
     }
 
@@ -1071,7 +1071,7 @@ export class ReminderPanel {
         const timeEl = document.createElement('div');
         timeEl.className = 'reminder-item__time';
         const timeText = this.formatReminderTime(reminder.date, reminder.time, today, reminder.endDate);
-        timeEl.textContent = '🕐'+timeText;
+        timeEl.textContent = '🕐' + timeText;
         timeEl.style.cursor = 'pointer';
         timeEl.title = t("clickToModifyTime");
 
