@@ -365,7 +365,7 @@ export class ReminderPanel {
                 // 为每个排序方式添加升序和降序选项
                 menu.addItem({
                     iconHTML: option.icon,
-                    label: `${option.label} (${t("ascending")})`,
+                    label: `${option.label} (${t("ascending")}↓)`,
                     current: this.currentSort === option.key && this.currentSortOrder === 'asc',
                     click: async () => {
                         try {
@@ -384,7 +384,7 @@ export class ReminderPanel {
 
                 menu.addItem({
                     iconHTML: option.icon,
-                    label: `${option.label} (${t("descending")})`,
+                    label: `${option.label} (${t("descending")}↑)`,
                     current: this.currentSort === option.key && this.currentSortOrder === 'desc',
                     click: async () => {
                         try {
@@ -876,6 +876,10 @@ export class ReminderPanel {
                 default:
                     console.warn('未知的排序类型:', sortType);
                     return 0;
+            }
+            // 优先级升降序的结果相反
+            if (sortType === 'priority') {
+                result = -result;
             }
 
             // 应用升降序
