@@ -1,5 +1,5 @@
 import { showMessage, confirm, Dialog, Menu, openTab } from "siyuan";
-import { readReminderData, writeReminderData, getBlockByID, updateBlockReminderBookmark } from "../api";
+import { readReminderData, writeReminderData, sql, updateBlock, getBlockKramdown, getBlockByID, updateBlockReminderBookmark } from "../api";
 import { getLocalDateString, compareDateStrings, getLocalDateTime, getLocalDateTimeString } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { ReminderEditDialog } from "./ReminderEditDialog";
@@ -876,14 +876,38 @@ export class ReminderPanel {
     }
 
     // 添加排序方法
+    // 添加排序方法
     private sortReminders(reminders: any[]) {
         const sortType = this.currentSort;
         const sortOrder = this.currentSortOrder;
         console.log('应用排序方式:', sortType, sortOrder, '提醒数量:', reminders.length);
 
+        // 特殊处理已完成相关的筛选器
+        const isCompletedFilter = this.currentTab === 'completed' || this.currentTab === 'todayCompleted';
+        const isPast7Filter = this.currentTab === 'all';
+
         reminders.sort((a: any, b: any) => {
             let result = 0;
 
+            // 对于"过去七天"筛选器，未完成事项优先显示
+            if (isPast7Filter) {
+                const aCompleted = a.completed || false;
+                const bCompleted = b.completed || false;
+
+                if (aCompleted !== bCompleted) {
+                    return aCompleted ? 1 : -1; // 未完成的排在前面
+                }
+            }
+
+            // 对于已完成相关的筛选器，默认按完成时间降序排序
+            if (isCompletedFilter || (isPast7Filter && a.completed && b.completed)) {
+                result = this.compareByCompletedTime(a, b);
+                if (result !== 0) {
+                    return result; // 直接返回完成时间比较结果，不需要考虑升降序
+                }
+            }
+
+            // 应用用户选择的排序方式
             switch (sortType) {
                 case 'time':
                     result = this.compareByTime(a, b);
@@ -901,6 +925,7 @@ export class ReminderPanel {
                     console.warn('未知的排序类型:', sortType, '默认使用时间排序');
                     result = this.compareByTime(a, b);
             }
+
             // 优先级升降序的结果相反
             if (sortType === 'priority') {
                 result = -result;
@@ -913,6 +938,43 @@ export class ReminderPanel {
         console.log('排序完成，排序方式:', sortType, sortOrder);
     }
 
+    // 新增：按完成时间比较
+    private compareByCompletedTime(a: any, b: any): number {
+        // 获取完成时间
+        const completedTimeA = this.getCompletedTime(a);
+        const completedTimeB = this.getCompletedTime(b);
+
+        // 如果都有完成时间，按完成时间降序排序（最近完成的在前）
+        if (completedTimeA && completedTimeB) {
+            const timeA = new Date(completedTimeA).getTime();
+            const timeB = new Date(completedTimeB).getTime();
+            return timeB - timeA; // 降序：最近的在前
+        }
+
+        // 如果只有一个有完成时间，有完成时间的在前
+        if (completedTimeA && !completedTimeB) return -1;
+        if (!completedTimeA && completedTimeB) return 1;
+
+        // 如果都没有完成时间，按设置的时间降序排序
+        const dateA = new Date(a.date + (a.time ? `T${a.time}` : 'T00:00'));
+        const dateB = new Date(b.date + (b.time ? `T${b.time}` : 'T00:00'));
+        return dateB.getTime() - dateA.getTime(); // 降序：最近的在前
+    }
+
+    // 新增：获取完成时间的辅助方法
+    private getCompletedTime(reminder: any): string | null {
+        if (reminder.isRepeatInstance) {
+            // 重复事件实例的完成时间
+            const originalReminder = this.getOriginalReminder(reminder.originalId);
+            if (originalReminder && originalReminder.repeat?.completedTimes) {
+                return originalReminder.repeat.completedTimes[reminder.date] || null;
+            }
+        } else {
+            // 普通事件的完成时间
+            return reminder.completedTime || null;
+        }
+        return null;
+    }
     // 按时间比较（考虑跨天事件和优先级）
     private compareByTime(a: any, b: any): number {
         const dateA = new Date(a.date + (a.time ? `T${a.time}` : 'T00:00'));
@@ -1010,6 +1072,13 @@ export class ReminderPanel {
                     const blockId = reminderData[originalId].blockId;
                     if (blockId) {
                         await updateBlockReminderBookmark(blockId);
+                        // 完成时自动处理任务列表
+                        if (completed) {
+                            await this.handleTaskListCompletion(blockId);
+                        }
+                        else{
+                            await this.handleTaskListCompletionCancel(blockId);
+                        }
                     }
 
                     window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -1032,6 +1101,13 @@ export class ReminderPanel {
                 // 更新块的书签状态
                 if (blockId) {
                     await updateBlockReminderBookmark(blockId);
+                    // 完成时自动处理任务列表
+                    if (completed) {
+                        await this.handleTaskListCompletion(blockId);
+                    }
+                    else {
+                        await this.handleTaskListCompletionCancel(blockId);
+                    }
                 }
 
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -1040,6 +1116,161 @@ export class ReminderPanel {
         } catch (error) {
             console.error('切换提醒状态失败:', error);
             showMessage(t("operationFailed"));
+        }
+    }
+    /**
+     * 处理任务列表的自动完成功能
+     * 当完成时间提醒事项时，检测是否为待办事项列表，如果是则自动打勾
+     * @param blockId 块ID
+     */
+    private async handleTaskListCompletionCancel(blockId: string) {
+        try {
+            // 1. 检测块是否为待办事项列表
+            const isTaskList = await this.isTaskListBlock(blockId);
+            if (!isTaskList) {
+                return; // 不是待办事项列表，不需要处理
+            }
+
+            // 2. 获取块的 kramdown 内容
+            const kramdown = (await getBlockKramdown(blockId)).kramdown;
+            if (!kramdown) {
+                console.warn('无法获取块的 kramdown 内容:', blockId);
+                return;
+            }
+            // 3. 使用正则表达式匹配待办事项格式: ^- {: xxx}[X]
+            const taskPattern = /^-\s*\{:[^}]*\}\[X\]/gm;
+
+            // 检查是否包含完成的待办项
+            const hasCompletedTasks = taskPattern.test(kramdown);
+            if (!hasCompletedTasks) {
+                return; // 没有完成的待办项，不需要处理
+            }
+
+            // 4. 将 ^- {: xxx}[x] 替换为 ^- {: xxx}[ ]
+            // 重置正则表达式的 lastIndex
+            taskPattern.lastIndex = 0;
+            const updatedKramdown = kramdown.replace(
+                /^(-\s*\{:[^}]*\})\[X\]/gm,
+                '$1[ ]'
+            );
+
+
+            // 5. 更新块内容
+            await this.updateBlockWithKramdown(blockId, updatedKramdown);
+
+
+        } catch (error) {
+            console.error('处理任务列表完成状态失败:', error);
+            // 静默处理错误，不影响主要功能
+        }
+    }
+    /**
+     * 处理任务列表的自动完成功能
+     * 当完成时间提醒事项时，检测是否为待办事项列表，如果是则自动打勾
+     * @param blockId 块ID
+     */
+    private async handleTaskListCompletion(blockId: string) {
+        try {
+            // 1. 检测块是否为待办事项列表
+            const isTaskList = await this.isTaskListBlock(blockId);
+            if (!isTaskList) {
+                return; // 不是待办事项列表，不需要处理
+            }
+
+            // 2. 获取块的 kramdown 内容
+            const kramdown = (await getBlockKramdown(blockId)).kramdown;
+            console.log('获取块的 kramdown 内容:', blockId, kramdown);
+            if (!kramdown) {
+                console.warn('无法获取块的 kramdown 内容:', blockId);
+                return;
+            }
+
+            // 3. 使用正则表达式匹配待办事项格式: ^- {: xxx}[ ]
+            const taskPattern = /^-\s*\{:[^}]*\}\[\s*\]/gm;
+
+            // 检查是否包含未完成的待办项
+            const hasUncompletedTasks = taskPattern.test(kramdown);
+
+            if (!hasUncompletedTasks) {
+                return; // 没有未完成的待办项，不需要处理
+            }
+
+            // 4. 将 ^- {: xxx}[ ] 替换为 ^- {: xxx}[x]
+            // 重置正则表达式的 lastIndex
+            taskPattern.lastIndex = 0;
+            const updatedKramdown = kramdown.replace(
+                /^(-\s*\{:[^}]*\})\[\s*\]/gm,
+                '$1[X]'
+            );
+
+
+            // 5. 更新块内容
+            await this.updateBlockWithKramdown(blockId, updatedKramdown);
+
+
+        } catch (error) {
+            console.error('处理任务列表完成状态失败:', error);
+            // 静默处理错误，不影响主要功能
+        }
+    }
+    /**
+     * 检测块是否为待办事项列表
+     * @param blockId 块ID
+     * @returns 是否为待办事项列表
+     */
+    private async isTaskListBlock(blockId: string): Promise<boolean> {
+        try {
+            // 使用 SQL 查询检测块类型
+            const sqlQuery = `SELECT type, subtype FROM blocks WHERE id = '${blockId}'`;
+            const result = await sql(sqlQuery);
+
+            if (result && result.length > 0) {
+                const block = result[0];
+                // 检查是否为待办事项列表：type='i' and subtype='t'
+                return block.type === 'i' && block.subtype === 't';
+            }
+
+            return false;
+        } catch (error) {
+            console.error('检测任务列表块失败:', error);
+            return false;
+        }
+    }
+
+    /**
+     * 使用 kramdown 更新块内容
+     * @param blockId 块ID
+     * @param kramdown kramdown 内容
+     */
+    private async updateBlockWithKramdown(blockId: string, kramdown: string) {
+        try {
+            const updateData = {
+                dataType: "markdown",
+                data: kramdown,
+                id: blockId
+            };
+
+            // 使用 updateBlock API 更新块
+            const response = await fetch('/api/block/updateBlock', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updateData)
+            });
+
+            if (!response.ok) {
+                throw new Error(`更新块失败: ${response.status} ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            if (result.code !== 0) {
+                throw new Error(`更新块失败: ${result.msg || '未知错误'}`);
+            }
+
+        } catch (error) {
+            console.error('更新块内容失败:', error);
+            throw error;
         }
     }
 
@@ -1807,6 +2038,8 @@ export class ReminderPanel {
 
                 confirmMessage += `\n\n选择"确定"将继承当前进度继续计时。`;
             }
+
+
 
             // 显示确认对话框
             confirm(
