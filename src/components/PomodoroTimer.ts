@@ -1939,6 +1939,24 @@ export class PomodoroTimer {
     }
 
     /**
+     * 外部暂停番茄钟（供其他组件调用）
+     */
+    public pauseFromExternal() {
+        if (this.isRunning && !this.isPaused) {
+            this.pauseTimer();
+        }
+    }
+
+    /**
+     * 外部恢复番茄钟（供其他组件调用）
+     */
+    public resumeFromExternal() {
+        if (this.isRunning && this.isPaused) {
+            this.resumeTimer();
+        }
+    }
+
+    /**
      * 打开相关笔记
      */
     private async openRelatedNote() {

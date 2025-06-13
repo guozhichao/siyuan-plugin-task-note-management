@@ -1585,8 +1585,15 @@ export class ReminderPanel {
 
             let confirmMessage = `当前正在进行番茄钟任务："${currentTitle}"，是否要切换到新任务："${newTitle}"？`;
 
-            // 如果当前番茄钟正在运行，询问是否继承时间
+            // 如果当前番茄钟正在运行，先暂停并询问是否继承时间
             if (currentState.isRunning && !currentState.isPaused) {
+                // 先暂停当前番茄钟
+                try {
+                    ReminderPanel.currentPomodoroTimer.pauseFromExternal();
+                } catch (error) {
+                    console.error('暂停当前番茄钟失败:', error);
+                }
+
                 const timeDisplay = currentState.isWorkPhase ?
                     `工作时间 ${Math.floor(currentState.timeElapsed / 60)}:${(currentState.timeElapsed % 60).toString().padStart(2, '0')}` :
                     `休息时间 ${Math.floor(currentState.timeLeft / 60)}:${(currentState.timeLeft % 60).toString().padStart(2, '0')}`;
@@ -1603,7 +1610,14 @@ export class ReminderPanel {
                     this.performStartPomodoro(reminder, currentState);
                 },
                 () => {
-                    // 用户取消，不做任何操作
+                    // 用户取消，尝试恢复原番茄钟的运行状态
+                    if (currentState.isRunning && !currentState.isPaused) {
+                        try {
+                            ReminderPanel.currentPomodoroTimer.resumeFromExternal();
+                        } catch (error) {
+                            console.error('恢复番茄钟运行失败:', error);
+                        }
+                    }
                 }
             );
         } else {
@@ -1656,8 +1670,15 @@ export class ReminderPanel {
 
             let confirmMessage = `当前正在进行番茄钟任务："${currentTitle}"，是否要切换到新的正计时任务："${newTitle}"？`;
 
-            // 如果当前番茄钟正在运行，询问是否继承时间
+            // 如果当前番茄钟正在运行，先暂停并询问是否继承时间
             if (currentState.isRunning && !currentState.isPaused) {
+                // 先暂停当前番茄钟
+                try {
+                    ReminderPanel.currentPomodoroTimer.pauseFromExternal();
+                } catch (error) {
+                    console.error('暂停当前番茄钟失败:', error);
+                }
+
                 const timeDisplay = currentState.isWorkPhase ?
                     `工作时间 ${Math.floor(currentState.timeElapsed / 60)}:${(currentState.timeElapsed % 60).toString().padStart(2, '0')}` :
                     `休息时间 ${Math.floor(currentState.timeLeft / 60)}:${(currentState.timeLeft % 60).toString().padStart(2, '0')}`;
@@ -1674,7 +1695,14 @@ export class ReminderPanel {
                     this.performStartPomodoroCountUp(reminder, currentState);
                 },
                 () => {
-                    // 用户取消，不做任何操作
+                    // 用户取消，尝试恢复原番茄钟的运行状态
+                    if (currentState.isRunning && !currentState.isPaused) {
+                        try {
+                            ReminderPanel.currentPomodoroTimer.resumeFromExternal();
+                        } catch (error) {
+                            console.error('恢复番茄钟运行失败:', error);
+                        }
+                    }
                 }
             );
         } else {
