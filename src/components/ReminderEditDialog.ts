@@ -5,6 +5,7 @@ import { CategoryManageDialog } from "./CategoryManageDialog";
 import { t } from "../utils/i18n";
 import { RepeatSettingsDialog, RepeatConfig } from "./RepeatSettingsDialog";
 import { getRepeatDescription } from "../utils/repeatUtils";
+import * as chrono from 'chrono-node'; // 导入chrono-node
 
 export class ReminderEditDialog {
     private dialog: Dialog;
@@ -12,6 +13,7 @@ export class ReminderEditDialog {
     private onSaved?: (modifiedReminder?: any) => void;
     private repeatConfig: RepeatConfig;
     private categoryManager: CategoryManager; // 添加分类管理器
+    private chronoParser: any; // chrono解析器实例
 
     constructor(reminder: any, onSaved?: (modifiedReminder?: any) => void) {
         this.reminder = reminder;
@@ -25,6 +27,227 @@ export class ReminderEditDialog {
             interval: 1,
             endType: 'never'
         };
+
+        // 初始化chrono解析器，配置中文支持
+        this.chronoParser = chrono.zh.casual.clone();
+        this.setupChronoParser();
+    }
+
+    // 设置chrono解析器
+    private setupChronoParser() {
+        // 添加更多中文时间表达式支持
+        const customPatterns = [
+            // 今天、明天、后天等
+            /今天|今日/i,
+            /明天|明日/i,
+            /后天/i,
+            /大后天/i,
+            // 周几
+            /下?周[一二三四五六日天]/i,
+            /下?星期[一二三四五六日天]/i,
+            // 月份日期
+            /(\d{1,2})月(\d{1,2})[日号]/i,
+            // 时间
+            /(\d{1,2})[点时](\d{1,2})?[分]?/i,
+            // 相对时间
+            /(\d+)天[后以]后/i,
+            /(\d+)小时[后以]后/i,
+        ];
+
+        // 配置chrono选项
+        this.chronoParser.option = {
+            ...this.chronoParser.option,
+            forwardDate: true // 优先解析未来日期
+        };
+    }
+
+    // 解析自然语言日期时间
+    private parseNaturalDateTime(text: string): { date?: string; time?: string; hasTime?: boolean } {
+        try {
+            const results = this.chronoParser.parse(text, new Date(), { forwardDate: true });
+
+            if (results.length === 0) {
+                return {};
+            }
+
+            const result = results[0];
+            const parsedDate = result.start.date();
+
+            // 格式化日期
+            const date = parsedDate.toISOString().split('T')[0];
+
+            // 检查是否包含时间信息
+            const hasTime = result.start.isCertain('hour') && result.start.isCertain('minute');
+            let time = undefined;
+
+            if (hasTime) {
+                const hours = parsedDate.getHours().toString().padStart(2, '0');
+                const minutes = parsedDate.getMinutes().toString().padStart(2, '0');
+                time = `${hours}:${minutes}`;
+            }
+
+            return { date, time, hasTime };
+        } catch (error) {
+            console.error('解析自然语言日期时间失败:', error);
+            return {};
+        }
+    }
+
+    // 从标题自动识别日期时间
+    private autoDetectDateTimeFromTitle(title: string): { date?: string; time?: string; hasTime?: boolean; cleanTitle?: string } {
+        const parseResult = this.parseNaturalDateTime(title);
+
+        if (!parseResult.date) {
+            return { cleanTitle: title };
+        }
+
+        // 尝试从标题中移除已识别的时间表达式
+        let cleanTitle = title;
+        const timeExpressions = [
+            /今天|今日/gi,
+            /明天|明日/gi,
+            /后天/gi,
+            /大后天/gi,
+            /下?周[一二三四五六日天]/gi,
+            /下?星期[一二三四五六日天]/gi,
+            /\d{1,2}月\d{1,2}[日号]/gi,
+            /\d{1,2}[点时]\d{0,2}[分]?/gi,
+            /\d+天[后以]后/gi,
+            /\d+小时[后以]后/gi,
+        ];
+
+        timeExpressions.forEach(pattern => {
+            cleanTitle = cleanTitle.replace(pattern, '').trim();
+        });
+
+        // 清理多余的空格和标点
+        cleanTitle = cleanTitle.replace(/\s+/g, ' ').replace(/^[，。、\s]+|[，。、\s]+$/g, '');
+
+        return {
+            ...parseResult,
+            cleanTitle: cleanTitle || title // 如果清理后为空，则保持原标题
+        };
+    }
+
+    // 显示自然语言输入对话框
+    private showNaturalLanguageDialog() {
+        const nlDialog = new Dialog({
+            title: "✨ 智能日期识别",
+            content: `
+                <div class="nl-dialog">
+                    <div class="b3-dialog__content">
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">输入自然语言描述</label>
+                            <input type="text" id="editNlInput" class="b3-text-field" placeholder="例如：明天下午3点、下周五、3天后等" style="width: 100%;" autofocus>
+                            <div class="b3-form__desc">支持中文自然语言，如：今天、明天、下周一、3月15日、下午2点等</div>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">识别结果预览</label>
+                            <div id="editNlPreview" class="nl-preview">请输入日期时间描述</div>
+                        </div>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="editNlCancelBtn">取消</button>
+                        <button class="b3-button b3-button--primary" id="editNlConfirmBtn" disabled>应用</button>
+                    </div>
+                </div>
+            `,
+            width: "400px",
+            height: "300px"
+        });
+
+        const nlInput = nlDialog.element.querySelector('#editNlInput') as HTMLInputElement;
+        const nlPreview = nlDialog.element.querySelector('#editNlPreview') as HTMLElement;
+        const nlCancelBtn = nlDialog.element.querySelector('#editNlCancelBtn') as HTMLButtonElement;
+        const nlConfirmBtn = nlDialog.element.querySelector('#editNlConfirmBtn') as HTMLButtonElement;
+
+        let currentParseResult: { date?: string; time?: string; hasTime?: boolean } = {};
+
+        // 实时解析输入
+        const updatePreview = () => {
+            const text = nlInput.value.trim();
+            if (!text) {
+                nlPreview.textContent = '请输入日期时间描述';
+                nlPreview.className = 'nl-preview';
+                nlConfirmBtn.disabled = true;
+                return;
+            }
+
+            currentParseResult = this.parseNaturalDateTime(text);
+
+            if (currentParseResult.date) {
+                const dateStr = new Date(currentParseResult.date + 'T00:00:00').toLocaleDateString('zh-CN', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    weekday: 'long'
+                });
+
+                let previewText = `📅 ${dateStr}`;
+                if (currentParseResult.time) {
+                    previewText += ` ⏰ ${currentParseResult.time}`;
+                }
+
+                nlPreview.textContent = previewText;
+                nlPreview.className = 'nl-preview nl-preview--success';
+                nlConfirmBtn.disabled = false;
+            } else {
+                nlPreview.textContent = '❌ 无法识别日期时间，请尝试其他表达方式';
+                nlPreview.className = 'nl-preview nl-preview--error';
+                nlConfirmBtn.disabled = true;
+            }
+        };
+
+        // 绑定事件
+        nlInput.addEventListener('input', updatePreview);
+        nlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !nlConfirmBtn.disabled) {
+                this.applyNaturalLanguageResult(currentParseResult);
+                nlDialog.destroy();
+            }
+        });
+
+        nlCancelBtn.addEventListener('click', () => {
+            nlDialog.destroy();
+        });
+
+        nlConfirmBtn.addEventListener('click', () => {
+            this.applyNaturalLanguageResult(currentParseResult);
+            nlDialog.destroy();
+        });
+
+        // 自动聚焦输入框
+        setTimeout(() => {
+            nlInput.focus();
+        }, 100);
+    }
+
+    // 应用自然语言识别结果
+    private applyNaturalLanguageResult(result: { date?: string; time?: string; hasTime?: boolean }) {
+        if (!result.date) return;
+
+        const dateInput = this.dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
+        const timeInput = this.dialog.element.querySelector('#editReminderTime') as HTMLInputElement;
+        const noTimeCheckbox = this.dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
+
+        // 设置日期
+        dateInput.value = result.date;
+
+        // 设置时间
+        if (result.hasTime && result.time) {
+            timeInput.value = result.time;
+            noTimeCheckbox.checked = false;
+            timeInput.disabled = false;
+        } else {
+            noTimeCheckbox.checked = true;
+            timeInput.disabled = true;
+            timeInput.value = '';
+        }
+
+        // 触发日期变化事件以更新结束日期限制
+        dateInput.dispatchEvent(new Event('change'));
+
+        showMessage(`✨ 已识别并设置：${new Date(result.date + 'T00:00:00').toLocaleDateString('zh-CN')}${result.time ? ` ${result.time}` : ''}`);
     }
 
     public async show() {
@@ -56,7 +279,12 @@ export class ReminderEditDialog {
                     ` : ''}
                     <div class="b3-form__group">
                         <label class="b3-form__label">${t("eventTitle")}</label>
-                        <input type="text" id="editReminderTitle" class="b3-text-field" value="${this.reminder.title || ''}" placeholder="${t("enterReminderTitle")}" style="width: 100%;" >
+                        <div class="title-input-container" style="display: flex; gap: 8px;">
+                            <input type="text" id="editReminderTitle" class="b3-text-field" value="${this.reminder.title || ''}" placeholder="${t("enterReminderTitle")}" style="flex: 1;" >
+                            <button type="button" id="editNlBtn" class="b3-button b3-button--outline" title="✨ 智能日期识别">
+                                ✨
+                            </button>
+                        </div>
                     </div>
                     <div class="b3-form__group">
                         <label class="b3-form__label">事件分类
@@ -179,6 +407,7 @@ export class ReminderEditDialog {
         const prioritySelector = this.dialog.element.querySelector('#editPrioritySelector') as HTMLElement;
         const categorySelector = this.dialog.element.querySelector('#editCategorySelector') as HTMLElement;
         const editManageCategoriesBtn = this.dialog.element.querySelector('#editManageCategoriesBtn') as HTMLButtonElement;
+        const editNlBtn = this.dialog.element.querySelector('#editNlBtn') as HTMLButtonElement;
 
         // 优先级选择事件
         prioritySelector.addEventListener('click', (e) => {
@@ -256,6 +485,11 @@ export class ReminderEditDialog {
         const editRepeatSettingsBtn = this.dialog.element.querySelector('#editRepeatSettingsBtn') as HTMLButtonElement;
         editRepeatSettingsBtn?.addEventListener('click', () => {
             this.showRepeatSettingsDialog();
+        });
+
+        // 自然语言识别按钮
+        editNlBtn?.addEventListener('click', () => {
+            this.showNaturalLanguageDialog();
         });
     }
 
