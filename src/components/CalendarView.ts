@@ -1653,9 +1653,9 @@ export class CalendarView {
 
     private handleDateClick(info) {
         // 点击日期，可以添加新的提醒
-        const date = info.dateStr;
+        // const date = info.dateStr;
         // 这里可以打开创建提醒对话框，但需要选择一个块ID
-        showMessage(t("selectBlockFirst"));
+        // showMessage(t("selectBlockFirst"));
     }
 
     private async refreshEvents() {
