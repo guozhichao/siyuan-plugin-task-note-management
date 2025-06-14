@@ -632,6 +632,22 @@ export async function setBlockBookmark(blockId: string, bookmark: string): Promi
  * 移除块的书签
  * @param blockId 块ID
  */
+export async function setBlockDone(blockId: string): Promise<any> {
+    // 检测块是否存在
+    const block = await getBlockByID(blockId);
+    if (!block) {
+        return;
+    }
+    const data = {
+        id: blockId,
+        attrs: {
+            "bookmark": "✅",
+            "custom-task-done": formatDate(new Date())
+
+        }
+    };
+    return request('/api/attr/setBlockAttrs', data);
+}
 export async function removeBlockBookmark(blockId: string): Promise<any> {
     // 检测块是否存在
     const block = await getBlockByID(blockId);
@@ -641,8 +657,7 @@ export async function removeBlockBookmark(blockId: string): Promise<any> {
     const data = {
         id: blockId,
         attrs: {
-            "bookmark": "✅", 
-            "custom-task-done": formatDate(new Date())
+            "bookmark": "",
 
         }
     };
@@ -670,14 +685,24 @@ export async function updateBlockReminderBookmark(blockId: string): Promise<void
             reminder && reminder.blockId === blockId
         );
 
-        // 检查是否有未完成的提醒
-        const hasIncompleteReminders = blockReminders.some((reminder: any) => !reminder.completed);
+        // 如果没有提醒，移除书签
+        if (blockReminders.length === 0) {
+            await removeBlockBookmark(blockId);
+            return;
+        }
 
-        if (hasIncompleteReminders) {
+        // 检查提醒状态
+        const hasIncompleteReminders = blockReminders.some((reminder: any) => !reminder.completed);
+        const allCompleted = blockReminders.length > 0 && blockReminders.every((reminder: any) => reminder.completed);
+
+        if (allCompleted) {
+            // 如果所有提醒都已完成，标记块为完成
+            await setBlockDone(blockId);
+        } else if (hasIncompleteReminders) {
             // 如果有未完成的提醒，确保有⏰书签
             await setBlockBookmark(blockId, "⏰");
         } else {
-            // 如果没有未完成的提醒，移除书签
+            // 其他情况，移除书签
             await removeBlockBookmark(blockId);
         }
     } catch (error) {
