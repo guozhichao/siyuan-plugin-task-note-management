@@ -1392,7 +1392,8 @@ export class PomodoroTimer {
 
         if (this.isCountUp) {
             this.timeElapsed = 0;
-            this.completedPomodoros = 0;
+            // 不重置番茄计数，保持累计
+            // this.completedPomodoros = 0;
         } else {
             this.timeLeft = this.settings.workDuration * 60;
             this.totalTime = this.timeLeft;
@@ -1467,7 +1468,8 @@ export class PomodoroTimer {
         this.isLongBreak = false;
         this.timeElapsed = 0;
         this.breakTimeLeft = 0;
-        this.completedPomodoros = 0;
+        // 注释掉清空番茄计数的代码，保持总计数
+        // this.completedPomodoros = 0;
         this.statusDisplay.textContent = '工作时间';
 
         if (this.timer) {
@@ -1619,6 +1621,8 @@ export class PomodoroTimer {
                 true
             );
 
+            // 更新番茄数量计数
+            this.completedPomodoros++;
             await this.updateReminderPomodoroCount();
 
             showMessage('🍅 工作时间结束！开始休息吧～', 3000);
