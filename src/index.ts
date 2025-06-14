@@ -117,7 +117,19 @@ export default class ReminderPlugin extends Plugin {
             plugin: this,
             name: SETTINGS_NAME,
             width: "600px",
-            height: "400px"
+            height: "700px"
+        });
+
+
+
+
+        // 通知提醒声音设置
+        this.settingUtils.addItem({
+            key: "notificationSound",
+            value: "/plugins/siyuan-plugin-task-note-management/audios/notify.mp3",
+            type: "textinput",
+            title: "通知提醒声音",
+            description: "设置事项提醒时播放的声音文件路径，留空则静音"
         });
 
         // 番茄钟工作时长设置
@@ -137,7 +149,6 @@ export default class ReminderPlugin extends Plugin {
             title: "番茄钟短时休息时长（分钟）",
             description: "设置番茄钟短时休息阶段的时长，默认5分钟"
         });
-
         // 番茄钟长时休息时长设置
         this.settingUtils.addItem({
             key: "pomodoroLongBreakDuration",
@@ -145,23 +156,13 @@ export default class ReminderPlugin extends Plugin {
             type: "number",
             title: "番茄钟长时休息时长（分钟）",
             description: "设置番茄钟长时休息阶段的时长，默认30分钟"
-        });
-        // 通知提醒声音设置
-        this.settingUtils.addItem({
-            key: "notificationSound",
-            value: "/plugins/siyuan-plugin-task-note-management/audios/notify.mp3",
-            type: "textinput",
-            title: "通知提醒声音",
-            description: "设置事项提醒时播放的声音文件路径，留空则静音"
-        });
-
-
+                });
         // 工作时背景音设置
         this.settingUtils.addItem({
             key: "pomodoroWorkSound",
             value: "/plugins/siyuan-plugin-task-note-management/audios/background_music.mp3",
             type: "textinput",
-            title: "工作时背景音（可选）",
+            title: "番茄工作时背景音（可选）",
             description: "设置工作时播放的背景音文件路径，留空则静音"
         });
 
@@ -170,7 +171,7 @@ export default class ReminderPlugin extends Plugin {
             key: "pomodoroBreakSound",
             value: "/plugins/siyuan-plugin-task-note-management/audios/background_music.mp3",
             type: "textinput",
-            title: "休息背景音（可选）",
+            title: "番茄休息背景音（可选）",
             description: "设置休息时播放的背景音文件路径，留空则静音"
         });
         // 长时休息背景音设置
@@ -178,7 +179,7 @@ export default class ReminderPlugin extends Plugin {
             key: "pomodoroLongBreakSound",
             value: "/plugins/siyuan-plugin-task-note-management/audios/background_music.mp3",
             type: "textinput",
-            title: "长时休息背景音（可选）",
+            title: "番茄长时休息背景音（可选）",
             description: "设置长时休息时播放的背景音文件路径，留空则静音"
         });
 
