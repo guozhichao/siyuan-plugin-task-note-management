@@ -40,6 +40,9 @@ export default class ReminderPlugin extends Plugin {
     private settingUtils: SettingUtils;
     private chronoParser: any;
     private batchReminderDialog: BatchReminderDialog;
+    private audioEnabled: boolean = false;
+    private preloadedAudio: HTMLAudioElement | null = null;
+
     async onload() {
         console.log("Reminder Plugin loaded");
         this.chronoParser = chrono.zh.casual.clone();
@@ -66,6 +69,47 @@ export default class ReminderPlugin extends Plugin {
         this.batchReminderDialog = new BatchReminderDialog(this);
 
         this.initializeUI();
+
+        // 添加用户交互监听器来启用音频
+        this.enableAudioOnUserInteraction();
+    }
+
+    private enableAudioOnUserInteraction() {
+        const enableAudio = async () => {
+            if (this.audioEnabled) return;
+
+            try {
+                // 预加载音频文件
+                const soundPath = this.getNotificationSound();
+                if (soundPath) {
+                    this.preloadedAudio = new Audio(soundPath);
+                    this.preloadedAudio.volume = 0; // 很小的音量进行预加载
+                    await this.preloadedAudio.play();
+                    this.preloadedAudio.pause();
+                    this.preloadedAudio.currentTime = 0;
+                    this.preloadedAudio.volume = 1; // 恢复正常音量
+                    this.audioEnabled = true;
+                    console.log('音频播放已启用');
+                }
+            } catch (error) {
+                console.warn('音频预加载失败，将使用静音模式:', error);
+                this.audioEnabled = false;
+            }
+        };
+
+        // 监听多种用户交互事件
+        const events = ['click', 'touchstart', 'keydown'];
+        const handleUserInteraction = () => {
+            enableAudio();
+            // 移除事件监听器，只需要启用一次
+            events.forEach(event => {
+                document.removeEventListener(event, handleUserInteraction);
+            });
+        };
+
+        events.forEach(event => {
+            document.addEventListener(event, handleUserInteraction, { once: true });
+        });
     }
 
     private initSettings() {
@@ -102,6 +146,15 @@ export default class ReminderPlugin extends Plugin {
             title: "番茄钟长时休息时长（分钟）",
             description: "设置番茄钟长时休息阶段的时长，默认30分钟"
         });
+        // 通知提醒声音设置
+        this.settingUtils.addItem({
+            key: "notificationSound",
+            value: "/plugins/siyuan-plugin-task-note-management/audios/notify.mp3",
+            type: "textinput",
+            title: "通知提醒声音",
+            description: "设置事项提醒时播放的声音文件路径，留空则静音"
+        });
+
 
         // 工作时背景音设置
         this.settingUtils.addItem({
@@ -154,7 +207,51 @@ export default class ReminderPlugin extends Plugin {
             endSound: this.settingUtils.get("pomodoroEndSound") || ""
         };
     }
+    // 获取通知声音设置
+    getNotificationSound(): string {
+        return this.settingUtils.get("notificationSound") || "/plugins/siyuan-plugin-task-note-management/audios/notify.mp3";
+    }
 
+    // 播放通知声音
+    async playNotificationSound() {
+        try {
+            const soundPath = this.getNotificationSound();
+            if (!soundPath) {
+                console.log('通知声音路径为空，静音模式');
+                return;
+            }
+
+            if (!this.audioEnabled) {
+                console.log('音频未启用，需要用户交互后才能播放声音');
+                return;
+            }
+
+            // 优先使用预加载的音频
+            if (this.preloadedAudio && this.preloadedAudio.src.includes(soundPath)) {
+                try {
+                    this.preloadedAudio.currentTime = 0;
+                    await this.preloadedAudio.play();
+                    return;
+                } catch (error) {
+                    console.warn('预加载音频播放失败，尝试创建新音频:', error);
+                }
+            }
+
+            // 如果预加载音频不可用，创建新的音频实例
+            const audio = new Audio(soundPath);
+            audio.volume = 1;
+            await audio.play();
+
+        } catch (error) {
+            // 不再显示错误消息，只记录到控制台
+            console.warn('播放通知声音失败 (这是正常的，如果用户未交互):', error.name);
+
+            // 如果是权限错误，提示用户
+            if (error.name === 'NotAllowedError') {
+                console.log('提示：点击页面任意位置后，音频通知将自动启用');
+            }
+        }
+    }
     private initializeUI() {
         // 添加顶栏按钮
         this.topBarElement = this.addTopBar({
@@ -652,6 +749,9 @@ export default class ReminderPlugin extends Plugin {
                     ...todayAllDayReminders
                 ];
 
+                // 播放通知声音
+                await this.playNotificationSound();
+
                 // 统一显示今日事项
                 NotificationDialog.showAllDayReminders(sortedReminders);
 
@@ -765,6 +865,9 @@ export default class ReminderPlugin extends Plugin {
     // 显示时间提醒
     private async showTimeReminder(reminder: any) {
         try {
+            // 播放通知声音
+            await this.playNotificationSound();
+
             // 获取分类信息
             let categoryInfo = {};
             if (reminder.categoryId) {
@@ -875,6 +978,12 @@ export default class ReminderPlugin extends Plugin {
 
     onunload() {
         console.log("Reminder Plugin unloaded");
+
+        // 清理音频资源
+        if (this.preloadedAudio) {
+            this.preloadedAudio.pause();
+            this.preloadedAudio = null;
+        }
 
         // 清理所有日历视图实例
         this.calendarViews.forEach((calendarView) => {
