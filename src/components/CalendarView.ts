@@ -1546,10 +1546,10 @@ export class CalendarView {
         style.id = 'reminder-calendar-custom-styles';
         style.textContent = `
             .fc-today-custom {
-                background-color:hsl(120, 42.90%, 95.90%) !important;
+                background-color: var(--b3-theme-primary-lightest) !important;
             }
             .fc-today-custom:hover {
-                background-color: #e8f5e8 !important;
+                background-color: var(--b3-theme-primary-lightest) !important;
             }
         `;
         document.head.appendChild(style);
