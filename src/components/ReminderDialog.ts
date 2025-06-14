@@ -86,7 +86,7 @@ export class ReminderDialog {
     // 解析自然语言日期时间
     private parseNaturalDateTime(text: string): { date?: string; time?: string; hasTime?: boolean } {
         try {
-            const results = this.chronoParser.parse(text, new Date(), { forwardDate: true });
+            const results = this.chronoParser.parse(text, new Date(), { forwardDate: false });
 
             if (results.length === 0) {
                 return {};
