@@ -3,18 +3,415 @@
         padding: 20px;
     }
 
+    // 批量操作面板样式
+    .batch-operations-panel {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        border: 1px solid var(--b3-theme-primary-light);
+        border-radius: 12px;
+        margin-bottom: 20px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+
+        &:hover {
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        }
+    }
+
+    .batch-operations-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px 20px;
+        background: var(--b3-theme-primary-lightest);
+        border-bottom: 1px solid var(--b3-theme-primary-light);
+
+        h3 {
+            margin: 0;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--b3-theme-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .batch-toggle {
+            display: flex;
+            align-items: center;
+        }
+
+        #batchToggleBtn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            font-size: 13px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+
+            .toggle-icon {
+                width: 14px;
+                height: 14px;
+                transition: transform 0.2s ease;
+            }
+
+            &:hover {
+                background: var(--b3-theme-primary-light);
+                color: var(--b3-theme-primary);
+            }
+        }
+    }
+
+    .batch-operations-content {
+        padding: 20px;
+        background: white;
+        animation: slideDown 0.3s ease;
+    }
+
+    .batch-operation-row {
+        // display: flex;
+        gap: 20px;
+        margin-bottom: 20px;
+
+        &:last-child {
+            margin-bottom: 0;
+        }
+
+        @media (max-width: 768px) {
+            flex-direction: column;
+            gap: 16px;
+        }
+    }
+
+    .batch-operation-item {
+        flex: 1;
+        min-width: 0;
+
+        &.full-width {
+            flex: 1 1 100%;
+        }
+
+        .b3-form__label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            font-size: 13px;
+            color: var(--b3-theme-on-background);
+        }
+    }
+
+    // 批量分类容器
+    .batch-category-container {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+    }
+
+    .category-selector-compact {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        flex: 1;
+        min-height: 36px;
+        padding: 6px;
+        // border: 1px solid var(--b3-border-color);
+        border-radius: 6px;
+        background: var(--b3-theme-background);
+        max-height: 80px;
+        overflow-y: auto;
+    }
+
+    .category-option-compact {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        border: 1px solid var(--b3-border-color);
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background: var(--b3-theme-background);
+        font-size: 12px;
+        white-space: nowrap;
+        min-height: 24px;
+        position: relative;
+
+        &:hover {
+            background: var(--b3-theme-surface-light);
+            border-color: var(--b3-theme-primary-light);
+            transform: translateY(-1px);
+        }
+
+        &.selected {
+            border-color: var(--b3-theme-primary);
+            background: var(--b3-theme-primary-lightest);
+            color: var(--b3-theme-primary);
+            font-weight: 500;
+            transform: scale(1.02);
+        }
+
+        &.selected::after {
+            content: '✓';
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 12px;
+            height: 12px;
+            background: var(--b3-theme-primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            font-weight: bold;
+            border: 2px solid white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        // 无分类选项特殊样式
+        &[data-category=""] {
+            background: var(--b3-theme-background);
+            color: var(--b3-theme-on-surface-light);
+            border-style: dashed;
+        }
+
+        &[data-category=""]:hover {
+            background: var(--b3-theme-surface-light);
+            color: var(--b3-theme-on-background);
+            border-style: solid;
+        }
+
+        &[data-category=""].selected {
+            background: var(--b3-theme-primary-lightest);
+            color: var(--b3-theme-primary);
+            border-style: solid;
+            border-color: var(--b3-theme-primary);
+        }
+
+        // 有颜色的分类选项
+        &[data-category]:not([data-category=""]) {
+            color: white;
+            text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.3);
+
+            &:hover {
+                filter: brightness(1.1);
+                border-color: rgba(255, 255, 255, 0.6);
+            }
+
+            &.selected {
+                border-color: white;
+                box-shadow: 0 0 0 2px var(--b3-theme-primary);
+                filter: brightness(1.2);
+            }
+
+            &.selected::after {
+                background: white;
+                color: var(--b3-theme-primary);
+            }
+        }
+    }
+
+    // 批量优先级容器
+    .batch-priority-container {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+    }
+
+    .priority-selector-compact {
+        display: flex;
+        gap: 6px;
+        flex: 1;
+        padding: 6px;
+        // border: 1px solid var(--b3-border-color);
+        border-radius: 6px;
+        background: var(--b3-theme-background);
+    }
+
+    .priority-option-compact {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        border: 1px solid var(--b3-border-color);
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background: var(--b3-theme-background);
+        font-size: 12px;
+        white-space: nowrap;
+        min-height: 24px;
+        position: relative;
+
+        &:hover {
+            background: var(--b3-theme-surface-light);
+            border-color: var(--b3-theme-primary-light);
+            transform: translateY(-1px);
+        }
+
+        &.selected {
+            border-color: var(--b3-theme-primary);
+            background: var(--b3-theme-primary-lightest);
+            color: var(--b3-theme-primary);
+            font-weight: 500;
+            transform: scale(1.02);
+        }
+
+        &.selected::after {
+            content: '✓';
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 12px;
+            height: 12px;
+            background: var(--b3-theme-primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            font-weight: bold;
+            border: 2px solid white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+    }
+
+    // 批量日期容器
+    .batch-date-container {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+
+        #batchDateInput {
+            flex: 1;
+            min-width: 0;
+        }
+
+        #batchApplyDateBtn {
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+
+        #batchNlDateBtn {
+            flex-shrink: 0;
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            border-radius: 6px;
+            title: "智能日期识别";
+        }
+
+        @media (max-width: 576px) {
+            flex-wrap: wrap;
+            gap: 8px;
+
+            #batchDateInput {
+                flex: 1 1 100%;
+            }
+
+            #batchApplyDateBtn {
+                flex: 1;
+            }
+
+            #batchNlDateBtn {
+                width: 40px;
+            }
+        }
+    }
+
+    // 批量应用按钮样式
+    #batchApplyCategoryBtn,
+    #batchApplyPriorityBtn,
+    #batchApplyDateBtn {
+        flex-shrink: 0;
+        padding: 8px 16px;
+        font-size: 12px;
+        font-weight: 500;
+        border-radius: 6px;
+        transition: all 0.2s ease;
+        position: relative;
+        overflow: hidden;
+
+        &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            background: var(--b3-theme-surface-light);
+            color: var(--b3-theme-on-surface-light);
+        }
+
+        &:not(:disabled):hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        &:not(:disabled):active {
+            transform: translateY(0);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        &::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            transition: left 0.5s ease;
+        }
+
+        &:hover::before {
+            left: 100%;
+        }
+    }
+
     .block-list-header {
         margin-bottom: 16px;
         padding: 12px 16px;
         background: linear-gradient(135deg, var(--b3-theme-primary-lightest), var(--b3-theme-surface-light));
         border-radius: 8px;
         border: 1px solid var(--b3-theme-primary-light);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+
+        @media (max-width: 576px) {
+            flex-direction: column;
+            align-items: stretch;
+        }
     }
 
     .list-summary {
         display: flex;
         align-items: center;
         gap: 8px;
+    }
+
+    .list-actions {
+        display: flex;
+        gap: 8px;
+
+        button {
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+
+            &:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            }
+        }
     }
 
     .summary-text {
@@ -80,6 +477,25 @@
         transform: scaleY(1);
     }
 
+    // 块复选框样式
+    .block-checkbox {
+        flex-shrink: 0;
+        margin-right: 12px;
+
+        .b3-checkbox {
+            display: flex;
+            align-items: center;
+        }
+
+        .block-select-checkbox {
+            margin: 0;
+        }
+
+        .b3-checkbox__graphic {
+            margin-right: 0;
+        }
+    }
+
     .block-info {
         display: flex;
         align-items: center;
@@ -108,14 +524,28 @@
         font-size: 14px;
         font-weight: 500;
         color: var(--b3-theme-on-background);
-        margin-bottom: 4px;
+        margin-bottom: 6px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
         line-height: 1.3;
     }
 
+    // 块元数据样式
+    .block-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
     .block-datetime {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+    }
+
+    .block-attributes {
         display: flex;
         align-items: center;
         gap: 8px;
@@ -142,6 +572,51 @@
     .block-time::before {
         content: "⏰";
         margin-right: 4px;
+    }
+
+    .block-category {
+        font-size: 11px;
+
+        span {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+    }
+
+    .block-priority {
+        font-size: 11px;
+
+        .priority-badge {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+
+            &.high {
+                background: rgba(231, 76, 60, 0.1);
+                color: #e74c3c;
+            }
+
+            &.medium {
+                background: rgba(243, 156, 18, 0.1);
+                color: #f39c12;
+            }
+
+            &.low {
+                background: rgba(52, 152, 219, 0.1);
+                color: #3498db;
+            }
+
+            &.none {
+                background: rgba(149, 165, 166, 0.1);
+                color: #95a5a6;
+            }
+        }
     }
 
     .block-actions {
@@ -218,6 +693,18 @@
         from {
             opacity: 0;
             transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
         }
 
         to {
@@ -528,14 +1015,17 @@
     flex: 1;
     overflow: hidden;
 }
-.fc-event.completed{
+
+.fc-event.completed {
     opacity: 0.3;
 }
+
 .fc-event.completed .reminder-calendar-event-content {
     text-decoration: line-through;
 
 }
-.fc-event.completed .reminder-calendar-event-content .fc-event-title{
+
+.fc-event.completed .reminder-calendar-event-content .fc-event-title {
     text-decoration: line-through;
 
 }

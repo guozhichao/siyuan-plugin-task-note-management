@@ -239,9 +239,88 @@ class SmartBatchDialog {
             <div class="smart-batch-dialog">
                 <div class="b3-dialog__content">
                     <div class="fn__hr"></div>
+                    
+                    <!-- 批量操作面板 -->
+                    <div class="batch-operations-panel">
+                        <div class="batch-operations-header">
+                            <h3>🚀 批量操作</h3>
+                            <div class="batch-toggle">
+                                <button type="button" id="batchToggleBtn" class="b3-button b3-button--outline">
+                                    <span>展开</span>
+                                    <svg class="b3-button__icon toggle-icon"><use xlink:href="#iconDown"></use></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="batch-operations-content" id="batchOperationsContent" style="display: none;">
+                            <div class="batch-operation-row">
+                                <div class="batch-operation-item">
+                                    <label class="b3-form__label">批量设置分类</label>
+                                    <div class="batch-category-container">
+                                        <div class="category-selector-compact" id="batchCategorySelector">
+                                            <!-- 分类选择器将在这里渲染 -->
+                                        </div>
+                                        <button type="button" id="batchApplyCategoryBtn" class="b3-button b3-button--primary" disabled>
+                                            应用到全部
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="batch-operation-item">
+                                    <label class="b3-form__label">批量设置优先级</label>
+                                    <div class="batch-priority-container">
+                                        <div class="priority-selector-compact" id="batchPrioritySelector">
+                                            <div class="priority-option-compact" data-priority="high">
+                                                <div class="priority-dot high"></div>
+                                                <span>高</span>
+                                            </div>
+                                            <div class="priority-option-compact" data-priority="medium">
+                                                <div class="priority-dot medium"></div>
+                                                <span>中</span>
+                                            </div>
+                                            <div class="priority-option-compact" data-priority="low">
+                                                <div class="priority-dot low"></div>
+                                                <span>低</span>
+                                            </div>
+                                            <div class="priority-option-compact" data-priority="none">
+                                                <div class="priority-dot none"></div>
+                                                <span>无</span>
+                                            </div>
+                                        </div>
+                                        <button type="button" id="batchApplyPriorityBtn" class="b3-button b3-button--primary" disabled>
+                                            应用到全部
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="batch-operation-row">
+                                <div class="batch-operation-item full-width">
+                                    <label class="b3-form__label">批量设置日期</label>
+                                    <div class="batch-date-container">
+                                        <input type="date" id="batchDateInput" class="b3-text-field" value="${getLocalDateString()}">
+                                        <button type="button" id="batchApplyDateBtn" class="b3-button b3-button--primary">
+                                            应用日期到全部
+                                        </button>
+                                        <button type="button" id="batchNlDateBtn" class="b3-button b3-button--outline" title="智能日期识别">
+                                            ✨
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="fn__hr"></div>
+                    
                     <div class="block-list-header">
                         <div class="list-summary">
                             <span class="summary-text">共 ${this.blockIds.length} 个块，其中 ${this.autoDetectedData.filter(d => d.date).length} 个已自动识别日期</span>
+                        </div>
+                        <div class="list-actions">
+                            <button type="button" id="selectAllBtn" class="b3-button b3-button--outline">
+                                全选
+                            </button>
+                            <button type="button" id="deselectAllBtn" class="b3-button b3-button--outline">
+                                取消全选
+                            </button>
                         </div>
                     </div>
                     <div class="block-list-container" id="blockListContainer">
@@ -266,15 +345,31 @@ class SmartBatchDialog {
             const dateDisplay = setting?.date ? new Date(setting.date + 'T00:00:00').toLocaleDateString('zh-CN') : '未设置';
             const timeDisplay = setting?.hasTime && setting.time ? setting.time : '全天';
 
+            // 获取分类和优先级显示
+            const categoryDisplay = this.getCategoryDisplay(setting?.categoryId);
+            const priorityDisplay = this.getPriorityDisplay(setting?.priority);
+
             return `
                 <div class="block-item" data-block-id="${data.blockId}">
+                    <div class="block-checkbox">
+                        <label class="b3-checkbox">
+                            <input type="checkbox" class="block-select-checkbox" data-block-id="${data.blockId}" checked>
+                            <span class="b3-checkbox__graphic"></span>
+                        </label>
+                    </div>
                     <div class="block-info">
                         <div class="block-status">${dateStatus}</div>
                         <div class="block-content">
                             <div class="block-title">${setting?.cleanTitle || data.content}</div>
-                            <div class="block-datetime">
-                                <span class="block-date">${dateDisplay}</span>
-                                <span class="block-time">${timeDisplay}</span>
+                            <div class="block-meta">
+                                <div class="block-datetime">
+                                    <span class="block-date">${dateDisplay}</span>
+                                    <span class="block-time">${timeDisplay}</span>
+                                </div>
+                                <div class="block-attributes">
+                                    <span class="block-category">${categoryDisplay}</span>
+                                    <span class="block-priority">${priorityDisplay}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -294,10 +389,117 @@ class SmartBatchDialog {
         `;
     }
 
+    private getCategoryDisplay(categoryId?: string): string {
+        if (!categoryId) return '📂 无分类';
+
+        try {
+            const categories = this.plugin.categoryManager.getCategories();
+            const category = categories.find(c => c.id === categoryId);
+            if (category) {
+                return `<span style="background-color: ${category.color}; padding: 2px 6px; border-radius: 3px; font-size: 12px;">${category.icon ? category.icon + ' ' : ''}${category.name}</span>`;
+            }
+        } catch (error) {
+            console.error('获取分类显示失败:', error);
+        }
+
+        return '📂 无分类';
+    }
+
+    private getPriorityDisplay(priority?: string): string {
+        const priorityMap = {
+            'high': '<span class="priority-badge high">🔴 高</span>',
+            'medium': '<span class="priority-badge medium">🟡 中</span>',
+            'low': '<span class="priority-badge low">🟢 低</span>',
+            'none': '<span class="priority-badge none">⚪ 无</span>'
+        };
+
+        return priorityMap[priority as keyof typeof priorityMap] || priorityMap.none;
+    }
+
     private bindSmartBatchEvents(dialog: Dialog) {
         const cancelBtn = dialog.element.querySelector('#smartBatchCancelBtn') as HTMLButtonElement;
         const confirmBtn = dialog.element.querySelector('#smartBatchConfirmBtn') as HTMLButtonElement;
         const container = dialog.element.querySelector('#blockListContainer') as HTMLElement;
+
+        // 批量操作相关元素
+        const batchToggleBtn = dialog.element.querySelector('#batchToggleBtn') as HTMLButtonElement;
+        const batchOperationsContent = dialog.element.querySelector('#batchOperationsContent') as HTMLElement;
+        const batchApplyCategoryBtn = dialog.element.querySelector('#batchApplyCategoryBtn') as HTMLButtonElement;
+        const batchApplyPriorityBtn = dialog.element.querySelector('#batchApplyPriorityBtn') as HTMLButtonElement;
+        const batchApplyDateBtn = dialog.element.querySelector('#batchApplyDateBtn') as HTMLButtonElement;
+        const batchNlDateBtn = dialog.element.querySelector('#batchNlDateBtn') as HTMLButtonElement;
+        const selectAllBtn = dialog.element.querySelector('#selectAllBtn') as HTMLButtonElement;
+        const deselectAllBtn = dialog.element.querySelector('#deselectAllBtn') as HTMLButtonElement;
+
+        // 渲染批量分类选择器
+        this.renderBatchCategorySelector(dialog);
+
+        // 批量操作面板切换
+        batchToggleBtn?.addEventListener('click', () => {
+            const isVisible = batchOperationsContent.style.display !== 'none';
+            batchOperationsContent.style.display = isVisible ? 'none' : 'block';
+            const toggleIcon = batchToggleBtn.querySelector('.toggle-icon use');
+            const toggleText = batchToggleBtn.querySelector('span');
+            if (toggleIcon && toggleText) {
+                toggleIcon.setAttribute('xlink:href', isVisible ? '#iconDown' : '#iconUp');
+                toggleText.textContent = isVisible ? '展开' : '收起';
+            }
+        });
+
+        // 全选/取消全选
+        selectAllBtn?.addEventListener('click', () => {
+            const checkboxes = dialog.element.querySelectorAll('.block-select-checkbox') as NodeListOf<HTMLInputElement>;
+            checkboxes.forEach(checkbox => checkbox.checked = true);
+        });
+
+        deselectAllBtn?.addEventListener('click', () => {
+            const checkboxes = dialog.element.querySelectorAll('.block-select-checkbox') as NodeListOf<HTMLInputElement>;
+            checkboxes.forEach(checkbox => checkbox.checked = false);
+        });
+
+        // 批量分类选择
+        const batchCategorySelector = dialog.element.querySelector('#batchCategorySelector') as HTMLElement;
+        batchCategorySelector?.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const option = target.closest('.category-option-compact') as HTMLElement;
+            if (option) {
+                batchCategorySelector.querySelectorAll('.category-option-compact').forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+                batchApplyCategoryBtn.disabled = false;
+            }
+        });
+
+        // 批量优先级选择
+        const batchPrioritySelector = dialog.element.querySelector('#batchPrioritySelector') as HTMLElement;
+        batchPrioritySelector?.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const option = target.closest('.priority-option-compact') as HTMLElement;
+            if (option) {
+                batchPrioritySelector.querySelectorAll('.priority-option-compact').forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+                batchApplyPriorityBtn.disabled = false;
+            }
+        });
+
+        // 批量应用分类
+        batchApplyCategoryBtn?.addEventListener('click', () => {
+            this.batchApplyCategory(dialog);
+        });
+
+        // 批量应用优先级
+        batchApplyPriorityBtn?.addEventListener('click', () => {
+            this.batchApplyPriority(dialog);
+        });
+
+        // 批量应用日期
+        batchApplyDateBtn?.addEventListener('click', () => {
+            this.batchApplyDate(dialog);
+        });
+
+        // 批量智能日期识别
+        batchNlDateBtn?.addEventListener('click', () => {
+            this.showBatchNaturalLanguageDialog(dialog);
+        });
 
         // 取消按钮
         cancelBtn?.addEventListener('click', () => {
@@ -321,7 +523,161 @@ class SmartBatchDialog {
             }
         });
     }
+    private showBatchNaturalLanguageDialog(dialog: Dialog) {
+        const nlDialog = new Dialog({
+            title: "✨ 批量智能日期识别",
+            content: `
+                <div class="nl-dialog">
+                    <div class="b3-dialog__content">
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">输入自然语言描述</label>
+                            <input type="text" id="batchNlInput" class="b3-text-field" placeholder="例如：明天下午3点、下周五、3天后等" style="width: 100%;" autofocus>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">识别结果预览</label>
+                            <div id="batchNlPreview" class="nl-preview">请输入日期时间描述</div>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">应用范围</label>
+                            <div id="batchNlScope" class="nl-scope">将应用到所有选中的块</div>
+                        </div>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="batchNlCancelBtn">取消</button>
+                        <button class="b3-button b3-button--primary" id="batchNlConfirmBtn" disabled>批量应用</button>
+                    </div>
+                </div>
+            `,
+            width: "400px",
+            height: "350px"
+        });
 
+        this.bindBatchNaturalLanguageEvents(nlDialog, dialog);
+    }
+    private bindBatchNaturalLanguageEvents(nlDialog: Dialog, parentDialog: Dialog) {
+        const nlInput = nlDialog.element.querySelector('#batchNlInput') as HTMLInputElement;
+        const nlPreview = nlDialog.element.querySelector('#batchNlPreview') as HTMLElement;
+        const nlScope = nlDialog.element.querySelector('#batchNlScope') as HTMLElement;
+        const nlCancelBtn = nlDialog.element.querySelector('#batchNlCancelBtn') as HTMLButtonElement;
+        const nlConfirmBtn = nlDialog.element.querySelector('#batchNlConfirmBtn') as HTMLButtonElement;
+
+        const selectedCount = this.getSelectedBlockIds(parentDialog).length;
+        nlScope.textContent = `将应用到 ${selectedCount} 个选中的块`;
+
+        let currentParseResult: { date?: string; time?: string; hasTime?: boolean } = {};
+
+        // 实时解析输入
+        const updatePreview = () => {
+            const text = nlInput.value.trim();
+            if (!text) {
+                nlPreview.textContent = '请输入日期时间描述';
+                nlPreview.className = 'nl-preview';
+                nlConfirmBtn.disabled = true;
+                return;
+            }
+
+            const batchDialog = new BatchReminderDialog(this.plugin);
+            currentParseResult = (batchDialog as any).parseNaturalDateTime(text);
+
+            if (currentParseResult.date) {
+                const dateStr = new Date(currentParseResult.date + 'T00:00:00').toLocaleDateString('zh-CN', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    weekday: 'long'
+                });
+
+                let previewText = `📅 ${dateStr}`;
+                if (currentParseResult.time) {
+                    previewText += ` ⏰ ${currentParseResult.time}`;
+                }
+
+                nlPreview.textContent = previewText;
+                nlPreview.className = 'nl-preview nl-preview--success';
+                nlConfirmBtn.disabled = selectedCount === 0;
+            } else {
+                nlPreview.textContent = '❌ 无法识别日期时间，请尝试其他表达方式';
+                nlPreview.className = 'nl-preview nl-preview--error';
+                nlConfirmBtn.disabled = true;
+            }
+        };
+
+        nlInput.addEventListener('input', updatePreview);
+        nlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !nlConfirmBtn.disabled) {
+                this.applyBatchNaturalLanguageResult(parentDialog, currentParseResult);
+                nlDialog.destroy();
+            }
+        });
+
+        nlCancelBtn.addEventListener('click', () => {
+            nlDialog.destroy();
+        });
+
+        nlConfirmBtn.addEventListener('click', () => {
+            this.applyBatchNaturalLanguageResult(parentDialog, currentParseResult);
+            nlDialog.destroy();
+        });
+
+        setTimeout(() => {
+            nlInput.focus();
+        }, 100);
+    }
+    private applyBatchNaturalLanguageResult(dialog: Dialog, result: { date?: string; time?: string; hasTime?: boolean }) {
+        if (!result.date) return;
+
+        const selectedBlocks = this.getSelectedBlockIds(dialog);
+        if (selectedBlocks.length === 0) {
+            showMessage('请先选择要应用的块');
+            return;
+        }
+
+        selectedBlocks.forEach(blockId => {
+            const setting = this.blockSettings.get(blockId);
+            if (setting) {
+                setting.date = result.date!;
+                if (result.hasTime && result.time) {
+                    setting.time = result.time;
+                    setting.hasTime = true;
+                } else {
+                    setting.time = '';
+                    setting.hasTime = false;
+                }
+            }
+        });
+
+        this.updateBlockListDisplay(dialog);
+
+        const dateStr = new Date(result.date + 'T00:00:00').toLocaleDateString('zh-CN');
+        showMessage(`✨ 已为 ${selectedBlocks.length} 个块设置日期时间：${dateStr}${result.time ? ` ${result.time}` : ''}`);
+    }
+    private getSelectedBlockIds(dialog: Dialog): string[] {
+        const checkboxes = dialog.element.querySelectorAll('.block-select-checkbox:checked') as NodeListOf<HTMLInputElement>;
+        return Array.from(checkboxes).map(checkbox => checkbox.getAttribute('data-block-id')).filter(Boolean) as string[];
+    }
+
+    private updateBlockListDisplay(dialog: Dialog) {
+        // 重新渲染块列表以反映更新
+        this.renderBlockList(dialog);
+        // 重新绑定事件（只绑定块相关的事件）
+        this.bindBlockListEvents(dialog);
+    }
+
+    private bindBlockListEvents(dialog: Dialog) {
+        const container = dialog.element.querySelector('#blockListContainer') as HTMLElement;
+
+        // 设置按钮事件
+        container?.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const editBtn = target.closest('.block-edit-btn') as HTMLElement;
+            if (editBtn) {
+                const blockId = editBtn.getAttribute('data-block-id');
+                if (blockId) {
+                    this.showBlockEditDialog(dialog, blockId);
+                }
+            }
+        });
+    }
     private showBlockEditDialog(parentDialog: Dialog, blockId: string) {
         const setting = this.blockSettings.get(blockId);
         if (!setting) return;
@@ -332,6 +688,106 @@ class SmartBatchDialog {
         });
 
         blockEditDialog.show();
+    }
+
+    private async renderBatchCategorySelector(dialog: Dialog) {
+        const categorySelector = dialog.element.querySelector('#batchCategorySelector') as HTMLElement;
+        if (!categorySelector) return;
+
+        try {
+            const categories = this.plugin.categoryManager.getCategories();
+
+            categorySelector.innerHTML = '';
+
+            const noCategoryEl = document.createElement('div');
+            noCategoryEl.className = 'category-option-compact';
+            noCategoryEl.setAttribute('data-category', '');
+            noCategoryEl.innerHTML = `<span>无分类</span>`;
+            categorySelector.appendChild(noCategoryEl);
+
+            categories.forEach(category => {
+                const categoryEl = document.createElement('div');
+                categoryEl.className = 'category-option-compact';
+                categoryEl.setAttribute('data-category', category.id);
+                categoryEl.style.backgroundColor = category.color;
+                categoryEl.innerHTML = `<span>${category.icon ? category.icon + ' ' : ''}${category.name}</span>`;
+                categorySelector.appendChild(categoryEl);
+            });
+
+        } catch (error) {
+            console.error('渲染批量分类选择器失败:', error);
+            categorySelector.innerHTML = '<div class="category-error">加载分类失败</div>';
+        }
+    }
+
+    private batchApplyCategory(dialog: Dialog) {
+        const selectedCategory = dialog.element.querySelector('#batchCategorySelector .category-option-compact.selected') as HTMLElement;
+        if (!selectedCategory) return;
+
+        const categoryId = selectedCategory.getAttribute('data-category') || '';
+        const selectedBlocks = this.getSelectedBlockIds(dialog);
+
+        if (selectedBlocks.length === 0) {
+            showMessage('请先选择要应用的块');
+            return;
+        }
+
+        selectedBlocks.forEach(blockId => {
+            const setting = this.blockSettings.get(blockId);
+            if (setting) {
+                setting.categoryId = categoryId;
+            }
+        });
+
+        this.updateBlockListDisplay(dialog);
+        showMessage(`✅ 已为 ${selectedBlocks.length} 个块设置分类`);
+    }
+
+    private batchApplyPriority(dialog: Dialog) {
+        const selectedPriority = dialog.element.querySelector('#batchPrioritySelector .priority-option-compact.selected') as HTMLElement;
+        if (!selectedPriority) return;
+
+        const priority = selectedPriority.getAttribute('data-priority') || 'none';
+        const selectedBlocks = this.getSelectedBlockIds(dialog);
+
+        if (selectedBlocks.length === 0) {
+            showMessage('请先选择要应用的块');
+            return;
+        }
+
+        selectedBlocks.forEach(blockId => {
+            const setting = this.blockSettings.get(blockId);
+            if (setting) {
+                setting.priority = priority;
+            }
+        });
+
+        this.updateBlockListDisplay(dialog);
+        showMessage(`✅ 已为 ${selectedBlocks.length} 个块设置优先级`);
+    }
+
+    private batchApplyDate(dialog: Dialog) {
+        const dateInput = dialog.element.querySelector('#batchDateInput') as HTMLInputElement;
+        if (!dateInput.value) {
+            showMessage('请先选择日期');
+            return;
+        }
+
+        const selectedBlocks = this.getSelectedBlockIds(dialog);
+        if (selectedBlocks.length === 0) {
+            showMessage('请先选择要应用的块');
+            return;
+        }
+
+        selectedBlocks.forEach(blockId => {
+            const setting = this.blockSettings.get(blockId);
+            if (setting) {
+                setting.date = dateInput.value;
+            }
+        });
+
+        this.updateBlockListDisplay(dialog);
+        showMessage(`✅ 已为 ${selectedBlocks.length} 个块设置日期`);
     }
 
     private updateBlockDisplay(dialog: Dialog, blockId: string) {
