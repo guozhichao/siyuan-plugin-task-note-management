@@ -14,13 +14,13 @@ import {
 import "./index.scss";
 import { ReminderDialog } from "./components/ReminderDialog";
 import { ReminderPanel } from "./components/ReminderPanel";
+import { BatchReminderDialog } from "./components/BatchReminderDialog";
 import { ensureReminderDataFile, updateBlockReminderBookmark } from "./api";
 import { CalendarView } from "./components/CalendarView";
 import { CategoryManager } from "./utils/categoryManager";
 import { getLocalDateString, getLocalTimeString, compareDateStrings } from "./utils/dateUtils";
 import { t, setPluginInstance } from "./utils/i18n";
 import { RepeatConfig } from "./components/RepeatSettingsDialog";
-import { getRepeatDescription } from "./utils/repeatUtils";
 import { SettingUtils } from "./libs/setting-utils";
 import { PomodoroRecordManager } from "./utils/pomodoroRecord";
 import { RepeatSettingsDialog } from "./components/RepeatSettingsDialog";
@@ -28,6 +28,7 @@ import { NotificationDialog } from "./components/NotificationDialog";
 const STORAGE_NAME = "reminder-config";
 const SETTINGS_NAME = "reminder-settings";
 const TAB_TYPE = "reminder_calendar_tab";
+import * as chrono from 'chrono-node';
 
 export default class ReminderPlugin extends Plugin {
     private dockPanel: HTMLElement;
@@ -36,21 +37,18 @@ export default class ReminderPlugin extends Plugin {
     private dockElement: HTMLElement;
     private calendarViews: Map<string, any> = new Map();
     private categoryManager: CategoryManager;
-    private settingUtils: SettingUtils; // 添加设置工具
-
+    private settingUtils: SettingUtils;
+    private chronoParser: any;
+    private batchReminderDialog: BatchReminderDialog;
     async onload() {
         console.log("Reminder Plugin loaded");
+        this.chronoParser = chrono.zh.casual.clone();
 
-        // 设置插件实例引用
         setPluginInstance(this);
-
-        // 初始化设置
         this.initSettings();
 
-        // 确保提醒数据文件存在
         await ensureReminderDataFile();
 
-        // 确保通知记录文件存在
         try {
             const { ensureNotifyDataFile } = await import("./api");
             await ensureNotifyDataFile();
@@ -58,15 +56,15 @@ export default class ReminderPlugin extends Plugin {
             console.warn('初始化通知记录文件失败:', error);
         }
 
-        // 初始化番茄钟记录管理器
         const pomodoroRecordManager = PomodoroRecordManager.getInstance();
         await pomodoroRecordManager.initialize();
 
-        // 初始化分类管理器
         this.categoryManager = CategoryManager.getInstance();
         await this.categoryManager.initialize();
 
-        // 直接初始化，不再需要延迟
+        // 初始化批量设置对话框
+        this.batchReminderDialog = new BatchReminderDialog(this);
+
         this.initializeUI();
     }
 
@@ -420,16 +418,14 @@ export default class ReminderPlugin extends Plugin {
     }
 
     private handleBlockMenu({ detail }) {
-        // 添加提醒菜单项
         detail.menu.addItem({
             iconHTML: "⏰",
             label: detail.blockElements.length > 1 ? t("batchSetReminderBlocks", { count: detail.blockElements.length.toString() }) : t("setTimeReminder"),
             click: () => {
                 if (detail.blockElements && detail.blockElements.length > 0) {
-                    // 获取所有选中块的ID
                     const blockIds = detail.blockElements
                         .map(el => el.getAttribute("data-node-id"))
-                        .filter(id => id); // 过滤掉空值
+                        .filter(id => id);
 
                     if (blockIds.length > 0) {
                         this.handleMultipleBlocks(blockIds);
@@ -438,356 +434,11 @@ export default class ReminderPlugin extends Plugin {
             }
         });
     }
-
     private async handleMultipleBlocks(blockIds: string[]) {
-        if (blockIds.length === 1) {
-            // 单个块直接打开对话框
-            const dialog = new ReminderDialog(blockIds[0]);
-            dialog.show();
-        } else {
-            // 多个块显示批量设置对话框
-            this.showBatchReminderDialog(blockIds);
-        }
+        // 使用新的批量设置组件
+        await this.batchReminderDialog.show(blockIds);
     }
 
-    private showBatchReminderDialog(blockIds: string[]) {
-        const today = getLocalDateString();
-        const currentTime = getLocalTimeString();
-
-        // 初始化重复配置
-        let batchRepeatConfig: RepeatConfig = {
-            enabled: false,
-            type: 'daily',
-            interval: 1,
-            endType: 'never'
-        };
-
-        const dialog = new Dialog({
-            title: t("batchSetReminderBlocks", { count: blockIds.length.toString() }),
-            content: `
-                <div class="batch-reminder-dialog">
-                    <div class="b3-dialog__content">
-                        <div class="fn__hr"></div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">事件分类</label>
-                            <div class="category-selector" id="batchCategorySelector">
-                                <!-- 分类选择器将在这里渲染 -->
-                            </div>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">${t("priority")}</label>
-                            <div class="priority-selector" id="batchPrioritySelector">
-                                <div class="priority-option" data-priority="high">
-                                    <div class="priority-dot high"></div>
-                                    <span>${t("highPriority")}</span>
-                                </div>
-                                <div class="priority-option" data-priority="medium">
-                                    <div class="priority-dot medium"></div>
-                                    <span>${t("mediumPriority")}</span>
-                                </div>
-                                <div class="priority-option" data-priority="low">
-                                    <div class="priority-dot low"></div>
-                                    <span>${t("lowPriority")}</span>
-                                </div>
-                                <div class="priority-option selected" data-priority="none">
-                                    <div class="priority-dot none"></div>
-                                    <span>${t("noPriority")}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">${t("reminderDate")}</label>
-                            <div class="reminder-date-container">
-                                <input type="date" id="batchReminderDate" class="b3-text-field" value="${today}" required>
-                                <span class="reminder-arrow">→</span>
-                                <input type="date" id="batchReminderEndDate" class="b3-text-field reminder-end-date" placeholder="${t("endDateOptional")}" title="${t("spanningEventDesc")}">
-                            </div>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">${t("reminderTimeOptional")}</label>
-                            <input type="time" id="batchReminderTime" class="b3-text-field" value="${currentTime}">
-                            <div class="b3-form__desc">${t("noTimeDesc")}</div>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-checkbox">
-                                <input type="checkbox" id="batchNoSpecificTime">
-                                <span class="b3-checkbox__graphic"></span>
-                                <span class="b3-checkbox__label">${t("noSpecificTime")}</span>
-                            </label>
-                        </div>
-                        
-                        <!-- 添加重复设置 -->
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">${t("repeatSettings")}</label>
-                            <div class="repeat-setting-container">
-                                <button type="button" id="batchRepeatSettingsBtn" class="b3-button b3-button--outline" style="width: 100%;">
-                                    <span id="batchRepeatDescription">${t("noRepeat")}</span>
-                                    <svg class="b3-button__icon" style="margin-left: auto;"><use xlink:href="#iconRight"></use></svg>
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">${t("reminderNoteOptional")}</label>
-                            <textarea id="batchReminderNote" class="b3-text-field" placeholder="${t("enterReminderNote")}" rows="3" style="resize: vertical; min-height: 60px;width: 100%;"></textarea>
-                        </div>
-                    </div>
-                    <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="batchCancelBtn">${t("cancel")}</button>
-                        <button class="b3-button b3-button--primary" id="batchConfirmBtn">${t("batchSet")}</button>
-                    </div>
-                </div>
-            `,
-            width: "450px",
-            height: "750px" // 增加高度以容纳分类选择器
-        });
-
-        // 渲染分类选择器
-        this.renderBatchCategorySelector(dialog);
-
-        // 绑定事件
-        const cancelBtn = dialog.element.querySelector('#batchCancelBtn') as HTMLButtonElement;
-        const confirmBtn = dialog.element.querySelector('#batchConfirmBtn') as HTMLButtonElement;
-        const noTimeCheckbox = dialog.element.querySelector('#batchNoSpecificTime') as HTMLInputElement;
-        const timeInput = dialog.element.querySelector('#batchReminderTime') as HTMLInputElement;
-        const startDateInput = dialog.element.querySelector('#batchReminderDate') as HTMLInputElement;
-        const endDateInput = dialog.element.querySelector('#batchReminderEndDate') as HTMLInputElement;
-        const prioritySelector = dialog.element.querySelector('#batchPrioritySelector') as HTMLElement;
-        const categorySelector = dialog.element.querySelector('#batchCategorySelector') as HTMLElement;
-        const batchRepeatSettingsBtn = dialog.element.querySelector('#batchRepeatSettingsBtn') as HTMLButtonElement;
-
-        // 优先级选择事件
-        prioritySelector.addEventListener('click', (e) => {
-            const target = e.target as HTMLElement;
-            const option = target.closest('.priority-option') as HTMLElement;
-            if (option) {
-                prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
-                option.classList.add('selected');
-            }
-        });
-
-        // 分类选择事件
-        categorySelector.addEventListener('click', (e) => {
-            const target = e.target as HTMLElement;
-            const option = target.closest('.category-option') as HTMLElement;
-            if (option) {
-                categorySelector.querySelectorAll('.category-option').forEach(opt => opt.classList.remove('selected'));
-                option.classList.add('selected');
-            }
-        });
-
-        // 重复设置按钮
-        batchRepeatSettingsBtn?.addEventListener('click', () => {
-
-            const repeatDialog = new RepeatSettingsDialog(batchRepeatConfig, (config: RepeatConfig) => {
-                batchRepeatConfig = config;
-                updateBatchRepeatDescription();
-            });
-            repeatDialog.show();
-        });
-
-        const updateBatchRepeatDescription = () => {
-            const repeatDescription = dialog.element.querySelector('#batchRepeatDescription') as HTMLElement;
-            if (repeatDescription) {
-                const description = batchRepeatConfig.enabled ? getRepeatDescription(batchRepeatConfig) : t("noRepeat");
-                repeatDescription.textContent = description;
-            }
-        };
-
-        cancelBtn.addEventListener('click', () => {
-            dialog.destroy();
-        });
-
-        confirmBtn.addEventListener('click', async () => {
-            await this.saveBatchReminders(blockIds, dialog, batchRepeatConfig);
-        });
-
-        noTimeCheckbox.addEventListener('change', () => {
-            timeInput.disabled = noTimeCheckbox.checked;
-            if (noTimeCheckbox.checked) {
-                timeInput.value = '';
-            }
-        });
-
-        // 日期验证
-        startDateInput?.addEventListener('change', () => {
-            const startDate = startDateInput.value;
-            const endDate = endDateInput.value;
-
-            if (endDate && endDate < startDate) {
-                endDateInput.value = startDate;
-                showMessage(t("endDateAdjusted"));
-            }
-
-            endDateInput.min = startDate;
-        });
-
-        endDateInput?.addEventListener('change', () => {
-            const startDate = startDateInput.value;
-            const endDate = endDateInput.value;
-
-            if (endDate && endDate < startDate) {
-                endDateInput.value = startDate;
-                showMessage(t("endDateCannotBeEarlier"));
-            }
-        });
-    }
-
-    private async renderBatchCategorySelector(dialog: Dialog) {
-        const categorySelector = dialog.element.querySelector('#batchCategorySelector') as HTMLElement;
-        if (!categorySelector) return;
-
-        try {
-            const categories = this.categoryManager.getCategories();
-
-            // 清空并重新构建，使用横向布局
-            categorySelector.innerHTML = '';
-
-            // 添加无分类选项
-            const noCategoryEl = document.createElement('div');
-            noCategoryEl.className = 'category-option selected';
-            noCategoryEl.setAttribute('data-category', '');
-            noCategoryEl.innerHTML = `<span>无分类</span>`;
-            categorySelector.appendChild(noCategoryEl);
-
-            // 添加所有分类选项
-            categories.forEach(category => {
-                const categoryEl = document.createElement('div');
-                categoryEl.className = 'category-option';
-                categoryEl.setAttribute('data-category', category.id);
-                categoryEl.style.backgroundColor = category.color;
-                categoryEl.innerHTML = `<span>${category.icon ? category.icon + ' ' : ''}${category.name}</span>`;
-                categorySelector.appendChild(categoryEl);
-            });
-
-        } catch (error) {
-            console.error('渲染批量分类选择器失败:', error);
-            categorySelector.innerHTML = '<div class="category-error">加载分类失败</div>';
-        }
-    }
-
-    private async saveBatchReminders(blockIds: string[], dialog: Dialog, repeatConfig?: RepeatConfig) {
-        const dateInput = dialog.element.querySelector('#batchReminderDate') as HTMLInputElement;
-        const endDateInput = dialog.element.querySelector('#batchReminderEndDate') as HTMLInputElement;
-        const timeInput = dialog.element.querySelector('#batchReminderTime') as HTMLInputElement;
-        const noTimeCheckbox = dialog.element.querySelector('#batchNoSpecificTime') as HTMLInputElement;
-        const noteInput = dialog.element.querySelector('#batchReminderNote') as HTMLTextAreaElement;
-        const selectedPriority = dialog.element.querySelector('#batchPrioritySelector .priority-option.selected') as HTMLElement;
-        const selectedCategory = dialog.element.querySelector('#batchCategorySelector .category-option.selected') as HTMLElement;
-
-        const date = dateInput.value;
-        const endDate = endDateInput.value;
-        const time = noTimeCheckbox.checked ? undefined : timeInput.value;
-        const note = noteInput.value.trim() || undefined;
-        const priority = selectedPriority?.getAttribute('data-priority') || 'none';
-        const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
-
-        if (!date) {
-            showMessage(t("pleaseSelectDate"));
-            return;
-        }
-
-        if (endDate && endDate < date) {
-            showMessage(t("endDateCannotBeEarlier"));
-            return;
-        }
-
-        try {
-            const { readReminderData, writeReminderData, getBlockByID } = await import("./api");
-            const reminderData = await readReminderData();
-
-            let successCount = 0;
-            let failureCount = 0;
-            const successfulBlockIds: string[] = [];
-
-            for (const blockId of blockIds) {
-                try {
-                    const block = await getBlockByID(blockId);
-                    if (block) {
-                        const reminderId = `${blockId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                        const reminder = {
-                            id: reminderId,
-                            blockId: blockId,
-                            docId: block.root_id || blockId, // 添加文档ID字段
-                            title: block.content || t("unnamedNote"),
-                            date: date,
-                            completed: false,
-                            priority: priority,
-                            categoryId: categoryId, // 添加分类ID
-                            pomodoroCount: 0, // 初始化番茄数量
-                            createdAt: new Date().toISOString(),
-                            repeat: repeatConfig?.enabled ? repeatConfig : undefined
-                        };
-
-                        if (endDate && endDate !== date) {
-                            reminder.endDate = endDate;
-                        }
-
-                        if (time) {
-                            reminder.time = time;
-                        }
-
-                        if (note) {
-                            reminder.note = note;
-                        }
-
-                        reminderData[reminderId] = reminder;
-                        successCount++;
-                        successfulBlockIds.push(blockId);
-                    } else {
-                        failureCount++;
-                    }
-                } catch (error) {
-                    console.error(`设置块 ${blockId} 提醒失败:`, error);
-                    failureCount++;
-                }
-            }
-
-            await writeReminderData(reminderData);
-
-            // 为所有成功创建提醒的块添加书签
-            for (const blockId of successfulBlockIds) {
-                try {
-                    await updateBlockReminderBookmark(blockId);
-                } catch (error) {
-                    console.error(`更新块 ${blockId} 书签失败:`, error);
-                }
-            }
-
-            if (successCount > 0) {
-                const isSpanning = endDate && endDate !== date;
-                const timeStr = time ? ` ${time}` : '';
-                const dateStr = isSpanning ? `${date} → ${endDate}${timeStr}` : `${date}${timeStr}`;
-                const spanningText = isSpanning ? t("spanning") : '';
-                const failureText = failureCount > 0 ? t("batchFailure", { count: failureCount.toString() }) : '';
-                const repeatText = repeatConfig?.enabled ? `，${getRepeatDescription(repeatConfig)}` : '';
-
-                let categoryText = '';
-                if (categoryId) {
-                    const category = this.categoryManager.getCategoryById(categoryId);
-                    if (category) {
-                        categoryText = `，分类：${category.name}`;
-                    }
-                }
-
-                showMessage(t("batchSuccess", {
-                    count: successCount.toString(),
-                    spanning: spanningText,
-                    date: dateStr,
-                    failure: failureText
-                }) + repeatText + categoryText);
-            } else {
-                showMessage(t("batchSetFailed"));
-            }
-
-            dialog.destroy();
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
-
-        } catch (error) {
-            console.error('批量保存提醒失败:', error);
-            showMessage(t("batchSaveFailed"));
-        }
-    }
 
     private startReminderCheck() {
         // 每30s检查一次提醒
@@ -1092,12 +743,24 @@ export default class ReminderPlugin extends Plugin {
         // 已经提醒过了
         if (reminder.notified) return false;
 
+        // 比较当前时间和提醒时间
+        const reminderTime = reminder.time;
+        const currentTimeNumber = this.timeStringToNumber(currentTime);
+        const reminderTimeNumber = this.timeStringToNumber(reminderTime);
 
-
-        // 如果当前时间等于或超过提醒时间，且在提醒时间后的5分钟内
-        return true;
+        // 当前时间必须达到或超过提醒时间
+        return currentTimeNumber >= reminderTimeNumber;
     }
 
+    // 时间字符串转换为数字便于比较 (HH:MM -> HHMM)
+    private timeStringToNumber(timeString: string): number {
+        if (!timeString) return 0;
+        const parts = timeString.split(':');
+        if (parts.length !== 2) return 0;
+        const hours = parseInt(parts[0], 10);
+        const minutes = parseInt(parts[1], 10);
+        return hours * 100 + minutes;
+    }
 
     // 显示时间提醒
     private async showTimeReminder(reminder: any) {
