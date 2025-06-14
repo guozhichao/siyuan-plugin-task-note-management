@@ -162,10 +162,11 @@ export class NotificationDialog {
             }
         };
 
-        // 判断是否过期
+        // 判断是否过期 - 修改为考虑跨天事件的结束日期
         const isOverdue = (reminder: ReminderInfo) => {
-            const reminderDate = reminder.date;
-            return reminderDate < today;
+            // 如果有结束日期，使用结束日期判断；否则使用开始日期
+            const effectiveDate = reminder.endDate || reminder.date;
+            return effectiveDate < today;
         };
 
         // 获取优先级文字
