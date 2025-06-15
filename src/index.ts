@@ -25,6 +25,7 @@ import { SettingUtils } from "./libs/setting-utils";
 import { PomodoroRecordManager } from "./utils/pomodoroRecord";
 import { RepeatSettingsDialog } from "./components/RepeatSettingsDialog";
 import { NotificationDialog } from "./components/NotificationDialog";
+import { DocumentReminderDialog } from "./components/DocumentReminderDialog";
 const STORAGE_NAME = "reminder-config";
 const SETTINGS_NAME = "reminder-settings";
 const TAB_TYPE = "reminder_calendar_tab";
@@ -156,7 +157,7 @@ export default class ReminderPlugin extends Plugin {
             type: "number",
             title: "番茄钟长时休息时长（分钟）",
             description: "设置番茄钟长时休息阶段的时长，默认30分钟"
-                });
+        });
         // 工作时背景音设置
         this.settingUtils.addItem({
             key: "pomodoroWorkSound",
@@ -510,6 +511,18 @@ export default class ReminderPlugin extends Plugin {
                 if (documentId) {
                     const dialog = new ReminderDialog(documentId);
                     dialog.show();
+                }
+            }
+        });
+
+        // 添加文档提醒查看功能
+        detail.menu.addItem({
+            iconHTML: "📋",
+            label: "查看文档所有提醒",
+            click: () => {
+                if (documentId) {
+                    const documentReminderDialog = new DocumentReminderDialog(documentId);
+                    documentReminderDialog.show();
                 }
             }
         });
@@ -926,55 +939,96 @@ export default class ReminderPlugin extends Plugin {
 
         // 检查是否已经添加过按钮
         const existingButton = breadcrumb.querySelector('.reminder-breadcrumb-btn');
-        if (existingButton) return;
+        const existingViewButton = breadcrumb.querySelector('.view-reminder-breadcrumb-btn');
+        if (existingButton && existingViewButton) return;
 
         // 查找文档按钮
         const docButton = breadcrumb.querySelector('button[data-type="doc"]');
         if (!docButton) return;
 
-        // 创建提醒按钮
-        const reminderBtn = document.createElement('button');
-        reminderBtn.className = 'reminder-breadcrumb-btn block__icon fn__flex-center ariaLabel';
-        reminderBtn.setAttribute('aria-label', t("setDocumentReminder"));
-        reminderBtn.innerHTML = `
-            <svg class="b3-list-item__graphic"><use xlink:href="#iconClock"></use></svg>
-        `;
+        // 创建提醒按钮（如果不存在）
+        if (!existingButton) {
+            const reminderBtn = document.createElement('button');
+            reminderBtn.className = 'reminder-breadcrumb-btn block__icon fn__flex-center ariaLabel';
+            reminderBtn.setAttribute('aria-label', t("setDocumentReminder"));
+            reminderBtn.innerHTML = `
+                <svg class="b3-list-item__graphic"><use xlink:href="#iconClock"></use></svg>
+            `;
 
-        // 设置按钮样式
-        reminderBtn.style.cssText = `
-            margin-right: 4px;
-            padding: 4px;
-            border: none;
-            background: transparent;
-            cursor: pointer;
-            border-radius: 4px;
-            color: var(--b3-theme-on-background);
-            opacity: 0.7;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 24px;
-            height: 24px;
-        `;
+            reminderBtn.style.cssText = `
+                margin-right: 4px;
+                padding: 4px;
+                border: none;
+                background: transparent;
+                cursor: pointer;
+                border-radius: 4px;
+                color: var(--b3-theme-on-background);
+                opacity: 0.7;
+                transition: all 0.2s ease;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 24px;
+                height: 24px;
+            `;
 
+            reminderBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
 
-        // 点击事件
-        reminderBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
+                const documentId = protyle.block?.rootID;
+                if (documentId) {
+                    const dialog = new ReminderDialog(documentId);
+                    dialog.show();
+                } else {
+                    showMessage(t("cannotGetDocumentId"));
+                }
+            });
 
-            const documentId = protyle.block?.rootID;
-            if (documentId) {
-                const dialog = new ReminderDialog(documentId);
-                dialog.show();
-            } else {
-                showMessage(t("cannotGetDocumentId"));
-            }
-        });
+            breadcrumb.insertBefore(reminderBtn, docButton);
+        }
 
-        // 在文档按钮前面插入提醒按钮
-        breadcrumb.insertBefore(reminderBtn, docButton);
+        // 创建查看提醒按钮（如果不存在）
+        if (!existingViewButton) {
+            const viewReminderBtn = document.createElement('button');
+            viewReminderBtn.className = 'view-reminder-breadcrumb-btn block__icon fn__flex-center ariaLabel';
+            viewReminderBtn.setAttribute('aria-label', "查看文档所有提醒");
+            viewReminderBtn.innerHTML = `
+                <svg class="b3-list-item__graphic"><use xlink:href="#iconCheck"></use></svg>
+            `;
+
+            viewReminderBtn.style.cssText = `
+                margin-right: 4px;
+                padding: 4px;
+                border: none;
+                background: transparent;
+                cursor: pointer;
+                border-radius: 4px;
+                color: var(--b3-theme-on-background);
+                opacity: 0.7;
+                transition: all 0.2s ease;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 24px;
+                height: 24px;
+            `;
+
+            viewReminderBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const documentId = protyle.block?.rootID;
+                if (documentId) {
+                    const documentReminderDialog = new DocumentReminderDialog(documentId);
+                    documentReminderDialog.show();
+                } else {
+                    showMessage(t("cannotGetDocumentId"));
+                }
+            });
+
+            breadcrumb.insertBefore(viewReminderBtn, docButton);
+        }
     }
 
     onunload() {
@@ -995,7 +1049,7 @@ export default class ReminderPlugin extends Plugin {
         this.calendarViews.clear();
 
         // 清理所有面包屑按钮
-        document.querySelectorAll('.reminder-breadcrumb-btn').forEach(btn => {
+        document.querySelectorAll('.reminder-breadcrumb-btn, .view-reminder-breadcrumb-btn').forEach(btn => {
             btn.remove();
         });
     }
