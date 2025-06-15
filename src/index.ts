@@ -177,7 +177,7 @@ export default class ReminderPlugin extends Plugin {
 
         this.settingUtils.addItem({
             key: "randomNotificationSounds",
-            value: "/plugins/siyuan-plugin-task-note-management/audios/end_music.mp3",
+            value: "/plugins/siyuan-plugin-task-note-management/audios/random_start.mp3",
             type: "textinput",
             title: "随机提示音开始声音",
             description: "设置番茄钟运行时随机提示音的文件路径，留空则不启用"
