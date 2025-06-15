@@ -133,9 +133,6 @@ export default class ReminderPlugin extends Plugin {
             height: "700px"
         });
 
-
-
-
         // 通知提醒声音设置
         this.settingUtils.addItem({
             key: "notificationSound",
@@ -143,6 +140,31 @@ export default class ReminderPlugin extends Plugin {
             type: "textinput",
             title: "通知提醒声音",
             description: "设置事项提醒时播放的声音文件路径，留空则静音"
+        });
+
+        // 随机提示音设置
+        this.settingUtils.addItem({
+            key: "randomNotificationEnabled",
+            value: false,
+            type: "checkbox",
+            title: "启用随机提示音",
+            description: "在番茄钟运行时每3-5分钟播放随机提示音，播放提示音后请休息10s，利用间隔效应和随机奖励，提高专注和工作效率"
+        });
+
+        this.settingUtils.addItem({
+            key: "randomNotificationSounds",
+            value: "/plugins/siyuan-plugin-task-note-management/audios/end_music.mp3",
+            type: "textinput",
+            title: "随机提示音开始声音",
+            description: "设置番茄钟运行时随机提示音的文件路径，留空则不启用"
+        });
+
+        this.settingUtils.addItem({
+            key: "randomNotificationEndSound",
+            value: "/plugins/siyuan-plugin-task-note-management/audios/random_end.mp3",
+            type: "textinput",
+            title: "随机提示音结束声音（随机提示音播放10s后播放）",
+            description: "设置随机提示音播放结束后的提示音文件路径，留空则不播放"
         });
 
         // 番茄钟工作时长设置
@@ -218,7 +240,10 @@ export default class ReminderPlugin extends Plugin {
             workSound: this.settingUtils.get("pomodoroWorkSound") || "",
             breakSound: this.settingUtils.get("pomodoroBreakSound") || "",
             longBreakSound: this.settingUtils.get("pomodoroLongBreakSound") || "",
-            endSound: this.settingUtils.get("pomodoroEndSound") || ""
+            endSound: this.settingUtils.get("pomodoroEndSound") || "",
+            randomNotificationEnabled: this.settingUtils.get("randomNotificationEnabled") || false,
+            randomNotificationSounds: this.settingUtils.get("randomNotificationSounds") || "",
+            randomNotificationEndSound: this.settingUtils.get("randomNotificationEndSound") || ""
         };
     }
     // 获取通知声音设置

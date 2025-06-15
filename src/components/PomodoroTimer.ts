@@ -48,6 +48,12 @@ export class PomodoroTimer {
 
     private isWindowClosed: boolean = false; // 新增：窗口关闭状态标记
 
+    // 随机提示音相关
+    private randomNotificationTimer: number = null;
+    private randomNotificationSounds: HTMLAudioElement[] = [];
+    private randomNotificationEnabled: boolean = false;
+    private randomNotificationEndSound: HTMLAudioElement = null;
+
     constructor(reminder: any, settings: any, isCountUp: boolean = false, inheritState?: any) {
         this.reminder = reminder;
         this.settings = settings;
@@ -55,6 +61,9 @@ export class PomodoroTimer {
         this.timeLeft = settings.workDuration * 60;
         this.totalTime = this.timeLeft;
         this.recordManager = PomodoroRecordManager.getInstance();
+
+        // 初始化随机提示音设置
+        this.randomNotificationEnabled = settings.randomNotificationEnabled || false;
 
         // 如果有继承状态，应用继承的状态
         if (inheritState && inheritState.isRunning) {
@@ -175,6 +184,116 @@ export class PomodoroTimer {
             } catch (error) {
                 console.warn('无法加载结束提示音:', error);
             }
+        }
+
+        // 初始化随机提示音
+        if (this.randomNotificationEnabled && this.settings.randomNotificationSounds) {
+            this.initRandomNotificationSounds();
+        }
+
+        // 初始化随机提示音结束声音
+        if (this.randomNotificationEnabled && this.settings.randomNotificationEndSound) {
+            this.initRandomNotificationEndSound();
+        }
+    }
+
+    private initRandomNotificationSounds() {
+        try {
+            const soundPaths = this.settings.randomNotificationSounds
+                .split(',')
+                .map(path => path.trim())
+                .filter(path => path.length > 0);
+
+            this.randomNotificationSounds = [];
+            soundPaths.forEach(path => {
+                try {
+                    const audio = new Audio(path);
+                    audio.volume = 0.7; // 稍微降低随机提示音音量
+                    audio.preload = 'auto';
+                    this.randomNotificationSounds.push(audio);
+                } catch (error) {
+                    console.warn(`无法加载随机提示音: ${path}`, error);
+                }
+            });
+
+            console.log(`已加载 ${this.randomNotificationSounds.length} 个随机提示音文件`);
+        } catch (error) {
+            console.warn('初始化随机提示音失败:', error);
+        }
+    }
+
+    private initRandomNotificationEndSound() {
+        try {
+            if (this.settings.randomNotificationEndSound) {
+                this.randomNotificationEndSound = new Audio(this.settings.randomNotificationEndSound);
+                this.randomNotificationEndSound.volume = 0.8;
+                this.randomNotificationEndSound.preload = 'auto';
+                console.log('已加载随机提示音结束声音');
+            }
+        } catch (error) {
+            console.warn('无法加载随机提示音结束声音:', error);
+        }
+    }
+
+    private async playRandomNotificationSound() {
+        if (!this.randomNotificationEnabled || this.randomNotificationSounds.length === 0) {
+            return;
+        }
+
+        try {
+            if (!this.audioInitialized) {
+                await this.initializeAudioPlayback();
+            }
+
+            // 随机选择一个提示音
+            const randomIndex = Math.floor(Math.random() * this.randomNotificationSounds.length);
+            const selectedAudio = this.randomNotificationSounds[randomIndex];
+
+            selectedAudio.currentTime = 0;
+            await selectedAudio.play();
+
+            // 10秒后播放结束声音
+            setTimeout(async () => {
+                if (this.randomNotificationEndSound) {
+                    try {
+                        this.randomNotificationEndSound.currentTime = 0;
+                        await this.randomNotificationEndSound.play();
+                    } catch (error) {
+                        console.warn('播放随机提示音结束声音失败:', error);
+                    }
+                }
+            }, 10000); // 10秒后播放结束声音
+
+        } catch (error) {
+            console.warn('播放随机提示音失败:', error);
+        }
+    }
+
+    private startRandomNotificationTimer() {
+        if (!this.randomNotificationEnabled || !this.isWorkPhase) {
+            return;
+        }
+
+        this.stopRandomNotificationTimer();
+
+        // 在3-5分钟之间随机选择一个间隔时间
+        const minInterval = 3 * 60 * 1000; // 3分钟
+        const maxInterval = 5 * 60 * 1000; // 5分钟
+        const randomInterval = minInterval + Math.random() * (maxInterval - minInterval);
+
+        this.randomNotificationTimer = window.setTimeout(() => {
+            this.playRandomNotificationSound();
+            // 递归调用，设置下一次随机提示音
+            this.startRandomNotificationTimer();
+        }, randomInterval);
+
+        console.log(`随机提示音将在 ${Math.round(randomInterval / 60000)} 分钟后播放`);
+    }
+
+    private stopRandomNotificationTimer() {
+        if (this.randomNotificationTimer) {
+            clearTimeout(this.randomNotificationTimer);
+            this.randomNotificationTimer = null;
         }
     }
 
@@ -1261,6 +1380,11 @@ export class PomodoroTimer {
             }
         }
 
+        // 启动随机提示音定时器（仅在工作时间）
+        if (this.isWorkPhase) {
+            this.startRandomNotificationTimer();
+        }
+
         this.timer = window.setInterval(() => {
             if (this.isCountUp) {
                 if (this.isWorkPhase) {
@@ -1310,6 +1434,9 @@ export class PomodoroTimer {
             this.timer = null;
         }
 
+        // 停止随机提示音定时器
+        this.stopRandomNotificationTimer();
+
         // 暂停所有背景音
         if (this.workAudio) {
             this.workAudio.pause();
@@ -1338,6 +1465,11 @@ export class PomodoroTimer {
             } else if (!this.isLongBreak && this.breakAudio) {
                 await this.safePlayAudio(this.breakAudio);
             }
+        }
+
+        // 重新启动随机提示音定时器（仅在工作时间）
+        if (this.isWorkPhase) {
+            this.startRandomNotificationTimer();
         }
 
         this.timer = window.setInterval(() => {
@@ -1384,6 +1516,7 @@ export class PomodoroTimer {
         }
 
         this.stopAllAudio();
+        this.stopRandomNotificationTimer(); // 停止随机提示音
 
         this.isWorkPhase = true;
         this.isLongBreak = false;
@@ -1414,6 +1547,7 @@ export class PomodoroTimer {
         }
 
         this.stopAllAudio();
+        this.stopRandomNotificationTimer(); // 停止随机提示音
 
         this.isWorkPhase = false;
         this.isLongBreak = false;
@@ -1443,6 +1577,7 @@ export class PomodoroTimer {
         }
 
         this.stopAllAudio();
+        this.stopRandomNotificationTimer(); // 停止随机提示音
 
         this.isWorkPhase = false;
         this.isLongBreak = true;
@@ -1478,6 +1613,7 @@ export class PomodoroTimer {
         }
 
         this.stopAllAudio();
+        this.stopRandomNotificationTimer(); // 停止随机提示音
 
         if (this.isCountUp) {
             this.timeElapsed = 0;
@@ -1913,6 +2049,8 @@ export class PomodoroTimer {
         }
 
         this.stopAllAudio();
+        this.stopRandomNotificationTimer(); // 停止随机提示音
+
         if (this.endAudio) {
             this.endAudio.pause();
         }
@@ -2007,3 +2145,4 @@ export class PomodoroTimer {
         }
     }
 }
+
