@@ -543,7 +543,10 @@ export class DocumentReminderDialog {
         const infoEl = document.createElement('div');
         infoEl.className = 'doc-reminder-item__info';
 
-        // 标题
+        // 1. 标题容器
+        const titleContainer = document.createElement('div');
+        titleContainer.className = 'doc-reminder-item__title-container';
+
         const titleEl = document.createElement('a');
         titleEl.className = 'doc-reminder-item__title';
         titleEl.textContent = reminder.title || t("unnamedNote");
@@ -553,11 +556,16 @@ export class DocumentReminderDialog {
             this.openBlock(reminder.blockId || reminder.id);
         });
 
-        // 时间信息
-        const timeEl = document.createElement('div');
-        timeEl.className = 'doc-reminder-item__time';
-        const timeText = this.formatReminderTime(reminder.date, reminder.time, today, reminder.endDate);
-        timeEl.innerHTML = `🕐 ${timeText}`;
+        titleContainer.appendChild(titleEl);
+
+        // 2. 时间信息容器（包含日期、重复图标、优先级、过期标签）
+        const timeContainer = document.createElement('div');
+        timeContainer.className = 'doc-reminder-item__time-container';
+        timeContainer.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        `;
 
         // 添加重复图标
         if (reminder.repeat?.enabled || reminder.isRepeatInstance) {
@@ -567,20 +575,31 @@ export class DocumentReminderDialog {
             repeatIcon.title = reminder.repeat?.enabled ?
                 getRepeatDescription(reminder.repeat) :
                 t("repeatInstance");
-            timeEl.appendChild(repeatIcon);
+            repeatIcon.style.cssText = `
+                font-size: 12px;
+                opacity: 0.7;
+                flex-shrink: 0;
+            `;
+            timeContainer.appendChild(repeatIcon);
         }
 
-        // 优先级显示
+        // 时间信息
+        const timeEl = document.createElement('div');
+        timeEl.className = 'doc-reminder-item__time';
+        const timeText = this.formatReminderTime(reminder.date, reminder.time, today, reminder.endDate);
+        timeEl.textContent = '🕐' + timeText;
+
+        // 添加优先级标签
         if (priority !== 'none') {
-            const priorityEl = document.createElement('span');
-            priorityEl.className = `doc-reminder-priority-label ${priority}`;
+            const priorityLabel = document.createElement('span');
+            priorityLabel.className = `doc-reminder-priority-label ${priority}`;
             const priorityNames = {
                 'high': t("highPriority"),
                 'medium': t("mediumPriority"),
                 'low': t("lowPriority")
             };
-            priorityEl.innerHTML = `<div class="priority-dot ${priority}"></div>${priorityNames[priority]}`;
-            timeEl.appendChild(priorityEl);
+            priorityLabel.innerHTML = `<div class="priority-dot ${priority}"></div>${priorityNames[priority]}`;
+            timeEl.appendChild(priorityLabel);
         }
 
         // 过期标签
@@ -591,7 +610,15 @@ export class DocumentReminderDialog {
             timeEl.appendChild(overdueLabel);
         }
 
-        // 分类显示
+        timeContainer.appendChild(timeEl);
+
+        // 3. 分类显示
+        const categoryContainer = document.createElement('div');
+        categoryContainer.className = 'doc-reminder-item__category-container';
+        categoryContainer.style.cssText = `
+            margin-top: 4px;
+        `;
+
         if (reminder.categoryId) {
             const category = this.categoryManager.getCategoryById(reminder.categoryId);
             if (category) {
@@ -603,24 +630,63 @@ export class DocumentReminderDialog {
                     gap: 4px;
                     padding: 2px 6px;
                     background-color: ${category.color};
-                    border-radius: 4px;
+                    border: 1px solid ${category.color}40;
+                    border-radius: 5px;
                     font-size: 11px;
-                    color: white;
-                    margin-top: 4px;
+                    color: #fff;
                 `;
 
                 if (category.icon) {
                     const iconSpan = document.createElement('span');
                     iconSpan.textContent = category.icon;
+                    iconSpan.style.cssText = `
+                        font-size: 12px;
+                        line-height: 1;
+                    `;
                     categoryEl.appendChild(iconSpan);
                 }
 
                 const nameSpan = document.createElement('span');
                 nameSpan.textContent = category.name;
+                nameSpan.style.cssText = `
+                    font-size: 11px;
+                    font-weight: 500;
+                `;
                 categoryEl.appendChild(nameSpan);
 
-                infoEl.appendChild(categoryEl);
+                categoryContainer.appendChild(categoryEl);
             }
+        }
+        // 按照正确顺序添加到信息容器
+        infoEl.appendChild(titleContainer);           // 1. 标题
+        infoEl.appendChild(timeContainer);            // 2. 时间、优先级
+        infoEl.appendChild(categoryContainer);        // 3. 分类
+
+        // 4. 番茄数量显示
+        const targetReminder = reminder.isRepeatInstance ?
+            this.getOriginalReminder(reminder.originalId) || reminder :
+            reminder;
+
+        if (targetReminder.pomodoroCount && targetReminder.pomodoroCount > 0) {
+            const pomodoroDisplay = document.createElement('div');
+            pomodoroDisplay.className = 'doc-reminder-pomodoro-count';
+            pomodoroDisplay.style.cssText = `
+                font-size: 12px;
+                display: inline-flex;
+                align-items: center;
+                gap: 2px;
+                margin-top: 2px;
+            `;
+
+            // 生成番茄emoji
+            const tomatoEmojis = '🍅'.repeat(Math.min(targetReminder.pomodoroCount, 5));
+            const extraCount = targetReminder.pomodoroCount > 5 ? `+${targetReminder.pomodoroCount - 5}` : '';
+
+            pomodoroDisplay.innerHTML = `
+                <span title="完成的番茄钟数量: ${targetReminder.pomodoroCount}">${tomatoEmojis}${extraCount}</span>
+            `;
+
+            infoEl.appendChild(pomodoroDisplay);
         }
 
         // 备注
@@ -631,20 +697,35 @@ export class DocumentReminderDialog {
             infoEl.appendChild(noteEl);
         }
 
-        // 完成时间显示
+        // 5. 完成时间显示
         if (reminder.completed) {
             const completedTime = this.getCompletedTime(reminder);
             if (completedTime) {
                 const completedTimeEl = document.createElement('div');
                 completedTimeEl.className = 'doc-reminder-completed-time';
-                // Here we might need to get the time from the original event for repeat instances
-                const completionTimestamp = this.getCompletedTime(reminder);
-                if (completionTimestamp) {
-                    completedTimeEl.innerHTML = `✅ 完成于${this.formatCompletedTime(completionTimestamp)}`;
-                    infoEl.appendChild(completedTimeEl);
-                }
+                completedTimeEl.style.cssText = `
+                    font-size: 11px;
+                    color: var(--b3-theme-on-surface);
+                    opacity: 0.7;
+                    margin-top: 2px;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                `;
+
+                const completedIcon = document.createElement('span');
+                completedIcon.textContent = '✅';
+                completedIcon.style.cssText = 'font-size: 10px;';
+
+                const completedText = document.createElement('span');
+                completedText.textContent = `完成于${this.formatCompletedTime(completedTime)}`;
+
+                completedTimeEl.appendChild(completedIcon);
+                completedTimeEl.appendChild(completedText);
+                infoEl.appendChild(completedTimeEl);
             }
         }
+
 
         // 操作按钮
         const actionsEl = document.createElement('div');
@@ -657,8 +738,6 @@ export class DocumentReminderDialog {
             this.editReminder(reminder);
         });
 
-        infoEl.appendChild(titleEl);
-        infoEl.appendChild(timeEl);
         actionsEl.appendChild(editBtn);
 
         reminderEl.appendChild(checkbox);
@@ -666,6 +745,18 @@ export class DocumentReminderDialog {
         reminderEl.appendChild(actionsEl);
 
         return reminderEl;
+    }
+
+    // 添加获取原始提醒数据的方法（用于重复事件实例）
+    private getOriginalReminder(originalId: string): any {
+        try {
+            // 从缓存或全局数据中获取原始提醒数据
+            // 这里需要实现获取原始提醒的逻辑
+            return null; // 临时返回，需要根据实际情况实现
+        } catch (error) {
+            console.error('获取原始提醒失败:', error);
+            return null;
+        }
     }
 
     private formatReminderTime(date: string, time?: string, today?: string, endDate?: string): string {
