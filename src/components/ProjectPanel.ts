@@ -62,7 +62,7 @@ export class ProjectPanel {
         iconSpan.textContent = '📁';
 
         const titleSpan = document.createElement('span');
-        titleSpan.textContent = '项目笔记';
+        titleSpan.textContent = '项目管理';
 
         titleContainer.appendChild(iconSpan);
         titleContainer.appendChild(titleSpan);
@@ -461,22 +461,23 @@ export class ProjectPanel {
             timeEl.appendChild(overdueLabel);
         }
 
-        // 添加状态标签
-        const statusLabel = document.createElement('span');
-        statusLabel.className = `project-status-label project-status-${status}`;
-        const statusNames = {
-            'active': '进行中',
-            'someday': '未来也许',
-            'archived': '已归档'
-        };
-        statusLabel.textContent = statusNames[status] || '未知状态';
-        timeEl.appendChild(statusLabel);
-
+        
+        
         timeContainer.appendChild(timeEl);
-
+        
         infoEl.appendChild(titleEl);
         infoEl.appendChild(timeContainer);
-
+        
+        // 添加状态标签
+        const statusLabel = document.createElement('div');
+        statusLabel.className = `project-status-label project-status-${status}`;
+        const statusNames = {
+            'active': '▶️进行中',
+            'someday': '💭未来也许',
+            'archived': '📥已归档'
+        };
+        statusLabel.textContent = statusNames[status] || '未知状态';
+        infoEl.appendChild(statusLabel);
         // 分类显示
         if (project.categoryId) {
             const category = this.categoryManager.getCategoryById(project.categoryId);

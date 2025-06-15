@@ -109,7 +109,7 @@ export class ReminderPanel {
         iconSpan.textContent = '⏰';
 
         const titleSpan = document.createElement('span');
-        titleSpan.textContent = t("timeReminder");
+        titleSpan.textContent = "任务管理";
 
         titleContainer.appendChild(iconSpan);
         titleContainer.appendChild(titleSpan);

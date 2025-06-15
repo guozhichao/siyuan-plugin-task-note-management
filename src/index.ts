@@ -50,6 +50,14 @@ export default class ReminderPlugin extends Plugin {
 
     async onload() {
         console.log("Reminder Plugin loaded");
+
+        // 添加自定义图标
+        this.addIcons(`
+            <symbol id="iconProject" viewBox="0 0 1024 1024">
+<path d="M775 536.2 456.8 536.2c-26 0-47-21-47-47 0-26 21-47 47-47l318.2 0c26 0 47 21 47 47C822 515.2 800.8 536.2 775 536.2L775 536.2z" p-id="4506"></path><path d="M775 722.2 456.8 722.2c-26 0-47-21-47-47s21-47 47-47l318.2 0c26 0 47 21 47 47S800.8 722.2 775 722.2L775 722.2z" p-id="4507"></path><path d="M991 875.8 991 281.4c0-72.2-65.8-65.4-65.8-65.4s-392.8 0.4-371.8 0c-22.4 0.4-33.8-11.8-33.8-11.8s-15.6-27-43.8-69.4c-29.4-44.6-63.6-37.4-63.6-37.4L123 97.4C42.8 97.4 42 174.6 42 174.6L42 872c0 86 65 75.4 65 75.4l824.2 0C1000.8 947.4 991 875.8 991 875.8L991 875.8zM932 840.6c0 26.6-21.4 48-48 48L149 888.6c-26.6 0-48-21.4-48-48L101 343c0-26.6 21.4-48 48-48L884 295c26.6 0 48 21.4 48 48L932 840.6 932 840.6z" p-id="4508"></path><path d="M282.2 489.2m-50.2 0a25.1 25.1 0 1 0 100.4 0 25.1 25.1 0 1 0-100.4 0Z" p-id="4509"></path><path d="M282.2 675.2m-50.2 0a25.1 25.1 0 1 0 100.4 0 25.1 25.1 0 1 0-100.4 0Z" p-id="4510"></path>
+            </symbol>
+        `);
+
         this.chronoParser = chrono.zh.casual.clone();
 
         setPluginInstance(this);
@@ -271,10 +279,10 @@ export default class ReminderPlugin extends Plugin {
         this.addDock({
             config: {
                 position: "LeftTop",
-                size: { width: 300, height: 400 },
+                size: { width: 400, height: 400 },
                 icon: "iconClock",
                 title: t("timeReminder"),
-                hotkey: "⌥⌘R"
+                hotkey: ""
             },
             data: {},
             type: "reminder_dock",
@@ -289,10 +297,10 @@ export default class ReminderPlugin extends Plugin {
         this.addDock({
             config: {
                 position: "LeftTop",
-                size: { width: 300, height: 400 },
-                icon: "iconFile",
+                size: { width: 500, height: 400 },
+                icon: "iconProject",
                 title: "项目笔记",
-                hotkey: "⌥⌘P"
+                hotkey: ""
             },
             data: {},
             type: "project_dock",
@@ -323,10 +331,16 @@ export default class ReminderPlugin extends Plugin {
 
         // 初始化顶栏徽章和停靠栏徽章
         this.updateBadges();
+        this.updateProjectBadges();
 
         // 监听提醒更新事件，更新徽章
         window.addEventListener('reminderUpdated', () => {
             this.updateBadges();
+        });
+
+        // 监听项目更新事件，更新项目徽章
+        window.addEventListener('projectUpdated', () => {
+            this.updateProjectBadges();
         });
     }
 
@@ -437,9 +451,33 @@ export default class ReminderPlugin extends Plugin {
         }
     }
 
-    private async updateTopBarBadge() {
-        // 保持向后兼容
-        await this.updateBadges();
+    private async updateProjectBadges() {
+        try {
+            const { readProjectData } = await import("./api");
+            const projectData = await readProjectData();
+
+            if (!projectData || typeof projectData !== 'object') {
+                this.setProjectDockBadge(0);
+                return;
+            }
+
+            // 统计正在进行的项目数量
+            let activeCount = 0;
+            Object.values(projectData).forEach((project: any) => {
+                if (project && typeof project === 'object') {
+                    // 数据迁移：处理旧的 archived 字段
+                    const status = project.status || (project.archived ? 'archived' : 'active');
+                    if (status === 'active') {
+                        activeCount++;
+                    }
+                }
+            });
+
+            this.setProjectDockBadge(activeCount);
+        } catch (error) {
+            console.error('更新项目徽章失败:', error);
+            this.setProjectDockBadge(0);
+        }
     }
 
     private setTopBarBadge(count: number) {
@@ -496,6 +534,47 @@ export default class ReminderPlugin extends Plugin {
         if (count > 0) {
             const badge = document.createElement('span');
             badge.className = 'reminder-dock-badge';
+            badge.textContent = count.toString();
+            badge.style.cssText = `
+                position: absolute;
+                top: 2px;
+                right: 2px;
+                background: var(--b3-theme-error);
+                color: white;
+                border-radius: 50%;
+                min-width: 14px;
+                height: 14px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 10px;
+                font-weight: bold;
+                line-height: 1;
+                z-index: 1;
+                pointer-events: none;
+            `;
+
+            // 确保父元素有相对定位
+            dockIcon.style.position = 'relative';
+            dockIcon.appendChild(badge);
+        }
+    }
+
+    private setProjectDockBadge(count: number) {
+        // 查找项目停靠栏图标
+        const dockIcon = document.querySelector('.dock__item[data-type="siyuan-plugin-task-note-managementproject_dock"]');
+        if (!dockIcon) return;
+
+        // 移除现有徽章
+        const existingBadge = dockIcon.querySelector('.project-dock-badge');
+        if (existingBadge) {
+            existingBadge.remove();
+        }
+
+        // 如果计数大于0，添加徽章
+        if (count > 0) {
+            const badge = document.createElement('span');
+            badge.className = 'project-dock-badge';
             badge.textContent = count.toString();
             badge.style.cssText = `
                 position: absolute;
@@ -1080,6 +1159,11 @@ export default class ReminderPlugin extends Plugin {
             }
         });
         this.calendarViews.clear();
+
+        // 清理项目面板实例
+        if (this.projectPanel && typeof this.projectPanel.destroy === 'function') {
+            this.projectPanel.destroy();
+        }
 
         // 清理所有面包屑按钮
         document.querySelectorAll('.reminder-breadcrumb-btn, .view-reminder-breadcrumb-btn').forEach(btn => {
