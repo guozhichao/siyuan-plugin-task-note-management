@@ -18,6 +18,9 @@ export class PomodoroTimer {
     private weekFocusDisplay: HTMLElement;
     private modeToggleBtn: HTMLElement;
     private minimizeBtn: HTMLElement;
+    private soundControlBtn: HTMLElement; // 新增：声音控制按钮
+    private volumeSlider: HTMLElement; // 新增：音量滑块
+    private volumeContainer: HTMLElement; // 新增：音量容器
     private minimizedView: HTMLElement;
     private minimizedIcon: HTMLElement;
     private minimizedBg: HTMLElement;
@@ -28,7 +31,9 @@ export class PomodoroTimer {
     private isPaused: boolean = false;
     private isWorkPhase: boolean = true;
     private isLongBreak: boolean = false;
-    private isCountUp: boolean = false; // 新增：正计时模式标记
+    private isCountUp: boolean = false;
+    private isBackgroundAudioMuted: boolean = false; // 新增：背景音静音状态
+    private backgroundVolume: number = 1; // 新增：背景音音量
     private timeLeft: number = 0; // 倒计时剩余时间
     private timeElapsed: number = 0; // 正计时已用时间
     private breakTimeLeft: number = 0; // 休息时间剩余
@@ -61,6 +66,10 @@ export class PomodoroTimer {
         this.timeLeft = settings.workDuration * 60;
         this.totalTime = this.timeLeft;
         this.recordManager = PomodoroRecordManager.getInstance();
+
+        // 初始化声音设置
+        this.isBackgroundAudioMuted = settings.backgroundAudioMuted || false;
+        this.backgroundVolume = settings.backgroundVolume !== undefined ? settings.backgroundVolume : 1;
 
         // 初始化随机提示音设置
         this.randomNotificationEnabled = settings.randomNotificationEnabled || false;
@@ -144,7 +153,7 @@ export class PomodoroTimer {
             try {
                 this.workAudio = new Audio(this.settings.workSound);
                 this.workAudio.loop = true;
-                this.workAudio.volume = 1;
+                this.workAudio.volume = this.isBackgroundAudioMuted ? 0 : this.backgroundVolume;
                 this.workAudio.preload = 'auto';
             } catch (error) {
                 console.warn('无法加载工作背景音:', error);
@@ -156,7 +165,7 @@ export class PomodoroTimer {
             try {
                 this.breakAudio = new Audio(this.settings.breakSound);
                 this.breakAudio.loop = true;
-                this.breakAudio.volume = 1;
+                this.breakAudio.volume = this.isBackgroundAudioMuted ? 0 : this.backgroundVolume;
                 this.breakAudio.preload = 'auto';
             } catch (error) {
                 console.warn('无法加载短时休息背景音:', error);
@@ -168,14 +177,14 @@ export class PomodoroTimer {
             try {
                 this.longBreakAudio = new Audio(this.settings.longBreakSound);
                 this.longBreakAudio.loop = true;
-                this.longBreakAudio.volume = 1;
+                this.longBreakAudio.volume = this.isBackgroundAudioMuted ? 0 : this.backgroundVolume;
                 this.longBreakAudio.preload = 'auto';
             } catch (error) {
                 console.warn('无法加载长时休息背景音:', error);
             }
         }
 
-        // 初始化结束提示音
+        // 初始化结束提示音（音量不受静音影响）
         if (this.settings.endSound) {
             try {
                 this.endAudio = new Audio(this.settings.endSound);
@@ -886,8 +895,70 @@ export class PomodoroTimer {
             display: flex;
             align-items: center;
             gap: 4px;
+            justify-content: space-between;
+            width: 100%;
         `;
-        pomodoroCountContainer.innerHTML = `🍅 <span id="pomodoroCount">${this.completedPomodoros}</span>`;
+
+        // 番茄数量左侧部分
+        const pomodoroCountLeft = document.createElement('div');
+        pomodoroCountLeft.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        `;
+        pomodoroCountLeft.innerHTML = `🍅 <span id="pomodoroCount">${this.completedPomodoros}</span>`;
+
+        // 音量控制容器（右侧）
+        const volumeControlContainer = document.createElement('div');
+        volumeControlContainer.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            position: relative;
+        `;
+
+        // 创建声音控制按钮
+        this.soundControlBtn = document.createElement('button');
+        this.soundControlBtn.className = 'pomodoro-sound-control';
+        this.soundControlBtn.style.cssText = `
+            background: none;
+            border: none;
+            color: var(--b3-theme-on-surface-variant);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            font-size: 14px;
+            line-height: 1;
+            opacity: 0.7;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        `;
+        this.soundControlBtn.innerHTML = this.isBackgroundAudioMuted ? '🔇' : '🔊';
+        this.soundControlBtn.title = this.isBackgroundAudioMuted ? '开启背景音' : '静音背景音';
+
+        // 创建音量控制容器
+        this.createVolumeControl();
+
+        // 将音量容器添加到声音按钮的父容器中
+        volumeControlContainer.appendChild(this.soundControlBtn);
+        volumeControlContainer.appendChild(this.volumeContainer);
+
+        // 组装番茄数量容器
+        pomodoroCountContainer.appendChild(pomodoroCountLeft);
+        pomodoroCountContainer.appendChild(volumeControlContainer);
+
+        // 添加声音控制按钮事件
+        this.soundControlBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.toggleBackgroundAudio();
+        });
+
+        // 添加音量控制悬浮事件
+        this.addVolumeControlEvents(volumeControlContainer);
 
         timeInfo.appendChild(this.statusDisplay);
         timeInfo.appendChild(this.timeDisplay);
@@ -979,6 +1050,209 @@ export class PomodoroTimer {
         document.body.appendChild(this.container);
     }
 
+    private createVolumeControl() {
+        // 创建音量控制容器
+        this.volumeContainer = document.createElement('div');
+        this.volumeContainer.className = 'pomodoro-volume-container';
+        this.volumeContainer.style.cssText = `
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            background: var(--b3-theme-surface);
+            border: 1px solid var(--b3-theme-border);
+            border-radius: 20px;
+            padding: 8px 12px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            white-space: nowrap;
+            min-width: 120px;
+        `;
+
+        // 音量图标
+        const volumeIcon = document.createElement('span');
+        volumeIcon.style.cssText = `
+            font-size: 14px;
+            opacity: 0.7;
+        `;
+        volumeIcon.textContent = '🔊';
+
+        // 音量滑块
+        this.volumeSlider = document.createElement('input');
+        this.volumeSlider.type = 'range';
+        this.volumeSlider.min = '0';
+        this.volumeSlider.max = '1';
+        this.volumeSlider.step = '0.1';
+        this.volumeSlider.value = this.backgroundVolume.toString();
+        this.volumeSlider.style.cssText = `
+            flex: 1;
+            height: 4px;
+            background: var(--b3-theme-surface-lighter);
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+            -webkit-appearance: none;
+            appearance: none;
+        `;
+
+        // 滑块样式
+        const style = document.createElement('style');
+        style.textContent = `
+            .pomodoro-volume-container input[type="range"]::-webkit-slider-thumb {
+                appearance: none;
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+                background: var(--b3-theme-primary);
+                cursor: pointer;
+                border: none;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            }
+            .pomodoro-volume-container input[type="range"]::-moz-range-thumb {
+                appearance: none;
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+                background: var(--b3-theme-primary);
+                cursor: pointer;
+                border: none;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            }
+        `;
+        document.head.appendChild(style);
+
+        // 音量百分比显示
+        const volumePercent = document.createElement('span');
+        volumePercent.style.cssText = `
+            font-size: 12px;
+            color: var(--b3-theme-on-surface-variant);
+            min-width: 30px;
+            text-align: right;
+        `;
+        volumePercent.textContent = Math.round(this.backgroundVolume * 100) + '%';
+
+        // 滑块事件
+        this.volumeSlider.addEventListener('input', (e) => {
+            const volume = parseFloat(e.target.value);
+            this.backgroundVolume = volume;
+            volumePercent.textContent = Math.round(volume * 100) + '%';
+            this.updateAudioVolume();
+        });
+
+        this.volumeContainer.appendChild(volumeIcon);
+        this.volumeContainer.appendChild(this.volumeSlider);
+        this.volumeContainer.appendChild(volumePercent);
+    }
+
+    private addVolumeControlEvents(container: HTMLElement) {
+        let hoverTimer: number = null;
+
+        // 鼠标进入事件
+        container.addEventListener('mouseenter', () => {
+            // 清除可能存在的隐藏定时器
+            if (hoverTimer) {
+                clearTimeout(hoverTimer);
+                hoverTimer = null;
+            }
+
+            // 只有在非静音状态下才显示音量控制
+            if (!this.isBackgroundAudioMuted) {
+                this.volumeContainer.style.display = 'flex';
+                // 添加动画效果
+                this.volumeContainer.style.opacity = '0';
+                this.volumeContainer.style.transform = 'translateY(-50%) scale(0.9)';
+
+                requestAnimationFrame(() => {
+                    this.volumeContainer.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+                    this.volumeContainer.style.opacity = '1';
+                    this.volumeContainer.style.transform = 'translateY(-50%) scale(1)';
+                });
+            }
+        });
+
+        // 鼠标离开事件
+        container.addEventListener('mouseleave', () => {
+            // 延迟隐藏，给用户时间移动到音量控制上
+            hoverTimer = window.setTimeout(() => {
+                this.volumeContainer.style.opacity = '0';
+                this.volumeContainer.style.transform = 'translateY(-50%) scale(0.9)';
+
+                setTimeout(() => {
+                    this.volumeContainer.style.display = 'none';
+                    this.volumeContainer.style.transition = 'none';
+                }, 200);
+            }, 300);
+        });
+
+        // 音量容器本身的悬浮事件，防止鼠标移动到音量控制上时隐藏
+        this.volumeContainer.addEventListener('mouseenter', () => {
+            if (hoverTimer) {
+                clearTimeout(hoverTimer);
+                hoverTimer = null;
+            }
+        });
+
+        this.volumeContainer.addEventListener('mouseleave', () => {
+            hoverTimer = window.setTimeout(() => {
+                this.volumeContainer.style.opacity = '0';
+                this.volumeContainer.style.transform = 'translateY(-50%) scale(0.9)';
+
+                setTimeout(() => {
+                    this.volumeContainer.style.display = 'none';
+                    this.volumeContainer.style.transition = 'none';
+                }, 200);
+            }, 100);
+        });
+    }
+
+    private toggleBackgroundAudio() {
+        this.isBackgroundAudioMuted = !this.isBackgroundAudioMuted;
+
+        // 更新按钮显示
+        this.soundControlBtn.innerHTML = this.isBackgroundAudioMuted ? '🔇' : '🔊';
+        this.soundControlBtn.title = this.isBackgroundAudioMuted ? '开启背景音' : '静音背景音';
+
+        // 更新音频音量
+        this.updateAudioVolume();
+
+        // 如果取消静音，确保音量控制事件正常工作
+        if (!this.isBackgroundAudioMuted) {
+            // 重新更新音量滑块显示
+            const volumePercent = this.volumeContainer.querySelector('span:last-child');
+            if (volumePercent) {
+                volumePercent.textContent = Math.round(this.backgroundVolume * 100) + '%';
+            }
+            if (this.volumeSlider) {
+                this.volumeSlider.value = this.backgroundVolume.toString();
+            }
+        }
+
+        // 立即隐藏音量控制（如果是静音）
+        if (this.isBackgroundAudioMuted && this.volumeContainer) {
+            this.volumeContainer.style.display = 'none';
+        }
+
+        const statusText = this.isBackgroundAudioMuted ? '背景音已静音' : '背景音已开启';
+        showMessage(statusText, 1500);
+    }
+
+    private updateAudioVolume() {
+        const volume = this.isBackgroundAudioMuted ? 0 : this.backgroundVolume;
+
+        if (this.workAudio) {
+            this.workAudio.volume = volume;
+        }
+        if (this.breakAudio) {
+            this.breakAudio.volume = volume;
+        }
+        if (this.longBreakAudio) {
+            this.longBreakAudio.volume = volume;
+        }
+    }
     private createMinimizedView() {
         this.minimizedView = document.createElement('div');
         this.minimizedView.className = 'pomodoro-minimized-view';
