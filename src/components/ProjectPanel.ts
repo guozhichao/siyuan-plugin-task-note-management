@@ -3,6 +3,7 @@ import { readProjectData, writeProjectData, getBlockByID } from "../api";
 import { getLocalDateString, compareDateStrings } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { ProjectDialog } from "./ProjectDialog";
+import { CategoryManageDialog } from "./CategoryManageDialog";
 import { t } from "../utils/i18n";
 
 export class ProjectPanel {
@@ -14,7 +15,7 @@ export class ProjectPanel {
     private plugin: any;
     private currentTab: string = 'active';
     private currentCategoryFilter: string = 'all';
-    private currentSort: string = 'time';
+    private currentSort: string = 'priority';
     private currentSortOrder: 'asc' | 'desc' = 'desc';
     private categoryManager: CategoryManager;
     private projectUpdatedHandler: () => void;
@@ -71,6 +72,16 @@ export class ProjectPanel {
         const actionContainer = document.createElement('div');
         actionContainer.className = 'project-panel__actions';
         actionContainer.style.marginLeft = 'auto';
+
+        // 添加分类管理按钮
+        const categoryManageBtn = document.createElement('button');
+        categoryManageBtn.className = 'b3-button b3-button--outline';
+        categoryManageBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconTags"></use></svg>';
+        categoryManageBtn.title = "管理分类";
+        categoryManageBtn.addEventListener('click', () => {
+            this.showCategoryManageDialog();
+        });
+        actionContainer.appendChild(categoryManageBtn);
 
         // 添加排序按钮
         this.sortButton = document.createElement('button');
@@ -365,7 +376,7 @@ export class ProjectPanel {
         const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
         const priorityA = priorityOrder[a.priority || 'none'] || 0;
         const priorityB = priorityOrder[b.priority || 'none'] || 0;
-        return priorityB - priorityA;
+        return priorityA - priorityB;
     }
 
     private compareByTitle(a: any, b: any): number {
@@ -461,13 +472,13 @@ export class ProjectPanel {
             timeEl.appendChild(overdueLabel);
         }
 
-        
-        
+
+
         timeContainer.appendChild(timeEl);
-        
+
         infoEl.appendChild(titleEl);
         infoEl.appendChild(timeContainer);
-        
+
         // 添加状态标签
         const statusLabel = document.createElement('div');
         statusLabel.className = `project-status-label project-status-${status}`;
@@ -844,5 +855,15 @@ export class ProjectPanel {
             console.error('删除项目记录失败:', error);
             showMessage("删除项目记录失败");
         }
+    }
+
+    private showCategoryManageDialog() {
+        const categoryDialog = new CategoryManageDialog(() => {
+            // 分类更新后重新渲染过滤器和项目列表
+            this.renderCategoryFilter();
+            this.loadProjects();
+            window.dispatchEvent(new CustomEvent('projectUpdated'));
+        });
+        categoryDialog.show();
     }
 }

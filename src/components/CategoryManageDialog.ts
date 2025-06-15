@@ -6,6 +6,8 @@ export class CategoryManageDialog {
     private dialog: Dialog;
     private categoryManager: CategoryManager;
     private onUpdated?: () => void;
+    private draggedElement: HTMLElement | null = null;
+    private draggedCategory: Category | null = null;
 
     constructor(onUpdated?: () => void) {
         this.categoryManager = CategoryManager.getInstance();
@@ -38,6 +40,9 @@ export class CategoryManageDialog {
                             重置默认
                         </button>
                     </div>
+                    <div class="category-drag-hint">
+                        <span>💡 拖拽分类项可调整排序</span>
+                    </div>
                     <div class="categories-list" id="categoriesList">
                         <!-- 分类列表将在这里渲染 -->
                     </div>
@@ -46,6 +51,113 @@ export class CategoryManageDialog {
                     <button class="b3-button b3-button--primary" id="closeBtn">${t("save")}</button>
                 </div>
             </div>
+            <style>
+                .category-manage-dialog {
+                    max-height: 580px;
+                }
+                
+                .category-drag-hint {
+                    padding: 8px 16px;
+                    background: rgba(52, 152, 219, 0.1);
+                    border-radius: 4px;
+                    margin-bottom: 12px;
+                    font-size: 12px;
+                    color: #666;
+                    text-align: center;
+                }
+                
+                .categories-list {
+                    max-height: 400px;
+                    overflow-y: auto;
+                }
+                
+                .category-item {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 12px 16px;
+                    margin-bottom: 8px;
+                    background: var(--b3-theme-surface);
+                    border: 1px solid var(--b3-border-color);
+                    border-radius: 6px;
+                    cursor: grab;
+                    transition: all 0.2s ease;
+                    position: relative;
+                }
+                
+                .category-item:hover {
+                    background: var(--b3-theme-surface-lighter);
+                    transform: translateY(-1px);
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                }
+                
+                .category-item.dragging {
+                    opacity: 0.6;
+                    cursor: grabbing;
+                    transform: rotate(2deg);
+                    z-index: 1000;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                }
+                
+                .category-item.drag-over-top {
+                    border-top: 3px solid #3498db;
+                    box-shadow: 0 -2px 0 rgba(52, 152, 219, 0.3);
+                }
+                
+                .category-item.drag-over-bottom {
+                    border-bottom: 3px solid #3498db;
+                    box-shadow: 0 2px 0 rgba(52, 152, 219, 0.3);
+                }
+                
+                .category-drag-handle {
+                    cursor: grab;
+                    padding: 4px;
+                    color: #999;
+                    display: flex;
+                    align-items: center;
+                    margin-right: 12px;
+                    transition: color 0.2s ease;
+                }
+                
+                .category-drag-handle:hover {
+                    color: #3498db;
+                }
+                
+                .category-drag-handle::before {
+                    content: "⋮⋮";
+                    font-size: 16px;
+                    line-height: 1;
+                }
+                
+                .category-info {
+                    display: flex;
+                    align-items: center;
+                    flex: 1;
+                }
+                
+                .category-visual {
+                    display: flex;
+                    align-items: center;
+                    margin-right: 12px;
+                }
+                
+                .category-icon {
+                    font-size: 16px;
+                    margin-right: 6px;
+                }
+                
+                .category-color-preview {
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 50%;
+                    margin-right: 8px;
+                }
+                
+                .category-actions {
+                    display: flex;
+                    gap: 4px;
+                }
+            </style>
         `;
     }
 
@@ -91,7 +203,10 @@ export class CategoryManageDialog {
     private createCategoryElement(category: Category): HTMLElement {
         const categoryEl = document.createElement('div');
         categoryEl.className = 'category-item';
+        categoryEl.draggable = true;
+        categoryEl.dataset.categoryId = category.id;
         categoryEl.innerHTML = `
+            <div class="category-drag-handle" title="拖拽排序"></div>
             <div class="category-info">
                 <div class="category-visual">
                     <div class="category-icon" style="background-color: ${category.color};">
@@ -111,19 +226,140 @@ export class CategoryManageDialog {
             </div>
         `;
 
+        // 绑定拖拽事件
+        this.bindDragEvents(categoryEl, category);
+
         // 绑定操作事件
         const editBtn = categoryEl.querySelector('[data-action="edit"]') as HTMLButtonElement;
         const deleteBtn = categoryEl.querySelector('[data-action="delete"]') as HTMLButtonElement;
 
-        editBtn?.addEventListener('click', () => {
+        editBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
             this.showEditCategoryDialog(category);
         });
 
-        deleteBtn?.addEventListener('click', () => {
+        deleteBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
             this.deleteCategory(category);
         });
 
         return categoryEl;
+    }
+
+    private bindDragEvents(element: HTMLElement, category: Category) {
+        element.addEventListener('dragstart', (e) => {
+            this.draggedElement = element;
+            this.draggedCategory = category;
+            element.classList.add('dragging');
+
+            if (e.dataTransfer) {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', element.outerHTML);
+            }
+        });
+
+        element.addEventListener('dragend', () => {
+            element.classList.remove('dragging');
+            this.draggedElement = null;
+            this.draggedCategory = null;
+
+            // 清除所有拖拽状态
+            const allItems = this.dialog.element.querySelectorAll('.category-item');
+            allItems.forEach(item => {
+                item.classList.remove('drag-over-top', 'drag-over-bottom');
+            });
+        });
+
+        element.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (e.dataTransfer) {
+                e.dataTransfer.dropEffect = 'move';
+            }
+
+            if (this.draggedElement && this.draggedElement !== element) {
+                // 清除之前的拖拽状态
+                element.classList.remove('drag-over-top', 'drag-over-bottom');
+
+                // 获取鼠标相对于元素的位置
+                const rect = element.getBoundingClientRect();
+                const midPoint = rect.top + rect.height / 2;
+                const mouseY = e.clientY;
+
+                // 根据鼠标位置决定是在上方还是下方插入
+                if (mouseY < midPoint) {
+                    element.classList.add('drag-over-top');
+                } else {
+                    element.classList.add('drag-over-bottom');
+                }
+            }
+        });
+
+        element.addEventListener('dragleave', (e) => {
+            // 只有当鼠标真正离开元素时才清除样式
+            const rect = element.getBoundingClientRect();
+            const x = e.clientX;
+            const y = e.clientY;
+
+            if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+                element.classList.remove('drag-over-top', 'drag-over-bottom');
+            }
+        });
+
+        element.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            element.classList.remove('drag-over-top', 'drag-over-bottom');
+
+            if (this.draggedElement && this.draggedCategory && this.draggedElement !== element) {
+                // 判断是在上方还是下方插入
+                const rect = element.getBoundingClientRect();
+                const midPoint = rect.top + rect.height / 2;
+                const mouseY = e.clientY;
+                const insertBefore = mouseY < midPoint;
+
+                await this.handleCategoryReorder(this.draggedCategory, category, insertBefore);
+            }
+        });
+    }
+
+    private async handleCategoryReorder(draggedCategory: Category, targetCategory: Category, insertBefore: boolean = false) {
+        try {
+            const categories = await this.categoryManager.loadCategories();
+
+            // 找到拖拽项和目标项的索引
+            const draggedIndex = categories.findIndex(c => c.id === draggedCategory.id);
+            const targetIndex = categories.findIndex(c => c.id === targetCategory.id);
+
+            if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) {
+                return;
+            }
+
+            // 重新排序数组
+            const reorderedCategories = [...categories];
+            const [removed] = reorderedCategories.splice(draggedIndex, 1);
+
+            // 计算插入位置
+            let insertIndex = targetIndex;
+            if (draggedIndex < targetIndex) {
+                insertIndex = targetIndex; // 由于已经移除了拖拽项，索引不需要调整
+            }
+
+            if (insertBefore) {
+                reorderedCategories.splice(insertIndex, 0, removed);
+            } else {
+                reorderedCategories.splice(insertIndex + 1, 0, removed);
+            }
+
+            // 保存新的排序
+            await this.categoryManager.reorderCategories(reorderedCategories);
+
+            // 重新渲染
+            this.renderCategories();
+
+            showMessage("分类排序已更新");
+        } catch (error) {
+            console.error('重新排序分类失败:', error);
+            showMessage("排序更新失败，请重试");
+        }
     }
 
     private showAddCategoryDialog() {

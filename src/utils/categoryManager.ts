@@ -181,4 +181,32 @@ export class CategoryManager {
             (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
             (B < 255 ? B < 1 ? 0 : B : 255)).toString(16).slice(1);
     }
+
+    /**
+     * 重新排序分类
+     */
+    public async reorderCategories(reorderedCategories: Category[]): Promise<void> {
+        // 验证传入的分类数组
+        if (!Array.isArray(reorderedCategories)) {
+            throw new Error('重排序的分类必须是数组');
+        }
+
+        // 验证分类数量是否匹配
+        if (reorderedCategories.length !== this.categories.length) {
+            throw new Error('重排序的分类数量不匹配');
+        }
+
+        // 验证所有分类ID都存在
+        const currentIds = new Set(this.categories.map(cat => cat.id));
+        const reorderedIds = new Set(reorderedCategories.map(cat => cat.id));
+
+        if (currentIds.size !== reorderedIds.size ||
+            ![...currentIds].every(id => reorderedIds.has(id))) {
+            throw new Error('重排序的分类ID不匹配');
+        }
+
+        // 更新分类顺序
+        this.categories = [...reorderedCategories];
+        await this.saveCategories();
+    }
 }

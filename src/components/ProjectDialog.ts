@@ -31,7 +31,7 @@ export class ProjectDialog {
                 title: existingProject ? "编辑项目笔记" : "设置为项目笔记",
                 content: this.generateDialogHTML(block.content, existingProject),
                 width: "500px",
-                height: "600px"
+                height: "630px"
             });
 
             this.bindEvents();
