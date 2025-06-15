@@ -274,7 +274,31 @@ export default class ReminderPlugin extends Plugin {
             position: "left",
             callback: () => this.openReminderFloatPanel()
         });
+        // 创建项目管理 Dock 面板
+        this.addDock({
+            config: {
+                position: "LeftTop",
+                size: { width: 400, height: 400 },
+                icon: "iconProject",
+                title: "项目笔记",
+                hotkey: ""
+            },
+            data: {
+                text: "This is my custom dock"
+            },
+            resize() {
+                console.log("project_dock resize");
+            },
+            update() {
+                console.log("project_dock update");
+            },
+            type: "project_dock",
+            init: (dock) => {
+                this.projectDockElement = dock.element;
+                this.projectPanel = new ProjectPanel(dock.element, this);
 
+            }
+        });
         // 创建 Dock 面板
         this.addDock({
             config: {
@@ -287,33 +311,19 @@ export default class ReminderPlugin extends Plugin {
             data: {
                 text: "This is my custom dock"
             },
+            resize() {
+                console.log("dock resize");
+            },
+            update() {
+                console.log("dock update");
+            },
             type: "reminder_dock",
             init: (dock) => {
-                this.dockPanel = dock.element;
-                this.dockElement = dock.element.parentElement; // 获取 dock 容器
-                this.reminderPanel = new ReminderPanel(this.dockPanel, this);
+                this.reminderPanel = new ReminderPanel(dock.element, this);
             }
         });
 
-        // 创建项目管理 Dock 面板
-        this.addDock({
-            config: {
-                position: "LeftTop",
-                size: { width: 500, height: 400 },
-                icon: "iconProject",
-                title: "项目笔记",
-                hotkey: ""
-            },
-            data: {
-                text: "This is my custom dock"
-            },
-            type: "project_dock",
-            init: (dock) => {
-                this.projectDockElement = dock.element;
-                this.projectPanel = new ProjectPanel(dock.element, this);
 
-            }
-        });
 
         // 注册日历视图标签页
         this.addTab({
@@ -337,6 +347,12 @@ export default class ReminderPlugin extends Plugin {
         // 初始化顶栏徽章和停靠栏徽章
         this.updateBadges();
         this.updateProjectBadges();
+
+        // 延迟一些时间后再次更新徽章，确保停靠栏已渲染
+        setTimeout(() => {
+            this.updateBadges();
+            this.updateProjectBadges();
+        }, 2000);
 
         // 监听提醒更新事件，更新徽章
         window.addEventListener('reminderUpdated', () => {
@@ -523,9 +539,75 @@ export default class ReminderPlugin extends Plugin {
         }
     }
 
-    private setDockBadge(count: number) {
+    // 等待元素渲染完成后执行的函数
+    private whenElementExist(selector: string | (() => Element | null)): Promise<Element> {
+        return new Promise(resolve => {
+            const checkForElement = () => {
+                let element = null;
+                if (typeof selector === 'function') {
+                    element = selector();
+                } else {
+                    element = document.querySelector(selector);
+                }
+                if (element) {
+                    resolve(element);
+                } else {
+                    // 如果元素不存在，等浏览器再次重绘，递归调用checkForElement，直到元素出现
+                    requestAnimationFrame(checkForElement);
+                }
+            };
+            checkForElement();
+        });
+    }
 
-        // 查找停靠栏图标
+    private async setDockBadge(count: number) {
+        try {
+            // 等待停靠栏图标出现
+            const dockIcon = await this.whenElementExist('.dock__item[data-type="siyuan-plugin-task-note-managementreminder_dock"]') as HTMLElement;
+
+            // 移除现有徽章
+            const existingBadge = dockIcon.querySelector('.reminder-dock-badge');
+            if (existingBadge) {
+                existingBadge.remove();
+            }
+
+            // 如果计数大于0，添加徽章
+            if (count > 0) {
+                const badge = document.createElement('span');
+                badge.className = 'reminder-dock-badge';
+                badge.textContent = count.toString();
+                badge.style.cssText = `
+                    position: absolute;
+                    top: 2px;
+                    right: 2px;
+                    background: var(--b3-theme-error);
+                    color: white;
+                    border-radius: 50%;
+                    min-width: 14px;
+                    height: 14px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 10px;
+                    font-weight: bold;
+                    line-height: 1;
+                    z-index: 1;
+                    pointer-events: none;
+                `;
+
+                // 确保父元素有相对定位
+                dockIcon.style.position = 'relative';
+                dockIcon.appendChild(badge);
+            }
+        } catch (error) {
+            console.warn('设置停靠栏徽章失败:', error);
+            // 如果等待超时或出错，尝试传统方法作为后备
+            this.setDockBadgeFallback(count);
+        }
+    }
+
+    private setDockBadgeFallback(count: number) {
+        // 查找停靠栏图标（传统方法作为后备）
         const dockIcon = document.querySelector('.dock__item[data-type="siyuan-plugin-task-note-managementreminder_dock"]');
         if (!dockIcon) return;
 
@@ -560,13 +642,59 @@ export default class ReminderPlugin extends Plugin {
             `;
 
             // 确保父元素有相对定位
-            dockIcon.style.position = 'relative';
+            (dockIcon as HTMLElement).style.position = 'relative';
             dockIcon.appendChild(badge);
         }
     }
 
-    private setProjectDockBadge(count: number) {
-        // 查找项目停靠栏图标
+    private async setProjectDockBadge(count: number) {
+        try {
+            // 等待项目停靠栏图标出现
+            const dockIcon = await this.whenElementExist('.dock__item[data-type="siyuan-plugin-task-note-managementproject_dock"]') as HTMLElement;
+
+            // 移除现有徽章
+            const existingBadge = dockIcon.querySelector('.project-dock-badge');
+            if (existingBadge) {
+                existingBadge.remove();
+            }
+
+            // 如果计数大于0，添加徽章
+            if (count > 0) {
+                const badge = document.createElement('span');
+                badge.className = 'project-dock-badge';
+                badge.textContent = count.toString();
+                badge.style.cssText = `
+                    position: absolute;
+                    top: 2px;
+                    right: 2px;
+                    background:#2c6a2e;
+                    color: white;
+                    border-radius: 50%;
+                    min-width: 14px;
+                    height: 14px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 10px;
+                    font-weight: bold;
+                    line-height: 1;
+                    z-index: 1;
+                    pointer-events: none;
+                `;
+
+                // 确保父元素有相对定位
+                dockIcon.style.position = 'relative';
+                dockIcon.appendChild(badge);
+            }
+        } catch (error) {
+            console.warn('设置项目停靠栏徽章失败:', error);
+            // 如果等待超时或出错，尝试传统方法作为后备
+            this.setProjectDockBadgeFallback(count);
+        }
+    }
+
+    private setProjectDockBadgeFallback(count: number) {
+        // 查找项目停靠栏图标（传统方法作为后备）
         const dockIcon = document.querySelector('.dock__item[data-type="siyuan-plugin-task-note-managementproject_dock"]');
         if (!dockIcon) return;
 
@@ -601,7 +729,7 @@ export default class ReminderPlugin extends Plugin {
             `;
 
             // 确保父元素有相对定位
-            dockIcon.style.position = 'relative';
+            (dockIcon as HTMLElement).style.position = 'relative';
             dockIcon.appendChild(badge);
         }
     }
