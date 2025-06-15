@@ -1189,6 +1189,7 @@ export class PomodoroTimer {
         // 更新标题图标
 
         this.modeToggleBtn.innerHTML = this.isCountUp ? '⏱️' : '⏳';
+        this.modeToggleBtn.title = this.isCountUp ? '切换到倒计时' : '切换到正计时';
 
         // 重置状态
         this.resetTimer();
@@ -1645,6 +1646,7 @@ export class PomodoroTimer {
             }
 
             this.stopAllAudio();
+            this.stopRandomNotificationTimer(); // 添加停止随机提示音
 
             if (this.endAudio) {
                 await this.safePlayAudio(this.endAudio);
@@ -1664,6 +1666,9 @@ export class PomodoroTimer {
             setTimeout(() => {
                 this.updateStatsDisplay();
             }, 100);
+        } else {
+            // 正计时模式完成番茄后也要停止随机提示音
+            this.stopRandomNotificationTimer();
         }
 
         // 无论哪种模式都记录完成的工作番茄
@@ -1699,6 +1704,7 @@ export class PomodoroTimer {
         }
 
         this.stopAllAudio();
+        this.stopRandomNotificationTimer(); // 添加停止随机提示音
 
         if (this.endAudio) {
             await this.safePlayAudio(this.endAudio);
@@ -1743,6 +1749,7 @@ export class PomodoroTimer {
         }
 
         this.stopAllAudio();
+        this.stopRandomNotificationTimer(); // 添加停止随机提示音
 
         if (this.endAudio) {
             await this.safePlayAudio(this.endAudio);
