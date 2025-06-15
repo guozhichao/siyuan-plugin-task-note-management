@@ -261,18 +261,42 @@ export class PomodoroTimer {
             selectedAudio.currentTime = 0;
             await selectedAudio.play();
 
-            // 使用设置中的微休息时间播放结束声音
-            const breakDuration = this.settings.randomNotificationBreakDuration * 1000; // 转换为毫秒
-            setTimeout(async () => {
-                if (this.randomNotificationEndSound) {
-                    try {
-                        this.randomNotificationEndSound.currentTime = 0;
-                        await this.randomNotificationEndSound.play();
-                    } catch (error) {
-                        console.warn('播放随机提示音结束声音失败:', error);
-                    }
+            // 预加载并准备结束声音，在用户手势上下文中
+            if (this.randomNotificationEndSound) {
+                try {
+                    // 在当前用户手势上下文中预先准备结束声音
+                    this.randomNotificationEndSound.currentTime = 0;
+                    // 立即暂停，这样可以在稍后没有用户手势的情况下播放
+                    const playPromise = this.randomNotificationEndSound.play();
+                    await playPromise;
+                    this.randomNotificationEndSound.pause();
+                    this.randomNotificationEndSound.currentTime = 0;
+                    
+                    // 使用设置中的微休息时间播放结束声音
+                    const breakDuration = this.settings.randomNotificationBreakDuration * 1000; // 转换为毫秒
+                    setTimeout(async () => {
+                        try {
+                            // 现在可以播放，因为已经在用户手势上下文中初始化过了
+                            await this.randomNotificationEndSound.play();
+                        } catch (error) {
+                            console.warn('播放随机提示音结束声音失败:', error);
+                        }
+                    }, breakDuration);
+                } catch (error) {
+                    console.warn('预加载随机提示音结束声音失败:', error);
+                    // 如果预加载失败，尝试直接在延迟后播放
+                    const breakDuration = this.settings.randomNotificationBreakDuration * 1000;
+                    setTimeout(async () => {
+                        try {
+                            this.randomNotificationEndSound.currentTime = 0;
+                            await this.randomNotificationEndSound.play();
+                        } catch (error) {
+                            // 静默处理延迟播放失败，避免控制台错误
+                            console.debug('延迟播放随机提示音结束声音失败，这是预期的浏览器安全限制');
+                        }
+                    }, breakDuration);
                 }
-            }, breakDuration);
+            }
 
         } catch (error) {
             console.warn('播放随机提示音失败:', error);
@@ -332,6 +356,18 @@ export class PomodoroTimer {
                 audioPromises.push(this.endAudio.load());
             }
 
+            // 预加载随机提示音
+            if (this.randomNotificationSounds.length > 0) {
+                this.randomNotificationSounds.forEach(audio => {
+                    audioPromises.push(audio.load());
+                });
+            }
+
+            // 预加载随机提示音结束声音
+            if (this.randomNotificationEndSound) {
+                audioPromises.push(this.randomNotificationEndSound.load());
+            }
+
             await Promise.allSettled(audioPromises);
             this.audioInitialized = true;
             console.log('音频播放权限已获取');
@@ -353,6 +389,13 @@ export class PomodoroTimer {
             if (error.name === 'NotAllowedError') {
                 console.log('尝试重新获取音频播放权限...');
                 this.audioInitialized = false;
+                // 尝试重新初始化
+                try {
+                    await this.initializeAudioPlayback();
+                    await audio.play();
+                } catch (retryError) {
+                    console.warn('重试音频播放失败:', retryError);
+                }
             }
         }
     }
@@ -1615,6 +1658,7 @@ export class PomodoroTimer {
     }
 
     private toggleTimer() {
+        // 确保在用户手势上下文中初始化音频
         if (!this.audioInitialized) {
             this.initializeAudioPlayback();
         }
