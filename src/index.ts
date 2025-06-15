@@ -393,9 +393,9 @@ export default class ReminderPlugin extends Plugin {
         // 创建悬浮窗口
         const dialog = new Dialog({
             title: t("timeReminder"),
-            content: '<div id="floatReminderPanel" style="height: 400px;"></div>',
-            width: "350px",
-            height: "450px",
+            content: '<div id="floatReminderPanel" style="height: 600px;"></div>',
+            width: "400px",
+            height: "600px",
             destroyCallback: () => {
                 // 悬浮窗口关闭时清理
             }
