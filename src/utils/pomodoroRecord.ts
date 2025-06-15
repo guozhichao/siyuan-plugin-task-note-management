@@ -208,14 +208,23 @@ export class PomodoroRecordManager {
 
     getWeekFocusTime(): number {
         const today = new Date();
-        const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - today.getDay()); // 本周开始（周日）
+        // 获取本周一的日期（周一为一周的开始）
+        const currentDay = today.getDay(); // 0 = 周日, 1 = 周一, ..., 6 = 周六
+        const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay; // 如果是周日，回退6天；否则回退到周一
+
+        const monday = new Date(today);
+        monday.setDate(today.getDate() + mondayOffset);
 
         let totalMinutes = 0;
         for (let i = 0; i < 7; i++) {
-            const date = new Date(weekStart);
-            date.setDate(weekStart.getDate() + i);
-            const dateStr = date.toISOString().split('T')[0];
+            const date = new Date(monday);
+            date.setDate(monday.getDate() + i);
+            // 使用本地日期格式而不是ISO字符串
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
+
             totalMinutes += this.records[dateStr]?.totalWorkTime || 0;
         }
 
