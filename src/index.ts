@@ -278,7 +278,7 @@ export default class ReminderPlugin extends Plugin {
         this.addDock({
             config: {
                 position: "LeftTop",
-                size: { width: 400, height: 400 },
+                size: { width: 300, height: 0 },
                 icon: "iconProject",
                 title: "项目笔记",
                 hotkey: ""
@@ -303,7 +303,7 @@ export default class ReminderPlugin extends Plugin {
         this.addDock({
             config: {
                 position: "LeftTop",
-                size: { width: 400, height: 400 },
+                size: { width: 300, height: 0 },
                 icon: "iconClock",
                 title: t("timeReminder"),
                 hotkey: ""
