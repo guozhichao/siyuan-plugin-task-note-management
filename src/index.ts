@@ -762,7 +762,7 @@ export default class ReminderPlugin extends Plugin {
 
         // 添加项目笔记设置功能
         detail.menu.addItem({
-            iconHTML: "⏰",
+            iconHTML: "📂",
             label: "设置为项目笔记",
             click: () => {
                 if (documentId) {
