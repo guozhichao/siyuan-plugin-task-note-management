@@ -142,6 +142,22 @@ export default class ReminderPlugin extends Plugin {
             description: "设置事项提醒时播放的声音文件路径，留空则静音"
         });
 
+        // 背景音量设置
+        this.settingUtils.addItem({
+            key: "backgroundVolume",
+            value: 0.5,
+            type: "slider",
+            title: "番茄钟背景音音量",
+            description: "设置番茄钟背景音的音量大小，范围0-1",
+            slider: {
+                min: 0,
+                max: 1,
+                step: 0.1
+            }
+        });
+
+
+
         // 随机提示音设置
         this.settingUtils.addItem({
             key: "randomNotificationEnabled",
@@ -265,6 +281,7 @@ export default class ReminderPlugin extends Plugin {
             breakSound: this.settingUtils.get("pomodoroBreakSound") || "",
             longBreakSound: this.settingUtils.get("pomodoroLongBreakSound") || "",
             endSound: this.settingUtils.get("pomodoroEndSound") || "",
+            backgroundVolume: Math.max(0, Math.min(1, this.settingUtils.get("backgroundVolume") || 0.5)),
             randomNotificationEnabled: this.settingUtils.get("randomNotificationEnabled") || false,
             randomNotificationMinInterval: Math.max(1, this.settingUtils.get("randomNotificationMinInterval") || 3),
             randomNotificationMaxInterval: Math.max(1, this.settingUtils.get("randomNotificationMaxInterval") || 5),

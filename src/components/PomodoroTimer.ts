@@ -69,7 +69,7 @@ export class PomodoroTimer {
 
         // 初始化声音设置
         this.isBackgroundAudioMuted = settings.backgroundAudioMuted || false;
-        this.backgroundVolume = settings.backgroundVolume !== undefined ? settings.backgroundVolume : 1;
+        this.backgroundVolume = Math.max(0, Math.min(1, settings.backgroundVolume || 0.5));
 
         // 初始化随机提示音设置
         this.randomNotificationEnabled = settings.randomNotificationEnabled || false;
@@ -2131,6 +2131,7 @@ export class PomodoroTimer {
     private editTime() {
         // 如果正在运行且未暂停，则不允许编辑
         if (this.isRunning && !this.isPaused) {
+
             showMessage('请先暂停计时器再编辑时间', 2000);
             return;
         }
