@@ -472,7 +472,7 @@ export class ProjectPanel {
         const statusLabel = document.createElement('div');
         statusLabel.className = `project-status-label project-status-${status}`;
         const statusNames = {
-            'active': '▶️进行中',
+            'active': '⏳进行中',
             'someday': '💭未来也许',
             'archived': '📥已归档'
         };
@@ -650,7 +650,7 @@ export class ProjectPanel {
         // 设置状态子菜单
         const createStatusMenuItems = () => {
             const statuses = [
-                { key: 'active', label: '正在进行', icon: '▶️' },
+                { key: 'active', label: '正在进行', icon: '⏳' },
                 { key: 'someday', label: '未来也许', icon: '💭' },
                 { key: 'archived', label: '已归档', icon: '📥' }
             ];
