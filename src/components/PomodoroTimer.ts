@@ -208,7 +208,7 @@ export class PomodoroTimer {
             soundPaths.forEach(path => {
                 try {
                     const audio = new Audio(path);
-                    audio.volume = 0.7; // 稍微降低随机提示音音量
+                    audio.volume = 1; // 稍微降低随机提示音音量
                     audio.preload = 'auto';
                     this.randomNotificationSounds.push(audio);
                 } catch (error) {
@@ -226,7 +226,7 @@ export class PomodoroTimer {
         try {
             if (this.settings.randomNotificationEndSound) {
                 this.randomNotificationEndSound = new Audio(this.settings.randomNotificationEndSound);
-                this.randomNotificationEndSound.volume = 0.8;
+                this.randomNotificationEndSound.volume = 1;
                 this.randomNotificationEndSound.preload = 'auto';
                 console.log('已加载随机提示音结束声音');
             }
