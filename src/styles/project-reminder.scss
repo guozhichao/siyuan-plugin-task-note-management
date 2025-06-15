@@ -78,6 +78,7 @@
     border-left: 3px solid var(--b3-theme-on-surface);
 }
 
+
 .project-item__content {
     display: flex;
     flex-direction: column;
@@ -155,6 +156,7 @@
 // 优先级颜色样式
 .project-priority-high {
     border-left: 4px solid var(--b3-card-error-color) !important;
+    background-color: var(--b3-card-error-background) !important;
 }
 
 .project-priority-high .project-item__note {
@@ -165,6 +167,7 @@
 
 .project-priority-medium {
     border-left: 4px solid var(--b3-card-warning-color) !important;
+    background-color: var(--b3-card-warning-background) !important;
 }
 
 .project-priority-medium .project-item__note {
@@ -175,12 +178,14 @@
 
 .project-priority-low {
     border-left: 4px solid var(--b3-card-info-color) !important;
+    background-color: var(--b3-card-info-background) !important;
 }
 
 .project-priority-low .project-item__note {
     color: var(--b3-card-info-color) !important;
     background-color: var(--b3-card-info-background) !important;
     border: 2px solid var(--b3-card-info-color) !important;
+    
 }
 
 .project-priority-none .project-item__note {
