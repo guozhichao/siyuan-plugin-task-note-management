@@ -209,7 +209,10 @@ export class PomodoroRecordManager {
     getWeekFocusTime(): number {
         const today = new Date();
         const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - today.getDay()); // 本周开始（周日）
+        // 计算本周一的日期
+        const dayOfWeek = today.getDay(); // 0 是周日，1 是周一
+        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // 如果是周日，需要回退6天到周一
+        weekStart.setDate(today.getDate() - daysToMonday);
 
         let totalMinutes = 0;
         for (let i = 0; i < 7; i++) {
@@ -354,7 +357,10 @@ export class PomodoroRecordManager {
     getWeekSessions(): PomodoroSession[] {
         const today = new Date();
         const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - today.getDay());
+        // 计算本周一的日期
+        const dayOfWeek = today.getDay(); // 0 是周日，1 是周一
+        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // 如果是周日，需要回退6天到周一
+        weekStart.setDate(today.getDate() - daysToMonday);
         weekStart.setHours(0, 0, 0, 0);
 
         const weekEnd = new Date(weekStart);
