@@ -148,7 +148,31 @@ export default class ReminderPlugin extends Plugin {
             value: false,
             type: "checkbox",
             title: "启用随机提示音",
-            description: "在番茄钟运行时每3-5分钟播放随机提示音，播放提示音后请休息10s，利用间隔效应和随机奖励，提高专注和工作效率"
+            description: "在番茄钟运行时每隔一定时间随机播放提示音，播放提示音后进行微休息，利用间隔效应和随机奖励，提高专注和工作效率。<a href=\"https://www.bilibili.com/video/BV1naLozQEBq\">视频介绍</a>"
+        });
+
+        this.settingUtils.addItem({
+            key: "randomNotificationMinInterval",
+            value: 3,
+            type: "number",
+            title: "随机提示音最小间隔（分钟）",
+            description: "设置随机提示音播放的最小间隔时间，默认3分钟"
+        });
+
+        this.settingUtils.addItem({
+            key: "randomNotificationMaxInterval",
+            value: 5,
+            type: "number",
+            title: "随机提示音最大间隔（分钟）",
+            description: "设置随机提示音播放的最大间隔时间，默认5分钟"
+        });
+
+        this.settingUtils.addItem({
+            key: "randomNotificationBreakDuration",
+            value: 10,
+            type: "number",
+            title: "微休息时间（秒）",
+            description: "随机提示音播放后的微休息时间，在此时间后播放结束提示音，默认10秒"
         });
 
         this.settingUtils.addItem({
@@ -163,7 +187,7 @@ export default class ReminderPlugin extends Plugin {
             key: "randomNotificationEndSound",
             value: "/plugins/siyuan-plugin-task-note-management/audios/random_end.mp3",
             type: "textinput",
-            title: "随机提示音结束声音（随机提示音播放10s后播放）",
+            title: "随机提示音结束声音",
             description: "设置随机提示音播放结束后的提示音文件路径，留空则不播放"
         });
 
@@ -242,6 +266,9 @@ export default class ReminderPlugin extends Plugin {
             longBreakSound: this.settingUtils.get("pomodoroLongBreakSound") || "",
             endSound: this.settingUtils.get("pomodoroEndSound") || "",
             randomNotificationEnabled: this.settingUtils.get("randomNotificationEnabled") || false,
+            randomNotificationMinInterval: Math.max(1, this.settingUtils.get("randomNotificationMinInterval") || 3),
+            randomNotificationMaxInterval: Math.max(1, this.settingUtils.get("randomNotificationMaxInterval") || 5),
+            randomNotificationBreakDuration: Math.max(1, this.settingUtils.get("randomNotificationBreakDuration") || 10),
             randomNotificationSounds: this.settingUtils.get("randomNotificationSounds") || "",
             randomNotificationEndSound: this.settingUtils.get("randomNotificationEndSound") || ""
         };
@@ -312,10 +339,8 @@ export default class ReminderPlugin extends Plugin {
                 text: "This is my custom dock"
             },
             resize() {
-                console.log("project_dock resize");
             },
             update() {
-                console.log("project_dock update");
             },
             type: "project_dock",
             init: (dock) => {
@@ -337,10 +362,8 @@ export default class ReminderPlugin extends Plugin {
                 text: "This is my custom dock"
             },
             resize() {
-                console.log("dock resize");
             },
             update() {
-                console.log("dock update");
             },
             type: "reminder_dock",
             init: (dock) => {

@@ -252,7 +252,8 @@ export class PomodoroTimer {
             selectedAudio.currentTime = 0;
             await selectedAudio.play();
 
-            // 10秒后播放结束声音
+            // 使用设置中的微休息时间播放结束声音
+            const breakDuration = this.settings.randomNotificationBreakDuration * 1000; // 转换为毫秒
             setTimeout(async () => {
                 if (this.randomNotificationEndSound) {
                     try {
@@ -262,7 +263,7 @@ export class PomodoroTimer {
                         console.warn('播放随机提示音结束声音失败:', error);
                     }
                 }
-            }, 10000); // 10秒后播放结束声音
+            }, breakDuration);
 
         } catch (error) {
             console.warn('播放随机提示音失败:', error);
@@ -276,10 +277,13 @@ export class PomodoroTimer {
 
         this.stopRandomNotificationTimer();
 
-        // 在3-5分钟之间随机选择一个间隔时间
-        const minInterval = 3 * 60 * 1000; // 3分钟
-        const maxInterval = 5 * 60 * 1000; // 5分钟
-        const randomInterval = minInterval + Math.random() * (maxInterval - minInterval);
+        // 使用设置中的时间间隔范围
+        const minInterval = this.settings.randomNotificationMinInterval * 60 * 1000; // 转换为毫秒
+        const maxInterval = this.settings.randomNotificationMaxInterval * 60 * 1000; // 转换为毫秒
+
+        // 确保最大间隔大于等于最小间隔
+        const actualMaxInterval = Math.max(minInterval, maxInterval);
+        const randomInterval = minInterval + Math.random() * (actualMaxInterval - minInterval);
 
         this.randomNotificationTimer = window.setTimeout(() => {
             this.playRandomNotificationSound();
