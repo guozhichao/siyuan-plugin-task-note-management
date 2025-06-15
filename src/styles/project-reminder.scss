@@ -63,9 +63,19 @@
     background: var(--b3-theme-error-lighter);
 }
 
+.project-item--active {
+    border-left: 3px solid var(--b3-theme-primary);
+}
+
+.project-item--someday {
+    border-left: 3px solid var(--b3-theme-warning);
+    opacity: 0.8;
+}
+
 .project-item--archived {
     opacity: 0.7;
     background: var(--b3-theme-surface-lighter);
+    border-left: 3px solid var(--b3-theme-on-surface);
 }
 
 .project-item__content {
@@ -313,24 +323,24 @@
     .project-item {
         padding: 8px;
     }
-    
+
     .project-item__title {
         font-size: 13px;
     }
-    
+
     .project-item__time {
         font-size: 11px;
     }
-    
+
     .project-item__note {
         font-size: 11px;
         padding: 3px 6px;
     }
-    
+
     .dialog-buttons {
         flex-direction: column;
     }
-    
+
     .dialog-buttons .b3-button {
         width: 100%;
     }
@@ -341,17 +351,32 @@
     animation: slideInUp 0.3s ease forwards;
 }
 
-.project-item:nth-child(1) { animation-delay: 0ms; }
-.project-item:nth-child(2) { animation-delay: 50ms; }
-.project-item:nth-child(3) { animation-delay: 100ms; }
-.project-item:nth-child(4) { animation-delay: 150ms; }
-.project-item:nth-child(5) { animation-delay: 200ms; }
+.project-item:nth-child(1) {
+    animation-delay: 0ms;
+}
+
+.project-item:nth-child(2) {
+    animation-delay: 50ms;
+}
+
+.project-item:nth-child(3) {
+    animation-delay: 100ms;
+}
+
+.project-item:nth-child(4) {
+    animation-delay: 150ms;
+}
+
+.project-item:nth-child(5) {
+    animation-delay: 200ms;
+}
 
 @keyframes slideInUp {
     from {
         opacity: 0;
         transform: translateY(20px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -380,8 +405,13 @@
 }
 
 @keyframes spin {
-    0% { transform: translate(-50%, -50%) rotate(0deg); }
-    100% { transform: translate(-50%, -50%) rotate(360deg); }
+    0% {
+        transform: translate(-50%, -50%) rotate(0deg);
+    }
+
+    100% {
+        transform: translate(-50%, -50%) rotate(360deg);
+    }
 }
 
 // 暗色主题适配
@@ -390,25 +420,30 @@
         background: var(--b3-theme-surface);
         border-color: var(--b3-theme-surface-lighter);
     }
-    
+
     .project-item:hover {
         background: var(--b3-theme-surface-light);
         border-color: var(--b3-theme-primary-light);
     }
-    
+
     .project-item--overdue {
         background: rgba(231, 76, 60, 0.1);
     }
-    
+
+    .project-item--someday {
+        background: rgba(243, 156, 18, 0.05);
+        opacity: 0.9;
+    }
+
     .project-item--archived {
         background: var(--b3-theme-surface-lighter);
         opacity: 0.6;
     }
-    
+
     .project-category-tag {
         border-color: rgba(255, 255, 255, 0.2);
     }
-    
+
     .dialog-buttons {
         border-top-color: var(--b3-theme-surface-lighter);
     }
@@ -419,15 +454,15 @@
     .project-item {
         border-width: 2px;
     }
-    
+
     .project-item:hover {
         border-width: 3px;
     }
-    
+
     .project-priority-label {
         border: 1px solid currentColor;
     }
-    
+
     .project-category-tag {
         border: 2px solid white;
         font-weight: 600;
@@ -436,16 +471,17 @@
 
 // 减少动画模式适配
 @media (prefers-reduced-motion: reduce) {
+
     .project-item,
     .dialog-buttons .b3-button {
         animation: none;
         transition: none;
     }
-    
+
     .project-item:hover {
         transform: none;
     }
-    
+
     .dialog-buttons .b3-button:hover {
         transform: none;
     }

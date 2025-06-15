@@ -45,7 +45,7 @@ export class ProjectDialog {
         const today = getLocalDateString();
         const categories = this.categoryManager.getCategories();
 
-        const categoryOptions = categories.map(cat => 
+        const categoryOptions = categories.map(cat =>
             `<option value="${cat.id}" ${existingProject?.categoryId === cat.id ? 'selected' : ''}>${cat.icon ? cat.icon + ' ' : ''}${cat.name}</option>`
         ).join('');
 
@@ -60,6 +60,15 @@ export class ProjectDialog {
                     <div class="form-group">
                         <label>项目描述:</label>
                         <textarea id="projectNote" class="b3-text-field" rows="3" placeholder="输入项目描述">${existingProject?.note || ''}</textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>项目状态:</label>
+                        <select id="projectStatus" class="b3-select">
+                            <option value="active" ${(!existingProject?.status || existingProject?.status === 'active') ? 'selected' : ''}>正在进行</option>
+                            <option value="someday" ${existingProject?.status === 'someday' ? 'selected' : ''}>未来也许</option>
+                            <option value="archived" ${existingProject?.status === 'archived' ? 'selected' : ''}>已归档</option>
+                        </select>
                     </div>
                     
                     <div class="form-group">
@@ -89,13 +98,6 @@ export class ProjectDialog {
                         <label>截止日期:</label>
                         <input type="date" id="projectEndDate" class="b3-text-field" value="${existingProject?.endDate || ''}">
                     </div>
-                    
-                    <div class="form-group">
-                        <label>
-                            <input type="checkbox" id="projectArchived" ${existingProject?.archived ? 'checked' : ''}>
-                            已归档
-                        </label>
-                    </div>
                 </div>
                 
                 <div class="dialog-buttons">
@@ -121,10 +123,6 @@ export class ProjectDialog {
                     display: block;
                     margin-bottom: 4px;
                     font-weight: 500;
-                }
-                
-                .form-group input[type="checkbox"] {
-                    margin-right: 8px;
                 }
                 
                 .dialog-buttons {
@@ -162,11 +160,11 @@ export class ProjectDialog {
         try {
             const titleEl = this.dialog.element.querySelector('#projectTitle') as HTMLInputElement;
             const noteEl = this.dialog.element.querySelector('#projectNote') as HTMLTextAreaElement;
+            const statusEl = this.dialog.element.querySelector('#projectStatus') as HTMLSelectElement;
             const priorityEl = this.dialog.element.querySelector('#projectPriority') as HTMLSelectElement;
             const categoryEl = this.dialog.element.querySelector('#projectCategory') as HTMLSelectElement;
             const startDateEl = this.dialog.element.querySelector('#projectStartDate') as HTMLInputElement;
             const endDateEl = this.dialog.element.querySelector('#projectEndDate') as HTMLInputElement;
-            const archivedEl = this.dialog.element.querySelector('#projectArchived') as HTMLInputElement;
 
             const title = titleEl.value.trim();
             if (!title) {
@@ -192,11 +190,13 @@ export class ProjectDialog {
                 blockId: this.blockId,
                 title: title,
                 note: noteEl.value.trim(),
+                status: statusEl.value,
                 priority: priorityEl.value,
                 categoryId: categoryEl.value || null,
                 startDate: startDate,
                 endDate: endDate || null,
-                archived: archivedEl.checked,
+                // 保持向后兼容
+                archived: statusEl.value === 'archived',
                 createdTime: projectData[this.blockId]?.createdTime || new Date().toISOString(),
                 updatedTime: new Date().toISOString()
             };

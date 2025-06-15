@@ -115,6 +115,7 @@ export class ProjectPanel {
         `;
         this.filterSelect.innerHTML = `
             <option value="active" selected>正在进行</option>
+            <option value="someday">未来也许</option>
             <option value="archived">已归档</option>
             <option value="all">全部项目</option>
         `;
@@ -260,9 +261,27 @@ export class ProjectPanel {
                 return;
             }
 
+            // 迁移旧数据：将 archived 字段转换为 status 字段
+            let dataChanged = false;
             const projects = Object.values(projectData).filter((project: any) => {
-                return project && typeof project === 'object' && project.id;
+                if (project && typeof project === 'object' && project.id) {
+                    // 数据迁移：将旧的 archived 字段转换为新的 status 字段
+                    if (!project.status && project.hasOwnProperty('archived')) {
+                        project.status = project.archived ? 'archived' : 'active';
+                        dataChanged = true;
+                    } else if (!project.status) {
+                        project.status = 'active';
+                        dataChanged = true;
+                    }
+                    return true;
+                }
+                return false;
             });
+
+            // 如果有数据迁移，保存更新
+            if (dataChanged) {
+                await writeProjectData(projectData);
+            }
 
             // 应用分类过滤
             const filteredProjects = this.applyCategoryFilter(projects);
@@ -271,16 +290,19 @@ export class ProjectPanel {
             let displayProjects = [];
             switch (this.currentTab) {
                 case 'active':
-                    displayProjects = filteredProjects.filter((project: any) => !project.archived);
+                    displayProjects = filteredProjects.filter((project: any) => project.status === 'active');
+                    break;
+                case 'someday':
+                    displayProjects = filteredProjects.filter((project: any) => project.status === 'someday');
                     break;
                 case 'archived':
-                    displayProjects = filteredProjects.filter((project: any) => project.archived);
+                    displayProjects = filteredProjects.filter((project: any) => project.status === 'archived');
                     break;
                 case 'all':
                     displayProjects = filteredProjects;
                     break;
                 default:
-                    displayProjects = filteredProjects.filter((project: any) => !project.archived);
+                    displayProjects = filteredProjects.filter((project: any) => project.status === 'active');
             }
 
             // 应用排序
@@ -356,6 +378,7 @@ export class ProjectPanel {
         if (projects.length === 0) {
             const filterNames = {
                 'active': '暂无正在进行的项目',
+                'someday': '暂无未来也许的项目',
                 'archived': '暂无已归档的项目',
                 'all': '暂无项目'
             };
@@ -375,9 +398,10 @@ export class ProjectPanel {
         const today = getLocalDateString();
         const isOverdue = project.endDate && compareDateStrings(project.endDate, today) < 0;
         const priority = project.priority || 'none';
+        const status = project.status || 'active';
 
         const projectEl = document.createElement('div');
-        projectEl.className = `project-item ${isOverdue ? 'project-item--overdue' : ''} ${project.archived ? 'project-item--archived' : ''} project-priority-${priority}`;
+        projectEl.className = `project-item ${isOverdue ? 'project-item--overdue' : ''} project-item--${status} project-priority-${priority}`;
 
         // 添加右键菜单支持
         projectEl.addEventListener('contextmenu', (e) => {
@@ -430,19 +454,23 @@ export class ProjectPanel {
             timeEl.appendChild(priorityLabel);
         }
 
-        if (isOverdue && !project.archived) {
+        if (isOverdue && status === 'active') {
             const overdueLabel = document.createElement('span');
             overdueLabel.className = 'project-overdue-label';
             overdueLabel.textContent = '已过期';
             timeEl.appendChild(overdueLabel);
         }
 
-        if (project.archived) {
-            const archivedLabel = document.createElement('span');
-            archivedLabel.className = 'project-archived-label';
-            archivedLabel.textContent = '已归档';
-            timeEl.appendChild(archivedLabel);
-        }
+        // 添加状态标签
+        const statusLabel = document.createElement('span');
+        statusLabel.className = `project-status-label project-status-${status}`;
+        const statusNames = {
+            'active': '进行中',
+            'someday': '未来也许',
+            'archived': '已归档'
+        };
+        statusLabel.textContent = statusNames[status] || '未知状态';
+        timeEl.appendChild(statusLabel);
 
         timeContainer.appendChild(timeEl);
 
@@ -516,7 +544,7 @@ export class ProjectPanel {
         }
 
         let timeStr = '';
-        
+
         if (startDate) {
             const start = new Date(startDate + 'T00:00:00');
             const startStr = start.toLocaleDateString('zh-CN', {
@@ -618,22 +646,33 @@ export class ProjectPanel {
             submenu: createCategoryMenuItems()
         });
 
-        menu.addSeparator();
+        // 设置状态子菜单
+        const createStatusMenuItems = () => {
+            const statuses = [
+                { key: 'active', label: '正在进行', icon: '▶️' },
+                { key: 'someday', label: '未来也许', icon: '💭' },
+                { key: 'archived', label: '已归档', icon: '📥' }
+            ];
 
-        // 归档/取消归档
-        if (project.archived) {
-            menu.addItem({
-                iconHTML: "📤",
-                label: "取消归档",
-                click: () => this.toggleArchive(project.id, false)
-            });
-        } else {
-            menu.addItem({
-                iconHTML: "📥",
-                label: "归档项目",
-                click: () => this.toggleArchive(project.id, true)
-            });
-        }
+            const currentStatus = project.status || 'active';
+
+            return statuses.map(status => ({
+                iconHTML: status.icon,
+                label: status.label,
+                current: currentStatus === status.key,
+                click: () => {
+                    this.setStatus(project.id, status.key);
+                }
+            }));
+        };
+
+        menu.addItem({
+            iconHTML: "📊",
+            label: "设置状态",
+            submenu: createStatusMenuItems()
+        });
+
+        menu.addSeparator();
 
         // 删除项目
         menu.addItem({
@@ -708,21 +747,29 @@ export class ProjectPanel {
         }
     }
 
-    private async toggleArchive(projectId: string, archived: boolean) {
+    private async setStatus(projectId: string, status: string) {
         try {
             const projectData = await readProjectData();
             if (projectData[projectId]) {
-                projectData[projectId].archived = archived;
+                projectData[projectId].status = status;
+                // 保持向后兼容
+                projectData[projectId].archived = status === 'archived';
                 projectData[projectId].updatedTime = new Date().toISOString();
                 await writeProjectData(projectData);
                 window.dispatchEvent(new CustomEvent('projectUpdated'));
                 this.loadProjects();
-                showMessage(archived ? "项目已归档" : "项目已取消归档");
+
+                const statusNames = {
+                    'active': '正在进行',
+                    'someday': '未来也许',
+                    'archived': '已归档'
+                };
+                showMessage(`已设置状态为：${statusNames[status]}`);
             } else {
                 showMessage("项目不存在");
             }
         } catch (error) {
-            console.error('切换归档状态失败:', error);
+            console.error('设置状态失败:', error);
             showMessage("操作失败");
         }
     }
