@@ -1,5 +1,5 @@
 @import './styles/doc-reminder.scss';
-
+@import './styles/project-reminder.scss';
 .smart-batch-dialog {
     .b3-dialog__content {
         padding: 20px;
@@ -1240,7 +1240,6 @@
 
 // .reminder-priority-none {
 //     border-left: 4px solid transparent !important;
-// }
 .reminder-priority-none .reminder-item__note {
     color: var(--b3-theme-on-background) !important;
     background-color: transparent !important;

@@ -709,3 +709,35 @@ export async function updateBlockReminderBookmark(blockId: string): Promise<void
         console.error('更新块提醒书签失败:', error);
     }
 }
+
+// **************************************** Project Management API ****************************************
+
+export async function writeProjectData(data: any): Promise<any> {
+    const content = JSON.stringify(data, null, 2);
+    const blob = new Blob([content], { type: 'application/json' });
+    return putFile('data/storage/petal/siyuan-plugin-task-note-management/project.json', false, blob);
+}
+
+export async function readProjectData(): Promise<any> {
+    try {
+        const content = await getFile('data/storage/petal/siyuan-plugin-task-note-management/project.json');
+        if (!content || content?.code === 404) {
+            await writeProjectData({});
+            return {};
+        }
+        return typeof content === 'string' ? JSON.parse(content) : content;
+    } catch (error) {
+        console.log('project.json文件不存在，返回空对象');
+        return {};
+    }
+}
+
+export async function ensureProjectDataFile(): Promise<void> {
+    try {
+        await readProjectData();
+    } catch (error) {
+        // 如果文件不存在，创建空的项目数据文件
+        console.log('创建初始项目数据文件');
+        await writeProjectData({});
+    }
+}

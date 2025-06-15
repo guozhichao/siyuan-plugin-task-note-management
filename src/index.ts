@@ -15,7 +15,7 @@ import "./index.scss";
 import { ReminderDialog } from "./components/ReminderDialog";
 import { ReminderPanel } from "./components/ReminderPanel";
 import { BatchReminderDialog } from "./components/BatchReminderDialog";
-import { ensureReminderDataFile, updateBlockReminderBookmark } from "./api";
+import { ensureReminderDataFile, updateBlockReminderBookmark, ensureProjectDataFile } from "./api";
 import { CalendarView } from "./components/CalendarView";
 import { CategoryManager } from "./utils/categoryManager";
 import { getLocalDateString, getLocalTimeString, compareDateStrings } from "./utils/dateUtils";
@@ -26,6 +26,8 @@ import { PomodoroRecordManager } from "./utils/pomodoroRecord";
 import { RepeatSettingsDialog } from "./components/RepeatSettingsDialog";
 import { NotificationDialog } from "./components/NotificationDialog";
 import { DocumentReminderDialog } from "./components/DocumentReminderDialog";
+import { ProjectDialog } from "./components/ProjectDialog";
+import { ProjectPanel } from "./components/ProjectPanel";
 const STORAGE_NAME = "reminder-config";
 const SETTINGS_NAME = "reminder-settings";
 const TAB_TYPE = "reminder_calendar_tab";
@@ -43,6 +45,8 @@ export default class ReminderPlugin extends Plugin {
     private batchReminderDialog: BatchReminderDialog;
     private audioEnabled: boolean = false;
     private preloadedAudio: HTMLAudioElement | null = null;
+    private projectPanel: ProjectPanel;
+    private projectDockElement: HTMLElement;
 
     async onload() {
         console.log("Reminder Plugin loaded");
@@ -278,6 +282,23 @@ export default class ReminderPlugin extends Plugin {
                 this.dockPanel = dock.element;
                 this.dockElement = dock.element.parentElement; // 获取 dock 容器
                 this.reminderPanel = new ReminderPanel(this.dockPanel, this);
+            }
+        });
+
+        // 创建项目管理 Dock 面板
+        this.addDock({
+            config: {
+                position: "LeftTop",
+                size: { width: 300, height: 400 },
+                icon: "iconFile",
+                title: "项目笔记",
+                hotkey: "⌥⌘P"
+            },
+            data: {},
+            type: "project_dock",
+            init: (dock) => {
+                this.projectDockElement = dock.element;
+                this.projectPanel = new ProjectPanel(dock.element, this);
             }
         });
 
@@ -523,6 +544,18 @@ export default class ReminderPlugin extends Plugin {
                 if (documentId) {
                     const documentReminderDialog = new DocumentReminderDialog(documentId);
                     documentReminderDialog.show();
+                }
+            }
+        });
+
+        // 添加项目笔记设置功能
+        detail.menu.addItem({
+            iconHTML: "⏰",
+            label: "设置为项目笔记",
+            click: () => {
+                if (documentId) {
+                    const dialog = new ProjectDialog(documentId);
+                    dialog.show();
                 }
             }
         });
