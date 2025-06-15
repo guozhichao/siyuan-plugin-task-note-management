@@ -284,7 +284,9 @@ export default class ReminderPlugin extends Plugin {
                 title: t("timeReminder"),
                 hotkey: ""
             },
-            data: {},
+            data: {
+                text: "This is my custom dock"
+            },
             type: "reminder_dock",
             init: (dock) => {
                 this.dockPanel = dock.element;
@@ -302,11 +304,14 @@ export default class ReminderPlugin extends Plugin {
                 title: "项目笔记",
                 hotkey: ""
             },
-            data: {},
+            data: {
+                text: "This is my custom dock"
+            },
             type: "project_dock",
             init: (dock) => {
                 this.projectDockElement = dock.element;
                 this.projectPanel = new ProjectPanel(dock.element, this);
+
             }
         });
 
