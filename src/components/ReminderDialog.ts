@@ -92,7 +92,7 @@ export class ReminderDialog {
             refine: (context, results) => {
                 results.forEach(result => {
                     const text = result.text;
-                    
+
                     // 处理YYYYMMDD格式
                     const compactMatch = text.match(/^(\d{8})$/);
                     if (compactMatch) {
@@ -100,7 +100,7 @@ export class ReminderDialog {
                         const year = parseInt(dateStr.substring(0, 4));
                         const month = parseInt(dateStr.substring(4, 6));
                         const day = parseInt(dateStr.substring(6, 8));
-                        
+
                         // 验证日期有效性
                         if (this.isValidDate(year, month, day)) {
                             result.start.assign('year', year);
@@ -108,28 +108,28 @@ export class ReminderDialog {
                             result.start.assign('day', day);
                         }
                     }
-                    
+
                     // 处理其他数字格式
                     const dashMatch = text.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
                     if (dashMatch) {
                         const year = parseInt(dashMatch[1]);
                         const month = parseInt(dashMatch[2]);
                         const day = parseInt(dashMatch[3]);
-                        
+
                         if (this.isValidDate(year, month, day)) {
                             result.start.assign('year', year);
                             result.start.assign('month', month);
                             result.start.assign('day', day);
                         }
                     }
-                    
+
                     // 处理MM/DD/YYYY或DD/MM/YYYY格式（根据数值大小判断）
                     const slashMatch = text.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
                     if (slashMatch) {
                         const first = parseInt(slashMatch[1]);
                         const second = parseInt(slashMatch[2]);
                         const year = parseInt(slashMatch[3]);
-                        
+
                         // 如果第一个数字大于12，则认为是DD/MM/YYYY格式
                         let month, day;
                         if (first > 12 && second <= 12) {
@@ -143,7 +143,7 @@ export class ReminderDialog {
                             month = first;
                             day = second;
                         }
-                        
+
                         if (this.isValidDate(year, month, day)) {
                             result.start.assign('year', year);
                             result.start.assign('month', month);
@@ -151,7 +151,7 @@ export class ReminderDialog {
                         }
                     }
                 });
-                
+
                 return results;
             }
         });
@@ -163,12 +163,12 @@ export class ReminderDialog {
         if (year < 1900 || year > 2100) return false;
         if (month < 1 || month > 12) return false;
         if (day < 1 || day > 31) return false;
-        
+
         // 创建Date对象进行更精确的验证
         const date = new Date(year, month - 1, day);
-        return date.getFullYear() === year && 
-               date.getMonth() === month - 1 && 
-               date.getDate() === day;
+        return date.getFullYear() === year &&
+            date.getMonth() === month - 1 &&
+            date.getDate() === day;
     }
 
     // 解析自然语言日期时间
@@ -176,7 +176,7 @@ export class ReminderDialog {
         try {
             // 预处理文本，处理一些特殊格式
             let processedText = text.trim();
-            
+
             // 处理纯数字日期格式
             const compactDateMatch = processedText.match(/^(\d{8})$/);
             if (compactDateMatch) {
@@ -184,7 +184,7 @@ export class ReminderDialog {
                 const year = dateStr.substring(0, 4);
                 const month = dateStr.substring(4, 6);
                 const day = dateStr.substring(6, 8);
-                
+
                 // 验证日期有效性
                 if (this.isValidDate(parseInt(year), parseInt(month), parseInt(day))) {
                     return {
@@ -193,14 +193,14 @@ export class ReminderDialog {
                     };
                 }
             }
-            
+
             // 处理YYYY-MM-DD或YYYY/MM/DD格式
             const standardDateMatch = processedText.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
             if (standardDateMatch) {
                 const year = parseInt(standardDateMatch[1]);
                 const month = parseInt(standardDateMatch[2]);
                 const day = parseInt(standardDateMatch[3]);
-                
+
                 if (this.isValidDate(year, month, day)) {
                     const monthStr = month.toString().padStart(2, '0');
                     const dayStr = day.toString().padStart(2, '0');

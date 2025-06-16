@@ -2102,6 +2102,11 @@ export class ReminderPanel {
             showMessage("已标记今日已完成");
             this.loadReminders();
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            
+            // 通知插件更新徽章
+            if (this.plugin && typeof this.plugin.updateBadges === 'function') {
+                this.plugin.updateBadges();
+            }
         } catch (error) {
             console.error('标记今日已完成失败:', error);
             showMessage("操作失败");
@@ -2134,6 +2139,11 @@ export class ReminderPanel {
             showMessage("已取消今日已完成");
             this.loadReminders();
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            
+            // 通知插件更新徽章
+            if (this.plugin && typeof this.plugin.updateBadges === 'function') {
+                this.plugin.updateBadges();
+            }
         } catch (error) {
             console.error('取消今日已完成失败:', error);
             showMessage("操作失败");

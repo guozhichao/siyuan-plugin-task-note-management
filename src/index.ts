@@ -8,8 +8,6 @@ import {
     adaptHotkey,
     getFrontend,
     getBackend,
-    IModel,
-    IMenuItemOption
 } from "siyuan";
 import "./index.scss";
 import { ReminderDialog } from "./components/ReminderDialog";
@@ -507,6 +505,11 @@ export default class ReminderPlugin extends Plugin {
                         shouldCount = (compareDateStrings(reminder.date, today) <= 0 &&
                             compareDateStrings(today, reminder.endDate) <= 0) ||
                             compareDateStrings(reminder.endDate, today) < 0;
+                            
+                        // 检查跨天事件是否已标记"今日已完成"
+                        if (shouldCount && reminder.dailyCompletions && reminder.dailyCompletions[today]) {
+                            shouldCount = false;
+                        }
                     } else {
                         shouldCount = reminder.date === today || compareDateStrings(reminder.date, today) < 0;
                     }
@@ -519,6 +522,10 @@ export default class ReminderPlugin extends Plugin {
                     const instances = generateRepeatInstances(reminder, today, today);
                     instances.forEach(instance => {
                         if (!instance.completed) {
+                            // 检查重复事件实例是否已标记"今日已完成"
+                            if (reminder.dailyCompletions && reminder.dailyCompletions[today]) {
+                                return; // 跳过已标记今日已完成的跨天重复事件
+                            }
                             uncompletedCount++;
                         }
                     });
@@ -526,6 +533,10 @@ export default class ReminderPlugin extends Plugin {
                     if (reminder.date === today && !reminder.completed) {
                         const completedInstances = reminder.repeat.completedInstances || [];
                         if (!completedInstances.includes(today)) {
+                            // 检查原始重复事件是否已标记"今日已完成"
+                            if (reminder.dailyCompletions && reminder.dailyCompletions[today]) {
+                                return; // 跳过已标记今日已完成的跨天重复事件
+                            }
                             uncompletedCount++;
                         }
                     }
@@ -540,6 +551,7 @@ export default class ReminderPlugin extends Plugin {
             this.setDockBadge(0);
         }
     }
+
 
     private async updateProjectBadges() {
         try {
@@ -1423,7 +1435,7 @@ export default class ReminderPlugin extends Plugin {
             refine: (context, results) => {
                 results.forEach(result => {
                     const text = result.text;
-                    
+
                     // 处理YYYYMMDD格式
                     const compactMatch = text.match(/^(\d{8})$/);
                     if (compactMatch) {
@@ -1431,7 +1443,7 @@ export default class ReminderPlugin extends Plugin {
                         const year = parseInt(dateStr.substring(0, 4));
                         const month = parseInt(dateStr.substring(4, 6));
                         const day = parseInt(dateStr.substring(6, 8));
-                        
+
                         // 验证日期有效性
                         if (this.isValidDate(year, month, day)) {
                             result.start.assign('year', year);
@@ -1440,7 +1452,7 @@ export default class ReminderPlugin extends Plugin {
                         }
                     }
                 });
-                
+
                 return results;
             }
         });
@@ -1451,11 +1463,11 @@ export default class ReminderPlugin extends Plugin {
         if (year < 1900 || year > 2100) return false;
         if (month < 1 || month > 12) return false;
         if (day < 1 || day > 31) return false;
-        
+
         const date = new Date(year, month - 1, day);
-        return date.getFullYear() === year && 
-               date.getMonth() === month - 1 && 
-               date.getDate() === day;
+        return date.getFullYear() === year &&
+            date.getMonth() === month - 1 &&
+            date.getDate() === day;
     }
 
     onunload() {
