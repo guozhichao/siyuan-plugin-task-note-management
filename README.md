@@ -107,7 +107,10 @@ Developed to practice the Bullet Journal method. Supports document and block rem
    3. Multi-selection of blocks also supports intelligent recognition of dates and times
       ![PixPin_2025-06-14_12-49-05](https://assets.b3logfile.com/siyuan/1610205759005/assets/PixPin_2025-06-14_12-49-05-20250614124909-hj02c5y.png)
 
-4. After creating a reminder, the plugin adds a "⏰" bookmark to the block. After deleting a reminder, it checks if the block still has unfinished reminders - if not, it removes the bookmark. When tasks are completed, it changes to use a "✅" bookmark.
+4. Support setting categories, adjusting category display order, setting category colors and icons
+   ![PixPin_2025-06-15_11-58-31](https://assets.b3logfile.com/siyuan/1610205759005/assets/PixPin_2025-06-15_11-58-31-20250615115835-mncf5ne.png)
+
+5. After creating a reminder, the plugin adds a "⏰" bookmark to the block. After deleting a reminder, it checks if the block still has unfinished reminders - if not, it removes the bookmark. When tasks are completed, it changes to use a "✅" bookmark. If the added block is a task list block and tasks are completed, it will automatically check the task list item.
 
 ### Reminder Notification Logic
 
@@ -124,11 +127,62 @@ Developed to practice the Bullet Journal method. Supports document and block rem
 
 Supports right-clicking in the sidebar task note management panel to start Pomodoro timing.
 
-The purpose of using the Pomodoro Technique has two aspects:
+#### The Important Significance of Pomodoro Timer
 
-1. **Focused Work**: After starting the Pomodoro timer, you can only focus on the current task without thinking too much about things unrelated to the current task, and without thinking too much about long-term information that adds pressure. **"The past and future are not important, the only important moment is now"**. Making good use of the current Pomodoro, doing the current task well, and using the current time to do something are the priorities.
+1. **Training Focus:**
 
-2. **Timely Rest**: Proper breaks are for going further with better condition. However, when resting, be careful not to easily open your phone or computer's social media sites to check messages. You should know that consuming entertainment information is actually not stress-relieving but stress-adding, and it doesn't let your body and eyes rest! Moreover, transitioning from entertainment to work requires buffer time, which will make starting the next Pomodoro particularly difficult, wasting the start time of the next Pomodoro. **Truly important and urgent matters will come to find you**. Most news doesn't even have the value of reading headlines - you should wait for important messages to find you, not actively wait for messages. So during Pomodoro break time, the correct way to rest is to walk around, drink water, and look out the window.
+   1. Clarify what your current task is
+   2. After starting the Pomodoro timer, you can only focus on the current task without thinking too much about things unrelated to the current task, and without thinking too much about long-term information that adds pressure. **"The past and future are not important, the only important moment is now"**. Making good use of the current Pomodoro, doing the current task well, and using the current time to do something are the priorities.
+
+2. **Training to Stop:**
+
+   - The Pomodoro Technique is a method of combining work and rest.
+     - Long-term continuous work will make people physically and mentally exhausted. Proper rest can ensure that you always invest in work with the best state.
+     - Before taking a break, you need to understand that **making good use of break time is even more important than focus time in the Pomodoro Technique**! Rest is also a task that must be executed seriously, and you cannot do other distracting things.
+   - What problems arise from not knowing how to stop?
+     - Some people are workaholics who don't know how to rest once they start working. Although this seems highly efficient in the short term, it's actually very tiring. Over time, health problems are likely to occur, and later wanting to work hard becomes a case of the spirit being willing but the flesh being weak. Those who think they don't have time to exercise will sooner or later make time to be sick, and those who are unwilling to stop and rest will sooner or later have reduced efficiency due to lack of energy. We need to work hard, but we need to work hard smartly.
+     - Sometimes it's easy to get stuck on a problem for several hours or even a day. The Pomodoro timer can let you rest first, perhaps rest can bring inspiration, or think about whether you can do other things first without getting entangled in this problem, avoiding wasting too much time on one problem.
+     - The Pomodoro timer can be used to manage your desires, and you can also use the Pomodoro timer to control yourself to play games or browse your phone for only 25 minutes.
+   - The significance of break time
+     - **Organizing thoughts**: Focus helps you concentrate, while rest helps you **better control the overall situation with better condition**. Appropriately review tasks during break time.
+     - **Using Gap Effects for information consolidation**: Neuroscientist Professor Andrew Huberman points out that even brief pauses of a few seconds during learning can trigger the brain's hippocampus "Neural Replay" mechanism. The brain will "replay" what you just learned and thought about at dozens of times the speed, greatly deepening memory and understanding. Your "rest" is actually the brain efficiently "self-studying". Reference: Huberman Lab Podcast - [Learn Like a Genius (at 1:22:03)](https://www.bilibili.com/video/BV1BopsenEaW/?share_source=copy_web&vd_source=505d8555a7c1be8a7588c2a533326a6e&t=4924)
+     - **Proper stopping is to go further with better condition**: Let yourself restore focus ability in a relaxed state for more sustained work (10 hours of focus per day)
+
+3. **Quantifying task duration**: Understanding how much actual time you need to spend on a task, eliminating vague perception of time through quantified recording.
+
+   When recording, you might find: "A task that seemed to take 2 Pomodoros actually took 5", further analysis might be because:
+   - Interrupted 3 times during the process (each time taking 10 minutes);
+   - Finding materials took 20 minutes;
+   - Repeatedly changing ideas wasted 15 minutes.
+
+   These details will help you identify "time-consuming black holes", reserve buffer time when planning next time, and reflect on how to improve and work more efficiently.
+
+For more explanation, see my article: [In-depth Explanation of the "Pomodoro Technique": The Secret to Focusing for Ten Hours a Day Without Getting Tired](https://mp.weixin.qq.com/s/SoZ0ccPc7kJTYfwBnB5IGw)
+
+#### How to Rest After Completing a Pomodoro
+
+Rest is also a task that must be executed seriously, and you cannot do other distracting things.
+
+Remember, the purpose of rest is to **reduce cognitive load**, not to add new information input.
+
+**Absolutely don't do:** Open social media, browse short videos, read news. These seem relaxing but are actually bombarding your brain with higher-intensity stimulation, making it harder for you to return to calm and focus. Consuming entertainment information is actually not stress-relieving but stress-adding, and it doesn't let your body and eyes rest!
+
+Moreover, transitioning from entertainment to work requires switching time, which will make starting the next Pomodoro particularly difficult, wasting the start time of the next Pomodoro. **Truly important and urgent matters will come to find you**. Most news doesn't even have the value of reading headlines - you should wait for important messages to find you, not actively wait for messages.
+
+**Strongly recommended to do:**
+
+- Stand up and walk around
+- Drink water
+- Look at the green outside the window
+- Close your eyes and rest
+- Take a few deep breaths
+- Meditate
+
+These activities can truly soothe your body and brain.
+
+Please remember one principle: **Truly important and urgent matters will find you through phone calls. You don't need to**
+
+#### Plugin Design
 
 The plugin has been thoughtfully designed for the Pomodoro timer:
 
@@ -145,6 +199,13 @@ How to use the Pomodoro timer:
    - **Pomodoro Short Break Duration**: Default 5 minutes.
    - **Pomodoro Long Break Duration**: Default 30 minutes.
    - **Sound Settings**: Enter local file paths or network URLs to set work, break, and end notification sounds.
+
+   > Pomodoro background sounds can refer to the files I provided
+   >
+   > Link: https://pan.baidu.com/s/1PW062MM7buXf5CdIYwstgw?pwd=5ete Extract code: 5ete
+   >
+   > Source from [https://github.com/remvze/moodist](https://github.com/remvze/moodist)
+
    ![PixPin_2025-06-14_12-57-24](https://assets.b3logfile.com/siyuan/1610205759005/assets/PixPin_2025-06-14_12-57-24-20250614125738-u6h3lbo.png)
 
 2. After completing a Pomodoro, the plugin automatically records focus time and updates the Pomodoro count in the list panel.
@@ -202,6 +263,36 @@ Click the button in the dock or top bar to open the list view for tasks.
 4. Calendar view does not currently support double-clicking to directly create new tasks (to be improved later).
 
 ![PixPin_2025-06-13_00-03-52](https://assets.b3logfile.com/siyuan/1610205759005/assets/PixPin_2025-06-13_00-03-52-20250613000359-cfu99eo.png)
+
+### Project Note Management
+
+To facilitate the management of long-term projects.
+
+The plugin supports project management.
+
+Added "📂Set as Project Note" function to the document block menu.
+
+![PixPin_2025-06-15_11-56-59](https://assets.b3logfile.com/siyuan/1610205759005/assets/PixPin_2025-06-15_11-56-59-20250615115700-peeu9x2.png)
+
+After setting a document as a project note, you can view and manage projects in the Project Management Dock panel.
+
+- Support setting project status: In Progress, Maybe Future, Archived
+- Support setting project categories
+- Support setting project priorities
+- Support setting project start time
+- Support sorting projects by time, priority, and title
+
+![PixPin_2025-06-15_11-57-21](https://assets.b3logfile.com/siyuan/1610205759005/assets/PixPin_2025-06-15_11-57-21-20250615115724-q9b59yl.png)
+
+### View All Reminders in Document
+
+The plugin adds a "View All Document Reminders" function to the document block breadcrumb and document menu.
+
+![PixPin_2025-06-15_12-03-12](https://assets.b3logfile.com/siyuan/1610205759005/assets/PixPin_2025-06-15_12-03-12-20250615120314-cwhj439.png)
+
+After clicking, you can view all reminders of this document and its child blocks, support filtering by completion status, and sorting by completion time, priority, and set time.
+
+![PixPin_2025-06-15_11-54-51](https://assets.b3logfile.com/siyuan/1610205759005/assets/PixPin_2025-06-15_11-54-51-20250615115454-47p1z96.png)
 
 ## ❤️ Support with Love
 
