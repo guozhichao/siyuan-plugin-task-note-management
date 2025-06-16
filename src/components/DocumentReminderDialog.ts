@@ -2,6 +2,7 @@ import { Dialog, showMessage, confirm } from "siyuan";
 import { readReminderData, writeReminderData, updateBlockReminderBookmark, sql, getBlockByID } from "../api";
 import { getLocalDateString, compareDateStrings, getLocalDateTimeString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
+import { ReminderDialog } from "./ReminderDialog";
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
 import { t } from "../utils/i18n";
@@ -44,7 +45,7 @@ export class DocumentReminderDialog {
         this.dialog = new Dialog({
             title: "文档提醒管理",
             content: this.createContent(),
-            width: "800px",
+            width: "600px",
             height: "800px",
             destroyCallback: () => {
                 // 清理资源
@@ -78,6 +79,11 @@ export class DocumentReminderDialog {
                             <button class="b3-button b3-button--outline doc-sort-order-btn" title="排序方向">
                                 <svg class="b3-button__icon"><use xlink:href="#iconSort"></use></svg>
                                 <span>降序</span>
+                            </button>
+                            
+                            <button class="b3-button b3-button--primary doc-add-reminder-btn" title="新建提醒">
+                                <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
+                                <span>提醒</span>
                             </button>
                         </div>
                         
@@ -120,10 +126,11 @@ export class DocumentReminderDialog {
         this.searchInput = this.container.querySelector('.doc-search-input');
         this.remindersContainer = this.container.querySelector('.doc-reminders-container');
         this.countDisplay = this.container.querySelector('.doc-reminder-count');
+        const addReminderBtn = this.container.querySelector('.doc-add-reminder-btn') as HTMLButtonElement;
 
         // 检查必要的UI元素是否存在
         if (!this.filterSelect || !this.sortSelect || !this.sortOrderBtn ||
-            !this.searchInput || !this.remindersContainer || !this.countDisplay) {
+            !this.searchInput || !this.remindersContainer || !this.countDisplay || !addReminderBtn) {
             console.warn('Some UI elements not found, will retry initialization');
             // 如果元素还没找到，稍后重试
             setTimeout(() => {
@@ -155,6 +162,11 @@ export class DocumentReminderDialog {
         this.searchInput.addEventListener('input', () => {
             this.searchQuery = this.searchInput.value.trim();
             this.loadReminders();
+        });
+
+        // 绑定新建提醒按钮事件
+        addReminderBtn.addEventListener('click', () => {
+            this.showAddReminderDialog();
         });
 
         // 初始化排序按钮
@@ -924,5 +936,18 @@ export class DocumentReminderDialog {
             console.error('打开块失败:', error);
             showMessage(t("openNoteFailed"));
         }
+    }
+
+    // 添加新建提醒对话框方法
+    private showAddReminderDialog() {
+        const dialog = new ReminderDialog(this.documentId);
+        dialog.show();
+
+        // 监听提醒更新事件以刷新当前对话框
+        const handleReminderUpdate = () => {
+            this.loadReminders();
+            window.removeEventListener('reminderUpdated', handleReminderUpdate);
+        };
+        window.addEventListener('reminderUpdated', handleReminderUpdate);
     }
 }
