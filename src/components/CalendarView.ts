@@ -3,7 +3,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
-import { readReminderData, writeReminderData, getBlockByID, sql, updateBlock, getBlockKramdown,  updateBlockReminderBookmark } from "../api";
+import { readReminderData, writeReminderData, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark } from "../api";
 import { getLocalDateString, getLocalDateTime, getLocalDateTimeString } from "../utils/dateUtils";
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";

@@ -34,31 +34,53 @@ export class ReminderEditDialog {
     }
 
     // 设置chrono解析器
-    private setupChronoParser() {
-        // 添加更多中文时间表达式支持
-        const customPatterns = [
-            // 今天、明天、后天等
-            /今天|今日/i,
-            /明天|明日/i,
-            /后天/i,
-            /大后天/i,
-            // 周几
-            /下?周[一二三四五六日天]/i,
-            /下?星期[一二三四五六日天]/i,
-            // 月份日期
-            /(\d{1,2})月(\d{1,2})[日号]/i,
-            // 时间
-            /(\d{1,2})[点时](\d{1,2})?[分]?/i,
-            // 相对时间
-            /(\d+)天[后以]后/i,
-            /(\d+)小时[后以]后/i,
-        ];
 
+    // 添加chrono解析器配置方法
+    private setupChronoParser() {
         // 配置chrono选项
         this.chronoParser.option = {
             ...this.chronoParser.option,
-            forwardDate: true // 优先解析未来日期
+            forwardDate: false
         };
+
+        // 添加自定义解析器来处理紧凑日期格式
+        this.chronoParser.refiners.push({
+            refine: (context, results) => {
+                results.forEach(result => {
+                    const text = result.text;
+
+                    // 处理YYYYMMDD格式
+                    const compactMatch = text.match(/^(\d{8})$/);
+                    if (compactMatch) {
+                        const dateStr = compactMatch[1];
+                        const year = parseInt(dateStr.substring(0, 4));
+                        const month = parseInt(dateStr.substring(4, 6));
+                        const day = parseInt(dateStr.substring(6, 8));
+
+                        // 验证日期有效性
+                        if (this.isValidDate(year, month, day)) {
+                            result.start.assign('year', year);
+                            result.start.assign('month', month);
+                            result.start.assign('day', day);
+                        }
+                    }
+                });
+
+                return results;
+            }
+        });
+    }
+
+    // 添加日期有效性验证方法
+    private isValidDate(year: number, month: number, day: number): boolean {
+        if (year < 1900 || year > 2100) return false;
+        if (month < 1 || month > 12) return false;
+        if (day < 1 || day > 31) return false;
+
+        const date = new Date(year, month - 1, day);
+        return date.getFullYear() === year &&
+            date.getMonth() === month - 1 &&
+            date.getDate() === day;
     }
 
     // 解析自然语言日期时间

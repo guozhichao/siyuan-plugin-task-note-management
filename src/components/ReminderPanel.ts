@@ -1103,7 +1103,7 @@ export class ReminderPanel {
                         if (completed) {
                             await this.handleTaskListCompletion(blockId);
                         }
-                        else{
+                        else {
                             await this.handleTaskListCompletionCancel(blockId);
                         }
                     }
