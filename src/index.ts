@@ -805,14 +805,16 @@ export default class ReminderPlugin extends Plugin {
         if (!elements || !elements.length) {
             return;
         }
-        // Get the first selected element
-        const element = elements[0];
+        console.log("处理文档树右键菜单", elements);
+        // 获取所有选中的文档ID
+        const documentIds = Array.from(elements)
+            .map((element: Element) => element.getAttribute("data-node-id"))
+            .filter((id: string | null): id is string => id !== null);
 
-        // Check if it's a notebook or a document
-        const isNotebook = element.getAttribute("data-type") === "navigation-root";
-        const documentId = element.getAttribute("data-node-id");
+        if (!documentIds.length) return;
 
-        if (!documentId) return;
+        // 第一个选中的文档（用于项目笔记设置和查看文档提醒）
+        const firstDocumentId = documentIds[0];
 
         // 添加分隔符
         detail.menu.addSeparator();
@@ -820,30 +822,47 @@ export default class ReminderPlugin extends Plugin {
         // 添加设置时间提醒菜单项
         detail.menu.addItem({
             iconHTML: "⏰",
-            label: t("setTimeReminder"),
+            label: documentIds.length > 1 ?
+                t("batchSetReminderBlocks", { count: documentIds.length.toString() }) :
+                t("setTimeReminder"),
             click: () => {
-                const dialog = new ReminderDialog(documentId);
-                dialog.show();
+                if (documentIds.length > 1) {
+                    // 多选文档使用批量设置对话框
+                    this.batchReminderDialog.show(documentIds);
+                } else {
+                    // 单选文档使用普通设置对话框
+                    const dialog = new ReminderDialog(firstDocumentId);
+                    dialog.show();
+                }
             }
         });
 
-        // 添加查看文档所有提醒菜单项
-        detail.menu.addItem({
-            iconHTML: "📋",
-            label: "查看文档所有提醒",
-            click: () => {
-                const documentReminderDialog = new DocumentReminderDialog(documentId);
-                documentReminderDialog.show();
-            }
-        });
+        // 添加查看文档所有提醒菜单项（只处理第一个选中的文档）
+        if (documentIds.length === 1) {
 
-        // 添加设置为项目笔记菜单项
+            // 多选文档时，添加查看所有提醒菜单项
+            detail.menu.addItem({
+                iconHTML: "📋",
+                label: "查看所有选中文档的提醒",
+                click: () => {
+                    const documentReminderDialog = new DocumentReminderDialog(documentIds);
+                    documentReminderDialog.show();
+                }
+            });
+        }
+
+
+        // 添加设置为项目笔记菜单项（只处理第一个选中的文档）
         detail.menu.addItem({
             iconHTML: "📂",
             label: "设置为项目笔记",
             click: () => {
-                const dialog = new ProjectDialog(documentId);
-                dialog.show();
+
+                // 循环传递所有id
+                for (const docId of documentIds) {
+                    const dialog = new ProjectDialog(docId);
+                    dialog.show();
+                }
             }
         });
     }

@@ -227,7 +227,7 @@ class SmartBatchDialog {
             title: `✨ 智能批量设置 (${this.blockIds.length}个块)`,
             content: this.buildSmartBatchContent(),
             width: "700px",
-            height: "600px"
+            height: "700px"
         });
 
         this.renderBlockList(dialog);
