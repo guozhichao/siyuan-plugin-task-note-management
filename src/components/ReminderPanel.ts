@@ -24,6 +24,9 @@ export class ReminderPanel {
     private sortConfigUpdatedHandler: (event: CustomEvent) => void;
     private closeCallback?: () => void;
     private categoryManager: CategoryManager; // 添加分类管理器
+    private isDragging: boolean = false;
+    private draggedElement: HTMLElement | null = null;
+    private draggedReminder: any = null;
 
     // 添加静态变量来跟踪当前活动的番茄钟
     private static currentPomodoroTimer: PomodoroTimer | null = null;
@@ -217,6 +220,8 @@ export class ReminderPanel {
         // 提醒列表容器
         this.remindersContainer = document.createElement('div');
         this.remindersContainer.className = 'reminder-list';
+        // 添加拖拽相关样式
+        this.remindersContainer.style.position = 'relative';
         this.container.appendChild(this.remindersContainer);
 
         // 渲染分类过滤器
@@ -224,6 +229,90 @@ export class ReminderPanel {
 
         // 初始化排序按钮标题
         this.updateSortButtonTitle();
+    }
+    // 修改排序方法以支持手动排序
+    private sortReminders(reminders: any[]) {
+        const sortType = this.currentSort;
+        const sortOrder = this.currentSortOrder;
+        console.log('应用排序方式:', sortType, sortOrder, '提醒数量:', reminders.length);
+
+        // 特殊处理已完成相关的筛选器
+        const isCompletedFilter = this.currentTab === 'completed' || this.currentTab === 'todayCompleted';
+        const isPast7Filter = this.currentTab === 'all';
+
+        reminders.sort((a: any, b: any) => {
+            let result = 0;
+
+            // 对于"过去七天"筛选器，未完成事项优先显示
+            if (isPast7Filter) {
+                const aCompleted = a.completed || false;
+                const bCompleted = b.completed || false;
+
+                if (aCompleted !== bCompleted) {
+                    return aCompleted ? 1 : -1; // 未完成的排在前面
+                }
+            }
+
+            // 对于已完成相关的筛选器，默认按完成时间降序排序
+            if (isCompletedFilter || (isPast7Filter && a.completed && b.completed)) {
+                result = this.compareByCompletedTime(a, b);
+                if (result !== 0) {
+                    return result; // 直接返回完成时间比较结果，不需要考虑升降序
+                }
+            }
+
+            // 应用用户选择的排序方式
+            switch (sortType) {
+                case 'time':
+                    result = this.compareByTime(a, b);
+                    break;
+
+                case 'priority':
+                    result = this.compareByPriorityWithManualSort(a, b);
+                    break;
+
+                case 'title':
+                    result = this.compareByTitle(a, b);
+                    break;
+
+                default:
+                    console.warn('未知的排序类型:', sortType, '默认使用时间排序');
+                    result = this.compareByTime(a, b);
+            }
+
+            // 优先级升降序的结果相反
+            if (sortType === 'priority') {
+                result = -result;
+            }
+
+            // 应用升降序
+            return sortOrder === 'desc' ? -result : result;
+        });
+
+        console.log('排序完成，排序方式:', sortType, sortOrder);
+    }
+    // 新增：优先级排序与手动排序结合
+    private compareByPriorityWithManualSort(a: any, b: any): number {
+        const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
+        const priorityA = priorityOrder[a.priority || 'none'] || 0;
+        const priorityB = priorityOrder[b.priority || 'none'] || 0;
+
+        // 首先按优先级排序
+        const priorityDiff = priorityB - priorityA;
+        if (priorityDiff !== 0) {
+            return priorityDiff;
+        }
+
+        // 同优先级内按手动排序
+        const sortA = a.sort || 0;
+        const sortB = b.sort || 0;
+
+        if (sortA !== sortB) {
+            return sortA - sortB; // 手动排序值小的在前
+        }
+
+        // 如果手动排序值也相同，按时间排序
+        return this.compareByTime(a, b);
     }
 
     private async renderCategoryFilter() {
@@ -548,18 +637,18 @@ export class ReminderPanel {
             const isEffectivelyCompleted = (reminder: any) => {
                 // 如果提醒本身已完成，返回true
                 if (reminder.completed) return true;
-                
+
                 // 检查跨天事件的今日已完成状态
                 if (reminder.endDate && reminder.endDate !== reminder.date) {
                     // 确保今天在事件的时间范围内
                     const isInRange = compareDateStrings(reminder.date, today) <= 0 &&
                         compareDateStrings(today, reminder.endDate) <= 0;
-                    
+
                     if (isInRange) {
                         return this.isSpanningEventTodayCompleted(reminder);
                     }
                 }
-                
+
                 return false;
             };
 
@@ -694,18 +783,18 @@ export class ReminderPanel {
                         return reminder.date === today;
                     }
                 }
-                
+
                 // 检查跨天事件的今日已完成状态
                 if (reminder.endDate && reminder.endDate !== reminder.date) {
                     // 确保今天在事件的时间范围内
                     const isInRange = compareDateStrings(reminder.date, today) <= 0 &&
                         compareDateStrings(today, reminder.endDate) <= 0;
-                    
+
                     if (isInRange) {
                         return this.isSpanningEventTodayCompleted(reminder);
                     }
                 }
-                
+
                 return false;
             });
 
@@ -742,6 +831,9 @@ export class ReminderPanel {
             // 应用排序 - 确保在显示前排序
             this.sortReminders(displayReminders);
 
+            // 缓存当前提醒列表
+            this.currentRemindersCache = [...displayReminders];
+
             // 修改为异步处理提醒元素创建
             const createRemindersAsync = async () => {
                 this.remindersContainer.innerHTML = ''; // 先清空容器
@@ -750,6 +842,11 @@ export class ReminderPanel {
                     const reminderEl = await this.createReminderElement(reminder, today);
                     this.remindersContainer.appendChild(reminderEl);
                 }
+
+                // 在优先级排序模式下添加提示信息
+                if (this.currentSort === 'priority' && displayReminders.length > 0) {
+                    this.addDragTip();
+                }
             };
 
             await createRemindersAsync();
@@ -757,8 +854,32 @@ export class ReminderPanel {
         } catch (error) {
             console.error('加载提醒失败:', error);
             showMessage(t("loadRemindersFailed"));
-        }
+         }
     }
+    // 新增：添加拖拽提示
+    private addDragTip() {
+        const existingTip = this.container.querySelector('.drag-tip');
+        if (existingTip) {
+            existingTip.remove();
+        }
+
+        const tip = document.createElement('div');
+        tip.className = 'drag-tip';
+        tip.style.cssText = `
+                padding: 8px 12px;
+                background-color: var(--b3-theme-background-light);
+                border: 1px solid var(--b3-theme-border);
+                border-radius: 4px;
+                font-size: 12px;
+                color: var(--b3-theme-on-surface);
+                margin-bottom: 8px;
+                text-align: center;
+                opacity: 0.8;
+            `;
+        tip.innerHTML = '💡 提示：在优先级排序模式下，可拖拽调整同优先级任务的顺序';
+
+        this.remindersContainer.insertBefore(tip, this.remindersContainer.firstChild);
+        }
     /**
      * 检查跨天事件是否已标记"今日已完成"
      * @param reminder 提醒对象
@@ -932,68 +1053,6 @@ export class ReminderPanel {
         }
     }
 
-    // 添加排序方法
-    // 添加排序方法
-    private sortReminders(reminders: any[]) {
-        const sortType = this.currentSort;
-        const sortOrder = this.currentSortOrder;
-        console.log('应用排序方式:', sortType, sortOrder, '提醒数量:', reminders.length);
-
-        // 特殊处理已完成相关的筛选器
-        const isCompletedFilter = this.currentTab === 'completed' || this.currentTab === 'todayCompleted';
-        const isPast7Filter = this.currentTab === 'all';
-
-        reminders.sort((a: any, b: any) => {
-            let result = 0;
-
-            // 对于"过去七天"筛选器，未完成事项优先显示
-            if (isPast7Filter) {
-                const aCompleted = a.completed || false;
-                const bCompleted = b.completed || false;
-
-                if (aCompleted !== bCompleted) {
-                    return aCompleted ? 1 : -1; // 未完成的排在前面
-                }
-            }
-
-            // 对于已完成相关的筛选器，默认按完成时间降序排序
-            if (isCompletedFilter || (isPast7Filter && a.completed && b.completed)) {
-                result = this.compareByCompletedTime(a, b);
-                if (result !== 0) {
-                    return result; // 直接返回完成时间比较结果，不需要考虑升降序
-                }
-            }
-
-            // 应用用户选择的排序方式
-            switch (sortType) {
-                case 'time':
-                    result = this.compareByTime(a, b);
-                    break;
-
-                case 'priority':
-                    result = this.compareByPriority(a, b);
-                    break;
-
-                case 'title':
-                    result = this.compareByTitle(a, b);
-                    break;
-
-                default:
-                    console.warn('未知的排序类型:', sortType, '默认使用时间排序');
-                    result = this.compareByTime(a, b);
-            }
-
-            // 优先级升降序的结果相反
-            if (sortType === 'priority') {
-                result = -result;
-            }
-
-            // 应用升降序
-            return sortOrder === 'desc' ? -result : result;
-        });
-
-        console.log('排序完成，排序方式:', sortType, sortOrder);
-    }
 
     // 新增：按完成时间比较
     private compareByCompletedTime(a: any, b: any): number {
@@ -1472,6 +1531,15 @@ export class ReminderPanel {
         const reminderEl = document.createElement('div');
         reminderEl.className = `reminder-item ${isOverdue ? 'reminder-item--overdue' : ''} ${isSpanningDays ? 'reminder-item--spanning' : ''} reminder-priority-${priority}`;
 
+        // 存储提醒数据到元素
+        reminderEl.dataset.reminderId = reminder.id;
+        reminderEl.dataset.priority = priority;
+
+        // 在优先级排序模式下添加拖拽功能
+        if (this.currentSort === 'priority') {
+            this.addDragFunctionality(reminderEl, reminder);
+        }
+
         // 添加右键菜单支持
         reminderEl.addEventListener('contextmenu', (e) => {
             e.preventDefault();
@@ -1729,7 +1797,184 @@ export class ReminderPanel {
 
         return reminderEl;
     }
+    // 新增：添加拖拽功能
+    private addDragFunctionality(element: HTMLElement, reminder: any) {
+        element.draggable = true;
+        element.style.cursor = 'grab';
 
+        element.addEventListener('dragstart', (e) => {
+            this.isDragging = true;
+            this.draggedElement = element;
+            this.draggedReminder = reminder;
+            element.style.opacity = '0.5';
+            element.style.cursor = 'grabbing';
+
+            if (e.dataTransfer) {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', element.outerHTML);
+            }
+        });
+
+        element.addEventListener('dragend', (e) => {
+            this.isDragging = false;
+            this.draggedElement = null;
+            this.draggedReminder = null;
+            element.style.opacity = '';
+            element.style.cursor = 'grab';
+        });
+
+        element.addEventListener('dragover', (e) => {
+            if (this.isDragging && this.draggedElement !== element) {
+                e.preventDefault();
+
+                const targetReminder = this.getReminderFromElement(element);
+                // 只允许同优先级内的拖拽
+                if (targetReminder && this.canDropHere(this.draggedReminder, targetReminder)) {
+                    e.dataTransfer.dropEffect = 'move';
+                    this.showDropIndicator(element, e);
+                }
+            }
+        });
+
+        element.addEventListener('drop', (e) => {
+            if (this.isDragging && this.draggedElement !== element) {
+                e.preventDefault();
+
+                const targetReminder = this.getReminderFromElement(element);
+                if (targetReminder && this.canDropHere(this.draggedReminder, targetReminder)) {
+                    this.handleDrop(this.draggedReminder, targetReminder, e);
+                }
+            }
+            this.hideDropIndicator();
+        });
+
+        element.addEventListener('dragleave', (e) => {
+            this.hideDropIndicator();
+        });
+    }
+
+    // 新增：从元素获取提醒数据
+    private getReminderFromElement(element: HTMLElement): any {
+        const reminderId = element.dataset.reminderId;
+        if (!reminderId) return null;
+
+        // 从当前显示的提醒列表中查找
+        const displayedReminders = this.getDisplayedReminders();
+        return displayedReminders.find(r => r.id === reminderId);
+    }
+
+    // 新增：获取当前显示的提醒列表
+    private getDisplayedReminders(): any[] {
+        const reminderElements = Array.from(this.remindersContainer.querySelectorAll('.reminder-item'));
+        return reminderElements.map(el => {
+            const reminderId = (el as HTMLElement).dataset.reminderId;
+            return this.currentRemindersCache.find(r => r.id === reminderId);
+        }).filter(Boolean);
+    }
+    // 添加缓存当前提醒列表
+    private currentRemindersCache: any[] = [];
+
+    // 新增：检查是否可以放置
+    private canDropHere(draggedReminder: any, targetReminder: any): boolean {
+        const draggedPriority = draggedReminder.priority || 'none';
+        const targetPriority = targetReminder.priority || 'none';
+
+        // 只允许同优先级内的拖拽
+        return draggedPriority === targetPriority;
+    }
+
+    // 新增：显示拖放指示器
+    private showDropIndicator(element: HTMLElement, event: DragEvent) {
+        this.hideDropIndicator(); // 先清除之前的指示器
+
+        const rect = element.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+
+        const indicator = document.createElement('div');
+        indicator.className = 'drop-indicator';
+        indicator.style.cssText = `
+                position: absolute;
+                left: 0;
+                right: 0;
+                height: 2px;
+                background-color: var(--b3-theme-primary);
+                z-index: 1000;
+                pointer-events: none;
+            `;
+
+        if (event.clientY < midpoint) {
+            // 插入到目标元素之前
+            indicator.style.top = '0';
+            element.style.position = 'relative';
+            element.insertBefore(indicator, element.firstChild);
+        } else {
+            // 插入到目标元素之后
+            indicator.style.bottom = '0';
+            element.style.position = 'relative';
+            element.appendChild(indicator);
+        }
+    }
+
+    // 新增：隐藏拖放指示器
+    private hideDropIndicator() {
+        const indicators = document.querySelectorAll('.drop-indicator');
+        indicators.forEach(indicator => indicator.remove());
+    }
+
+    // 新增：处理拖放
+    private async handleDrop(draggedReminder: any, targetReminder: any, event: DragEvent) {
+        try {
+            const rect = (event.target as HTMLElement).getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            const insertBefore = event.clientY < midpoint;
+
+            await this.reorderReminders(draggedReminder, targetReminder, insertBefore);
+
+            showMessage("排序已更新");
+            this.loadReminders(); // 重新加载以应用新排序
+
+        } catch (error) {
+            console.error('处理拖放失败:', error);
+            showMessage("排序更新失败");
+        }
+    }
+
+    // 新增：重新排序提醒
+    private async reorderReminders(draggedReminder: any, targetReminder: any, insertBefore: boolean) {
+        try {
+            const reminderData = await readReminderData();
+
+            // 获取同优先级的所有提醒
+            const samePriorityReminders = Object.values(reminderData)
+                .filter((r: any) => (r.priority || 'none') === (draggedReminder.priority || 'none'))
+                .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+            // 移除被拖拽的提醒
+            const filteredReminders = samePriorityReminders.filter((r: any) => r.id !== draggedReminder.id);
+
+            // 找到目标位置
+            const targetIndex = filteredReminders.findIndex((r: any) => r.id === targetReminder.id);
+            const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
+
+            // 插入被拖拽的提醒
+            filteredReminders.splice(insertIndex, 0, draggedReminder);
+
+            // 重新分配排序值
+            filteredReminders.forEach((reminder: any, index: number) => {
+                if (reminderData[reminder.id]) {
+                    reminderData[reminder.id].sort = index * 10; // 使用10的倍数便于后续插入
+                }
+            });
+
+            await writeReminderData(reminderData);
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+        } catch (error) {
+            console.error('重新排序提醒失败:', error);
+            throw error;
+        }
+    }
+    
     /**
      * 格式化完成时间显示
      * @param completedTime 完成时间字符串
