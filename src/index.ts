@@ -505,7 +505,7 @@ export default class ReminderPlugin extends Plugin {
                         shouldCount = (compareDateStrings(reminder.date, today) <= 0 &&
                             compareDateStrings(today, reminder.endDate) <= 0) ||
                             compareDateStrings(reminder.endDate, today) < 0;
-                            
+
                         // 检查跨天事件是否已标记"今日已完成"
                         if (shouldCount && reminder.dailyCompletions && reminder.dailyCompletions[today]) {
                             shouldCount = false;
