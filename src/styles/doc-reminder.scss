@@ -120,21 +120,9 @@
     position: relative;
     overflow: hidden;
 
-    &::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 4px;
-        height: 100%;
-        background: var(--b3-theme-primary);
-        transform: scaleY(0);
-        transition: transform 0.3s ease;
-    }
 
     &:hover {
         background: var(--b3-theme-surface-light);
-        border-color: var(--b3-theme-primary-light);
         transform: translateY(-1px);
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 
