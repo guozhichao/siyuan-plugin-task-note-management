@@ -843,10 +843,6 @@ export class ReminderPanel {
                     this.remindersContainer.appendChild(reminderEl);
                 }
 
-                // 在优先级排序模式下添加提示信息
-                if (this.currentSort === 'priority' && displayReminders.length > 0) {
-                    this.addDragTip();
-                }
             };
 
             await createRemindersAsync();
@@ -856,30 +852,7 @@ export class ReminderPanel {
             showMessage(t("loadRemindersFailed"));
          }
     }
-    // 新增：添加拖拽提示
-    private addDragTip() {
-        const existingTip = this.container.querySelector('.drag-tip');
-        if (existingTip) {
-            existingTip.remove();
-        }
 
-        const tip = document.createElement('div');
-        tip.className = 'drag-tip';
-        tip.style.cssText = `
-                padding: 8px 12px;
-                background-color: var(--b3-theme-background-light);
-                border: 1px solid var(--b3-theme-border);
-                border-radius: 4px;
-                font-size: 12px;
-                color: var(--b3-theme-on-surface);
-                margin-bottom: 8px;
-                text-align: center;
-                opacity: 0.8;
-            `;
-        tip.innerHTML = '💡 提示：在优先级排序模式下，可拖拽调整同优先级任务的顺序';
-
-        this.remindersContainer.insertBefore(tip, this.remindersContainer.firstChild);
-        }
     /**
      * 检查跨天事件是否已标记"今日已完成"
      * @param reminder 提醒对象

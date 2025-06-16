@@ -443,35 +443,8 @@ export class ProjectPanel {
             this.projectsContainer.appendChild(projectEl);
         });
 
-        // 在优先级排序模式下添加提示信息
-        if (this.currentSort === 'priority' && projects.length > 0) {
-            this.addDragTip();
-        }
     }
-    // 新增：添加拖拽提示
-    private addDragTip() {
-        const existingTip = this.container.querySelector('.drag-tip');
-        if (existingTip) {
-            existingTip.remove();
-        }
-
-        const tip = document.createElement('div');
-        tip.className = 'drag-tip';
-        tip.style.cssText = `
-            padding: 8px 12px;
-            background-color: var(--b3-theme-background-light);
-            border: 1px solid var(--b3-theme-border);
-            border-radius: 4px;
-            font-size: 12px;
-            color: var(--b3-theme-on-surface);
-            margin-bottom: 8px;
-            text-align: center;
-            opacity: 0.8;
-        `;
-        tip.innerHTML = '💡 提示：在优先级排序模式下，可拖拽调整同优先级项目的顺序';
-
-        this.projectsContainer.insertBefore(tip, this.projectsContainer.firstChild);
-    }
+    
     private createProjectElement(project: any): HTMLElement {
         const today = getLocalDateString();
         const isOverdue = project.endDate && compareDateStrings(project.endDate, today) < 0;
