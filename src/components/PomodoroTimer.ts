@@ -271,7 +271,7 @@ export class PomodoroTimer {
                     await playPromise;
                     this.randomNotificationEndSound.pause();
                     this.randomNotificationEndSound.currentTime = 0;
-                    
+
                     // 使用设置中的微休息时间播放结束声音
                     const breakDuration = this.settings.randomNotificationBreakDuration * 1000; // 转换为毫秒
                     setTimeout(async () => {
