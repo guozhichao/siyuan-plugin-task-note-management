@@ -544,9 +544,28 @@ export class ReminderPanel {
             // 应用分类过滤
             const filteredReminders = this.applyCategoryFilter(allReminders);
 
+            // 辅助函数：检查提醒是否有效完成（包括跨天事件的今日已完成）
+            const isEffectivelyCompleted = (reminder: any) => {
+                // 如果提醒本身已完成，返回true
+                if (reminder.completed) return true;
+                
+                // 检查跨天事件的今日已完成状态
+                if (reminder.endDate && reminder.endDate !== reminder.date) {
+                    // 确保今天在事件的时间范围内
+                    const isInRange = compareDateStrings(reminder.date, today) <= 0 &&
+                        compareDateStrings(today, reminder.endDate) <= 0;
+                    
+                    if (isInRange) {
+                        return this.isSpanningEventTodayCompleted(reminder);
+                    }
+                }
+                
+                return false;
+            };
+
             // 分类提醒 - 改进过期判断逻辑
             const overdue = filteredReminders.filter((reminder: any) => {
-                if (reminder.completed) return false;
+                if (isEffectivelyCompleted(reminder)) return false;
 
                 // 对于跨天事件，以结束日期判断是否过期
                 if (reminder.endDate) {
@@ -559,7 +578,7 @@ export class ReminderPanel {
 
             // 今日提醒 - 改进跨天事件判断逻辑，包含过期事项，但排除已标记"今日已完成"的跨天事件
             const todayReminders = filteredReminders.filter((reminder: any) => {
-                if (reminder.completed) return false;
+                if (isEffectivelyCompleted(reminder)) return false;
 
                 if (reminder.endDate) {
                     // 跨天事件：只要今天在事件的时间范围内就显示，或者事件已过期但结束日期在今天之前
@@ -567,11 +586,7 @@ export class ReminderPanel {
                         compareDateStrings(today, reminder.endDate) <= 0) ||
                         compareDateStrings(reminder.endDate, today) < 0;
 
-                    // 如果在范围内，检查是否已标记"今日已完成"
-                    if (inRange) {
-                        return !this.isSpanningEventTodayCompleted(reminder);
-                    }
-                    return false;
+                    return inRange;
                 } else {
                     // 单日事件：今天或过期的都显示在今日
                     return reminder.date === today || compareDateStrings(reminder.date, today) < 0;
@@ -583,7 +598,7 @@ export class ReminderPanel {
             const tomorrowInstancesMap = new Map();
 
             filteredReminders.forEach((reminder: any) => {
-                if (reminder.completed) return;
+                if (isEffectivelyCompleted(reminder)) return;
 
                 let isTomorrow = false;
                 if (reminder.endDate) {
@@ -617,7 +632,7 @@ export class ReminderPanel {
             const future7InstancesMap = new Map();
 
             filteredReminders.forEach((reminder: any) => {
-                if (reminder.completed) return;
+                if (isEffectivelyCompleted(reminder)) return;
 
                 let isFuture7Days = false;
                 const reminderStartDate = reminder.date;
@@ -663,20 +678,35 @@ export class ReminderPanel {
                     compareDateStrings(reminderEndDate, today) < 0;
             });
 
-            const completed = filteredReminders.filter((reminder: any) => reminder.completed);
+            // 已完成提醒 - 包括标准完成和跨天事件的今日已完成
+            const completed = filteredReminders.filter((reminder: any) => isEffectivelyCompleted(reminder));
 
-            // 今日已完成 - 筛选今天完成的任务
+            // 今日已完成 - 筛选今天完成的任务，包括跨天事件的今日已完成
             const todayCompleted = filteredReminders.filter((reminder: any) => {
-                if (!reminder.completed) return false;
-
-                // 对于跨天事件，如果今天在事件范围内且已完成，则显示
-                if (reminder.endDate) {
-                    return compareDateStrings(reminder.date, today) <= 0 &&
-                        compareDateStrings(today, reminder.endDate) <= 0;
-                } else {
-                    // 对于单日事件，事件日期是今天且已完成
-                    return reminder.date === today;
+                // 检查标准完成状态
+                if (reminder.completed) {
+                    // 对于跨天事件，如果今天在事件范围内且已完成，则显示
+                    if (reminder.endDate) {
+                        return compareDateStrings(reminder.date, today) <= 0 &&
+                            compareDateStrings(today, reminder.endDate) <= 0;
+                    } else {
+                        // 对于单日事件，事件日期是今天且已完成
+                        return reminder.date === today;
+                    }
                 }
+                
+                // 检查跨天事件的今日已完成状态
+                if (reminder.endDate && reminder.endDate !== reminder.date) {
+                    // 确保今天在事件的时间范围内
+                    const isInRange = compareDateStrings(reminder.date, today) <= 0 &&
+                        compareDateStrings(today, reminder.endDate) <= 0;
+                    
+                    if (isInRange) {
+                        return this.isSpanningEventTodayCompleted(reminder);
+                    }
+                }
+                
+                return false;
             });
 
             this.updateReminderCounts(overdue.length, todayReminders.length, tomorrowReminders.length, future7DaysReminders.length, completed.length, todayCompleted.length);
