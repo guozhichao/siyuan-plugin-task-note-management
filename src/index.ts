@@ -244,7 +244,7 @@ export default class ReminderPlugin extends Plugin {
         // 短时休息背景音设置
         this.settingUtils.addItem({
             key: "pomodoroBreakSound",
-            value: "/plugins/siyuan-plugin-task-note-management/audios/background_music.mp3",
+            value: "/plugins/siyuan-plugin-task-note-management/audios/relax_background.mp3",
             type: "textinput",
             title: "番茄休息背景音（可选）",
             description: "设置休息时播放的背景音文件路径，留空则静音"
@@ -252,7 +252,7 @@ export default class ReminderPlugin extends Plugin {
         // 长时休息背景音设置
         this.settingUtils.addItem({
             key: "pomodoroLongBreakSound",
-            value: "/plugins/siyuan-plugin-task-note-management/audios/background_music.mp3",
+            value: "/plugins/siyuan-plugin-task-note-management/audios/relax_background.mp3",
             type: "textinput",
             title: "番茄长时休息背景音（可选）",
             description: "设置长时休息时播放的背景音文件路径，留空则静音"
