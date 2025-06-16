@@ -85,6 +85,8 @@ export default class ReminderPlugin extends Plugin {
 
         // 添加用户交互监听器来启用音频
         this.enableAudioOnUserInteraction();
+        // 监听文档树右键菜单事件
+        this.eventBus.on('open-menu-doctree', this.handleDocumentTreeMenu.bind(this));
     }
 
     private enableAudioOnUserInteraction() {
@@ -798,7 +800,53 @@ export default class ReminderPlugin extends Plugin {
             dockIcon.appendChild(badge);
         }
     }
+    private handleDocumentTreeMenu({ detail }) {
+        const elements = detail.elements;
+        if (!elements || !elements.length) {
+            return;
+        }
+        // Get the first selected element
+        const element = elements[0];
 
+        // Check if it's a notebook or a document
+        const isNotebook = element.getAttribute("data-type") === "navigation-root";
+        const documentId = element.getAttribute("data-node-id");
+
+        if (!documentId) return;
+
+        // 添加分隔符
+        detail.menu.addSeparator();
+
+        // 添加设置时间提醒菜单项
+        detail.menu.addItem({
+            iconHTML: "⏰",
+            label: t("setTimeReminder"),
+            click: () => {
+                const dialog = new ReminderDialog(documentId);
+                dialog.show();
+            }
+        });
+
+        // 添加查看文档所有提醒菜单项
+        detail.menu.addItem({
+            iconHTML: "📋",
+            label: "查看文档所有提醒",
+            click: () => {
+                const documentReminderDialog = new DocumentReminderDialog(documentId);
+                documentReminderDialog.show();
+            }
+        });
+
+        // 添加设置为项目笔记菜单项
+        detail.menu.addItem({
+            iconHTML: "📂",
+            label: "设置为项目笔记",
+            click: () => {
+                const dialog = new ProjectDialog(documentId);
+                dialog.show();
+            }
+        });
+    }
     private handleDocumentMenu({ detail }) {
         const documentId = detail.protyle.block.rootID;
 
