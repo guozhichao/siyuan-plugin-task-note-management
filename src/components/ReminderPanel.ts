@@ -557,15 +557,21 @@ export class ReminderPanel {
                 }
             });
 
-            // 今日提醒 - 改进跨天事件判断逻辑，包含过期事项
+            // 今日提醒 - 改进跨天事件判断逻辑，包含过期事项，但排除已标记"今日已完成"的跨天事件
             const todayReminders = filteredReminders.filter((reminder: any) => {
                 if (reminder.completed) return false;
 
                 if (reminder.endDate) {
                     // 跨天事件：只要今天在事件的时间范围内就显示，或者事件已过期但结束日期在今天之前
-                    return (compareDateStrings(reminder.date, today) <= 0 &&
+                    const inRange = (compareDateStrings(reminder.date, today) <= 0 &&
                         compareDateStrings(today, reminder.endDate) <= 0) ||
                         compareDateStrings(reminder.endDate, today) < 0;
+
+                    // 如果在范围内，检查是否已标记"今日已完成"
+                    if (inRange) {
+                        return !this.isSpanningEventTodayCompleted(reminder);
+                    }
+                    return false;
                 } else {
                     // 单日事件：今天或过期的都显示在今日
                     return reminder.date === today || compareDateStrings(reminder.date, today) < 0;
@@ -722,6 +728,27 @@ export class ReminderPanel {
             console.error('加载提醒失败:', error);
             showMessage(t("loadRemindersFailed"));
         }
+    }
+    /**
+     * 检查跨天事件是否已标记"今日已完成"
+     * @param reminder 提醒对象
+     * @returns 是否已标记今日已完成
+     */
+    private isSpanningEventTodayCompleted(reminder: any): boolean {
+        const today = getLocalDateString();
+
+        if (reminder.isRepeatInstance) {
+            // 重复事件实例：检查原始事件的每日完成记录
+            const originalReminder = this.getOriginalReminder(reminder.originalId);
+            if (originalReminder && originalReminder.dailyCompletions) {
+                return originalReminder.dailyCompletions[today] === true;
+            }
+        } else {
+            // 普通事件：检查事件的每日完成记录
+            return reminder.dailyCompletions && reminder.dailyCompletions[today] === true;
+        }
+
+        return false;
     }
 
     private renderReminders(reminderData: any) {
@@ -1718,6 +1745,8 @@ export class ReminderPanel {
      */
     private showReminderContextMenu(event: MouseEvent, reminder: any) {
         const menu = new Menu("reminderContextMenu");
+        const today = getLocalDateString();
+        const isSpanningDays = reminder.endDate && reminder.endDate !== reminder.date;
 
         // Helper to create priority submenu items, to avoid code repetition.
         const createPriorityMenuItems = () => {
@@ -1778,6 +1807,11 @@ export class ReminderPanel {
             return menuItems;
         };
 
+        // 检查是否为跨天事件且在今日任务中
+        const isSpanningInToday = isSpanningDays &&
+            compareDateStrings(reminder.date, today) <= 0 &&
+            compareDateStrings(today, reminder.endDate) <= 0;
+
         if (reminder.isRepeatInstance) {
             // --- Menu for a REPEAT INSTANCE ---
             menu.addItem({
@@ -1785,6 +1819,24 @@ export class ReminderPanel {
                 label: "复制块引",
                 click: () => this.copyBlockRef(reminder)
             });
+
+            // 为跨天的重复事件实例添加"今日已完成"选项
+            if (isSpanningInToday && !reminder.completed) {
+                const isTodayCompleted = this.isSpanningEventTodayCompleted(reminder);
+                menu.addItem({
+                    iconHTML: isTodayCompleted ? "🔄" : "✅",
+                    label: isTodayCompleted ? "取消今日已完成" : "今日已完成",
+                    click: () => {
+                        if (isTodayCompleted) {
+                            this.unmarkSpanningEventTodayCompleted(reminder);
+                        } else {
+                            this.markSpanningEventTodayCompleted(reminder);
+                        }
+                    }
+                });
+                menu.addSeparator();
+            }
+
             menu.addItem({
                 iconHTML: "📝",
                 label: t("modifyThisInstance"),
@@ -1835,6 +1887,24 @@ export class ReminderPanel {
                 label: "复制块引用",
                 click: () => this.copyBlockRef(reminder)
             });
+
+            // 为跨天的重复事件添加"今日已完成"选项
+            if (isSpanningInToday && !reminder.completed) {
+                const isTodayCompleted = this.isSpanningEventTodayCompleted(reminder);
+                menu.addItem({
+                    iconHTML: isTodayCompleted ? "🔄" : "✅",
+                    label: isTodayCompleted ? "取消今日已完成" : "今日已完成",
+                    click: () => {
+                        if (isTodayCompleted) {
+                            this.unmarkSpanningEventTodayCompleted(reminder);
+                        } else {
+                            this.markSpanningEventTodayCompleted(reminder);
+                        }
+                    }
+                });
+                menu.addSeparator();
+            }
+
             menu.addItem({
                 iconHTML: "📝",
                 label: t("modifyThisInstance"),
@@ -1885,6 +1955,24 @@ export class ReminderPanel {
                 label: "复制块引用",
                 click: () => this.copyBlockRef(reminder)
             });
+
+            // 为跨天的普通事件添加"今日已完成"选项
+            if (isSpanningInToday && !reminder.completed) {
+                const isTodayCompleted = this.isSpanningEventTodayCompleted(reminder);
+                menu.addItem({
+                    iconHTML: isTodayCompleted ? "🔄" : "✅",
+                    label: isTodayCompleted ? "取消今日已完成" : "今日已完成",
+                    click: () => {
+                        if (isTodayCompleted) {
+                            this.unmarkSpanningEventTodayCompleted(reminder);
+                        } else {
+                            this.markSpanningEventTodayCompleted(reminder);
+                        }
+                    }
+                });
+                menu.addSeparator();
+            }
+
             menu.addItem({
                 iconHTML: "📝",
                 label: t("modify"),
@@ -1923,6 +2011,7 @@ export class ReminderPanel {
             y: event.clientY
         });
     }
+
     private startPomodoro(reminder: any) {
         if (!this.plugin) {
             showMessage("无法启动番茄钟：插件实例不可用");
@@ -1981,7 +2070,75 @@ export class ReminderPanel {
             this.performStartPomodoro(reminder);
         }
     }
+    /**
+     * 标记跨天事件"今日已完成"
+     * @param reminder 提醒对象
+     */
+    private async markSpanningEventTodayCompleted(reminder: any) {
+        try {
+            const today = getLocalDateString();
+            const reminderData = await readReminderData();
 
+            if (reminder.isRepeatInstance) {
+                // 重复事件实例：更新原始事件的每日完成记录
+                const originalId = reminder.originalId;
+                if (reminderData[originalId]) {
+                    if (!reminderData[originalId].dailyCompletions) {
+                        reminderData[originalId].dailyCompletions = {};
+                    }
+                    reminderData[originalId].dailyCompletions[today] = true;
+                }
+            } else {
+                // 普通事件：更新事件的每日完成记录
+                if (reminderData[reminder.id]) {
+                    if (!reminderData[reminder.id].dailyCompletions) {
+                        reminderData[reminder.id].dailyCompletions = {};
+                    }
+                    reminderData[reminder.id].dailyCompletions[today] = true;
+                }
+            }
+
+            await writeReminderData(reminderData);
+            showMessage("已标记今日已完成");
+            this.loadReminders();
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+        } catch (error) {
+            console.error('标记今日已完成失败:', error);
+            showMessage("操作失败");
+        }
+    }
+
+    /**
+     * 取消标记跨天事件"今日已完成"
+     * @param reminder 提醒对象
+     */
+    private async unmarkSpanningEventTodayCompleted(reminder: any) {
+        try {
+            const today = getLocalDateString();
+            const reminderData = await readReminderData();
+
+            if (reminder.isRepeatInstance) {
+                // 重复事件实例：更新原始事件的每日完成记录
+                const originalId = reminder.originalId;
+                if (reminderData[originalId] && reminderData[originalId].dailyCompletions) {
+                    delete reminderData[originalId].dailyCompletions[today];
+                }
+            } else {
+                // 普通事件：更新事件的每日完成记录
+                if (reminderData[reminder.id] && reminderData[reminder.id].dailyCompletions) {
+                    delete reminderData[reminder.id].dailyCompletions[today];
+                }
+            }
+
+            await writeReminderData(reminderData);
+            showMessage("已取消今日已完成");
+            this.loadReminders();
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+        } catch (error) {
+            console.error('取消今日已完成失败:', error);
+            showMessage("操作失败");
+        }
+    }
     private performStartPomodoro(reminder: any, inheritState?: any) {
         // 如果已经有活动的番茄钟，先关闭它
         if (ReminderPanel.currentPomodoroTimer) {
