@@ -543,6 +543,12 @@ export class DocumentReminderDialog {
         const reminderEl = document.createElement('div');
         reminderEl.className = `doc-reminder-item ${isOverdue ? 'doc-reminder-item--overdue' : ''} ${isSpanningDays ? 'doc-reminder-item--spanning' : ''} doc-reminder-priority-${priority}`;
 
+        // 添加右键菜单事件
+        reminderEl.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            this.showContextMenu(e, reminder);
+        });
+
         // 复选框
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
@@ -949,5 +955,216 @@ export class DocumentReminderDialog {
             window.removeEventListener('reminderUpdated', handleReminderUpdate);
         };
         window.addEventListener('reminderUpdated', handleReminderUpdate);
+    }
+
+    // 新增：显示右键菜单
+    private showContextMenu(event: MouseEvent, reminder: any) {
+        // 移除已存在的菜单
+        const existingMenu = document.querySelector('.doc-reminder-context-menu');
+        if (existingMenu) {
+            existingMenu.remove();
+        }
+
+        // 创建菜单
+        const menu = document.createElement('div');
+        menu.className = 'doc-reminder-context-menu';
+        menu.style.cssText = `
+            position: fixed;
+            left: ${event.clientX}px;
+            top: ${event.clientY}px;
+            background: var(--b3-theme-surface);
+            border: 1px solid var(--b3-theme-border);
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            z-index: 10000;
+            min-width: 120px;
+            padding: 4px 0;
+        `;
+
+        // 编辑选项
+        const editOption = document.createElement('div');
+        editOption.className = 'doc-reminder-context-menu-item';
+        editOption.style.cssText = `
+            padding: 8px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: var(--b3-theme-on-surface);
+        `;
+        editOption.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+            </svg>
+            编辑提醒
+        `;
+        editOption.addEventListener('click', () => {
+            menu.remove();
+            this.editReminder(reminder);
+        });
+
+        // 删除选项
+        const deleteOption = document.createElement('div');
+        deleteOption.className = 'doc-reminder-context-menu-item';
+        deleteOption.style.cssText = `
+            padding: 8px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: var(--b3-theme-error);
+        `;
+        deleteOption.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+            </svg>
+            删除提醒
+        `;
+        deleteOption.addEventListener('click', () => {
+            menu.remove();
+            this.deleteReminder(reminder);
+        });
+
+        // 鼠标悬停效果
+        [editOption, deleteOption].forEach(option => {
+            option.addEventListener('mouseenter', () => {
+                option.style.backgroundColor = 'var(--b3-theme-surface-light)';
+            });
+            option.addEventListener('mouseleave', () => {
+                option.style.backgroundColor = 'transparent';
+            });
+        });
+
+        menu.appendChild(editOption);
+        menu.appendChild(deleteOption);
+        document.body.appendChild(menu);
+
+        // 点击其他地方关闭菜单
+        const closeMenu = (e: MouseEvent) => {
+            if (!menu.contains(e.target as Node)) {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+        setTimeout(() => {
+            document.addEventListener('click', closeMenu);
+        }, 0);
+
+        // 调整菜单位置，确保不超出视口
+        const rect = menu.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        if (rect.right > viewportWidth) {
+            menu.style.left = `${event.clientX - rect.width}px`;
+        }
+        if (rect.bottom > viewportHeight) {
+            menu.style.top = `${event.clientY - rect.height}px`;
+        }
+    }
+
+    // 新增：删除提醒
+    private async deleteReminder(reminder: any) {
+     
+        // 确认删除
+        const confirmMessage = reminder.isRepeatInstance
+            ? `确定要删除此重复提醒的实例吗？\n\n标题：${reminder.title || t("unnamedNote")}\n日期：${reminder.date}`
+            : `确定要删除此提醒吗？\n\n标题：${reminder.title || t("unnamedNote")}\n日期：${reminder.date}`;
+
+        const confirmed = await confirm(
+            "删除提醒",
+            confirmMessage,
+            () => {
+                this.performDeleteReminder(reminder);
+            }
+        );
+    }
+
+
+    private async performDeleteReminder(reminder: any) {
+        // 用户确认删除
+        try {
+            const reminderData = await readReminderData();
+
+            if (reminder.isRepeatInstance) {
+                // 删除重复事件实例
+                await this.deleteRepeatInstance(reminderData, reminder);
+            } else {
+                // 删除普通提醒
+                await this.deleteNormalReminder(reminderData, reminder);
+            }
+
+            await writeReminderData(reminderData);
+
+            // 更新块的书签状态
+            const blockId = reminder.blockId || reminder.id;
+            if (blockId) {
+                await updateBlockReminderBookmark(blockId);
+            }
+
+            // 触发全局更新事件
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+            // 重新加载提醒列表
+            this.loadReminders();
+
+            showMessage("提醒已删除");
+
+        } catch (error) {
+            console.error('删除提醒失败:', error);
+            showMessage(t("operationFailed"));
+        }
+    }
+    // 新增：删除重复事件实例
+    private async deleteRepeatInstance(reminderData: any, reminder: any) {
+        const originalId = reminder.originalId;
+        const originalReminder = reminderData[originalId];
+        
+        if (!originalReminder) {
+            throw new Error('原始提醒不存在');
+        }
+
+        // 如果是删除特定日期的实例，我们需要将其标记为已删除
+        // 而不是真正删除，以避免重复生成
+        if (!originalReminder.repeat.deletedInstances) {
+            originalReminder.repeat.deletedInstances = [];
+        }
+
+        // 添加到已删除实例列表
+        if (!originalReminder.repeat.deletedInstances.includes(reminder.date)) {
+            originalReminder.repeat.deletedInstances.push(reminder.date);
+        }
+
+        // 如果该实例已完成，也需要从已完成列表中移除
+        if (originalReminder.repeat.completedInstances) {
+            const completedIndex = originalReminder.repeat.completedInstances.indexOf(reminder.date);
+            if (completedIndex > -1) {
+                originalReminder.repeat.completedInstances.splice(completedIndex, 1);
+            }
+        }
+
+        // 删除完成时间记录
+        if (originalReminder.repeat.completedTimes) {
+            delete originalReminder.repeat.completedTimes[reminder.date];
+        }
+
+        // 删除实例修改记录
+        if (originalReminder.repeat.instanceModifications) {
+            delete originalReminder.repeat.instanceModifications[reminder.date];
+        }
+    }
+
+    // 新增：删除普通提醒
+    private async deleteNormalReminder(reminderData: any, reminder: any) {
+        const reminderId = reminder.id;
+        
+        if (!reminderData[reminderId]) {
+            throw new Error('提醒不存在');
+        }
+
+        // 直接删除提醒
+        delete reminderData[reminderId];
     }
 }
