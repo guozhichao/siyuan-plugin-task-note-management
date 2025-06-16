@@ -42,15 +42,39 @@ export class BatchReminderDialog {
         this.setupChronoParser();
     }
 
-    // 添加chrono解析器配置方法
+    // 设置chrono解析器
     private setupChronoParser() {
+        // 添加更多中文时间表达式支持
+        const customPatterns = [
+            // 今天、明天、后天等
+            /今天|今日/i,
+            /明天|明日/i,
+            /后天/i,
+            /大后天/i,
+            // 周几
+            /下?周[一二三四五六日天]/i,
+            /下?星期[一二三四五六日天]/i,
+            // 月份日期
+            /(\d{1,2})月(\d{1,2})[日号]/i,
+            // 时间
+            /(\d{1,2})[点时](\d{1,2})?[分]?/i,
+            // 相对时间
+            /(\d+)天[后以]后/i,
+            /(\d+)小时[后以]后/i,
+            // 紧凑日期格式 YYYYMMDD
+            /^(\d{8})$/,
+            // 其他数字日期格式
+            /^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/,
+            /^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/,
+        ];
+
         // 配置chrono选项
         this.chronoParser.option = {
             ...this.chronoParser.option,
-            forwardDate: false
+            forwardDate: false // 优先解析未来日期
         };
 
-        // 添加自定义解析器来处理紧凑日期格式
+        // 添加自定义解析器来处理紧凑日期格式和其他特殊格式
         this.chronoParser.refiners.push({
             refine: (context, results) => {
                 results.forEach(result => {
@@ -71,12 +95,55 @@ export class BatchReminderDialog {
                             result.start.assign('day', day);
                         }
                     }
+
+                    // 处理其他数字格式
+                    const dashMatch = text.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+                    if (dashMatch) {
+                        const year = parseInt(dashMatch[1]);
+                        const month = parseInt(dashMatch[2]);
+                        const day = parseInt(dashMatch[3]);
+
+                        if (this.isValidDate(year, month, day)) {
+                            result.start.assign('year', year);
+                            result.start.assign('month', month);
+                            result.start.assign('day', day);
+                        }
+                    }
+
+                    // 处理MM/DD/YYYY或DD/MM/YYYY格式（根据数值大小判断）
+                    const slashMatch = text.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+                    if (slashMatch) {
+                        const first = parseInt(slashMatch[1]);
+                        const second = parseInt(slashMatch[2]);
+                        const year = parseInt(slashMatch[3]);
+
+                        // 如果第一个数字大于12，则认为是DD/MM/YYYY格式
+                        let month, day;
+                        if (first > 12 && second <= 12) {
+                            day = first;
+                            month = second;
+                        } else if (second > 12 && first <= 12) {
+                            month = first;
+                            day = second;
+                        } else {
+                            // 默认使用MM/DD/YYYY格式
+                            month = first;
+                            day = second;
+                        }
+
+                        if (this.isValidDate(year, month, day)) {
+                            result.start.assign('year', year);
+                            result.start.assign('month', month);
+                            result.start.assign('day', day);
+                        }
+                    }
                 });
 
                 return results;
             }
         });
     }
+
 
     // 添加日期有效性验证方法
     private isValidDate(year: number, month: number, day: number): boolean {
@@ -200,7 +267,63 @@ export class BatchReminderDialog {
 
     private parseNaturalDateTime(text: string): { date?: string; time?: string; hasTime?: boolean } {
         try {
-            const results = this.chronoParser.parse(text, new Date(), { forwardDate: false });
+            // 预处理文本，处理一些特殊格式
+            let processedText = text.trim();
+            // 处理包含8位数字日期的情况（支持前后有文字，有无空格）
+            // 匹配模式：20250527、20250527 干活、干活 20250527、20250527干活、干活20250527
+            const compactDateInTextMatch = processedText.match(/(?:^|.*?)(\d{8})(?:\s|$|.*)/);
+            if (compactDateInTextMatch) {
+                const dateStr = compactDateInTextMatch[1];
+                const year = dateStr.substring(0, 4);
+                const month = dateStr.substring(4, 6);
+                const day = dateStr.substring(6, 8);
+
+                // 验证日期有效性
+                if (this.isValidDate(parseInt(year), parseInt(month), parseInt(day))) {
+                    // 检查是否还有时间信息
+                    const textWithoutDate = processedText.replace(dateStr, '').trim();
+                    let timeResult = null;
+
+                    if (textWithoutDate) {
+                        // 尝试从剩余文本中解析时间
+                        const timeMatch = textWithoutDate.match(/(\d{1,2})[点时:](\d{1,2})?[分]?/);
+                        if (timeMatch) {
+                            const hour = parseInt(timeMatch[1]);
+                            const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+
+                            if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+                                const hourStr = hour.toString().padStart(2, '0');
+                                const minuteStr = minute.toString().padStart(2, '0');
+                                timeResult = `${hourStr}:${minuteStr}`;
+                            }
+                        }
+                    }
+
+                    return {
+                        date: `${year}-${month}-${day}`,
+                        time: timeResult || undefined,
+                        hasTime: !!timeResult
+                    };
+                }
+            }
+
+            // 处理YYYY-MM-DD或YYYY/MM/DD格式
+            const standardDateMatch = processedText.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+            if (standardDateMatch) {
+                const year = parseInt(standardDateMatch[1]);
+                const month = parseInt(standardDateMatch[2]);
+                const day = parseInt(standardDateMatch[3]);
+
+                if (this.isValidDate(year, month, day)) {
+                    const monthStr = month.toString().padStart(2, '0');
+                    const dayStr = day.toString().padStart(2, '0');
+                    return {
+                        date: `${year}-${monthStr}-${dayStr}`,
+                        hasTime: false
+                    };
+                }
+            }
+            const results = this.chronoParser.parse(processedText, new Date(), { forwardDate: false });
 
             if (results.length === 0) {
                 return {};

@@ -1067,7 +1067,7 @@ export class DocumentReminderDialog {
 
     // 新增：删除提醒
     private async deleteReminder(reminder: any) {
-     
+
         // 确认删除
         const confirmMessage = reminder.isRepeatInstance
             ? `确定要删除此重复提醒的实例吗？\n\n标题：${reminder.title || t("unnamedNote")}\n日期：${reminder.date}`
@@ -1121,7 +1121,7 @@ export class DocumentReminderDialog {
     private async deleteRepeatInstance(reminderData: any, reminder: any) {
         const originalId = reminder.originalId;
         const originalReminder = reminderData[originalId];
-        
+
         if (!originalReminder) {
             throw new Error('原始提醒不存在');
         }
@@ -1159,7 +1159,7 @@ export class DocumentReminderDialog {
     // 新增：删除普通提醒
     private async deleteNormalReminder(reminderData: any, reminder: any) {
         const reminderId = reminder.id;
-        
+
         if (!reminderData[reminderId]) {
             throw new Error('提醒不存在');
         }

@@ -177,19 +177,40 @@ export class ReminderDialog {
             // 预处理文本，处理一些特殊格式
             let processedText = text.trim();
 
-            // 处理纯数字日期格式
-            const compactDateMatch = processedText.match(/^(\d{8})$/);
-            if (compactDateMatch) {
-                const dateStr = compactDateMatch[1];
+            // 处理包含8位数字日期的情况（支持前后有文字，有无空格）
+            // 匹配模式：20250527、20250527 干活、干活 20250527、20250527干活、干活20250527
+            const compactDateInTextMatch = processedText.match(/(?:^|.*?)(\d{8})(?:\s|$|.*)/);
+            if (compactDateInTextMatch) {
+                const dateStr = compactDateInTextMatch[1];
                 const year = dateStr.substring(0, 4);
                 const month = dateStr.substring(4, 6);
                 const day = dateStr.substring(6, 8);
 
                 // 验证日期有效性
                 if (this.isValidDate(parseInt(year), parseInt(month), parseInt(day))) {
+                    // 检查是否还有时间信息
+                    const textWithoutDate = processedText.replace(dateStr, '').trim();
+                    let timeResult = null;
+
+                    if (textWithoutDate) {
+                        // 尝试从剩余文本中解析时间
+                        const timeMatch = textWithoutDate.match(/(\d{1,2})[点时:](\d{1,2})?[分]?/);
+                        if (timeMatch) {
+                            const hour = parseInt(timeMatch[1]);
+                            const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+
+                            if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+                                const hourStr = hour.toString().padStart(2, '0');
+                                const minuteStr = minute.toString().padStart(2, '0');
+                                timeResult = `${hourStr}:${minuteStr}`;
+                            }
+                        }
+                    }
+
                     return {
                         date: `${year}-${month}-${day}`,
-                        hasTime: false
+                        time: timeResult || undefined,
+                        hasTime: !!timeResult
                     };
                 }
             }

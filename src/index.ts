@@ -29,7 +29,6 @@ import { ProjectPanel } from "./components/ProjectPanel";
 const STORAGE_NAME = "reminder-config";
 const SETTINGS_NAME = "reminder-settings";
 const TAB_TYPE = "reminder_calendar_tab";
-import * as chrono from 'chrono-node';
 
 export default class ReminderPlugin extends Plugin {
     private dockPanel: HTMLElement;
@@ -56,9 +55,6 @@ export default class ReminderPlugin extends Plugin {
             </symbol>
         `);
 
-        // 初始化并配置chrono解析器
-        this.chronoParser = chrono.zh.casual.clone();
-        this.setupChronoParser();
 
         setPluginInstance(this);
         this.initSettings();
@@ -1422,53 +1418,6 @@ export default class ReminderPlugin extends Plugin {
         }
     }
 
-    // 添加chrono解析器配置方法
-    private setupChronoParser() {
-        // 配置chrono选项
-        this.chronoParser.option = {
-            ...this.chronoParser.option,
-            forwardDate: false
-        };
-
-        // 添加自定义解析器来处理紧凑日期格式
-        this.chronoParser.refiners.push({
-            refine: (context, results) => {
-                results.forEach(result => {
-                    const text = result.text;
-
-                    // 处理YYYYMMDD格式
-                    const compactMatch = text.match(/^(\d{8})$/);
-                    if (compactMatch) {
-                        const dateStr = compactMatch[1];
-                        const year = parseInt(dateStr.substring(0, 4));
-                        const month = parseInt(dateStr.substring(4, 6));
-                        const day = parseInt(dateStr.substring(6, 8));
-
-                        // 验证日期有效性
-                        if (this.isValidDate(year, month, day)) {
-                            result.start.assign('year', year);
-                            result.start.assign('month', month);
-                            result.start.assign('day', day);
-                        }
-                    }
-                });
-
-                return results;
-            }
-        });
-    }
-
-    // 添加日期有效性验证方法
-    private isValidDate(year: number, month: number, day: number): boolean {
-        if (year < 1900 || year > 2100) return false;
-        if (month < 1 || month > 12) return false;
-        if (day < 1 || day > 31) return false;
-
-        const date = new Date(year, month - 1, day);
-        return date.getFullYear() === year &&
-            date.getMonth() === month - 1 &&
-            date.getDate() === day;
-    }
 
     onunload() {
         console.log("Reminder Plugin unloaded");
