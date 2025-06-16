@@ -6,6 +6,7 @@ import { ProjectDialog } from "./ProjectDialog";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { t } from "../utils/i18n";
 
+
 export class ProjectPanel {
     private container: HTMLElement;
     private projectsContainer: HTMLElement;
@@ -19,6 +20,11 @@ export class ProjectPanel {
     private currentSortOrder: 'asc' | 'desc' = 'desc';
     private categoryManager: CategoryManager;
     private projectUpdatedHandler: () => void;
+    // 添加拖拽相关属性
+    private isDragging: boolean = false;
+    private draggedElement: HTMLElement | null = null;
+    private draggedProject: any = null;
+    private currentProjectsCache: any[] = [];
 
     constructor(container: HTMLElement, plugin?: any) {
         this.container = container;
@@ -341,6 +347,7 @@ export class ProjectPanel {
         });
     }
 
+
     private sortProjects(projects: any[]) {
         const sortType = this.currentSort;
         const sortOrder = this.currentSortOrder;
@@ -353,7 +360,7 @@ export class ProjectPanel {
                     result = this.compareByTime(a, b);
                     break;
                 case 'priority':
-                    result = this.compareByPriority(a, b);
+                    result = this.compareByPriorityWithManualSort(a, b);
                     break;
                 case 'title':
                     result = this.compareByTitle(a, b);
@@ -362,8 +369,37 @@ export class ProjectPanel {
                     result = this.compareByTime(a, b);
             }
 
+            // 优先级排序的结果相反
+            if (sortType === 'priority') {
+                result = -result;
+            }
+
             return sortOrder === 'desc' ? -result : result;
         });
+    }
+
+    // 新增：优先级排序与手动排序结合
+    private compareByPriorityWithManualSort(a: any, b: any): number {
+        const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
+        const priorityA = priorityOrder[a.priority || 'none'] || 0;
+        const priorityB = priorityOrder[b.priority || 'none'] || 0;
+
+        // 首先按优先级排序
+        const priorityDiff = priorityB - priorityA;
+        if (priorityDiff !== 0) {
+            return priorityDiff;
+        }
+
+        // 同优先级内按手动排序
+        const sortA = a.sort || 0;
+        const sortB = b.sort || 0;
+
+        if (sortA !== sortB) {
+            return sortA - sortB; // 手动排序值小的在前
+        }
+
+        // 如果手动排序值也相同，按时间排序
+        return this.compareByTime(a, b);
     }
 
     private compareByTime(a: any, b: any): number {
@@ -397,14 +433,45 @@ export class ProjectPanel {
             return;
         }
 
+        // 缓存当前项目列表
+        this.currentProjectsCache = [...projects];
+
         this.projectsContainer.innerHTML = '';
 
         projects.forEach((project: any) => {
             const projectEl = this.createProjectElement(project);
             this.projectsContainer.appendChild(projectEl);
         });
-    }
 
+        // 在优先级排序模式下添加提示信息
+        if (this.currentSort === 'priority' && projects.length > 0) {
+            this.addDragTip();
+        }
+    }
+    // 新增：添加拖拽提示
+    private addDragTip() {
+        const existingTip = this.container.querySelector('.drag-tip');
+        if (existingTip) {
+            existingTip.remove();
+        }
+
+        const tip = document.createElement('div');
+        tip.className = 'drag-tip';
+        tip.style.cssText = `
+            padding: 8px 12px;
+            background-color: var(--b3-theme-background-light);
+            border: 1px solid var(--b3-theme-border);
+            border-radius: 4px;
+            font-size: 12px;
+            color: var(--b3-theme-on-surface);
+            margin-bottom: 8px;
+            text-align: center;
+            opacity: 0.8;
+        `;
+        tip.innerHTML = '💡 提示：在优先级排序模式下，可拖拽调整同优先级项目的顺序';
+
+        this.projectsContainer.insertBefore(tip, this.projectsContainer.firstChild);
+    }
     private createProjectElement(project: any): HTMLElement {
         const today = getLocalDateString();
         const isOverdue = project.endDate && compareDateStrings(project.endDate, today) < 0;
@@ -414,11 +481,21 @@ export class ProjectPanel {
         const projectEl = document.createElement('div');
         projectEl.className = `project-item ${isOverdue ? 'project-item--overdue' : ''} project-item--${status} project-priority-${priority}`;
 
+        // 存储项目数据到元素
+        projectEl.dataset.projectId = project.id;
+        projectEl.dataset.priority = priority;
+
+        // 在优先级排序模式下添加拖拽功能
+        if (this.currentSort === 'priority') {
+            this.addDragFunctionality(projectEl, project);
+        }
+
         // 添加右键菜单支持
         projectEl.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             this.showProjectContextMenu(e, project);
         });
+
 
         const contentEl = document.createElement('div');
         contentEl.className = 'project-item__content';
@@ -548,6 +625,172 @@ export class ProjectPanel {
         projectEl.appendChild(contentEl);
 
         return projectEl;
+    }
+    // 新增：添加拖拽功能
+    private addDragFunctionality(element: HTMLElement, project: any) {
+        element.draggable = true;
+        element.style.cursor = 'grab';
+
+        element.addEventListener('dragstart', (e) => {
+            this.isDragging = true;
+            this.draggedElement = element;
+            this.draggedProject = project;
+            element.style.opacity = '0.5';
+            element.style.cursor = 'grabbing';
+
+            if (e.dataTransfer) {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', element.outerHTML);
+            }
+        });
+
+        element.addEventListener('dragend', (e) => {
+            this.isDragging = false;
+            this.draggedElement = null;
+            this.draggedProject = null;
+            element.style.opacity = '';
+            element.style.cursor = 'grab';
+        });
+
+        element.addEventListener('dragover', (e) => {
+            if (this.isDragging && this.draggedElement !== element) {
+                e.preventDefault();
+
+                const targetProject = this.getProjectFromElement(element);
+                // 只允许同优先级内的拖拽
+                if (targetProject && this.canDropHere(this.draggedProject, targetProject)) {
+                    e.dataTransfer.dropEffect = 'move';
+                    this.showDropIndicator(element, e);
+                }
+            }
+        });
+
+        element.addEventListener('drop', (e) => {
+            if (this.isDragging && this.draggedElement !== element) {
+                e.preventDefault();
+
+                const targetProject = this.getProjectFromElement(element);
+                if (targetProject && this.canDropHere(this.draggedProject, targetProject)) {
+                    this.handleDrop(this.draggedProject, targetProject, e);
+                }
+            }
+            this.hideDropIndicator();
+        });
+
+        element.addEventListener('dragleave', (e) => {
+            this.hideDropIndicator();
+        });
+    }
+
+    // 新增：从元素获取项目数据
+    private getProjectFromElement(element: HTMLElement): any {
+        const projectId = element.dataset.projectId;
+        if (!projectId) return null;
+
+        // 从当前显示的项目列表中查找
+        return this.currentProjectsCache.find(p => p.id === projectId);
+    }
+
+    // 新增：检查是否可以放置
+    private canDropHere(draggedProject: any, targetProject: any): boolean {
+        const draggedPriority = draggedProject.priority || 'none';
+        const targetPriority = targetProject.priority || 'none';
+
+        // 只允许同优先级内的拖拽
+        return draggedPriority === targetPriority;
+    }
+
+    // 新增：显示拖放指示器
+    private showDropIndicator(element: HTMLElement, event: DragEvent) {
+        this.hideDropIndicator(); // 先清除之前的指示器
+
+        const rect = element.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+
+        const indicator = document.createElement('div');
+        indicator.className = 'drop-indicator';
+        indicator.style.cssText = `
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: var(--b3-theme-primary);
+            z-index: 1000;
+            pointer-events: none;
+        `;
+
+        if (event.clientY < midpoint) {
+            // 插入到目标元素之前
+            indicator.style.top = '0';
+            element.style.position = 'relative';
+            element.insertBefore(indicator, element.firstChild);
+        } else {
+            // 插入到目标元素之后
+            indicator.style.bottom = '0';
+            element.style.position = 'relative';
+            element.appendChild(indicator);
+        }
+    }
+
+    // 新增：隐藏拖放指示器
+    private hideDropIndicator() {
+        const indicators = document.querySelectorAll('.drop-indicator');
+        indicators.forEach(indicator => indicator.remove());
+    }
+
+    // 新增：处理拖放
+    private async handleDrop(draggedProject: any, targetProject: any, event: DragEvent) {
+        try {
+            const rect = (event.target as HTMLElement).getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            const insertBefore = event.clientY < midpoint;
+
+            await this.reorderProjects(draggedProject, targetProject, insertBefore);
+
+            showMessage("排序已更新");
+            this.loadProjects(); // 重新加载以应用新排序
+
+        } catch (error) {
+            console.error('处理拖放失败:', error);
+            showMessage("排序更新失败");
+        }
+    }
+
+    // 新增：重新排序项目
+    private async reorderProjects(draggedProject: any, targetProject: any, insertBefore: boolean) {
+        try {
+            const projectData = await readProjectData();
+
+            // 获取同优先级的所有项目
+            const samePriorityProjects = Object.values(projectData)
+                .filter((p: any) => (p.priority || 'none') === (draggedProject.priority || 'none'))
+                .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+            // 移除被拖拽的项目
+            const filteredProjects = samePriorityProjects.filter((p: any) => p.id !== draggedProject.id);
+
+            // 找到目标位置
+            const targetIndex = filteredProjects.findIndex((p: any) => p.id === targetProject.id);
+            const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
+
+            // 插入被拖拽的项目
+            filteredProjects.splice(insertIndex, 0, draggedProject);
+
+            // 重新分配排序值
+            filteredProjects.forEach((project: any, index: number) => {
+                if (projectData[project.id]) {
+                    projectData[project.id].sort = index * 10; // 使用10的倍数便于后续插入
+                    projectData[project.id].updatedTime = new Date().toISOString();
+                }
+            });
+
+            await writeProjectData(projectData);
+            window.dispatchEvent(new CustomEvent('projectUpdated'));
+
+        } catch (error) {
+            console.error('重新排序项目失败:', error);
+            throw error;
+        }
     }
 
     private formatProjectTime(startDate: string, endDate?: string, today?: string): string {
