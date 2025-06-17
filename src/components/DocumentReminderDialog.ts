@@ -571,7 +571,18 @@ export class DocumentReminderDialog {
         titleEl.href = '#';
         titleEl.addEventListener('click', (e) => {
             e.preventDefault();
-            this.openBlock(reminder.blockId || reminder.id);
+            // 如果存在docId
+            if (reminder.docId) {
+                // 打开文档
+                this.openBlock(reminder.docId);
+                // 需要等待500ms
+                setTimeout(() => {
+                    // 打开块
+                    this.openBlock(reminder.blockId || reminder.id);
+                }, 500);
+            } else {
+                this.openBlock(reminder.blockId || reminder.id);
+            }
         });
 
         titleContainer.appendChild(titleEl);

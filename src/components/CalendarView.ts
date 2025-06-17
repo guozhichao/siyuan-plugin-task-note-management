@@ -1065,14 +1065,42 @@ export class CalendarView {
             }
 
 
-            openTab({
-                app: window.siyuan.ws.app,
-                doc: {
-                    id: blockId,
-                    action: "cb-get-hl",
-                    zoomIn: false
-                },
-            });
+            // 如果存在docId
+            if (reminder.docId) {
+                // 打开文档
+                // 打开笔记
+                openTab({
+                    app: window.siyuan.ws.app,
+                    doc: {
+                        id: reminder.docId,
+                        action: "cb-get-hl",
+                        zoomIn: false
+                    },
+                });
+                // 需要等待500ms
+                setTimeout(() => {
+                    // 打开块
+                    // 打开笔记
+                    openTab({
+                        app: window.siyuan.ws.app,
+                        doc: {
+                            id: blockId,
+                            action: "cb-get-hl",
+                            zoomIn: false
+                        },
+                    });
+                }, 500);
+            } else {
+                // 打开笔记
+                openTab({
+                    app: window.siyuan.ws.app,
+                    doc: {
+                        id: blockId,
+                        action: "cb-get-hl",
+                        zoomIn: false
+                    },
+                });
+            }
         } catch (error) {
             console.error('打开笔记失败:', error);
 
