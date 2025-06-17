@@ -77,7 +77,7 @@ export default class ReminderPlugin extends Plugin {
         // 初始化批量设置对话框
         this.batchReminderDialog = new BatchReminderDialog(this);
 
-        this.initializeUI();
+
 
         // 添加用户交互监听器来启用音频
         this.enableAudioOnUserInteraction();
@@ -429,6 +429,9 @@ export default class ReminderPlugin extends Plugin {
     }
 
     async onLayoutReady() {
+        // 添加dock栏和顶栏按钮
+        this.initializeUI();
+
         // 在布局准备就绪后监听protyle切换事件
         this.eventBus.on('switch-protyle', (e) => {
             // 延迟添加按钮，确保protyle完全切换完成
