@@ -2095,7 +2095,6 @@ export class PomodoroTimer {
     }
 
     // 完成阶段（倒计时模式）
-    // 完成阶段（倒计时模式）
     private async completePhase() {
         if (this.timer) {
             clearInterval(this.timer);
@@ -2109,6 +2108,7 @@ export class PomodoroTimer {
             // 工作阶段结束，停止随机提示音
             this.stopRandomNotificationTimer();
             // 播放工作结束提示音
+
             if (this.workEndAudio) {
                 await this.safePlayAudio(this.workEndAudio);
             }
@@ -2128,12 +2128,12 @@ export class PomodoroTimer {
             this.completedPomodoros++;
             await this.updateReminderPomodoroCount();
 
+            // 判断是否应该进入长休息
+            const shouldTakeLongBreak = this.completedPomodoros > 0 &&
+                this.completedPomodoros % this.longBreakInterval === 0;
+
             // 检查是否启用自动模式
             if (this.autoMode) {
-                // 判断是否应该进入长休息
-                const shouldTakeLongBreak = this.completedPomodoros > 0 &&
-                    this.completedPomodoros % this.longBreakInterval === 0;
-
                 showMessage('🍅 工作时间结束！自动开始休息', 3000);
 
                 // 自动切换到休息阶段
@@ -2141,12 +2141,22 @@ export class PomodoroTimer {
                     this.autoSwitchToBreak(shouldTakeLongBreak);
                 }, 1000);
             } else {
-                showMessage('🍅 工作时间结束！开始休息吧～', 3000);
-                this.isWorkPhase = false;
-                this.isLongBreak = false;
-                this.statusDisplay.textContent = '短时休息';
-                this.timeLeft = this.settings.breakDuration * 60;
-                this.totalTime = this.timeLeft;
+                // 非自动模式下，也要根据番茄钟数量判断休息类型
+                if (shouldTakeLongBreak) {
+                    showMessage(`🍅 工作时间结束！已完成${this.completedPomodoros}个番茄，开始长时休息`, 3000);
+                    this.isWorkPhase = false;
+                    this.isLongBreak = true;
+                    this.statusDisplay.textContent = '长时休息';
+                    this.timeLeft = this.settings.longBreakDuration * 60;
+                    this.totalTime = this.timeLeft;
+                } else {
+                    showMessage('🍅 工作时间结束！开始短时休息', 3000);
+                    this.isWorkPhase = false;
+                    this.isLongBreak = false;
+                    this.statusDisplay.textContent = '短时休息';
+                    this.timeLeft = this.settings.breakDuration * 60;
+                    this.totalTime = this.timeLeft;
+                }
                 this.isRunning = false;
                 this.isPaused = false;
                 this.updateDisplay();
@@ -2329,7 +2339,7 @@ export class PomodoroTimer {
 
         console.log('自动模式：开始工作时间');
     }
-    
+
     private stopAllAudio() {
         if (this.workAudio) {
             this.workAudio.pause();
