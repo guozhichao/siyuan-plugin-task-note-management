@@ -68,6 +68,13 @@
                         '（仅用于倒计时番茄）启用后，工作计时结束自动进入休息计时，休息结束自动开始工作计时，并根据设定的间隔自动进入长休息模式',
                 },
                 {
+                    key: 'dailyFocusGoal',
+                    value: settings.dailyFocusGoal,
+                    type: 'number',
+                    title: '每日专注目标（小时）',
+                    description: '设置每日专注目标时长(小时)，为0则不显示进度',
+                },
+                {
                     key: 'backgroundVolume',
                     value: settings.backgroundVolume,
                     type: 'slider',

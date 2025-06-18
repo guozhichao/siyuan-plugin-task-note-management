@@ -51,6 +51,7 @@ export const DEFAULT_SETTINGS = {
     randomNotificationBreakDuration: 10,
     randomNotificationSounds: '/plugins/siyuan-plugin-task-note-management/audios/random_start.mp3',
     randomNotificationEndSound: '/plugins/siyuan-plugin-task-note-management/audios/random_end.mp3',
+    dailyFocusGoal: 6,
 };
 
 export default class ReminderPlugin extends Plugin {
@@ -191,7 +192,8 @@ export default class ReminderPlugin extends Plugin {
             randomNotificationMaxInterval: Math.max(1, settings.randomNotificationMaxInterval),
             randomNotificationBreakDuration: Math.max(1, settings.randomNotificationBreakDuration),
             randomNotificationSounds: settings.randomNotificationSounds,
-            randomNotificationEndSound: settings.randomNotificationEndSound
+            randomNotificationEndSound: settings.randomNotificationEndSound,
+            dailyFocusGoal: settings.dailyFocusGoal
         };
     }
 

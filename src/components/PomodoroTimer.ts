@@ -1567,6 +1567,22 @@ export class PomodoroTimer {
 
             this.todayFocusDisplay.textContent = this.recordManager.formatTime(todayTime);
             this.weekFocusDisplay.textContent = this.recordManager.formatTime(weekTime);
+
+            const dailyFocusGoalHours = this.settings.dailyFocusGoal ?? 0;
+            if (dailyFocusGoalHours > 0) {
+                const goalMinutes = dailyFocusGoalHours * 60;
+                const progress = Math.min((todayTime / goalMinutes) * 100, 100);
+                this.statsContainer.style.background = `linear-gradient(to right, var(--b3-card-success-background) ${progress}%, var(--b3-theme-surface) ${progress}%)`;
+
+                if (todayTime >= goalMinutes) {
+                    this.todayFocusDisplay.style.color = 'rgb(76, 175, 80)';
+                } else {
+                    this.todayFocusDisplay.style.color = '#FF6B6B';
+                }
+            } else {
+                this.statsContainer.style.background = 'var(--b3-theme-surface)';
+                this.todayFocusDisplay.style.color = '#FF6B6B';
+            }
         } catch (error) {
             console.error('更新统计显示失败:', error);
             this.todayFocusDisplay.textContent = '0m';
@@ -2086,6 +2102,8 @@ export class PomodoroTimer {
             this.isPaused = false;
             this.breakTimeLeft = 0;
 
+           
+
             this.updateDisplay();
 
             setTimeout(() => {
@@ -2106,7 +2124,7 @@ export class PomodoroTimer {
 
         if (this.isWorkPhase) {
             // 工作阶段结束，停止随机提示音
-            this.stopRandomNotificationTimer();
+
             // 播放工作结束提示音
 
             if (this.workEndAudio) {
