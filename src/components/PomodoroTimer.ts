@@ -43,6 +43,10 @@ export class PomodoroTimer {
     private isExpanded: boolean = true;
     private isMinimized: boolean = false;
     private startTime: number = 0; // 记录开始时间
+    // 新增：自动模式相关属性
+    private autoMode: boolean = false; // 自动模式状态
+    private longBreakInterval: number = 4; // 长休息间隔
+    private autoTransitionTimer: number = null; // 自动切换定时器
 
     private workAudio: HTMLAudioElement = null;
     private breakAudio: HTMLAudioElement = null;
@@ -74,6 +78,10 @@ export class PomodoroTimer {
 
         // 初始化随机提示音设置
         this.randomNotificationEnabled = settings.randomNotificationEnabled || false;
+
+        // 初始化自动模式设置
+        this.autoMode = settings.autoMode || false;
+        this.longBreakInterval = Math.max(1, settings.longBreakInterval || 4);
 
         // 如果有继承状态，应用继承的状态
         if (inheritState && inheritState.isRunning) {
@@ -2060,22 +2068,33 @@ export class PomodoroTimer {
         );
 
         const breakType = this.isLongBreak ? '长时休息' : '短时休息';
-        showMessage(`☕ ${breakType}结束！可以开始下一个工作阶段`, 3000);
+        // 检查是否启用自动模式并进入下一阶段
+        if (this.autoMode) {
+            showMessage(`☕ ${breakType}结束！自动开始下一个工作阶段`, 3000);
 
-        // 切换到工作阶段
-        this.isWorkPhase = true;
-        this.isLongBreak = false;
-        this.isRunning = false;
-        this.isPaused = false;
-        this.breakTimeLeft = 0;
+            // 自动切换到工作阶段
+            setTimeout(() => {
+                this.autoSwitchToWork();
+            }, 1000); // 延迟1秒切换
+        } else {
+            showMessage(`☕ ${breakType}结束！可以开始下一个工作阶段`, 3000);
 
-        this.updateDisplay();
+            // 切换到工作阶段
+            this.isWorkPhase = true;
+            this.isLongBreak = false;
+            this.isRunning = false;
+            this.isPaused = false;
+            this.breakTimeLeft = 0;
 
-        setTimeout(() => {
-            this.updateStatsDisplay();
-        }, 100);
+            this.updateDisplay();
+
+            setTimeout(() => {
+                this.updateStatsDisplay();
+            }, 100);
+        }
     }
 
+    // 完成阶段（倒计时模式）
     // 完成阶段（倒计时模式）
     private async completePhase() {
         if (this.timer) {
@@ -2086,10 +2105,7 @@ export class PomodoroTimer {
         this.stopAllAudio();
         this.stopRandomNotificationTimer(); // 添加停止随机提示音
 
-
-
         if (this.isWorkPhase) {
-
             // 工作阶段结束，停止随机提示音
             this.stopRandomNotificationTimer();
             // 播放工作结束提示音
@@ -2112,11 +2128,29 @@ export class PomodoroTimer {
             this.completedPomodoros++;
             await this.updateReminderPomodoroCount();
 
-            showMessage('🍅 工作时间结束！开始休息吧～', 3000);
-            this.isWorkPhase = false;
-            this.isLongBreak = false;
-            this.statusDisplay.textContent = '短时休息';
-            this.timeLeft = this.settings.breakDuration * 60;
+            // 检查是否启用自动模式
+            if (this.autoMode) {
+                // 判断是否应该进入长休息
+                const shouldTakeLongBreak = this.completedPomodoros > 0 &&
+                    this.completedPomodoros % this.longBreakInterval === 0;
+
+                showMessage('🍅 工作时间结束！自动开始休息', 3000);
+
+                // 自动切换到休息阶段
+                setTimeout(() => {
+                    this.autoSwitchToBreak(shouldTakeLongBreak);
+                }, 1000);
+            } else {
+                showMessage('🍅 工作时间结束！开始休息吧～', 3000);
+                this.isWorkPhase = false;
+                this.isLongBreak = false;
+                this.statusDisplay.textContent = '短时休息';
+                this.timeLeft = this.settings.breakDuration * 60;
+                this.totalTime = this.timeLeft;
+                this.isRunning = false;
+                this.isPaused = false;
+                this.updateDisplay();
+            }
         } else {
             // 播放休息结束提示音
             if (this.breakEndAudio) {
@@ -2138,23 +2172,164 @@ export class PomodoroTimer {
             );
 
             const breakType = this.isLongBreak ? '长时休息' : '短时休息';
-            showMessage(`☕ ${breakType}结束！准备开始下一个番茄钟`, 3000);
-            this.isWorkPhase = true;
-            this.isLongBreak = false;
-            this.statusDisplay.textContent = '工作时间';
-            this.timeLeft = this.settings.workDuration * 60;
+
+            // 检查是否启用自动模式
+            if (this.autoMode) {
+                showMessage(`☕ ${breakType}结束！自动开始下一个番茄钟`, 3000);
+
+                // 自动切换到工作阶段
+                setTimeout(() => {
+                    this.autoSwitchToWork();
+                }, 1000);
+            } else {
+                showMessage(`☕ ${breakType}结束！准备开始下一个番茄钟`, 3000);
+                this.isWorkPhase = true;
+                this.isLongBreak = false;
+                this.statusDisplay.textContent = '工作时间';
+                this.timeLeft = this.settings.workDuration * 60;
+                this.totalTime = this.timeLeft;
+                this.isRunning = false;
+                this.isPaused = false;
+                this.updateDisplay();
+            }
         }
 
-        this.totalTime = this.timeLeft;
-        this.isRunning = false;
-        this.isPaused = false;
-        this.updateDisplay();
+        // 如果不是自动模式，更新统计显示
+        if (!this.autoMode) {
+            setTimeout(() => {
+                this.updateStatsDisplay();
+            }, 100);
+        }
+    }
+    /**
+ * 自动切换到休息阶段
+ * @param isLongBreak 是否为长休息
+ */
+    private async autoSwitchToBreak(isLongBreak: boolean = false) {
+        if (!this.audioInitialized) {
+            await this.initializeAudioPlayback();
+        }
 
-        setTimeout(() => {
-            this.updateStatsDisplay();
-        }, 100);
+        // 停止所有音频和定时器
+        this.stopAllAudio();
+        this.stopRandomNotificationTimer();
+        if (this.autoTransitionTimer) {
+            clearTimeout(this.autoTransitionTimer);
+            this.autoTransitionTimer = null;
+        }
+
+        // 设置休息阶段
+        this.isWorkPhase = false;
+        this.isLongBreak = isLongBreak;
+        this.isRunning = true;
+        this.isPaused = false;
+
+        const breakDuration = isLongBreak ? this.settings.longBreakDuration : this.settings.breakDuration;
+
+        if (this.isCountUp) {
+            this.timeElapsed = 0;
+            this.breakTimeLeft = breakDuration * 60;
+        } else {
+            this.timeLeft = breakDuration * 60;
+            this.totalTime = this.timeLeft;
+        }
+
+        // 播放对应的背景音
+        if (isLongBreak && this.longBreakAudio) {
+            await this.safePlayAudio(this.longBreakAudio);
+        } else if (!isLongBreak && this.breakAudio) {
+            await this.safePlayAudio(this.breakAudio);
+        }
+
+        // 开始计时
+        this.startTime = this.isCountUp ? Date.now() - (this.timeElapsed * 1000) : Date.now();
+        this.timer = window.setInterval(() => {
+            if (this.isCountUp) {
+                this.breakTimeLeft--;
+                if (this.breakTimeLeft <= 0) {
+                    this.completeBreakPhase();
+                }
+            } else {
+                this.timeLeft--;
+                if (this.timeLeft <= 0) {
+                    this.completePhase();
+                }
+            }
+            this.updateDisplay();
+        }, 1000);
+
+        this.updateDisplay();
+        this.updateStatsDisplay();
+
+        const breakType = isLongBreak ? '长时休息' : '短时休息';
+        console.log(`自动模式：开始${breakType}`);
     }
 
+    /**
+     * 自动切换到工作阶段
+     */
+    private async autoSwitchToWork() {
+        if (!this.audioInitialized) {
+            await this.initializeAudioPlayback();
+        }
+
+        // 停止所有音频和定时器
+        this.stopAllAudio();
+        this.stopRandomNotificationTimer();
+        if (this.autoTransitionTimer) {
+            clearTimeout(this.autoTransitionTimer);
+            this.autoTransitionTimer = null;
+        }
+
+        // 设置工作阶段
+        this.isWorkPhase = true;
+        this.isLongBreak = false;
+        this.isRunning = true;
+        this.isPaused = false;
+
+        if (this.isCountUp) {
+            this.timeElapsed = 0;
+            this.breakTimeLeft = 0;
+        } else {
+            this.timeLeft = this.settings.workDuration * 60;
+            this.totalTime = this.timeLeft;
+        }
+
+        // 播放工作背景音
+        if (this.workAudio) {
+            await this.safePlayAudio(this.workAudio);
+        }
+
+        // 启动随机提示音定时器
+        if (this.isWorkPhase) {
+            this.startRandomNotificationTimer();
+        }
+
+        // 开始计时
+        this.startTime = this.isCountUp ? Date.now() - (this.timeElapsed * 1000) : Date.now();
+        this.timer = window.setInterval(() => {
+            if (this.isCountUp) {
+                this.timeElapsed++;
+                const pomodoroLength = this.settings.workDuration * 60;
+                const currentCycleTime = this.timeElapsed % pomodoroLength;
+                if (currentCycleTime === 0 && this.timeElapsed > 0) {
+                    this.completePomodoroPhase();
+                }
+            } else {
+                this.timeLeft--;
+                if (this.timeLeft <= 0) {
+                    this.completePhase();
+                }
+            }
+            this.updateDisplay();
+        }, 1000);
+
+        this.updateDisplay();
+        this.updateStatsDisplay();
+
+        console.log('自动模式：开始工作时间');
+    }
+    
     private stopAllAudio() {
         if (this.workAudio) {
             this.workAudio.pause();
@@ -2405,12 +2580,16 @@ export class PomodoroTimer {
             clearInterval(this.timer);
         }
 
+        // 清理自动切换定时器
+        if (this.autoTransitionTimer) {
+            clearTimeout(this.autoTransitionTimer);
+            this.autoTransitionTimer = null;
+        }
+
         this.stopAllAudio();
         this.stopRandomNotificationTimer(); // 停止随机提示音
 
-        if (this.endAudio) {
-            this.endAudio.pause();
-        }
+
 
         if (this.container && this.container.parentNode) {
             this.container.parentNode.removeChild(this.container);

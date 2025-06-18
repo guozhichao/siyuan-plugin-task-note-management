@@ -230,6 +230,24 @@ export default class ReminderPlugin extends Plugin {
             title: "番茄钟长时休息时长（分钟）",
             description: "设置番茄钟长时休息阶段的时长，默认30分钟"
         });
+        // 自动进入长休息模式番茄钟设置
+        this.settingUtils.addItem({
+            key: "pomodoroLongBreakInterval",
+            value: 4,
+            type: "number",
+            title: "自动进入长休息模式",
+            description: "设置连续工作几个番茄钟后自动进入长休息模式，默认4个番茄钟"
+        });
+
+        // 自动番茄钟模式设置
+        this.settingUtils.addItem({
+            key: "pomodoroAutoMode",
+            value: false,
+            type: "checkbox",
+            title: "自动番茄钟模式",
+            description: "（仅用于倒计时番茄）启用后，工作计时结束自动进入休息计时，休息结束自动开始工作计时，并根据设定的间隔自动进入长休息模式"
+        });
+
         // 工作时背景音设置
         this.settingUtils.addItem({
             key: "pomodoroWorkSound",
@@ -284,6 +302,8 @@ export default class ReminderPlugin extends Plugin {
             workDuration: this.settingUtils.get("pomodoroWorkDuration") || 25,
             breakDuration: this.settingUtils.get("pomodoroBreakDuration") || 5,
             longBreakDuration: this.settingUtils.get("pomodoroLongBreakDuration") || 30,
+            longBreakInterval: Math.max(1, this.settingUtils.get("pomodoroLongBreakInterval") || 4),
+            autoMode: this.settingUtils.get("pomodoroAutoMode") || false,
             workSound: this.settingUtils.get("pomodoroWorkSound") || "",
             breakSound: this.settingUtils.get("pomodoroBreakSound") || "",
             longBreakSound: this.settingUtils.get("pomodoroLongBreakSound") || "",
