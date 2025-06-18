@@ -27,8 +27,8 @@ import { DocumentReminderDialog } from "./components/DocumentReminderDialog";
 import { ProjectDialog } from "./components/ProjectDialog";
 import { ProjectPanel } from "./components/ProjectPanel";
 import SettingPanelComponent from "./SettingPanel.svelte";
-const STORAGE_NAME = "reminder-config";
-const SETTINGS_NAME = "reminder-settings.json";
+
+export const SETTINGS_FILE = "reminder-settings.json";
 const TAB_TYPE = "reminder_calendar_tab";
 
 // 默认设置
@@ -165,7 +165,7 @@ export default class ReminderPlugin extends Plugin {
 
     // 加载设置的封装函数
     async loadSettings() {
-        const data = await this.loadData(SETTINGS_NAME) || {};
+        const data = await this.loadData(SETTINGS_FILE) || {};
         // 合并默认设置和用户设置，确保所有设置项都有值
         const settings = { ...DEFAULT_SETTINGS, ...data };
         return settings;

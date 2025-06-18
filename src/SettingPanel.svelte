@@ -1,11 +1,10 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import SettingPanel from '@/libs/components/setting-panel.svelte';
-    import { DEFAULT_SETTINGS } from './index';
+    import { DEFAULT_SETTINGS, SETTINGS_FILE } from './index';
 
     export let plugin;
 
-    const SETTINGS_FILE = 'reminder-settings.json';
 
     // 使用从 index.ts 导入的默认设置
     let settings = { ...DEFAULT_SETTINGS };
@@ -242,7 +241,7 @@
 
 <style lang="scss">
     .config__panel {
-        height: 70vh;
+        height: 100%;
         display: flex;
         flex-direction: row;
         overflow: hidden;
