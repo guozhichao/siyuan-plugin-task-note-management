@@ -26,9 +26,32 @@ import { NotificationDialog } from "./components/NotificationDialog";
 import { DocumentReminderDialog } from "./components/DocumentReminderDialog";
 import { ProjectDialog } from "./components/ProjectDialog";
 import { ProjectPanel } from "./components/ProjectPanel";
+import SettingPanelComponent from "./SettingPanel.svelte";
 const STORAGE_NAME = "reminder-config";
-const SETTINGS_NAME = "reminder-settings";
+const SETTINGS_NAME = "reminder-settings.json";
 const TAB_TYPE = "reminder_calendar_tab";
+
+// 默认设置
+export const DEFAULT_SETTINGS = {
+    notificationSound: '/plugins/siyuan-plugin-task-note-management/audios/notify.mp3',
+    backgroundVolume: 0.5,
+    pomodoroWorkDuration: 25,
+    pomodoroBreakDuration: 5,
+    pomodoroLongBreakDuration: 30,
+    pomodoroLongBreakInterval: 4,
+    pomodoroAutoMode: false,
+    pomodoroWorkSound: '/plugins/siyuan-plugin-task-note-management/audios/background_music.mp3',
+    pomodoroBreakSound: '/plugins/siyuan-plugin-task-note-management/audios/relax_background.mp3',
+    pomodoroLongBreakSound: '/plugins/siyuan-plugin-task-note-management/audios/relax_background.mp3',
+    pomodoroWorkEndSound: '/plugins/siyuan-plugin-task-note-management/audios/work_end.mp3',
+    pomodoroBreakEndSound: '/plugins/siyuan-plugin-task-note-management/audios/end_music.mp3',
+    randomNotificationEnabled: false,
+    randomNotificationMinInterval: 3,
+    randomNotificationMaxInterval: 5,
+    randomNotificationBreakDuration: 10,
+    randomNotificationSounds: '/plugins/siyuan-plugin-task-note-management/audios/random_start.mp3',
+    randomNotificationEndSound: '/plugins/siyuan-plugin-task-note-management/audios/random_end.mp3',
+};
 
 export default class ReminderPlugin extends Plugin {
     private dockPanel: HTMLElement;
@@ -74,11 +97,6 @@ export default class ReminderPlugin extends Plugin {
         this.categoryManager = CategoryManager.getInstance();
         await this.categoryManager.initialize();
 
-        // 初始化批量设置对话框
-        this.batchReminderDialog = new BatchReminderDialog(this);
-
-
-
         // 添加用户交互监听器来启用音频
         this.enableAudioOnUserInteraction();
         // 监听文档树右键菜单事件
@@ -123,210 +141,70 @@ export default class ReminderPlugin extends Plugin {
         });
     }
 
-    private initSettings() {
-        this.settingUtils = new SettingUtils({
-            plugin: this,
-            name: SETTINGS_NAME,
-            width: "600px",
-            height: "700px"
-        });
 
-        // 通知提醒声音设置
-        this.settingUtils.addItem({
-            key: "notificationSound",
-            value: "/plugins/siyuan-plugin-task-note-management/audios/notify.mp3",
-            type: "textinput",
-            title: "通知提醒声音",
-            description: "设置事项提醒时播放的声音文件路径，留空则静音"
-        });
 
-        // 背景音量设置
-        this.settingUtils.addItem({
-            key: "backgroundVolume",
-            value: 0.5,
-            type: "slider",
-            title: "番茄钟背景音音量",
-            description: "设置番茄钟背景音的音量大小，范围0-1",
-            slider: {
-                min: 0,
-                max: 1,
-                step: 0.1
+    // 重写 openSetting 方法
+    async openSetting() {
+        let dialog = new Dialog({
+            title: "设置面板",
+            content: `<div id="SettingPanel" style="height: 100%;"></div>`,
+            width: "800px",
+            height: "700px",
+            destroyCallback: (options) => {
+                pannel.$destroy();
             }
         });
 
+        let pannel = new SettingPanelComponent({
+            target: dialog.element.querySelector("#SettingPanel"),
+            props: {
+                plugin: this
+            }
+        });
+    }
 
-        // 番茄钟工作时长设置
-        this.settingUtils.addItem({
-            key: "pomodoroWorkDuration",
-            value: 25,
-            type: "number",
-            title: "番茄钟工作时长（分钟）",
-            description: "设置番茄钟工作阶段的时长，默认25分钟"
-        });
-
-        // 番茄钟休息时长设置
-        this.settingUtils.addItem({
-            key: "pomodoroBreakDuration",
-            value: 5,
-            type: "number",
-            title: "番茄钟短时休息时长（分钟）",
-            description: "设置番茄钟短时休息阶段的时长，默认5分钟"
-        });
-        // 番茄钟长时休息时长设置
-        this.settingUtils.addItem({
-            key: "pomodoroLongBreakDuration",
-            value: 30,
-            type: "number",
-            title: "番茄钟长时休息时长（分钟）",
-            description: "设置番茄钟长时休息阶段的时长，默认30分钟"
-        });
-        // 自动进入长休息模式番茄钟设置
-        this.settingUtils.addItem({
-            key: "pomodoroLongBreakInterval",
-            value: 4,
-            type: "number",
-            title: "自动进入长休息模式",
-            description: "设置连续工作几个番茄钟后自动进入长休息模式，默认4个番茄钟"
-        });
-
-        // 自动番茄钟模式设置
-        this.settingUtils.addItem({
-            key: "pomodoroAutoMode",
-            value: false,
-            type: "checkbox",
-            title: "自动番茄钟模式",
-            description: "（仅用于倒计时番茄）启用后，工作计时结束自动进入休息计时，休息结束自动开始工作计时，并根据设定的间隔自动进入长休息模式"
-        });
-
-        // 工作时背景音设置
-        this.settingUtils.addItem({
-            key: "pomodoroWorkSound",
-            value: "/plugins/siyuan-plugin-task-note-management/audios/background_music.mp3",
-            type: "textinput",
-            title: "番茄工作时背景音（可选）",
-            description: "设置工作时播放的背景音文件路径，留空则静音"
-        });
-
-        // 短时休息背景音设置
-        this.settingUtils.addItem({
-            key: "pomodoroBreakSound",
-            value: "/plugins/siyuan-plugin-task-note-management/audios/relax_background.mp3",
-            type: "textinput",
-            title: "番茄休息背景音（可选）",
-            description: "设置休息时播放的背景音文件路径，留空则静音"
-        });
-        // 长时休息背景音设置
-        this.settingUtils.addItem({
-            key: "pomodoroLongBreakSound",
-            value: "/plugins/siyuan-plugin-task-note-management/audios/relax_background.mp3",
-            type: "textinput",
-            title: "番茄长时休息背景音（可选）",
-            description: "设置长时休息时播放的背景音文件路径，留空则静音"
-        });
-
-        // 工作结束提示音设置
-        this.settingUtils.addItem({
-            key: "pomodoroWorkEndSound",
-            value: "/plugins/siyuan-plugin-task-note-management/audios/work_end.mp3",
-            type: "textinput",
-            title: "工作结束提示音（可选）",
-            description: "设置番茄钟工作阶段结束时的提示音文件路径，留空则静音"
-        });
-
-        // 休息结束提示音设置
-        this.settingUtils.addItem({
-            key: "pomodoroBreakEndSound",
-            value: "/plugins/siyuan-plugin-task-note-management/audios/end_music.mp3",
-            type: "textinput",
-            title: "休息结束提示音（可选）",
-            description: "设置番茄钟休息阶段结束时的提示音文件路径，留空则静音"
-        });
-
-
-        // 随机提示音设置
-        this.settingUtils.addItem({
-            key: "randomNotificationEnabled",
-            value: false,
-            type: "checkbox",
-            title: "启用随机提示音",
-            description: "在番茄钟运行时每隔一定时间随机播放提示音，播放提示音后进行微休息，利用间隔效应和随机奖励，提高专注和工作效率。<a href=\"https://www.bilibili.com/video/BV1naLozQEBq\">视频介绍</a>"
-        });
-
-        this.settingUtils.addItem({
-            key: "randomNotificationMinInterval",
-            value: 3,
-            type: "number",
-            title: "随机提示音最小间隔（分钟）",
-            description: "设置随机提示音播放的最小间隔时间，默认3分钟"
-        });
-
-        this.settingUtils.addItem({
-            key: "randomNotificationMaxInterval",
-            value: 5,
-            type: "number",
-            title: "随机提示音最大间隔（分钟）",
-            description: "设置随机提示音播放的最大间隔时间，默认5分钟"
-        });
-
-        this.settingUtils.addItem({
-            key: "randomNotificationBreakDuration",
-            value: 10,
-            type: "number",
-            title: "微休息时间（秒）",
-            description: "随机提示音播放后的微休息时间，在此时间后播放结束提示音，默认10秒"
-        });
-
-        this.settingUtils.addItem({
-            key: "randomNotificationSounds",
-            value: "/plugins/siyuan-plugin-task-note-management/audios/random_start.mp3",
-            type: "textinput",
-            title: "随机提示音开始声音",
-            description: "设置番茄钟运行时随机提示音的文件路径，留空则不启用"
-        });
-
-        this.settingUtils.addItem({
-            key: "randomNotificationEndSound",
-            value: "/plugins/siyuan-plugin-task-note-management/audios/random_end.mp3",
-            type: "textinput",
-            title: "随机提示音结束声音",
-            description: "设置随机提示音播放结束后的提示音文件路径，留空则不播放"
-        });
-
-        // 加载设置
-        this.settingUtils.load();
+    // 加载设置的封装函数
+    async loadSettings() {
+        const data = await this.loadData(SETTINGS_NAME) || {};
+        // 合并默认设置和用户设置，确保所有设置项都有值
+        const settings = { ...DEFAULT_SETTINGS, ...data };
+        return settings;
     }
 
     // 获取番茄钟设置
-    getPomodoroSettings() {
+    async getPomodoroSettings() {
+        const settings = await this.loadSettings();
         return {
-            workDuration: this.settingUtils.get("pomodoroWorkDuration") || 25,
-            breakDuration: this.settingUtils.get("pomodoroBreakDuration") || 5,
-            longBreakDuration: this.settingUtils.get("pomodoroLongBreakDuration") || 30,
-            longBreakInterval: Math.max(1, this.settingUtils.get("pomodoroLongBreakInterval") || 4),
-            autoMode: this.settingUtils.get("pomodoroAutoMode") || false,
-            workSound: this.settingUtils.get("pomodoroWorkSound") || "",
-            breakSound: this.settingUtils.get("pomodoroBreakSound") || "",
-            longBreakSound: this.settingUtils.get("pomodoroLongBreakSound") || "",
-            workEndSound: this.settingUtils.get("pomodoroWorkEndSound") || "",
-            breakEndSound: this.settingUtils.get("pomodoroBreakEndSound") || "",
-            backgroundVolume: Math.max(0, Math.min(1, this.settingUtils.get("backgroundVolume") || 0.5)),
-            randomNotificationEnabled: this.settingUtils.get("randomNotificationEnabled") || false,
-            randomNotificationMinInterval: Math.max(1, this.settingUtils.get("randomNotificationMinInterval") || 3),
-            randomNotificationMaxInterval: Math.max(1, this.settingUtils.get("randomNotificationMaxInterval") || 5),
-            randomNotificationBreakDuration: Math.max(1, this.settingUtils.get("randomNotificationBreakDuration") || 10),
-            randomNotificationSounds: this.settingUtils.get("randomNotificationSounds") || "",
-            randomNotificationEndSound: this.settingUtils.get("randomNotificationEndSound") || ""
+            workDuration: settings.pomodoroWorkDuration,
+            breakDuration: settings.pomodoroBreakDuration,
+            longBreakDuration: settings.pomodoroLongBreakDuration,
+            longBreakInterval: Math.max(1, settings.pomodoroLongBreakInterval),
+            autoMode: settings.pomodoroAutoMode,
+            workSound: settings.pomodoroWorkSound,
+            breakSound: settings.pomodoroBreakSound,
+            longBreakSound: settings.pomodoroLongBreakSound,
+            workEndSound: settings.pomodoroWorkEndSound,
+            breakEndSound: settings.pomodoroBreakEndSound,
+            backgroundVolume: Math.max(0, Math.min(1, settings.backgroundVolume)),
+            randomNotificationEnabled: settings.randomNotificationEnabled,
+            randomNotificationMinInterval: Math.max(1, settings.randomNotificationMinInterval),
+            randomNotificationMaxInterval: Math.max(1, settings.randomNotificationMaxInterval),
+            randomNotificationBreakDuration: Math.max(1, settings.randomNotificationBreakDuration),
+            randomNotificationSounds: settings.randomNotificationSounds,
+            randomNotificationEndSound: settings.randomNotificationEndSound
         };
     }
+
     // 获取通知声音设置
-    getNotificationSound(): string {
-        return this.settingUtils.get("notificationSound") || "/plugins/siyuan-plugin-task-note-management/audios/notify.mp3";
+    async getNotificationSound(): Promise<string> {
+        const settings = await this.loadSettings();
+        return settings.notificationSound || DEFAULT_SETTINGS.notificationSound;
     }
 
     // 播放通知声音
     async playNotificationSound() {
         try {
-            const soundPath = this.getNotificationSound();
+            const soundPath = await this.getNotificationSound();
             if (!soundPath) {
                 console.log('通知声音路径为空，静音模式');
                 return;
@@ -459,6 +337,9 @@ export default class ReminderPlugin extends Plugin {
     }
 
     async onLayoutReady() {
+        // 初始化批量设置对话框（确保在UI初始化时创建）
+        this.batchReminderDialog = new BatchReminderDialog(this);
+
         // 添加dock栏和顶栏按钮
         this.initializeUI();
 
@@ -870,6 +751,10 @@ export default class ReminderPlugin extends Plugin {
                 t("setTimeReminder"),
             click: () => {
                 if (documentIds.length > 1) {
+                    // 确保 batchReminderDialog 已初始化
+                    if (!this.batchReminderDialog) {
+                        this.batchReminderDialog = new BatchReminderDialog(this);
+                    }
                     // 多选文档使用批量设置对话框
                     this.batchReminderDialog.show(documentIds);
                 } else {
@@ -966,6 +851,12 @@ export default class ReminderPlugin extends Plugin {
         });
     }
     private async handleMultipleBlocks(blockIds: string[]) {
+
+        // 确保 batchReminderDialog 已初始化
+        if (!this.batchReminderDialog) {
+            this.batchReminderDialog = new BatchReminderDialog(this);
+        }
+
         // 使用新的批量设置组件
         await this.batchReminderDialog.show(blockIds);
     }

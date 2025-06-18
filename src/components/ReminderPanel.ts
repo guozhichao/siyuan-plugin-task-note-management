@@ -2410,7 +2410,7 @@ export class ReminderPanel {
             showMessage("操作失败");
         }
     }
-    private performStartPomodoro(reminder: any, inheritState?: any) {
+    private async performStartPomodoro(reminder: any, inheritState?: any) {
         // 如果已经有活动的番茄钟，先关闭它
         if (ReminderPanel.currentPomodoroTimer) {
             try {
@@ -2421,7 +2421,8 @@ export class ReminderPanel {
             }
         }
 
-        const settings = this.plugin.getPomodoroSettings();
+        const settings = await this.plugin.getPomodoroSettings();
+        console.log('结果', settings);
         const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState);
 
         // 设置当前活动的番茄钟实例
@@ -2497,7 +2498,7 @@ export class ReminderPanel {
         }
     }
 
-    private performStartPomodoroCountUp(reminder: any, inheritState?: any) {
+    private async performStartPomodoroCountUp(reminder: any, inheritState?: any) {
         // 如果已经有活动的番茄钟，先关闭它
         if (ReminderPanel.currentPomodoroTimer) {
             try {
@@ -2508,7 +2509,7 @@ export class ReminderPanel {
             }
         }
 
-        const settings = this.plugin.getPomodoroSettings();
+        const settings = await this.plugin.getPomodoroSettings();
         const pomodoroTimer = new PomodoroTimer(reminder, settings, true, inheritState);
 
         // 设置当前活动的番茄钟实例并直接切换到正计时模式

@@ -6,6 +6,7 @@ import { getLocalDateString, getLocalTimeString } from "../utils/dateUtils";
 import { RepeatConfig, RepeatSettingsDialog } from "./RepeatSettingsDialog";
 import { NotificationDialog } from "./NotificationDialog";
 import * as chrono from 'chrono-node';
+import { ReminderDialog } from "./ReminderDialog";
 
 export interface BlockDetail {
     blockId: string;
@@ -159,7 +160,6 @@ export class BatchReminderDialog {
 
     async show(blockIds: string[]) {
         if (blockIds.length === 1) {
-            const { ReminderDialog } = await import("./ReminderDialog");
             const dialog = new ReminderDialog(blockIds[0]);
             dialog.show();
         } else {
