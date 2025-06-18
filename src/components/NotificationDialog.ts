@@ -293,9 +293,10 @@ export class NotificationDialog {
                 width: 350px;
                 max-width: 300px;
                 min-width: 300px;
-                z-index: 10000;
+                z-index: 999;
                 animation: slideInRight 0.3s ease-out;
                 margin-bottom: 10px;
+                pointer-events: auto;
             }
 
             .notification-content {
@@ -306,6 +307,7 @@ export class NotificationDialog {
                 padding: 12px;
                 transition: all 0.2s ease;
                 overflow: hidden;
+                pointer-events: auto;
             }
 
             .notification-content:hover {
@@ -707,7 +709,7 @@ export class NotificationDialog {
                 app: window.siyuan?.ws?.app,
                 doc: {
                     id: targetBlockId,
-                    action: "cb-get-hl",
+                    action: ["cb-get-hl"],
                     zoomIn: false
                 },
             });
