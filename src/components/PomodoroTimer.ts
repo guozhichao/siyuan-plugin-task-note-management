@@ -47,7 +47,8 @@ export class PomodoroTimer {
     private workAudio: HTMLAudioElement = null;
     private breakAudio: HTMLAudioElement = null;
     private longBreakAudio: HTMLAudioElement = null;
-    private endAudio: HTMLAudioElement = null;
+    private workEndAudio: HTMLAudioElement = null; // 工作结束提示音
+    private breakEndAudio: HTMLAudioElement = null; // 休息结束提示音
     private recordManager: PomodoroRecordManager;
     private audioInitialized: boolean = false;
 
@@ -184,14 +185,25 @@ export class PomodoroTimer {
             }
         }
 
-        // 初始化结束提示音（音量不受静音影响）
-        if (this.settings.endSound) {
+        // 初始化工作结束提示音（音量不受静音影响）
+        if (this.settings.workEndSound) {
             try {
-                this.endAudio = new Audio(this.settings.endSound);
-                this.endAudio.volume = 1;
-                this.endAudio.preload = 'auto';
+                this.workEndAudio = new Audio(this.settings.workEndSound);
+                this.workEndAudio.volume = 1;
+                this.workEndAudio.preload = 'auto';
             } catch (error) {
-                console.warn('无法加载结束提示音:', error);
+                console.warn('无法加载工作结束提示音:', error);
+            }
+        }
+
+        // 初始化休息结束提示音（音量不受静音影响）
+        if (this.settings.breakEndSound) {
+            try {
+                this.breakEndAudio = new Audio(this.settings.breakEndSound);
+                this.breakEndAudio.volume = 1;
+                this.breakEndAudio.preload = 'auto';
+            } catch (error) {
+                console.warn('无法加载休息结束提示音:', error);
             }
         }
 
@@ -352,8 +364,11 @@ export class PomodoroTimer {
             if (this.longBreakAudio) {
                 audioPromises.push(this.longBreakAudio.load());
             }
-            if (this.endAudio) {
-                audioPromises.push(this.endAudio.load());
+            if (this.workEndAudio) {
+                audioPromises.push(this.workEndAudio.load());
+            }
+            if (this.breakEndAudio) {
+                audioPromises.push(this.breakEndAudio.load());
             }
 
             // 预加载随机提示音
@@ -1966,8 +1981,9 @@ export class PomodoroTimer {
             this.stopAllAudio();
             this.stopRandomNotificationTimer(); // 添加停止随机提示音
 
-            if (this.endAudio) {
-                await this.safePlayAudio(this.endAudio);
+            // 播放工作结束提示音
+            if (this.workEndAudio) {
+                await this.safePlayAudio(this.workEndAudio);
             }
 
             showMessage('🍅 工作番茄完成！开始休息吧～', 3000);
@@ -2024,8 +2040,9 @@ export class PomodoroTimer {
         this.stopAllAudio();
         this.stopRandomNotificationTimer(); // 添加停止随机提示音
 
-        if (this.endAudio) {
-            await this.safePlayAudio(this.endAudio);
+        // 播放休息结束提示音
+        if (this.breakEndAudio) {
+            await this.safePlayAudio(this.breakEndAudio);
         }
 
         // 记录完成的休息时间
@@ -2069,11 +2086,16 @@ export class PomodoroTimer {
         this.stopAllAudio();
         this.stopRandomNotificationTimer(); // 添加停止随机提示音
 
-        if (this.endAudio) {
-            await this.safePlayAudio(this.endAudio);
-        }
+
 
         if (this.isWorkPhase) {
+
+            // 工作阶段结束，停止随机提示音
+            this.stopRandomNotificationTimer();
+            // 播放工作结束提示音
+            if (this.workEndAudio) {
+                await this.safePlayAudio(this.workEndAudio);
+            }
             // 记录完成的工作番茄
             const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
             const eventTitle = this.reminder.title || '番茄专注';
@@ -2096,6 +2118,11 @@ export class PomodoroTimer {
             this.statusDisplay.textContent = '短时休息';
             this.timeLeft = this.settings.breakDuration * 60;
         } else {
+            // 播放休息结束提示音
+            if (this.breakEndAudio) {
+                await this.safePlayAudio(this.breakEndAudio);
+            }
+
             // 记录完成的休息时间
             const breakDuration = this.isLongBreak ? this.settings.longBreakDuration : this.settings.breakDuration;
             const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;

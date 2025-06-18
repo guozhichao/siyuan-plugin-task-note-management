@@ -256,13 +256,22 @@ export default class ReminderPlugin extends Plugin {
             description: "设置长时休息时播放的背景音文件路径，留空则静音"
         });
 
-        // 结束提示音设置
+        // 工作结束提示音设置
         this.settingUtils.addItem({
-            key: "pomodoroEndSound",
+            key: "pomodoroWorkEndSound",
+            value: "/plugins/siyuan-plugin-task-note-management/audios/work_end.mp3",
+            type: "textinput",
+            title: "工作结束提示音（可选）",
+            description: "设置番茄钟工作阶段结束时的提示音文件路径，留空则静音"
+        });
+
+        // 休息结束提示音设置
+        this.settingUtils.addItem({
+            key: "pomodoroBreakEndSound",
             value: "/plugins/siyuan-plugin-task-note-management/audios/end_music.mp3",
             type: "textinput",
-            title: "结束提示音（可选）",
-            description: "设置番茄钟结束时的提示音文件路径，留空则静音"
+            title: "休息结束提示音（可选）",
+            description: "设置番茄钟休息阶段结束时的提示音文件路径，留空则静音"
         });
 
         // 加载设置
@@ -278,7 +287,8 @@ export default class ReminderPlugin extends Plugin {
             workSound: this.settingUtils.get("pomodoroWorkSound") || "",
             breakSound: this.settingUtils.get("pomodoroBreakSound") || "",
             longBreakSound: this.settingUtils.get("pomodoroLongBreakSound") || "",
-            endSound: this.settingUtils.get("pomodoroEndSound") || "",
+            workEndSound: this.settingUtils.get("pomodoroWorkEndSound") || "",
+            breakEndSound: this.settingUtils.get("pomodoroBreakEndSound") || "",
             backgroundVolume: Math.max(0, Math.min(1, this.settingUtils.get("backgroundVolume") || 0.5)),
             randomNotificationEnabled: this.settingUtils.get("randomNotificationEnabled") || false,
             randomNotificationMinInterval: Math.max(1, this.settingUtils.get("randomNotificationMinInterval") || 3),
