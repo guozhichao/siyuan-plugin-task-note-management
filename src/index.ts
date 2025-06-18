@@ -155,56 +155,6 @@ export default class ReminderPlugin extends Plugin {
         });
 
 
-
-        // 随机提示音设置
-        this.settingUtils.addItem({
-            key: "randomNotificationEnabled",
-            value: false,
-            type: "checkbox",
-            title: "启用随机提示音",
-            description: "在番茄钟运行时每隔一定时间随机播放提示音，播放提示音后进行微休息，利用间隔效应和随机奖励，提高专注和工作效率。<a href=\"https://www.bilibili.com/video/BV1naLozQEBq\">视频介绍</a>"
-        });
-
-        this.settingUtils.addItem({
-            key: "randomNotificationMinInterval",
-            value: 3,
-            type: "number",
-            title: "随机提示音最小间隔（分钟）",
-            description: "设置随机提示音播放的最小间隔时间，默认3分钟"
-        });
-
-        this.settingUtils.addItem({
-            key: "randomNotificationMaxInterval",
-            value: 5,
-            type: "number",
-            title: "随机提示音最大间隔（分钟）",
-            description: "设置随机提示音播放的最大间隔时间，默认5分钟"
-        });
-
-        this.settingUtils.addItem({
-            key: "randomNotificationBreakDuration",
-            value: 10,
-            type: "number",
-            title: "微休息时间（秒）",
-            description: "随机提示音播放后的微休息时间，在此时间后播放结束提示音，默认10秒"
-        });
-
-        this.settingUtils.addItem({
-            key: "randomNotificationSounds",
-            value: "/plugins/siyuan-plugin-task-note-management/audios/random_start.mp3",
-            type: "textinput",
-            title: "随机提示音开始声音",
-            description: "设置番茄钟运行时随机提示音的文件路径，留空则不启用"
-        });
-
-        this.settingUtils.addItem({
-            key: "randomNotificationEndSound",
-            value: "/plugins/siyuan-plugin-task-note-management/audios/random_end.mp3",
-            type: "textinput",
-            title: "随机提示音结束声音",
-            description: "设置随机提示音播放结束后的提示音文件路径，留空则不播放"
-        });
-
         // 番茄钟工作时长设置
         this.settingUtils.addItem({
             key: "pomodoroWorkDuration",
@@ -290,6 +240,56 @@ export default class ReminderPlugin extends Plugin {
             type: "textinput",
             title: "休息结束提示音（可选）",
             description: "设置番茄钟休息阶段结束时的提示音文件路径，留空则静音"
+        });
+
+
+        // 随机提示音设置
+        this.settingUtils.addItem({
+            key: "randomNotificationEnabled",
+            value: false,
+            type: "checkbox",
+            title: "启用随机提示音",
+            description: "在番茄钟运行时每隔一定时间随机播放提示音，播放提示音后进行微休息，利用间隔效应和随机奖励，提高专注和工作效率。<a href=\"https://www.bilibili.com/video/BV1naLozQEBq\">视频介绍</a>"
+        });
+
+        this.settingUtils.addItem({
+            key: "randomNotificationMinInterval",
+            value: 3,
+            type: "number",
+            title: "随机提示音最小间隔（分钟）",
+            description: "设置随机提示音播放的最小间隔时间，默认3分钟"
+        });
+
+        this.settingUtils.addItem({
+            key: "randomNotificationMaxInterval",
+            value: 5,
+            type: "number",
+            title: "随机提示音最大间隔（分钟）",
+            description: "设置随机提示音播放的最大间隔时间，默认5分钟"
+        });
+
+        this.settingUtils.addItem({
+            key: "randomNotificationBreakDuration",
+            value: 10,
+            type: "number",
+            title: "微休息时间（秒）",
+            description: "随机提示音播放后的微休息时间，在此时间后播放结束提示音，默认10秒"
+        });
+
+        this.settingUtils.addItem({
+            key: "randomNotificationSounds",
+            value: "/plugins/siyuan-plugin-task-note-management/audios/random_start.mp3",
+            type: "textinput",
+            title: "随机提示音开始声音",
+            description: "设置番茄钟运行时随机提示音的文件路径，留空则不启用"
+        });
+
+        this.settingUtils.addItem({
+            key: "randomNotificationEndSound",
+            value: "/plugins/siyuan-plugin-task-note-management/audios/random_end.mp3",
+            type: "textinput",
+            title: "随机提示音结束声音",
+            description: "设置随机提示音播放结束后的提示音文件路径，留空则不播放"
         });
 
         // 加载设置
