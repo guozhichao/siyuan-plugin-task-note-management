@@ -340,5 +340,20 @@
     "countUpMode": "Count Up",
     "switchedToMode": "Switched to ",
     "mode": "mode",
-    "countdownMode": "Countdown"
+    "countdownMode": "Countdown",
+    "projectManagement": "Project Management",
+    "allProjects": "All Projects",
+    "noActiveProjects": "No Active Projects",
+    "noSomedayProjects": "No Someday Projects",
+    "noArchivedProjects": "No Archived Projects",
+    "noProjects": "No Projects",
+    "unknownStatus": "Unknown Status",
+    "projectDeleted": "Project Deleted",
+    "deleteProjectFailed": "Delete Project Failed",
+    "projectNotExist": "Project Not Exist",
+    "unknownCategory": "Unknown Category",
+    "setStatus": "Set Status",
+    "active": "Doing",
+    "someday": "Someday",
+    "archived": "Archived"
 }

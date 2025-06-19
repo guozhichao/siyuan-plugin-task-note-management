@@ -69,7 +69,7 @@ export class ProjectPanel {
         iconSpan.textContent = '📁';
 
         const titleSpan = document.createElement('span');
-        titleSpan.textContent = '项目管理';
+        titleSpan.textContent = t("projectManagement") || "项目管理";
 
         titleContainer.appendChild(iconSpan);
         titleContainer.appendChild(titleSpan);
@@ -83,7 +83,7 @@ export class ProjectPanel {
         const categoryManageBtn = document.createElement('button');
         categoryManageBtn.className = 'b3-button b3-button--outline';
         categoryManageBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconTags"></use></svg>';
-        categoryManageBtn.title = "管理分类";
+        categoryManageBtn.title = t("manageCategories") || "管理分类";
         categoryManageBtn.addEventListener('click', () => {
             this.showCategoryManageDialog();
         });
@@ -93,7 +93,7 @@ export class ProjectPanel {
         this.sortButton = document.createElement('button');
         this.sortButton.className = 'b3-button b3-button--outline';
         this.sortButton.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconSort"></use></svg>';
-        this.sortButton.title = "排序";
+        this.sortButton.title = t("sortBy") || "排序";
         this.sortButton.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -105,7 +105,7 @@ export class ProjectPanel {
         const refreshBtn = document.createElement('button');
         refreshBtn.className = 'b3-button b3-button--outline';
         refreshBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>';
-        refreshBtn.title = "刷新";
+        refreshBtn.title = t("refresh") || "刷新";
         refreshBtn.addEventListener('click', () => {
             this.loadProjects();
         });
@@ -131,10 +131,10 @@ export class ProjectPanel {
             min-width: 0;
         `;
         this.filterSelect.innerHTML = `
-            <option value="active" selected>正在进行</option>
-            <option value="someday">未来也许</option>
-            <option value="archived">已归档</option>
-            <option value="all">全部项目</option>
+            <option value="active" selected>${t("active") || "正在进行"}</option>
+            <option value="someday">${t("someday") || "未来也许"}</option>
+            <option value="archived">${t("archived") || "已归档"}</option>
+            <option value="all">${t("allProjects") || "全部项目"}</option>
         `;
         this.filterSelect.addEventListener('change', () => {
             this.currentTab = this.filterSelect.value;
@@ -175,8 +175,8 @@ export class ProjectPanel {
             const categories = this.categoryManager.getCategories();
 
             this.categoryFilterSelect.innerHTML = `
-                <option value="all" ${this.currentCategoryFilter === 'all' ? 'selected' : ''}>全部分类</option>
-                <option value="none" ${this.currentCategoryFilter === 'none' ? 'selected' : ''}>无分类</option>
+                <option value="all" ${this.currentCategoryFilter === 'all' ? 'selected' : ''}>${t("allCategories") || "全部分类"}</option>
+                <option value="none" ${this.currentCategoryFilter === 'none' ? 'selected' : ''}>${t("noCategory") || "无分类"}</option>
             `;
 
             categories.forEach(category => {
@@ -190,22 +190,22 @@ export class ProjectPanel {
 
         } catch (error) {
             console.error('渲染分类过滤器失败:', error);
-            this.categoryFilterSelect.innerHTML = '<option value="all">全部分类</option>';
+            this.categoryFilterSelect.innerHTML = `<option value="all">${t("allCategories") || "全部分类"}</option>`;
         }
     }
 
     private updateSortButtonTitle() {
         if (this.sortButton) {
             const sortNames = {
-                'time': '时间',
-                'priority': '优先级',
-                'title': '标题'
+                'time': t("sortByTime") || '时间',
+                'priority': t("sortByPriority") || '优先级',
+                'title': t("sortByTitle") || '标题'
             };
             const orderNames = {
-                'asc': '升序',
-                'desc': '降序'
+                'asc': t("ascending") || '升序',
+                'desc': t("descending") || '降序'
             };
-            this.sortButton.title = `排序: ${sortNames[this.currentSort]} (${orderNames[this.currentSortOrder]})`;
+            this.sortButton.title = `${t("sortBy") || "排序"}: ${sortNames[this.currentSort]} (${orderNames[this.currentSortOrder]})`;
         }
     }
 
@@ -214,16 +214,16 @@ export class ProjectPanel {
             const menu = new Menu("projectSortMenu");
 
             const sortOptions = [
-                { key: 'time', label: '时间', icon: '🕐' },
-                { key: 'priority', label: '优先级', icon: '🎯' },
-                { key: 'title', label: '标题', icon: '📝' }
+                { key: 'time', label: t("sortByTime") || '时间', icon: '🕐' },
+                { key: 'priority', label: t("sortByPriority") || '优先级', icon: '🎯' },
+                { key: 'title', label: t("sortByTitle") || '标题', icon: '📝' }
             ];
 
             sortOptions.forEach(option => {
                 // 为每个排序方式添加升序和降序选项
                 menu.addItem({
                     iconHTML: option.icon,
-                    label: `${option.label} (升序↑)`,
+                    label: `${option.label} (${t("ascending") || "升序"}↑)`,
                     current: this.currentSort === option.key && this.currentSortOrder === 'asc',
                     click: () => {
                         this.currentSort = option.key;
@@ -235,7 +235,7 @@ export class ProjectPanel {
 
                 menu.addItem({
                     iconHTML: option.icon,
-                    label: `${option.label} (降序↓)`,
+                    label: `${option.label} (${t("descending") || "降序"}↓)`,
                     current: this.currentSort === option.key && this.currentSortOrder === 'desc',
                     click: () => {
                         this.currentSort = option.key;
@@ -424,12 +424,12 @@ export class ProjectPanel {
     private renderProjects(projects: any[]) {
         if (projects.length === 0) {
             const filterNames = {
-                'active': '暂无正在进行的项目',
-                'someday': '暂无未来也许的项目',
-                'archived': '暂无已归档的项目',
-                'all': '暂无项目'
+                'active': t("noActiveProjects") || '暂无正在进行的项目',
+                'someday': t("noSomedayProjects") || '暂无未来也许的项目',
+                'archived': t("noArchivedProjects") || '暂无已归档的项目',
+                'all': t("noProjects") || '暂无项目'
             };
-            this.projectsContainer.innerHTML = `<div class="project-empty">${filterNames[this.currentTab] || '暂无项目'}</div>`;
+            this.projectsContainer.innerHTML = `<div class="project-empty">${filterNames[this.currentTab] || t("noProjects") || '暂无项目'}</div>`;
             return;
         }
 
@@ -480,7 +480,7 @@ export class ProjectPanel {
         // 标题
         const titleEl = document.createElement('a');
         titleEl.className = 'project-item__title';
-        titleEl.textContent = project.title || '未命名项目';
+        titleEl.textContent = project.title || t("unnamedNote") || '未命名项目';
         titleEl.href = '#';
         titleEl.addEventListener('click', (e) => {
             e.preventDefault();
@@ -507,9 +507,9 @@ export class ProjectPanel {
             const priorityLabel = document.createElement('span');
             priorityLabel.className = `project-priority-label ${priority}`;
             const priorityNames = {
-                'high': '高优先级',
-                'medium': '中优先级',
-                'low': '低优先级'
+                'high': t("highPriority") || '高优先级',
+                'medium': t("mediumPriority") || '中优先级',
+                'low': t("lowPriority") || '低优先级'
             };
             priorityLabel.innerHTML = `<div class="priority-dot ${priority}"></div>${priorityNames[priority]}`;
             timeEl.appendChild(priorityLabel);
@@ -518,7 +518,7 @@ export class ProjectPanel {
         if (isOverdue && status === 'active') {
             const overdueLabel = document.createElement('span');
             overdueLabel.className = 'project-overdue-label';
-            overdueLabel.textContent = '已过期';
+            overdueLabel.textContent = t("overdue") || '已过期';
             timeEl.appendChild(overdueLabel);
         }
 
@@ -533,11 +533,11 @@ export class ProjectPanel {
         const statusLabel = document.createElement('div');
         statusLabel.className = `project-status-label project-status-${status}`;
         const statusNames = {
-            'active': '⏳进行中',
-            'someday': '💭未来也许',
-            'archived': '📥已归档'
+            'active': '⏳' + (t("active") || '进行中'),
+            'someday': '💭' + (t("someday") || '未来也许'),
+            'archived': '📥' + (t("archived") || '已归档')
         };
-        statusLabel.textContent = statusNames[status] || '未知状态';
+        statusLabel.textContent = statusNames[status] || t("unknownStatus") || '未知状态';
         infoEl.appendChild(statusLabel);
         // 分类显示
         if (project.categoryId) {
@@ -800,24 +800,24 @@ export class ProjectPanel {
         // 复制块引用
         menu.addItem({
             iconHTML: "📋",
-            label: "复制块引用",
+            label: t("copyBlockRef") || "复制块引用",
             click: () => this.copyProjectRef(project)
         });
 
         // 编辑项目
         menu.addItem({
             iconHTML: "📝",
-            label: "编辑项目",
+            label: t("edit") || "编辑项目",
             click: () => this.editProject(project)
         });
 
         // 设置优先级子菜单
         const createPriorityMenuItems = () => {
             const priorities = [
-                { key: 'high', label: '高', icon: '🔴' },
-                { key: 'medium', label: '中', icon: '🟡' },
-                { key: 'low', label: '低', icon: '🔵' },
-                { key: 'none', label: '无', icon: '⚫' }
+                { key: 'high', label: t("highPriority") || '高', icon: '🔴' },
+                { key: 'medium', label: t("mediumPriority") || '中', icon: '🟡' },
+                { key: 'low', label: t("lowPriority") || '低', icon: '🔵' },
+                { key: 'none', label: t("noPriority") || '无', icon: '⚫' }
             ];
 
             const currentPriority = project.priority || 'none';
@@ -834,7 +834,7 @@ export class ProjectPanel {
 
         menu.addItem({
             iconHTML: "🎯",
-            label: "设置优先级",
+            label: t("setPriority") || "设置优先级",
             submenu: createPriorityMenuItems()
         });
 
@@ -847,7 +847,7 @@ export class ProjectPanel {
 
             menuItems.push({
                 iconHTML: "❌",
-                label: "无分类",
+                label: t("noCategory") || "无分类",
                 current: !currentCategoryId,
                 click: () => {
                     this.setCategory(project.id, null);
@@ -870,16 +870,16 @@ export class ProjectPanel {
 
         menu.addItem({
             iconHTML: "🏷️",
-            label: "设置分类",
+            label: t("setCategory") || "设置分类",
             submenu: createCategoryMenuItems()
         });
 
         // 设置状态子菜单
         const createStatusMenuItems = () => {
             const statuses = [
-                { key: 'active', label: '正在进行', icon: '⏳' },
-                { key: 'someday', label: '未来也许', icon: '💭' },
-                { key: 'archived', label: '已归档', icon: '📥' }
+                { key: 'active', label: t("active") || '正在进行', icon: '⏳' },
+                { key: 'someday', label: t("someday") || '未来也许', icon: '💭' },
+                { key: 'archived', label: t("archived") || '已归档', icon: '📥' }
             ];
 
             const currentStatus = project.status || 'active';
@@ -896,7 +896,7 @@ export class ProjectPanel {
 
         menu.addItem({
             iconHTML: "📊",
-            label: "设置状态",
+            label: t("setStatus") || "设置状态",
             submenu: createStatusMenuItems()
         });
 
@@ -905,7 +905,7 @@ export class ProjectPanel {
         // 删除项目
         menu.addItem({
             iconHTML: "🗑️",
-            label: "删除项目",
+            label: t("delete") || "删除项目",
             click: () => this.deleteProject(project)
         });
 
@@ -918,13 +918,13 @@ export class ProjectPanel {
     private async copyProjectRef(project: any) {
         try {
             const blockId = project.blockId || project.id;
-            const title = project.title || '未命名项目';
+            const title = project.title || t("unnamedNote") || '未命名项目';
             const blockRef = `((${blockId} "${title}"))`;
             await navigator.clipboard.writeText(blockRef);
-            showMessage("块引用已复制到剪贴板");
+            showMessage(t("copyBlockRef") + t("success") || "块引用已复制到剪贴板");
         } catch (error) {
             console.error('复制块引失败:', error);
-            showMessage("复制块引失败");
+            showMessage(t("copyBlockRef") + t("operationFailed") || "复制块引失败");
         }
     }
 
@@ -942,13 +942,13 @@ export class ProjectPanel {
                 await writeProjectData(projectData);
                 window.dispatchEvent(new CustomEvent('projectUpdated'));
                 this.loadProjects();
-                showMessage("优先级更新成功");
+                showMessage(t("priorityUpdated") || "优先级更新成功");
             } else {
-                showMessage("项目不存在");
+                showMessage(t("projectNotExist") || "项目不存在");
             }
         } catch (error) {
             console.error('设置优先级失败:', error);
-            showMessage("操作失败");
+            showMessage(t("setPriorityFailed") || "操作失败");
         }
     }
 
@@ -963,15 +963,15 @@ export class ProjectPanel {
                 this.loadProjects();
 
                 const categoryName = categoryId ?
-                    this.categoryManager.getCategoryById(categoryId)?.name || "未知分类" :
-                    "无分类";
-                showMessage(`已设置分类为：${categoryName}`);
+                    this.categoryManager.getCategoryById(categoryId)?.name || t("unknownCategory") || "未知分类" :
+                    t("noCategory") || "无分类";
+                showMessage(`${t("setCategory") || "已设置分类为"}：${categoryName}`);
             } else {
-                showMessage("项目不存在");
+                showMessage(t("projectNotExist") || "项目不存在");
             }
         } catch (error) {
             console.error('设置分类失败:', error);
-            showMessage("操作失败");
+            showMessage(t("setCategoryFailed") || "操作失败");
         }
     }
 
@@ -988,24 +988,24 @@ export class ProjectPanel {
                 this.loadProjects();
 
                 const statusNames = {
-                    'active': '正在进行',
-                    'someday': '未来也许',
-                    'archived': '已归档'
+                    'active': t("active") || '正在进行',
+                    'someday': t("someday") || '未来也许',
+                    'archived': t("archived") || '已归档'
                 };
-                showMessage(`已设置状态为：${statusNames[status]}`);
+                showMessage(`${t("setStatus") || "已设置状态为"}：${statusNames[status]}`);
             } else {
-                showMessage("项目不存在");
+                showMessage(t("projectNotExist") || "项目不存在");
             }
         } catch (error) {
             console.error('设置状态失败:', error);
-            showMessage("操作失败");
+            showMessage(t("setStatusFailed") || "操作失败");
         }
     }
 
     private async deleteProject(project: any) {
         await confirm(
-            "删除项目",
-            `确定要删除项目"${project.title}"吗？`,
+            t("delete") || "删除项目",
+            `${t("confirmDelete")?.replace("${title}", project.title) || `确定要删除项目"${project.title}"吗？`}`,
             async () => {
                 try {
                     const projectData = await readProjectData();
@@ -1014,13 +1014,13 @@ export class ProjectPanel {
                         await writeProjectData(projectData);
                         window.dispatchEvent(new CustomEvent('projectUpdated'));
                         this.loadProjects();
-                        showMessage("项目删除成功");
+                        showMessage(t("projectDeleted") || "项目删除成功");
                     } else {
-                        showMessage("项目不存在");
+                        showMessage(t("projectNotExist") || "项目不存在");
                     }
                 } catch (error) {
                     console.error('删除项目失败:', error);
-                    showMessage("删除项目失败");
+                    showMessage(t("deleteProjectFailed") || "删除项目失败");
                 }
             }
         );
@@ -1043,13 +1043,13 @@ export class ProjectPanel {
         } catch (error) {
             console.error('打开项目失败:', error);
             confirm(
-                "打开项目失败",
-                "项目文档可能已被删除，是否删除相关的项目记录？",
+                t("openNoteFailed") || "打开项目失败",
+                t("noteBlockDeleted") || "项目文档可能已被删除，是否删除相关的项目记录？",
                 async () => {
                     await this.deleteProjectByBlockId(blockId);
                 },
                 () => {
-                    showMessage("打开项目失败");
+                    showMessage(t("openNoteFailedDelete") || "打开项目失败");
                 }
             );
         }
@@ -1062,14 +1062,14 @@ export class ProjectPanel {
                 delete projectData[blockId];
                 await writeProjectData(projectData);
                 window.dispatchEvent(new CustomEvent('projectUpdated'));
-                showMessage("相关项目记录已删除");
+                showMessage(t("deletedRelatedReminders") || "相关项目记录已删除");
                 this.loadProjects();
             } else {
-                showMessage("项目记录不存在");
+                showMessage(t("projectNotExist") || "项目记录不存在");
             }
         } catch (error) {
             console.error('删除项目记录失败:', error);
-            showMessage("删除项目记录失败");
+            showMessage(t("deleteProjectFailed") || "删除项目记录失败");
         }
     }
 

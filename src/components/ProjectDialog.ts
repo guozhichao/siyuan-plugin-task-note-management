@@ -19,7 +19,7 @@ export class ProjectDialog {
             // 获取块信息
             const block = await getBlockByID(this.blockId);
             if (!block) {
-                showMessage("无法获取文档信息");
+                showMessage(t("cannotGetDocumentId"));
                 return;
             }
 
@@ -28,7 +28,7 @@ export class ProjectDialog {
             const existingProject = projectData[this.blockId];
 
             this.dialog = new Dialog({
-                title: existingProject ? "编辑项目笔记" : "设置为项目笔记",
+                title: existingProject ? t("edit") + t("projectNote") : t("setAsProjectNote") || "设置为项目笔记",
                 content: this.generateDialogHTML(block.content, existingProject),
                 width: "500px",
                 height: "630px"
@@ -37,7 +37,7 @@ export class ProjectDialog {
             this.bindEvents();
         } catch (error) {
             console.error('显示项目对话框失败:', error);
-            showMessage("打开项目设置对话框失败");
+            showMessage(t("openModifyDialogFailed"));
         }
     }
 
@@ -53,56 +53,56 @@ export class ProjectDialog {
             <div class="project-dialog">
                 <div class="project-form">
                     <div class="form-group">
-                        <label>项目名称:</label>
-                        <input type="text" id="projectTitle" class="b3-text-field" value="${existingProject?.title || title}" placeholder="输入项目名称">
+                        <label>${t("eventName") || "项目名称"}:</label>
+                        <input type="text" id="projectTitle" class="b3-text-field" style="width: 100%;" value="${existingProject?.title || title}" placeholder="${t("pleaseEnterTitle") || "输入项目名称"}">
                     </div>
                     
                     <div class="form-group">
-                        <label>项目描述:</label>
-                        <textarea id="projectNote" class="b3-text-field" rows="3" placeholder="输入项目描述">${existingProject?.note || ''}</textarea>
+                        <label>${t("note") || "项目描述"}:</label>
+                        <textarea id="projectNote" class="b3-text-field" rows="3" style="width: 100%;" placeholder="${t("enterReminderNote") || "输入项目描述"}">${existingProject?.note || ''}</textarea>
                     </div>
                     
                     <div class="form-group">
-                        <label>项目状态:</label>
+                        <label>${t("projectStatus") || "项目状态"}:</label>
                         <select id="projectStatus" class="b3-select">
-                            <option value="active" ${(!existingProject?.status || existingProject?.status === 'active') ? 'selected' : ''}>正在进行</option>
-                            <option value="someday" ${existingProject?.status === 'someday' ? 'selected' : ''}>未来也许</option>
-                            <option value="archived" ${existingProject?.status === 'archived' ? 'selected' : ''}>已归档</option>
+                            <option value="active" ${(!existingProject?.status || existingProject?.status === 'active') ? 'selected' : ''}>${t("active") || "正在进行"}</option>
+                            <option value="someday" ${existingProject?.status === 'someday' ? 'selected' : ''}>${t("someday") || "未来也许"}</option>
+                            <option value="archived" ${existingProject?.status === 'archived' ? 'selected' : ''}>${t("archived") || "已归档"}</option>
                         </select>
                     </div>
                     
                     <div class="form-group">
-                        <label>优先级:</label>
+                        <label>${t("priority") || "优先级"}:</label>
                         <select id="projectPriority" class="b3-select">
-                            <option value="none" ${(!existingProject?.priority || existingProject?.priority === 'none') ? 'selected' : ''}>无</option>
-                            <option value="low" ${existingProject?.priority === 'low' ? 'selected' : ''}>低</option>
-                            <option value="medium" ${existingProject?.priority === 'medium' ? 'selected' : ''}>中</option>
-                            <option value="high" ${existingProject?.priority === 'high' ? 'selected' : ''}>高</option>
+                            <option value="none" ${(!existingProject?.priority || existingProject?.priority === 'none') ? 'selected' : ''}>${t("noPriority") || "无"}</option>
+                            <option value="low" ${existingProject?.priority === 'low' ? 'selected' : ''}>${t("lowPriority") || "低"}</option>
+                            <option value="medium" ${existingProject?.priority === 'medium' ? 'selected' : ''}>${t("mediumPriority") || "中"}</option>
+                            <option value="high" ${existingProject?.priority === 'high' ? 'selected' : ''}>${t("highPriority") || "高"}</option>
                         </select>
                     </div>
                     
                     <div class="form-group">
-                        <label>分类:</label>
+                        <label>${t("category") || "分类"}:</label>
                         <select id="projectCategory" class="b3-select">
-                            <option value="" ${!existingProject?.categoryId ? 'selected' : ''}>无分类</option>
+                            <option value="" ${!existingProject?.categoryId ? 'selected' : ''}>${t("noCategory") || "无分类"}</option>
                             ${categoryOptions}
                         </select>
                     </div>
                     
                     <div class="form-group">
-                        <label>开始日期:</label>
+                        <label>${t("reminderDate") || "开始日期"}:</label>
                         <input type="date" id="projectStartDate" class="b3-text-field" value="${existingProject?.startDate || today}">
                     </div>
                     
                     <div class="form-group">
-                        <label>截止日期:</label>
+                        <label>${t("endDate") || "截止日期"}:</label>
                         <input type="date" id="projectEndDate" class="b3-text-field" value="${existingProject?.endDate || ''}">
                     </div>
                 </div>
                 
                 <div class="dialog-buttons">
-                    <button class="b3-button b3-button--cancel" id="cancelBtn">取消</button>
-                    <button class="b3-button b3-button--text" id="saveBtn">保存</button>
+                    <button class="b3-button b3-button--cancel" id="cancelBtn">${t("cancel") || "取消"}</button>
+                    <button class="b3-button b3-button--text" id="saveBtn">${t("save") || "保存"}</button>
                 </div>
             </div>
             
@@ -168,7 +168,7 @@ export class ProjectDialog {
 
             const title = titleEl.value.trim();
             if (!title) {
-                showMessage("请输入项目名称");
+                showMessage(t("pleaseEnterTitle"));
                 titleEl.focus();
                 return;
             }
@@ -178,7 +178,7 @@ export class ProjectDialog {
 
             // 验证日期
             if (endDate && startDate && endDate < startDate) {
-                showMessage("截止日期不能早于开始日期");
+                showMessage(t("endDateCannotBeEarlier"));
                 endDateEl.focus();
                 return;
             }
@@ -207,12 +207,12 @@ export class ProjectDialog {
             // 触发更新事件
             window.dispatchEvent(new CustomEvent('projectUpdated'));
 
-            showMessage("项目保存成功");
+            showMessage(t("reminderSaved") || "项目保存成功");
             this.dialog.destroy();
 
         } catch (error) {
             console.error('保存项目失败:', error);
-            showMessage("保存项目失败");
+            showMessage(t("saveReminderFailed") || "保存项目失败");
         }
     }
 }
