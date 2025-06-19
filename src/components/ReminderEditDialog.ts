@@ -435,7 +435,7 @@ export class ReminderEditDialog {
                         </div>
                     </div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">事件分类
+                        <label class="b3-form__label">${t("eventCategory")}
                             <button type="button" id="editManageCategoriesBtn" class="b3-button b3-button--outline" title="管理分类">
                                 <svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg>
                             </button>
@@ -526,7 +526,7 @@ export class ReminderEditDialog {
             const noCategoryEl = document.createElement('div');
             noCategoryEl.className = `category-option ${!this.reminder.categoryId ? 'selected' : ''}`;
             noCategoryEl.setAttribute('data-category', '');
-            noCategoryEl.innerHTML = `<span>无分类</span>`;
+            noCategoryEl.innerHTML = `<span>${t("noCategory")}</span>`;
             categorySelector.appendChild(noCategoryEl);
 
             // 添加所有分类选项
@@ -777,7 +777,7 @@ export class ReminderEditDialog {
             if (categoryId) {
                 const category = this.categoryManager.getCategoryById(categoryId);
                 if (category) {
-                    successMessage += `，分类：${category.name}`;
+                    successMessage += `，${t("category")}: ${category.name}`;
                 }
             }
 
