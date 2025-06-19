@@ -1037,7 +1037,7 @@ export class ProjectPanel {
                 app: window.siyuan.ws.app,
                 doc: {
                     id: blockId,
-                    action: "cb-get-hl"
+                    action: ["cb-get-hl"]
                 },
             });
         } catch (error) {

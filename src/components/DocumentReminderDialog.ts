@@ -43,7 +43,7 @@ export class DocumentReminderDialog {
 
     private createDialog() {
         this.dialog = new Dialog({
-            title: "文档提醒管理",
+            title: t("documentReminderManagement"),
             content: this.createContent(),
             width: "600px",
             height: "800px",
@@ -65,41 +65,41 @@ export class DocumentReminderDialog {
                     <div class="doc-reminder-toolbar">
                         <div class="doc-reminder-filters">
                             <select class="b3-select doc-filter-select">
-                                <option value="all">全部提醒</option>
-                                <option value="uncompleted">未完成</option>
-                                <option value="completed">已完成</option>
+                                <option value="all">${t("allReminders")}</option>
+                                <option value="uncompleted">${t("uncompleted")}</option>
+                                <option value="completed">${t("completed")}</option>
                             </select>
                             
                             <select class="b3-select doc-sort-select">
-                                <option value="time">按时间</option>
-                                <option value="priority">按优先级</option>
-                                <option value="completedTime" selected>按完成时间</option>
+                                <option value="time">${t("sortByTime")}</option>
+                                <option value="priority">${t("sortByPriority")}</option>
+                                <option value="completedTime" selected>${t("sortByCreated")}</option>
                             </select>
                             
-                            <button class="b3-button b3-button--outline doc-sort-order-btn" title="排序方向">
+                            <button class="b3-button b3-button--outline doc-sort-order-btn" title="${t("sortDirection")}">
                                 <svg class="b3-button__icon"><use xlink:href="#iconSort"></use></svg>
-                                <span>降序</span>
+                                <span>${t("descending")}</span>
                             </button>
                             
-                            <button class="b3-button b3-button--primary doc-add-reminder-btn" title="新建提醒">
+                            <button class="b3-button b3-button--primary doc-add-reminder-btn" title="${t("setTimeReminder")}">
                                 <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
-                                <span>提醒</span>
+                                <span>${t("reminder")}</span>
                             </button>
                         </div>
                         
                         <div class="doc-reminder-search">
-                            <input type="text" class="b3-text-field doc-search-input" placeholder="搜索提醒...">
+                            <input type="text" class="b3-text-field doc-search-input" placeholder="${t("searchReminders")}">
                         </div>
                     </div>
                     
                     <div class="doc-reminder-stats">
-                        <span class="doc-reminder-count">正在加载...</span>
+                        <span class="doc-reminder-count">${t("loading")}</span>
                     </div>
                 </div>
                 
                 <div class="doc-reminder-content">
                     <div class="doc-reminders-container">
-                        <div class="doc-reminder-loading">正在加载提醒...</div>
+                        <div class="doc-reminder-loading">${t("loadingReminders")}</div>
                     </div>
                 </div>
             </div>
@@ -197,9 +197,9 @@ export class DocumentReminderDialog {
 
         const span = this.sortOrderBtn.querySelector('span');
         if (span) {
-            span.textContent = this.currentSortOrder === 'asc' ? '升序' : '降序';
+            span.textContent = this.currentSortOrder === 'asc' ? t("ascending") : t("descending");
         }
-        this.sortOrderBtn.title = `排序方向: ${this.currentSortOrder === 'asc' ? '升序' : '降序'}`;
+        this.sortOrderBtn.title = `${t("sortDirection")}: ${this.currentSortOrder === 'asc' ? t("ascending") : t("descending")}`;
     }
 
     private async loadReminders() {
@@ -210,13 +210,13 @@ export class DocumentReminderDialog {
                 return;
             }
 
-            this.remindersContainer.innerHTML = '<div class="doc-reminder-loading">正在加载提醒...</div>';
+            this.remindersContainer.innerHTML = `<div class="doc-reminder-loading">${t("loadingReminders")}</div>`;
 
             // 获取所有提醒数据
             const reminderData = await readReminderData();
             if (!reminderData || typeof reminderData !== 'object') {
-                this.remindersContainer.innerHTML = '<div class="doc-reminder-empty">暂无提醒</div>';
-                this.countDisplay.textContent = '0 个提醒';
+                this.remindersContainer.innerHTML = `<div class="doc-reminder-empty">${t("noReminders")}</div>`;
+                this.countDisplay.textContent = `0 ${t("remindersCount")}`;
                 return;
             }
 
@@ -241,10 +241,10 @@ export class DocumentReminderDialog {
         } catch (error) {
             console.error('加载文档提醒失败:', error);
             if (this.remindersContainer) {
-                this.remindersContainer.innerHTML = '<div class="doc-reminder-error">加载提醒失败</div>';
+                this.remindersContainer.innerHTML = `<div class="doc-reminder-error">${t("loadReminderError")}</div>`;
             }
             if (this.countDisplay) {
-                this.countDisplay.textContent = '加载失败';
+                this.countDisplay.textContent = t("loadingFailed");
             }
         }
     }
@@ -490,13 +490,13 @@ export class DocumentReminderDialog {
         const uncompletedCount = totalCount - completedCount;
         const displayedCount = displayedReminders.length;
 
-        let statsText = `共 ${totalCount} 个提醒`;
+        let statsText = `${t("totalRemindersCount")} ${totalCount} ${t("remindersCount")}`;
         if (totalCount > 0) {
-            statsText += ` (${uncompletedCount} 未完成, ${completedCount} 已完成)`;
+            statsText += ` (${uncompletedCount} ${t("uncompletedRemindersCount")}, ${completedCount} ${t("completedRemindersCount")})`;
         }
 
         if (displayedCount !== totalCount) {
-            statsText += ` - 显示 ${displayedCount} 个`;
+            statsText += ` ${t("displayCount")} ${displayedCount} ${t("displaying")}`;
         }
 
         this.countDisplay.textContent = statsText;
@@ -511,8 +511,8 @@ export class DocumentReminderDialog {
 
         if (reminders.length === 0) {
             const emptyMessage = this.searchQuery ?
-                `没有找到包含"${this.searchQuery}"的提醒` :
-                '没有符合条件的提醒';
+                t("searchNotFound").replace("${query}", this.searchQuery) :
+                t("noMatchingReminders");
             this.remindersContainer.innerHTML = `<div class="doc-reminder-empty">${emptyMessage}</div>`;
             return;
         }
@@ -712,7 +712,7 @@ export class DocumentReminderDialog {
             const extraCount = targetReminder.pomodoroCount > 5 ? `+${targetReminder.pomodoroCount - 5}` : '';
 
             pomodoroDisplay.innerHTML = `
-                <span title="完成的番茄钟数量: ${targetReminder.pomodoroCount}">${tomatoEmojis}${extraCount}</span>
+                <span title="${t("completedPomodoroCount")}: ${targetReminder.pomodoroCount}">${tomatoEmojis}${extraCount}</span>
             `;
 
             infoEl.appendChild(pomodoroDisplay);
@@ -747,7 +747,7 @@ export class DocumentReminderDialog {
                 completedIcon.style.cssText = 'font-size: 10px;';
 
                 const completedText = document.createElement('span');
-                completedText.textContent = `完成于${this.formatCompletedTime(completedTime)}`;
+                completedText.textContent = `${t("completedAtTime")}${this.formatCompletedTime(completedTime)}`;
 
                 completedTimeEl.appendChild(completedIcon);
                 completedTimeEl.appendChild(completedText);
@@ -762,7 +762,7 @@ export class DocumentReminderDialog {
 
         const editBtn = document.createElement('button');
         editBtn.className = 'b3-button b3-button--small';
-        editBtn.textContent = '编辑';
+        editBtn.textContent = t("edit");
         editBtn.addEventListener('click', () => {
             this.editReminder(reminder);
         });
@@ -848,9 +848,9 @@ export class DocumentReminderDialog {
             });
 
             if (completedDateStr === today) {
-                return `今天 ${timeStr}`;
+                return `${t("completedToday")} ${timeStr}`;
             } else if (completedDateStr === yesterdayStr) {
-                return `昨天 ${timeStr}`;
+                return `${t("completedYesterday")} ${timeStr}`;
             } else {
                 const dateStr = completedDate.toLocaleDateString('zh-CN', {
                     month: 'short',
@@ -1008,7 +1008,7 @@ export class DocumentReminderDialog {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
             </svg>
-            编辑提醒
+            ${t("editReminder")}
         `;
         editOption.addEventListener('click', () => {
             menu.remove();
@@ -1031,7 +1031,7 @@ export class DocumentReminderDialog {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
             </svg>
-            删除提醒
+            ${t("deleteReminderContextMenu")}
         `;
         deleteOption.addEventListener('click', () => {
             menu.remove();
@@ -1081,11 +1081,15 @@ export class DocumentReminderDialog {
 
         // 确认删除
         const confirmMessage = reminder.isRepeatInstance
-            ? `确定要删除此重复提醒的实例吗？\n\n标题：${reminder.title || t("unnamedNote")}\n日期：${reminder.date}`
-            : `确定要删除此提醒吗？\n\n标题：${reminder.title || t("unnamedNote")}\n日期：${reminder.date}`;
+            ? t("deleteRepeatInstanceConfirm")
+                .replace("${title}", reminder.title || t("unnamedNote"))
+                .replace("${date}", reminder.date)
+            : t("deleteReminderConfirm")
+                .replace("${title}", reminder.title || t("unnamedNote"))
+                .replace("${date}", reminder.date);
 
         const confirmed = await confirm(
-            "删除提醒",
+            t("deleteReminderTitle"),
             confirmMessage,
             () => {
                 this.performDeleteReminder(reminder);
@@ -1121,20 +1125,21 @@ export class DocumentReminderDialog {
             // 重新加载提醒列表
             this.loadReminders();
 
-            showMessage("提醒已删除");
+            showMessage(t("reminderDeletedSuccess"));
 
         } catch (error) {
             console.error('删除提醒失败:', error);
             showMessage(t("operationFailed"));
         }
     }
+
     // 新增：删除重复事件实例
     private async deleteRepeatInstance(reminderData: any, reminder: any) {
         const originalId = reminder.originalId;
         const originalReminder = reminderData[originalId];
 
         if (!originalReminder) {
-            throw new Error('原始提醒不存在');
+            throw new Error(t("originalReminderNotExist"));
         }
 
         // 如果是删除特定日期的实例，我们需要将其标记为已删除
@@ -1172,7 +1177,7 @@ export class DocumentReminderDialog {
         const reminderId = reminder.id;
 
         if (!reminderData[reminderId]) {
-            throw new Error('提醒不存在');
+            throw new Error(t("reminderNotExistError"));
         }
 
         // 直接删除提醒

@@ -813,7 +813,7 @@ export default class ReminderPlugin extends Plugin {
         // 添加文档提醒查看功能
         detail.menu.addItem({
             iconHTML: "📋",
-            label: "查看文档所有提醒",
+            label: t("documentReminderManagement"),
             click: () => {
                 if (documentId) {
                     const documentReminderDialog = new DocumentReminderDialog(documentId);
