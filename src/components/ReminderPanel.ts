@@ -126,7 +126,7 @@ export class ReminderPanel {
         const categoryManageBtn = document.createElement('button');
         categoryManageBtn.className = 'b3-button b3-button--outline';
         categoryManageBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconTags"></use></svg>';
-        categoryManageBtn.title = "管理分类";
+        categoryManageBtn.title = t("manageCategories");
         categoryManageBtn.addEventListener('click', () => {
             this.showCategoryManageDialog();
         });
