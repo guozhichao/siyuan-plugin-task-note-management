@@ -444,7 +444,7 @@ export class ProjectPanel {
         });
 
     }
-    
+
     private createProjectElement(project: any): HTMLElement {
         const today = getLocalDateString();
         const isOverdue = project.endDate && compareDateStrings(project.endDate, today) < 0;
