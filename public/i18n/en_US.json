@@ -358,7 +358,7 @@
     "archived": "Archived",
     "documentReminderManagement": "Document Reminder Management",
     "allReminders": "All Reminders",
-    "uncompleted": "Uncompleted", 
+    "uncompleted": "Uncompleted",
     "reminder": "Reminder",
     "searchReminders": "Search reminders...",
     "loadingReminders": "Loading reminders...",
@@ -370,7 +370,7 @@
     "loadingFailed": "Loading failed",
     "sortDirection": "Sort Direction",
     "editReminder": "Edit Reminder",
-    "deleteReminderContextMenu": "Delete Reminder", 
+    "deleteReminderContextMenu": "Delete Reminder",
     "completedPomodoroCount": "Completed Pomodoro Count",
     "completedAtTime": "Completed at",
     "deleteReminderConfirm": "Are you sure to delete this reminder?<br>Title: ${title}<br>Date: ${date}",
@@ -382,5 +382,13 @@
     "completedRemindersCount": "completed",
     "uncompletedRemindersCount": "uncompleted",
     "totalRemindersCount": "Total",
-    "displaying": "displaying"
+    "displaying": "displaying",
+    "setAsProjectNote": "Set as Project Note",
+    "projectNoteManagement": "Project Note Management",
+    "viewAllSelectedDocumentReminders": "View All Selected Document Reminders",
+    "editingInstanceDescription": "Editing first occurrence will split the recurring series. A new series will start from the next cycle.",
+    "dockPanelTitle": "Task Note Management",
+    "projectDockTitle": "Project Notes",
+    "viewDocumentAllReminders": "View Document All Reminders",
+    "handleDocumentTreeMenuLog": "Handling document tree right-click menu"
 }

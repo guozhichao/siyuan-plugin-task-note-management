@@ -257,7 +257,7 @@ export default class ReminderPlugin extends Plugin {
                 position: "LeftTop",
                 size: { width: 300, height: 0 },
                 icon: "iconProject",
-                title: "项目笔记",
+                title: t("projectDockTitle"),
                 hotkey: ""
             },
             data: {
@@ -280,7 +280,7 @@ export default class ReminderPlugin extends Plugin {
                 position: "LeftTop",
                 size: { width: 300, height: 0 },
                 icon: "iconClock",
-                title: t("timeReminder"),
+                title: t("dockPanelTitle"),
                 hotkey: ""
             },
             data: {
@@ -731,7 +731,7 @@ export default class ReminderPlugin extends Plugin {
         if (!elements || !elements.length) {
             return;
         }
-        console.log("处理文档树右键菜单", elements);
+        console.log(t("handleDocumentTreeMenuLog"), elements);
         // 获取所有选中的文档ID
         const documentIds = Array.from(elements)
             .map((element: Element) => element.getAttribute("data-node-id"))
@@ -769,11 +769,9 @@ export default class ReminderPlugin extends Plugin {
 
         // 添加查看文档所有提醒菜单项（只处理第一个选中的文档）
         if (documentIds.length === 1) {
-
-            // 多选文档时，添加查看所有提醒菜单项
             detail.menu.addItem({
                 iconHTML: "📋",
-                label: "查看所有选中文档的提醒",
+                label: t("viewDocumentAllReminders"),
                 click: () => {
                     const documentReminderDialog = new DocumentReminderDialog(documentIds);
                     documentReminderDialog.show();
@@ -785,7 +783,7 @@ export default class ReminderPlugin extends Plugin {
         // 添加设置为项目笔记菜单项（只处理第一个选中的文档）
         detail.menu.addItem({
             iconHTML: "📂",
-            label: "设置为项目笔记",
+            label: t("setAsProjectNote"),
             click: () => {
 
                 // 循环传递所有id
@@ -825,7 +823,7 @@ export default class ReminderPlugin extends Plugin {
         // 添加项目笔记设置功能
         detail.menu.addItem({
             iconHTML: "📂",
-            label: "设置为项目笔记",
+            label: t("setAsProjectNote"),
             click: () => {
                 if (documentId) {
                     const dialog = new ProjectDialog(documentId);
@@ -1305,7 +1303,7 @@ export default class ReminderPlugin extends Plugin {
         if (!existingViewButton) {
             const viewReminderBtn = document.createElement('button');
             viewReminderBtn.className = 'view-reminder-breadcrumb-btn block__icon fn__flex-center ariaLabel';
-            viewReminderBtn.setAttribute('aria-label', "查看文档所有提醒");
+            viewReminderBtn.setAttribute('aria-label', t("viewDocumentAllReminders"));
             viewReminderBtn.innerHTML = `
                 <svg class="b3-list-item__graphic"><use xlink:href="#iconCheck"></use></svg>
             `;
@@ -1371,5 +1369,7 @@ export default class ReminderPlugin extends Plugin {
         document.querySelectorAll('.reminder-breadcrumb-btn, .view-reminder-breadcrumb-btn').forEach(btn => {
             btn.remove();
         });
+    }
+}
     }
 }

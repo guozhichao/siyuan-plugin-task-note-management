@@ -381,5 +381,13 @@
     "completedRemindersCount": "已完成",
     "uncompletedRemindersCount": "未完成",
     "totalRemindersCount": "共",
-    "displaying": "显示"
+    "displaying": "显示",
+    "setAsProjectNote": "设置为项目笔记",
+    "projectNoteManagement": "项目笔记管理",
+    "viewAllSelectedDocumentReminders": "查看所有选中文档的提醒",
+    "editingInstanceDescription": "正在编辑重复事件的首个实例，这将分割重复系列。新的系列将从下一个周期开始。",
+    "dockPanelTitle": "任务笔记管理",
+    "projectDockTitle": "项目笔记",
+    "viewDocumentAllReminders": "查看文档所有提醒",
+    "handleDocumentTreeMenuLog": "处理文档树右键菜单"
 }
