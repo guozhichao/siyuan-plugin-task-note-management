@@ -106,7 +106,7 @@ export class CalendarView {
         const categoryManageBtn = document.createElement('button');
         categoryManageBtn.className = 'b3-button b3-button--outline';
         categoryManageBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconTags"></use></svg>';
-        categoryManageBtn.title = "管理分类";
+        categoryManageBtn.title = t("manageCategories");
         categoryManageBtn.addEventListener('click', () => {
             this.showCategoryManageDialog(categoryFilterSelect);
         });
@@ -187,8 +187,8 @@ export class CalendarView {
             const categories = this.categoryManager.getCategories();
 
             selectElement.innerHTML = `
-                <option value="all" ${this.currentCategoryFilter === 'all' ? 'selected' : ''}>全部分类</option>
-                <option value="none" ${this.currentCategoryFilter === 'none' ? 'selected' : ''}>无分类</option>
+                <option value="all" ${this.currentCategoryFilter === 'all' ? 'selected' : ''}>${t("allCategories")}</option>
+                <option value="none" ${this.currentCategoryFilter === 'none' ? 'selected' : ''}>${t("noCategory")}</option>
             `;
 
             categories.forEach(category => {
@@ -201,7 +201,7 @@ export class CalendarView {
 
         } catch (error) {
             console.error('渲染分类过滤器失败:', error);
-            selectElement.innerHTML = '<option value="all">全部分类</option>';
+            selectElement.innerHTML = `<option value="all">${t("allCategories")}</option>`;
         }
     }
 
@@ -439,7 +439,7 @@ export class CalendarView {
         // 添加复制块引选项
         menu.addItem({
             iconHTML: "📋",
-            label: "复制块引",
+            label: t("copyBlockRef"),
             click: () => {
                 this.copyBlockRef(calendarEvent);
             }
@@ -598,7 +598,7 @@ export class CalendarView {
             const blockId = calendarEvent.extendedProps.blockId;
 
             if (!blockId) {
-                showMessage("无法获取块ID");
+                showMessage(t("cannotGetDocumentId"));
                 return;
             }
 
@@ -625,7 +625,7 @@ export class CalendarView {
 
         } catch (error) {
             console.error('复制块引失败:', error);
-            showMessage("复制块引失败");
+            showMessage(t("operationFailed"));
         }
     }
 
@@ -2036,7 +2036,7 @@ export class CalendarView {
             }
 
             // 显示加载状态
-            this.tooltip.innerHTML = '<div style="color: var(--b3-theme-on-surface-light); font-size: 12px;">加载中...</div>';
+            this.tooltip.innerHTML = `<div style="color: var(--b3-theme-on-surface-light); font-size: 12px;">${t("loading")}</div>`;
             this.tooltip.style.display = 'block';
             this.updateTooltipPosition(event);
 
@@ -2105,7 +2105,7 @@ export class CalendarView {
 
         try {
             // 显示加载状态
-            this.tooltip.innerHTML = '<div style="color: var(--b3-theme-on-surface-light); font-size: 12px;">加载中...</div>';
+            this.tooltip.innerHTML = `<div style="color: var(--b3-theme-on-surface-light); font-size: 12px;">${t("loading")}</div>`;
 
             // 异步获取详细信息
             const tooltipContent = await this.buildTooltipContent(calendarEvent);
@@ -2117,7 +2117,7 @@ export class CalendarView {
         } catch (error) {
             console.error('更新提示框内容失败:', error);
             if (this.tooltip && this.tooltip.style.display !== 'none') {
-                this.tooltip.innerHTML = '<div style="color: var(--b3-theme-error); font-size: 12px;">加载失败</div>';
+                this.tooltip.innerHTML = `<div style="color: var(--b3-theme-error); font-size: 12px;">${t("loadFailed")}</div>`;
             }
         }
     }
@@ -2190,7 +2190,7 @@ export class CalendarView {
                 reminder.docId !== reminder.blockId) {
                 parts.push(`<div style="color: var(--b3-theme-on-background); font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-align: left;">
                     <span>📄</span>
-                    <span title="所属文档">${this.escapeHtml(reminder.docTitle)}</span>
+                    <span title="${t("belongsToDocument")}">${this.escapeHtml(reminder.docTitle)}</span>
                 </div>`);
                 docTitleAdded = true;
             }
@@ -2205,7 +2205,7 @@ export class CalendarView {
                         if (rootBlock && rootBlock.content) {
                             parts.push(`<div style="color: var(--b3-theme-on-background); font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-align: left;">
                                 <span>📄</span>
-                                <span title="所属文档">${this.escapeHtml(rootBlock.content)}</span>
+                                <span title="${t("belongsToDocument")}">${this.escapeHtml(rootBlock.content)}</span>
                             </div>`);
                             docTitleAdded = true;
                         }
@@ -2285,7 +2285,7 @@ export class CalendarView {
             // 7. 备注信息
             if (reminder.note && reminder.note.trim()) {
                 parts.push(`<div style="color: var(--b3-theme-on-surface-light); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--b3-theme-border); font-size: 12px;">
-                    <div style="margin-bottom: 4px; opacity: 0.7;">备注:</div>
+                    <div style="margin-bottom: 4px; opacity: 0.7;">${t("note")}:</div>
                     <div>${this.escapeHtml(reminder.note)}</div>
                 </div>`);
             }
@@ -2317,7 +2317,7 @@ export class CalendarView {
 
                 let completedInfo = `<div style="color: var(--b3-theme-success); margin-top: 6px; display: flex; align-items: center; gap: 4px; font-size: 12px;">
                     <span>✅</span>
-                    <span>已完成</span>`;
+                    <span>${t("completed")}</span>`;
 
                 // 如果有完成时间，添加完成时间显示
                 if (completedTime) {
@@ -2333,7 +2333,7 @@ export class CalendarView {
 
         } catch (error) {
             console.error('构建提示框内容失败:', error);
-            return `<div style="color: var(--b3-theme-error);">加载详情失败</div>`;
+            return `<div style="color: var(--b3-theme-error);">${t("loadFailed")}</div>`;
         }
     }
 
@@ -2357,9 +2357,9 @@ export class CalendarView {
             });
 
             if (completedDateStr === today) {
-                return `今天 ${timeStr}`;
+                return `${t("completedToday")} ${timeStr}`;
             } else if (completedDateStr === yesterdayStr) {
-                return `昨天 ${timeStr}`;
+                return `${t("completedYesterday")} ${timeStr}`;
             } else {
                 const dateStr = completedDate.toLocaleDateString('zh-CN', {
                     month: 'short',
@@ -2384,9 +2384,9 @@ export class CalendarView {
 
             let dateStr = '';
             if (reminder.date === today) {
-                dateStr = '今天';
+                dateStr = t("today");
             } else if (reminder.date === tomorrowStr) {
-                dateStr = '明天';
+                dateStr = t("tomorrow");
             } else {
                 const reminderDate = new Date(reminder.date + 'T00:00:00');
 
@@ -2402,9 +2402,9 @@ export class CalendarView {
             if (reminder.endDate && reminder.endDate !== reminder.date) {
                 let endDateStr = '';
                 if (reminder.endDate === today) {
-                    endDateStr = '今天';
+                    endDateStr = t("today");
                 } else if (reminder.endDate === tomorrowStr) {
-                    endDateStr = '明天';
+                    endDateStr = t("tomorrow");
                 } else {
                     const endReminderDate = new Date(reminder.endDate + 'T00:00:00');
                     endDateStr = endReminderDate.toLocaleDateString('zh-CN', {
@@ -2446,9 +2446,9 @@ export class CalendarView {
      */
     private formatPriorityInfo(priority: string): string {
         const priorityMap = {
-            'high': { label: '高优先级', icon: '🔴', color: '#e74c3c' },
-            'medium': { label: '中优先级', icon: '🟡', color: '#f39c12' },
-            'low': { label: '低优先级', icon: '🔵', color: '#3498db' }
+            'high': { label: t("high"), icon: '🔴', color: '#e74c3c' },
+            'medium': { label: t("medium"), icon: '🟡', color: '#f39c12' },
+            'low': { label: t("low"), icon: '🔵', color: '#3498db' }
         };
 
         const priorityInfo = priorityMap[priority];
@@ -2467,23 +2467,23 @@ export class CalendarView {
         try {
             switch (repeat.type) {
                 case 'daily':
-                    return repeat.interval === 1 ? '每日重复' : `每 ${repeat.interval} 天重复`;
+                    return repeat.interval === 1 ? t("dailyRepeat") : t("everyNDaysRepeat", { n: repeat.interval });
                 case 'weekly':
-                    return repeat.interval === 1 ? '每周重复' : `每 ${repeat.interval} 周重复`;
+                    return repeat.interval === 1 ? t("weeklyRepeat") : t("everyNWeeksRepeat", { n: repeat.interval });
                 case 'monthly':
-                    return repeat.interval === 1 ? '每月重复' : `每 ${repeat.interval} 月重复`;
+                    return repeat.interval === 1 ? t("monthlyRepeat") : t("everyNMonthsRepeat", { n: repeat.interval });
                 case 'yearly':
-                    return repeat.interval === 1 ? '每年重复' : `每 ${repeat.interval} 年重复`;
+                    return repeat.interval === 1 ? t("yearlyRepeat") : t("everyNYearsRepeat", { n: repeat.interval });
                 case 'custom':
-                    return '自定义重复';
+                    return t("customRepeat");
                 case 'ebbinghaus':
-                    return '艾宾浩斯重复';
+                    return t("ebbinghausRepeat");
                 default:
-                    return '重复事件';
+                    return t("repeatEvent");
             }
         } catch (error) {
             console.error('获取重复描述失败:', error);
-            return '重复事件';
+            return t("repeatEvent");
         }
     }
 

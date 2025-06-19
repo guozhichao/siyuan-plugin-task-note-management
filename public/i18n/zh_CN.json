@@ -303,5 +303,22 @@
     "unmarkTodayCompleted": "取消今日已完成",
     "markedTodayCompleted": "已标记今日已完成",
     "unmarkedTodayCompleted": "已取消今日已完成",
-    "setCategory": "设置分类"
+    "setCategory": "设置分类",
+    "loading": "加载中...",
+    "loadFailed": "加载失败",
+    "belongsToDocument": "所属文档",
+    "eventName": "事件名称",
+    "note": "备注",
+    "dailyRepeat": "每日重复",
+    "weeklyRepeat": "每周重复",
+    "monthlyRepeat": "每月重复",
+    "yearlyRepeat": "每年重复",
+    "repeatEvent": "重复事件",
+    "everyNDaysRepeat": "每 ${n} 天重复",
+    "everyNWeeksRepeat": "每 ${n} 周重复",
+    "everyNMonthsRepeat": "每 ${n} 个月重复",
+    "everyNYearsRepeat": "每 ${n} 年重复",
+    "completedAt": "完成于",
+    "completedToday": "今天",
+    "completedYesterday": "昨天"
 }

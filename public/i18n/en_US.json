@@ -304,5 +304,22 @@
     "unmarkTodayCompleted": "Unmark Today Completed",
     "markedTodayCompleted": "Marked as completed today",
     "unmarkedTodayCompleted": "Unmarked as completed today",
-    "setCategory": "Set Category"
+    "setCategory": "Set Category",
+    "loading": "Loading...",
+    "loadFailed": "Load failed",
+    "belongsToDocument": "Belongs to document",
+    "eventName": "Event Name",
+    "note": "Note",
+    "dailyRepeat": "Daily repeat",
+    "weeklyRepeat": "Weekly repeat",
+    "monthlyRepeat": "Monthly repeat",
+    "yearlyRepeat": "Yearly repeat",
+    "repeatEvent": "Repeat event",
+    "everyNDaysRepeat": "Every ${n} days repeat",
+    "everyNWeeksRepeat": "Every ${n} weeks repeat",
+    "everyNMonthsRepeat": "Every ${n} months repeat",
+    "everyNYearsRepeat": "Every ${n} years repeat",
+    "completedAt": "Completed at",
+    "completedToday": "Today",
+    "completedYesterday": "Yesterday"
 }
