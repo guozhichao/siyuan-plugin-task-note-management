@@ -393,7 +393,6 @@
     "handleDocumentTreeMenuLog": "Handling document tree right-click menu",
     "smartBatchTitle": "✨ Smart Batch Setup (${count} blocks)",
     "batchOperations": "🚀 Batch Operations",
-
     "batchSetCategory": "Batch Set Category",
     "applyToAll": "Apply to All",
     "batchSetPriority": "Batch Set Priority",

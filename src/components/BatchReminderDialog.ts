@@ -814,9 +814,9 @@ class SmartBatchDialog {
         this.updateBlockListDisplay(dialog);
 
         const dateStr = new Date(result.date + 'T00:00:00').toLocaleDateString('zh-CN');
-        showMessage(t("dateTimeSet", { 
-            date: dateStr, 
-            time: result.time ? ` ${result.time}` : '' 
+        showMessage(t("dateTimeSet", {
+            date: dateStr,
+            time: result.time ? ` ${result.time}` : ''
         }));
     }
     private getSelectedBlockIds(dialog: Dialog): string[] {
@@ -1036,9 +1036,9 @@ class SmartBatchDialog {
             }
 
             if (successCount > 0) {
-                showMessage(t("batchCompleted", { 
-                    success: successCount, 
-                    failure: failureCount > 0 ? t("failureCount", { count: failureCount }) : '' 
+                showMessage(t("batchCompleted", {
+                    success: successCount,
+                    failure: failureCount > 0 ? t("failureCount", { count: failureCount }) : ''
                 }));
             } else {
                 showMessage(t("batchSetFailed"));
@@ -1399,8 +1399,8 @@ class BlockEditDialog {
             timeInput.value = '';
         }
 
-        showMessage(t("dateTimeSet", { 
-            date: new Date(result.date + 'T00:00:00').toLocaleDateString('zh-CN'), 
+        showMessage(t("dateTimeSet", {
+            date: new Date(result.date + 'T00:00:00').toLocaleDateString('zh-CN'),
             time: result.time ? ` ${result.time}` : ''
         }));
     }
