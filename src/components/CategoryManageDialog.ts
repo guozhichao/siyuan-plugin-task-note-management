@@ -16,7 +16,7 @@ export class CategoryManageDialog {
 
     public show() {
         this.dialog = new Dialog({
-            title: "管理事件分类",
+            title: t("categoryManagement"),
             content: this.createDialogContent(),
             width: "500px",
             height: "600px"
@@ -33,15 +33,15 @@ export class CategoryManageDialog {
                     <div class="category-toolbar">
                         <button class="b3-button b3-button--primary" id="addCategoryBtn">
                             <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
-                            添加分类
+                            ${t("addCategory")}
                         </button>
                         <button class="b3-button b3-button--outline" id="resetCategoriesBtn">
                             <svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>
-                            重置默认
+                            ${t("resetToDefault")}
                         </button>
                     </div>
                     <div class="category-drag-hint">
-                        <span>💡 拖拽分类项可调整排序</span>
+                        <span>💡 ${t("dragHint")}</span>
                     </div>
                     <div class="categories-list" id="categoriesList">
                         <!-- 分类列表将在这里渲染 -->
@@ -195,8 +195,8 @@ export class CategoryManageDialog {
                 categoriesList.appendChild(categoryEl);
             });
         } catch (error) {
-            console.error('渲染分类列表失败:', error);
-            categoriesList.innerHTML = '<div class="category-error">加载分类失败</div>';
+            console.error(t("loadCategoriesFailed"), error);
+            categoriesList.innerHTML = `<div class="category-error">${t("loadCategoriesFailed")}</div>`;
         }
     }
 
@@ -468,16 +468,16 @@ export class CategoryManageDialog {
 
     private async deleteCategory(category: Category) {
         await confirm(
-            "删除分类",
-            `确定要删除分类"${category.name}"吗？此操作无法撤销。`,
+            t("deleteCategory"),
+            t("confirmDeleteCategory", { name: category.name }),
             async () => {
                 try {
                     await this.categoryManager.deleteCategory(category.id);
-                    showMessage("分类已删除");
+                    showMessage(t("categoryDeleted"));
                     this.renderCategories();
                 } catch (error) {
-                    console.error('删除分类失败:', error);
-                    showMessage("删除分类失败，请重试");
+                    console.error(t("deleteCategoryFailed"), error);
+                    showMessage(t("deleteCategoryFailed"));
                 }
             }
         );
@@ -485,16 +485,16 @@ export class CategoryManageDialog {
 
     private async resetCategories() {
         await confirm(
-            "重置分类",
-            "确定要重置为默认分类吗？这将删除所有自定义分类。",
+            t("resetCategories"),
+            t("confirmResetCategories"),
             async () => {
                 try {
                     await this.categoryManager.resetToDefault();
-                    showMessage("已重置为默认分类");
+                    showMessage(t("categoriesReset"));
                     this.renderCategories();
                 } catch (error) {
-                    console.error('重置分类失败:', error);
-                    showMessage("重置分类失败，请重试");
+                    console.error(t("resetCategoriesFailed"), error);
+                    showMessage(t("resetCategoriesFailed"));
                 }
             }
         );

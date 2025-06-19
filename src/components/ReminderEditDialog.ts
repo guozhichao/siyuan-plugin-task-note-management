@@ -211,7 +211,7 @@ export class ReminderEditDialog {
                     };
                 }
             }
-            
+
             const results = this.chronoParser.parse(text, new Date(), { forwardDate: false });
 
             if (results.length === 0) {
