@@ -45,7 +45,7 @@ export class DocumentReminderDialog {
         this.dialog = new Dialog({
             title: t("documentReminderManagement"),
             content: this.createContent(),
-            width: "600px",
+            width: "800px",
             height: "800px",
             destroyCallback: () => {
                 // 清理资源
