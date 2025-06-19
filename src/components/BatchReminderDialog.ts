@@ -389,7 +389,7 @@ class SmartBatchDialog {
 
     show() {
         const dialog = new Dialog({
-            title: `✨ 智能批量设置 (${this.blockIds.length}个块)`,
+            title: t("smartBatchTitle", { count: this.blockIds.length }),
             content: this.buildSmartBatchContent(),
             width: "700px",
             height: "700px"
@@ -408,10 +408,10 @@ class SmartBatchDialog {
                     <!-- 批量操作面板 -->
                     <div class="batch-operations-panel">
                         <div class="batch-operations-header">
-                            <h3>🚀 批量操作</h3>
+                            <h3>${t("batchOperations")}</h3>
                             <div class="batch-toggle">
                                 <button type="button" id="batchToggleBtn" class="b3-button b3-button--outline">
-                                    <span>展开</span>
+                                    <span>${t("expand")}</span>
                                     <svg class="b3-button__icon toggle-icon"><use xlink:href="#iconDown"></use></svg>
                                 </button>
                             </div>
@@ -419,52 +419,52 @@ class SmartBatchDialog {
                         <div class="batch-operations-content" id="batchOperationsContent" style="display: none;">
                             <div class="batch-operation-row">
                                 <div class="batch-operation-item">
-                                    <label class="b3-form__label">批量设置分类</label>
+                                    <label class="b3-form__label">${t("batchSetCategory")}</label>
                                     <div class="batch-category-container">
                                         <div class="category-selector-compact" id="batchCategorySelector">
                                             <!-- 分类选择器将在这里渲染 -->
                                         </div>
                                         <button type="button" id="batchApplyCategoryBtn" class="b3-button b3-button--primary" disabled>
-                                            应用到全部
+                                            ${t("applyToAll")}
                                         </button>
                                     </div>
                                 </div>
                                 <div class="batch-operation-item">
-                                    <label class="b3-form__label">批量设置优先级</label>
+                                    <label class="b3-form__label">${t("batchSetPriority")}</label>
                                     <div class="batch-priority-container">
                                         <div class="priority-selector-compact" id="batchPrioritySelector">
                                             <div class="priority-option-compact" data-priority="high">
                                                 <div class="priority-dot high"></div>
-                                                <span>高</span>
+                                                <span>${t("highPriority")}</span>
                                             </div>
                                             <div class="priority-option-compact" data-priority="medium">
                                                 <div class="priority-dot medium"></div>
-                                                <span>中</span>
+                                                <span>${t("mediumPriority")}</span>
                                             </div>
                                             <div class="priority-option-compact" data-priority="low">
                                                 <div class="priority-dot low"></div>
-                                                <span>低</span>
+                                                <span>${t("lowPriority")}</span>
                                             </div>
                                             <div class="priority-option-compact" data-priority="none">
                                                 <div class="priority-dot none"></div>
-                                                <span>无</span>
+                                                <span>${t("noPriority")}</span>
                                             </div>
                                         </div>
                                         <button type="button" id="batchApplyPriorityBtn" class="b3-button b3-button--primary" disabled>
-                                            应用到全部
+                                            ${t("applyToAll")}
                                         </button>
                                     </div>
                                 </div>
                             </div>
                             <div class="batch-operation-row">
                                 <div class="batch-operation-item full-width">
-                                    <label class="b3-form__label">批量设置日期</label>
+                                    <label class="b3-form__label">${t("batchSetDate")}</label>
                                     <div class="batch-date-container">
                                         <input type="date" id="batchDateInput" class="b3-text-field" value="${getLocalDateString()}">
                                         <button type="button" id="batchApplyDateBtn" class="b3-button b3-button--primary">
-                                            应用日期到全部
+                                            ${t("applyDateToAll")}
                                         </button>
-                                        <button type="button" id="batchNlDateBtn" class="b3-button b3-button--outline" title="智能日期识别">
+                                        <button type="button" id="batchNlDateBtn" class="b3-button b3-button--outline" title="${t('smartDateRecognition')}">
                                             ✨
                                         </button>
                                     </div>
@@ -477,14 +477,14 @@ class SmartBatchDialog {
                     
                     <div class="block-list-header">
                         <div class="list-summary">
-                            <span class="summary-text">共 ${this.blockIds.length} 个块，其中 ${this.autoDetectedData.filter(d => d.date).length} 个已自动识别日期</span>
+                            <span class="summary-text">${t("totalBlocks", { count: this.blockIds.length, detected: this.autoDetectedData.filter(d => d.date).length })}</span>
                         </div>
                         <div class="list-actions">
                             <button type="button" id="selectAllBtn" class="b3-button b3-button--outline">
-                                全选
+                                ${t("selectAll")}
                             </button>
                             <button type="button" id="deselectAllBtn" class="b3-button b3-button--outline">
-                                取消全选
+                                ${t("deselectAll")}
                             </button>
                         </div>
                     </div>
@@ -494,7 +494,7 @@ class SmartBatchDialog {
                 </div>
                 <div class="b3-dialog__action">
                     <button class="b3-button b3-button--cancel" id="smartBatchCancelBtn">${t("cancel")}</button>
-                    <button class="b3-button b3-button--primary" id="smartBatchConfirmBtn">批量设置提醒</button>
+                    <button class="b3-button b3-button--primary" id="smartBatchConfirmBtn">${t("batchSetReminders")}</button>
                 </div>
             </div>
         `;
@@ -540,7 +540,7 @@ class SmartBatchDialog {
                     </div>
                     <div class="block-actions">
                         <button type="button" class="b3-button b3-button--outline block-edit-btn" data-block-id="${data.blockId}">
-                            ⚙️ 设置
+                            ⚙️  ${t("edit")}
                         </button>
                     </div>
                 </div>
@@ -555,7 +555,7 @@ class SmartBatchDialog {
     }
 
     private getCategoryDisplay(categoryId?: string): string {
-        if (!categoryId) return '📂 无分类';
+        if (!categoryId) return `📂 ${t("noCategory")}`;
 
         try {
             const categories = this.plugin.categoryManager.getCategories();
@@ -567,15 +567,15 @@ class SmartBatchDialog {
             console.error('获取分类显示失败:', error);
         }
 
-        return '📂 无分类';
+        return `📂 ${t("noCategory")}`;
     }
 
     private getPriorityDisplay(priority?: string): string {
         const priorityMap = {
-            'high': '<span class="priority-badge high">🔴 高</span>',
-            'medium': '<span class="priority-badge medium">🟡 中</span>',
-            'low': '<span class="priority-badge low">🟢 低</span>',
-            'none': '<span class="priority-badge none">⚪ 无</span>'
+            'high': `<span class="priority-badge high">🔴 ${t("highPriority")}</span>`,
+            'medium': `<span class="priority-badge medium">🟡 ${t("mediumPriority")}</span>`,
+            'low': `<span class="priority-badge low">🟢 ${t("lowPriority")}</span>`,
+            'none': `<span class="priority-badge none">⚪ ${t("noPriority")}</span>`
         };
 
         return priorityMap[priority as keyof typeof priorityMap] || priorityMap.none;
@@ -607,7 +607,7 @@ class SmartBatchDialog {
             const toggleText = batchToggleBtn.querySelector('span');
             if (toggleIcon && toggleText) {
                 toggleIcon.setAttribute('xlink:href', isVisible ? '#iconDown' : '#iconUp');
-                toggleText.textContent = isVisible ? '展开' : '收起';
+                toggleText.textContent = isVisible ? t("expand") : t("collapse");
             }
         });
 
@@ -690,26 +690,26 @@ class SmartBatchDialog {
     }
     private showBatchNaturalLanguageDialog(dialog: Dialog) {
         const nlDialog = new Dialog({
-            title: "✨ 批量智能日期识别",
+            title: t("smartDateRecognitionDialog"),
             content: `
                 <div class="nl-dialog">
                     <div class="b3-dialog__content">
                         <div class="b3-form__group">
-                            <label class="b3-form__label">输入自然语言描述</label>
-                            <input type="text" id="batchNlInput" class="b3-text-field" placeholder="例如：明天下午3点、下周五、3天后等" style="width: 100%;" autofocus>
+                            <label class="b3-form__label">${t("inputNaturalLanguage")}</label>
+                            <input type="text" id="batchNlInput" class="b3-text-field" placeholder="${t('exampleInputs')}" style="width: 100%;" autofocus>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">识别结果预览</label>
-                            <div id="batchNlPreview" class="nl-preview">请输入日期时间描述</div>
+                            <label class="b3-form__label">${t("recognitionPreview")}</label>
+                            <div id="batchNlPreview" class="nl-preview">${t("pleaseInputDescription")}</div>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">应用范围</label>
-                            <div id="batchNlScope" class="nl-scope">将应用到所有选中的块</div>
+                            <label class="b3-form__label">${t("applyScope")}</label>
+                            <div id="batchNlScope" class="nl-scope">${t("applyToSelected")}</div>
                         </div>
                     </div>
                     <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="batchNlCancelBtn">取消</button>
-                        <button class="b3-button b3-button--primary" id="batchNlConfirmBtn" disabled>批量应用</button>
+                        <button class="b3-button b3-button--cancel" id="batchNlCancelBtn">${t("cancel")}</button>
+                        <button class="b3-button b3-button--primary" id="batchNlConfirmBtn" disabled>${t("batchApply")}</button>
                     </div>
                 </div>
             `,
@@ -727,7 +727,7 @@ class SmartBatchDialog {
         const nlConfirmBtn = nlDialog.element.querySelector('#batchNlConfirmBtn') as HTMLButtonElement;
 
         const selectedCount = this.getSelectedBlockIds(parentDialog).length;
-        nlScope.textContent = `将应用到 ${selectedCount} 个选中的块`;
+        nlScope.textContent = t("applyToSelectedBlocks", { count: selectedCount });
 
         let currentParseResult: { date?: string; time?: string; hasTime?: boolean } = {};
 
@@ -735,7 +735,7 @@ class SmartBatchDialog {
         const updatePreview = () => {
             const text = nlInput.value.trim();
             if (!text) {
-                nlPreview.textContent = '请输入日期时间描述';
+                nlPreview.textContent = t("pleaseInputDescription");
                 nlPreview.className = 'nl-preview';
                 nlConfirmBtn.disabled = true;
                 return;
@@ -761,7 +761,7 @@ class SmartBatchDialog {
                 nlPreview.className = 'nl-preview nl-preview--success';
                 nlConfirmBtn.disabled = selectedCount === 0;
             } else {
-                nlPreview.textContent = '❌ 无法识别日期时间，请尝试其他表达方式';
+                nlPreview.textContent = t("cannotRecognize");
                 nlPreview.className = 'nl-preview nl-preview--error';
                 nlConfirmBtn.disabled = true;
             }
@@ -793,7 +793,7 @@ class SmartBatchDialog {
 
         const selectedBlocks = this.getSelectedBlockIds(dialog);
         if (selectedBlocks.length === 0) {
-            showMessage('请先选择要应用的块');
+            showMessage(t("pleaseSelectBlocks"));
             return;
         }
 
@@ -814,7 +814,10 @@ class SmartBatchDialog {
         this.updateBlockListDisplay(dialog);
 
         const dateStr = new Date(result.date + 'T00:00:00').toLocaleDateString('zh-CN');
-        showMessage(`✨ 已为 ${selectedBlocks.length} 个块设置日期时间：${dateStr}${result.time ? ` ${result.time}` : ''}`);
+        showMessage(t("dateTimeSet", { 
+            date: dateStr, 
+            time: result.time ? ` ${result.time}` : '' 
+        }));
     }
     private getSelectedBlockIds(dialog: Dialog): string[] {
         const checkboxes = dialog.element.querySelectorAll('.block-select-checkbox:checked') as NodeListOf<HTMLInputElement>;
@@ -867,7 +870,7 @@ class SmartBatchDialog {
             const noCategoryEl = document.createElement('div');
             noCategoryEl.className = 'category-option-compact';
             noCategoryEl.setAttribute('data-category', '');
-            noCategoryEl.innerHTML = `<span>无分类</span>`;
+            noCategoryEl.innerHTML = `<span>${t("noCategory")}</span>`;
             categorySelector.appendChild(noCategoryEl);
 
             categories.forEach(category => {
@@ -881,7 +884,7 @@ class SmartBatchDialog {
 
         } catch (error) {
             console.error('渲染批量分类选择器失败:', error);
-            categorySelector.innerHTML = '<div class="category-error">加载分类失败</div>';
+            categorySelector.innerHTML = `<div class="category-error">${t("loadCategoryFailed")}</div>`;
         }
     }
 
@@ -893,7 +896,7 @@ class SmartBatchDialog {
         const selectedBlocks = this.getSelectedBlockIds(dialog);
 
         if (selectedBlocks.length === 0) {
-            showMessage('请先选择要应用的块');
+            showMessage(t("pleaseSelectBlocks"));
             return;
         }
 
@@ -905,7 +908,7 @@ class SmartBatchDialog {
         });
 
         this.updateBlockListDisplay(dialog);
-        showMessage(`✅ 已为 ${selectedBlocks.length} 个块设置分类`);
+        showMessage(t("settingsApplied"));
     }
 
     private batchApplyPriority(dialog: Dialog) {
@@ -916,7 +919,7 @@ class SmartBatchDialog {
         const selectedBlocks = this.getSelectedBlockIds(dialog);
 
         if (selectedBlocks.length === 0) {
-            showMessage('请先选择要应用的块');
+            showMessage(t("pleaseSelectBlocks"));
             return;
         }
 
@@ -928,19 +931,19 @@ class SmartBatchDialog {
         });
 
         this.updateBlockListDisplay(dialog);
-        showMessage(`✅ 已为 ${selectedBlocks.length} 个块设置优先级`);
+        showMessage(t("settingsApplied"));
     }
 
     private batchApplyDate(dialog: Dialog) {
         const dateInput = dialog.element.querySelector('#batchDateInput') as HTMLInputElement;
         if (!dateInput.value) {
-            showMessage('请先选择日期');
+            showMessage(t("pleaseSelectDate"));
             return;
         }
 
         const selectedBlocks = this.getSelectedBlockIds(dialog);
         if (selectedBlocks.length === 0) {
-            showMessage('请先选择要应用的块');
+            showMessage(t("pleaseSelectBlocks"));
             return;
         }
 
@@ -952,7 +955,7 @@ class SmartBatchDialog {
         });
 
         this.updateBlockListDisplay(dialog);
-        showMessage(`✅ 已为 ${selectedBlocks.length} 个块设置日期`);
+        showMessage(t("settingsApplied"));
     }
 
     private updateBlockDisplay(dialog: Dialog, blockId: string) {
@@ -1033,7 +1036,10 @@ class SmartBatchDialog {
             }
 
             if (successCount > 0) {
-                showMessage(`✨ 批量设置完成！成功：${successCount}个${failureCount > 0 ? `，失败：${failureCount}个` : ''}`);
+                showMessage(t("batchCompleted", { 
+                    success: successCount, 
+                    failure: failureCount > 0 ? t("failureCount", { count: failureCount }) : '' 
+                }));
             } else {
                 showMessage(t("batchSetFailed"));
             }
@@ -1074,7 +1080,7 @@ class BlockEditDialog {
 
     show() {
         const dialog = new Dialog({
-            title: `⚙️ 设置提醒 - ${this.setting.cleanTitle}`,
+            title: t("settingsDialog", { title: this.setting.cleanTitle }),
             content: this.buildEditContent(),
             width: "500px",
             height: "650px"
@@ -1093,7 +1099,7 @@ class BlockEditDialog {
                 <div class="b3-dialog__content">
                     <div class="fn__hr"></div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">块内容</label>
+                        <label class="b3-form__label">${t("blockContent")}</label>
                         <div class="block-content-display">${this.setting.content}</div>
                     </div>
                     
@@ -1101,14 +1107,14 @@ class BlockEditDialog {
                         <label class="b3-form__label">${t("reminderDate")}</label>
                         <div class="title-input-container" style="display: flex; gap: 8px;">
                             <input type="date" id="editDate" class="b3-text-field" value="${this.setting.date}" style="flex: 1;">
-                            <button type="button" id="editNlBtn" class="b3-button b3-button--outline" title="✨ 智能日期识别">
+                            <button type="button" id="editNlBtn" class="b3-button b3-button--outline" title="${t('smartDateRecognition')}">
                                 ✨
                             </button>
                         </div>
                     </div>
                     
                     <div class="b3-form__group">
-                        <label class="b3-form__label">事件分类</label>
+                        <label class="b3-form__label">${t("eventCategory")}</label>
                         <div class="category-selector" id="editCategorySelector">
                             <!-- 分类选择器将在这里渲染 -->
                         </div>
@@ -1166,7 +1172,7 @@ class BlockEditDialog {
                 </div>
                 <div class="b3-dialog__action">
                     <button class="b3-button b3-button--cancel" id="editCancelBtn">${t("cancel")}</button>
-                    <button class="b3-button b3-button--primary" id="editSaveBtn">保存设置</button>
+                    <button class="b3-button b3-button--primary" id="editSaveBtn">${t("saveSettings")}</button>
                 </div>
             </div>
         `;
@@ -1184,7 +1190,7 @@ class BlockEditDialog {
             const noCategoryEl = document.createElement('div');
             noCategoryEl.className = `category-option ${!this.setting.categoryId ? 'selected' : ''}`;
             noCategoryEl.setAttribute('data-category', '');
-            noCategoryEl.innerHTML = `<span>无分类</span>`;
+            noCategoryEl.innerHTML = `<span>${t("noCategory")}</span>`;
             categorySelector.appendChild(noCategoryEl);
 
             categories.forEach(category => {
@@ -1198,7 +1204,7 @@ class BlockEditDialog {
 
         } catch (error) {
             console.error('渲染分类选择器失败:', error);
-            categorySelector.innerHTML = '<div class="category-error">加载分类失败</div>';
+            categorySelector.innerHTML = `<div class="category-error">${t("loadCategoryFailed")}</div>`;
         }
     }
 
@@ -1277,22 +1283,22 @@ class BlockEditDialog {
 
     private showNaturalLanguageDialog(parentDialog: Dialog) {
         const nlDialog = new Dialog({
-            title: "✨ 智能日期识别",
+            title: t("smartDateRecognitionDialog"),
             content: `
                 <div class="nl-dialog">
                     <div class="b3-dialog__content">
                         <div class="b3-form__group">
-                            <label class="b3-form__label">输入自然语言描述</label>
-                            <input type="text" id="blockNlInput" class="b3-text-field" placeholder="例如：明天下午3点、下周五、3天后等" style="width: 100%;" autofocus>
+                            <label class="b3-form__label">${t("inputNaturalLanguage")}</label>
+                            <input type="text" id="blockNlInput" class="b3-text-field" placeholder="${t('exampleInputs')}" style="width: 100%;" autofocus>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">识别结果预览</label>
-                            <div id="blockNlPreview" class="nl-preview">请输入日期时间描述</div>
+                            <label class="b3-form__label">${t("recognitionPreview")}</label>
+                            <div id="blockNlPreview" class="nl-preview">${t("pleaseInputDescription")}</div>
                         </div>
                     </div>
                     <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="blockNlCancelBtn">取消</button>
-                        <button class="b3-button b3-button--primary" id="blockNlConfirmBtn" disabled>应用</button>
+                        <button class="b3-button b3-button--cancel" id="blockNlCancelBtn">${t("cancel")}</button>
+                        <button class="b3-button b3-button--primary" id="blockNlConfirmBtn" disabled>${t("save")}</button>
                     </div>
                 </div>
             `,
@@ -1315,7 +1321,7 @@ class BlockEditDialog {
         const updatePreview = () => {
             const text = nlInput.value.trim();
             if (!text) {
-                nlPreview.textContent = '请输入日期时间描述';
+                nlPreview.textContent = t("pleaseInputDescription");
                 nlPreview.className = 'nl-preview';
                 nlConfirmBtn.disabled = true;
                 return;
@@ -1342,7 +1348,7 @@ class BlockEditDialog {
                 nlPreview.className = 'nl-preview nl-preview--success';
                 nlConfirmBtn.disabled = false;
             } else {
-                nlPreview.textContent = '❌ 无法识别日期时间，请尝试其他表达方式';
+                nlPreview.textContent = t("cannotRecognize");
                 nlPreview.className = 'nl-preview nl-preview--error';
                 nlConfirmBtn.disabled = true;
             }
@@ -1393,7 +1399,10 @@ class BlockEditDialog {
             timeInput.value = '';
         }
 
-        showMessage(`✨ 已设置日期时间：${new Date(result.date + 'T00:00:00').toLocaleDateString('zh-CN')}${result.time ? ` ${result.time}` : ''}`);
+        showMessage(t("dateTimeSet", { 
+            date: new Date(result.date + 'T00:00:00').toLocaleDateString('zh-CN'), 
+            time: result.time ? ` ${result.time}` : ''
+        }));
     }
 
     private saveBlockSetting(dialog: Dialog) {
@@ -1420,7 +1429,7 @@ class BlockEditDialog {
         // 调用保存回调
         this.onSave(this.setting);
 
-        showMessage('✅ 设置已保存');
+        showMessage(t("settingsApplied"));
         dialog.destroy();
     }
 }

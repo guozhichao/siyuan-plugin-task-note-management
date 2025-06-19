@@ -1371,5 +1371,3 @@ export default class ReminderPlugin extends Plugin {
         });
     }
 }
-    }
-}
