@@ -128,7 +128,7 @@ export class CalendarView {
             },
             editable: true,
             selectable: true,
-            locale: 'zh-cn',
+            locale: window.siyuan.config.lang.toLowerCase().replace('_', '-'),
             eventClassNames: 'reminder-calendar-event',
             eventContent: this.renderEventContent.bind(this),
             eventClick: this.handleEventClick.bind(this),
