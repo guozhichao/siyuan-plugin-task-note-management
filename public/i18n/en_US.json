@@ -296,5 +296,13 @@
     "randomNotificationSoundsDesc": "Set the random notification sound file path during pomodoro, leave empty to disable",
     "randomNotificationEndSound": "Random Notification End Sound",
     "randomNotificationEndSoundDesc": "Set the notification sound file path after random notification ends, leave empty for no sound",
-    "dragHint": "Drag and drop category items to adjust the order"
+    "dragHint": "Drag and drop category items to adjust the order",
+    "copyBlockRef": "Copy Block Ref",
+    "startPomodoro": "Start Pomodoro",
+    "startCountUp": "Start Count Up",
+    "markTodayCompleted": "Mark Today Completed",
+    "unmarkTodayCompleted": "Unmark Today Completed",
+    "markedTodayCompleted": "Marked as completed today",
+    "unmarkedTodayCompleted": "Unmarked as completed today",
+    "setCategory": "Set Category"
 }

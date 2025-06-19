@@ -322,8 +322,8 @@ export class ReminderPanel {
             const categories = this.categoryManager.getCategories();
 
             this.categoryFilterSelect.innerHTML = `
-                <option value="all" ${this.currentCategoryFilter === 'all' ? 'selected' : ''}>全部分类</option>
-                <option value="none" ${this.currentCategoryFilter === 'none' ? 'selected' : ''}>无分类</option>
+                <option value="all" ${this.currentCategoryFilter === 'all' ? 'selected' : ''}>${t("allCategories")}</option>
+                <option value="none" ${this.currentCategoryFilter === 'none' ? 'selected' : ''}>${t("noCategory")}</option>
             `;
 
             categories.forEach(category => {
@@ -338,7 +338,7 @@ export class ReminderPanel {
 
         } catch (error) {
             console.error('渲染分类过滤器失败:', error);
-            this.categoryFilterSelect.innerHTML = '<option value="all">全部分类</option>';
+            this.categoryFilterSelect.innerHTML = `<option value="all">${t("allCategories")}</option>`;
         }
     }
 
@@ -850,7 +850,7 @@ export class ReminderPanel {
         } catch (error) {
             console.error('加载提醒失败:', error);
             showMessage(t("loadRemindersFailed"));
-         }
+        }
     }
 
     /**
@@ -1375,7 +1375,7 @@ export class ReminderPanel {
                 app: window.siyuan.ws.app,
                 doc: {
                     id: blockId,
-                    action: ["cb-get-focus","cb-get-hl"]
+                    action: ["cb-get-focus", "cb-get-hl"]
                 },
                 keepCursor: false,
                 removeCurrentTab: false
@@ -1960,7 +1960,7 @@ export class ReminderPanel {
             throw error;
         }
     }
-    
+
     /**
      * 格式化完成时间显示
      * @param completedTime 完成时间字符串
@@ -2077,7 +2077,7 @@ export class ReminderPanel {
             // --- Menu for a REPEAT INSTANCE ---
             menu.addItem({
                 iconHTML: "📋",
-                label: "复制块引",
+                label: t("copyBlockRef"),
                 click: () => this.copyBlockRef(reminder)
             });
 
@@ -2086,7 +2086,7 @@ export class ReminderPanel {
                 const isTodayCompleted = this.isSpanningEventTodayCompleted(reminder);
                 menu.addItem({
                     iconHTML: isTodayCompleted ? "🔄" : "✅",
-                    label: isTodayCompleted ? "取消今日已完成" : "今日已完成",
+                    label: isTodayCompleted ? t("unmarkTodayCompleted") : t("markTodayCompleted"),
                     click: () => {
                         if (isTodayCompleted) {
                             this.unmarkSpanningEventTodayCompleted(reminder);
@@ -2115,7 +2115,7 @@ export class ReminderPanel {
             });
             menu.addItem({
                 iconHTML: "🏷️",
-                label: "设置分类",
+                label: t("setCategory"),
                 submenu: createCategoryMenuItems()
             });
             menu.addSeparator();
@@ -2132,12 +2132,12 @@ export class ReminderPanel {
             menu.addSeparator();
             menu.addItem({
                 iconHTML: "🍅",
-                label: "开始番茄钟",
+                label: t("startPomodoro"),
                 click: () => this.startPomodoro(reminder)
             });
             menu.addItem({
                 iconHTML: "⏱️",
-                label: "开始正计时",
+                label: t("startCountUp"),
                 click: () => this.startPomodoroCountUp(reminder)
             });
 
@@ -2145,7 +2145,7 @@ export class ReminderPanel {
             // --- Menu for the ORIGINAL RECURRING EVENT ---
             menu.addItem({
                 iconHTML: "📋",
-                label: "复制块引用",
+                label: t("copyBlockRef"),
                 click: () => this.copyBlockRef(reminder)
             });
 
@@ -2154,7 +2154,7 @@ export class ReminderPanel {
                 const isTodayCompleted = this.isSpanningEventTodayCompleted(reminder);
                 menu.addItem({
                     iconHTML: isTodayCompleted ? "🔄" : "✅",
-                    label: isTodayCompleted ? "取消今日已完成" : "今日已完成",
+                    label: isTodayCompleted ? t("unmarkTodayCompleted") : t("markTodayCompleted"),
                     click: () => {
                         if (isTodayCompleted) {
                             this.unmarkSpanningEventTodayCompleted(reminder);
@@ -2183,7 +2183,7 @@ export class ReminderPanel {
             });
             menu.addItem({
                 iconHTML: "🏷️",
-                label: "设置分类",
+                label: t("setCategory"),
                 submenu: createCategoryMenuItems()
             });
             menu.addSeparator();
@@ -2200,12 +2200,12 @@ export class ReminderPanel {
             menu.addSeparator();
             menu.addItem({
                 iconHTML: "🍅",
-                label: "开始番茄钟",
+                label: t("startPomodoro"),
                 click: () => this.startPomodoro(reminder)
             });
             menu.addItem({
                 iconHTML: "⏱️",
-                label: "开始正计时",
+                label: t("startCountUp"),
                 click: () => this.startPomodoroCountUp(reminder)
             });
 
@@ -2213,7 +2213,7 @@ export class ReminderPanel {
             // --- Menu for a SIMPLE, NON-RECURRING EVENT ---
             menu.addItem({
                 iconHTML: "📋",
-                label: "复制块引用",
+                label: t("copyBlockRef"),
                 click: () => this.copyBlockRef(reminder)
             });
 
@@ -2222,7 +2222,7 @@ export class ReminderPanel {
                 const isTodayCompleted = this.isSpanningEventTodayCompleted(reminder);
                 menu.addItem({
                     iconHTML: isTodayCompleted ? "🔄" : "✅",
-                    label: isTodayCompleted ? "取消今日已完成" : "今日已完成",
+                    label: isTodayCompleted ? t("unmarkTodayCompleted") : t("markTodayCompleted"),
                     click: () => {
                         if (isTodayCompleted) {
                             this.unmarkSpanningEventTodayCompleted(reminder);
@@ -2246,18 +2246,18 @@ export class ReminderPanel {
             });
             menu.addItem({
                 iconHTML: "🏷️",
-                label: "设置分类",
+                label: t("setCategory"),
                 submenu: createCategoryMenuItems()
             });
             menu.addSeparator();
             menu.addItem({
                 iconHTML: "🍅",
-                label: "开始番茄钟",
+                label: t("startPomodoro"),
                 click: () => this.startPomodoro(reminder)
             });
             menu.addItem({
                 iconHTML: "⏱️",
-                label: "开始正计时",
+                label: t("startCountUp"),
                 click: () => this.startPomodoroCountUp(reminder)
             });
             menu.addItem({
@@ -2360,7 +2360,7 @@ export class ReminderPanel {
             }
 
             await writeReminderData(reminderData);
-            showMessage("已标记今日已完成");
+            showMessage(t("markedTodayCompleted"));
             this.loadReminders();
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
@@ -2370,7 +2370,7 @@ export class ReminderPanel {
             }
         } catch (error) {
             console.error('标记今日已完成失败:', error);
-            showMessage("操作失败");
+            showMessage(t("operationFailed"));
         }
     }
 
@@ -2397,7 +2397,7 @@ export class ReminderPanel {
             }
 
             await writeReminderData(reminderData);
-            showMessage("已取消今日已完成");
+            showMessage(t("unmarkedTodayCompleted"));
             this.loadReminders();
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
@@ -2407,9 +2407,117 @@ export class ReminderPanel {
             }
         } catch (error) {
             console.error('取消今日已完成失败:', error);
-            showMessage("操作失败");
+            showMessage(t("operationFailed"));
         }
     }
+
+    private async performStartPomodoro(reminder: any, inheritState?: any) {
+        // 如果已经有活动的番茄钟，先关闭它
+        if (ReminderPanel.currentPomodoroTimer) {
+            try {
+                ReminderPanel.currentPomodoroTimer.close();
+                ReminderPanel.currentPomodoroTimer = null;
+            } catch (error) {
+                console.error('关闭之前的番茄钟失败:', error);
+            }
+        }
+
+        const settings = await this.plugin.getPomodoroSettings();
+        console.log('结果', settings);
+        const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState);
+
+        // 设置当前活动的番茄钟实例
+        ReminderPanel.currentPomodoroTimer = pomodoroTimer;
+
+        pomodoroTimer.show();
+
+        // 如果继承了状态且原来正在运行，显示继承信息
+        if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
+            const phaseText = inheritState.isWorkPhase ? '工作时间' : '休息时间';
+            showMessage(`已切换任务并继承${phaseText}进度`, 2000);
+        }
+    }
+
+    /**
+     * 标记跨天事件"今日已完成"
+     * @param reminder 提醒对象
+     */
+    private async markSpanningEventTodayCompleted(reminder: any) {
+        try {
+            const today = getLocalDateString();
+            const reminderData = await readReminderData();
+
+            if (reminder.isRepeatInstance) {
+                // 重复事件实例：更新原始事件的每日完成记录
+                const originalId = reminder.originalId;
+                if (reminderData[originalId]) {
+                    if (!reminderData[originalId].dailyCompletions) {
+                        reminderData[originalId].dailyCompletions = {};
+                    }
+                    reminderData[originalId].dailyCompletions[today] = true;
+                }
+            } else {
+                // 普通事件：更新事件的每日完成记录
+                if (reminderData[reminder.id]) {
+                    if (!reminderData[reminder.id].dailyCompletions) {
+                        reminderData[reminder.id].dailyCompletions = {};
+                    }
+                    reminderData[reminder.id].dailyCompletions[today] = true;
+                }
+            }
+
+            await writeReminderData(reminderData);
+            showMessage(t("markedTodayCompleted"));
+            this.loadReminders();
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+            // 通知插件更新徽章
+            if (this.plugin && typeof this.plugin.updateBadges === 'function') {
+                this.plugin.updateBadges();
+            }
+        } catch (error) {
+            console.error('标记今日已完成失败:', error);
+            showMessage(t("operationFailed"));
+        }
+    }
+
+    /**
+     * 取消标记跨天事件"今日已完成"
+     * @param reminder 提醒对象
+     */
+    private async unmarkSpanningEventTodayCompleted(reminder: any) {
+        try {
+            const today = getLocalDateString();
+            const reminderData = await readReminderData();
+
+            if (reminder.isRepeatInstance) {
+                // 重复事件实例：更新原始事件的每日完成记录
+                const originalId = reminder.originalId;
+                if (reminderData[originalId] && reminderData[originalId].dailyCompletions) {
+                    delete reminderData[originalId].dailyCompletions[today];
+                }
+            } else {
+                // 普通事件：更新事件的每日完成记录
+                if (reminderData[reminder.id] && reminderData[reminder.id].dailyCompletions) {
+                    delete reminderData[reminder.id].dailyCompletions[today];
+                }
+            }
+
+            await writeReminderData(reminderData);
+            showMessage(t("unmarkedTodayCompleted"));
+            this.loadReminders();
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+            // 通知插件更新徽章
+            if (this.plugin && typeof this.plugin.updateBadges === 'function') {
+                this.plugin.updateBadges();
+            }
+        } catch (error) {
+            console.error('取消今日已完成失败:', error);
+            showMessage(t("operationFailed"));
+        }
+    }
+
     private async performStartPomodoro(reminder: any, inheritState?: any) {
         // 如果已经有活动的番茄钟，先关闭它
         if (ReminderPanel.currentPomodoroTimer) {
@@ -2479,7 +2587,7 @@ export class ReminderPanel {
                     this.performStartPomodoroCountUp(reminder, currentState);
                 },
                 () => {
-                    // 用户取消，尝试恢复原番茄钟的运行状态
+                    // 用户取消，尝试恢复番茄钟的运行状态
                     if (currentState.isRunning && !currentState.isPaused) {
                         try {
                             ReminderPanel.currentPomodoroTimer.resumeFromExternal();

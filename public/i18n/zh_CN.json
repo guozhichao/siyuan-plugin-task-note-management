@@ -229,7 +229,7 @@
     "categoryName": "分类名称",
     "categoryColor": "分类颜色",
     "categoryIcon": "分类图标（可选）",
-    "noCategory": "未分配分类",
+    "noCategory": "无分类",
     "allCategories": "所有分类",
     "resetToDefault": "重置为默认分类",
     "resetCategories": "重置分类",
@@ -295,5 +295,13 @@
     "randomNotificationSoundsDesc": "设置番茄钟运行时随机提示音的文件路径，留空则不启用",
     "randomNotificationEndSound": "随机提示音结束声音",
     "randomNotificationEndSoundDesc": "设置随机提示音播放结束后的提示音文件路径，留空则不播放",
-    "dragHint": "拖拽分类项可调整排序"
+    "dragHint": "拖拽分类项可调整排序",
+    "copyBlockRef": "复制块引用",
+    "startPomodoro": "开始番茄钟",
+    "startCountUp": "开始正计时",
+    "markTodayCompleted": "今日已完成",
+    "unmarkTodayCompleted": "取消今日已完成",
+    "markedTodayCompleted": "已标记今日已完成",
+    "unmarkedTodayCompleted": "已取消今日已完成",
+    "setCategory": "设置分类"
 }
