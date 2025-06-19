@@ -81,7 +81,7 @@ export default class ReminderPlugin extends Plugin {
 
 
         setPluginInstance(this);
-        this.initSettings();
+
 
         await ensureReminderDataFile();
 
@@ -110,7 +110,7 @@ export default class ReminderPlugin extends Plugin {
 
             try {
                 // 预加载音频文件
-                const soundPath = this.getNotificationSound();
+                const soundPath = await this.getNotificationSound();
                 if (soundPath) {
                     this.preloadedAudio = new Audio(soundPath);
                     this.preloadedAudio.volume = 0; // 很小的音量进行预加载
@@ -147,7 +147,7 @@ export default class ReminderPlugin extends Plugin {
     // 重写 openSetting 方法
     async openSetting() {
         let dialog = new Dialog({
-            title: "设置面板",
+            title: t("settingsPanel"),
             content: `<div id="SettingPanel" style="height: 100%;"></div>`,
             width: "800px",
             height: "700px",
