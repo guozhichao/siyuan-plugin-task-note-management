@@ -90,7 +90,7 @@ export class ProjectDialog {
                     </div>
                     
                     <div class="form-group">
-                        <label>${t("reminderDate") || "开始日期"}:</label>
+                        <label>${t("startDate") || "开始日期"}:</label>
                         <input type="date" id="projectStartDate" class="b3-text-field" value="${existingProject?.startDate || today}">
                     </div>
                     
