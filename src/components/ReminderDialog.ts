@@ -437,7 +437,7 @@ export class ReminderDialog {
                 showMessage(t("blockNotExist"));
                 return;
             }
-            this.blockContent = block?.content || t("unnamedNote");
+            this.blockContent = block?.fcontent || t("unnamedNote");
             // 获取文档ID - 如果blockId就是文档ID，则直接使用，否则获取根块ID
             this.documentId = block.root_id || this.blockId;
         } catch (error) {

@@ -183,7 +183,7 @@ export class BatchReminderDialog {
                 const block = await getBlockByID(blockId);
 
                 if (block) {
-                    const autoDetected = this.autoDetectDateTimeFromTitle(block.content);
+                    const autoDetected = this.autoDetectDateTimeFromTitle(block.fcontent);
                     results.push({
                         blockId,
                         content: block.content,
