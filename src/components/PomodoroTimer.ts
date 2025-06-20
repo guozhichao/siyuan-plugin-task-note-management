@@ -316,6 +316,14 @@ export class PomodoroTimer {
                         try {
                             // 现在可以播放，因为已经在用户手势上下文中初始化过了
                             await this.randomNotificationEndSound.play();
+
+                            // 新增：播放结束声音后显示系统通知
+                            if (this.systemNotificationEnabled) {
+                                this.showSystemNotification(
+                                    t('randomNotificationSettings'),
+                                    t('randomRestComplete') || '微休息时间结束，可以继续专注工作了！'
+                                );
+                            }
                         } catch (error) {
                             console.warn('播放随机提示音结束声音失败:', error);
                         }
@@ -328,9 +336,25 @@ export class PomodoroTimer {
                         try {
                             this.randomNotificationEndSound.currentTime = 0;
                             await this.randomNotificationEndSound.play();
+
+                            // 新增：在延迟播放时也显示系统通知
+                            if (this.systemNotificationEnabled) {
+                                this.showSystemNotification(
+                                    t('randomNotificationSettings'),
+                                    t('randomRestComplete') || '微休息时间结束，可以继续专注工作了！'
+                                );
+                            }
                         } catch (error) {
                             // 静默处理延迟播放失败，避免控制台错误
                             console.debug('延迟播放随机提示音结束声音失败，这是预期的浏览器安全限制');
+
+                            // 即使音频播放失败，也要显示系统通知
+                            if (this.systemNotificationEnabled) {
+                                this.showSystemNotification(
+                                    t('randomNotificationSettings'),
+                                    t('randomRestComplete') || '微休息时间结束，可以继续专注工作了！'
+                                );
+                            }
                         }
                     }, breakDuration);
                 }
