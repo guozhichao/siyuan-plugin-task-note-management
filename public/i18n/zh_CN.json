@@ -38,7 +38,7 @@
     "low": "低优先级",
     "none": "无优先级",
     "startDate": "开始日期",
-    "reminderDate": "提醒日期",
+    "reminderDate": "任务日期",
     "reminderTime": "提醒时间",
     "reminderTimeOptional": "提醒时间（可选）",
     "reminderNote": "备注",

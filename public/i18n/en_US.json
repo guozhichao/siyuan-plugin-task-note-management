@@ -38,7 +38,7 @@
     "low": "Low Priority",
     "none": "No Priority",
     "startDate": "Start Date",
-    "reminderDate": "Reminder Date",
+    "reminderDate": "Task Date",
     "reminderTime": "Reminder Time",
     "reminderTimeOptional": "Reminder Time (Optional)",
     "reminderNote": "Note",
