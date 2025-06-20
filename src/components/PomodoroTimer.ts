@@ -1397,10 +1397,10 @@ export class PomodoroTimer {
 
         setTimeout(() => {
             // 恢复时不显示统计数据
-            this.isExpanded = false;
-            this.statsContainer.style.display = 'none';
-            this.expandToggleBtn.innerHTML = '📈';
-            this.expandToggleBtn.title = '展开';
+            // this.isExpanded = false;
+            // this.statsContainer.style.display = 'none';
+            // this.expandToggleBtn.innerHTML = '📈';
+            // this.expandToggleBtn.title = '展开';
             this.updateDisplay();
         }, 300);
     }
