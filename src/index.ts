@@ -456,16 +456,16 @@ export default class ReminderPlugin extends Plugin {
                         }
                     });
 
-                    if (reminder.date === today && !reminder.completed) {
-                        const completedInstances = reminder.repeat.completedInstances || [];
-                        if (!completedInstances.includes(today)) {
-                            // 检查原始重复事件是否已标记"今日已完成"
-                            if (reminder.dailyCompletions && reminder.dailyCompletions[today]) {
-                                return; // 跳过已标记今日已完成的跨天重复事件
-                            }
-                            uncompletedCount++;
-                        }
-                    }
+                    // if (reminder.date === today && !reminder.completed) {
+                    //     const completedInstances = reminder.repeat.completedInstances || [];
+                    //     if (!completedInstances.includes(today)) {
+                    //         // 检查原始重复事件是否已标记"今日已完成"
+                    //         if (reminder.dailyCompletions && reminder.dailyCompletions[today]) {
+                    //             return; // 跳过已标记今日已完成的跨天重复事件
+                    //         }
+                    //         uncompletedCount++;
+                    //     }
+                    // }
                 }
             });
 
