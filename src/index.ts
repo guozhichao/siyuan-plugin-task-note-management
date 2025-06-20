@@ -47,6 +47,7 @@ export const DEFAULT_SETTINGS = {
     pomodoroBreakEndSound: '/plugins/siyuan-plugin-task-note-management/audios/end_music.mp3',
     pomodoroSystemNotification: true, // 新增：番茄结束后系统弹窗
     reminderSystemNotification: true, // 新增：事件到期提醒系统弹窗
+    dailyNotificationTime: 8, // 新增：每日通知时间，默认8点
     randomNotificationEnabled: false,
     randomNotificationMinInterval: 3,
     randomNotificationMaxInterval: 5,
@@ -906,8 +907,11 @@ export default class ReminderPlugin extends Plugin {
             const currentTime = getLocalTimeString();
             const currentHour = parseInt(currentTime.split(':')[0]);
 
-            // 只在6点后进行提醒检查
-            if (currentHour < 6) {
+            // 获取用户设置的每日通知时间
+            const dailyNotificationHour = await this.getDailyNotificationTime();
+
+            // 只在设置的时间后进行提醒检查
+            if (currentHour < dailyNotificationHour) {
                 return;
             }
 
@@ -1101,7 +1105,7 @@ export default class ReminderPlugin extends Plugin {
 
                     // 创建任务列表 - 直接显示所有任务
                     let taskList = ``;
-                    
+
                     // 显示前2个任务
                     sortedReminders.slice(0, 2).forEach(reminder => {
                         const timeText = reminder.time ? ` ${reminder.time}` : '';
@@ -1114,7 +1118,7 @@ export default class ReminderPlugin extends Plugin {
                     if (sortedReminders.length > 2) {
                         taskList += `... ${t("moreItems", { count: (sortedReminders.length - 2).toString() })}\n`;
                     }
-                    
+
                     const message = taskList.trim();
 
                     this.showReminderSystemNotification(title, message);
@@ -1495,6 +1499,14 @@ export default class ReminderPlugin extends Plugin {
         } catch (error) {
             console.warn('初始化系统通知权限失败:', error);
         }
+    }
+
+    // 获取每日通知时间设置
+    async getDailyNotificationTime(): Promise<number> {
+        const settings = await this.loadSettings();
+        const time = settings.dailyNotificationTime;
+        // 确保时间在0-24范围内
+        return Math.max(0, Math.min(24, typeof time === 'number' ? time : DEFAULT_SETTINGS.dailyNotificationTime));
     }
 
 }

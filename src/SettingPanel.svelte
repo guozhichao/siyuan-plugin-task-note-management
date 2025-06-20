@@ -1,8 +1,8 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import SettingPanel from '@/libs/components/setting-panel.svelte';
-    import { DEFAULT_SETTINGS, SETTINGS_FILE } from './index';
     import { t } from './utils/i18n';
+    import { DEFAULT_SETTINGS, SETTINGS_FILE } from './index';
 
     export let plugin;
 
@@ -32,6 +32,13 @@
                     type: 'checkbox',
                     title: t('reminderSystemNotification'),
                     description: t('reminderSystemNotificationDesc'),
+                },
+                {
+                    key: 'dailyNotificationTime',
+                    value: settings.dailyNotificationTime,
+                    type: 'number',
+                    title: t('dailyNotificationTime'),
+                    description: t('dailyNotificationTimeDesc'),
                 },
             ],
         },
@@ -275,4 +282,5 @@
         overflow: auto;
         padding: 2px;
     }
+
 </style>

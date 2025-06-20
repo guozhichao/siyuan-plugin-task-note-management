@@ -428,6 +428,8 @@
     "pomodoroSystemNotificationDesc": "番茄时间结束时显示系统弹窗通知",
     "reminderSystemNotification": "任务提醒系统弹窗",
     "reminderSystemNotificationDesc": "任务提醒时显示系统弹窗通知，支持点击跳转到相关块",
+    "dailyNotificationTime": "每日通知时间",
+    "dailyNotificationTimeDesc": "设置每天几点后进行全天事项通知（0-24点），默认上午8点",
     "timeReminderNotification": "任务提醒",
     "dailyRemindersNotification": "今日事项提醒",
     "dailyRemindersMessage": "您有 ${overdue} 个过期事项和 ${today} 个今日事项",
