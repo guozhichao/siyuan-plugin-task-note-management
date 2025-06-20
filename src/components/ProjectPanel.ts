@@ -1,5 +1,5 @@
 import { showMessage, confirm, Menu, openTab } from "siyuan";
-import { readProjectData, writeProjectData, getBlockByID } from "../api";
+import { readProjectData, writeProjectData, getBlockByID, openBlock } from "../api";
 import { getLocalDateString, compareDateStrings } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { ProjectDialog } from "./ProjectDialog";
@@ -1028,18 +1028,8 @@ export class ProjectPanel {
 
     private async openProject(blockId: string) {
         try {
-            const block = await getBlockByID(blockId);
-            if (!block) {
-                throw new Error('项目不存在');
-            }
 
-            openTab({
-                app: window.siyuan.ws.app,
-                doc: {
-                    id: blockId,
-                    action: ["cb-get-hl"]
-                },
-            });
+            openBlock(blockId);
         } catch (error) {
             console.error('打开项目失败:', error);
             confirm(

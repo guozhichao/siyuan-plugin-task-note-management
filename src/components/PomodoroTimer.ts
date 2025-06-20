@@ -1,6 +1,6 @@
 import { showMessage, openTab } from "siyuan";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
-import { readReminderData, writeReminderData, getBlockByID } from "../api";
+import { readReminderData, writeReminderData, getBlockByID, openBlock } from "../api";
 import { t } from "../utils/i18n"; // 新增i18n
 
 export class PomodoroTimer {
@@ -2692,43 +2692,7 @@ export class PomodoroTimer {
                 return;
             }
 
-            // 如果存在docId
-            if (this.reminder.docId) {
-                // 打开文档
-                // 打开笔记
-                openTab({
-                    app: window.siyuan.ws.app,
-                    doc: {
-                        id: this.reminder.docId,
-                        action: "cb-get-hl",
-                        zoomIn: false
-                    },
-                });
-                // 需要等待500ms
-                setTimeout(() => {
-                    // 打开块
-                    // 打开笔记
-                    openTab({
-                        app: window.siyuan.ws.app,
-                        doc: {
-                            id: blockId,
-                            action: "cb-get-hl",
-                            zoomIn: false
-                        },
-                    });
-                }, 500);
-            } else {
-                // 打开笔记
-                openTab({
-                    app: window.siyuan.ws.app,
-                    doc: {
-                        id: blockId,
-                        action: "cb-get-hl",
-                        zoomIn: false
-                    },
-                });
-            }
-
+            openBlock(blockId)
 
             showMessage("正在打开笔记...", 1000);
 

@@ -3,7 +3,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
-import { readReminderData, writeReminderData, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark } from "../api";
+import { readReminderData, writeReminderData, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark, openBlock } from "../api";
 import { getLocalDateString, getLocalDateTime, getLocalDateTimeString } from "../utils/dateUtils";
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
@@ -1058,49 +1058,9 @@ export class CalendarView {
         const blockId = reminder.blockId || info.event.id; // 兼容旧数据格式
 
         try {
-            // 检测块是否存在
-            const block = await getBlockByID(blockId);
-            if (!block) {
-                throw new Error('块不存在');
-            }
+            openBlock(blockId);
 
 
-            // 如果存在docId
-            if (reminder.docId) {
-                // 打开文档
-                // 打开笔记
-                openTab({
-                    app: window.siyuan.ws.app,
-                    doc: {
-                        id: reminder.docId,
-                        action: "cb-get-hl",
-                        zoomIn: false
-                    },
-                });
-                // 需要等待500ms
-                setTimeout(() => {
-                    // 打开块
-                    // 打开笔记
-                    openTab({
-                        app: window.siyuan.ws.app,
-                        doc: {
-                            id: blockId,
-                            action: "cb-get-hl",
-                            zoomIn: false
-                        },
-                    });
-                }, 500);
-            } else {
-                // 打开笔记
-                openTab({
-                    app: window.siyuan.ws.app,
-                    doc: {
-                        id: blockId,
-                        action: "cb-get-hl",
-                        zoomIn: false
-                    },
-                });
-            }
         } catch (error) {
             console.error('打开笔记失败:', error);
 

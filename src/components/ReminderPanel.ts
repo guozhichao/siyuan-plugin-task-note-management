@@ -1,5 +1,5 @@
 import { showMessage, confirm, Dialog, Menu, openTab } from "siyuan";
-import { readReminderData, writeReminderData, sql, updateBlock, getBlockKramdown, getBlockByID, updateBlockReminderBookmark } from "../api";
+import { readReminderData, writeReminderData, sql, updateBlock, getBlockKramdown, getBlockByID, updateBlockReminderBookmark, openBlock } from "../api";
 import { getLocalDateString, compareDateStrings, getLocalDateTime, getLocalDateTimeString } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { ReminderEditDialog } from "./ReminderEditDialog";
@@ -1363,23 +1363,10 @@ export class ReminderPanel {
         }
     }
 
-    private async openBlock(blockId: string) {
+    private async openBlockTab(blockId: string) {
         try {
-            // 检测块是否存在
-            const block = await getBlockByID(blockId);
-            if (!block) {
-                throw new Error('块不存在');
-            }
+            openBlock(blockId);
 
-            openTab({
-                app: window.siyuan.ws.app,
-                doc: {
-                    id: blockId,
-                    action: ["cb-get-focus", "cb-get-hl"]
-                },
-                keepCursor: false,
-                removeCurrentTab: false
-            });
         } catch (error) {
             console.error('打开块失败:', error);
 
@@ -1571,14 +1558,9 @@ export class ReminderPanel {
             // 如果存在docId
             if (reminder.docId) {
                 // 打开文档
-                this.openBlock(reminder.docId);
-                // 需要等待500ms
-                setTimeout(() => {
-                    // 打开块
-                    this.openBlock(reminder.blockId || reminder.id);
-                }, 500);
+                this.openBlockTab(reminder.blockId || reminder.id);
             } else {
-                this.openBlock(reminder.blockId || reminder.id);
+                this.openBlockTab(reminder.blockId || reminder.id);
             }
         });
 

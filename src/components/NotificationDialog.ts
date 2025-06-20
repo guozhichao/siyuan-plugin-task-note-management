@@ -1,6 +1,7 @@
 import { t } from "../utils/i18n";
 import { openTab } from "siyuan";
 import { getLocalDateString } from "../utils/dateUtils";
+import { openBlock } from "../api"
 
 interface ReminderInfo {
     id: string;
@@ -705,14 +706,7 @@ export class NotificationDialog {
         try {
             const targetBlockId = blockId || (this.reminderInfo as ReminderInfo).blockId;
             // 跳转到指定块
-            openTab({
-                app: window.siyuan?.ws?.app,
-                doc: {
-                    id: targetBlockId,
-                    action: ["cb-get-hl"],
-                    zoomIn: false
-                },
-            });
+            openBlock(targetBlockId);
 
             // 关闭通知
             this.destroy();
