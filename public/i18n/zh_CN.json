@@ -423,5 +423,8 @@
     "applyToSelectedBlocks": "将应用到 ${count} 个选中的块",
     "loadCategoryFailed": "加载分类失败",
     "cannotGetBlockContent": "无法获取块内容",
-    "blockEditFailed": "块编辑失败"
+    "blockEditFailed": "块编辑失败",
+    "pomodoroSystemNotification": "番茄钟系统弹窗",
+    "pomodoroSystemNotificationDesc": "番茄时间结束时显示系统弹窗通知",
+    "setTo": "已设置为"
 }

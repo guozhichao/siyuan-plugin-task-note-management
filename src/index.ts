@@ -45,6 +45,7 @@ export const DEFAULT_SETTINGS = {
     pomodoroLongBreakSound: '/plugins/siyuan-plugin-task-note-management/audios/relax_background.mp3',
     pomodoroWorkEndSound: '/plugins/siyuan-plugin-task-note-management/audios/work_end.mp3',
     pomodoroBreakEndSound: '/plugins/siyuan-plugin-task-note-management/audios/end_music.mp3',
+    pomodoroSystemNotification: true, // 新增：番茄结束后系统弹窗
     randomNotificationEnabled: false,
     randomNotificationMinInterval: 3,
     randomNotificationMaxInterval: 5,
@@ -187,6 +188,7 @@ export default class ReminderPlugin extends Plugin {
             workEndSound: settings.pomodoroWorkEndSound,
             breakEndSound: settings.pomodoroBreakEndSound,
             backgroundVolume: Math.max(0, Math.min(1, settings.backgroundVolume)),
+            systemNotification: settings.pomodoroSystemNotification, // 新增
             randomNotificationEnabled: settings.randomNotificationEnabled,
             randomNotificationMinInterval: Math.max(1, settings.randomNotificationMinInterval),
             randomNotificationMaxInterval: Math.max(1, settings.randomNotificationMaxInterval),

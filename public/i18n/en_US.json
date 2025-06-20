@@ -424,5 +424,8 @@
     "applyToSelectedBlocks": "Will apply to ${count} selected blocks",
     "loadCategoryFailed": "Load category failed",
     "cannotGetBlockContent": "Cannot get block content",
-    "blockEditFailed": "Block edit failed"
+    "blockEditFailed": "Block edit failed",
+    "pomodoroSystemNotification": "System Notification",
+    "pomodoroSystemNotificationDesc": "Show system notification popup when pomodoro session ends",
+    "setTo": "Set to"
 }

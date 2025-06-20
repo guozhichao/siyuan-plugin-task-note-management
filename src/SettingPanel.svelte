@@ -68,6 +68,13 @@
                     description: t('pomodoroAutoModeDesc'),
                 },
                 {
+                    key: 'pomodoroSystemNotification',
+                    value: settings.pomodoroSystemNotification,
+                    type: 'checkbox',
+                    title: t('pomodoroSystemNotification'),
+                    description: t('pomodoroSystemNotificationDesc'),
+                },
+                {
                     key: 'dailyFocusGoal',
                     value: settings.dailyFocusGoal,
                     type: 'number',

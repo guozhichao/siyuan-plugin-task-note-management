@@ -1,7 +1,8 @@
 import { showMessage, openTab } from "siyuan";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
 import { readReminderData, writeReminderData, getBlockByID, openBlock } from "../api";
-import { t } from "../utils/i18n"; // 新增i18n
+import { t } from "../utils/i18n";
+
 
 export class PomodoroTimer {
     private reminder: any;
@@ -65,6 +66,8 @@ export class PomodoroTimer {
     private randomNotificationEnabled: boolean = false;
     private randomNotificationEndSound: HTMLAudioElement = null;
 
+    private systemNotificationEnabled: boolean = true; // 新增：系统弹窗开关
+
     constructor(reminder: any, settings: any, isCountUp: boolean = false, inheritState?: any) {
         this.reminder = reminder;
         this.settings = settings;
@@ -77,12 +80,18 @@ export class PomodoroTimer {
         this.isBackgroundAudioMuted = settings.backgroundAudioMuted || false;
         this.backgroundVolume = Math.max(0, Math.min(1, settings.backgroundVolume || 0.5));
 
+        // 初始化系统弹窗设置
+        this.systemNotificationEnabled = settings.systemNotification !== false;
+
         // 初始化随机提示音设置
         this.randomNotificationEnabled = settings.randomNotificationEnabled || false;
 
         // 初始化自动模式设置
         this.autoMode = settings.autoMode || false;
         this.longBreakInterval = Math.max(1, settings.longBreakInterval || 4);
+
+        // 初始化系统弹窗功能
+        this.initSystemNotification();
 
         // 如果有继承状态，应用继承的状态
         if (inheritState && inheritState.isRunning) {
@@ -1994,6 +2003,55 @@ export class PomodoroTimer {
         this.updateDisplay();
     }
 
+    /**
+     * 初始化系统弹窗功能
+     */
+    private async initSystemNotification() {
+        if (!this.systemNotificationEnabled) {
+            return;
+        }
+
+        try {
+            // 动态导入node-notifier，避免在不支持的环境中报错
+            if (typeof require !== 'undefined') {
+                console.log('系统弹窗功能已启用');
+            } 
+        } catch (error) {
+            console.warn('初始化系统弹窗失败，将禁用此功能:', error);
+            this.systemNotificationEnabled = false;
+        }
+    }
+
+    /**
+     * 显示系统弹窗通知
+     */
+    private showSystemNotification(title: string, message: string, type: 'work' | 'break' | 'longBreak' = 'work') {
+        if (!this.systemNotificationEnabled) {
+            return;
+        }
+
+        try {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                // 使用浏览器通知作为备选方案
+                const notification = new Notification(title, {
+                    body: message,
+                    requireInteraction: true,
+                    silent: false// 使用我们自己的音频
+                });
+
+                // 点击通知时的处理
+                notification.onclick = () => {
+                    window.focus();
+                    notification.close();
+                };
+
+            }
+        } catch (error) {
+            console.warn('显示系统弹窗失败:', error);
+        }
+    }
+
+
     // 完成番茄阶段（正计时模式）
     private async completePomodoroPhase() {
         // 正计时模式下不停止计时器，只记录番茄数量
@@ -2010,6 +2068,16 @@ export class PomodoroTimer {
             // 播放工作结束提示音
             if (this.workEndAudio) {
                 await this.safePlayAudio(this.workEndAudio);
+            }
+
+            // 显示系统弹窗通知
+            if (this.systemNotificationEnabled) {
+                const eventTitle = this.reminder.title || '番茄专注';
+                this.showSystemNotification(
+                    '🍅 工作番茄完成！',
+                    `「${eventTitle}」的工作时间已结束，是时候休息一下了！`,
+                    'work'
+                );
             }
 
             showMessage('🍅 工作番茄完成！开始休息吧～', 3000);
@@ -2070,6 +2138,18 @@ export class PomodoroTimer {
             await this.safePlayAudio(this.breakEndAudio);
         }
 
+        // 显示系统弹窗通知
+        const breakType = this.isLongBreak ? '长时休息' : '短时休息';
+        
+        if (this.systemNotificationEnabled) {
+            const eventTitle = this.reminder.title || '番茄专注';
+            this.showSystemNotification(
+                `☕ ${breakType}结束！`,
+                `「${eventTitle}」的${breakType}已结束，准备开始下一个工作阶段吧！`,
+                this.isLongBreak ? 'longBreak' : 'break'
+            );
+        }
+
         // 记录完成的休息时间
         const breakDuration = this.isLongBreak ? this.settings.longBreakDuration : this.settings.breakDuration;
         const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
@@ -2084,7 +2164,6 @@ export class PomodoroTimer {
             true
         );
 
-        const breakType = this.isLongBreak ? '长时休息' : '短时休息';
         // 检查是否启用自动模式并进入下一阶段
         if (this.autoMode) {
             showMessage(`☕ ${breakType}结束！自动开始下一个工作阶段`, 3000);
@@ -2102,8 +2181,6 @@ export class PomodoroTimer {
             this.isRunning = false;
             this.isPaused = false;
             this.breakTimeLeft = 0;
-
-
 
             this.updateDisplay();
 
@@ -2125,6 +2202,15 @@ export class PomodoroTimer {
 
         if (this.isWorkPhase) {
             // 工作阶段结束，停止随机提示音
+            // 显示系统弹窗通知
+            if (this.systemNotificationEnabled) {
+                const eventTitle = this.reminder.title || '番茄专注';
+                this.showSystemNotification(
+                    '🍅 工作时间结束！',
+                    `「${eventTitle}」的工作时间已结束，是时候休息一下了！`,
+                    'work'
+                );
+            }
 
             // 播放工作结束提示音
 
@@ -2201,6 +2287,16 @@ export class PomodoroTimer {
             );
 
             const breakType = this.isLongBreak ? '长时休息' : '短时休息';
+
+            // 显示系统弹窗通知
+            if (this.systemNotificationEnabled) {
+                const eventTitle = this.reminder.title || '番茄专注';
+                this.showSystemNotification(
+                    `☕ ${breakType}结束！`,
+                    `「${eventTitle}」的${breakType}已结束，准备开始下一个番茄钟吧！`,
+                    this.isLongBreak ? 'longBreak' : 'break'
+                );
+            }
 
             // 检查是否启用自动模式
             if (this.autoMode) {
@@ -2447,7 +2543,7 @@ export class PomodoroTimer {
             font-variant-numeric: tabular-nums;
             outline: none;
         `;
-        input.placeholder = t('mmssFormat') || 'MM:SS';
+        input.placeholder =  'MM:SS';
 
         // 替换时间显示
         const parent = this.timeDisplay.parentNode;
