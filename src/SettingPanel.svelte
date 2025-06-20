@@ -6,7 +6,6 @@
 
     export let plugin;
 
-
     // 使用从 index.ts 导入的默认设置
     let settings = { ...DEFAULT_SETTINGS };
 

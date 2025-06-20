@@ -2015,7 +2015,7 @@ export class PomodoroTimer {
             // 动态导入node-notifier，避免在不支持的环境中报错
             if (typeof require !== 'undefined') {
                 console.log('系统弹窗功能已启用');
-            } 
+            }
         } catch (error) {
             console.warn('初始化系统弹窗失败，将禁用此功能:', error);
             this.systemNotificationEnabled = false;
@@ -2140,7 +2140,7 @@ export class PomodoroTimer {
 
         // 显示系统弹窗通知
         const breakType = this.isLongBreak ? '长时休息' : '短时休息';
-        
+
         if (this.systemNotificationEnabled) {
             const eventTitle = this.reminder.title || '番茄专注';
             this.showSystemNotification(
@@ -2543,7 +2543,7 @@ export class PomodoroTimer {
             font-variant-numeric: tabular-nums;
             outline: none;
         `;
-        input.placeholder =  'MM:SS';
+        input.placeholder = 'MM:SS';
 
         // 替换时间显示
         const parent = this.timeDisplay.parentNode;
