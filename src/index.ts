@@ -46,6 +46,7 @@ export const DEFAULT_SETTINGS = {
     pomodoroWorkEndSound: '/plugins/siyuan-plugin-task-note-management/audios/work_end.mp3',
     pomodoroBreakEndSound: '/plugins/siyuan-plugin-task-note-management/audios/end_music.mp3',
     pomodoroSystemNotification: true, // 新增：番茄结束后系统弹窗
+    reminderSystemNotification: true, // 新增：事件到期提醒系统弹窗
     randomNotificationEnabled: false,
     randomNotificationMinInterval: 3,
     randomNotificationMaxInterval: 5,
@@ -101,6 +102,10 @@ export default class ReminderPlugin extends Plugin {
 
         // 添加用户交互监听器来启用音频
         this.enableAudioOnUserInteraction();
+
+        // 初始化系统通知权限
+        this.initSystemNotificationPermission();
+
         // 监听文档树右键菜单事件
         this.eventBus.on('open-menu-doctree', this.handleDocumentTreeMenu.bind(this));
     }
@@ -197,6 +202,12 @@ export default class ReminderPlugin extends Plugin {
             randomNotificationEndSound: settings.randomNotificationEndSound,
             dailyFocusGoal: settings.dailyFocusGoal
         };
+    }
+
+    // 获取提醒系统弹窗设置
+    async getReminderSystemNotificationEnabled(): Promise<boolean> {
+        const settings = await this.loadSettings();
+        return settings.reminderSystemNotification !== false;
     }
 
     // 获取通知声音设置
@@ -1082,6 +1093,33 @@ export default class ReminderPlugin extends Plugin {
                 // 统一显示今日事项
                 NotificationDialog.showAllDayReminders(sortedReminders);
 
+                // 检查是否启用系统弹窗通知
+                const systemNotificationEnabled = await this.getReminderSystemNotificationEnabled();
+                if (systemNotificationEnabled) {
+                    const totalCount = sortedReminders.length;
+                    const title = '📅 ' + t("dailyRemindersNotification") + ` (${totalCount})`;
+
+                    // 创建任务列表 - 直接显示所有任务
+                    let taskList = ``;
+                    
+                    // 显示前2个任务
+                    sortedReminders.slice(0, 2).forEach(reminder => {
+                        const timeText = reminder.time ? ` ${reminder.time}` : '';
+                        const categoryText = (reminder as any).categoryName ? ` [${(reminder as any).categoryName}]` : '';
+                        const overdueIcon = reminder.isOverdue ? '⚠️ ' : '';
+                        taskList += `${overdueIcon}• ${reminder.title}${timeText}${categoryText}\n`;
+                    });
+
+                    // 如果任务超过2个，显示省略信息
+                    if (sortedReminders.length > 2) {
+                        taskList += `... ${t("moreItems", { count: (sortedReminders.length - 2).toString() })}\n`;
+                    }
+                    
+                    const message = taskList.trim();
+
+                    this.showReminderSystemNotification(title, message);
+                }
+
                 // 标记今天已提醒 - 添加错误处理
                 if (remindersToShow.length > 0) {
                     try {
@@ -1187,9 +1225,7 @@ export default class ReminderPlugin extends Plugin {
         const hours = parseInt(parts[0], 10);
         const minutes = parseInt(parts[1], 10);
         return hours * 100 + minutes;
-    }
-
-    // 显示时间提醒
+    }    // 显示时间提醒
     private async showTimeReminder(reminder: any) {
         try {
             // 播放通知声音
@@ -1224,10 +1260,67 @@ export default class ReminderPlugin extends Plugin {
             };
 
             // 显示单个提醒
-            NotificationDialog.show(reminderInfo);
+            NotificationDialog.show(reminderInfo);            // 检查是否启用系统弹窗通知
+            const systemNotificationEnabled = await this.getReminderSystemNotificationEnabled();
+            if (systemNotificationEnabled) {
+                const title = '⏰ ' + t("timeReminderNotification");
+                const categoryText = (categoryInfo as any).categoryName ? ` [${(categoryInfo as any).categoryName}]` : '';
+                const timeText = reminder.time ? ` ${reminder.time}` : '';
+                const message = `${reminderInfo.title}${categoryText}${timeText}`;
+
+                this.showReminderSystemNotification(title, message, reminderInfo);
+            }
 
         } catch (error) {
             console.error('显示时间提醒失败:', error);
+        }
+    }
+
+    /**
+     * 显示系统弹窗通知（参考番茄钟的实现）
+     * @param title 通知标题
+     * @param message 通知消息
+     * @param reminderInfo 提醒信息（可选，用于点击跳转）
+     */
+    private showReminderSystemNotification(title: string, message: string, reminderInfo?: any) {
+        try {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                // 使用浏览器通知
+                const notification = new Notification(title, {
+                    body: message,
+                    requireInteraction: true,
+                    silent: false, // 使用我们自己的音频
+                });
+
+                // 点击通知时的处理
+                notification.onclick = () => {
+                    window.focus();
+                    notification.close();
+
+                    // 如果有提醒信息，跳转到相关块
+                    if (reminderInfo && reminderInfo.blockId) {
+                        try {
+                            import("./api").then(({ openBlock }) => {
+                                openBlock(reminderInfo.blockId);
+                            });
+                        } catch (error) {
+                            console.warn('跳转到块失败:', error);
+                        }
+                    }
+                };
+
+
+            } else if ('Notification' in window && Notification.permission === 'default') {
+                // 请求通知权限
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        // 权限获取成功，递归调用显示通知
+                        this.showReminderSystemNotification(title, message, reminderInfo);
+                    }
+                });
+            }
+        } catch (error) {
+            console.warn('显示系统弹窗失败:', error);
         }
     }
 
@@ -1371,5 +1464,37 @@ export default class ReminderPlugin extends Plugin {
         document.querySelectorAll('.reminder-breadcrumb-btn, .view-reminder-breadcrumb-btn').forEach(btn => {
             btn.remove();
         });
+    }    /**
+     * 初始化系统通知权限
+     */
+    private async initSystemNotificationPermission() {
+        try {
+            if ('Notification' in window) {
+                if (Notification.permission === 'default') {
+                    // 在用户交互时请求权限
+                    const enableNotification = async () => {
+                        const permission = await Notification.requestPermission();
+                        if (permission === 'granted') {
+                            console.log('系统通知权限已获取');
+                        } else {
+                            console.log('系统通知权限被拒绝');
+                        }
+
+                        // 移除事件监听器
+                        document.removeEventListener('click', enableNotification);
+                        document.removeEventListener('touchstart', enableNotification);
+                        document.removeEventListener('keydown', enableNotification);
+                    };
+
+                    // 监听用户交互事件来请求权限（只触发一次）
+                    document.addEventListener('click', enableNotification, { once: true });
+                    document.addEventListener('touchstart', enableNotification, { once: true });
+                    document.addEventListener('keydown', enableNotification, { once: true });
+                }
+            }
+        } catch (error) {
+            console.warn('初始化系统通知权限失败:', error);
+        }
     }
+
 }

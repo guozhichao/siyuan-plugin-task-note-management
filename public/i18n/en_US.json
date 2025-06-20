@@ -427,5 +427,13 @@
     "blockEditFailed": "Block edit failed",
     "pomodoroSystemNotification": "System Notification",
     "pomodoroSystemNotificationDesc": "Show system notification popup when pomodoro session ends",
-    "setTo": "Set to"
+    "reminderSystemNotification": "Reminder System Notification",
+    "reminderSystemNotificationDesc": "Show system notification popup when events are due, supports clicking to jump to related blocks",
+    "timeReminderNotification": "Time Reminder",
+    "dailyRemindersNotification": "Daily Reminders",
+    "dailyRemindersMessage": "You have {overdue} overdue items and {today} today's items",
+    "overdueRemindersMessage": "You have {count} overdue incomplete items",
+    "todayRemindersMessage": "You have {count} items for today",
+    "setTo": "Set to",
+    "moreItems": "and {count} more items..."
 }

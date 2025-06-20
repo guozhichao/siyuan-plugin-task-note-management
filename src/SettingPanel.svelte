@@ -26,6 +26,13 @@
                     title: t('notificationSoundSetting'),
                     description: t('notificationSoundDesc'),
                 },
+                {
+                    key: 'reminderSystemNotification',
+                    value: settings.reminderSystemNotification,
+                    type: 'checkbox',
+                    title: t('reminderSystemNotification'),
+                    description: t('reminderSystemNotificationDesc'),
+                },
             ],
         },
         {
