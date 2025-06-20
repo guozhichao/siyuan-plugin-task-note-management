@@ -437,5 +437,6 @@
     "overdueRemindersMessage": "You have {count} overdue incomplete items",
     "todayRemindersMessage": "You have {count} items for today",
     "setTo": "Set to",
-    "moreItems": "and {count} more items..."
+    "moreItems": "and {count} more items...",
+    "randomRest": "Please take a 10s break and then continue working."
 }

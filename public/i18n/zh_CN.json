@@ -436,5 +436,6 @@
     "overdueRemindersMessage": "您有 ${count} 个过期未完成的事项",
     "todayRemindersMessage": "您有 ${count} 个今日事项",
     "setTo": "已设置为",
-    "moreItems": "还有 ${count} 个事项..."
+    "moreItems": "还有 ${count} 个事项...",
+    "randomRest": "请休息10s，然后继续工作。"
 }

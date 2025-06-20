@@ -291,6 +291,14 @@ export class PomodoroTimer {
             selectedAudio.currentTime = 0;
             await selectedAudio.play();
 
+            // 新增：显示系统通知
+            if (this.systemNotificationEnabled) {
+                this.showSystemNotification(
+                    t('randomNotificationSettings'),
+                    t('randomRest')
+                );
+            }
+
             // 预加载并准备结束声音，在用户手势上下文中
             if (this.randomNotificationEndSound) {
                 try {
