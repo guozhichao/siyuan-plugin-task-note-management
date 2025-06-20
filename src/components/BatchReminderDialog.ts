@@ -1,6 +1,6 @@
 import { Dialog, showMessage } from "siyuan";
 import { t } from "../utils/i18n";
-import { ensureReminderDataFile, updateBlockReminderBookmark } from "../api";
+import { ensureReminderDataFile, updateBlockReminderBookmark,getBlockByID } from "../api";
 import { getRepeatDescription } from "../utils/repeatUtils";
 import { getLocalDateString, getLocalTimeString } from "../utils/dateUtils";
 import { RepeatConfig, RepeatSettingsDialog } from "./RepeatSettingsDialog";
@@ -992,11 +992,11 @@ class SmartBatchDialog {
                     }
 
                     const reminderId = `${blockId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
+                    const block = await getBlockByID(blockId);
                     const reminder = {
                         id: reminderId,
                         blockId: blockId,
-                        docId: blockId,
+                        docId: block.root_id,
                         title: setting.cleanTitle,
                         date: setting.date,
                         completed: false,
