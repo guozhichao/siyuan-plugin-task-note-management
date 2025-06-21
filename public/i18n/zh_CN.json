@@ -296,6 +296,8 @@
     "randomNotificationSoundsDesc": "设置番茄钟运行时随机提示音的文件路径，留空则不启用",
     "randomNotificationEndSound": "随机提示音结束声音",
     "randomNotificationEndSoundDesc": "设置随机提示音播放结束后的提示音文件路径，留空则不播放",
+    "randomNotificationSystemNotification": "随机提示音系统通知",
+    "randomNotificationSystemNotificationDesc": "随机提示音播放时显示系统通知提醒，提醒开始休息和结束休息",
     "dragHint": "拖拽分类项可调整排序",
     "copyBlockRef": "复制块引用",
     "startPomodoro": "开始番茄钟",

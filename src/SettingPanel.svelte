@@ -161,6 +161,13 @@
                     description: t('randomNotificationEnabledDesc'),
                 },
                 {
+                    key: 'randomNotificationSystemNotification',
+                    value: settings.randomNotificationSystemNotification,
+                    type: 'checkbox',
+                    title: t('randomNotificationSystemNotification'),
+                    description: t('randomNotificationSystemNotificationDesc'),
+                },
+                {
                     key: 'randomNotificationMinInterval',
                     value: settings.randomNotificationMinInterval,
                     type: 'number',

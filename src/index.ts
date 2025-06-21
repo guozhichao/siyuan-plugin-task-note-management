@@ -54,6 +54,7 @@ export const DEFAULT_SETTINGS = {
     randomNotificationBreakDuration: 10,
     randomNotificationSounds: '/plugins/siyuan-plugin-task-note-management/audios/random_start.mp3',
     randomNotificationEndSound: '/plugins/siyuan-plugin-task-note-management/audios/random_end.mp3',
+    randomNotificationSystemNotification: true, // 新增：随机提示音系统通知
     dailyFocusGoal: 6,
 };
 
@@ -201,6 +202,7 @@ export default class ReminderPlugin extends Plugin {
             randomNotificationBreakDuration: Math.max(1, settings.randomNotificationBreakDuration),
             randomNotificationSounds: settings.randomNotificationSounds,
             randomNotificationEndSound: settings.randomNotificationEndSound,
+            randomNotificationSystemNotification: settings.randomNotificationSystemNotification, // 新增
             dailyFocusGoal: settings.dailyFocusGoal
         };
     }
@@ -1332,7 +1334,8 @@ export default class ReminderPlugin extends Plugin {
     openCalendarTab() {
         openTab({
             app: this.app,
-            custom: {
+            custom:
+            {
                 title: t("calendarView"),
                 icon: 'iconCalendar',
                 id: this.name + TAB_TYPE,

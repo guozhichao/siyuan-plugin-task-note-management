@@ -297,6 +297,8 @@
     "randomNotificationSoundsDesc": "Set the random notification sound file path during pomodoro, leave empty to disable",
     "randomNotificationEndSound": "Random Notification End Sound",
     "randomNotificationEndSoundDesc": "Set the notification sound file path after random notification ends, leave empty for no sound",
+    "randomNotificationSystemNotification": "Random Notification System Notification",
+    "randomNotificationSystemNotificationDesc": "Show system notification when random notification plays, reminding to start break and end break",
     "dragHint": "Drag and drop category items to adjust the order",
     "copyBlockRef": "Copy Block Ref",
     "startPomodoro": "Start Pomodoro",

@@ -69,6 +69,7 @@ export class PomodoroTimer {
     private randomNotificationEndSound: HTMLAudioElement = null;
 
     private systemNotificationEnabled: boolean = true; // 新增：系统弹窗开关
+    private randomNotificationSystemNotificationEnabled: boolean = true; // 新增：随机提示音系统通知开关
 
     private isFullscreen: boolean = false; // 新增：全屏模式状态
     private escapeKeyHandler: ((e: KeyboardEvent) => void) | null = null; // 新增：ESC键监听器
@@ -90,6 +91,7 @@ export class PomodoroTimer {
 
         // 初始化随机提示音设置
         this.randomNotificationEnabled = settings.randomNotificationEnabled || false;
+        this.randomNotificationSystemNotificationEnabled = settings.randomNotificationSystemNotification !== false; // 新增
 
         // 初始化自动模式设置
         this.autoMode = settings.autoMode || false;
@@ -297,7 +299,7 @@ export class PomodoroTimer {
             await selectedAudio.play();
 
             // 新增：显示系统通知
-            if (this.systemNotificationEnabled) {
+            if (this.randomNotificationSystemNotificationEnabled) {
                 this.showSystemNotification(
                     t('randomNotificationSettings'),
                     t('randomRest')
@@ -323,7 +325,7 @@ export class PomodoroTimer {
                             await this.randomNotificationEndSound.play();
 
                             // 新增：播放结束声音后显示系统通知
-                            if (this.systemNotificationEnabled) {
+                            if (this.randomNotificationSystemNotificationEnabled) {
                                 this.showSystemNotification(
                                     t('randomNotificationSettings'),
                                     t('randomRestComplete') || '微休息时间结束，可以继续专注工作了！'
@@ -343,7 +345,7 @@ export class PomodoroTimer {
                             await this.randomNotificationEndSound.play();
 
                             // 新增：在延迟播放时也显示系统通知
-                            if (this.systemNotificationEnabled) {
+                            if (this.randomNotificationSystemNotificationEnabled) {
                                 this.showSystemNotification(
                                     t('randomNotificationSettings'),
                                     t('randomRestComplete') || '微休息时间结束，可以继续专注工作了！'
@@ -354,7 +356,7 @@ export class PomodoroTimer {
                             console.debug('延迟播放随机提示音结束声音失败，这是预期的浏览器安全限制');
 
                             // 即使音频播放失败，也要显示系统通知
-                            if (this.systemNotificationEnabled) {
+                            if (this.randomNotificationSystemNotificationEnabled) {
                                 this.showSystemNotification(
                                     t('randomNotificationSettings'),
                                     t('randomRestComplete') || '微休息时间结束，可以继续专注工作了！'
