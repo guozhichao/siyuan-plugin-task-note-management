@@ -1,0 +1,532 @@
+/* 番茄钟计时器样式 */
+.pomodoro-timer-window {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+    .pomodoro-header {
+        .pomodoro-title {
+            font-weight: 600;
+
+            span:first-child {
+                font-size: 14px;
+            }
+        }
+
+        .pomodoro-close,
+        .pomodoro-expand-toggle {
+            position: relative;
+            z-index: 10;
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.1);
+                opacity: 1;
+            }
+        }
+    }
+
+    .pomodoro-content {
+        .pomodoro-status {
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .pomodoro-time {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .circle-control-btn {
+            transition: all 0.2s ease;
+            position: relative;
+            z-index: 10;
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.1);
+                transform: scale(1.1);
+            }
+
+            &:active {
+                transform: scale(0.95);
+            }
+        }
+
+        // SVG 圆环样式
+        svg {
+            circle {
+                transition: stroke-dashoffset 0.5s ease, stroke 0.3s ease;
+            }
+
+            // 确保背景圆环显示
+            circle:first-child {
+                stroke: #e0e0e0;
+                opacity: 0.3;
+            }
+
+            // 进度圆环
+            circle:last-child {
+                filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+            }
+        }
+    }
+
+    /* 暗色主题适配 */
+    .b3-theme-dark & {
+        background: rgba(30, 30, 30, 0.95);
+        border-color: rgba(255, 255, 255, 0.1);
+
+        .pomodoro-header {
+            background: rgba(40, 40, 40, 0.8);
+            border-bottom-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .circle-control-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        // 暗色主题下的圆环底色
+        svg circle:first-child {
+            stroke: #555;
+            opacity: 0.4;
+        }
+    }
+
+    /* 动画效果 */
+    animation: pomodoroFadeIn 0.3s ease-out;
+
+    /* 紧凑布局优化 */
+    .pomodoro-stats {
+        >div {
+            padding: 0 6px;
+        }
+
+        >div:first-child {
+            border-right: 1px solid var(--b3-theme-border);
+        }
+    }
+
+    /* 最小化视图样式 */
+    &.minimized {
+        width: 60px !important;
+        height: 60px !important;
+        border-radius: 50% !important;
+        overflow: visible !important;
+        padding: 0 !important;
+        background: transparent !important;
+        border: 2px solid rgba(255, 255, 255, 0.3) !important;
+        backdrop-filter: blur(8px) !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+
+        .pomodoro-header,
+        .pomodoro-content {
+            display: none !important;
+        }
+
+        .pomodoro-minimized-view {
+            display: flex !important;
+            width: 100%;
+            height: 100%;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            border-radius: 50%;
+            overflow: hidden;
+        }
+
+        .pomodoro-minimized-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: conic-gradient(from -90deg,
+                    var(--progress-color, #FF6B6B) var(--progress-angle, 0deg),
+                    rgba(255, 255, 255, 0.1) var(--progress-angle, 0deg));
+            transition: all 0.3s ease;
+        }
+
+        .pomodoro-minimized-icon {
+            position: relative;
+            z-index: 2;
+            font-size: 24px;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            user-select: none;
+            cursor: pointer;
+        }
+
+        .pomodoro-minimized-overlay {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            right: 2px;
+            bottom: 2px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            z-index: 1;
+        }
+
+        .pomodoro-restore-btn {
+            position: absolute;
+            top: 25px;
+            right: 21px;
+            width: 15px;
+            height: 15px;
+            background: var(--b3-theme-primary);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 10px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px #0003;
+            transition: all .2s ease;
+            z-index: 10;
+
+            &:hover {
+                background: var(--b3-theme-primary-light);
+                transform: scale(1.1);
+            }
+
+            &:active {
+                transform: scale(0.95);
+            }
+        }
+
+        &:hover .pomodoro-restore-btn {
+            display: flex;
+        }
+
+        /* 暗色主题适配 */
+        .b3-theme-dark & {
+            border-color: rgba(255, 255, 255, 0.2) !important;
+
+            .pomodoro-minimized-overlay {
+                background: rgba(30, 30, 30, 0.9);
+            }
+
+            .pomodoro-restore-btn {
+                background: var(--b3-theme-primary);
+            }
+        }
+    }
+
+    /* 从最小化恢复的动画 */
+    &.expanding {
+        animation: pomodoroExpand 0.3s ease-out forwards;
+    }
+
+    &.minimizing {
+        animation: pomodoroMinimize 0.3s ease-out forwards;
+    }
+
+    /* 全屏模式样式 */
+    &.fullscreen {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        z-index: 999999 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 0 !important;
+        margin: 0 !important;
+
+        // 全屏模式下的顶栏样式
+        .pomodoro-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw !important;
+            height: 80px !important;
+            z-index: 1001;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            background: rgba(var(--b3-theme-background-rgb), 0.9) !important;
+            backdrop-filter: blur(10px) !important;
+            padding: 20px 40px !important;
+            border-radius: 0 !important;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1) !important;
+            justify-content: center !important;
+
+            // 悬浮时显示
+            &:hover {
+                opacity: 1;
+            }
+        }
+
+        // 全屏模式下隐藏最小化按钮
+        .pomodoro-title {
+            display: none !important;
+        }
+
+        // 全屏模式下的按钮容器布局
+        .pomodoro-header>div:last-child {
+            display: flex !important;
+            justify-content: space-evenly !important;
+            align-items: center !important;
+            gap: 0 !important;
+            width: 100% !important;
+            max-width: 800px !important;
+        }
+
+        // 全屏模式下的按钮样式
+        .pomodoro-header button {
+            font-size: 24px !important;
+            padding: 16px 24px !important;
+            border-radius: 12px !important;
+            background: rgba(255, 255, 255, 0.1) !important;
+            border: 2px solid rgba(255, 255, 255, 0.2) !important;
+            backdrop-filter: blur(8px) !important;
+            transition: all 0.3s ease !important;
+            min-width: 80px !important;
+            min-height: 60px !important;
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.2) !important;
+                border-color: rgba(255, 255, 255, 0.4) !important;
+                transform: scale(1.05) !important;
+            }
+        }
+
+        // 全屏模式下的内容区域
+        .pomodoro-content {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: 100% !important;
+            height: 100% !important;
+            padding: 80px 40px 120px !important;
+        }
+
+        // 全屏模式下的事件标题
+        .pomodoro-event-title {
+            font-size: 5vh !important;
+            margin-bottom: 5vh !important;
+            padding: 2vh 4vw !important;
+            background: rgba(255, 255, 255, 0.1) !important;
+            border: 2px solid rgba(255, 255, 255, 0.2) !important;
+            backdrop-filter: blur(10px) !important;
+            border-radius: 12px !important;
+        }
+
+        // 全屏模式下的主容器
+        .pomodoro-main-container {
+            flex-direction: row !important;
+            gap: 2vw !important;
+            align-items: center !important;
+            justify-content: center !important;
+            margin-right: 4vh !important;
+        }
+
+        // 全屏模式下的圆环进度条容器
+        .pomodoro-main-container>div:first-child {
+            display: block !important;
+            width: 30vh !important;
+            height: 30vh !important;
+            flex-shrink: 0 !important;
+
+            svg {
+                width: 30vh !important;
+                height: 30vh !important;
+            }
+
+            // 圆环中心的控制按钮容器
+            >div {
+                width: 20vh !important;
+                height: 20vh !important;
+            }
+
+            .pomodoro-status-icon {
+                font-size: 8vh !important;
+            }
+
+            .circle-control-btn {
+                font-size: 4vh !important;
+                width: 8vh !important;
+                height: 8vh !important;
+
+                &:first-of-type {
+                    width: 8vh !important;
+                    height: 8vh !important;
+                }
+
+                &:last-of-type {
+                    width: 6vh !important;
+                    height: 6vh !important;
+                    font-size: 3vh !important;
+                }
+            }
+        }
+
+        // 全屏模式下的时间和状态信息
+        .pomodoro-main-container>div:last-child {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            gap: 4vh !important;
+            flex: 1 !important;
+        }
+
+        // 全屏模式下的状态显示
+        .pomodoro-status {
+            font-size: 2vh !important;
+            text-transform: uppercase !important;
+            margin-bottom: 2vh !important;
+        }
+
+        // 全屏模式下的番茄数量显示
+        .pomodoro-count {
+            font-size: 3vh !important;
+            margin-top: 4vh !important;
+            justify-content: left !important;
+            gap: 2vw !important;
+        }
+
+        // 全屏模式下的音量控制
+        .pomodoro-sound-control {
+            font-size: 3vh !important;
+            padding: 1vh 2vw !important;
+        }
+
+        // 全屏模式下的统计信息容器
+        .pomodoro-stats {
+            position: fixed !important;
+            bottom: 40px !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            width: 50% !important;
+            max-width: 1000px !important;
+            border: 2px solid rgba(255, 255, 255, 0.2) !important;
+            backdrop-filter: blur(10px) !important;
+            border-radius: 20px !important;
+            padding: 20px 40px !important;
+            opacity: 1 !important;
+            transition: opacity 0.3s ease !important;
+            z-index: 1000 !important;
+
+
+
+            >div {
+                padding: 0 20px !important;
+                text-align: center !important;
+            }
+
+            >div:first-child {
+                border-right: 2px solid rgba(255, 255, 255, 0.3) !important;
+            }
+
+            div[style*="font-size: 11px"] {
+                font-size: 18px !important;
+                margin-bottom: 8px !important;
+            }
+
+            div[style*="font-size: 16px"] {
+                font-size: 28px !important;
+            }
+        }
+    }
+
+    /* 全屏模式下的时间显示 */
+    &.fullscreen .pomodoro-time {
+        font-size: 20vh !important;
+        font-weight: 600 !important;
+        text-align: center !important;
+        text-shadow: 0 0 20px rgba(255, 255, 255, 0.3) !important;
+        line-height: 1 !important;
+        font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace !important;
+    }
+
+    /* 全屏模式下的退出按钮 */
+    .pomodoro-exit-fullscreen {
+        position: fixed;
+        top: 30px;
+        right: 30px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        cursor: pointer;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        z-index: 10001;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(8px);
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+    }
+
+    /* 圆环进度动画 */
+    svg circle[stroke-dasharray] {
+        animation: progressRotate 0.5s ease-out;
+    }
+
+    @keyframes progressRotate {
+        from {
+            stroke-dashoffset: 226.19;
+        }
+    }
+
+    @keyframes pomodoroMinimize {
+        from {
+            width: 240px;
+            height: auto;
+            border-radius: 12px;
+        }
+
+        to {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+        }
+    }
+
+    @keyframes pomodoroExpand {
+        from {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+        }
+
+        to {
+            width: 240px;
+            height: auto;
+            border-radius: 12px;
+        }
+    }
+
+    .pomodoro-minimized-view {
+        display: none;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+@keyframes pomodoroFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}

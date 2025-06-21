@@ -28,6 +28,8 @@ export class PomodoroTimer {
     private minimizedBg: HTMLElement;
     private minimizedOverlay: HTMLElement;
     private restoreBtn: HTMLElement;
+    private fullscreenBtn: HTMLElement; // 新增：全屏模式按钮
+    private exitFullscreenBtn: HTMLElement; // 新增：退出全屏按钮
 
     private isRunning: boolean = false;
     private isPaused: boolean = false;
@@ -67,6 +69,9 @@ export class PomodoroTimer {
     private randomNotificationEndSound: HTMLAudioElement = null;
 
     private systemNotificationEnabled: boolean = true; // 新增：系统弹窗开关
+
+    private isFullscreen: boolean = false; // 新增：全屏模式状态
+    private escapeKeyHandler: ((e: KeyboardEvent) => void) | null = null; // 新增：ESC键监听器
 
     constructor(reminder: any, settings: any, isCountUp: boolean = false, inheritState?: any) {
         this.reminder = reminder;
@@ -679,6 +684,32 @@ export class PomodoroTimer {
             this.toggleExpand();
         });
 
+        // 全屏模式切换按钮
+        this.fullscreenBtn = document.createElement('button');
+        this.fullscreenBtn.className = 'pomodoro-fullscreen-btn';
+        this.fullscreenBtn.style.cssText = `
+            background: none;
+            border: none;
+            color: var(--b3-theme-on-surface);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            font-size: 14px;
+            line-height: 1;
+            opacity: 0.7;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+        this.fullscreenBtn.innerHTML = '🔳';
+        this.fullscreenBtn.title = t('fullscreenMode') || '全屏模式';
+        this.fullscreenBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.toggleFullscreen();
+        });
+
         const closeBtn = document.createElement('button');
         closeBtn.className = 'pomodoro-close';
         closeBtn.style.cssText = `
@@ -706,6 +737,7 @@ export class PomodoroTimer {
         headerButtons.appendChild(shortBreakBtn);
         headerButtons.appendChild(longBreakBtn);
         headerButtons.appendChild(this.expandToggleBtn);
+        headerButtons.appendChild(this.fullscreenBtn); // 添加全屏按钮
         headerButtons.appendChild(closeBtn);
         header.appendChild(title);
         header.appendChild(headerButtons);
@@ -714,7 +746,7 @@ export class PomodoroTimer {
         const content = document.createElement('div');
         content.className = 'pomodoro-content';
         content.style.cssText = `
-            padding: 10px 16px 16px 16px;;
+            padding: 10px 16px 16px 16px;
         `;
 
         // 事件名称显示
@@ -757,6 +789,7 @@ export class PomodoroTimer {
 
         // 主要布局容器
         const mainContainer = document.createElement('div');
+        mainContainer.className = 'pomodoro-main-container';
         mainContainer.style.cssText = `
             display: flex;
             align-items: center;
@@ -2467,6 +2500,7 @@ export class PomodoroTimer {
         this.timer = window.setInterval(() => {
             if (this.isCountUp) {
                 this.timeElapsed++;
+
                 const pomodoroLength = this.settings.workDuration * 60;
                 const currentCycleTime = this.timeElapsed % pomodoroLength;
                 if (currentCycleTime === 0 && this.timeElapsed > 0) {
@@ -2562,19 +2596,40 @@ export class PomodoroTimer {
         const input = document.createElement('input');
         input.type = 'text';
         input.value = currentTimeString;
-        input.style.cssText = `
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--b3-theme-on-surface);
-            background: var(--b3-theme-surface);
-            border: 2px solid var(--b3-theme-primary);
-            border-radius: 4px;
-            padding: 2px 4px;
-            width: 80px;
-            text-align: center;
-            font-variant-numeric: tabular-nums;
-            outline: none;
-        `;
+
+        // 根据是否全屏模式设置不同的样式
+        if (this.isFullscreen) {
+            input.style.cssText = `
+                font-size: 20vh !important;
+                font-weight: 600 !important;
+                color: var(--b3-theme-on-surface);
+                background: transparent;
+                border: 2px solid var(--b3-theme-primary);
+                border-radius: 8px;
+                padding: 2vh 1vw;
+                width: 60vw;
+                text-align: center;
+                font-variant-numeric: tabular-nums;
+                outline: none;
+                text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+                line-height: 1;
+                font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            `;
+        } else {
+            input.style.cssText = `
+                font-size: 24px;
+                font-weight: 700;
+                color: var(--b3-theme-on-surface);
+                background: var(--b3-theme-surface);
+                border: 2px solid var(--b3-theme-primary);
+                border-radius: 4px;
+                padding: 2px 4px;
+                width: 80px;
+                text-align: center;
+                font-variant-numeric: tabular-nums;
+                outline: none;
+            `;
+        }
         input.placeholder = 'MM:SS';
 
         // 替换时间显示
@@ -2746,7 +2801,12 @@ export class PomodoroTimer {
         this.stopAllAudio();
         this.stopRandomNotificationTimer(); // 停止随机提示音
 
-
+        if (this.isFullscreen) {
+            this.exitFullscreen();
+        }
+        if (this.exitFullscreenBtn && this.exitFullscreenBtn.parentNode) {
+            this.exitFullscreenBtn.parentNode.removeChild(this.exitFullscreenBtn);
+        }
 
         if (this.container && this.container.parentNode) {
             this.container.parentNode.removeChild(this.container);
@@ -2827,6 +2887,63 @@ export class PomodoroTimer {
         } catch (error) {
             console.error('打开笔记失败:', error);
             showMessage("打开笔记失败", 2000);
+        }
+    }
+
+    private toggleFullscreen() {
+        if (this.isFullscreen) {
+            this.exitFullscreen();
+        } else {
+            this.enterFullscreen();
+        }
+    }
+
+    private enterFullscreen() {
+        this.isFullscreen = true;
+        this.container.classList.add('fullscreen');
+
+        // 创建退出全屏按钮
+        this.exitFullscreenBtn = document.createElement('button');
+        this.exitFullscreenBtn.className = 'pomodoro-exit-fullscreen';
+        this.exitFullscreenBtn.textContent = t('exitFullscreen') || '退出全屏';
+        this.exitFullscreenBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.exitFullscreen();
+        });
+        document.body.appendChild(this.exitFullscreenBtn);
+
+        this.addEscapeKeyListener();
+        showMessage('已进入全屏模式，按ESC或点击右上角按钮退出', 2000);
+    }
+
+    private exitFullscreen() {
+        this.isFullscreen = false;
+        this.container.classList.remove('fullscreen');
+
+        // 移除退出全屏按钮
+        if (this.exitFullscreenBtn && this.exitFullscreenBtn.parentNode) {
+            this.exitFullscreenBtn.parentNode.removeChild(this.exitFullscreenBtn);
+        }
+
+        this.removeEscapeKeyListener();
+        showMessage('已退出全屏模式', 1500);
+    }
+
+    private addEscapeKeyListener() {
+        this.escapeKeyHandler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && this.isFullscreen) {
+                e.preventDefault();
+                this.exitFullscreen();
+            }
+        };
+        document.addEventListener('keydown', this.escapeKeyHandler);
+    }
+
+    private removeEscapeKeyListener() {
+        if (this.escapeKeyHandler) {
+            document.removeEventListener('keydown', this.escapeKeyHandler);
+            this.escapeKeyHandler = null;
         }
     }
 }

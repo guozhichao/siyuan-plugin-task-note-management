@@ -50,7 +50,7 @@ export const DEFAULT_SETTINGS = {
     dailyNotificationTime: 8, // 新增：每日通知时间，默认8点
     randomNotificationEnabled: false,
     randomNotificationMinInterval: 3,
-    randomNotificationMaxInterval: 5,
+    randomNotificationMaxInterval: 10,
     randomNotificationBreakDuration: 10,
     randomNotificationSounds: '/plugins/siyuan-plugin-task-note-management/audios/random_start.mp3',
     randomNotificationEndSound: '/plugins/siyuan-plugin-task-note-management/audios/random_end.mp3',

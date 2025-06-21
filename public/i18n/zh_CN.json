@@ -289,7 +289,7 @@
     "randomNotificationMinInterval": "随机提示音最小间隔（分钟）",
     "randomNotificationMinIntervalDesc": "设置随机提示音播放的最小间隔时间，默认3分钟",
     "randomNotificationMaxInterval": "随机提示音最大间隔（分钟）",
-    "randomNotificationMaxIntervalDesc": "设置随机提示音播放的最大间隔时间，默认5分钟",
+    "randomNotificationMaxIntervalDesc": "设置随机提示音播放的最大间隔时间，默认10分钟",
     "randomNotificationBreakDuration": "微休息时间（秒）",
     "randomNotificationBreakDurationDesc": "随机提示音播放后的微休息时间，在此时间后播放结束提示音，默认10秒",
     "randomNotificationSounds": "随机提示音开始声音",
