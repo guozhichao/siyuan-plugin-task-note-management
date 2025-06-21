@@ -46,6 +46,13 @@
             name: t('pomodoroSettings'),
             items: [
                 {
+                    key: 'pomodoroHint',
+                    value: '',
+                    type: 'hint',
+                    title: t('pomodoroHintTitle'),
+                    description: t('pomodoroHintDesc'),
+                },
+                {
                     key: 'pomodoroWorkDuration',
                     value: settings.pomodoroWorkDuration,
                     type: 'number',

@@ -442,5 +442,7 @@
     "setTo": "Set to",
     "moreItems": "and {count} more items...",
     "randomRest": "Please take a 10s break and then continue working.",
-    "randomRestComplete": "Break complete, please continue working."
+    "randomRestComplete": "Break complete, please continue working.",
+    "pomodoroHintTitle": "Pomodoro Usage Introduction",
+    "pomodoroHintDesc": "See my article <a href=\"https://mp.weixin.qq.com/s/SoZ0ccPc7kJTYfwBnB5IGw\" target=\"_blank\">\"In-depth Guide to Pomodoro Technique\"</a>"
 }
