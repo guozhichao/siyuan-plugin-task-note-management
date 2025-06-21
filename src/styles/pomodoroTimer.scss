@@ -306,6 +306,7 @@
             width: 100% !important;
             height: 100% !important;
             padding: 80px 40px 120px !important;
+            transform: translateY(-7vh) !important;
         }
 
         // 全屏模式下的事件标题
@@ -322,15 +323,17 @@
         // 全屏模式下的主容器
         .pomodoro-main-container {
             flex-direction: row !important;
-            gap: 2vw !important;
+            gap: 8vw !important;
             align-items: center !important;
             justify-content: center !important;
-            margin-right: 4vh !important;
+            margin-bottom: 0 !important;
         }
 
         // 全屏模式下的圆环进度条容器
         .pomodoro-main-container>div:first-child {
-            display: block !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
             width: 30vh !important;
             height: 30vh !important;
             flex-shrink: 0 !important;
@@ -372,29 +375,37 @@
         .pomodoro-main-container>div:last-child {
             display: flex !important;
             flex-direction: column !important;
-            align-items: center !important;
-            gap: 4vh !important;
+            align-items: flex-start !important;
+            justify-content: center !important;
+            gap: 2vh !important;
             flex: 1 !important;
+            position: relative !important;
+            height: 30vh !important;
         }
 
         // 全屏模式下的状态显示
         .pomodoro-status {
-            font-size: 2vh !important;
+            font-size: 3vh !important;
             text-transform: uppercase !important;
-            margin-bottom: 2vh !important;
+            margin-bottom: 1vh !important;
+            position: relative !important;
+            top: auto !important;
+            left: auto !important;
+            color: var(--b3-theme-on-surface-variant) !important;
+            opacity: 0.8 !important;
         }
 
         // 全屏模式下的番茄数量显示
         .pomodoro-count {
-            font-size: 3vh !important;
-            margin-top: 4vh !important;
-            justify-content: left !important;
+            font-size: 2.5vh !important;
+            margin-top: 2vh !important;
+            justify-content: flex-start !important;
             gap: 2vw !important;
         }
 
         // 全屏模式下的音量控制
         .pomodoro-sound-control {
-            font-size: 3vh !important;
+            font-size: 2.5vh !important;
             padding: 1vh 2vw !important;
         }
 
@@ -438,12 +449,13 @@
 
     /* 全屏模式下的时间显示 */
     &.fullscreen .pomodoro-time {
-        font-size: 20vh !important;
+        font-size: 16vh !important;
         font-weight: 600 !important;
-        text-align: center !important;
+        text-align: left !important;
         text-shadow: 0 0 20px rgba(255, 255, 255, 0.3) !important;
         line-height: 1 !important;
         font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace !important;
+        margin: 0 !important;
     }
 
     /* 全屏模式下的退出按钮 */
