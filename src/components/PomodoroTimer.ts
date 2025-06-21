@@ -47,6 +47,9 @@ export class PomodoroTimer {
     private isExpanded: boolean = true;
     private isMinimized: boolean = false;
     private startTime: number = 0; // 记录开始时间
+
+    // 新增：当前阶段的原始设定时长（用于统计）
+    private currentPhaseOriginalDuration: number = 0; // 当前阶段的原始设定时长（分钟）
     // 新增：自动模式相关属性
     private autoMode: boolean = false; // 自动模式状态
     private longBreakInterval: number = 4; // 长休息间隔
@@ -81,6 +84,9 @@ export class PomodoroTimer {
         this.timeLeft = settings.workDuration * 60;
         this.totalTime = this.timeLeft;
         this.recordManager = PomodoroRecordManager.getInstance();
+
+        // 初始化当前阶段的原始时长（分钟）
+        this.currentPhaseOriginalDuration = settings.workDuration;
 
         // 初始化声音设置
         this.isBackgroundAudioMuted = settings.backgroundAudioMuted || false;
@@ -302,7 +308,7 @@ export class PomodoroTimer {
             if (this.randomNotificationSystemNotificationEnabled) {
                 this.showSystemNotification(
                     t('randomNotificationSettings'),
-                    t('randomRest')
+                    t('randomRest', { duration: this.settings.randomNotificationBreakDuration })
                 );
             }
 
@@ -1963,6 +1969,9 @@ export class PomodoroTimer {
         this.isRunning = false;
         this.isPaused = false;
 
+        // 设置当前阶段的原始时长
+        this.currentPhaseOriginalDuration = this.settings.workDuration;
+
         if (this.isCountUp) {
             this.timeElapsed = 0;
             // 不重置番茄计数，保持累计
@@ -1994,6 +2003,9 @@ export class PomodoroTimer {
         this.isRunning = false;
         this.isPaused = false;
 
+        // 设置当前阶段的原始时长
+        this.currentPhaseOriginalDuration = this.settings.breakDuration;
+
         if (this.isCountUp) {
             this.timeElapsed = 0;
             this.breakTimeLeft = this.settings.breakDuration * 60;
@@ -2024,6 +2036,9 @@ export class PomodoroTimer {
         this.isRunning = false;
         this.isPaused = false;
 
+        // 设置当前阶段的原始时长
+        this.currentPhaseOriginalDuration = this.settings.longBreakDuration;
+
         if (this.isCountUp) {
             this.timeElapsed = 0;
             this.breakTimeLeft = this.settings.longBreakDuration * 60;
@@ -2046,6 +2061,9 @@ export class PomodoroTimer {
         // 注释掉清空番茄计数的代码，保持总计数
         // this.completedPomodoros = 0;
         this.statusDisplay.textContent = '工作时间';
+
+        // 重置当前阶段的原始时长为工作时长
+        this.currentPhaseOriginalDuration = this.settings.workDuration;
 
         if (this.timer) {
             clearInterval(this.timer);
@@ -2164,17 +2182,16 @@ export class PomodoroTimer {
         } else {
             // 正计时模式完成番茄后也要停止随机提示音
             this.stopRandomNotificationTimer();
-        }
-
-        // 无论哪种模式都记录完成的工作番茄
+        }        // 无论哪种模式都记录完成的工作番茄
         const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
         const eventTitle = this.reminder.title || '番茄专注';
 
+        // 使用当前阶段的实际设定时长进行记录
         await this.recordManager.recordWorkSession(
-            this.settings.workDuration,
+            this.currentPhaseOriginalDuration,
             eventId,
             eventTitle,
-            this.settings.workDuration,
+            this.currentPhaseOriginalDuration,
             true
         );
 
@@ -2218,15 +2235,14 @@ export class PomodoroTimer {
         }
 
         // 记录完成的休息时间
-        const breakDuration = this.isLongBreak ? this.settings.longBreakDuration : this.settings.breakDuration;
         const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
         const eventTitle = this.reminder.title || '番茄专注';
 
         await this.recordManager.recordBreakSession(
-            breakDuration,
+            this.currentPhaseOriginalDuration,
             eventId,
             eventTitle,
-            breakDuration,
+            this.currentPhaseOriginalDuration,
             this.isLongBreak,
             true
         );
@@ -2283,16 +2299,15 @@ export class PomodoroTimer {
 
             if (this.workEndAudio) {
                 await this.safePlayAudio(this.workEndAudio);
-            }
-            // 记录完成的工作番茄
+            }            // 记录完成的工作番茄
             const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
             const eventTitle = this.reminder.title || '番茄专注';
 
             await this.recordManager.recordWorkSession(
-                this.settings.workDuration,
+                this.currentPhaseOriginalDuration,
                 eventId,
                 eventTitle,
-                this.settings.workDuration,
+                this.currentPhaseOriginalDuration,
                 true
             );
 
@@ -2312,8 +2327,7 @@ export class PomodoroTimer {
                 setTimeout(() => {
                     this.autoSwitchToBreak(shouldTakeLongBreak);
                 }, 1000);
-            } else {
-                // 非自动模式下，也要根据番茄钟数量判断休息类型
+            } else {                // 非自动模式下，也要根据番茄钟数量判断休息类型
                 if (shouldTakeLongBreak) {
                     showMessage(`🍅 工作时间结束！已完成${this.completedPomodoros}个番茄，开始长时休息`, 3000);
                     this.isWorkPhase = false;
@@ -2321,6 +2335,8 @@ export class PomodoroTimer {
                     this.statusDisplay.textContent = '长时休息';
                     this.timeLeft = this.settings.longBreakDuration * 60;
                     this.totalTime = this.timeLeft;
+                    // 设置当前阶段的原始时长
+                    this.currentPhaseOriginalDuration = this.settings.longBreakDuration;
                 } else {
                     showMessage('🍅 工作时间结束！开始短时休息', 3000);
                     this.isWorkPhase = false;
@@ -2328,6 +2344,8 @@ export class PomodoroTimer {
                     this.statusDisplay.textContent = '短时休息';
                     this.timeLeft = this.settings.breakDuration * 60;
                     this.totalTime = this.timeLeft;
+                    // 设置当前阶段的原始时长
+                    this.currentPhaseOriginalDuration = this.settings.breakDuration;
                 }
                 this.isRunning = false;
                 this.isPaused = false;
@@ -2340,15 +2358,14 @@ export class PomodoroTimer {
             }
 
             // 记录完成的休息时间
-            const breakDuration = this.isLongBreak ? this.settings.longBreakDuration : this.settings.breakDuration;
             const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
             const eventTitle = this.reminder.title || '番茄专注';
 
             await this.recordManager.recordBreakSession(
-                breakDuration,
+                this.currentPhaseOriginalDuration,
                 eventId,
                 eventTitle,
-                breakDuration,
+                this.currentPhaseOriginalDuration,
                 this.isLongBreak,
                 true
             );
@@ -2380,6 +2397,8 @@ export class PomodoroTimer {
                 this.statusDisplay.textContent = '工作时间';
                 this.timeLeft = this.settings.workDuration * 60;
                 this.totalTime = this.timeLeft;
+                // 设置当前阶段的原始时长
+                this.currentPhaseOriginalDuration = this.settings.workDuration;
                 this.isRunning = false;
                 this.isPaused = false;
                 this.updateDisplay();
@@ -2408,15 +2427,16 @@ export class PomodoroTimer {
         if (this.autoTransitionTimer) {
             clearTimeout(this.autoTransitionTimer);
             this.autoTransitionTimer = null;
-        }
-
-        // 设置休息阶段
+        }        // 设置休息阶段
         this.isWorkPhase = false;
         this.isLongBreak = isLongBreak;
         this.isRunning = true;
         this.isPaused = false;
 
         const breakDuration = isLongBreak ? this.settings.longBreakDuration : this.settings.breakDuration;
+
+        // 设置当前阶段的原始时长
+        this.currentPhaseOriginalDuration = breakDuration;
 
         if (this.isCountUp) {
             this.timeElapsed = 0;
@@ -2471,13 +2491,14 @@ export class PomodoroTimer {
         if (this.autoTransitionTimer) {
             clearTimeout(this.autoTransitionTimer);
             this.autoTransitionTimer = null;
-        }
-
-        // 设置工作阶段
+        }        // 设置工作阶段
         this.isWorkPhase = true;
         this.isLongBreak = false;
         this.isRunning = true;
         this.isPaused = false;
+
+        // 设置当前阶段的原始时长
+        this.currentPhaseOriginalDuration = this.settings.workDuration;
 
         if (this.isCountUp) {
             this.timeElapsed = 0;
@@ -2667,16 +2688,18 @@ export class PomodoroTimer {
                 showMessage(t('timeRangeLimit') || '时间必须在 00:01 到 999:59 之间', 3000);
                 parent.replaceChild(this.timeDisplay, input);
                 return;
-            }
-
-            // 更新对应的时间
+            }            // 更新对应的时间
             if (this.isCountUp && !this.isWorkPhase) {
                 // 正计时休息模式
                 this.breakTimeLeft = newTimeInSeconds;
+                // 更新当前休息阶段的原始时长
+                this.currentPhaseOriginalDuration = Math.floor(newTimeInSeconds / 60);
             } else if (!this.isCountUp) {
                 // 倒计时模式
                 this.timeLeft = newTimeInSeconds;
                 this.totalTime = newTimeInSeconds;
+                // 更新当前阶段的原始时长
+                this.currentPhaseOriginalDuration = Math.floor(newTimeInSeconds / 60);
             }
 
             // 恢复时间显示
