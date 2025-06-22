@@ -1883,7 +1883,7 @@ export class ReminderPanel {
 
         const countdownEl = document.createElement('div');
         countdownEl.className = 'reminder-countdown';
-        
+
         // 根据是否过期设置不同的样式和文本
         if (isOverdueEvent || daysDiff < 0) {
             // 过期事件：红色样式
@@ -1897,10 +1897,10 @@ export class ReminderPanel {
                 padding: 2px 6px;
                 flex-shrink: 0;
             `;
-            
+
             const overdueDays = Math.abs(daysDiff);
-            countdownEl.textContent = overdueDays === 1 ? 
-                t("overdueBySingleDay") : 
+            countdownEl.textContent = overdueDays === 1 ?
+                t("overdueBySingleDay") :
                 t("overdueByDays", { days: overdueDays.toString() });
         } else {
             // 未来事件：绿色样式
@@ -1921,17 +1921,17 @@ export class ReminderPanel {
                     compareDateStrings(today, reminder.endDate) <= 0;
 
                 if (isInRange) {
-                    countdownEl.textContent = daysDiff === 1 ? 
-                        "还剩1天结束" : 
+                    countdownEl.textContent = daysDiff === 1 ?
+                        "还剩1天结束" :
                         `还剩${daysDiff}天结束`;
                 } else {
-                    countdownEl.textContent = daysDiff === 1 ? 
-                        "还有1天开始" : 
+                    countdownEl.textContent = daysDiff === 1 ?
+                        "还有1天开始" :
                         `还有${daysDiff}天开始`;
                 }
             } else {
-                countdownEl.textContent = daysDiff === 1 ? 
-                    t("daysLeftSingle") : 
+                countdownEl.textContent = daysDiff === 1 ?
+                    t("daysLeftSingle") :
                     t("daysLeftPlural", { days: daysDiff.toString() });
             }
         }
