@@ -1888,11 +1888,11 @@ export class ReminderPanel {
         if (isOverdueEvent || daysDiff < 0) {
             // 过期事件：红色样式
             countdownEl.style.cssText = `
-                color: #e74c3c;
+                color: var(--b3-font-color1);
                 font-size: 12px;
                 font-weight: 500;
-                background: rgba(231, 76, 60, 0.1);
-                border: 1px solid rgba(231, 76, 60, 0.3);
+                background: var(--b3-font-background1);
+                border: 1px solid var(--b3-font-color1);
                 border-radius: 4px;
                 padding: 2px 6px;
                 flex-shrink: 0;
@@ -1905,11 +1905,11 @@ export class ReminderPanel {
         } else {
             // 未来事件：绿色样式
             countdownEl.style.cssText = `
-                color: #2cb164;
+                color: var(--b3-font-color4);
                 font-size: 12px;
                 font-weight: 500;
-                background: rgba(46, 213, 115, 0.1);
-                border: 1px solid rgba(46, 213, 115, 0.3);
+                background: var(--b3-font-background4);
+                border: 1px solid var(--b3-font-color4);
                 border-radius: 4px;
                 padding: 2px 6px;
                 flex-shrink: 0;
@@ -1922,8 +1922,8 @@ export class ReminderPanel {
 
                 if (isInRange) {
                     countdownEl.textContent = daysDiff === 1 ?
-                        "还剩1天结束" :
-                        `还剩${daysDiff}天结束`;
+                        "还剩1天" :
+                        `还剩${daysDiff}天`;
                 } else {
                     countdownEl.textContent = daysDiff === 1 ?
                         "还有1天开始" :
