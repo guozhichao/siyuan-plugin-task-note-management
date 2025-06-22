@@ -207,18 +207,18 @@
 }
 
 .project-priority-label.high {
-    background: var(--b3-theme-error-lighter);
-    color: var(--b3-theme-error);
+    background-color: rgba(231, 76, 60, 0.1);
+        color: #e74c3c;
 }
 
 .project-priority-label.medium {
-    background: var(--b3-theme-warning-lighter);
-    color: var(--b3-theme-warning);
+    background-color: rgba(243, 156, 18, 0.1);
+        color: #f39c12;
 }
 
 .project-priority-label.low {
-    background: var(--b3-theme-info-lighter);
-    color: var(--b3-theme-info);
+    background-color: rgba(52, 152, 219, 0.1);
+        color: #3498db;
 }
 
 .project-overdue-label,
