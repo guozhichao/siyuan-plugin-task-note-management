@@ -449,5 +449,9 @@
     "fullscreenMode": "全屏模式",
     "daysRemaining": "还剩${days}天",
     "overdueDays": "已过期${days}天",
-    "dueToday": "今天截止"
+    "dueToday": "今天截止",
+    "startedDays": "已开始${days}天",
+    "startToday": "今天开始",
+    "startInDays": "${days}天后开始",
+    "projectStarted": "项目已开始"
 }

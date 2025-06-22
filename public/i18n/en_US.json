@@ -450,5 +450,9 @@
     "fullscreenMode": "Fullscreen Mode",
     "daysRemaining": "${days} days remaining",
     "overdueDays": "Overdue by ${days} days",
-    "dueToday": "Due today"
+    "dueToday": "Due today",
+    "startedDays": "Started ${days} days ago",
+    "startToday": "Starting today",
+    "startInDays": "Starting in ${days} days",
+    "projectStarted": "Project started"
 }
