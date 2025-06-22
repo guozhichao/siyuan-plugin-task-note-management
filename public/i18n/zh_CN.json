@@ -446,5 +446,8 @@
     "randomRestComplete": "微休息结束，请继续工作。",
     "pomodoroHintTitle": "番茄钟的使用介绍",
     "pomodoroHintDesc": "见我的文章<a href=\"https://mp.weixin.qq.com/s/SoZ0ccPc7kJTYfwBnB5IGw\" target=\"_blank\">《深入讲解番茄钟工作法》</a>",
-    "fullscreenMode": "全屏模式"
+    "fullscreenMode": "全屏模式",
+    "daysRemaining": "还剩${days}天",
+    "overdueDays": "已过期${days}天",
+    "dueToday": "今天截止"
 }

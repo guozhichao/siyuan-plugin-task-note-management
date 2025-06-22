@@ -469,7 +469,6 @@ export class ProjectPanel {
             this.showProjectContextMenu(e, project);
         });
 
-
         const contentEl = document.createElement('div');
         contentEl.className = 'project-item__content';
 
@@ -493,14 +492,24 @@ export class ProjectPanel {
         timeContainer.style.cssText = `
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 8px;
             margin-top: 4px;
+            flex-wrap: wrap;
         `;
 
         // 时间信息
         const timeEl = document.createElement('div');
         timeEl.className = 'project-item__time';
         timeEl.textContent = this.formatProjectTime(project.startDate, project.endDate, today);
+        timeContainer.appendChild(timeEl);
+
+        // 添加倒计时显示 - 只为非已归档的项目显示
+        if (project.endDate && status !== 'archived') {
+            const countdownEl = this.createCountdownElement(project.endDate, today);
+            timeContainer.appendChild(countdownEl);
+        }
+
+
 
         // 添加优先级标签
         if (priority !== 'none') {
@@ -512,19 +521,8 @@ export class ProjectPanel {
                 'low': t("lowPriority") || '低优先级'
             };
             priorityLabel.innerHTML = `<div class="priority-dot ${priority}"></div>${priorityNames[priority]}`;
-            timeEl.appendChild(priorityLabel);
+            timeContainer.appendChild(priorityLabel);
         }
-
-        if (isOverdue && status === 'active') {
-            const overdueLabel = document.createElement('span');
-            overdueLabel.className = 'project-overdue-label';
-            overdueLabel.textContent = t("overdue") || '已过期';
-            timeEl.appendChild(overdueLabel);
-        }
-
-
-
-        timeContainer.appendChild(timeEl);
 
         infoEl.appendChild(titleEl);
         infoEl.appendChild(timeContainer);
@@ -764,6 +762,61 @@ export class ProjectPanel {
             console.error('重新排序项目失败:', error);
             throw error;
         }
+    }
+
+    // 新增：创建倒计时元素
+    private createCountdownElement(endDate: string, today: string): HTMLElement {
+        const countdownEl = document.createElement('div');
+        countdownEl.className = 'project-countdown';
+
+        const daysDiff = this.calculateDaysDifference(endDate, today);
+        const isOverdue = daysDiff < 0;
+
+        if (isOverdue) {
+            const overdueDays = Math.abs(daysDiff);
+            countdownEl.style.cssText = `
+                color: #ff4757;
+                font-size: 12px;
+                font-weight: 500;
+                background: rgba(255, 71, 87, 0.1);
+                border: 1px solid rgba(255, 71, 87, 0.3);
+                border-radius: 4px;
+                padding: 2px 6px;
+            `;
+            countdownEl.textContent = `已过期${overdueDays}天`;
+        } else if (daysDiff === 0) {
+            countdownEl.style.cssText = `
+                color: #ffa726;
+                font-size: 12px;
+                font-weight: 500;
+                background: rgba(255, 167, 38, 0.1);
+                border: 1px solid rgba(255, 167, 38, 0.3);
+                border-radius: 4px;
+                padding: 2px 6px;
+            `;
+            countdownEl.textContent = '今天截止';
+        } else {
+            countdownEl.style.cssText = `
+                color: #2cb164;
+                font-size: 12px;
+                font-weight: 500;
+                background: rgba(46, 213, 115, 0.1);
+                border: 1px solid rgba(46, 213, 115, 0.3);
+                border-radius: 4px;
+                padding: 2px 6px;
+            `;
+            countdownEl.textContent = `还剩${daysDiff}天`;
+        }
+
+        return countdownEl;
+    }
+
+    // 新增：计算日期差值
+    private calculateDaysDifference(endDate: string, today: string): number {
+        const end = new Date(endDate + 'T00:00:00');
+        const todayDate = new Date(today + 'T00:00:00');
+        const diffTime = end.getTime() - todayDate.getTime();
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     }
 
     private formatProjectTime(startDate: string, endDate?: string, today?: string): string {
