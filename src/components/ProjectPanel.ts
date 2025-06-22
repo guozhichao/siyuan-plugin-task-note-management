@@ -878,7 +878,7 @@ export class ProjectPanel {
         startedEl.className = 'project-started';
 
         const daysDiff = this.calculateDaysDifference(today, startDate);
-        
+
         if (daysDiff < 0) {
             // 开始日期在未来
             const futureDays = Math.abs(daysDiff);
