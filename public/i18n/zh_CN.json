@@ -453,5 +453,11 @@
     "startedDays": "已开始${days}天",
     "startToday": "今天开始",
     "startInDays": "${days}天后开始",
-    "projectStarted": "项目已开始"
+    "projectStarted": "项目已开始",
+    "overdueBy": "已过期${days}天",
+    "daysLeft": "还有${days}天",
+    "overdueByDays": "已过期${days}天",
+    "overdueBySingleDay": "已过期1天",
+    "daysLeftPlural": "还有${days}天",
+    "daysLeftSingle": "还有1天"
 }

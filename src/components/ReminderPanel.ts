@@ -1601,12 +1601,10 @@ export class ReminderPanel {
         timeEl.style.cursor = 'pointer';
         timeEl.title = t("clickToModifyTime");
 
-        // 添加倒计时显示 - 只为未完成的未来提醒显示
-        if (!reminder.completed && !isOverdue) {
-            const countdownEl = this.createReminderCountdownElement(reminder, today);
-            if (countdownEl) {
-                timeContainer.appendChild(countdownEl);
-            }
+        // 添加倒计时显示 - 改进逻辑以支持过期事件
+        const countdownEl = this.createReminderCountdownElement(reminder, today);
+        if (countdownEl) {
+            timeContainer.appendChild(countdownEl);
         }
 
         // 添加优先级标签
@@ -1633,12 +1631,13 @@ export class ReminderPanel {
             }
         });
 
-        if (isOverdue) {
-            const overdueLabel = document.createElement('span');
-            overdueLabel.className = 'reminder-overdue-label';
-            overdueLabel.textContent = t("overdue");
-            timeEl.appendChild(overdueLabel);
-        }
+        // 去除过期标签的相关代码
+        // if (isOverdue) {
+        //     const overdueLabel = document.createElement('span');
+        //     overdueLabel.className = 'reminder-overdue-label';
+        //     overdueLabel.textContent = t("overdue");
+        //     timeEl.appendChild(overdueLabel);
+        // }
 
         timeContainer.appendChild(timeEl);
 
@@ -1830,10 +1829,11 @@ export class ReminderPanel {
         });
     }
 
-    // 新增：创建提醒倒计时元素
+    // 新增：创建提醒倒计时元素 - 改进以支持过期显示
     private createReminderCountdownElement(reminder: any, today: string): HTMLElement | null {
         // 判断提醒的目标日期
         let targetDate: string;
+        let isOverdueEvent = false;
 
         if (reminder.endDate && reminder.endDate !== reminder.date) {
             // 跨天事件：检查今天是否在事件范围内
@@ -1847,62 +1847,105 @@ export class ReminderPanel {
                 // 事件还未开始，显示到开始日期的倒计时
                 targetDate = reminder.date;
             } else {
-                // 事件已结束，不显示倒计时
-                return null;
+                // 事件已结束，显示过期天数（仅对未完成事件）
+                if (!reminder.completed) {
+                    targetDate = reminder.endDate;
+                    isOverdueEvent = true;
+                } else {
+                    return null;
+                }
             }
         } else {
-            // 单日事件：如果是未来日期，显示倒计时
+            // 单日事件
             if (compareDateStrings(reminder.date, today) > 0) {
+                // 未来日期，显示倒计时
                 targetDate = reminder.date;
+            } else if (compareDateStrings(reminder.date, today) < 0) {
+                // 过去日期，显示过期天数（仅对未完成事件）
+                if (!reminder.completed) {
+                    targetDate = reminder.date;
+                    isOverdueEvent = true;
+                } else {
+                    return null;
+                }
             } else {
-                // 今天或过去的事件，不显示倒计时
+                // 今天的事件，不显示倒计时
                 return null;
             }
         }
 
         const daysDiff = this.calculateReminderDaysDifference(targetDate, today);
 
-        // 只为未来的日期显示倒计时
-        if (daysDiff <= 0) {
+        // 对于未来事件，daysDiff > 0；对于过期事件，daysDiff < 0
+        if (daysDiff === 0) {
             return null;
         }
 
         const countdownEl = document.createElement('div');
         countdownEl.className = 'reminder-countdown';
-        countdownEl.style.cssText = `
-            color: #2cb164;
-            font-size: 12px;
-            font-weight: 500;
-            background: rgba(46, 213, 115, 0.1);
-            border: 1px solid rgba(46, 213, 115, 0.3);
-            border-radius: 4px;
-            padding: 2px 6px;
-            flex-shrink: 0;
-        `;
-
-        // 根据是否为跨天事件显示不同的文案
-        if (reminder.endDate && reminder.endDate !== reminder.date) {
-            const isInRange = compareDateStrings(reminder.date, today) <= 0 &&
-                compareDateStrings(today, reminder.endDate) <= 0;
-
-            if (isInRange) {
-                countdownEl.textContent = `还剩${daysDiff}天结束`;
-            } else {
-                countdownEl.textContent = `还有${daysDiff}天开始`;
-            }
+        
+        // 根据是否过期设置不同的样式和文本
+        if (isOverdueEvent || daysDiff < 0) {
+            // 过期事件：红色样式
+            countdownEl.style.cssText = `
+                color: #e74c3c;
+                font-size: 12px;
+                font-weight: 500;
+                background: rgba(231, 76, 60, 0.1);
+                border: 1px solid rgba(231, 76, 60, 0.3);
+                border-radius: 4px;
+                padding: 2px 6px;
+                flex-shrink: 0;
+            `;
+            
+            const overdueDays = Math.abs(daysDiff);
+            countdownEl.textContent = overdueDays === 1 ? 
+                t("overdueBySingleDay") : 
+                t("overdueByDays", { days: overdueDays.toString() });
         } else {
-            countdownEl.textContent = `还有${daysDiff}天`;
+            // 未来事件：绿色样式
+            countdownEl.style.cssText = `
+                color: #2cb164;
+                font-size: 12px;
+                font-weight: 500;
+                background: rgba(46, 213, 115, 0.1);
+                border: 1px solid rgba(46, 213, 115, 0.3);
+                border-radius: 4px;
+                padding: 2px 6px;
+                flex-shrink: 0;
+            `;
+
+            // 根据是否为跨天事件显示不同的文案
+            if (reminder.endDate && reminder.endDate !== reminder.date) {
+                const isInRange = compareDateStrings(reminder.date, today) <= 0 &&
+                    compareDateStrings(today, reminder.endDate) <= 0;
+
+                if (isInRange) {
+                    countdownEl.textContent = daysDiff === 1 ? 
+                        "还剩1天结束" : 
+                        `还剩${daysDiff}天结束`;
+                } else {
+                    countdownEl.textContent = daysDiff === 1 ? 
+                        "还有1天开始" : 
+                        `还有${daysDiff}天开始`;
+                }
+            } else {
+                countdownEl.textContent = daysDiff === 1 ? 
+                    t("daysLeftSingle") : 
+                    t("daysLeftPlural", { days: daysDiff.toString() });
+            }
         }
 
         return countdownEl;
     }
 
-    // 新增：计算提醒日期差值
+    // 新增：计算提醒日期差值 - 改进以支持负值（过期天数）
     private calculateReminderDaysDifference(targetDate: string, today: string): number {
         const target = new Date(targetDate + 'T00:00:00');
         const todayDate = new Date(today + 'T00:00:00');
         const diffTime = target.getTime() - todayDate.getTime();
-        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        // 返回实际天数差值，负数表示过期，正数表示未来
+        return Math.round(diffTime / (1000 * 60 * 60 * 24));
     }
 
 

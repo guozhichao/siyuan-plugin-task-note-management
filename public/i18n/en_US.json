@@ -454,5 +454,11 @@
     "startedDays": "Started ${days} days ago",
     "startToday": "Starting today",
     "startInDays": "Starting in ${days} days",
-    "projectStarted": "Project started"
+    "projectStarted": "Project started",
+    "overdueBy": "Overdue by ${days} day${plural}",
+    "daysLeft": "${days} day${plural} left",
+    "overdueByDays": "Overdue by ${days} days",
+    "overdueBySingleDay": "Overdue by 1 day",
+    "daysLeftPlural": "${days} days left",
+    "daysLeftSingle": "1 day left"
 }
