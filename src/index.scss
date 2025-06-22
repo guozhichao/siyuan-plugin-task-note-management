@@ -1,6 +1,6 @@
-@import './styles/doc-reminder.scss';
-@import './styles/project-reminder.scss';
-@import './styles/pomodoroTimer.scss';
+@use './styles/doc-reminder.scss';
+@use './styles/project-reminder.scss';
+@use './styles/pomodoroTimer.scss';
 
 .smart-batch-dialog {
     .b3-dialog__content {
