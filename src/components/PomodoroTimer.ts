@@ -488,7 +488,7 @@ export class PomodoroTimer {
             right: 20px;
             width: 240px;
             background: var(--b3-theme-background);
-            border: 1px solid var(--b3-theme-border);
+            border: 1px solid var(--b3-table-border-color);
             border-radius: 12px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
             z-index: 10000;
@@ -506,10 +506,10 @@ export class PomodoroTimer {
         const header = document.createElement('div');
         header.className = 'pomodoro-header';
         header.style.cssText = `
-            padding: 12px 16px;
+            padding: 6px;
             background: var(--b3-theme-surface);
             border-radius: 12px 12px 0 0;
-            border-bottom: 1px solid var(--b3-theme-border);
+            border-bottom: 1px solid var(--b3-table-border-color);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -754,7 +754,7 @@ export class PomodoroTimer {
         const content = document.createElement('div');
         content.className = 'pomodoro-content';
         content.style.cssText = `
-            padding: 10px 16px 16px 16px;
+            padding: 0px 16px 6px;
         `;
 
         // 事件名称显示

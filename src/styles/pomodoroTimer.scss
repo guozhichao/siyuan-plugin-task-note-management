@@ -62,7 +62,7 @@
 
             // 确保背景圆环显示
             circle:first-child {
-                stroke: #e0e0e0;
+                stroke: var(--b3-theme-background-light);
                 opacity: 0.3;
             }
 
@@ -89,7 +89,7 @@
 
         // 暗色主题下的圆环底色
         svg circle:first-child {
-            stroke: #555;
+            stroke: var(--b3-theme-background-light);
             opacity: 0.4;
         }
     }
@@ -320,7 +320,7 @@
             margin-bottom: 5vh !important;
             padding: 2vh 4vw !important;
             background: rgba(255, 255, 255, 0.1) !important;
-            border: 2px solid rgba(255, 255, 255, 0.2) !important;
+            border: 2px solid var(--b3-table-border-color) !important;
             backdrop-filter: blur(10px) !important;
             border-radius: 12px !important;
         }
