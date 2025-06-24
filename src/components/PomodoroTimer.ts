@@ -47,6 +47,8 @@ export class PomodoroTimer {
     private isExpanded: boolean = true;
     private isMinimized: boolean = false;
     private startTime: number = 0; // 记录开始时间
+    private pausedTime: number = 0; // 记录暂停时累计的时间
+    private lastUpdateTime: number = 0; // 记录上次更新的时间
 
     // 新增：当前阶段的原始设定时长（用于统计）
     private currentPhaseOriginalDuration: number = 0; // 当前阶段的原始设定时长（分钟）
@@ -1813,7 +1815,10 @@ export class PomodoroTimer {
     private async startTimer() {
         this.isRunning = true;
         this.isPaused = false;
-        this.startTime = this.isCountUp ? Date.now() - (this.timeElapsed * 1000) : Date.now();
+        
+        // 记录开始时间，考虑已暂停的时间
+        this.startTime = Date.now() - this.pausedTime;
+        this.lastUpdateTime = Date.now();
 
         // 播放对应的背景音
         if (this.isWorkPhase && this.workAudio) {
@@ -1832,37 +1837,46 @@ export class PomodoroTimer {
         }
 
         this.timer = window.setInterval(() => {
+            const currentTime = Date.now();
+            const elapsedSinceStart = Math.floor((currentTime - this.startTime) / 1000);
+            
             if (this.isCountUp) {
                 if (this.isWorkPhase) {
-                    // 正计时工作时间
-                    this.timeElapsed++;
+                    // 正计时工作时间：直接使用经过的时间
+                    this.timeElapsed = elapsedSinceStart;
 
                     // 检查是否完成一个番茄
                     const pomodoroLength = this.settings.workDuration * 60;
                     const currentCycleTime = this.timeElapsed % pomodoroLength;
 
-                    if (currentCycleTime === 0 && this.timeElapsed > 0) {
+                    if (this.timeElapsed > 0 && currentCycleTime === 0) {
                         this.completePomodoroPhase();
                     }
                 } else {
-                    // 正计时休息时间（倒计时）
-                    this.breakTimeLeft--;
+                    // 正计时休息时间：倒计时显示
+                    const totalBreakTime = this.isLongBreak ?
+                        this.settings.longBreakDuration * 60 :
+                        this.settings.breakDuration * 60;
+                    
+                    this.breakTimeLeft = totalBreakTime - elapsedSinceStart;
 
                     if (this.breakTimeLeft <= 0) {
+                        this.breakTimeLeft = 0;
                         this.completeBreakPhase();
                     }
                 }
             } else {
-                // 倒计时模式
-                this.timeLeft--;
+                // 倒计时模式：从总时间减去经过的时间
+                this.timeLeft = this.totalTime - elapsedSinceStart;
 
                 if (this.timeLeft <= 0) {
+                    this.timeLeft = 0;
                     this.completePhase();
                 }
             }
 
             this.updateDisplay();
-        }, 1000);
+        }, 500);
 
         const phaseText = this.isWorkPhase ? '工作时间' : (this.isLongBreak ? '长时休息' : '短时休息');
         const modeText = (this.isCountUp && this.isWorkPhase) ? '正计时' : '倒计时';
@@ -1879,6 +1893,10 @@ export class PomodoroTimer {
             clearInterval(this.timer);
             this.timer = null;
         }
+
+        // 记录暂停时已经经过的时间
+        const currentTime = Date.now();
+        this.pausedTime = currentTime - this.startTime;
 
         // 停止随机提示音定时器
         this.stopRandomNotificationTimer();
@@ -1900,7 +1918,9 @@ export class PomodoroTimer {
 
     private async resumeTimer() {
         this.isPaused = false;
-        this.startTime = this.isCountUp ? Date.now() - (this.timeElapsed * 1000) : Date.now();
+        
+        // 重新计算开始时间，保持已暂停的时间
+        this.startTime = Date.now() - this.pausedTime;
 
         // 恢复对应的背景音
         if (this.isWorkPhase && this.workAudio) {
@@ -1919,33 +1939,42 @@ export class PomodoroTimer {
         }
 
         this.timer = window.setInterval(() => {
+            const currentTime = Date.now();
+            const elapsedSinceStart = Math.floor((currentTime - this.startTime) / 1000);
+            
             if (this.isCountUp) {
                 if (this.isWorkPhase) {
-                    this.timeElapsed++;
+                    this.timeElapsed = elapsedSinceStart;
 
                     const pomodoroLength = this.settings.workDuration * 60;
                     const currentCycleTime = this.timeElapsed % pomodoroLength;
 
-                    if (currentCycleTime === 0 && this.timeElapsed > 0) {
+                    if (this.timeElapsed > 0 && currentCycleTime === 0) {
                         this.completePomodoroPhase();
                     }
                 } else {
-                    this.breakTimeLeft--;
+                    const totalBreakTime = this.isLongBreak ?
+                        this.settings.longBreakDuration * 60 :
+                        this.settings.breakDuration * 60;
+                    
+                    this.breakTimeLeft = totalBreakTime - elapsedSinceStart;
 
                     if (this.breakTimeLeft <= 0) {
+                        this.breakTimeLeft = 0;
                         this.completeBreakPhase();
                     }
                 }
             } else {
-                this.timeLeft--;
+                this.timeLeft = this.totalTime - elapsedSinceStart;
 
                 if (this.timeLeft <= 0) {
+                    this.timeLeft = 0;
                     this.completePhase();
                 }
             }
 
             this.updateDisplay();
-        }, 1000);
+        }, 500);
 
         // 更新显示
         this.updateDisplay();
@@ -1968,6 +1997,8 @@ export class PomodoroTimer {
         this.isLongBreak = false;
         this.isRunning = false;
         this.isPaused = false;
+        this.pausedTime = 0; // 重置暂停时间
+        this.startTime = 0; // 重置开始时间
 
         // 设置当前阶段的原始时长
         this.currentPhaseOriginalDuration = this.settings.workDuration;
@@ -2002,6 +2033,8 @@ export class PomodoroTimer {
         this.isLongBreak = false;
         this.isRunning = false;
         this.isPaused = false;
+        this.pausedTime = 0; // 重置暂停时间
+        this.startTime = 0; // 重置开始时间
 
         // 设置当前阶段的原始时长
         this.currentPhaseOriginalDuration = this.settings.breakDuration;
@@ -2035,6 +2068,8 @@ export class PomodoroTimer {
         this.isLongBreak = true;
         this.isRunning = false;
         this.isPaused = false;
+        this.pausedTime = 0; // 重置暂停时间
+        this.startTime = 0; // 重置开始时间
 
         // 设置当前阶段的原始时长
         this.currentPhaseOriginalDuration = this.settings.longBreakDuration;
@@ -2058,6 +2093,8 @@ export class PomodoroTimer {
         this.isLongBreak = false;
         this.timeElapsed = 0;
         this.breakTimeLeft = 0;
+        this.pausedTime = 0; // 重置暂停时间
+        this.startTime = 0; // 重置开始时间
         // 注释掉清空番茄计数的代码，保持总计数
         // this.completedPomodoros = 0;
         this.statusDisplay.textContent = '工作时间';
@@ -2427,11 +2464,14 @@ export class PomodoroTimer {
         if (this.autoTransitionTimer) {
             clearTimeout(this.autoTransitionTimer);
             this.autoTransitionTimer = null;
-        }        // 设置休息阶段
+        }
+
+        // 设置休息阶段
         this.isWorkPhase = false;
         this.isLongBreak = isLongBreak;
         this.isRunning = true;
         this.isPaused = false;
+        this.pausedTime = 0; // 重置暂停时间
 
         const breakDuration = isLongBreak ? this.settings.longBreakDuration : this.settings.breakDuration;
 
@@ -2454,21 +2494,26 @@ export class PomodoroTimer {
         }
 
         // 开始计时
-        this.startTime = this.isCountUp ? Date.now() - (this.timeElapsed * 1000) : Date.now();
+        this.startTime = Date.now();
         this.timer = window.setInterval(() => {
+            const currentTime = Date.now();
+            const elapsedSinceStart = Math.floor((currentTime - this.startTime) / 1000);
+            
             if (this.isCountUp) {
-                this.breakTimeLeft--;
+                this.breakTimeLeft = breakDuration * 60 - elapsedSinceStart;
                 if (this.breakTimeLeft <= 0) {
+                    this.breakTimeLeft = 0;
                     this.completeBreakPhase();
                 }
             } else {
-                this.timeLeft--;
+                this.timeLeft = this.totalTime - elapsedSinceStart;
                 if (this.timeLeft <= 0) {
+                    this.timeLeft = 0;
                     this.completePhase();
                 }
             }
             this.updateDisplay();
-        }, 1000);
+        }, 500);
 
         this.updateDisplay();
         this.updateStatsDisplay();
@@ -2491,11 +2536,14 @@ export class PomodoroTimer {
         if (this.autoTransitionTimer) {
             clearTimeout(this.autoTransitionTimer);
             this.autoTransitionTimer = null;
-        }        // 设置工作阶段
+        }
+
+        // 设置工作阶段
         this.isWorkPhase = true;
         this.isLongBreak = false;
         this.isRunning = true;
         this.isPaused = false;
+        this.pausedTime = 0; // 重置暂停时间
 
         // 设置当前阶段的原始时长
         this.currentPhaseOriginalDuration = this.settings.workDuration;
@@ -2519,24 +2567,28 @@ export class PomodoroTimer {
         }
 
         // 开始计时
-        this.startTime = this.isCountUp ? Date.now() - (this.timeElapsed * 1000) : Date.now();
+        this.startTime = Date.now();
         this.timer = window.setInterval(() => {
+            const currentTime = Date.now();
+            const elapsedSinceStart = Math.floor((currentTime - this.startTime) / 1000);
+            
             if (this.isCountUp) {
-                this.timeElapsed++;
+                this.timeElapsed = elapsedSinceStart;
 
                 const pomodoroLength = this.settings.workDuration * 60;
                 const currentCycleTime = this.timeElapsed % pomodoroLength;
-                if (currentCycleTime === 0 && this.timeElapsed > 0) {
+                if (this.timeElapsed > 0 && currentCycleTime === 0) {
                     this.completePomodoroPhase();
                 }
             } else {
-                this.timeLeft--;
+                this.timeLeft = this.totalTime - elapsedSinceStart;
                 if (this.timeLeft <= 0) {
+                    this.timeLeft = 0;
                     this.completePhase();
                 }
             }
             this.updateDisplay();
-        }, 1000);
+        }, 500);
 
         this.updateDisplay();
         this.updateStatsDisplay();
