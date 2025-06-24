@@ -1815,7 +1815,7 @@ export class PomodoroTimer {
     private async startTimer() {
         this.isRunning = true;
         this.isPaused = false;
-        
+
         // 记录开始时间，考虑已暂停的时间
         this.startTime = Date.now() - this.pausedTime;
         this.lastUpdateTime = Date.now();
@@ -1839,7 +1839,7 @@ export class PomodoroTimer {
         this.timer = window.setInterval(() => {
             const currentTime = Date.now();
             const elapsedSinceStart = Math.floor((currentTime - this.startTime) / 1000);
-            
+
             if (this.isCountUp) {
                 if (this.isWorkPhase) {
                     // 正计时工作时间：直接使用经过的时间
@@ -1857,7 +1857,7 @@ export class PomodoroTimer {
                     const totalBreakTime = this.isLongBreak ?
                         this.settings.longBreakDuration * 60 :
                         this.settings.breakDuration * 60;
-                    
+
                     this.breakTimeLeft = totalBreakTime - elapsedSinceStart;
 
                     if (this.breakTimeLeft <= 0) {
@@ -1918,7 +1918,7 @@ export class PomodoroTimer {
 
     private async resumeTimer() {
         this.isPaused = false;
-        
+
         // 重新计算开始时间，保持已暂停的时间
         this.startTime = Date.now() - this.pausedTime;
 
@@ -1941,7 +1941,7 @@ export class PomodoroTimer {
         this.timer = window.setInterval(() => {
             const currentTime = Date.now();
             const elapsedSinceStart = Math.floor((currentTime - this.startTime) / 1000);
-            
+
             if (this.isCountUp) {
                 if (this.isWorkPhase) {
                     this.timeElapsed = elapsedSinceStart;
@@ -1956,7 +1956,7 @@ export class PomodoroTimer {
                     const totalBreakTime = this.isLongBreak ?
                         this.settings.longBreakDuration * 60 :
                         this.settings.breakDuration * 60;
-                    
+
                     this.breakTimeLeft = totalBreakTime - elapsedSinceStart;
 
                     if (this.breakTimeLeft <= 0) {
@@ -2498,7 +2498,7 @@ export class PomodoroTimer {
         this.timer = window.setInterval(() => {
             const currentTime = Date.now();
             const elapsedSinceStart = Math.floor((currentTime - this.startTime) / 1000);
-            
+
             if (this.isCountUp) {
                 this.breakTimeLeft = breakDuration * 60 - elapsedSinceStart;
                 if (this.breakTimeLeft <= 0) {
@@ -2571,7 +2571,7 @@ export class PomodoroTimer {
         this.timer = window.setInterval(() => {
             const currentTime = Date.now();
             const elapsedSinceStart = Math.floor((currentTime - this.startTime) / 1000);
-            
+
             if (this.isCountUp) {
                 this.timeElapsed = elapsedSinceStart;
 
