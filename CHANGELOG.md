@@ -3,8 +3,6 @@
 - 💄 style(番茄钟): 调整样式，缩小番茄钟Dialog，添加窗口阴影，添加部分css变量
 
 
-
-
 ## v0.4.0 / 2025-06-22
 - ✨ feat(ReminderPanel): 改进倒计时显示逻辑以支持过期事件
 - ✨ feat(ProjectPanel): 添加项目开始和倒计时显示

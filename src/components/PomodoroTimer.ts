@@ -415,67 +415,145 @@ export class PomodoroTimer {
         if (this.audioInitialized) return;
 
         try {
+            // 创建一个静默音频来获取播放权限
             const silentAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
             await silentAudio.play();
             silentAudio.pause();
 
-            const audioPromises = [];
+            // 等待所有音频文件加载完成
+            const audioLoadPromises = [];
+            
             if (this.workAudio) {
-                audioPromises.push(this.workAudio.load());
+                audioLoadPromises.push(this.waitForAudioLoad(this.workAudio));
             }
             if (this.breakAudio) {
-                audioPromises.push(this.breakAudio.load());
+                audioLoadPromises.push(this.waitForAudioLoad(this.breakAudio));
             }
             if (this.longBreakAudio) {
-                audioPromises.push(this.longBreakAudio.load());
+                audioLoadPromises.push(this.waitForAudioLoad(this.longBreakAudio));
             }
             if (this.workEndAudio) {
-                audioPromises.push(this.workEndAudio.load());
+                audioLoadPromises.push(this.waitForAudioLoad(this.workEndAudio));
             }
             if (this.breakEndAudio) {
-                audioPromises.push(this.breakEndAudio.load());
+                audioLoadPromises.push(this.waitForAudioLoad(this.breakEndAudio));
             }
 
-            // 预加载随机提示音
+            // 等待随机提示音加载
             if (this.randomNotificationSounds.length > 0) {
                 this.randomNotificationSounds.forEach(audio => {
-                    audioPromises.push(audio.load());
+                    audioLoadPromises.push(this.waitForAudioLoad(audio));
                 });
             }
 
-            // 预加载随机提示音结束声音
+            // 等待随机提示音结束声音加载
             if (this.randomNotificationEndSound) {
-                audioPromises.push(this.randomNotificationEndSound.load());
+                audioLoadPromises.push(this.waitForAudioLoad(this.randomNotificationEndSound));
             }
 
-            await Promise.allSettled(audioPromises);
+            // 等待所有音频加载完成
+            await Promise.allSettled(audioLoadPromises);
+            
             this.audioInitialized = true;
-            console.log('音频播放权限已获取');
+            console.log('音频播放权限已获取，所有音频文件已加载');
         } catch (error) {
             console.warn('无法获取音频播放权限:', error);
         }
+    }
+
+    /**
+     * 等待音频文件加载完成
+     */
+    private waitForAudioLoad(audio: HTMLAudioElement): Promise<void> {
+        return new Promise((resolve, reject) => {
+            if (audio.readyState >= 3) { // HAVE_FUTURE_DATA
+                resolve();
+                return;
+            }
+
+            const onLoad = () => {
+                cleanup();
+                resolve();
+            };
+
+            const onError = () => {
+                cleanup();
+                reject(new Error('音频加载失败'));
+            };
+
+            const onTimeout = () => {
+                cleanup();
+                console.warn('音频加载超时，但继续执行');
+                resolve(); // 超时时也resolve，避免阻塞
+            };
+
+            const cleanup = () => {
+                audio.removeEventListener('canplaythrough', onLoad);
+                audio.removeEventListener('error', onError);
+                clearTimeout(timeoutId);
+            };
+
+            audio.addEventListener('canplaythrough', onLoad);
+            audio.addEventListener('error', onError);
+            
+            // 设置5秒超时
+            const timeoutId = setTimeout(onTimeout, 5000);
+            
+            // 触发加载
+            audio.load();
+        });
     }
 
     private async safePlayAudio(audio: HTMLAudioElement) {
         if (!audio) return;
 
         try {
+            // 确保音频已初始化
             if (!this.audioInitialized) {
                 await this.initializeAudioPlayback();
             }
+
+            // 检查音频是否准备就绪
+            if (audio.readyState < 3) {
+                console.log('音频未就绪，等待加载完成...');
+                await this.waitForAudioLoad(audio);
+            }
+
+            // 重置音频到开始位置
+            audio.currentTime = 0;
+            
+            // 播放音频
             await audio.play();
+            console.log('音频播放成功');
         } catch (error) {
             console.warn('音频播放失败:', error);
+            
             if (error.name === 'NotAllowedError') {
                 console.log('尝试重新获取音频播放权限...');
                 this.audioInitialized = false;
                 // 尝试重新初始化
                 try {
                     await this.initializeAudioPlayback();
-                    await audio.play();
+                    if (audio.readyState >= 3) {
+                        audio.currentTime = 0;
+                        await audio.play();
+                    }
                 } catch (retryError) {
                     console.warn('重试音频播放失败:', retryError);
                 }
+            } else if (error.name === 'AbortError') {
+                console.log('播放被中断，尝试延迟重试...');
+                // 延迟一小段时间后重试
+                setTimeout(async () => {
+                    try {
+                        if (audio.readyState >= 3) {
+                            audio.currentTime = 0;
+                            await audio.play();
+                        }
+                    } catch (delayedError) {
+                        console.warn('延迟重试也失败:', delayedError);
+                    }
+                }, 100);
             }
         }
     }
@@ -1940,6 +2018,7 @@ export class PomodoroTimer {
 
         this.timer = window.setInterval(() => {
             const currentTime = Date.now();
+           
             const elapsedSinceStart = Math.floor((currentTime - this.startTime) / 1000);
 
             if (this.isCountUp) {
@@ -2790,7 +2869,7 @@ export class PomodoroTimer {
         // 限制输入格式
         input.addEventListener('input', (e) => {
             let value = input.value;
-            value = value.replace(/[^0-9:]/g, '');
+            value = value.replace(/[^0-9:]/g, '')
 
             if (value.length > 5) {
                 value = value.substring(0, 5);
