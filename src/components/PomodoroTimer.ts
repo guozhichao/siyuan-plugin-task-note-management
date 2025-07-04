@@ -120,20 +120,32 @@ export class PomodoroTimer {
      * 应用继承的番茄钟状态
      */
     private applyInheritedState(inheritState: any) {
-        // 继承时间状态
+        console.log('开始应用继承状态:', inheritState);
+        
+        // 继承基本状态
         this.isWorkPhase = inheritState.isWorkPhase;
         this.isLongBreak = inheritState.isLongBreak;
-        this.timeElapsed = inheritState.timeElapsed || 0;
-        this.timeLeft = inheritState.timeLeft || this.settings.workDuration * 60;
-        this.breakTimeLeft = inheritState.breakTimeLeft || 0;
         this.completedPomodoros = inheritState.completedPomodoros || 0;
 
-        // 继承运行状态
-        this.isRunning = inheritState.isRunning && !inheritState.isPaused;
-        this.isPaused = false; // 新番茄钟开始时不暂停
-
-        // 如果继承的是倒计时模式的状态，需要重新计算totalTime
-        if (!this.isCountUp) {
+        // 根据计时模式应用不同的时间状态
+        if (this.isCountUp) {
+            // 正计时模式
+            if (inheritState.isWorkPhase) {
+                this.timeElapsed = inheritState.timeElapsed || 0;
+                this.breakTimeLeft = 0;
+            } else {
+                // 休息阶段：继承剩余休息时间和已用工作时间
+                this.timeElapsed = inheritState.timeElapsed || 0;
+                this.breakTimeLeft = inheritState.breakTimeLeft || (this.isLongBreak ? 
+                    this.settings.longBreakDuration * 60 : this.settings.breakDuration * 60);
+            }
+        } else {
+            // 倒计时模式
+            this.timeLeft = inheritState.timeLeft || this.settings.workDuration * 60;
+            this.timeElapsed = inheritState.timeElapsed || 0;
+            this.breakTimeLeft = inheritState.breakTimeLeft || 0;
+            
+            // 重新计算totalTime
             if (this.isWorkPhase) {
                 this.totalTime = this.settings.workDuration * 60;
             } else if (this.isLongBreak) {
@@ -143,34 +155,80 @@ export class PomodoroTimer {
             }
         }
 
-        console.log('继承番茄钟状态:', {
+        // 继承运行状态，但新番茄钟开始时不暂停
+        this.isRunning = inheritState.isRunning && !inheritState.isPaused;
+        this.isPaused = false;
+        
+        // 重置时间追踪变量
+        this.pausedTime = 0;
+        this.startTime = 0;
+
+        // 设置当前阶段的原始时长
+        if (this.isWorkPhase) {
+            this.currentPhaseOriginalDuration = this.settings.workDuration;
+        } else if (this.isLongBreak) {
+            this.currentPhaseOriginalDuration = this.settings.longBreakDuration;
+        } else {
+            this.currentPhaseOriginalDuration = this.settings.breakDuration;
+        }
+
+        console.log('继承状态应用完成:', {
             isWorkPhase: this.isWorkPhase,
             isLongBreak: this.isLongBreak,
             timeElapsed: this.timeElapsed,
             timeLeft: this.timeLeft,
             breakTimeLeft: this.breakTimeLeft,
             completedPomodoros: this.completedPomodoros,
-            isRunning: this.isRunning
+            isRunning: this.isRunning,
+            currentPhaseOriginalDuration: this.currentPhaseOriginalDuration
         });
     }
 
     /**
      * 获取当前番茄钟状态，用于状态继承
      */
+    /**
+     * 获取当前番茄钟状态，用于状态继承
+     */
     public getCurrentState() {
+        // 如果正在运行，计算实时状态
+        let currentTimeElapsed = this.timeElapsed;
+        let currentTimeLeft = this.timeLeft;
+        let currentBreakTimeLeft = this.breakTimeLeft;
+
+        if (this.isRunning && !this.isPaused && this.startTime > 0) {
+            const currentTime = Date.now();
+            const realElapsedTime = Math.floor((currentTime - this.startTime) / 1000);
+
+            if (this.isCountUp) {
+                if (this.isWorkPhase) {
+                    currentTimeElapsed = realElapsedTime;
+                } else {
+                    const totalBreakTime = this.isLongBreak ?
+                        this.settings.longBreakDuration * 60 :
+                        this.settings.breakDuration * 60;
+                    currentBreakTimeLeft = totalBreakTime - realElapsedTime;
+                }
+            } else {
+                currentTimeLeft = this.totalTime - realElapsedTime;
+                currentTimeElapsed = realElapsedTime;
+            }
+        }
+
         return {
             isRunning: this.isRunning,
             isPaused: this.isPaused,
             isWorkPhase: this.isWorkPhase,
             isLongBreak: this.isLongBreak,
             isCountUp: this.isCountUp,
-            timeElapsed: this.timeElapsed,
-            timeLeft: this.timeLeft,
-            breakTimeLeft: this.breakTimeLeft,
+            timeElapsed: currentTimeElapsed,
+            timeLeft: Math.max(0, currentTimeLeft),
+            breakTimeLeft: Math.max(0, currentBreakTimeLeft),
             totalTime: this.totalTime,
             completedPomodoros: this.completedPomodoros,
             reminderTitle: this.reminder.title,
-            reminderId: this.reminder.id
+            reminderId: this.reminder.id,
+            currentPhaseOriginalDuration: this.currentPhaseOriginalDuration
         };
     }
 
@@ -422,7 +480,7 @@ export class PomodoroTimer {
 
             // 等待所有音频文件加载完成
             const audioLoadPromises = [];
-            
+
             if (this.workAudio) {
                 audioLoadPromises.push(this.waitForAudioLoad(this.workAudio));
             }
@@ -453,7 +511,7 @@ export class PomodoroTimer {
 
             // 等待所有音频加载完成
             await Promise.allSettled(audioLoadPromises);
-            
+
             this.audioInitialized = true;
             console.log('音频播放权限已获取，所有音频文件已加载');
         } catch (error) {
@@ -495,10 +553,10 @@ export class PomodoroTimer {
 
             audio.addEventListener('canplaythrough', onLoad);
             audio.addEventListener('error', onError);
-            
+
             // 设置5秒超时
             const timeoutId = setTimeout(onTimeout, 5000);
-            
+
             // 触发加载
             audio.load();
         });
@@ -521,13 +579,13 @@ export class PomodoroTimer {
 
             // 重置音频到开始位置
             audio.currentTime = 0;
-            
+
             // 播放音频
             await audio.play();
             console.log('音频播放成功');
         } catch (error) {
             console.warn('音频播放失败:', error);
-            
+
             if (error.name === 'NotAllowedError') {
                 console.log('尝试重新获取音频播放权限...');
                 this.audioInitialized = false;
@@ -1894,8 +1952,38 @@ export class PomodoroTimer {
         this.isRunning = true;
         this.isPaused = false;
 
-        // 记录开始时间，考虑已暂停的时间
-        this.startTime = Date.now() - this.pausedTime;
+        // 改进的时间继承逻辑
+        if (this.startTime === 0) {
+            // 新番茄钟或重置后的首次启动
+            if (this.isCountUp) {
+                // 正计时模式：从已有的时间开始
+                this.startTime = Date.now() - (this.timeElapsed * 1000);
+            } else {
+                // 倒计时模式：从已有的进度开始
+                const elapsedTime = this.totalTime - this.timeLeft;
+                this.startTime = Date.now() - (elapsedTime * 1000);
+            }
+        } else {
+            // 继承状态后的启动，调整开始时间以保持正确的经过时间
+            if (this.isCountUp) {
+                if (this.isWorkPhase) {
+                    // 正计时工作时间：基于当前已用时间重新计算开始时间
+                    this.startTime = Date.now() - (this.timeElapsed * 1000);
+                } else {
+                    // 正计时休息时间：基于剩余时间重新计算开始时间
+                    const totalBreakTime = this.isLongBreak ?
+                        this.settings.longBreakDuration * 60 :
+                        this.settings.breakDuration * 60;
+                    const usedBreakTime = totalBreakTime - this.breakTimeLeft;
+                    this.startTime = Date.now() - (usedBreakTime * 1000);
+                }
+            } else {
+                // 倒计时模式：基于剩余时间重新计算开始时间
+                const elapsedTime = this.totalTime - this.timeLeft;
+                this.startTime = Date.now() - (elapsedTime * 1000);
+            }
+        }
+
         this.lastUpdateTime = Date.now();
 
         // 播放对应的背景音
@@ -1958,12 +2046,11 @@ export class PomodoroTimer {
 
         const phaseText = this.isWorkPhase ? '工作时间' : (this.isLongBreak ? '长时休息' : '短时休息');
         const modeText = (this.isCountUp && this.isWorkPhase) ? '正计时' : '倒计时';
-        showMessage(`${phaseText}${modeText}已开始`);
+        showMessage(`${phaseText}${modeText}继续进行中`);
 
         // 更新显示
         this.updateDisplay();
     }
-
     private pauseTimer() {
         this.isPaused = true;
 
@@ -2018,7 +2105,7 @@ export class PomodoroTimer {
 
         this.timer = window.setInterval(() => {
             const currentTime = Date.now();
-           
+
             const elapsedSinceStart = Math.floor((currentTime - this.startTime) / 1000);
 
             if (this.isCountUp) {
