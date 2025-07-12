@@ -477,10 +477,17 @@ export class ProjectPanel {
         infoEl.className = 'project-item__info';
 
         // 标题
-        const titleEl = document.createElement('a');
+        const titleEl = document.createElement('span');
         titleEl.className = 'project-item__title';
+        titleEl.setAttribute('data-type', 'a');
+        titleEl.setAttribute('data-href', `siyuan://blocks/${project.blockId || project.id}`);
         titleEl.textContent = project.title || t("unnamedNote") || '未命名项目';
-        titleEl.href = '#';
+        titleEl.style.cssText = `
+            cursor: pointer;
+            color: var(--b3-theme-primary);
+            text-decoration: underline;
+            font-weight: 500;
+        `;
         titleEl.addEventListener('click', (e) => {
             e.preventDefault();
             this.openProject(project.blockId || project.id);

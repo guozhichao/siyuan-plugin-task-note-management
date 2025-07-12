@@ -404,6 +404,13 @@ export class ReminderPanel {
                     text-decoration-style: dotted;
                 `;
 
+                // 点击事件：打开文档
+                docTitleEl.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.openBlockTab(docId);
+                });
+
                 // 鼠标悬停效果
                 docTitleLink.addEventListener('mouseenter', () => {
                     docTitleLink.style.color = 'var(--b3-theme-primary)';
@@ -1561,6 +1568,17 @@ export class ReminderPanel {
             text-decoration: underline;
             font-weight: 500;
         `;
+        titleEl.addEventListener('click', (e) => {
+            e.preventDefault();
+            // 如果存在docId
+            if (reminder.docId) {
+                // 打开文档
+                this.openBlockTab(reminder.blockId || reminder.id);
+            } else {
+                this.openBlockTab(reminder.blockId || reminder.id);
+            }
+        });
+
         
         titleContainer.appendChild(titleEl);
 
