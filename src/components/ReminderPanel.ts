@@ -381,7 +381,6 @@ export class ReminderPanel {
                     color: var(--b3-theme-on-background);
                     margin-bottom: 2px;
                     opacity: 1;
-                    cursor: pointer;
                     display: flex;
                     align-items: center;
                     gap: 4px;
@@ -392,28 +391,29 @@ export class ReminderPanel {
                 docIcon.innerHTML = '📄';
                 docIcon.style.fontSize = '10px';
 
-                // 添加文档标题文本
-                const docTitleText = document.createElement('span');
-                docTitleText.textContent = docBlock.content;
-                docTitleText.title = `所属文档: ${docBlock.content}`;
-
-                // 点击事件：打开文档
-                docTitleEl.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    this.openBlock(docId);
-                });
+                // 创建支持悬浮预览的文档标题链接
+                const docTitleLink = document.createElement('span');
+                docTitleLink.setAttribute('data-type', 'a');
+                docTitleLink.setAttribute('data-href', `siyuan://blocks/${docId}`);
+                docTitleLink.textContent = docBlock.content;
+                docTitleLink.title = `所属文档: ${docBlock.content}`;
+                docTitleLink.style.cssText = `
+                    cursor: pointer;
+                    color: var(--b3-theme-on-background);
+                    text-decoration: underline;
+                    text-decoration-style: dotted;
+                `;
 
                 // 鼠标悬停效果
-                docTitleEl.addEventListener('mouseenter', () => {
-                    docTitleEl.style.color = 'var(--b3-theme-primary)';
+                docTitleLink.addEventListener('mouseenter', () => {
+                    docTitleLink.style.color = 'var(--b3-theme-primary)';
                 });
-                docTitleEl.addEventListener('mouseleave', () => {
-                    docTitleEl.style.color = 'var(--b3-theme-on-background)';
+                docTitleLink.addEventListener('mouseleave', () => {
+                    docTitleLink.style.color = 'var(--b3-theme-on-background)';
                 });
 
                 docTitleEl.appendChild(docIcon);
-                docTitleEl.appendChild(docTitleText);
+                docTitleEl.appendChild(docTitleLink);
 
                 // 将文档标题插入到容器的最前面
                 container.insertBefore(docTitleEl, container.firstChild);
@@ -423,6 +423,7 @@ export class ReminderPanel {
             // 静默失败，不影响主要功能
         }
     }
+    
 
 
     private applyCategoryFilter(reminders: any[]): any[] {
@@ -1549,21 +1550,18 @@ export class ReminderPanel {
         }
 
         // 标题
-        const titleEl = document.createElement('a');
+        const titleEl = document.createElement('span');
         titleEl.className = 'reminder-item__title';
+        titleEl.setAttribute('data-type', 'a');
+        titleEl.setAttribute('data-href', `siyuan://blocks/${reminder.blockId || reminder.id}`);
         titleEl.textContent = reminder.title || t("unnamedNote");
-        titleEl.href = '#';
-        titleEl.addEventListener('click', (e) => {
-            e.preventDefault();
-            // 如果存在docId
-            if (reminder.docId) {
-                // 打开文档
-                this.openBlockTab(reminder.blockId || reminder.id);
-            } else {
-                this.openBlockTab(reminder.blockId || reminder.id);
-            }
-        });
-
+        titleEl.style.cssText = `
+            cursor: pointer;
+            color: var(--b3-theme-primary);
+            text-decoration: underline;
+            font-weight: 500;
+        `;
+        
         titleContainer.appendChild(titleEl);
 
         // 时间信息容器
