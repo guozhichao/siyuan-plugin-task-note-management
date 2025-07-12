@@ -40,6 +40,13 @@
                     title: t('dailyNotificationTime'),
                     description: t('dailyNotificationTimeDesc'),
                 },
+                {
+                    key: 'autoDetectDateTime',
+                    value: settings.autoDetectDateTime,
+                    type: 'checkbox',
+                    title: t('autoDetectDateTime'),
+                    description: t('autoDetectDateTimeDesc'),
+                },
             ],
         },
         {

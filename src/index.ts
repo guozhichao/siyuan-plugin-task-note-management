@@ -56,6 +56,7 @@ export const DEFAULT_SETTINGS = {
     randomNotificationEndSound: '/plugins/siyuan-plugin-task-note-management/audios/random_end.mp3',
     randomNotificationSystemNotification: true, // 新增：随机提示音系统通知
     dailyFocusGoal: 6,
+    autoDetectDateTime: false, // 新增：是否自动识别日期时间
 };
 
 export default class ReminderPlugin extends Plugin {
@@ -742,7 +743,9 @@ export default class ReminderPlugin extends Plugin {
             dockIcon.appendChild(badge);
         }
     }
-    private handleDocumentTreeMenu({ detail }) {
+    // 获取自动识别日期时间设置
+
+    private  handleDocumentTreeMenu({ detail }) {
         const elements = detail.elements;
         if (!elements || !elements.length) {
             return;
@@ -767,7 +770,7 @@ export default class ReminderPlugin extends Plugin {
             label: documentIds.length > 1 ?
                 t("batchSetReminderBlocks", { count: documentIds.length.toString() }) :
                 t("setTimeReminder"),
-            click: () => {
+            click: async () => {
                 if (documentIds.length > 1) {
                     // 确保 batchReminderDialog 已初始化
                     if (!this.batchReminderDialog) {
@@ -776,8 +779,9 @@ export default class ReminderPlugin extends Plugin {
                     // 多选文档使用批量设置对话框
                     this.batchReminderDialog.show(documentIds);
                 } else {
-                    // 单选文档使用普通设置对话框
-                    const dialog = new ReminderDialog(firstDocumentId);
+                    // 单选文档使用普通设置对话框，使用设置中的自动检测配置
+                    const autoDetect = await this.getAutoDetectDateTimeEnabled();
+                    const dialog = new ReminderDialog(firstDocumentId, autoDetect);
                     dialog.show();
                 }
             }
@@ -816,9 +820,10 @@ export default class ReminderPlugin extends Plugin {
         detail.menu.addItem({
             iconHTML: "⏰",
             label: t("setTimeReminder"),
-            click: () => {
+            click: async () => {
                 if (documentId) {
-                    const dialog = new ReminderDialog(documentId);
+                    const autoDetect = await this.getAutoDetectDateTimeEnabled();
+                    const dialog = new ReminderDialog(documentId, autoDetect);
                     dialog.show();
                 }
             }
@@ -853,30 +858,36 @@ export default class ReminderPlugin extends Plugin {
         detail.menu.addItem({
             iconHTML: "⏰",
             label: detail.blockElements.length > 1 ? t("batchSetReminderBlocks", { count: detail.blockElements.length.toString() }) : t("setTimeReminder"),
-            click: () => {
+            click: async () => {
                 if (detail.blockElements && detail.blockElements.length > 0) {
                     const blockIds = detail.blockElements
                         .map(el => el.getAttribute("data-node-id"))
                         .filter(id => id);
 
                     if (blockIds.length > 0) {
-                        this.handleMultipleBlocks(blockIds);
+                        await this.handleMultipleBlocks(blockIds);
                     }
                 }
             }
         });
     }
+
     private async handleMultipleBlocks(blockIds: string[]) {
+        if (blockIds.length === 1) {
+            // 单个块时使用普通对话框，应用自动检测设置
+            const autoDetect = await this.getAutoDetectDateTimeEnabled();
+            const dialog = new ReminderDialog(blockIds[0], autoDetect);
+            dialog.show();
+        } else {
+            // 确保 batchReminderDialog 已初始化
+            if (!this.batchReminderDialog) {
+                this.batchReminderDialog = new BatchReminderDialog(this);
+            }
 
-        // 确保 batchReminderDialog 已初始化
-        if (!this.batchReminderDialog) {
-            this.batchReminderDialog = new BatchReminderDialog(this);
+            // 使用新的批量设置组件
+            await this.batchReminderDialog.show(blockIds);
         }
-
-        // 使用新的批量设置组件
-        await this.batchReminderDialog.show(blockIds);
     }
-
 
     private startReminderCheck() {
         // 每30s检查一次提醒
@@ -1385,13 +1396,14 @@ export default class ReminderPlugin extends Plugin {
                 height: 24px;
             `;
 
-            reminderBtn.addEventListener('click', (e) => {
+            reminderBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
 
                 const documentId = protyle.block?.rootID;
                 if (documentId) {
-                    const dialog = new ReminderDialog(documentId);
+                    const autoDetect = await this.getAutoDetectDateTimeEnabled();
+                    const dialog = new ReminderDialog(documentId, autoDetect);
                     dialog.show();
                 } else {
                     showMessage(t("cannotGetDocumentId"));
@@ -1510,6 +1522,12 @@ export default class ReminderPlugin extends Plugin {
         const time = settings.dailyNotificationTime;
         // 确保时间在0-24范围内
         return Math.max(0, Math.min(24, typeof time === 'number' ? time : DEFAULT_SETTINGS.dailyNotificationTime));
+    }
+
+    // 获取自动识别日期时间设置
+    async getAutoDetectDateTimeEnabled(): Promise<boolean> {
+        const settings = await this.loadSettings();
+        return settings.autoDetectDateTime !== false;
     }
 
 }

@@ -22,9 +22,11 @@ export class ReminderDialog {
     private isAllDayDefault: boolean = true;
     private documentId: string = '';
     private chronoParser: any; // chrono解析器实例
+    private autoDetectDateTime: boolean; // 新增：是否自动识别日期时间
 
-    constructor(blockId: string) {
+    constructor(blockId: string, autoDetectDateTime: boolean = false) {
         this.blockId = blockId;
+        this.autoDetectDateTime = autoDetectDateTime; // 存储参数
         this.categoryManager = CategoryManager.getInstance();
         this.repeatConfig = {
             enabled: false,
@@ -437,7 +439,7 @@ export class ReminderDialog {
                 showMessage(t("blockNotExist"));
                 return;
             }
-            this.blockContent = block?.fcontent || block?.content|| t("unnamedNote");
+            this.blockContent = block?.fcontent || block?.content || t("unnamedNote");
             // 获取文档ID - 如果blockId就是文档ID，则直接使用，否则获取根块ID
             this.documentId = block.root_id || this.blockId;
         } catch (error) {
@@ -452,12 +454,16 @@ export class ReminderDialog {
         const today = getLocalDateString();
         const currentTime = getLocalTimeString();
 
-        // 从标题自动识别日期时间
-        const autoDetected = this.autoDetectDateTimeFromTitle(this.blockContent);
+        // 根据参数决定是否自动识别日期时间
+        let autoDetected = { date: undefined, time: undefined, hasTime: undefined, cleanTitle: this.blockContent };
+        if (this.autoDetectDateTime) {
+            autoDetected = this.autoDetectDateTimeFromTitle(this.blockContent);
+        }
+
         const initialDate = autoDetected.date || today;
         const initialTime = autoDetected.time || currentTime;
         const initialTitle = autoDetected.cleanTitle || this.blockContent;
-        const initialNoTime = !autoDetected.hasTime;
+        const initialNoTime = this.autoDetectDateTime ? !autoDetected.hasTime : this.isAllDayDefault;
 
         this.dialog = new Dialog({
             title: t("setTimeReminder"),
@@ -563,8 +569,8 @@ export class ReminderDialog {
         await this.renderPrioritySelector();
         await this.loadExistingReminder();
 
-        // 如果自动检测到日期，显示提示
-        if (autoDetected.date) {
+        // 只有在启用自动检测且检测到日期时才显示提示
+        if (this.autoDetectDateTime && autoDetected.date) {
             const detectedDateStr = new Date(autoDetected.date + 'T00:00:00').toLocaleDateString('zh-CN');
             const message = `✨ 已从标题自动识别日期：${detectedDateStr}${autoDetected.time ? ` ${autoDetected.time}` : ''}`;
             setTimeout(() => showMessage(message), 300);

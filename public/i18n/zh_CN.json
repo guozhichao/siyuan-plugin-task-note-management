@@ -459,5 +459,7 @@
     "overdueByDays": "已过期${days}天",
     "overdueBySingleDay": "已过期1天",
     "daysLeftPlural": "还有${days}天",
-    "daysLeftSingle": "还有1天"
+    "daysLeftSingle": "还有1天",
+    "autoDetectDateTime": "添加提醒时自动时间识别",
+    "autoDetectDateTimeDesc": "在创建提醒时自动识别块内容中的日期时间信息，支持自然语言表达如'明天下午3点'、'下周五'等"
 }
