@@ -1362,56 +1362,12 @@ export default class ReminderPlugin extends Plugin {
         if (!breadcrumb) return;
 
         // 检查是否已经添加过按钮
-        const existingButton = breadcrumb.querySelector('.reminder-breadcrumb-btn');
         const existingViewButton = breadcrumb.querySelector('.view-reminder-breadcrumb-btn');
-        if (existingButton && existingViewButton) return;
+        if (existingViewButton) return;
 
         // 查找文档按钮
         const docButton = breadcrumb.querySelector('button[data-type="doc"]');
         if (!docButton) return;
-
-        // 创建提醒按钮（如果不存在）
-        if (!existingButton) {
-            const reminderBtn = document.createElement('button');
-            reminderBtn.className = 'reminder-breadcrumb-btn block__icon fn__flex-center ariaLabel';
-            reminderBtn.setAttribute('aria-label', t("setDocumentReminder"));
-            reminderBtn.innerHTML = `
-                <svg class="b3-list-item__graphic"><use xlink:href="#iconClock"></use></svg>
-            `;
-
-            reminderBtn.style.cssText = `
-                margin-right: 4px;
-                padding: 4px;
-                border: none;
-                background: transparent;
-                cursor: pointer;
-                border-radius: 4px;
-                color: var(--b3-theme-on-background);
-                opacity: 0.7;
-                transition: all 0.2s ease;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                width: 24px;
-                height: 24px;
-            `;
-
-            reminderBtn.addEventListener('click', async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-
-                const documentId = protyle.block?.rootID;
-                if (documentId) {
-                    const autoDetect = await this.getAutoDetectDateTimeEnabled();
-                    const dialog = new ReminderDialog(documentId, autoDetect);
-                    dialog.show();
-                } else {
-                    showMessage(t("cannotGetDocumentId"));
-                }
-            });
-
-            breadcrumb.insertBefore(reminderBtn, docButton);
-        }
 
         // 创建查看提醒按钮（如果不存在）
         if (!existingViewButton) {
@@ -1480,7 +1436,7 @@ export default class ReminderPlugin extends Plugin {
         }
 
         // 清理所有面包屑按钮
-        document.querySelectorAll('.reminder-breadcrumb-btn, .view-reminder-breadcrumb-btn').forEach(btn => {
+        document.querySelectorAll('.view-reminder-breadcrumb-btn').forEach(btn => {
             btn.remove();
         });
     }    /**
