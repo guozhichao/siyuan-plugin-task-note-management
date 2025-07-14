@@ -745,7 +745,7 @@ export default class ReminderPlugin extends Plugin {
     }
     // 获取自动识别日期时间设置
 
-    private  handleDocumentTreeMenu({ detail }) {
+    private handleDocumentTreeMenu({ detail }) {
         const elements = detail.elements;
         if (!elements || !elements.length) {
             return;
