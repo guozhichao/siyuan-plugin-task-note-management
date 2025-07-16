@@ -323,8 +323,8 @@ export class ReminderDialog {
                     </div>
                 </div>
             `,
-            width: "400px",
-            height: "300px"
+            width: "30%",
+            height: "25%"
         });
 
         const nlInput = nlDialog.element.querySelector('#nlInput') as HTMLInputElement;
@@ -560,8 +560,8 @@ export class ReminderDialog {
                     </div>
                 </div>
             `,
-            width: "500px",
-            height: "870px"
+            width: "40%",
+            height: "85%"
         });
 
         this.bindEvents();

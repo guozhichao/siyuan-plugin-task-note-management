@@ -406,8 +406,8 @@ export class ReminderEditDialog {
             title: this.reminder.isInstance ? t("modifyInstance") :
                 this.reminder.isSplitOperation ? t("modifyAndSplit") : t("modifyEvent"),
             content: this.createDialogContent(),
-            width: "500px",
-            height: "730px" // 增加高度以容纳分类选择器
+            width: "40%",
+            height: "75%" // 增加高度以容纳分类选择器
         });
 
         this.bindEvents();

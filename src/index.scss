@@ -2,6 +2,7 @@
 @use './styles/project-reminder.scss';
 @use './styles/pomodoroTimer.scss';
 
+
 .smart-batch-dialog {
     .b3-dialog__content {
         padding: 20px;
@@ -826,6 +827,9 @@
 }
 
 .reminder-dialog {
+    .b3-dialog__content{
+        max-height: 90%;
+    }
     .b3-form__group {
         margin-bottom: 16px;
     }
@@ -867,6 +871,9 @@
 
 .time-edit-dialog {
 
+    .b3-dialog__content {
+        max-height: 90%;
+    }
     .b3-form__group {
         margin-bottom: 16px;
     }
