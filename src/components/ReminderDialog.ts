@@ -323,7 +323,7 @@ export class ReminderDialog {
                     </div>
                 </div>
             `,
-            width: "30%",
+            width: "400px",
             height: "25%"
         });
 
@@ -560,8 +560,8 @@ export class ReminderDialog {
                     </div>
                 </div>
             `,
-            width: "40%",
-            height: "85%"
+            width: "500px",
+            height: "87vh"
         });
 
         this.bindEvents();

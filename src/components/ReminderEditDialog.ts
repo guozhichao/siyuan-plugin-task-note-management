@@ -301,7 +301,7 @@ export class ReminderEditDialog {
                 </div>
             `,
             width: "400px",
-            height: "300px"
+            height: "25%"
         });
 
         const nlInput = nlDialog.element.querySelector('#editNlInput') as HTMLInputElement;
@@ -406,8 +406,8 @@ export class ReminderEditDialog {
             title: this.reminder.isInstance ? t("modifyInstance") :
                 this.reminder.isSplitOperation ? t("modifyAndSplit") : t("modifyEvent"),
             content: this.createDialogContent(),
-            width: "40%",
-            height: "75%" // 增加高度以容纳分类选择器
+            width: "500px",
+            height: "80vh" // 增加高度以容纳分类选择器
         });
 
         this.bindEvents();

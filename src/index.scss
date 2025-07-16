@@ -827,9 +827,10 @@
 }
 
 .reminder-dialog {
-    .b3-dialog__content{
+    .b3-dialog__content {
         max-height: 90%;
     }
+
     .b3-form__group {
         margin-bottom: 16px;
     }
@@ -845,8 +846,6 @@
         color: var(--b3-theme-on-surface-light);
         margin-top: 4px;
     }
-
-
 }
 
 .batch-reminder-dialog {
@@ -865,15 +864,13 @@
         color: var(--b3-theme-on-surface-light);
         margin-top: 4px;
     }
-
-
 }
 
 .time-edit-dialog {
-
     .b3-dialog__content {
         max-height: 90%;
     }
+
     .b3-form__group {
         margin-bottom: 16px;
     }
@@ -891,15 +888,91 @@
     }
 }
 
-.reminder-item__note {
-    font-size: 12px;
-    color: var(--b3-card-success-color);
-    margin-top: 4px;
-    padding: 4px 8px;
-    background: var(--b3-card-success-background);
-    border-radius: 4px;
-    white-space: pre-wrap;
-    word-break: break-word;
+// 通用 dialog 布局优化
+.reminder-dialog,
+.batch-reminder-dialog,
+.time-edit-dialog {
+
+    // 使 dialog 整体高度使用 flexbox
+    .b3-dialog__container {
+        display: flex;
+        flex-direction: column;
+        max-height: 100%;
+        max-width: 100%;
+    }
+
+    // 内容区域自适应高度
+    .b3-dialog__content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        min-height: 0; // 允许 flex 项目缩小
+        max-height: 95%;
+    }
+
+    // 按钮区域固定在底部
+    .b3-dialog__action {
+        flex-shrink: 0;
+        padding: 16px 20px;
+        border-top: 1px solid var(--b3-border-color);
+        background: var(--b3-theme-surface);
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin: 0; // 移除默认margin
+    }
+}
+
+// 自然语言对话框样式优化
+.nl-dialog {
+    .b3-dialog__container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    .b3-dialog__content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        min-height: 0;
+    }
+
+    .b3-dialog__action {
+        flex-shrink: 0;
+        padding: 16px 20px;
+        border-top: 1px solid var(--b3-border-color);
+        background: var(--b3-theme-surface);
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin: 0;
+    }
+}
+
+// 预览样式
+.nl-preview {
+    padding: 12px;
+    border: 1px solid var(--b3-border-color);
+    border-radius: 6px;
+    background: var(--b3-theme-surface);
+    font-size: 14px;
+    color: var(--b3-theme-on-surface-light);
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+
+    &.nl-preview--success {
+        background: var(--b3-card-success-background);
+        color: var(--b3-card-success-color);
+        border-color: var(--b3-card-success-color);
+    }
+
+    &.nl-preview--error {
+        background: var(--b3-card-error-background);
+        color: var(--b3-card-error-color);
+        border-color: var(--b3-card-error-color);
+    }
 }
 
 /* 悬浮窗口中的提醒面板样式 */
@@ -1248,7 +1321,6 @@
 }
 
 // .reminder-priority-none {
-//     border-left: 4px solid transparent !important;
 .reminder-priority-none .reminder-item__note {
     color: var(--b3-theme-on-background) !important;
     background-color: transparent !important;
