@@ -892,13 +892,14 @@
 .reminder-dialog,
 .batch-reminder-dialog,
 .time-edit-dialog {
+    max-height: 100%;
+    max-width: 100%;
 
     // 使 dialog 整体高度使用 flexbox
     .b3-dialog__container {
         display: flex;
         flex-direction: column;
-        max-height: 100%;
-        max-width: 100%;
+
     }
 
     // 内容区域自适应高度
