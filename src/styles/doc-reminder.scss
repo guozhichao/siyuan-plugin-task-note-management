@@ -121,7 +121,6 @@
     position: relative;
     overflow: hidden;
 
-
     &:hover {
         background: var(--b3-theme-surface-light);
         transform: translateY(-1px);
@@ -148,6 +147,19 @@
         margin: 4px 0 0 0;
         flex-shrink: 0;
     }
+
+    // 手机端样式优化
+    @media (max-width: 768px) {
+        padding: 8px 12px;
+        gap: 8px;
+        margin-bottom: 6px;
+        border-radius: 6px;
+        
+        input[type="checkbox"] {
+            margin: 2px 0 0 0;
+            transform: scale(0.9);
+        }
+    }
 }
 
 .doc-reminder-item__info {
@@ -173,6 +185,12 @@
         color: var(--b3-theme-primary);
         text-decoration: underline;
     }
+
+    @media (max-width: 768px) {
+        font-size: 13px;
+        margin-bottom: 4px;
+        line-height: 1.2;
+    }
 }
 
 .doc-reminder-item__time {
@@ -183,6 +201,12 @@
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+
+    @media (max-width: 768px) {
+        font-size: 11px;
+        margin-bottom: 3px;
+        gap: 6px;
+    }
 }
 
 .doc-reminder-repeat-icon {
@@ -258,6 +282,13 @@
     white-space: pre-wrap;
     word-break: break-word;
     border: 1px solid var(--b3-card-success-color);
+
+    @media (max-width: 768px) {
+        font-size: 11px;
+        margin-top: 3px;
+        padding: 3px 6px;
+        border-radius: 3px;
+    }
 }
 
 .doc-reminder-completed-time {
@@ -268,6 +299,12 @@
     display: flex;
     align-items: center;
     gap: 4px;
+
+    @media (max-width: 768px) {
+        font-size: 10px;
+        margin-top: 3px;
+        gap: 3px;
+    }
 }
 
 .doc-reminder-item__actions {
@@ -283,6 +320,16 @@
         &:hover {
             transform: translateY(-1px);
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+    }
+
+    @media (max-width: 768px) {
+        margin-left: 4px;
+        
+        .b3-button--small {
+            padding: 3px 6px;
+            font-size: 10px;
+            border-radius: 3px;
         }
     }
 }
@@ -330,22 +377,55 @@
 // 响应式设计
 @media (max-width: 480px) {
     .doc-reminder-item {
-        flex-direction: column;
-        gap: 8px;
+        padding: 6px 10px;
+        gap: 6px;
+        margin-bottom: 4px;
 
         input[type="checkbox"] {
             align-self: flex-start;
+            transform: scale(0.85);
         }
     }
 
+    .doc-reminder-item__title {
+        font-size: 12px;
+        margin-bottom: 3px;
+    }
+
     .doc-reminder-item__time {
-        flex-direction: column;
-        align-items: flex-start;
+        font-size: 10px;
+        margin-bottom: 2px;
         gap: 4px;
     }
 
+    .doc-reminder-item__note {
+        font-size: 10px;
+        margin-top: 2px;
+        padding: 2px 4px;
+    }
+
+    .doc-reminder-completed-time {
+        font-size: 9px;
+        margin-top: 2px;
+        gap: 2px;
+    }
+
     .doc-reminder-item__actions {
-        align-self: flex-end;
-        margin-left: 0;
+        margin-left: 2px;
+        
+        .b3-button--small {
+            padding: 2px 4px;
+            font-size: 9px;
+        }
+    }
+
+    .doc-reminder-priority-label {
+        font-size: 9px;
+        padding: 1px 3px;
+    }
+
+    .doc-reminder-overdue-label {
+        font-size: 9px;
+        padding: 1px 3px;
     }
 }
