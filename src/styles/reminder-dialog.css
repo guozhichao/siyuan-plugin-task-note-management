@@ -4,20 +4,23 @@
     display: flex;
     flex-direction: column;
     max-height: 87vh;
+    height: 87vh;
     /* 保证弹窗不会超出视口 */
 }
 
 .reminder-dialog > .b3-dialog__content {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     overflow-y: auto;
     min-height: 0;
-    max-height: 70vh;
-    /* 只让内容区滚动，底部按钮固定 */
+    max-height: calc(87vh - 64px); /* 64px为按钮栏大致高度，可根据实际调整 */
 }
 
 .reminder-dialog > .b3-dialog__action {
     flex-shrink: 0;
-    /* 保证按钮栏固定在底部 */
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+    background: var(--b3-theme-surface, #fff);
+    z-index: 2;
 }
 
 .reminder-date-container {
