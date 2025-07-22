@@ -1,5 +1,25 @@
 /* ...existing code... */
 
+.reminder-dialog {
+    display: flex;
+    flex-direction: column;
+    max-height: 87vh;
+    /* 保证弹窗不会超出视口 */
+}
+
+.reminder-dialog > .b3-dialog__content {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    min-height: 0;
+    max-height: 70vh;
+    /* 只让内容区滚动，底部按钮固定 */
+}
+
+.reminder-dialog > .b3-dialog__action {
+    flex-shrink: 0;
+    /* 保证按钮栏固定在底部 */
+}
+
 .reminder-date-container {
     display: flex;
     align-items: center;
