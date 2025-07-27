@@ -133,6 +133,7 @@ export class CalendarView {
             selectMirror: true,
             selectOverlap: true,
             locale: window.siyuan.config.lang.toLowerCase().replace('_', '-'),
+            firstDay: 1, // 设置周一为每周第一天
             eventClassNames: 'reminder-calendar-event',
             eventContent: this.renderEventContent.bind(this),
             eventClick: this.handleEventClick.bind(this),
