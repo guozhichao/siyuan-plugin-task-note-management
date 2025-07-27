@@ -2199,20 +2199,20 @@ export class ReminderPanel {
             compareDateStrings(reminder.date, today) <= 0 &&
             compareDateStrings(today, reminder.endDate) <= 0;
 
-        // 检查是否为快速事件（未绑定块）
-        const isQuickReminder = reminder.isQuickReminder || !reminder.blockId;
+        // 检查是否为未绑定的快速事件
+        const isUnboundQuickReminder = (reminder.isQuickReminder || reminder.id.startsWith('quick')) && !reminder.blockId;
 
         if (reminder.isRepeatInstance) {
             // --- Menu for a REPEAT INSTANCE ---
             // 只对已绑定块的事件显示复制块引用
-            if (!isQuickReminder) {
+            if (reminder.blockId) {
                 menu.addItem({
                     iconHTML: "📋",
                     label: t("copyBlockRef"),
                     click: () => this.copyBlockRef(reminder)
                 });
             } else {
-                // 快速事件显示绑定块选项
+                // 未绑定块的事件显示绑定块选项
                 menu.addItem({
                     iconHTML: "🔗",
                     label: t("bindToBlock"),
@@ -2283,14 +2283,14 @@ export class ReminderPanel {
         } else if (reminder.repeat?.enabled) {
             // --- Menu for the ORIGINAL RECURRING EVENT ---
             // 只对已绑定块的事件显示复制块引用
-            if (!isQuickReminder) {
+            if (reminder.blockId) {
                 menu.addItem({
                     iconHTML: "📋",
                     label: t("copyBlockRef"),
                     click: () => this.copyBlockRef(reminder)
                 });
             } else {
-                // 快速事件显示绑定块选项
+                // 未绑定块的事件显示绑定块选项
                 menu.addItem({
                     iconHTML: "🔗",
                     label: t("bindToBlock"),
@@ -2361,14 +2361,14 @@ export class ReminderPanel {
         } else {
             // --- Menu for a SIMPLE, NON-RECURRING EVENT ---
             // 只对已绑定块的事件显示复制块引用
-            if (!isQuickReminder) {
+            if (reminder.blockId) {
                 menu.addItem({
                     iconHTML: "📋",
                     label: t("copyBlockRef"),
                     click: () => this.copyBlockRef(reminder)
                 });
             } else {
-                // 快速事件显示绑定块选项
+                // 未绑定块的事件显示绑定块选项
                 menu.addItem({
                     iconHTML: "🔗",
                     label: t("bindToBlock"),
@@ -3489,13 +3489,8 @@ export class ReminderPanel {
                     <div class="b3-dialog__content">
                         <div class="b3-form__group">
                             <label class="b3-form__label">输入块ID</label>
-                            <div class="b3-form__desc">请输入要绑定的块ID，或者点击"获取当前选中块"按钮</div>
+                            <div class="b3-form__desc">请输入要绑定的块ID</div>
                             <input type="text" id="blockIdInput" class="b3-text-field" placeholder="请输入块ID" style="width: 100%; margin-top: 8px;">
-                        </div>
-                        <div class="b3-form__group">
-                            <button class="b3-button b3-button--outline" id="getCurrentBlock" style="width: 100%;">
-                                获取当前选中块
-                            </button>
                         </div>
                         <div class="b3-form__group" id="selectedBlockInfo" style="display: none;">
                             <label class="b3-form__label">块信息预览</label>
@@ -3517,12 +3512,11 @@ export class ReminderPanel {
                     </div>
                 </div>
             `,
-            width: "500px",
-            height: "400px"
+            width: "450px",
+            height: "300px"
         });
 
         const blockIdInput = dialog.element.querySelector('#blockIdInput') as HTMLInputElement;
-        const getCurrentBlockBtn = dialog.element.querySelector('#getCurrentBlock') as HTMLButtonElement;
         const selectedBlockInfo = dialog.element.querySelector('#selectedBlockInfo') as HTMLElement;
         const blockContentEl = dialog.element.querySelector('#blockContent') as HTMLElement;
         const cancelBtn = dialog.element.querySelector('#bindCancelBtn') as HTMLButtonElement;
@@ -3549,37 +3543,6 @@ export class ReminderPanel {
             }
         });
 
-        // 获取当前选中块
-        getCurrentBlockBtn.addEventListener('click', async () => {
-            try {
-                // 获取当前焦点块
-                const focusedElement = document.querySelector('.protyle-wysiwyg--focus [data-node-id]') as HTMLElement;
-                if (focusedElement) {
-                    const blockId = focusedElement.getAttribute('data-node-id');
-                    if (blockId) {
-                        const block = await getBlockByID(blockId);
-                        if (block) {
-                            blockIdInput.value = blockId;
-                            const blockContent = block.content || block.fcontent || '未命名块';
-                            blockContentEl.textContent = blockContent;
-                            selectedBlockInfo.style.display = 'block';
-                            
-                            showMessage('已获取块ID：' + blockContent.substring(0, 50) + (blockContent.length > 50 ? '...' : ''));
-                        } else {
-                            showMessage('无法获取块信息');
-                        }
-                    } else {
-                        showMessage('请先在编辑器中选择一个块');
-                    }
-                } else {
-                    showMessage('请先在编辑器中选择一个块');
-                }
-            } catch (error) {
-                console.error('获取当前块失败:', error);
-                showMessage('获取当前块失败，请重试');
-            }
-        });
-
         // 取消按钮
         cancelBtn.addEventListener('click', () => {
             dialog.destroy();
@@ -3589,7 +3552,7 @@ export class ReminderPanel {
         confirmBtn.addEventListener('click', async () => {
             const blockId = blockIdInput.value.trim();
             if (!blockId) {
-                showMessage('请输入块ID或获取当前选中块');
+                showMessage('请输入块ID');
                 return;
             }
 
