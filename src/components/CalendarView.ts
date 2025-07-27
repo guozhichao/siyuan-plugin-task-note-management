@@ -1774,16 +1774,9 @@ export class CalendarView {
                 }
             } else {
                 // 定时事件
-                const { dateStr, timeStr } = getLocalDateTime(endDate);
-                if (dateStr !== startDateStr) {
-                    // 跨天的定时事件
-                    endDateStr = dateStr;
-                    endTimeStr = timeStr;
-                } else {
-                    // 同一天的定时事件，只设置结束时间，不设置结束日期
-                    // 因为结束日期和开始日期相同时，只需要结束时间即可
-                    endTimeStr = timeStr;
-                }
+                const { dateStr: endDtStr, timeStr: endTmStr } = getLocalDateTime(endDate);
+                endDateStr = endDtStr;
+                endTimeStr = endTmStr;
             }
         }
         
