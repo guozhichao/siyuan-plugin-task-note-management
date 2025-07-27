@@ -132,6 +132,7 @@ export class CalendarView {
             editable: true,
             selectable: true,
             selectMirror: true,
+            selectOverlap: true,
             locale: window.siyuan.config.lang.toLowerCase().replace('_', '-'),
             eventClassNames: 'reminder-calendar-event',
             eventContent: this.renderEventContent.bind(this),
@@ -1747,7 +1748,8 @@ export class CalendarView {
                     endDateStr = dateStr;
                     endTimeStr = timeStr;
                 } else {
-                    // 同一天的定时事件，只设置结束时间
+                    // 同一天的定时事件，设置结束日期和结束时间
+                    endDateStr = dateStr;  // 即使是同一天，也需要设置结束日期
                     endTimeStr = timeStr;
                 }
             }

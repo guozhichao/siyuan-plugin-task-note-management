@@ -468,5 +468,7 @@
     "bindReminderToBlock": "绑定提醒到块",
     "selectBlockToBind": "选择要绑定的块",
     "reminderBoundToBlock": "提醒已绑定到块",
-    "bindToBlockFailed": "绑定到块失败"
+    "bindToBlockFailed": "绑定到块失败",
+    "dateTimeDesc": "可同时设置日期和时间",
+    "dateOnlyDesc": "仅设置日期，不设置具体时间"
 }

@@ -1,5 +1,6 @@
 import { showMessage, Dialog } from "siyuan";
 import { readReminderData, writeReminderData } from "../api";
+import { getLocalTimeString } from "../utils/dateUtils";
 import { CategoryManager, Category } from "../utils/categoryManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { t } from "../utils/i18n";
@@ -375,21 +376,19 @@ export class ReminderEditDialog {
         if (!result.date) return;
 
         const dateInput = this.dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
-        const timeInput = this.dialog.element.querySelector('#editReminderTime') as HTMLInputElement;
         const noTimeCheckbox = this.dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
 
-        // 设置日期
-        dateInput.value = result.date;
-
-        // 设置时间
+        // 设置日期和时间
         if (result.hasTime && result.time) {
-            timeInput.value = result.time;
+            // 有时间信息：设置为datetime-local格式
+            dateInput.value = `${result.date}T${result.time}`;
             noTimeCheckbox.checked = false;
-            timeInput.disabled = false;
+            this.toggleDateTimeInputs(false);
         } else {
+            // 只有日期信息：设置为date格式
+            dateInput.value = result.date;
             noTimeCheckbox.checked = true;
-            timeInput.disabled = true;
-            timeInput.value = '';
+            this.toggleDateTimeInputs(true);
         }
 
         // 触发日期变化事件以更新结束日期限制
@@ -412,6 +411,35 @@ export class ReminderEditDialog {
 
         this.bindEvents();
         await this.renderCategorySelector(); // 渲染分类选择器
+        
+        // 初始化日期时间输入框
+        setTimeout(() => {
+            const noTimeCheckbox = this.dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
+            const dateInput = this.dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
+            const endDateInput = this.dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
+            
+            if (this.reminder.time) {
+                // 有时间：设置为datetime-local格式
+                noTimeCheckbox.checked = false;
+                this.toggleDateTimeInputs(false);
+                dateInput.value = `${this.reminder.date}T${this.reminder.time}`;
+                
+                // 如果有结束日期，也设置为datetime-local格式
+                if (this.reminder.endDate) {
+                    const endTime = this.reminder.endTime || this.reminder.time;
+                    endDateInput.value = `${this.reminder.endDate}T${endTime}`;
+                }
+            } else {
+                // 无时间：设置为date格式
+                noTimeCheckbox.checked = true;
+                this.toggleDateTimeInputs(true);
+                dateInput.value = this.reminder.date;
+                
+                if (this.reminder.endDate) {
+                    endDateInput.value = this.reminder.endDate;
+                }
+            }
+        }, 100);
     }
 
     private createDialogContent(): string {
@@ -466,22 +494,20 @@ export class ReminderEditDialog {
                         </div>
                     </div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("reminderDate")}</label>
-                        <input type="date" id="editReminderDate" class="b3-text-field" value="${this.reminder.date}" required>
-                        <span class="reminder-arrow">→</span>
-                        <input type="date" id="editReminderEndDate" class="b3-text-field" value="${this.reminder.endDate || ''}" placeholder="${t("endDateOptional")}">
-                    </div>
-                    <div class="b3-form__group">
-                        <label class="b3-form__label">${t("reminderTime")}</label>
-                        <input type="time" id="editReminderTime" class="b3-text-field" value="${this.reminder.time || ''}">
-                        <div class="b3-form__desc">${t("noTimeDescLeaveEmpty")}</div>
-                    </div>
-                    <div class="b3-form__group">
                         <label class="b3-checkbox">
                             <input type="checkbox" id="editNoSpecificTime" ${!this.reminder.time ? 'checked' : ''}>
                             <span class="b3-checkbox__graphic"></span>
-                            <span class="b3-checkbox__label">${t("allDayReminder")}</span>
+                            <span class="b3-checkbox__label">${t("noSpecificTime")}</span>
                         </label>
+                    </div>
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">${t("reminderDate")}</label>
+                        <div class="reminder-date-container">
+                            <input type="date" id="editReminderDate" class="b3-text-field" value="${this.reminder.date}" required>
+                            <span class="reminder-arrow">→</span>
+                            <input type="date" id="editReminderEndDate" class="b3-text-field" value="${this.reminder.endDate || ''}" placeholder="${t("endDateOptional")}">
+                        </div>
+                        <div class="b3-form__desc" id="editDateTimeDesc">${this.reminder.time ? t("dateTimeDesc") : t("dateOnlyDesc")}</div>
                     </div>
                     
                     ${!this.reminder.isInstance ? `
@@ -545,11 +571,71 @@ export class ReminderEditDialog {
         }
     }
 
+    // 切换日期时间输入框类型
+    private toggleDateTimeInputs(noSpecificTime: boolean) {
+        const startDateInput = this.dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
+        const endDateInput = this.dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
+        const dateTimeDesc = this.dialog.element.querySelector('#editDateTimeDesc') as HTMLElement;
+
+        if (noSpecificTime) {
+            // 不设置具体时间：使用date类型
+            startDateInput.type = 'date';
+            endDateInput.type = 'date';
+            
+            // 如果当前值包含时间，只保留日期部分，不清空日期
+            if (startDateInput.value && startDateInput.value.includes('T')) {
+                startDateInput.value = startDateInput.value.split('T')[0];
+            }
+            if (endDateInput.value && endDateInput.value.includes('T')) {
+                endDateInput.value = endDateInput.value.split('T')[0];
+            }
+            
+            if (dateTimeDesc) {
+                dateTimeDesc.textContent = t("dateOnlyDesc");
+            }
+        } else {
+            // 设置具体时间：使用datetime-local类型
+            // 先保存当前值
+            const currentStartValue = startDateInput.value;
+            const currentEndValue = endDateInput.value;
+            
+            // 切换类型
+            startDateInput.type = 'datetime-local';
+            endDateInput.type = 'datetime-local';
+            
+            // 如果当前值只有日期，添加默认时间，保留原有日期
+            if (currentStartValue && !currentStartValue.includes('T')) {
+                const currentTime = this.reminder.time || getLocalTimeString();
+                startDateInput.value = `${currentStartValue}T${currentTime}`;
+            } else if (!currentStartValue) {
+                // 如果没有日期值，设置默认日期和时间
+                const currentTime = this.reminder.time || getLocalTimeString();
+                startDateInput.value = `${this.reminder.date}T${currentTime}`;
+            } else {
+                // 如果已经有完整的datetime-local格式，直接设置
+                startDateInput.value = currentStartValue;
+            }
+            
+            // 处理结束日期输入框
+            if (currentEndValue && !currentEndValue.includes('T')) {
+                // 如果结束日期有值但没有时间，添加默认时间
+                const endTime = this.reminder.endTime || this.reminder.time || getLocalTimeString();
+                endDateInput.value = `${currentEndValue}T${endTime}`;
+            } else if (currentEndValue) {
+                // 如果已经有完整的datetime-local格式，直接设置
+                endDateInput.value = currentEndValue;
+            }
+            
+            if (dateTimeDesc) {
+                dateTimeDesc.textContent = t("dateTimeDesc");
+            }
+        }
+    }
+
     private bindEvents() {
         const cancelBtn = this.dialog.element.querySelector('#editCancelBtn') as HTMLButtonElement;
         const confirmBtn = this.dialog.element.querySelector('#editConfirmBtn') as HTMLButtonElement;
         const noTimeCheckbox = this.dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
-        const timeInput = this.dialog.element.querySelector('#editReminderTime') as HTMLInputElement;
         const startDateInput = this.dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
         const endDateInput = this.dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
         const prioritySelector = this.dialog.element.querySelector('#editPrioritySelector') as HTMLElement;
@@ -595,11 +681,9 @@ export class ReminderEditDialog {
             await this.saveTimeEdit();
         });
 
+        // 时间复选框 - 切换日期输入框类型
         noTimeCheckbox.addEventListener('change', () => {
-            timeInput.disabled = noTimeCheckbox.checked;
-            if (noTimeCheckbox.checked) {
-                timeInput.value = '';
-            }
+            this.toggleDateTimeInputs(noTimeCheckbox.checked);
         });
 
         startDateInput.addEventListener('change', () => {
@@ -661,19 +745,46 @@ export class ReminderEditDialog {
         const titleInput = this.dialog.element.querySelector('#editReminderTitle') as HTMLInputElement;
         const dateInput = this.dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
         const endDateInput = this.dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
-        const timeInput = this.dialog.element.querySelector('#editReminderTime') as HTMLInputElement;
         const noTimeCheckbox = this.dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
         const noteInput = this.dialog.element.querySelector('#editReminderNote') as HTMLTextAreaElement;
         const selectedPriority = this.dialog.element.querySelector('#editPrioritySelector .priority-option.selected') as HTMLElement;
         const selectedCategory = this.dialog.element.querySelector('#editCategorySelector .category-option.selected') as HTMLElement;
 
         const title = titleInput.value.trim();
-        const date = dateInput.value;
-        const endDate = endDateInput.value;
-        const time = noTimeCheckbox.checked ? undefined : timeInput.value;
         const note = noteInput.value.trim() || undefined;
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
         const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
+
+        // 解析日期和时间
+        let date: string;
+        let endDate: string;
+        let time: string | undefined;
+
+        if (noTimeCheckbox.checked) {
+            // 不设置具体时间：直接使用date值
+            date = dateInput.value;
+            endDate = endDateInput.value;
+            time = undefined;
+        } else {
+            // 设置具体时间：从datetime-local值中解析
+            if (dateInput.value.includes('T')) {
+                const [dateStr, timeStr] = dateInput.value.split('T');
+                date = dateStr;
+                time = timeStr;
+            } else {
+                date = dateInput.value;
+                time = undefined;
+            }
+
+            if (endDateInput.value) {
+                if (endDateInput.value.includes('T')) {
+                    const [endDateStr] = endDateInput.value.split('T');
+                    endDate = endDateStr;
+                } else {
+                    endDate = endDateInput.value;
+                }
+            }
+        }
 
         if (!title) {
             showMessage(t("pleaseEnterTitle"));
