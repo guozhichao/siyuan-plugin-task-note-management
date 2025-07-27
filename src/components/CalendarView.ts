@@ -6,6 +6,7 @@ import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
 import { readReminderData, writeReminderData, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark, openBlock } from "../api";
 import { getLocalDateString, getLocalDateTime, getLocalDateTimeString } from "../utils/dateUtils";
 import { ReminderEditDialog } from "./ReminderEditDialog";
+import { QuickReminderDialog } from "./QuickReminderDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { t } from "../utils/i18n";
@@ -128,6 +129,7 @@ export class CalendarView {
             },
             editable: true,
             selectable: true,
+            selectMirror: true,
             locale: window.siyuan.config.lang.toLowerCase().replace('_', '-'),
             eventClassNames: 'reminder-calendar-event',
             eventContent: this.renderEventContent.bind(this),
@@ -135,6 +137,7 @@ export class CalendarView {
             eventDrop: this.handleEventDrop.bind(this),
             eventResize: this.handleEventResize.bind(this),
             dateClick: this.handleDateClick.bind(this),
+            select: this.handleDateSelect.bind(this),
             events: this.getEvents.bind(this),
             dayCellClassNames: (arg) => {
                 const today = new Date();
@@ -339,13 +342,25 @@ export class CalendarView {
 
         const menu = new Menu("calendarEventContextMenu");
 
-        menu.addItem({
-            iconHTML: "📖",
-            label: t("openNote"),
-            click: () => {
-                this.handleEventClick({ event: calendarEvent });
-            }
-        });
+        // 如果事项没有绑定块，显示绑定块选项
+        if (!calendarEvent.extendedProps.blockId || calendarEvent.extendedProps.isQuickReminder) {
+            menu.addItem({
+                iconHTML: "🔗",
+                label: t("bindToBlock"),
+                click: () => {
+                    this.showBindToBlockDialog(calendarEvent);
+                }
+            });
+            menu.addSeparator();
+        } else {
+            menu.addItem({
+                iconHTML: "📖",
+                label: t("openNote"),
+                click: () => {
+                    this.handleEventClick({ event: calendarEvent });
+                }
+            });
+        }
 
         // 对于重复事件实例，提供特殊选项
         if (calendarEvent.extendedProps.isRepeated) {
@@ -436,14 +451,16 @@ export class CalendarView {
 
         menu.addSeparator();
 
-        // 添加复制块引选项
-        menu.addItem({
-            iconHTML: "📋",
-            label: t("copyBlockRef"),
-            click: () => {
-                this.copyBlockRef(calendarEvent);
-            }
-        });
+        // 添加复制块引选项 - 只对已绑定块的事件显示
+        if (calendarEvent.extendedProps.blockId && !calendarEvent.extendedProps.isQuickReminder) {
+            menu.addItem({
+                iconHTML: "📋",
+                label: t("copyBlockRef"),
+                click: () => {
+                    this.copyBlockRef(calendarEvent);
+                }
+            });
+        }
 
         menu.addSeparator();
 
@@ -594,6 +611,12 @@ export class CalendarView {
     // 添加复制块引功能
     private async copyBlockRef(calendarEvent: any) {
         try {
+            // 检查是否为快速创建的提醒
+            if (calendarEvent.extendedProps.isQuickReminder || !calendarEvent.extendedProps.blockId) {
+                showMessage(t("unboundReminder") + "，请先绑定到块");
+                return;
+            }
+
             // 获取块ID
             const blockId = calendarEvent.extendedProps.blockId;
 
@@ -1057,10 +1080,14 @@ export class CalendarView {
         const reminder = info.event.extendedProps;
         const blockId = reminder.blockId || info.event.id; // 兼容旧数据格式
 
+        // 如果是快速创建的提醒（没有绑定块），提示用户绑定块
+        if (!reminder.blockId || reminder.isQuickReminder) {
+            showMessage(t("unboundReminder") + "，请右键选择\"绑定到块\"");
+            return;
+        }
+
         try {
             openBlock(blockId);
-
-
         } catch (error) {
             console.error('打开笔记失败:', error);
 
@@ -1306,7 +1333,7 @@ export class CalendarView {
             const shouldResetNotified = this.shouldResetNotification(newStartDate, info.event.allDay);
 
             // 创建实例修改数据
-            const instanceModification = {
+            const instanceModification: any = {
                 title: info.event.title.replace(/^🔄 /, ''), // 移除重复标识
                 priority: info.event.extendedProps.priority,
                 note: info.event.extendedProps.note,
@@ -1640,10 +1667,82 @@ export class CalendarView {
     }
 
     private handleDateClick(info) {
-        // 点击日期，可以添加新的提醒
-        // const date = info.dateStr;
-        // 这里可以打开创建提醒对话框，但需要选择一个块ID
-        // showMessage(t("selectBlockFirst"));
+        // 点击日期，直接创建快速提醒
+        const clickedDate = info.dateStr;
+        
+        // 获取点击的时间（如果是时间视图）
+        let clickedTime = null;
+        if (info.date && this.calendar.view.type !== 'dayGridMonth') {
+            // 在周视图或日视图中，可以获取具体的时间
+            const hours = info.date.getHours();
+            const minutes = info.date.getMinutes();
+            clickedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        }
+        
+        // 创建快速提醒对话框
+        const quickDialog = new QuickReminderDialog(clickedDate, clickedTime, async () => {
+            // 刷新日历事件
+            await this.refreshEvents();
+        });
+        
+        quickDialog.show();
+    }
+
+    private handleDateSelect(selectInfo) {
+        // 处理拖拽选择时间段创建事项
+        const startDate = selectInfo.start;
+        const endDate = selectInfo.end;
+        
+        // 格式化开始日期
+        const { dateStr: startDateStr, timeStr: startTimeStr } = getLocalDateTime(startDate);
+        
+        let endDateStr = null;
+        let endTimeStr = null;
+        
+        // 处理结束日期和时间
+        if (endDate) {
+            if (selectInfo.allDay) {
+                // 全天事件：FullCalendar 的结束日期是排他的，需要减去一天
+                const adjustedEndDate = new Date(endDate);
+                adjustedEndDate.setDate(adjustedEndDate.getDate() - 1);
+                const { dateStr } = getLocalDateTime(adjustedEndDate);
+                
+                // 只有当结束日期不同于开始日期时才设置结束日期
+                if (dateStr !== startDateStr) {
+                    endDateStr = dateStr;
+                }
+            } else {
+                // 定时事件
+                const { dateStr, timeStr } = getLocalDateTime(endDate);
+                if (dateStr !== startDateStr) {
+                    endDateStr = dateStr;
+                    endTimeStr = timeStr;
+                } else {
+                    // 同一天的定时事件，只设置结束时间
+                    endTimeStr = timeStr;
+                }
+            }
+        }
+        
+        // 创建快速提醒对话框，传递时间段信息
+        const quickDialog = new QuickReminderDialog(
+            startDateStr,
+            startTimeStr,
+            async () => {
+                // 刷新日历事件
+                await this.refreshEvents();
+            },
+            {
+                endDate: endDateStr,
+                endTime: endTimeStr,
+                isTimeRange: true
+            }
+        );
+        
+        quickDialog.show();
+        
+        // 清除选择
+        this.calendar.unselect();
     }
 
     private async refreshEvents() {
@@ -1840,6 +1939,12 @@ export class CalendarView {
                     borderColor = '#7f8c8d';
                     break;
             }
+        }
+
+        // 如果是快速创建的提醒（没有绑定块），使用特殊的样式
+        if (reminder.isQuickReminder || !reminder.blockId) {
+            backgroundColor = backgroundColor + 'aa'; // 添加透明度
+            borderColor = borderColor + 'aa';
         }
 
         // 检查完成状态
@@ -2771,5 +2876,175 @@ export class CalendarView {
         newEndDate.setDate(newEndDate.getDate() + durationDays);
 
         return getLocalDateTime(newEndDate).dateStr;
+    }
+
+    /**
+     * 显示绑定到块的对话框
+     */
+    private showBindToBlockDialog(calendarEvent: any) {
+        const dialog = new Dialog({
+            title: t("bindReminderToBlock"),
+            content: `
+                <div class="bind-to-block-dialog">
+                    <div class="b3-dialog__content">
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">输入块ID</label>
+                            <div class="b3-form__desc">请输入要绑定的块ID，或者点击"获取当前选中块"按钮</div>
+                            <input type="text" id="blockIdInput" class="b3-text-field" placeholder="请输入块ID" style="width: 100%; margin-top: 8px;">
+                        </div>
+                        <div class="b3-form__group">
+                            <button class="b3-button b3-button--outline" id="getCurrentBlock" style="width: 100%;">
+                                获取当前选中块
+                            </button>
+                        </div>
+                        <div class="b3-form__group" id="selectedBlockInfo" style="display: none;">
+                            <label class="b3-form__label">块信息预览</label>
+                            <div id="blockContent" class="block-content-preview" style="
+                                padding: 8px;
+                                background-color: var(--b3-theme-surface-lighter);
+                                border-radius: 4px;
+                                border: 1px solid var(--b3-theme-border);
+                                max-height: 100px;
+                                overflow-y: auto;
+                                font-size: 12px;
+                                color: var(--b3-theme-on-surface);
+                            "></div>
+                        </div>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="bindCancelBtn">${t("cancel")}</button>
+                        <button class="b3-button b3-button--primary" id="bindConfirmBtn">${t("bindToBlock")}</button>
+                    </div>
+                </div>
+            `,
+            width: "500px",
+            height: "400px"
+        });
+
+        const blockIdInput = dialog.element.querySelector('#blockIdInput') as HTMLInputElement;
+        const getCurrentBlockBtn = dialog.element.querySelector('#getCurrentBlock') as HTMLButtonElement;
+        const selectedBlockInfo = dialog.element.querySelector('#selectedBlockInfo') as HTMLElement;
+        const blockContentEl = dialog.element.querySelector('#blockContent') as HTMLElement;
+        const cancelBtn = dialog.element.querySelector('#bindCancelBtn') as HTMLButtonElement;
+        const confirmBtn = dialog.element.querySelector('#bindConfirmBtn') as HTMLButtonElement;
+
+        // 监听块ID输入变化
+        blockIdInput.addEventListener('input', async () => {
+            const blockId = blockIdInput.value.trim();
+            if (blockId.length >= 20) { // 块ID通常是20位字符
+                try {
+                    const block = await getBlockByID(blockId);
+                    if (block) {
+                        const blockContent = block.content || block.fcontent || '未命名块';
+                        blockContentEl.textContent = blockContent;
+                        selectedBlockInfo.style.display = 'block';
+                    } else {
+                        selectedBlockInfo.style.display = 'none';
+                    }
+                } catch (error) {
+                    selectedBlockInfo.style.display = 'none';
+                }
+            } else {
+                selectedBlockInfo.style.display = 'none';
+            }
+        });
+
+        // 获取当前选中块
+        getCurrentBlockBtn.addEventListener('click', async () => {
+            try {
+                // 获取当前焦点块
+                const focusedElement = document.querySelector('.protyle-wysiwyg--focus [data-node-id]') as HTMLElement;
+                if (focusedElement) {
+                    const blockId = focusedElement.getAttribute('data-node-id');
+                    if (blockId) {
+                        const block = await getBlockByID(blockId);
+                        if (block) {
+                            blockIdInput.value = blockId;
+                            const blockContent = block.content || block.fcontent || '未命名块';
+                            blockContentEl.textContent = blockContent;
+                            selectedBlockInfo.style.display = 'block';
+                            
+                            showMessage('已获取块ID：' + blockContent.substring(0, 50) + (blockContent.length > 50 ? '...' : ''));
+                        } else {
+                            showMessage('无法获取块信息');
+                        }
+                    } else {
+                        showMessage('请先在编辑器中选择一个块');
+                    }
+                } else {
+                    showMessage('请先在编辑器中选择一个块');
+                }
+            } catch (error) {
+                console.error('获取当前块失败:', error);
+                showMessage('获取当前块失败，请重试');
+            }
+        });
+
+        // 取消按钮
+        cancelBtn.addEventListener('click', () => {
+            dialog.destroy();
+        });
+
+        // 确认绑定
+        confirmBtn.addEventListener('click', async () => {
+            const blockId = blockIdInput.value.trim();
+            if (!blockId) {
+                showMessage('请输入块ID或获取当前选中块');
+                return;
+            }
+
+            try {
+                await this.bindReminderToBlock(calendarEvent, blockId);
+                showMessage(t("reminderBoundToBlock"));
+                dialog.destroy();
+                
+                // 刷新日历显示
+                await this.refreshEvents();
+            } catch (error) {
+                console.error('绑定提醒到块失败:', error);
+                showMessage(t("bindToBlockFailed"));
+            }
+        });
+
+        // 自动聚焦输入框
+        setTimeout(() => {
+            blockIdInput.focus();
+        }, 100);
+    }
+
+    /**
+     * 将提醒绑定到指定的块
+     */
+    private async bindReminderToBlock(calendarEvent: any, blockId: string) {
+        try {
+            const reminderData = await readReminderData();
+            const reminderId = calendarEvent.id;
+            
+            if (reminderData[reminderId]) {
+                // 获取块信息
+                const block = await getBlockByID(blockId);
+                if (!block) {
+                    throw new Error('目标块不存在');
+                }
+
+                // 更新提醒数据
+                reminderData[reminderId].blockId = blockId;
+                reminderData[reminderId].docId = block.root_id || blockId;
+                reminderData[reminderId].isQuickReminder = false; // 移除快速提醒标记
+                
+                await writeReminderData(reminderData);
+                
+                // 更新块的书签状态
+                await updateBlockReminderBookmark(blockId);
+                
+                // 触发更新事件
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            } else {
+                throw new Error('提醒不存在');
+            }
+        } catch (error) {
+            console.error('绑定提醒到块失败:', error);
+            throw error;
+        }
     }
 }

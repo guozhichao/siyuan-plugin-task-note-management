@@ -2199,13 +2199,26 @@ export class ReminderPanel {
             compareDateStrings(reminder.date, today) <= 0 &&
             compareDateStrings(today, reminder.endDate) <= 0;
 
+        // 检查是否为快速事件（未绑定块）
+        const isQuickReminder = reminder.isQuickReminder || !reminder.blockId;
+
         if (reminder.isRepeatInstance) {
             // --- Menu for a REPEAT INSTANCE ---
-            menu.addItem({
-                iconHTML: "📋",
-                label: t("copyBlockRef"),
-                click: () => this.copyBlockRef(reminder)
-            });
+            // 只对已绑定块的事件显示复制块引用
+            if (!isQuickReminder) {
+                menu.addItem({
+                    iconHTML: "📋",
+                    label: t("copyBlockRef"),
+                    click: () => this.copyBlockRef(reminder)
+                });
+            } else {
+                // 快速事件显示绑定块选项
+                menu.addItem({
+                    iconHTML: "🔗",
+                    label: t("bindToBlock"),
+                    click: () => this.showBindToBlockDialog(reminder)
+                });
+            }
 
             // 为跨天的重复事件实例添加"今日已完成"选项
             if (isSpanningInToday && !reminder.completed) {
@@ -2269,11 +2282,21 @@ export class ReminderPanel {
 
         } else if (reminder.repeat?.enabled) {
             // --- Menu for the ORIGINAL RECURRING EVENT ---
-            menu.addItem({
-                iconHTML: "📋",
-                label: t("copyBlockRef"),
-                click: () => this.copyBlockRef(reminder)
-            });
+            // 只对已绑定块的事件显示复制块引用
+            if (!isQuickReminder) {
+                menu.addItem({
+                    iconHTML: "📋",
+                    label: t("copyBlockRef"),
+                    click: () => this.copyBlockRef(reminder)
+                });
+            } else {
+                // 快速事件显示绑定块选项
+                menu.addItem({
+                    iconHTML: "🔗",
+                    label: t("bindToBlock"),
+                    click: () => this.showBindToBlockDialog(reminder)
+                });
+            }
 
             // 为跨天的重复事件添加"今日已完成"选项
             if (isSpanningInToday && !reminder.completed) {
@@ -2337,11 +2360,21 @@ export class ReminderPanel {
 
         } else {
             // --- Menu for a SIMPLE, NON-RECURRING EVENT ---
-            menu.addItem({
-                iconHTML: "📋",
-                label: t("copyBlockRef"),
-                click: () => this.copyBlockRef(reminder)
-            });
+            // 只对已绑定块的事件显示复制块引用
+            if (!isQuickReminder) {
+                menu.addItem({
+                    iconHTML: "📋",
+                    label: t("copyBlockRef"),
+                    click: () => this.copyBlockRef(reminder)
+                });
+            } else {
+                // 快速事件显示绑定块选项
+                menu.addItem({
+                    iconHTML: "🔗",
+                    label: t("bindToBlock"),
+                    click: () => this.showBindToBlockDialog(reminder)
+                });
+            }
 
             // 为跨天的普通事件添加"今日已完成"选项
             if (isSpanningInToday && !reminder.completed) {
@@ -3442,6 +3475,176 @@ export class ReminderPanel {
         } catch (error) {
             console.error('获取原始块ID失败:', error);
             return null;
+        }
+    }
+
+    /**
+     * 显示绑定到块的对话框
+     */
+    private showBindToBlockDialog(reminder: any) {
+        const dialog = new Dialog({
+            title: t("bindReminderToBlock"),
+            content: `
+                <div class="bind-to-block-dialog">
+                    <div class="b3-dialog__content">
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">输入块ID</label>
+                            <div class="b3-form__desc">请输入要绑定的块ID，或者点击"获取当前选中块"按钮</div>
+                            <input type="text" id="blockIdInput" class="b3-text-field" placeholder="请输入块ID" style="width: 100%; margin-top: 8px;">
+                        </div>
+                        <div class="b3-form__group">
+                            <button class="b3-button b3-button--outline" id="getCurrentBlock" style="width: 100%;">
+                                获取当前选中块
+                            </button>
+                        </div>
+                        <div class="b3-form__group" id="selectedBlockInfo" style="display: none;">
+                            <label class="b3-form__label">块信息预览</label>
+                            <div id="blockContent" class="block-content-preview" style="
+                                padding: 8px;
+                                background-color: var(--b3-theme-surface-lighter);
+                                border-radius: 4px;
+                                border: 1px solid var(--b3-theme-border);
+                                max-height: 100px;
+                                overflow-y: auto;
+                                font-size: 12px;
+                                color: var(--b3-theme-on-surface);
+                            "></div>
+                        </div>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="bindCancelBtn">${t("cancel")}</button>
+                        <button class="b3-button b3-button--primary" id="bindConfirmBtn">${t("bindToBlock")}</button>
+                    </div>
+                </div>
+            `,
+            width: "500px",
+            height: "400px"
+        });
+
+        const blockIdInput = dialog.element.querySelector('#blockIdInput') as HTMLInputElement;
+        const getCurrentBlockBtn = dialog.element.querySelector('#getCurrentBlock') as HTMLButtonElement;
+        const selectedBlockInfo = dialog.element.querySelector('#selectedBlockInfo') as HTMLElement;
+        const blockContentEl = dialog.element.querySelector('#blockContent') as HTMLElement;
+        const cancelBtn = dialog.element.querySelector('#bindCancelBtn') as HTMLButtonElement;
+        const confirmBtn = dialog.element.querySelector('#bindConfirmBtn') as HTMLButtonElement;
+
+        // 监听块ID输入变化
+        blockIdInput.addEventListener('input', async () => {
+            const blockId = blockIdInput.value.trim();
+            if (blockId.length >= 20) { // 块ID通常是20位字符
+                try {
+                    const block = await getBlockByID(blockId);
+                    if (block) {
+                        const blockContent = block.content || block.fcontent || '未命名块';
+                        blockContentEl.textContent = blockContent;
+                        selectedBlockInfo.style.display = 'block';
+                    } else {
+                        selectedBlockInfo.style.display = 'none';
+                    }
+                } catch (error) {
+                    selectedBlockInfo.style.display = 'none';
+                }
+            } else {
+                selectedBlockInfo.style.display = 'none';
+            }
+        });
+
+        // 获取当前选中块
+        getCurrentBlockBtn.addEventListener('click', async () => {
+            try {
+                // 获取当前焦点块
+                const focusedElement = document.querySelector('.protyle-wysiwyg--focus [data-node-id]') as HTMLElement;
+                if (focusedElement) {
+                    const blockId = focusedElement.getAttribute('data-node-id');
+                    if (blockId) {
+                        const block = await getBlockByID(blockId);
+                        if (block) {
+                            blockIdInput.value = blockId;
+                            const blockContent = block.content || block.fcontent || '未命名块';
+                            blockContentEl.textContent = blockContent;
+                            selectedBlockInfo.style.display = 'block';
+                            
+                            showMessage('已获取块ID：' + blockContent.substring(0, 50) + (blockContent.length > 50 ? '...' : ''));
+                        } else {
+                            showMessage('无法获取块信息');
+                        }
+                    } else {
+                        showMessage('请先在编辑器中选择一个块');
+                    }
+                } else {
+                    showMessage('请先在编辑器中选择一个块');
+                }
+            } catch (error) {
+                console.error('获取当前块失败:', error);
+                showMessage('获取当前块失败，请重试');
+            }
+        });
+
+        // 取消按钮
+        cancelBtn.addEventListener('click', () => {
+            dialog.destroy();
+        });
+
+        // 确认绑定
+        confirmBtn.addEventListener('click', async () => {
+            const blockId = blockIdInput.value.trim();
+            if (!blockId) {
+                showMessage('请输入块ID或获取当前选中块');
+                return;
+            }
+
+            try {
+                await this.bindReminderToBlock(reminder, blockId);
+                showMessage(t("reminderBoundToBlock"));
+                dialog.destroy();
+                
+                // 刷新显示
+                this.loadReminders();
+            } catch (error) {
+                console.error('绑定提醒到块失败:', error);
+                showMessage(t("bindToBlockFailed"));
+            }
+        });
+
+        // 自动聚焦输入框
+        setTimeout(() => {
+            blockIdInput.focus();
+        }, 100);
+    }
+
+    /**
+     * 将提醒绑定到指定的块
+     */
+    private async bindReminderToBlock(reminder: any, blockId: string) {
+        try {
+            const reminderData = await readReminderData();
+            const reminderId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
+            
+            if (reminderData[reminderId]) {
+                // 获取块信息
+                const block = await getBlockByID(blockId);
+                if (!block) {
+                    throw new Error('目标块不存在');
+                }
+
+                // 更新提醒数据
+                reminderData[reminderId].blockId = blockId;
+                reminderData[reminderId].docId = block.root_id || blockId;
+                reminderData[reminderId].isQuickReminder = false; // 移除快速提醒标记
+                
+                await writeReminderData(reminderData);
+                
+                // 更新块的书签状态
+                await updateBlockReminderBookmark(blockId);
+                
+                // 触发更新事件
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            } else {
+                throw new Error('提醒不存在');
+            }
+        } catch (error) {
+            console.error('绑定提醒到块失败:', error);
+            throw error;
         }
     }
 }

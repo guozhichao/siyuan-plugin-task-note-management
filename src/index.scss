@@ -1744,3 +1744,164 @@
     padding: 40px 20px;
     font-style: italic;
 }
+
+/* 快速提醒对话框样式 */
+.quick-reminder-dialog {
+    .title-input-container {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .category-selector {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+    }
+
+    .category-option {
+        padding: 6px 12px;
+        border: 1px solid var(--b3-theme-border);
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 12px;
+        color: white;
+        background-color: var(--b3-theme-surface-lighter);
+
+        &:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        &.selected {
+            border-color: var(--b3-theme-primary);
+            box-shadow: 0 0 0 2px rgba(var(--b3-theme-primary-rgb), 0.2);
+        }
+
+        span {
+            color: white;
+        }
+    }
+
+    .priority-selector {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .priority-option {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        border: 1px solid var(--b3-theme-border);
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background-color: var(--b3-theme-surface);
+
+        &:hover {
+            background-color: var(--b3-theme-surface-lighter);
+        }
+
+        &.selected {
+            border-color: var(--b3-theme-primary);
+            background-color: var(--b3-theme-primary-lightest);
+        }
+    }
+
+    .priority-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+
+        &.high {
+            background-color: #e74c3c;
+        }
+
+        &.medium {
+            background-color: #f39c12;
+        }
+
+        &.low {
+            background-color: #3498db;
+        }
+
+        &.none {
+            background-color: #95a5a6;
+        }
+    }
+
+    .reminder-date-container {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .reminder-arrow {
+        color: var(--b3-theme-on-surface-light);
+        font-weight: bold;
+    }
+
+    .repeat-setting-container {
+        width: 100%;
+    }
+}
+
+/* 绑定到块对话框样式 */
+.bind-to-block-dialog {
+    .block-content-preview {
+        padding: 8px;
+        background-color: var(--b3-theme-surface-lighter);
+        border: 1px solid var(--b3-theme-border);
+        border-radius: 4px;
+        font-size: 12px;
+        color: var(--b3-theme-on-surface);
+        max-height: 100px;
+        overflow-y: auto;
+        word-break: break-all;
+    }
+}
+
+/* 自然语言识别对话框样式 */
+.nl-dialog {
+    .nl-preview {
+        padding: 12px;
+        border: 1px solid var(--b3-theme-border);
+        border-radius: 4px;
+        background-color: var(--b3-theme-surface-lighter);
+        font-size: 13px;
+        min-height: 40px;
+        display: flex;
+        align-items: center;
+
+        &.nl-preview--success {
+            border-color: var(--b3-theme-success);
+            background-color: var(--b3-theme-success-lightest);
+            color: var(--b3-theme-success);
+        }
+
+        &.nl-preview--error {
+            border-color: var(--b3-theme-error);
+            background-color: var(--b3-theme-error-lightest);
+            color: var(--b3-theme-error);
+        }
+    }
+}
+
+/* 快速提醒事件样式 */
+.fc-event.reminder-quick {
+    opacity: 0.8;
+    border-style: dashed !important;
+}
+
+.fc-event.reminder-quick::before {
+    content: "🔗";
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 10px;
+    opacity: 0.7;
+}
