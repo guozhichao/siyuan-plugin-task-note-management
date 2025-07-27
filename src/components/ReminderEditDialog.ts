@@ -579,15 +579,25 @@ export class ReminderEditDialog {
 
         if (noSpecificTime) {
             // 不设置具体时间：使用date类型
+            // 先保存当前值
+            const startValue = startDateInput.value;
+            const endValue = endDateInput.value;
+            
+            // 切换类型
             startDateInput.type = 'date';
             endDateInput.type = 'date';
             
             // 如果当前值包含时间，只保留日期部分，不清空日期
-            if (startDateInput.value && startDateInput.value.includes('T')) {
-                startDateInput.value = startDateInput.value.split('T')[0];
+            if (startValue && startValue.includes('T')) {
+                startDateInput.value = startValue.split('T')[0];
+            } else if (startValue) {
+                startDateInput.value = startValue;
             }
-            if (endDateInput.value && endDateInput.value.includes('T')) {
-                endDateInput.value = endDateInput.value.split('T')[0];
+            
+            if (endValue && endValue.includes('T')) {
+                endDateInput.value = endValue.split('T')[0];
+            } else if (endValue) {
+                endDateInput.value = endValue;
             }
             
             if (dateTimeDesc) {
@@ -596,34 +606,34 @@ export class ReminderEditDialog {
         } else {
             // 设置具体时间：使用datetime-local类型
             // 先保存当前值
-            const currentStartValue = startDateInput.value;
-            const currentEndValue = endDateInput.value;
+            const startValue = startDateInput.value;
+            const endValue = endDateInput.value;
             
             // 切换类型
             startDateInput.type = 'datetime-local';
             endDateInput.type = 'datetime-local';
             
             // 如果当前值只有日期，添加默认时间，保留原有日期
-            if (currentStartValue && !currentStartValue.includes('T')) {
+            if (startValue && !startValue.includes('T')) {
                 const currentTime = this.reminder.time || getLocalTimeString();
-                startDateInput.value = `${currentStartValue}T${currentTime}`;
-            } else if (!currentStartValue) {
+                startDateInput.value = `${startValue}T${currentTime}`;
+            } else if (!startValue) {
                 // 如果没有日期值，设置默认日期和时间
                 const currentTime = this.reminder.time || getLocalTimeString();
                 startDateInput.value = `${this.reminder.date}T${currentTime}`;
             } else {
                 // 如果已经有完整的datetime-local格式，直接设置
-                startDateInput.value = currentStartValue;
+                startDateInput.value = startValue;
             }
             
             // 处理结束日期输入框
-            if (currentEndValue && !currentEndValue.includes('T')) {
+            if (endValue && !endValue.includes('T')) {
                 // 如果结束日期有值但没有时间，添加默认时间
                 const endTime = this.reminder.endTime || this.reminder.time || getLocalTimeString();
-                endDateInput.value = `${currentEndValue}T${endTime}`;
-            } else if (currentEndValue) {
+                endDateInput.value = `${endValue}T${endTime}`;
+            } else if (endValue) {
                 // 如果已经有完整的datetime-local格式，直接设置
-                endDateInput.value = currentEndValue;
+                endDateInput.value = endValue;
             }
             
             if (dateTimeDesc) {

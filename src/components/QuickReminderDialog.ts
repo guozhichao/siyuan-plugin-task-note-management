@@ -579,32 +579,27 @@ export class QuickReminderDialog {
         if (noSpecificTime) {
             // 不设置具体时间：使用date类型
             // 先保存当前值
-            const currentStartValue = startDateInput.value;
-            const currentEndValue = endDateInput.value;
+            const startValue = startDateInput.value;
+            const endValue = endDateInput.value;
             
-            // 先清空值，再切换类型，最后设置值
-            startDateInput.value = '';
-            endDateInput.value = '';
-            
+            // 切换类型
             startDateInput.type = 'date';
             endDateInput.type = 'date';
             
             // 如果当前值包含时间，只保留日期部分，不清空日期
-            if (currentStartValue && currentStartValue.includes('T')) {
-                startDateInput.value = currentStartValue.split('T')[0];
-            } else if (currentStartValue) {
-                // 如果当前值只是日期，直接设置
-                startDateInput.value = currentStartValue;
+            if (startValue && startValue.includes('T')) {
+                startDateInput.value = startValue.split('T')[0];
+            } else if (startValue) {
+                startDateInput.value = startValue;
             } else if (this.initialDate) {
                 // 如果没有当前值但有初始日期，设置初始日期
                 startDateInput.value = this.initialDate;
             }
             
-            if (currentEndValue && currentEndValue.includes('T')) {
-                endDateInput.value = currentEndValue.split('T')[0];
-            } else if (currentEndValue) {
-                // 如果当前值只是日期，直接设置
-                endDateInput.value = currentEndValue;
+            if (endValue && endValue.includes('T')) {
+                endDateInput.value = endValue.split('T')[0];
+            } else if (endValue) {
+                endDateInput.value = endValue;
             } else if (this.isTimeRange && this.initialEndDate) {
                 // 如果没有当前值但是时间段选择且有初始结束日期，设置初始结束日期
                 endDateInput.value = this.initialEndDate;
@@ -616,53 +611,38 @@ export class QuickReminderDialog {
         } else {
             // 设置具体时间：使用datetime-local类型
             // 先保存当前值
-            const currentStartValue = startDateInput.value;
-            const currentEndValue = endDateInput.value;
+            const startValue = startDateInput.value;
+            const endValue = endDateInput.value;
             
-            // 准备要设置的值
-            let newStartValue = '';
-            let newEndValue = '';
-            
-            // 处理开始日期时间
-            if (currentStartValue && !currentStartValue.includes('T')) {
-                const currentTime = this.initialTime || getLocalTimeString();
-                newStartValue = `${currentStartValue}T${currentTime}`;
-            } else if (!currentStartValue) {
-                // 如果没有日期值，设置默认日期和时间
-                const currentTime = this.initialTime || getLocalTimeString();
-                newStartValue = `${this.initialDate}T${currentTime}`;
-            } else {
-                // 如果已经有完整的datetime-local格式，直接使用
-                newStartValue = currentStartValue;
-            }
-            
-            // 处理结束日期时间
-            if (currentEndValue && !currentEndValue.includes('T')) {
-                // 如果结束日期有值但没有时间，添加默认时间
-                const endTime = this.initialEndTime || this.initialTime || getLocalTimeString();
-                newEndValue = `${currentEndValue}T${endTime}`;
-            } else if (currentEndValue) {
-                // 如果已经有完整的datetime-local格式，直接使用
-                newEndValue = currentEndValue;
-            } else if (this.isTimeRange && this.initialEndDate) {
-                // 如果没有当前值但是时间段选择且有初始结束日期和时间，设置初始值
-                const endTime = this.initialEndTime || this.initialTime || getLocalTimeString();
-                newEndValue = `${this.initialEndDate}T${endTime}`;
-            }
-            
-            // 先清空值，再切换类型，最后设置值
-            startDateInput.value = '';
-            endDateInput.value = '';
-            
+            // 切换类型
             startDateInput.type = 'datetime-local';
             endDateInput.type = 'datetime-local';
             
-            // 设置值
-            if (newStartValue) {
-                startDateInput.value = newStartValue;
+            // 如果当前值只有日期，添加默认时间，保留原有日期
+            if (startValue && !startValue.includes('T')) {
+                const currentTime = this.initialTime || getLocalTimeString();
+                startDateInput.value = `${startValue}T${currentTime}`;
+            } else if (!startValue) {
+                // 如果没有日期值，设置默认日期和时间
+                const currentTime = this.initialTime || getLocalTimeString();
+                startDateInput.value = `${this.initialDate}T${currentTime}`;
+            } else {
+                // 如果已经有完整的datetime-local格式，直接设置
+                startDateInput.value = startValue;
             }
-            if (newEndValue) {
-                endDateInput.value = newEndValue;
+            
+            // 处理结束日期输入框
+            if (endValue && !endValue.includes('T')) {
+                // 如果结束日期有值但没有时间，添加默认时间
+                const endTime = this.initialEndTime || this.initialTime || getLocalTimeString();
+                endDateInput.value = `${endValue}T${endTime}`;
+            } else if (endValue) {
+                // 如果已经有完整的datetime-local格式，直接设置
+                endDateInput.value = endValue;
+            } else if (this.isTimeRange && this.initialEndDate) {
+                // 如果没有当前值但是时间段选择且有初始结束日期和时间，设置初始值
+                const endTime = this.initialEndTime || this.initialTime || getLocalTimeString();
+                endDateInput.value = `${this.initialEndDate}T${endTime}`;
             }
             
             if (dateTimeDesc) {
