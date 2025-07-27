@@ -1393,7 +1393,7 @@ export class ReminderPanel {
         }
     }
 
-    private formatReminderTime(date: string, time?: string, today?: string, endDate?: string): string {
+    private formatReminderTime(date: string, time?: string, today?: string, endDate?: string, endTime?: string): string {
         if (!today) {
             today = getLocalDateString();
         }
@@ -1443,8 +1443,17 @@ export class ReminderPanel {
                 });
             }
 
-            const timeStr = time ? ` ${time}` : '';
-            return `${dateStr} → ${endDateStr}${timeStr}`;
+            // 跨天事件：显示开始日期 开始时间 - 结束日期 结束时间
+            const startTimeStr = time ? ` ${time}` : '';
+            const endTimeStr = endTime ? ` ${endTime}` : '';
+            return `${dateStr}${startTimeStr} → ${endDateStr}${endTimeStr}`;
+        }
+
+        // 处理当天时间段事件（有结束时间但没有结束日期）
+        if (endTime && endTime !== time) {
+            // 当天时间段：显示开始时间 - 结束时间
+            const startTimeStr = time || '';
+            return `${dateStr} ${startTimeStr} - ${endTime}`;
         }
 
         return time ? `${dateStr} ${time}` : dateStr;
@@ -1612,7 +1621,7 @@ export class ReminderPanel {
         // 时间信息
         const timeEl = document.createElement('div');
         timeEl.className = 'reminder-item__time';
-        const timeText = this.formatReminderTime(reminder.date, reminder.time, today, reminder.endDate);
+        const timeText = this.formatReminderTime(reminder.date, reminder.time, today, reminder.endDate, reminder.endTime);
         timeEl.textContent = '🕐' + timeText;
         timeEl.style.cursor = 'pointer';
         timeEl.title = t("clickToModifyTime");

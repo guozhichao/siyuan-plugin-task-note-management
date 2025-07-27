@@ -1775,11 +1775,12 @@ export class CalendarView {
                 // 定时事件
                 const { dateStr, timeStr } = getLocalDateTime(endDate);
                 if (dateStr !== startDateStr) {
+                    // 跨天的定时事件
                     endDateStr = dateStr;
                     endTimeStr = timeStr;
                 } else {
-                    // 同一天的定时事件，设置结束日期和结束时间
-                    endDateStr = dateStr;  // 即使是同一天，也需要设置结束日期
+                    // 同一天的定时事件，只设置结束时间，不设置结束日期
+                    // 因为结束日期和开始日期相同时，只需要结束时间即可
                     endTimeStr = timeStr;
                 }
             }

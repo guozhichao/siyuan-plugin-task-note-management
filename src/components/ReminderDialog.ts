@@ -1159,14 +1159,16 @@ export class ReminderDialog {
 
         // 解析日期和时间
         let date: string;
-        let endDate: string;
+        let endDate: string | undefined;
         let time: string | undefined;
+        let endTime: string | undefined;
 
         if (noTimeCheckbox.checked) {
             // 不设置具体时间：直接使用date值
             date = dateInput.value;
-            endDate = endDateInput.value;
+            endDate = endDateInput.value || undefined;
             time = undefined;
+            endTime = undefined;
         } else {
             // 设置具体时间：从datetime-local值中解析
             if (dateInput.value.includes('T')) {
@@ -1178,13 +1180,19 @@ export class ReminderDialog {
                 time = undefined;
             }
 
+            // 处理结束日期和时间
             if (endDateInput.value) {
                 if (endDateInput.value.includes('T')) {
-                    const [endDateStr] = endDateInput.value.split('T');
+                    const [endDateStr, endTimeStr] = endDateInput.value.split('T');
                     endDate = endDateStr;
+                    endTime = endTimeStr;
                 } else {
                     endDate = endDateInput.value;
+                    endTime = undefined;
                 }
+            } else {
+                endDate = undefined;
+                endTime = undefined;
             }
         }
 
@@ -1228,6 +1236,10 @@ export class ReminderDialog {
                 reminder.time = time;
             }
 
+            if (endTime) {
+                reminder.endTime = endTime;
+            }
+
             if (note) {
                 reminder.note = note;
             }
@@ -1241,8 +1253,15 @@ export class ReminderDialog {
             // 显示保存成功消息，包含重复信息
             let successMessage = t("reminderSaved");
             if (endDate && endDate !== date) {
-                successMessage += `：${date} → ${endDate}${time ? ` ${time}` : ''}`;
+                // 跨天事件：显示开始日期 开始时间 - 结束日期 结束时间
+                const startTimeStr = time ? ` ${time}` : '';
+                const endTimeStr = endTime ? ` ${endTime}` : '';
+                successMessage += `：${date}${startTimeStr} → ${endDate}${endTimeStr}`;
+            } else if (endTime && endTime !== time) {
+                // 当天时间段：显示开始时间 - 结束时间
+                successMessage += `：${date} ${time || ''} - ${endTime}`;
             } else {
+                // 单一时间点
                 successMessage += `：${date}${time ? ` ${time}` : ''}`;
             }
 

@@ -424,10 +424,14 @@ export class ReminderEditDialog {
                 this.toggleDateTimeInputs(false);
                 dateInput.value = `${this.reminder.date}T${this.reminder.time}`;
                 
-                // 如果有结束日期，也设置为datetime-local格式
+                // 处理结束时间：如果有结束日期或结束时间，设置结束日期输入框
                 if (this.reminder.endDate) {
+                    // 跨天事件：有明确的结束日期
                     const endTime = this.reminder.endTime || this.reminder.time;
                     endDateInput.value = `${this.reminder.endDate}T${endTime}`;
+                } else if (this.reminder.endTime) {
+                    // 同一天的时间段事件：只有结束时间，没有结束日期
+                    endDateInput.value = `${this.reminder.date}T${this.reminder.endTime}`;
                 }
             } else {
                 // 无时间：设置为date格式
@@ -769,12 +773,14 @@ export class ReminderEditDialog {
         let date: string;
         let endDate: string;
         let time: string | undefined;
+        let endTime: string | undefined;
 
         if (noTimeCheckbox.checked) {
             // 不设置具体时间：直接使用date值
             date = dateInput.value;
             endDate = endDateInput.value;
             time = undefined;
+            endTime = undefined;
         } else {
             // 设置具体时间：从datetime-local值中解析
             if (dateInput.value.includes('T')) {
@@ -788,10 +794,12 @@ export class ReminderEditDialog {
 
             if (endDateInput.value) {
                 if (endDateInput.value.includes('T')) {
-                    const [endDateStr] = endDateInput.value.split('T');
+                    const [endDateStr, endTimeStr] = endDateInput.value.split('T');
                     endDate = endDateStr;
+                    endTime = endTimeStr;
                 } else {
                     endDate = endDateInput.value;
+                    endTime = undefined;
                 }
             }
         }
@@ -823,6 +831,7 @@ export class ReminderEditDialog {
                     date: date,
                     endDate: endDate,
                     time: time,
+                    endTime: endTime,
                     note: note,
                     priority: priority,
                     categoryId: categoryId, // 添加分类ID
@@ -848,7 +857,7 @@ export class ReminderEditDialog {
                     date: date,
                     endDate: endDate,
                     time: time,
-                    endTime: this.reminder.endTime,
+                    endTime: endTime,
                     note: note,
                     priority: priority,
                     categoryId: categoryId, // 添加分类ID
@@ -871,10 +880,20 @@ export class ReminderEditDialog {
                         reminderData[this.reminder.id].notified = false;
                     }
 
+                    // 处理结束日期和结束时间
                     if (endDate && endDate !== date) {
+                        // 跨天事件
                         reminderData[this.reminder.id].endDate = endDate;
                     } else {
+                        // 同一天事件，删除结束日期
                         delete reminderData[this.reminder.id].endDate;
+                    }
+
+                    // 处理结束时间
+                    if (endTime) {
+                        reminderData[this.reminder.id].endTime = endTime;
+                    } else {
+                        delete reminderData[this.reminder.id].endTime;
                     }
 
                     await writeReminderData(reminderData);
@@ -885,8 +904,22 @@ export class ReminderEditDialog {
 
             // 显示保存成功消息
             const isSpanning = endDate && endDate !== date;
-            const timeStr = time ? ` ${time}` : '';
-            const dateStr = isSpanning ? `${date} → ${endDate}${timeStr}` : `${date}${timeStr}`;
+            let dateStr: string;
+            
+            if (isSpanning) {
+                // 跨天事件
+                const startTimeStr = time ? ` ${time}` : '';
+                const endTimeStr = endTime ? ` ${endTime}` : '';
+                dateStr = `${date}${startTimeStr} → ${endDate}${endTimeStr}`;
+            } else if (endTime && time) {
+                // 同一天的时间段事件
+                dateStr = `${date} ${time} - ${endTime}`;
+            } else {
+                // 普通事件
+                const timeStr = time ? ` ${time}` : '';
+                dateStr = `${date}${timeStr}`;
+            }
+            
             let successMessage = this.reminder.isInstance ? t("instanceModified") : t("reminderUpdated");
             successMessage += `: ${dateStr}`;
 
