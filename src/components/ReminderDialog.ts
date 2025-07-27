@@ -561,7 +561,7 @@ export class ReminderDialog {
                 </div>
             `,
             width: "500px",
-            height: "87vh"
+            height: "84vh"
         });
 
         this.bindEvents();
