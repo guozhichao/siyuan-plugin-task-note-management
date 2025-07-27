@@ -253,18 +253,20 @@ export class ReminderPanel {
                 }
             }
 
-            // 对于已完成相关的筛选器，默认按完成时间降序排序
-            if (isCompletedFilter || (isPast7Filter && a.completed && b.completed)) {
-                result = this.compareByCompletedTime(a, b);
-                if (result !== 0) {
-                    return result; // 直接返回完成时间比较结果，不需要考虑升降序
-                }
-            }
-
             // 应用用户选择的排序方式
             switch (sortType) {
                 case 'time':
-                    result = this.compareByTime(a, b);
+                    // 对于已完成相关的筛选器，如果都是已完成状态，优先按完成时间排序
+                    if ((isCompletedFilter || (isPast7Filter && a.completed && b.completed)) &&
+                        a.completed && b.completed) {
+                        result = this.compareByCompletedTime(a, b);
+                        // 如果完成时间相同，再按设置时间排序
+                        if (result === 0) {
+                            result = this.compareByTime(a, b);
+                        }
+                    } else {
+                        result = this.compareByTime(a, b);
+                    }
                     break;
 
                 case 'priority':
@@ -1041,21 +1043,19 @@ export class ReminderPanel {
         const completedTimeA = this.getCompletedTime(a);
         const completedTimeB = this.getCompletedTime(b);
 
-        // 如果都有完成时间，按完成时间降序排序（最近完成的在前）
+        // 如果都有完成时间，按完成时间比较（默认降序：最近完成的在前）
         if (completedTimeA && completedTimeB) {
             const timeA = new Date(completedTimeA).getTime();
             const timeB = new Date(completedTimeB).getTime();
-            return timeB - timeA; // 降序：最近的在前
+            return timeB - timeA; // 返回基础比较结果，升降序由调用方处理
         }
 
         // 如果只有一个有完成时间，有完成时间的在前
         if (completedTimeA && !completedTimeB) return -1;
         if (!completedTimeA && completedTimeB) return 1;
 
-        // 如果都没有完成时间，按设置的时间降序排序
-        const dateA = new Date(a.date + (a.time ? `T${a.time}` : 'T00:00'));
-        const dateB = new Date(b.date + (b.time ? `T${b.time}` : 'T00:00'));
-        return dateB.getTime() - dateA.getTime(); // 降序：最近的在前
+        // 如果都没有完成时间，返回0表示相等，让其他排序条件生效
+        return 0;
     }
 
     // 新增：获取完成时间的辅助方法
