@@ -24,6 +24,8 @@ export class CalendarView {
     private tooltipTimeout: number | null = null; // 添加提示框超时控制
     private tooltipShowTimeout: number | null = null; // 添加提示框显示延迟控制
     private isTooltipHovered: boolean = false; // 添加提示框悬浮状态
+    private lastClickTime: number = 0; // 添加双击检测
+    private clickTimeout: number | null = null; // 添加单击延迟超时
 
     constructor(container: HTMLElement, plugin: any) {
         this.container = container;
@@ -1667,7 +1669,34 @@ export class CalendarView {
     }
 
     private handleDateClick(info) {
-        // 点击日期，直接创建快速提醒
+        // 实现双击检测逻辑
+        const currentTime = Date.now();
+        const timeDiff = currentTime - this.lastClickTime;
+        
+        // 清除之前的单击超时
+        if (this.clickTimeout) {
+            clearTimeout(this.clickTimeout);
+            this.clickTimeout = null;
+        }
+        
+        // 如果两次点击间隔小于500ms，认为是双击
+        if (timeDiff < 500) {
+            // 双击事件 - 创建快速提醒
+            this.createQuickReminder(info);
+            this.lastClickTime = 0; // 重置点击时间
+        } else {
+            // 单击事件 - 设置延迟，如果在延迟期间没有第二次点击，则不执行任何操作
+            this.lastClickTime = currentTime;
+            this.clickTimeout = window.setTimeout(() => {
+                // 单击事件不执行任何操作（原来是创建快速提醒，现在改为双击才创建）
+                this.lastClickTime = 0;
+                this.clickTimeout = null;
+            }, 500);
+        }
+    }
+
+    private createQuickReminder(info) {
+        // 双击日期，创建快速提醒
         const clickedDate = info.dateStr;
         
         // 获取点击的时间（如果是时间视图）
@@ -2574,6 +2603,12 @@ export class CalendarView {
         if (this.tooltipTimeout) {
             clearTimeout(this.tooltipTimeout);
             this.tooltipTimeout = null;
+        }
+
+        // 清理双击检测超时
+        if (this.clickTimeout) {
+            clearTimeout(this.clickTimeout);
+            this.clickTimeout = null;
         }
 
         // 清理提示框
