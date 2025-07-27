@@ -1343,16 +1343,47 @@ export default class ReminderPlugin extends Plugin {
 
     // 打开日历视图标签页
     openCalendarTab() {
-        openTab({
-            app: this.app,
-            custom:
-            {
+        const isMobile = getFrontend().endsWith('mobile');
+        
+        if (isMobile) {
+            // 手机端：使用Dialog打开日历视图
+            const dialog = new Dialog({
                 title: t("calendarView"),
-                icon: 'iconCalendar',
-                id: this.name + TAB_TYPE,
-                data: {}
+                content: '<div id="mobileCalendarContainer" style="height: 100%; width: 100%;"></div>',
+                width: "95vw",
+                height: "90vh",
+                destroyCallback: () => {
+                    // 清理日历视图实例
+                    const calendarContainer = dialog.element.querySelector('#mobileCalendarContainer') as HTMLElement;
+                    if (calendarContainer && (calendarContainer as any)._calendarView) {
+                        const calendarView = (calendarContainer as any)._calendarView;
+                        if (typeof calendarView.destroy === 'function') {
+                            calendarView.destroy();
+                        }
+                    }
+                }
+            });
+
+            // 在Dialog中创建日历视图
+            const calendarContainer = dialog.element.querySelector('#mobileCalendarContainer') as HTMLElement;
+            if (calendarContainer) {
+                const calendarView = new CalendarView(calendarContainer, this);
+                // 保存实例引用用于清理
+                (calendarContainer as any)._calendarView = calendarView;
             }
-        });
+        } else {
+            // 桌面端：使用Tab打开日历视图
+            openTab({
+                app: this.app,
+                custom:
+                {
+                    title: t("calendarView"),
+                    icon: 'iconCalendar',
+                    id: this.name + TAB_TYPE,
+                    data: {}
+                }
+            });
+        }
     }
 
     private addBreadcrumbReminderButton(protyle: any) {
