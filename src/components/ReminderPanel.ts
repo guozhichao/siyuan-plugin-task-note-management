@@ -3496,23 +3496,48 @@ export class ReminderPanel {
             content: `
                 <div class="bind-to-block-dialog">
                     <div class="b3-dialog__content">
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">输入块ID</label>
-                            <div class="b3-form__desc">请输入要绑定的块ID</div>
-                            <input type="text" id="blockIdInput" class="b3-text-field" placeholder="请输入块ID" style="width: 100%; margin-top: 8px;">
+                        <!-- 模式切换按钮 -->
+                        <div class="mode-toggle" style="margin-bottom: 16px;">
+                            <button id="bindExistingBtn" class="b3-button b3-button--outline mode-btn active" style="margin-right: 8px;">
+                                绑定现有块
+                            </button>
+                            <button id="createNewBtn" class="b3-button b3-button--outline mode-btn">
+                                ${t("createNewDocument")}
+                            </button>
                         </div>
-                        <div class="b3-form__group" id="selectedBlockInfo" style="display: none;">
-                            <label class="b3-form__label">块信息预览</label>
-                            <div id="blockContent" class="block-content-preview" style="
-                                padding: 8px;
-                                background-color: var(--b3-theme-surface-lighter);
-                                border-radius: 4px;
-                                border: 1px solid var(--b3-theme-border);
-                                max-height: 100px;
-                                overflow-y: auto;
-                                font-size: 12px;
-                                color: var(--b3-theme-on-surface);
-                            "></div>
+
+                        <!-- 绑定现有块面板 -->
+                        <div id="bindExistingPanel" class="mode-panel">
+                            <div class="b3-form__group">
+                                <label class="b3-form__label">输入块ID</label>
+                                <div class="b3-form__desc">请输入要绑定的块ID</div>
+                                <input type="text" id="blockIdInput" class="b3-text-field" placeholder="请输入块ID" style="width: 100%; margin-top: 8px;">
+                            </div>
+                            <div class="b3-form__group" id="selectedBlockInfo" style="display: none;">
+                                <label class="b3-form__label">块信息预览</label>
+                                <div id="blockContent" class="block-content-preview" style="
+                                    padding: 8px;
+                                    background-color: var(--b3-theme-surface-lighter);
+                                    border-radius: 4px;
+                                    border: 1px solid var(--b3-theme-border);
+                                    max-height: 100px;
+                                    overflow-y: auto;
+                                    font-size: 12px;
+                                    color: var(--b3-theme-on-surface);
+                                "></div>
+                            </div>
+                        </div>
+
+                        <!-- 创建新文档面板 -->
+                        <div id="createNewPanel" class="mode-panel" style="display: none;">
+                            <div class="b3-form__group">
+                                <label class="b3-form__label">文档标题</label>
+                                <input type="text" id="docTitleInput" class="b3-text-field" placeholder="请输入文档标题" style="width: 100%; margin-top: 8px;">
+                            </div>
+                            <div class="b3-form__group">
+                                <label class="b3-form__label">文档内容（可选）</label>
+                                <textarea id="docContentInput" class="b3-text-field" placeholder="请输入文档内容" style="width: 100%; margin-top: 8px; min-height: 80px; resize: vertical;"></textarea>
+                            </div>
                         </div>
                     </div>
                     <div class="b3-dialog__action">
@@ -3521,15 +3546,51 @@ export class ReminderPanel {
                     </div>
                 </div>
             `,
-            width: "450px",
-            height: "300px"
+            width: "500px",
+            height: "400px"
         });
 
+        // 获取DOM元素
+        const bindExistingBtn = dialog.element.querySelector('#bindExistingBtn') as HTMLButtonElement;
+        const createNewBtn = dialog.element.querySelector('#createNewBtn') as HTMLButtonElement;
+        const bindExistingPanel = dialog.element.querySelector('#bindExistingPanel') as HTMLElement;
+        const createNewPanel = dialog.element.querySelector('#createNewPanel') as HTMLElement;
+        
         const blockIdInput = dialog.element.querySelector('#blockIdInput') as HTMLInputElement;
         const selectedBlockInfo = dialog.element.querySelector('#selectedBlockInfo') as HTMLElement;
         const blockContentEl = dialog.element.querySelector('#blockContent') as HTMLElement;
+        
+        const docTitleInput = dialog.element.querySelector('#docTitleInput') as HTMLInputElement;
+        const docContentInput = dialog.element.querySelector('#docContentInput') as HTMLTextAreaElement;
+        
         const cancelBtn = dialog.element.querySelector('#bindCancelBtn') as HTMLButtonElement;
         const confirmBtn = dialog.element.querySelector('#bindConfirmBtn') as HTMLButtonElement;
+
+        let currentMode = 'existing';
+
+        // 模式切换事件
+        bindExistingBtn.addEventListener('click', () => {
+            currentMode = 'existing';
+            bindExistingBtn.classList.add('active');
+            createNewBtn.classList.remove('active');
+            bindExistingPanel.style.display = 'block';
+            createNewPanel.style.display = 'none';
+            confirmBtn.textContent = t("bindToBlock");
+        });
+
+        createNewBtn.addEventListener('click', () => {
+            currentMode = 'create';
+            createNewBtn.classList.add('active');
+            bindExistingBtn.classList.remove('active');
+            createNewPanel.style.display = 'block';
+            bindExistingPanel.style.display = 'none';
+            confirmBtn.textContent = t("createDocumentAndBind");
+            
+            // 自动填充标题
+            if (!docTitleInput.value && reminder.title) {
+                docTitleInput.value = reminder.title;
+            }
+        });
 
         // 监听块ID输入变化
         blockIdInput.addEventListener('input', async () => {
@@ -3557,31 +3618,103 @@ export class ReminderPanel {
             dialog.destroy();
         });
 
-        // 确认绑定
+        // 确认按钮
         confirmBtn.addEventListener('click', async () => {
-            const blockId = blockIdInput.value.trim();
-            if (!blockId) {
-                showMessage('请输入块ID');
-                return;
-            }
+            if (currentMode === 'existing') {
+                // 绑定现有块模式
+                const blockId = blockIdInput.value.trim();
+                if (!blockId) {
+                    showMessage('请输入块ID');
+                    return;
+                }
 
-            try {
-                await this.bindReminderToBlock(reminder, blockId);
-                showMessage(t("reminderBoundToBlock"));
-                dialog.destroy();
+                try {
+                    await this.bindReminderToBlock(reminder, blockId);
+                    showMessage(t("reminderBoundToBlock"));
+                    dialog.destroy();
+                    this.loadReminders();
+                } catch (error) {
+                    console.error('绑定提醒到块失败:', error);
+                    showMessage(t("bindToBlockFailed"));
+                }
+            } else {
+                // 创建新文档模式
+                const title = docTitleInput.value.trim();
+                const content = docContentInput.value.trim();
                 
-                // 刷新显示
-                this.loadReminders();
-            } catch (error) {
-                console.error('绑定提醒到块失败:', error);
-                showMessage(t("bindToBlockFailed"));
+                if (!title) {
+                    showMessage(t("pleaseEnterTitle"));
+                    return;
+                }
+
+                try {
+                    const blockId = await this.createDocumentAndBind(reminder, title, content);
+                    showMessage(t("documentCreatedAndBound"));
+                    dialog.destroy();
+                    this.loadReminders();
+                } catch (error) {
+                    console.error('创建文档并绑定失败:', error);
+                    showMessage(t("createDocumentFailed"));
+                }
             }
         });
 
         // 自动聚焦输入框
         setTimeout(() => {
-            blockIdInput.focus();
+            if (currentMode === 'existing') {
+                blockIdInput.focus();
+            } else {
+                docTitleInput.focus();
+            }
         }, 100);
+    }
+
+    /**
+     * 创建文档并绑定提醒
+     */
+    private async createDocumentAndBind(reminder: any, title: string, content: string): Promise<string> {
+        try {
+            // 获取插件设置
+            const settings = await this.plugin.loadSettings();
+            const notebook = settings.newDocNotebook;
+            const pathTemplate = settings.newDocPath || '/{{now | date "2006/200601"}}/';
+
+            if (!notebook) {
+                throw new Error(t("pleaseConfigureNotebook"));
+            }
+
+            // 导入API函数
+            const { renderSprig, createDocWithMd } = await import("../api");
+
+            // 渲染路径模板
+            let renderedPath: string;
+            try {
+                // 需要检测pathTemplate是否以/结尾，如果不是，则添加/
+                if (!pathTemplate.endsWith('/')) {
+                    renderedPath += pathTemplate + '/';
+                } else {
+                    renderedPath = pathTemplate;
+                }
+                renderedPath = await renderSprig(renderedPath + title);
+            } catch (error) {
+                console.error('渲染路径模板失败:', error);
+                throw new Error(t("renderPathFailed"));
+            }
+
+            // 准备文档内容
+            const docContent = content;
+
+            // 创建文档
+            const docId = await createDocWithMd(notebook, renderedPath, docContent);
+
+            // 绑定提醒到新创建的文档
+            await this.bindReminderToBlock(reminder, docId);
+
+            return docId;
+        } catch (error) {
+            console.error('创建文档并绑定失败:', error);
+            throw error;
+        }
     }
 
     /**

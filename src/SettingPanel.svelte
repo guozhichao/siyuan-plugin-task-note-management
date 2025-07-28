@@ -3,11 +3,15 @@
     import SettingPanel from '@/libs/components/setting-panel.svelte';
     import { t } from './utils/i18n';
     import { DEFAULT_SETTINGS, SETTINGS_FILE } from './index';
+    import { lsNotebooks } from './api';
 
     export let plugin;
 
     // 使用从 index.ts 导入的默认设置
     let settings = { ...DEFAULT_SETTINGS };
+    
+    // 笔记本列表
+    let notebooks: Array<{id: string, name: string}> = [];
 
     interface ISettingGroup {
         name: string;
@@ -46,6 +50,24 @@
                     type: 'checkbox',
                     title: t('autoDetectDateTime'),
                     description: t('autoDetectDateTimeDesc'),
+                },
+                {
+                    key: 'newDocNotebook',
+                    value: settings.newDocNotebook,
+                    type: 'select',
+                    title: t('newDocNotebook'),
+                    description: t('newDocNotebookDesc'),
+                    options: notebooks.reduce((acc, notebook) => {
+                        acc[notebook.id] = notebook.name;
+                        return acc;
+                    }, {} as {[key: string]: string})
+                },
+                {
+                    key: 'newDocPath',
+                    value: settings.newDocPath,
+                    type: 'textinput',
+                    title: t('newDocPath'),
+                    description: t('newDocPathDesc'),
                 },
             ],
         },
@@ -235,8 +257,22 @@
     }
 
     onMount(async () => {
+        await loadNotebooks();
         await runload();
     });
+
+    async function loadNotebooks() {
+        try {
+            const result = await lsNotebooks();
+            notebooks = result.notebooks.map(notebook => ({
+                id: notebook.id,
+                name: notebook.name
+            }));
+        } catch (error) {
+            console.error('加载笔记本列表失败:', error);
+            notebooks = [];
+        }
+    }
 
     async function runload() {
         const loadedSettings = await plugin.loadSettings();
@@ -250,10 +286,22 @@
     function updateGroupItems() {
         groups = groups.map(group => ({
             ...group,
-            items: group.items.map(item => ({
-                ...item,
-                value: settings[item.key] ?? item.value,
-            })),
+            items: group.items.map(item => {
+                const updatedItem = {
+                    ...item,
+                    value: settings[item.key] ?? item.value,
+                };
+                
+                // 为笔记本选择器更新选项
+                if (item.key === 'newDocNotebook') {
+                    updatedItem.options = notebooks.reduce((acc, notebook) => {
+                        acc[notebook.id] = notebook.name;
+                        return acc;
+                    }, {} as {[key: string]: string});
+                }
+                
+                return updatedItem;
+            }),
         }));
     }
 

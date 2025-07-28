@@ -470,5 +470,15 @@
     "reminderBoundToBlock": "提醒已绑定到块",
     "bindToBlockFailed": "绑定到块失败",
     "dateTimeDesc": "可同时设置日期和时间",
-    "dateOnlyDesc": "仅设置日期，不设置具体时间"
+    "dateOnlyDesc": "仅设置日期，不设置具体时间",
+    "newDocNotebook": "新建文档笔记本",
+    "newDocNotebookDesc": "设置新建文档时使用的笔记本ID，留空则需要手动选择",
+    "newDocPath": "新建文档路径模板",
+    "newDocPathDesc": "设置新建文档的路径模板，支持Sprig语法，如：/任务管理/{{now | date \"2006-01-02\"}}/{{.title}}",
+    "createNewDocument": "新建文档",
+    "createDocumentAndBind": "新建文档并绑定",
+    "documentCreated": "文档创建成功",
+    "createDocumentFailed": "创建文档失败",
+    "pleaseConfigureNotebook": "请先在设置中配置新建文档的笔记本",
+    "renderPathFailed": "渲染文档路径失败"
 }
