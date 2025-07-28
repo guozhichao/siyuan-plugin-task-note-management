@@ -1594,7 +1594,7 @@ export class CalendarView {
         style.id = 'reminder-calendar-custom-styles';
         style.textContent = `
             .fc-today-custom {
-                background-color: var(--b3-theme-primary-lightest) !important;
+                background-color: #a5bdc721 !important;
             }
             .fc-today-custom:hover {
                 background-color: var(--b3-theme-primary-lightest) !important;
