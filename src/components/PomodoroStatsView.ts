@@ -290,16 +290,33 @@ export class PomodoroStatsView {
     private renderRecentTrend(): string {
         const last7Days = this.getLast7DaysData();
         const maxTime = Math.max(...last7Days.map(d => d.value));
+        const minHeight = 15; // 最小高度15%，确保可见性
+        const maxHeight = 85; // 最大高度85%，留出空间显示标签
         
         return `
             <div class="trend-chart">
-                ${last7Days.map(day => `
-                    <div class="trend-day">
-                        <div class="trend-bar" style="height: ${maxTime > 0 ? Math.max((day.value / maxTime) * 100, 4) : 4}%"></div>
-                        <div class="trend-label">${day.label}</div>
-                        <div class="trend-value">${this.recordManager.formatTime(day.value)}</div>
-                    </div>
-                `).join('')}
+                ${last7Days.map(day => {
+                    let height;
+                    if (maxTime === 0) {
+                        // 所有数据都为0时，显示最小高度
+                        height = minHeight;
+                    } else if (day.value === 0) {
+                        // 当前数据为0时，显示更小的高度以区分
+                        height = 5;
+                    } else {
+                        // 按比例计算高度，确保在最小和最大高度之间
+                        const ratio = day.value / maxTime;
+                        height = minHeight + (maxHeight - minHeight) * ratio;
+                    }
+                    
+                    return `
+                        <div class="trend-day">
+                            <div class="trend-bar" style="height: ${height}%"></div>
+                            <div class="trend-label">${day.label}</div>
+                            <div class="trend-value">${this.recordManager.formatTime(day.value)}</div>
+                        </div>
+                    `;
+                }).join('')}
             </div>
         `;
     }
@@ -365,17 +382,34 @@ export class PomodoroStatsView {
     private renderTrendsChart(): string {
         const data = this.getTrendsData();
         const maxValue = Math.max(...data.map(d => d.value));
+        const minHeight = 15; // 最小高度15%，确保可见性
+        const maxHeight = 85; // 最大高度85%，留出空间显示标签
         
         return `
             <div class="trends-chart-container">
                 <div class="chart-bars">
-                    ${data.map(item => `
-                        <div class="chart-bar-container">
-                            <div class="chart-bar" style="height: ${maxValue > 0 ? Math.max((item.value / maxValue) * 100, 4) : 4}%"></div>
-                            <div class="chart-label">${item.label}</div>
-                            <div class="chart-value">${this.recordManager.formatTime(item.value)}</div>
-                        </div>
-                    `).join('')}
+                    ${data.map(item => {
+                        let height;
+                        if (maxValue === 0) {
+                            // 所有数据都为0时，显示最小高度
+                            height = minHeight;
+                        } else if (item.value === 0) {
+                            // 当前数据为0时，显示更小的高度以区分
+                            height = 5;
+                        } else {
+                            // 按比例计算高度，确保在最小和最大高度之间
+                            const ratio = item.value / maxValue;
+                            height = minHeight + (maxHeight - minHeight) * ratio;
+                        }
+                        
+                        return `
+                            <div class="chart-bar-container">
+                                <div class="chart-bar" style="height: ${height}%"></div>
+                                <div class="chart-label">${item.label}</div>
+                                <div class="chart-value">${this.recordManager.formatTime(item.value)}</div>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
             </div>
         `;
