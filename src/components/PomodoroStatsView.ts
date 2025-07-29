@@ -769,6 +769,155 @@ export class PomodoroStatsView {
         };
     }
 
+    private getAverageTimelineDataForMonth(): {date: string, sessions: Array<{type: string, title: string, duration: number, startPercent: number, widthPercent: number}>} {
+        const today = new Date();
+        const targetDate = new Date(today.getFullYear(), today.getMonth() + this.currentMonthOffset, 1);
+        const daysInMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0).getDate();
+        
+        // 创建24小时的时间段统计数组，按小时统计
+        const hourlyStats = new Array(24).fill(0); // 24个小时
+        let totalDays = 0;
+        
+        // 收集整个月的数据
+        for (let day = 1; day <= daysInMonth; day++) {
+            const date = new Date(targetDate.getFullYear(), targetDate.getMonth(), day);
+            const dateStr = getLocalDateString(date);
+            const sessions = this.recordManager.getDateSessions(dateStr);
+            
+            let hasData = false;
+            sessions.filter(s => s.type === 'work').forEach(session => {
+                hasData = true;
+                const startTime = new Date(session.startTime);
+                const startHour = startTime.getHours();
+                const startMinute = startTime.getMinutes();
+                const duration = session.duration;
+                
+                // 将专注时间分布到对应的小时中
+                let remainingDuration = duration;
+                let currentHour = startHour;
+                let currentMinute = startMinute;
+                
+                while (remainingDuration > 0 && currentHour < 24) {
+                    // 计算当前小时内剩余的分钟数
+                    const minutesLeftInHour = 60 - currentMinute;
+                    const durationInThisHour = Math.min(remainingDuration, minutesLeftInHour);
+                    
+                    hourlyStats[currentHour] += durationInThisHour;
+                    remainingDuration -= durationInThisHour;
+                    
+                    // 移动到下一个小时
+                    currentHour++;
+                    currentMinute = 0;
+                }
+            });
+            
+            if (hasData) {
+                totalDays++;
+            }
+        }
+        
+        // 计算平均值并转换为时间线格式
+        const sessions = [];
+        if (totalDays > 0) {
+            for (let hour = 0; hour < 24; hour++) {
+                const avgDuration = hourlyStats[hour] / totalDays;
+                if (avgDuration > 1) { // 只显示平均时长超过1分钟的小时
+                    const startPercent = (hour * 60) / (24 * 60) * 100;
+                    const widthPercent = 60 / (24 * 60) * 100; // 1小时
+                    
+                    sessions.push({
+                        type: 'work',
+                        title: `${hour}:00-${hour + 1}:00 平均专注 ${avgDuration.toFixed(1)}分钟`,
+                        duration: Math.round(avgDuration),
+                        startPercent,
+                        widthPercent
+                    });
+                }
+            }
+        }
+        
+        const monthName = targetDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' });
+        return {
+            date: `${monthName}平均分布`,
+            sessions
+        };
+    }
+
+    private getAverageTimelineDataForYear(): {date: string, sessions: Array<{type: string, title: string, duration: number, startPercent: number, widthPercent: number}>} {
+        const today = new Date();
+        const targetYear = today.getFullYear() + this.currentYearOffset;
+        
+        // 创建24小时的时间段统计数组，按小时统计
+        const hourlyStats = new Array(24).fill(0); // 24个小时
+        let totalDays = 0;
+        
+        // 收集整年的数据
+        for (let month = 0; month < 12; month++) {
+            const daysInMonth = new Date(targetYear, month + 1, 0).getDate();
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(targetYear, month, day);
+                const dateStr = getLocalDateString(date);
+                const sessions = this.recordManager.getDateSessions(dateStr);
+                
+                let hasData = false;
+                sessions.filter(s => s.type === 'work').forEach(session => {
+                    hasData = true;
+                    const startTime = new Date(session.startTime);
+                    const startHour = startTime.getHours();
+                    const startMinute = startTime.getMinutes();
+                    const duration = session.duration;
+                    
+                    // 将专注时间分布到对应的小时中
+                    let remainingDuration = duration;
+                    let currentHour = startHour;
+                    let currentMinute = startMinute;
+                    
+                    while (remainingDuration > 0 && currentHour < 24) {
+                        // 计算当前小时内剩余的分钟数
+                        const minutesLeftInHour = 60 - currentMinute;
+                        const durationInThisHour = Math.min(remainingDuration, minutesLeftInHour);
+                        
+                        hourlyStats[currentHour] += durationInThisHour;
+                        remainingDuration -= durationInThisHour;
+                        
+                        // 移动到下一个小时
+                        currentHour++;
+                        currentMinute = 0;
+                    }
+                });
+                
+                if (hasData) {
+                    totalDays++;
+                }
+            }
+        }
+        
+        // 计算平均值并转换为时间线格式
+        const sessions = [];
+        if (totalDays > 0) {
+            for (let hour = 0; hour < 24; hour++) {
+                const avgDuration = hourlyStats[hour] / totalDays;
+                if (avgDuration > 1) { // 只显示平均时长超过1分钟的小时
+                    const startPercent = (hour * 60) / (24 * 60) * 100;
+                    const widthPercent = 60 / (24 * 60) * 100; // 1小时
+                    
+                    sessions.push({
+                        type: 'work',
+                        title: `${hour}:00-${hour + 1}:00 平均专注 ${avgDuration.toFixed(1)}分钟`,
+                        duration: Math.round(avgDuration),
+                        startPercent,
+                        widthPercent
+                    });
+                }
+            }
+        }
+        
+        return {
+            date: `${targetYear}年平均分布`,
+            sessions
+        };
+    }
+
     private getHeatmapData(year: number): Array<{date: string, time: number, level: number}> {
         const data = [];
         const startDate = new Date(year, 0, 1);
@@ -1116,63 +1265,57 @@ export class PomodoroStatsView {
             const dates = timelineData.map(d => d.date);
             const series = [];
             
-            // 为每种类型的会话创建一个系列
-            const sessionTypes = ['work', 'shortBreak', 'longBreak'];
-            const typeNames = {
-                'work': '专注时间',
-                'shortBreak': '短休息',
-                'longBreak': '长休息'
-            };
-            const typeColors = {
-                'work': '#FF6B6B',
-                'shortBreak': '#4CAF50',
-                'longBreak': '#2196F3'
-            };
+            // 检查是否是平均分布数据（只有一行数据且包含"平均分布"）
+            const isAverageData = timelineData.length === 1 && timelineData[0].date.includes('平均分布');
             
-            sessionTypes.forEach(type => {
+            if (isAverageData) {
+                // 平均分布数据的处理
+                const dayData = timelineData[0];
                 const data = [];
                 
-                timelineData.forEach((dayData, dayIndex) => {
-                    dayData.sessions.forEach(session => {
-                        if (session.type === type) {
-                            // 计算开始时间和结束时间（以小时为单位）
-                            const startHour = session.startPercent / 100 * 24;
-                            const endHour = startHour + (session.widthPercent / 100 * 24);
-                            
-                            data.push([
-                                startHour,  // x轴：开始时间
-                                dayIndex,   // y轴：日期索引
-                                endHour,    // 结束时间
-                                session.title,
-                                session.duration
-                            ]);
-                        }
-                    });
+                dayData.sessions.forEach(session => {
+                    const startHour = session.startPercent / 100 * 24;
+                    const endHour = startHour + (session.widthPercent / 100 * 24);
+                    const avgDuration = session.duration;
+                    
+                    data.push([
+                        startHour,  // x轴：开始时间
+                        0,          // y轴：固定为0（只有一行）
+                        endHour,    // 结束时间
+                        session.title,
+                        avgDuration
+                    ]);
                 });
                 
                 if (data.length > 0) {
                     series.push({
-                        name: typeNames[type],
+                        name: '平均专注时间',
                         type: 'custom',
                         renderItem: (params, api) => {
                             const start = api.value(0);
                             const end = api.value(2);
-                            const y = api.coord([0, api.value(1)])[1];
+                            const duration = api.value(4);
+                            const y = api.coord([0, 0])[1];
                             const startX = api.coord([start, 0])[0];
                             const endX = api.coord([end, 0])[0];
-                            const height = 20;
+                            
+                            // 根据平均专注时长调整颜色深度和高度
+                            const maxDuration = Math.max(...data.map(d => d[4]));
+                            const intensity = duration / maxDuration;
+                            const height = 30 + intensity * 20; // 基础高度30px，最大增加20px
+                            const opacity = 0.6 + intensity * 0.4; // 透明度从0.6到1.0
                             
                             return {
                                 type: 'rect',
                                 shape: {
                                     x: startX,
                                     y: y - height / 2,
-                                    width: endX - startX,
+                                    width: Math.max(endX - startX, 2), // 最小宽度2px
                                     height: height
                                 },
                                 style: {
-                                    fill: typeColors[type],
-                                    opacity: 0.8
+                                    fill: '#FF6B6B',
+                                    opacity: opacity
                                 }
                             };
                         },
@@ -1184,17 +1327,96 @@ export class PomodoroStatsView {
                                 const duration = params.value[4];
                                 const title = params.value[3];
                                 const startTime = `${start.toString().padStart(2, '0')}:${startMin.toString().padStart(2, '0')}`;
-                                return `${title}<br/>开始时间: ${startTime}<br/>持续时间: ${duration}分钟`;
+                                return `${title}<br/>时间段: ${startTime}<br/>平均时长: ${duration}分钟`;
                             }
                         }
                     });
                 }
-            });
+            } else {
+                // 原有的多天数据处理逻辑
+                const sessionTypes = ['work', 'shortBreak', 'longBreak'];
+                const typeNames = {
+                    'work': '专注时间',
+                    'shortBreak': '短休息',
+                    'longBreak': '长休息'
+                };
+                const typeColors = {
+                    'work': '#FF6B6B',
+                    'shortBreak': '#4CAF50',
+                    'longBreak': '#2196F3'
+                };
+                
+                sessionTypes.forEach(type => {
+                    const data = [];
+                    
+                    timelineData.forEach((dayData, dayIndex) => {
+                        dayData.sessions.forEach(session => {
+                            if (session.type === type) {
+                                // 计算开始时间和结束时间（以小时为单位）
+                                const startHour = session.startPercent / 100 * 24;
+                                const endHour = startHour + (session.widthPercent / 100 * 24);
+                                
+                                data.push([
+                                    startHour,  // x轴：开始时间
+                                    dayIndex,   // y轴：日期索引
+                                    endHour,    // 结束时间
+                                    session.title,
+                                    session.duration
+                                ]);
+                            }
+                        });
+                    });
+                    
+                    if (data.length > 0) {
+                        series.push({
+                            name: typeNames[type],
+                            type: 'custom',
+                            renderItem: (params, api) => {
+                                const start = api.value(0);
+                                const end = api.value(2);
+                                const y = api.coord([0, api.value(1)])[1];
+                                const startX = api.coord([start, 0])[0];
+                                const endX = api.coord([end, 0])[0];
+                                const height = 20;
+                                
+                                return {
+                                    type: 'rect',
+                                    shape: {
+                                        x: startX,
+                                        y: y - height / 2,
+                                        width: endX - startX,
+                                        height: height
+                                    },
+                                    style: {
+                                        fill: typeColors[type],
+                                        opacity: 0.8
+                                    }
+                                };
+                            },
+                            data: data,
+                            tooltip: {
+                                formatter: (params) => {
+                                    const start = Math.floor(params.value[0]);
+                                    const startMin = Math.round((params.value[0] - start) * 60);
+                                    const duration = params.value[4];
+                                    const title = params.value[3];
+                                    const startTime = `${start.toString().padStart(2, '0')}:${startMin.toString().padStart(2, '0')}`;
+                                    return `${title}<br/>开始时间: ${startTime}<br/>持续时间: ${duration}分钟`;
+                                }
+                            }
+                        });
+                    }
+                });
+            }
             
             // 配置选项
+            const chartTitle = isAverageData ?
+                (timelineData[0].date.includes('月') ? '月度平均专注时间分布' : '年度平均专注时间分布') :
+                '专注时间线';
+                
             const option = {
                 title: {
-                    text: '专注时间线',
+                    text: chartTitle,
                     left: 'center',
                     top: 10,
                     textStyle: {
@@ -1228,12 +1450,15 @@ export class PomodoroStatsView {
                 },
                 yAxis: {
                     type: 'category',
-                    data: dates,
+                    data: isAverageData ? [timelineData[0].date.replace('平均分布', '')] : dates,
                     name: '',
                     nameLocation: 'middle',
                     nameGap: 50,
                     axisLabel: {
                         interval: 0
+                    },
+                    axisTick: {
+                        length: 0  // 去除Y轴的ticklength
                     }
                 },
                 series: series
