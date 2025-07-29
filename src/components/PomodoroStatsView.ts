@@ -268,18 +268,7 @@ export class PomodoroStatsView {
                 <div class="heatmap-chart">
                     ${this.renderHeatmapChart()}
                 </div>
-                
-                <div class="heatmap-legend">
-                    <span>${t("less")}</span>
-                    <div class="legend-colors">
-                        <div class="legend-color level-0"></div>
-                        <div class="legend-color level-1"></div>
-                        <div class="legend-color level-2"></div>
-                        <div class="legend-color level-3"></div>
-                        <div class="legend-color level-4"></div>
-                    </div>
-                    <span>${t("more")}</span>
-                </div>
+
             </div>
         `;
     }
@@ -1010,15 +999,14 @@ export class PomodoroStatsView {
             const dataList = [];
             
             for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
-                const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD格式
                 const localDateStr = getLocalDateString(date);
                 
                 // 查找对应的数据
                 const dayData = heatmapData.find(d => d.date === localDateStr);
                 const time = dayData ? dayData.time : 0;
                 
-                dateList.push(dateStr);
-                dataList.push([dateStr, time]);
+                dateList.push(localDateStr);
+                dataList.push([localDateStr, time]);
             }
 
             // 计算最大值用于颜色映射
@@ -1051,17 +1039,20 @@ export class PomodoroStatsView {
                 },
                 visualMap: {
                     min: 0,
-                    max: maxValue || 240, // 默认最大值4小时
+                    max: maxValue || 800, // 默认最大值8小时以上
                     type: 'piecewise',
                     orient: 'horizontal',
+                    calculable: true,    // 允许交互（点击色块切换）
                     left: 'center',
                     bottom: 20,
                     pieces: [
                         { min: 0, max: 0, color: '#ebedf0', label: '无' },
-                        { min: 1, max: 60, color: '#c6e48b', label: '1小时内' },
-                        { min: 61, max: 120, color: '#7bc96f', label: '1-2小时' },
-                        { min: 121, max: 240, color: '#239a3b', label: '2-4小时' },
-                        { min: 241, color: '#196127', label: '4小时以上' }
+                        { min: 1, max: 60, color: '#7bc96f', label: '1小时内' },
+                        { min: 61, max: 120, color: '#c6e48b', label: '1-2小时' },
+                        { min: 121, max: 240, color: '#60d377ff', label: '2-4小时' },
+                        { min: 241, max: 360, color: '#2da344ff', label: '4-6小时' },
+                        { min: 361, max: 480, color: '#196127', label: '6-8小时' },
+                        { min: 481, color: '#003500', label: '8小时以上' }
                     ],
                     textStyle: {
                         fontSize: 12
@@ -1072,7 +1063,7 @@ export class PomodoroStatsView {
                     left: 50,
                     right: 50,
                     bottom: 80,
-                    cellSize: ['auto', 13],
+                    cellSize: ['auto', 4],
                     range: this.currentYear,
                     itemStyle: {
                         borderWidth: 0.5,

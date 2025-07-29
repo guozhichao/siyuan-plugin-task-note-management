@@ -40,7 +40,8 @@ export default defineConfig({
                 { src: "./README*.md", dest: "./" },
                 { src: "./plugin.json", dest: "./" },
                 { src: "./preview.png", dest: "./" },
-                { src: "./icon.png", dest: "./" }
+                { src: "./icon.png", dest: "./" },
+                { src: "./audios/*", dest: "./audios/" },
             ],
         }),
 
