@@ -26,6 +26,7 @@ export class CalendarView {
     private tooltipShowTimeout: number | null = null; // 添加提示框显示延迟控制
     private lastClickTime: number = 0; // 添加双击检测
     private clickTimeout: number | null = null; // 添加单击延迟超时
+    private refreshTimeout: number | null = null; // 添加刷新防抖超时
 
     // 添加静态变量来跟踪当前活动的番茄钟
     private static currentPomodoroTimer: PomodoroTimer | null = null;
@@ -146,7 +147,8 @@ export class CalendarView {
             eventResize: this.handleEventResize.bind(this),
             dateClick: this.handleDateClick.bind(this),
             select: this.handleDateSelect.bind(this),
-            events: this.getEvents.bind(this),
+            // 移除自动事件源，改为手动管理事件
+            events: [],
             dayCellClassNames: (arg) => {
                 const today = new Date();
                 const cellDate = arg.date;
@@ -177,10 +179,20 @@ export class CalendarView {
                         this.updateTooltipPosition(e);
                     }
                 });
+            },
+            // 添加视图切换和日期变化的监听
+            datesSet: (info) => {
+                // 当视图的日期范围改变时（包括切换前后时间），刷新事件
+                this.refreshEvents();
             }
         });
 
         this.calendar.render();
+        
+        // 初始加载事件 - 延迟执行避免与 datesSet 冲突
+        setTimeout(() => {
+            this.refreshEvents();
+        }, 50);
 
         // 添加自定义样式
         this.addCustomStyles();
@@ -1826,26 +1838,35 @@ export class CalendarView {
     }
 
     private async refreshEvents() {
-        try {
-            // 先获取新的事件数据
-            const events = await this.getEvents();
-
-            // 清除所有现有事件
-            this.calendar.removeAllEvents();
-
-            // 添加新事件 - 直接使用数组而不是事件源
-            events.forEach(event => {
-                this.calendar.addEvent(event);
-            });
-
-            // 强制重新渲染日历并更新大小
-            if (this.isCalendarVisible()) {
-                this.calendar.updateSize();
-                this.calendar.render();
-            }
-        } catch (error) {
-            console.error('刷新事件失败:', error);
+        // 清除之前的刷新超时
+        if (this.refreshTimeout) {
+            clearTimeout(this.refreshTimeout);
         }
+
+        // 使用防抖机制，避免频繁刷新
+        this.refreshTimeout = window.setTimeout(async () => {
+            try {
+                // 先获取新的事件数据
+                const events = await this.getEvents();
+
+                // 清除所有现有事件和事件源
+                this.calendar.removeAllEvents();
+                this.calendar.removeAllEventSources();
+
+                // 添加新事件 - 逐个添加确保不重复
+                events.forEach(event => {
+                    this.calendar.addEvent(event);
+                });
+
+                // 强制重新渲染日历并更新大小
+                if (this.isCalendarVisible()) {
+                    this.calendar.updateSize();
+                    this.calendar.render();
+                }
+            } catch (error) {
+                console.error('刷新事件失败:', error);
+            }
+        }, 100); // 100ms 防抖延迟
     }
 
     private async getEvents() {
@@ -1906,7 +1927,10 @@ export class CalendarView {
                                 note: instanceMod?.note || '',
                                 docTitle: reminder.docTitle // 保持文档标题
                             };
-                            this.addEventToList(events, instanceReminder, instance.instanceId, true, instance.originalId);
+                            
+                            // 确保实例ID的唯一性，避免重复
+                            const uniqueInstanceId = `${reminder.id}_instance_${instance.date}`;
+                            this.addEventToList(events, instanceReminder, uniqueInstanceId, true, instance.originalId);
                         }
                     });
                 }
@@ -2583,6 +2607,12 @@ export class CalendarView {
         if (this.clickTimeout) {
             clearTimeout(this.clickTimeout);
             this.clickTimeout = null;
+        }
+
+        // 清理刷新防抖超时
+        if (this.refreshTimeout) {
+            clearTimeout(this.refreshTimeout);
+            this.refreshTimeout = null;
         }
 
         // 清理提示框
