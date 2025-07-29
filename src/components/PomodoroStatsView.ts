@@ -3,6 +3,7 @@ import { PomodoroRecordManager, PomodoroSession } from "../utils/pomodoroRecord"
 import { t } from "../utils/i18n";
 import { getLocalDateString } from "../utils/dateUtils";
 import * as echarts from 'echarts';
+import { formatDate } from "@fullcalendar/core";
 
 export class PomodoroStatsView {
     private dialog: Dialog;
@@ -1039,7 +1040,7 @@ export class PomodoroStatsView {
                 },
                 visualMap: {
                     min: 0,
-                    max: maxValue || 800, // 默认最大值8小时以上
+                    max: maxValue || 600, // 默认最大值10小时
                     type: 'piecewise',
                     orient: 'horizontal',
                     calculable: true,    // 允许交互（点击色块切换）
