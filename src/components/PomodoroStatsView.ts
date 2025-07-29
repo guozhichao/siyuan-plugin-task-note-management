@@ -724,23 +724,13 @@ export class PomodoroStatsView {
                 break;
                 
             case 'month':
-                // 显示指定月的最近7天或全月（这里简化为最近7天）
-                const targetMonth = new Date(today.getFullYear(), today.getMonth() + this.currentMonthOffset, today.getDate());
-                for (let i = 6; i >= 0; i--) {
-                    const date = new Date(targetMonth);
-                    date.setDate(targetMonth.getDate() - i);
-                    data.push(this.getTimelineDataForDate(date));
-                }
+                // 显示本月所有天的平均专注时间分布
+                data.push(this.getAverageTimelineDataForMonth());
                 break;
                 
             case 'year':
-                // 显示指定年的最近7天
-                const targetYear = new Date(today.getFullYear() + this.currentYearOffset, today.getMonth(), today.getDate());
-                for (let i = 6; i >= 0; i--) {
-                    const date = new Date(targetYear);
-                    date.setDate(targetYear.getDate() - i);
-                    data.push(this.getTimelineDataForDate(date));
-                }
+                // 显示本年所有天的平均专注时间分布
+                data.push(this.getAverageTimelineDataForYear());
                 break;
                 
             default:
@@ -1280,6 +1270,15 @@ export class PomodoroStatsView {
             const view = target.dataset.view as any;
             if (view && view !== this.currentView) {
                 this.currentView = view;
+                
+                // 当切换到专注趋势或专注时间线Tab时，默认设置为本周并重置偏移量
+                if (view === 'trends' || view === 'timeline') {
+                    this.currentTimeRange = 'week';
+                    this.currentWeekOffset = 0;
+                    this.currentMonthOffset = 0;
+                    this.currentYearOffset = 0;
+                }
+                
                 this.updateContent();
             }
         }
