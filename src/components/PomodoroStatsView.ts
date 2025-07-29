@@ -299,10 +299,6 @@ export class PomodoroStatsView {
                     <span class="progress-label">${t("focusTime")}</span>
                     <span class="progress-value">${this.recordManager.formatTime(todayTime)}</span>
                 </div>
-                <div class="progress-item">
-                    <span class="progress-label">${t("averageSession")}</span>
-                    <span class="progress-value">${workSessions.length > 0 ? Math.round(todayTime / workSessions.length) : 0}${t("minutes")}</span>
-                </div>
             </div>
         `;
     }
@@ -419,23 +415,12 @@ export class PomodoroStatsView {
     }
 
     private renderTimelineChart(): string {
-        const timelineData = this.getTimelineData();
+        // 生成唯一的图表ID
+        const chartId = `timeline-chart-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         
         return `
-            <div class="timeline-chart-container">
-                ${timelineData.map(day => `
-                    <div class="timeline-day">
-                        <div class="timeline-date">${day.date}</div>
-                        <div class="timeline-sessions">
-                            ${day.sessions.map(session => `
-                                <div class="timeline-session ${session.type}" 
-                                     style="left: ${session.startPercent}%; width: ${session.widthPercent}%"
-                                     title="${session.title} (${session.duration}${t("minutes")})">
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                `).join('')}
+            <div class="timeline-echarts-container">
+                <div id="${chartId}" class="echarts-timeline-chart" style="width: 100%; height: 600px;"></div>
             </div>
         `;
     }
@@ -1114,6 +1099,167 @@ export class PomodoroStatsView {
         }, 100);
     }
 
+    private initTimelineChart(chartId: string) {
+        // 延迟执行以确保DOM元素已渲染
+        setTimeout(() => {
+            const chartElement = this.dialog.element.querySelector(`#${chartId}`) as HTMLElement;
+            if (!chartElement) {
+                console.warn('Timeline chart element not found:', chartId);
+                return;
+            }
+
+            const timelineData = this.getTimelineData();
+            
+            if (timelineData.length === 0) {
+                chartElement.innerHTML = `<div class="no-data" style="text-align: center; padding: 50px;">${t("noData")}</div>`;
+                return;
+            }
+
+            // 初始化echarts实例
+            const chart = echarts.init(chartElement);
+            
+            // 准备时间线数据
+            const dates = timelineData.map(d => d.date);
+            const series = [];
+            
+            // 为每种类型的会话创建一个系列
+            const sessionTypes = ['work', 'shortBreak', 'longBreak'];
+            const typeNames = {
+                'work': '专注时间',
+                'shortBreak': '短休息',
+                'longBreak': '长休息'
+            };
+            const typeColors = {
+                'work': '#FF6B6B',
+                'shortBreak': '#4CAF50',
+                'longBreak': '#2196F3'
+            };
+            
+            sessionTypes.forEach(type => {
+                const data = [];
+                
+                timelineData.forEach((dayData, dayIndex) => {
+                    dayData.sessions.forEach(session => {
+                        if (session.type === type) {
+                            // 计算开始时间和结束时间（以小时为单位）
+                            const startHour = session.startPercent / 100 * 24;
+                            const endHour = startHour + (session.widthPercent / 100 * 24);
+                            
+                            data.push([
+                                startHour,  // x轴：开始时间
+                                dayIndex,   // y轴：日期索引
+                                endHour,    // 结束时间
+                                session.title,
+                                session.duration
+                            ]);
+                        }
+                    });
+                });
+                
+                if (data.length > 0) {
+                    series.push({
+                        name: typeNames[type],
+                        type: 'custom',
+                        renderItem: (params, api) => {
+                            const start = api.value(0);
+                            const end = api.value(2);
+                            const y = api.coord([0, api.value(1)])[1];
+                            const startX = api.coord([start, 0])[0];
+                            const endX = api.coord([end, 0])[0];
+                            const height = 20;
+                            
+                            return {
+                                type: 'rect',
+                                shape: {
+                                    x: startX,
+                                    y: y - height / 2,
+                                    width: endX - startX,
+                                    height: height
+                                },
+                                style: {
+                                    fill: typeColors[type],
+                                    opacity: 0.8
+                                }
+                            };
+                        },
+                        data: data,
+                        tooltip: {
+                            formatter: (params) => {
+                                const start = Math.floor(params.value[0]);
+                                const startMin = Math.round((params.value[0] - start) * 60);
+                                const duration = params.value[4];
+                                const title = params.value[3];
+                                const startTime = `${start.toString().padStart(2, '0')}:${startMin.toString().padStart(2, '0')}`;
+                                return `${title}<br/>开始时间: ${startTime}<br/>持续时间: ${duration}分钟`;
+                            }
+                        }
+                    });
+                }
+            });
+            
+            // 配置选项
+            const option = {
+                title: {
+                    text: '专注时间线',
+                    left: 'center',
+                    top: 10,
+                    textStyle: {
+                        fontSize: 16,
+                        fontWeight: 'bold'
+                    }
+                },
+                tooltip: {
+                    trigger: 'item'
+                },
+
+                grid: {
+                    left: 80,
+                    right: 50,
+                    top: 80,
+                    bottom: 50
+                },
+                xAxis: {
+                    type: 'value',
+                    min: 0,
+                    max: 24,
+                    interval: 2,
+                    axisLabel: {
+                        formatter: (value) => {
+                            return `${value.toString().padStart(2, '0')}:00`;
+                        }
+                    },
+                    name: '时间',
+                    nameLocation: 'middle',
+                    nameGap: 30
+                },
+                yAxis: {
+                    type: 'category',
+                    data: dates,
+                    name: '',
+                    nameLocation: 'middle',
+                    nameGap: 50,
+                    axisLabel: {
+                        interval: 0
+                    }
+                },
+                series: series
+            };
+
+            // 设置配置项并渲染图表
+            chart.setOption(option);
+
+            // 响应式调整
+            const resizeObserver = new ResizeObserver(() => {
+                chart.resize();
+            });
+            resizeObserver.observe(chartElement);
+
+            // 存储chart实例以便后续清理
+            (chartElement as any).__echartsInstance = chart;
+            (chartElement as any).__resizeObserver = resizeObserver;
+        }, 100);
+    }
+
     private getTaskColor(index: number): string {
         const colors = [
             '#FF6B6B', '#4CAF50', '#2196F3', '#FF9800', '#9C27B0',
@@ -1237,11 +1383,19 @@ export class PomodoroStatsView {
                 this.initHeatmapChart(heatmapElement.id);
             }
         }
+        
+        // 如果当前是时间线视图，初始化时间线图表
+        if (this.currentView === 'timeline') {
+            const timelineElement = this.dialog.element.querySelector('.echarts-timeline-chart') as HTMLElement;
+            if (timelineElement) {
+                this.initTimelineChart(timelineElement.id);
+            }
+        }
     }
 
     private cleanupCharts() {
         // 清理所有echarts实例
-        this.dialog.element.querySelectorAll('.echarts-pie-chart, .echarts-heatmap-chart').forEach(element => {
+        this.dialog.element.querySelectorAll('.echarts-pie-chart, .echarts-heatmap-chart, .echarts-timeline-chart').forEach(element => {
             const chartElement = element as any;
             if (chartElement.__echartsInstance) {
                 chartElement.__echartsInstance.dispose();
