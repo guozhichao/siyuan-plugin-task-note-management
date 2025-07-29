@@ -546,9 +546,12 @@ export class PomodoroStatsView {
         const sessions = [];
         const today = new Date();
         
-        // 计算目标周的开始日期
+        // 计算目标周的开始日期（星期一）
         const startOfWeek = new Date(today);
-        startOfWeek.setDate(today.getDate() - today.getDay() + (this.currentWeekOffset * 7));
+        const dayOfWeek = today.getDay();
+        // 计算到星期一的偏移量：如果是星期日(0)，则偏移-6；否则偏移1-dayOfWeek
+        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        startOfWeek.setDate(today.getDate() + mondayOffset + (this.currentWeekOffset * 7));
         
         for (let i = 0; i < 7; i++) {
             const date = new Date(startOfWeek);
@@ -627,9 +630,12 @@ export class PomodoroStatsView {
         const data = [];
         const today = new Date();
         
-        // 计算目标周的开始日期
+        // 计算目标周的开始日期（星期一）
         const startOfWeek = new Date(today);
-        startOfWeek.setDate(today.getDate() - today.getDay() + (this.currentWeekOffset * 7));
+        const dayOfWeek = today.getDay();
+        // 计算到星期一的偏移量：如果是星期日(0)，则偏移-6；否则偏移1-dayOfWeek
+        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        startOfWeek.setDate(today.getDate() + mondayOffset + (this.currentWeekOffset * 7));
         
         for (let i = 0; i < 7; i++) {
             const date = new Date(startOfWeek);
@@ -713,9 +719,12 @@ export class PomodoroStatsView {
         // 根据当前时间范围和偏移量计算数据
         switch (this.currentTimeRange) {
             case 'week':
-                // 显示指定周的7天
+                // 显示指定周的7天（从星期一开始）
                 const startOfWeek = new Date(today);
-                startOfWeek.setDate(today.getDate() - today.getDay() + (this.currentWeekOffset * 7));
+                const dayOfWeek = today.getDay();
+                // 计算到星期一的偏移量：如果是星期日(0)，则偏移-6；否则偏移1-dayOfWeek
+                const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                startOfWeek.setDate(today.getDate() + mondayOffset + (this.currentWeekOffset * 7));
                 
                 for (let i = 0; i < 7; i++) {
                     const date = new Date(startOfWeek);
@@ -825,7 +834,10 @@ export class PomodoroStatsView {
                 
             case 'week':
                 const startOfWeek = new Date(today);
-                startOfWeek.setDate(today.getDate() - today.getDay() + (this.currentWeekOffset * 7));
+                const dayOfWeek = today.getDay();
+                // 计算到星期一的偏移量：如果是星期日(0)，则偏移-6；否则偏移1-dayOfWeek
+                const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                startOfWeek.setDate(today.getDate() + mondayOffset + (this.currentWeekOffset * 7));
                 const endOfWeek = new Date(startOfWeek);
                 endOfWeek.setDate(startOfWeek.getDate() + 6);
                 
