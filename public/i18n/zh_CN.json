@@ -496,11 +496,13 @@
     "averageSession": "平均时长",
     "minutes": "分钟",
     "noData": "暂无数据",
+    "year": "年",
     "uncategorized": "未分类",
     "recent7DaysFocus": "最近7天专注内容",
     "thisWeek": "本周",
     "thisMonth": "本月",
     "thisYear": "本年",
     "less": "少",
-    "more": "多"
+    "more": "多",
+    "taskCategoryDistribution": "任务分类分布"
 }

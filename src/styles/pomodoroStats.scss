@@ -4,7 +4,46 @@
     flex-direction: column;
     height: 100%;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    .range-btn{
+            padding: 6px 12px;
+            border: 1px solid var(--b3-theme-border);
+            background: var(--b3-theme-background);
+            color: var(--b3-theme-on-background);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
 
+            &:hover {
+                background: var(--b3-theme-surface-hover);
+            }
+
+            &.active {
+                background: var(--b3-theme-primary);
+                color: var(--b3-theme-on-primary);
+                border-color: var(--b3-theme-primary);
+            }
+        }
+    .nav-arrow {
+        padding: 3px 6px;
+        border: 1px solid var(--b3-theme-border);
+        background: var(--b3-theme-background);
+        color: var(--b3-theme-on-background);
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        transition: all 0.2s ease;
+
+        &:hover {
+            background: var(--b3-theme-surface-hover);
+        }
+
+        &.active {
+            background: var(--b3-theme-primary);
+            color: var(--b3-theme-on-primary);
+            border-color: var(--b3-theme-primary);
+        }
+    }
     .stats-nav {
         display: flex;
         border-bottom: 1px solid var(--b3-theme-border);
@@ -177,24 +216,30 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-end; /* 内容从底部对齐 */
-            gap: 8px;
             height: 100%; /* 确保占满容器高度 */
+            position: relative; /* 添加相对定位 */
 
             .trend-bar {
                 width: 100%;
                 background: linear-gradient(to top, #FF6B6B, #FF8E8E);
                 border-radius: 4px 4px 0 0;
-                /* 移除 min-height，让JavaScript控制高度 */
                 transition: all 0.3s ease;
-                order: 1; /* 柱子在上方 */
+                position: absolute; /* 绝对定位确保底部对齐 */
+                bottom: 50px; /* 为标签和数值预留空间 */
             }
 
             .trend-label {
                 font-size: 11px;
                 color: var(--b3-theme-on-surface-variant);
                 text-align: center;
-                order: 2; /* 标签在中间 */
+                position: absolute; /* 绝对定位 */
+                bottom: 30px; /* 固定位置 */
+                left: 50%;
+                transform: translateX(-50%);
+                white-space: nowrap; /* 防止换行 */
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: 100%;
             }
 
             .trend-value {
@@ -202,7 +247,14 @@
                 color: var(--b3-theme-on-surface);
                 font-weight: 500;
                 text-align: center;
-                order: 3; /* 数值在底部 */
+                position: absolute; /* 绝对定位 */
+                bottom: 8px; /* 固定位置 */
+                left: 50%;
+                transform: translateX(-50%);
+                white-space: nowrap; /* 防止换行 */
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: 100%;
             }
         }
     }
@@ -217,6 +269,26 @@
         margin-bottom: 24px;
         flex-wrap: wrap;
         gap: 16px;
+
+        .details-title {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+
+            h3 {
+                margin: 0;
+                font-size: 24px;
+                font-weight: 600;
+                color: var(--b3-theme-on-surface);
+            }
+
+            .date-range-text {
+                font-size: 14px;
+                color: var(--b3-theme-on-surface-variant);
+                font-weight: 500;
+                opacity: 0.8;
+            }
+        }
 
         h3 {
             margin: 0;
@@ -279,16 +351,23 @@
         border: 1px solid var(--b3-theme-border);
         border-radius: 12px;
         padding: 24px;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 32px;
-        align-items: center;
 
         @media (max-width: 768px) {
-            grid-template-columns: 1fr;
-            gap: 24px;
+            padding: 16px;
         }
 
+        .echarts-pie-chart {
+            width: 100%;
+            height: 400px;
+            min-height: 400px;
+
+            @media (max-width: 768px) {
+                height: 350px;
+                min-height: 350px;
+            }
+        }
+
+        // 保留原有的饼图样式作为备用
         .pie-chart {
             position: relative;
             width: 200px;
@@ -480,11 +559,25 @@
         flex-wrap: wrap;
         gap: 16px;
 
-        h3 {
-            margin: 0;
-            font-size: 24px;
-            font-weight: 600;
-            color: var(--b3-theme-on-surface);
+        .trends-title,
+        .timeline-title {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+
+            h3 {
+                margin: 0;
+                font-size: 24px;
+                font-weight: 600;
+                color: var(--b3-theme-on-surface);
+            }
+
+            .date-range-text {
+                font-size: 14px;
+                color: var(--b3-theme-on-surface-variant);
+                font-weight: 500;
+                opacity: 0.8;
+            }
         }
     }
 
@@ -510,24 +603,30 @@
                 display: flex;
                 flex-direction: column;
                 align-items: center;
-                justify-content: flex-end; /* 内容从底部对齐 */
-                gap: 8px;
                 height: 100%; /* 确保占满容器高度 */
+                position: relative; /* 添加相对定位 */
 
                 .chart-bar {
                     width: 100%;
                     background: linear-gradient(to top, #FF6B6B, #FF8E8E);
                     border-radius: 4px 4px 0 0;
-                    /* 移除 min-height，让JavaScript控制高度 */
                     transition: all 0.3s ease;
-                    order: 1; /* 柱子在上方 */
+                    position: absolute; /* 绝对定位确保底部对齐 */
+                    bottom: 60px; /* 为标签和数值预留空间 */
                 }
 
                 .chart-label {
                     font-size: 11px;
                     color: var(--b3-theme-on-surface-variant);
                     text-align: center;
-                    order: 2; /* 标签在中间 */
+                    position: absolute; /* 绝对定位 */
+                    bottom: 35px; /* 固定位置 */
+                    left: 50%;
+                    transform: translateX(-50%);
+                    white-space: nowrap; /* 防止换行 */
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    max-width: 100%;
                 }
 
                 .chart-value {
@@ -535,7 +634,14 @@
                     color: var(--b3-theme-on-surface);
                     font-weight: 500;
                     text-align: center;
-                    order: 3; /* 数值在底部 */
+                    position: absolute; /* 绝对定位 */
+                    bottom: 10px; /* 固定位置 */
+                    left: 50%;
+                    transform: translateX(-50%);
+                    white-space: nowrap; /* 防止换行 */
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    max-width: 100%;
                 }
             }
         }
@@ -800,15 +906,69 @@
         .trend-chart {
             height: 140px; /* 移动端也增加高度 */
             gap: 8px;
+
+            .trend-day {
+                .trend-bar {
+                    bottom: 40px; /* 移动端调整底部距离 */
+                }
+
+                .trend-label {
+                    bottom: 25px; /* 移动端调整标签位置 */
+                }
+
+                .trend-value {
+                    bottom: 6px; /* 移动端调整数值位置 */
+                }
+            }
         }
     }
 
     .details-container .details-header {
         flex-direction: column;
         align-items: stretch;
+        gap: 12px;
+
+        .details-title {
+            text-align: center;
+
+            h3 {
+                font-size: 20px;
+            }
+
+            .date-range-text {
+                font-size: 13px;
+            }
+        }
 
         .time-range-selector {
             justify-content: center;
+        }
+    }
+
+    .trends-container,
+    .timeline-container {
+        .trends-header,
+        .timeline-header {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 12px;
+
+            .trends-title,
+            .timeline-title {
+                text-align: center;
+
+                h3 {
+                    font-size: 20px;
+                }
+
+                .date-range-text {
+                    font-size: 13px;
+                }
+            }
+
+            .time-range-selector {
+                justify-content: center;
+            }
         }
     }
 
