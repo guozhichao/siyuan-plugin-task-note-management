@@ -441,22 +441,12 @@ export class PomodoroStatsView {
     }
 
     private renderHeatmapChart(): string {
-        const heatmapData = this.getHeatmapData(this.currentYear);
-        const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+        // 生成唯一的图表ID
+        const chartId = `heatmap-chart-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         
         return `
-            <div class="heatmap-grid">
-                <div class="heatmap-months">
-                    ${months.map(month => `<div class="month-label">${month}</div>`).join('')}
-                </div>
-                <div class="heatmap-days">
-                    ${heatmapData.map(day => `
-                        <div class="heatmap-day level-${day.level}"
-                             title="${day.date}: ${this.recordManager.formatTime(day.time)}"
-                             data-date="${day.date}">
-                        </div>
-                    `).join('')}
-                </div>
+            <div class="heatmap-echarts-container">
+                <div id="${chartId}" class="echarts-heatmap-chart" style="width: 100%; height: 500px;"></div>
             </div>
         `;
     }
@@ -995,6 +985,135 @@ export class PomodoroStatsView {
         }, 100);
     }
 
+    private initHeatmapChart(chartId: string) {
+        // 延迟执行以确保DOM元素已渲染
+        setTimeout(() => {
+            const chartElement = this.dialog.element.querySelector(`#${chartId}`) as HTMLElement;
+            if (!chartElement) {
+                console.warn('Heatmap chart element not found:', chartId);
+                return;
+            }
+
+            const heatmapData = this.getHeatmapData(this.currentYear);
+            
+            if (heatmapData.length === 0) {
+                chartElement.innerHTML = `<div class="no-data" style="text-align: center; padding: 50px;">${t("noData")}</div>`;
+                return;
+            }
+
+            // 初始化echarts实例
+            const chart = echarts.init(chartElement);
+            
+            // 准备热力图数据
+            const startDate = new Date(this.currentYear, 0, 1);
+            const endDate = new Date(this.currentYear, 11, 31);
+            
+            // 计算一年中的所有日期
+            const dateList = [];
+            const dataList = [];
+            
+            for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+                const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD格式
+                const localDateStr = getLocalDateString(date);
+                
+                // 查找对应的数据
+                const dayData = heatmapData.find(d => d.date === localDateStr);
+                const time = dayData ? dayData.time : 0;
+                
+                dateList.push(dateStr);
+                dataList.push([dateStr, time]);
+            }
+
+            // 计算最大值用于颜色映射
+            const maxValue = Math.max(...dataList.map(d => d[1] as number));
+            
+            // 配置选项
+            const option = {
+                title: {
+                    text: `${this.currentYear}年专注时间热力图`,
+                    left: 'center',
+                    top: 10,
+                    textStyle: {
+                        fontSize: 16,
+                        fontWeight: 'bold'
+                    }
+                },
+                tooltip: {
+                    position: 'top',
+                    formatter: (params: any) => {
+                        const date = new Date(params.data[0]);
+                        const dateStr = date.toLocaleDateString('zh-CN', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                        });
+                        const time = params.data[1];
+                        const timeStr = this.recordManager.formatTime(time);
+                        return `${dateStr}<br/>专注时间: ${timeStr}`;
+                    }
+                },
+                visualMap: {
+                    min: 0,
+                    max: maxValue || 240, // 默认最大值4小时
+                    type: 'piecewise',
+                    orient: 'horizontal',
+                    left: 'center',
+                    bottom: 20,
+                    pieces: [
+                        { min: 0, max: 0, color: '#ebedf0', label: '无' },
+                        { min: 1, max: 60, color: '#c6e48b', label: '1小时内' },
+                        { min: 61, max: 120, color: '#7bc96f', label: '1-2小时' },
+                        { min: 121, max: 240, color: '#239a3b', label: '2-4小时' },
+                        { min: 241, color: '#196127', label: '4小时以上' }
+                    ],
+                    textStyle: {
+                        fontSize: 12
+                    }
+                },
+                calendar: {
+                    top: 60,
+                    left: 50,
+                    right: 50,
+                    bottom: 80,
+                    cellSize: ['auto', 13],
+                    range: this.currentYear,
+                    itemStyle: {
+                        borderWidth: 0.5,
+                        borderColor: '#fff'
+                    },
+                    yearLabel: { show: false },
+                    monthLabel: {
+                        nameMap: ['1月', '2月', '3月', '4月', '5月', '6月',
+                                 '7月', '8月', '9月', '10月', '11月', '12月'],
+                        fontSize: 12
+                    },
+                    dayLabel: {
+                        nameMap: ['日', '一', '二', '三', '四', '五', '六'],
+                        fontSize: 12
+                    }
+                },
+                series: [{
+                    type: 'heatmap',
+                    coordinateSystem: 'calendar',
+                    data: dataList
+                }]
+            };
+
+            // 设置配置项并渲染图表
+            chart.setOption(option);
+
+            // 响应式调整
+            const resizeObserver = new ResizeObserver(() => {
+                chart.resize();
+            });
+            resizeObserver.observe(chartElement);
+
+            // 存储chart实例以便后续清理
+            (chartElement as any).__echartsInstance = chart;
+            (chartElement as any).__resizeObserver = resizeObserver;
+        }, 100);
+    }
+
     private getTaskColor(index: number): string {
         const colors = [
             '#FF6B6B', '#4CAF50', '#2196F3', '#FF9800', '#9C27B0',
@@ -1110,11 +1229,19 @@ export class PomodoroStatsView {
                 this.initPieChart(chartElement.id);
             }
         }
+        
+        // 如果当前是热力图视图，初始化热力图
+        if (this.currentView === 'heatmap') {
+            const heatmapElement = this.dialog.element.querySelector('.echarts-heatmap-chart') as HTMLElement;
+            if (heatmapElement) {
+                this.initHeatmapChart(heatmapElement.id);
+            }
+        }
     }
 
     private cleanupCharts() {
         // 清理所有echarts实例
-        this.dialog.element.querySelectorAll('.echarts-pie-chart').forEach(element => {
+        this.dialog.element.querySelectorAll('.echarts-pie-chart, .echarts-heatmap-chart').forEach(element => {
             const chartElement = element as any;
             if (chartElement.__echartsInstance) {
                 chartElement.__echartsInstance.dispose();

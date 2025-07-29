@@ -763,6 +763,25 @@
         margin-bottom: 16px;
     }
 
+    .heatmap-echarts-container {
+        background: var(--b3-theme-surface);
+        border: 1px solid var(--b3-theme-border);
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 16px;
+
+        .echarts-heatmap-chart {
+            width: 100%;
+            height: 500px;
+            min-height: 500px;
+
+            @media (max-width: 768px) {
+                height: 400px;
+                min-height: 400px;
+            }
+        }
+    }
+
     .heatmap-grid {
         .heatmap-months {
             display: grid;
