@@ -8,6 +8,7 @@ import { CategoryManageDialog } from "./CategoryManageDialog";
 import { t } from "../utils/i18n";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
 import { PomodoroTimer } from "./PomodoroTimer";
+import { PomodoroStatsView } from "./PomodoroStatsView";
 
 export class ReminderPanel {
     private container: HTMLElement;
@@ -131,6 +132,16 @@ export class ReminderPanel {
             this.showCategoryManageDialog();
         });
         actionContainer.appendChild(categoryManageBtn);
+
+        // 添加番茄钟统计按钮
+        const pomodoroStatsBtn = document.createElement('button');
+        pomodoroStatsBtn.className = 'b3-button b3-button--outline';
+        pomodoroStatsBtn.innerHTML = '🍅';
+        pomodoroStatsBtn.title = t("pomodoroStats");
+        pomodoroStatsBtn.addEventListener('click', () => {
+            this.showPomodoroStatsView();
+        });
+        actionContainer.appendChild(pomodoroStatsBtn);
 
         // 添加日历视图按钮
         if (this.plugin) {
@@ -3750,6 +3761,19 @@ export class ReminderPanel {
         } catch (error) {
             console.error('绑定提醒到块失败:', error);
             throw error;
+        }
+    }
+
+    /**
+     * 显示番茄钟统计视图
+     */
+    private showPomodoroStatsView() {
+        try {
+            const statsView = new PomodoroStatsView();
+            statsView.show();
+        } catch (error) {
+            console.error('打开番茄钟统计视图失败:', error);
+            showMessage("打开番茄钟统计视图失败");
         }
     }
 }
