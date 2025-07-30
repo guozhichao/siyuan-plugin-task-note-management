@@ -630,7 +630,6 @@ export class PomodoroTimer {
             border-radius: 12px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
             z-index: 10000;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             user-select: none;
             backdrop-filter: blur(16px);
             transition: transform 0.2s ease, opacity 0.2s ease;
@@ -912,6 +911,7 @@ export class PomodoroTimer {
             cursor: pointer;
             transition: all 0.2s ease;
             padding: 4px 8px;
+            font-family: var(--b3-font-family) !important;
         `;
         eventTitle.textContent = this.reminder.title || t("unnamedNote");
         eventTitle.title = t("openNote") + ': ' + (this.reminder.title || t("unnamedNote"));

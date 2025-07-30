@@ -326,7 +326,7 @@
             border: 2px solid var(--b3-table-border-color) !important;
             backdrop-filter: blur(10px) !important;
             border-radius: 12px !important;
-            font-family: var(--b3-font-family);
+            font-family: var(--b3-font-family) !important;
         }
 
         // 全屏模式下的主容器
