@@ -188,7 +188,7 @@ export class CalendarView {
         });
 
         this.calendar.render();
-        
+
         // 初始加载事件 - 延迟执行避免与 datesSet 冲突
         setTimeout(() => {
             this.refreshEvents();
@@ -1738,13 +1738,13 @@ export class CalendarView {
         // 实现双击检测逻辑
         const currentTime = Date.now();
         const timeDiff = currentTime - this.lastClickTime;
-        
+
         // 清除之前的单击超时
         if (this.clickTimeout) {
             clearTimeout(this.clickTimeout);
             this.clickTimeout = null;
         }
-        
+
         // 如果两次点击间隔小于500ms，认为是双击
         if (timeDiff < 500) {
             // 双击事件 - 创建快速提醒
@@ -1764,23 +1764,89 @@ export class CalendarView {
     private createQuickReminder(info) {
         // 双击日期，创建快速提醒
         const clickedDate = info.dateStr;
-        
-        // 获取点击的时间（如果是时间视图）
+
+        // 获取点击的时间（如果是时间视图且不是all day区域）
         let clickedTime = null;
         if (info.date && this.calendar.view.type !== 'dayGridMonth') {
-            // 在周视图或日视图中，可以获取具体的时间
-            const hours = info.date.getHours();
-            const minutes = info.date.getMinutes();
-            clickedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+            // 在周视图或日视图中，检查是否点击在all day区域
+            // 通过检查点击的时间是否为整点且分钟为0来判断是否在all day区域
+            // 或者通过检查info.allDay属性（如果存在）
+            const isAllDayClick = info.allDay ||
+                (info.date.getHours() === 0 && info.date.getMinutes() === 0) ||
+                // 检查点击位置是否在all day区域（通过DOM元素类名判断）
+                this.isClickInAllDayArea(info.jsEvent);
+
+            if (!isAllDayClick) {
+                // 只有在非all day区域点击时才设置具体时间
+                const hours = info.date.getHours();
+                const minutes = info.date.getMinutes();
+                clickedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+            }
         }
-        
+
         // 创建快速提醒对话框
         const quickDialog = new QuickReminderDialog(clickedDate, clickedTime, async () => {
             // 刷新日历事件
             await this.refreshEvents();
         });
-        
+
         quickDialog.show();
+    }
+
+    /**
+     * 检测点击是否在all day区域
+     * @param jsEvent 原生JavaScript事件对象
+     * @returns 是否在all day区域点击
+     */
+    private isClickInAllDayArea(jsEvent: MouseEvent): boolean {
+        if (!jsEvent || !jsEvent.target) {
+            return false;
+        }
+
+        const target = jsEvent.target as HTMLElement;
+
+        // 检查点击的元素或其父元素是否包含all day相关的类名
+        let element = target;
+        let depth = 0;
+        const maxDepth = 10; // 限制向上查找的深度，避免无限循环
+
+        while (element && depth < maxDepth) {
+            const className = element.className || '';
+
+            // FullCalendar的all day区域通常包含这些类名
+            if (typeof className === 'string' && (
+                className.includes('fc-timegrid-slot-lane') ||
+                className.includes('fc-timegrid-col-frame') ||
+                className.includes('fc-daygrid') ||
+                className.includes('fc-scrollgrid-section-header') ||
+                className.includes('fc-col-header') ||
+                className.includes('fc-timegrid-divider') ||
+                className.includes('fc-timegrid-col-bg')
+            )) {
+                // 如果包含时间网格相关类名，进一步检查是否在all day区域
+                if (className.includes('fc-timegrid-slot-lane') ||
+                    className.includes('fc-timegrid-col-frame')) {
+                    // 检查Y坐标是否在all day区域（通常在顶部）
+                    const rect = element.getBoundingClientRect();
+                    const clickY = jsEvent.clientY;
+
+                    // 如果点击位置在元素的上半部分，可能是all day区域
+                    return clickY < rect.top + (rect.height * 0.2);
+                }
+
+                // 其他all day相关的类名直接返回true
+                if (className.includes('fc-daygrid') ||
+                    className.includes('fc-scrollgrid-section-header') ||
+                    className.includes('fc-col-header')) {
+                    return true;
+                }
+            }
+
+            element = element.parentElement;
+            depth++;
+        }
+
+        return false;
     }
 
     private handleDateSelect(selectInfo) {
@@ -1789,13 +1855,13 @@ export class CalendarView {
         // 处理拖拽选择时间段创建事项
         const startDate = selectInfo.start;
         const endDate = selectInfo.end;
-        
+
         // 格式化开始日期
         const { dateStr: startDateStr, timeStr: startTimeStr } = getLocalDateTime(startDate);
-        
+
         let endDateStr = null;
         let endTimeStr = null;
-        
+
         // 处理结束日期和时间
         if (endDate) {
             if (selectInfo.allDay) {
@@ -1803,7 +1869,7 @@ export class CalendarView {
                 const adjustedEndDate = new Date(endDate);
                 adjustedEndDate.setDate(adjustedEndDate.getDate() - 1);
                 const { dateStr } = getLocalDateTime(adjustedEndDate);
-                
+
                 // 只有当结束日期不同于开始日期时才设置结束日期
                 if (dateStr !== startDateStr) {
                     endDateStr = dateStr;
@@ -1815,24 +1881,28 @@ export class CalendarView {
                 endTimeStr = endTmStr;
             }
         }
-        
+
+        // 对于all day选择，不传递时间信息
+        const finalStartTime = selectInfo.allDay ? null : startTimeStr;
+        const finalEndTime = selectInfo.allDay ? null : endTimeStr;
+
         // 创建快速提醒对话框，传递时间段信息
         const quickDialog = new QuickReminderDialog(
             startDateStr,
-            startTimeStr,
+            finalStartTime,
             async () => {
                 // 刷新日历事件
                 await this.refreshEvents();
             },
             {
                 endDate: endDateStr,
-                endTime: endTimeStr,
+                endTime: finalEndTime,
                 isTimeRange: true
             }
         );
-        
+
         quickDialog.show();
-        
+
         // 清除选择
         this.calendar.unselect();
     }
@@ -1927,7 +1997,7 @@ export class CalendarView {
                                 note: instanceMod?.note || '',
                                 docTitle: reminder.docTitle // 保持文档标题
                             };
-                            
+
                             // 确保实例ID的唯一性，避免重复
                             const uniqueInstanceId = `${reminder.id}_instance_${instance.date}`;
                             this.addEventToList(events, instanceReminder, uniqueInstanceId, true, instance.originalId);
@@ -2988,14 +3058,14 @@ export class CalendarView {
         const createNewDocBtn = dialog.element.querySelector('#createNewDocBtn') as HTMLButtonElement;
         const bindExistingPanel = dialog.element.querySelector('#bindExistingPanel') as HTMLElement;
         const createNewDocPanel = dialog.element.querySelector('#createNewDocPanel') as HTMLElement;
-        
+
         const blockIdInput = dialog.element.querySelector('#blockIdInput') as HTMLInputElement;
         const selectedBlockInfo = dialog.element.querySelector('#selectedBlockInfo') as HTMLElement;
         const blockContentEl = dialog.element.querySelector('#blockContent') as HTMLElement;
-        
+
         const docTitleInput = dialog.element.querySelector('#docTitleInput') as HTMLInputElement;
         const docContentInput = dialog.element.querySelector('#docContentInput') as HTMLTextAreaElement;
-        
+
         const cancelBtn = dialog.element.querySelector('#bindCancelBtn') as HTMLButtonElement;
         const confirmBtn = dialog.element.querySelector('#bindConfirmBtn') as HTMLButtonElement;
         const createDocConfirmBtn = dialog.element.querySelector('#createDocConfirmBtn') as HTMLButtonElement;
@@ -3006,12 +3076,12 @@ export class CalendarView {
             bindExistingBtn.classList.remove('b3-button--outline');
             createNewDocBtn.classList.remove('b3-button--primary');
             createNewDocBtn.classList.add('b3-button--outline');
-            
+
             bindExistingPanel.style.display = 'block';
             createNewDocPanel.style.display = 'none';
             confirmBtn.style.display = 'inline-block';
             createDocConfirmBtn.style.display = 'none';
-            
+
             setTimeout(() => blockIdInput.focus(), 100);
         });
 
@@ -3021,12 +3091,12 @@ export class CalendarView {
             createNewDocBtn.classList.remove('b3-button--outline');
             bindExistingBtn.classList.remove('b3-button--primary');
             bindExistingBtn.classList.add('b3-button--outline');
-            
+
             createNewDocPanel.style.display = 'block';
             bindExistingPanel.style.display = 'none';
             confirmBtn.style.display = 'none';
             createDocConfirmBtn.style.display = 'inline-block';
-            
+
             setTimeout(() => docTitleInput.focus(), 100);
         });
 
@@ -3068,7 +3138,7 @@ export class CalendarView {
                 await this.bindReminderToBlock(calendarEvent, blockId);
                 showMessage(t("reminderBoundToBlock"));
                 dialog.destroy();
-                
+
                 // 刷新日历显示
                 await this.refreshEvents();
             } catch (error) {
@@ -3081,7 +3151,7 @@ export class CalendarView {
         createDocConfirmBtn.addEventListener('click', async () => {
             const title = docTitleInput.value.trim();
             const content = docContentInput.value.trim();
-            
+
             if (!title) {
                 showMessage('请输入文档标题');
                 return;
@@ -3091,7 +3161,7 @@ export class CalendarView {
                 const blockId = await this.createDocumentAndBind(calendarEvent, title, content);
                 showMessage(t("documentCreated"));
                 dialog.destroy();
-                
+
                 // 刷新日历显示
                 await this.refreshEvents();
             } catch (error) {
@@ -3168,7 +3238,7 @@ export class CalendarView {
         try {
             const reminderData = await readReminderData();
             const reminderId = calendarEvent.id;
-            
+
             if (reminderData[reminderId]) {
                 // 获取块信息
                 const block = await getBlockByID(blockId);
@@ -3180,12 +3250,12 @@ export class CalendarView {
                 reminderData[reminderId].blockId = blockId;
                 reminderData[reminderId].docId = block.root_id || blockId;
                 reminderData[reminderId].isQuickReminder = false; // 移除快速提醒标记
-                
+
                 await writeReminderData(reminderData);
-                
+
                 // 更新块的书签状态
                 await updateBlockReminderBookmark(blockId);
-                
+
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
             } else {
@@ -3329,7 +3399,7 @@ export class CalendarView {
 
         const settings = await this.plugin.getPomodoroSettings();
         console.log('结果', settings);
-        
+
         // 构建提醒对象
         const reminder = {
             id: calendarEvent.id,
@@ -3338,7 +3408,7 @@ export class CalendarView {
             isRepeatInstance: calendarEvent.extendedProps.isRepeated,
             originalId: calendarEvent.extendedProps.originalId
         };
-        
+
         const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState);
 
         // 设置当前活动的番茄钟实例
@@ -3365,7 +3435,7 @@ export class CalendarView {
         }
 
         const settings = await this.plugin.getPomodoroSettings();
-        
+
         // 构建提醒对象
         const reminder = {
             id: calendarEvent.id,
@@ -3374,7 +3444,7 @@ export class CalendarView {
             isRepeatInstance: calendarEvent.extendedProps.isRepeated,
             originalId: calendarEvent.extendedProps.originalId
         };
-        
+
         const pomodoroTimer = new PomodoroTimer(reminder, settings, true, inheritState);
 
         // 设置当前活动的番茄钟实例并直接切换到正计时模式
