@@ -22,12 +22,15 @@
             }
         }
     }
-    .pomodoro-header div{
+
+    .pomodoro-header div {
         opacity: 0;
     }
-    .pomodoro-header:hover div{
+
+    .pomodoro-header:hover div {
         opacity: 1;
     }
+
     .pomodoro-content {
         .pomodoro-status {
             text-transform: uppercase;
@@ -323,6 +326,7 @@
             border: 2px solid var(--b3-table-border-color) !important;
             backdrop-filter: blur(10px) !important;
             border-radius: 12px !important;
+            font-family: var(--b3-font-family);
         }
 
         // 全屏模式下的主容器
