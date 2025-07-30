@@ -890,6 +890,7 @@
 }
 
 // 通用 dialog 布局优化
+.quick-reminder-dialog,
 .reminder-dialog,
 .batch-reminder-dialog,
 .time-edit-dialog {
@@ -1189,16 +1190,19 @@
     gap: 8px;
     width: 100%;
 
-    input[type="date"] {
+    input[type="date"],
+    input[type="datetime-local"] {
         flex: 1;
         min-width: 0;
     }
 
-    input[type="date"]:first-child {
+    input[type="date"]:first-child,
+    input[type="datetime-local"]:first-child {
         flex: 1;
     }
 
-    input[type="date"]:last-child {
+    input[type="date"]:last-child,
+    input[type="datetime-local"]:last-child {
         flex: 1;
         opacity: 0.8;
         border-style: dashed;
@@ -1753,6 +1757,26 @@
 
 /* 快速提醒对话框样式 */
 .quick-reminder-dialog {
+    .b3-dialog__content {
+        max-height: 90%;
+    }
+
+    .b3-form__group {
+        margin-bottom: 16px;
+    }
+
+    .b3-form__label {
+        display: block;
+        margin-bottom: 4px;
+        font-weight: 500;
+    }
+
+    .b3-form__desc {
+        font-size: 12px;
+        color: var(--b3-theme-on-surface-light);
+        margin-top: 4px;
+    }
+
     .title-input-container {
         display: flex;
         gap: 8px;
@@ -1802,19 +1826,21 @@
         align-items: center;
         gap: 6px;
         padding: 8px 12px;
-        border: 1px solid var(--b3-theme-border);
+        border: 1px solid var(--b3-border-color);
         border-radius: 4px;
         cursor: pointer;
         transition: all 0.2s ease;
-        background-color: var(--b3-theme-surface);
+        background: var(--b3-theme-background);
 
         &:hover {
-            background-color: var(--b3-theme-surface-lighter);
+            background: var(--b3-theme-surface-light);
+            border-color: var(--b3-theme-primary-light);
         }
 
         &.selected {
             border-color: var(--b3-theme-primary);
-            background-color: var(--b3-theme-primary-lightest);
+            background: var(--b3-theme-primary-lightest);
+            color: var(--b3-theme-primary);
         }
     }
 
