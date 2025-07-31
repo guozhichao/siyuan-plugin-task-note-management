@@ -140,6 +140,7 @@ export class CalendarView {
             locale: window.siyuan.config.lang.toLowerCase().replace('_', '-'),
             scrollTime: '08:00:00', // 视图将滚动到此时间
             firstDay: 1, // 设置周一为每周第一天
+            nowIndicator: true, // 显示当前时间指示线
             eventClassNames: 'reminder-calendar-event',
             eventContent: this.renderEventContent.bind(this),
             eventClick: this.handleEventClick.bind(this),
@@ -1633,6 +1634,32 @@ export class CalendarView {
             }
             .fc-today-custom:hover {
                 background-color: var(--b3-theme-primary-lightest) !important;
+            }
+            
+            /* 当前时间指示线样式 */
+            .fc-timegrid-now-indicator-line {
+                border-color: var(--b3-theme-primary) !important;
+                border-width: 2px !important;
+                opacity: 0.8;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            }
+            
+            /* 当前时间指示箭头样式 */
+            .fc-timegrid-now-indicator-arrow {
+                border-left-color: var(--b3-theme-primary) !important;
+                border-right-color: var(--b3-theme-primary) !important;
+                opacity: 0.8;
+            }
+            
+            /* 在深色主题下的适配 */
+            .b3-theme-dark .fc-timegrid-now-indicator-line {
+                border-color: var(--b3-theme-primary-light) !important;
+                box-shadow: 0 1px 3px rgba(255, 255, 255, 0.1);
+            }
+            
+            .b3-theme-dark .fc-timegrid-now-indicator-arrow {
+                border-left-color: var(--b3-theme-primary-light) !important;
+                border-right-color: var(--b3-theme-primary-light) !important;
             }
         `;
         document.head.appendChild(style);
