@@ -501,8 +501,8 @@ export class CalendarView {
 
         menu.addSeparator();
 
-        // 添加复制块引选项 - 只对已绑定块的事件显示
-        if (calendarEvent.extendedProps.blockId) {
+        // 添加复制块引选项 - 只对已绑定块的事件显示，排除未绑定块的事项和快速提醒
+        if (calendarEvent.extendedProps.blockId && !calendarEvent.extendedProps.isQuickReminder) {
             menu.addItem({
                 iconHTML: "📋",
                 label: t("copyBlockRef"),
