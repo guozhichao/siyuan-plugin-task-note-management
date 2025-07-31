@@ -1547,6 +1547,9 @@ export class PomodoroStatsView {
 
     private navigatePrevious() {
         switch (this.currentTimeRange) {
+            case 'today':
+                this.currentWeekOffset--; // 复用weekOffset作为日偏移
+                break;
             case 'week':
                 this.currentWeekOffset--;
                 break;
@@ -1562,6 +1565,9 @@ export class PomodoroStatsView {
 
     private navigateNext() {
         switch (this.currentTimeRange) {
+            case 'today':
+                this.currentWeekOffset++; // 复用weekOffset作为日偏移
+                break;
             case 'week':
                 this.currentWeekOffset++;
                 break;
