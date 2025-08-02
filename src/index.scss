@@ -828,9 +828,7 @@
 }
 
 .reminder-dialog {
-    .b3-dialog__content {
-        max-height: 90%;
-    }
+
 
     .b3-form__group {
         margin-bottom: 16px;
@@ -868,9 +866,7 @@
 }
 
 .time-edit-dialog {
-    .b3-dialog__content {
-        max-height: 90%;
-    }
+
 
     .b3-form__group {
         margin-bottom: 16px;
@@ -909,8 +905,7 @@
         flex: 1;
         overflow-y: auto;
         padding: 20px;
-        min-height: 0; // 允许 flex 项目缩小
-        max-height: 95%;
+
     }
 
     // 按钮区域固定在底部
@@ -1756,9 +1751,6 @@
 
 /* 快速提醒对话框样式 */
 .quick-reminder-dialog {
-    .b3-dialog__content {
-        max-height: 90%;
-    }
 
     .b3-form__group {
         margin-bottom: 16px;
