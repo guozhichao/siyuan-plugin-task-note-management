@@ -2252,7 +2252,22 @@ export class PomodoroTimer {
         showMessage('🧘 ' + (t('pomodoroLongBreak') || '开始长时休息'));
     }
 
-    private resetTimer() {
+    private async resetTimer() {
+        // 如果是正计时工作模式下手动停止，并且有专注时间，则记录
+        if (this.isCountUp && this.isWorkPhase && this.timeElapsed > 0) {
+            const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
+            const eventTitle = this.reminder.title || '番茄专注';
+            // 记录实际花费的时间
+            await this.recordManager.recordWorkSession(
+                Math.floor(this.timeElapsed / 60),
+                eventId,
+                eventTitle,
+                this.currentPhaseOriginalDuration,
+                false // isCompleted - false 因为是手动停止
+            );
+            // 更新统计显示
+            this.updateStatsDisplay();
+        }
         this.isRunning = false;
         this.isPaused = false;
         this.isWorkPhase = true;
@@ -2289,6 +2304,13 @@ export class PomodoroTimer {
         this.stopBtn.style.transform = 'translate(-50%, -50%) translateX(16px)';
 
         this.updateDisplay();
+
+        // 非自动模式下，更新统计显示
+        if (!this.autoMode) {
+            setTimeout(() => {
+                this.updateStatsDisplay();
+            }, 100);
+        }
     }
 
     /**
