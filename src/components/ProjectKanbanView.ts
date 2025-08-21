@@ -1279,13 +1279,18 @@ export class ProjectKanbanView {
             content: `
                 <div class="b3-dialog__content">
                     <p class="b3-typography">粘贴Markdown列表或多行文本，每行将创建一个任务。</p>
-                    <p class="b3-typography" style="font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8; margin-bottom: 8px;">
+                    <p class="b3-typography" style="font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8; margin-bottom: 4px;">
                         支持语法：<code>@priority=high&startDate=2025-08-12&endDate=2025-08-30</code>
+                    </p>
+                    <p class="b3-typography" style="font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8; margin-bottom: 8px;">
+                        支持块链接：<code>[任务标题](siyuan://blocks/块ID)</code> 或 <code>((块ID '任务标题'))</code>
                     </p>
                     <textarea id="taskList" class="b3-text-field"
                         placeholder="示例：
 完成项目文档 @priority=high&startDate=2025-08-12&endDate=2025-08-15
 准备会议材料 @priority=medium&startDate=2025-08-13
+[思源笔记插件开发丨任务笔记管理插件](siyuan://blocks/20250610000808-3vqwuh3)
+((20250610000808-3vqwuh3 '思源笔记插件开发丨任务笔记管理插件'))
 学习新技术 @priority=low"
                         style="width: 100%; height: 200px; resize: vertical;"></textarea>
                 </div>
@@ -1333,7 +1338,7 @@ export class ProjectKanbanView {
             // 解析任务参数
             const taskData = this.parseTaskLine(line);
             
-            const newTask = {
+            const newTask: any = {
                 id: taskId,
                 title: taskData.title,
                 note: '',
@@ -1346,6 +1351,28 @@ export class ProjectKanbanView {
                 date: taskData.startDate,
                 endDate: taskData.endDate,
             };
+
+            // 如果解析出了块ID，尝试绑定块
+            if (taskData.blockId) {
+                try {
+                    const block = await getBlockByID(taskData.blockId);
+                    if (block) {
+                        newTask.blockId = taskData.blockId;
+                        newTask.docId = block.root_id || taskData.blockId;
+                        
+                        // 如果任务标题为空或者是默认标题，使用块内容作为标题
+                        if (!taskData.title || taskData.title === '未命名任务') {
+                            newTask.title = block.content || block.fcontent || '未命名任务';
+                        }
+                        
+                        // 更新块的书签状态
+                        await updateBlockReminderBookmark(taskData.blockId);
+                    }
+                } catch (error) {
+                    console.error('绑定块失败:', error);
+                    // 绑定失败不影响任务创建，继续创建任务
+                }
+            }
             
             reminderData[taskId] = newTask;
         }
@@ -1355,17 +1382,33 @@ export class ProjectKanbanView {
         window.dispatchEvent(new CustomEvent('reminderUpdated'));
     }
 
-    private parseTaskLine(line: string): { title: string; priority?: string; startDate?: string; endDate?: string } {
+    private parseTaskLine(line: string): { title: string; priority?: string; startDate?: string; endDate?: string; blockId?: string } {
         // 查找参数部分 @priority=high&startDate=2025-08-12&endDate=2025-08-30
         const paramMatch = line.match(/@(.+)$/);
         let title = line;
         let priority: string | undefined;
         let startDate: string | undefined;
         let endDate: string | undefined;
+        let blockId: string | undefined;
+
+        // 检查是否包含思源块链接或块引用
+        blockId = this.extractBlockIdFromText(line);
+        
+        // 如果找到了块链接，从标题中移除链接部分
+        if (blockId) {
+            // 移除 Markdown 链接格式 [标题](siyuan://blocks/blockId)
+            title = title.replace(/\[([^\]]+)\]\(siyuan:\/\/blocks\/[^)]+\)/g, '$1');
+            // 移除块引用格式 ((blockId '标题'))
+            title = title.replace(/\(\([^)]+\s+'([^']+)'\)\)/g, '$1');
+            // 移除块引用格式 ((blockId "标题"))
+            title = title.replace(/\(\([^)]+\s+"([^"]+)"\)\)/g, '$1');
+            // 移除简单块引用格式 ((blockId))
+            title = title.replace(/\(\([^)]+\)\)/g, '');
+        }
 
         if (paramMatch) {
             // 移除参数部分，获取纯标题
-            title = line.replace(/@(.+)$/, '').trim();
+            title = title.replace(/@(.+)$/, '').trim();
             
             // 解析参数
             const paramString = paramMatch[1];
@@ -1391,11 +1434,51 @@ export class ProjectKanbanView {
         }
 
         return {
-            title: title || '未命名任务',
+            title: title.trim() || '未命名任务',
             priority,
             startDate,
-            endDate
+            endDate,
+            blockId
         };
+    }
+
+    /**
+     * 从文本中提取思源块ID
+     * 支持以下格式：
+     * 1. Markdown链接：[标题](siyuan://blocks/blockId)
+     * 2. 块引用：((blockId '标题')) 或 ((blockId "标题"))
+     * 3. 简单块引用：((blockId))
+     */
+    private extractBlockIdFromText(text: string): string | undefined {
+        // 匹配 Markdown 链接格式：[标题](siyuan://blocks/blockId)
+        const markdownLinkMatch = text.match(/\[([^\]]+)\]\(siyuan:\/\/blocks\/([^)]+)\)/);
+        if (markdownLinkMatch) {
+            const blockId = markdownLinkMatch[2];
+            // 验证块ID格式（通常是20位字符）
+            if (blockId && blockId.length >= 20) {
+                return blockId;
+            }
+        }
+
+        // 匹配块引用格式：((blockId '标题')) 或 ((blockId "标题"))
+        const blockRefWithTitleMatch = text.match(/\(\(([^)\s]+)\s+['"]([^'"]+)['"]\)\)/);
+        if (blockRefWithTitleMatch) {
+            const blockId = blockRefWithTitleMatch[1];
+            if (blockId && blockId.length >= 20) {
+                return blockId;
+            }
+        }
+
+        // 匹配简单块引用格式：((blockId))
+        const simpleBlockRefMatch = text.match(/\(\(([^)]+)\)\)/);
+        if (simpleBlockRefMatch) {
+            const blockId = simpleBlockRefMatch[1].trim();
+            if (blockId && blockId.length >= 20) {
+                return blockId;
+            }
+        }
+
+        return undefined;
     }
 
     // 保留原有方法以兼容其他调用
