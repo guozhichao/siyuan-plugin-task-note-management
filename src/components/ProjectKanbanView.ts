@@ -17,11 +17,12 @@ export class ProjectKanbanView {
     private categoryManager: CategoryManager;
     private currentSort: string = 'priority';
     private currentSortOrder: 'asc' | 'desc' = 'desc';
-    private showDone: boolean = true;
+    private showDone: boolean = false;
     private tasks: any[] = [];
     private isDragging: boolean = false;
     private draggedTask: any = null;
     private draggedElement: HTMLElement | null = null;
+    private sortButton: HTMLButtonElement;
 
     // 添加静态变量来跟踪当前活动的番茄钟
     private static currentPomodoroTimer: PomodoroTimer | null = null;
@@ -131,12 +132,11 @@ export class ProjectKanbanView {
         controlsGroup.appendChild(toggleDoneBtn);
 
         // 排序按钮
-        const sortBtn = document.createElement('button');
-        sortBtn.className = 'b3-button b3-button--outline';
-        sortBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconSort"></use></svg>';
-        sortBtn.title = '排序';
-        sortBtn.addEventListener('click', (e) => this.showSortMenu(e));
-        controlsGroup.appendChild(sortBtn);
+        this.sortButton = document.createElement('button');
+        this.sortButton.className = 'b3-button b3-button--outline';
+        this.sortButton.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconSort"></use></svg>';
+        this.sortButton.addEventListener('click', (e) => this.showSortMenu(e));
+        controlsGroup.appendChild(this.sortButton);
 
         // 刷新按钮
         const refreshBtn = document.createElement('button');
@@ -160,6 +160,9 @@ export class ProjectKanbanView {
 
         // 添加自定义样式
         this.addCustomStyles();
+        
+        // 更新排序按钮标题
+        this.updateSortButtonTitle();
     }
 
     private createKanbanColumn(container: HTMLElement, status: string, title: string, color: string) {
@@ -271,13 +274,28 @@ export class ProjectKanbanView {
         return 'todo';
     }
 
+    private updateSortButtonTitle() {
+        if (this.sortButton) {
+            const sortNames = {
+                'time': '时间',
+                'priority': '优先级',
+                'title': '标题'
+            };
+            const orderNames = {
+                'asc': '升序',
+                'desc': '降序'
+            };
+            this.sortButton.title = `排序: ${sortNames[this.currentSort]} (${orderNames[this.currentSortOrder]})`;
+        }
+    }
+
     private sortTasks() {
         this.tasks.sort((a, b) => {
             let result = 0;
 
             switch (this.currentSort) {
                 case 'priority':
-                    result = this.compareByPriority(a, b);
+                    result = this.compareByPriorityWithManualSort(a, b);
                     break;
                 case 'time':
                     result = this.compareByTime(a, b);
@@ -286,11 +304,40 @@ export class ProjectKanbanView {
                     result = this.compareByTitle(a, b);
                     break;
                 default:
-                    result = this.compareByPriority(a, b);
+                    result = this.compareByPriorityWithManualSort(a, b);
+            }
+
+            // 优先级排序的结果相反
+            if (this.currentSort === 'priority') {
+                result = -result;
             }
 
             return this.currentSortOrder === 'desc' ? -result : result;
         });
+    }
+
+    // 新增：优先级排序与手动排序结合
+    private compareByPriorityWithManualSort(a: any, b: any): number {
+        const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
+        const priorityA = priorityOrder[a.priority || 'none'] || 0;
+        const priorityB = priorityOrder[b.priority || 'none'] || 0;
+
+        // 首先按优先级排序
+        const priorityDiff = priorityB - priorityA;
+        if (priorityDiff !== 0) {
+            return priorityDiff;
+        }
+
+        // 同优先级内按手动排序
+        const sortA = a.sort || 0;
+        const sortB = b.sort || 0;
+
+        if (sortA !== sortB) {
+            return sortA - sortB; // 手动排序值小的在前
+        }
+
+        // 如果手动排序值也相同，按时间排序
+        return this.compareByTime(a, b);
     }
 
     private compareByPriority(a: any, b: any): number {
@@ -382,20 +429,13 @@ export class ProjectKanbanView {
         taskEl.dataset.taskId = task.id;
 
         const priority = task.priority || 'none';
-        const priorityColors = {
-            'high': '#e74c3c',
-            'medium': '#f39c12',
-            'low': '#3498db',
-            'none': '#95a5a6'
-        };
+        
+        // 添加优先级样式类
+        if (priority !== 'none') {
+            taskEl.classList.add(`kanban-task-priority-${priority}`);
+        }
 
         taskEl.style.cssText = `
-            background: var(--b3-theme-surface-lighter);
-            border: 1px solid var(--b3-theme-border);
-            border-left: 4px solid ${priorityColors[priority]};
-            border-radius: 6px;
-            padding: 12px;
-            margin-bottom: 8px;
             cursor: grab;
             transition: all 0.2s ease;
             position: relative;
@@ -470,21 +510,7 @@ export class ProjectKanbanView {
         // 优先级
         if (priority !== 'none') {
             const priorityEl = document.createElement('div');
-            priorityEl.className = 'kanban-task-priority';
-            priorityEl.style.cssText = `
-                font-size: 11px;
-                color: ${priorityColors[priority]};
-                font-weight: 500;
-                display: flex;
-                align-items: center;
-                gap: 4px;
-            `;
-            
-            const priorityIcons = {
-                'high': '🔴',
-                'medium': '🟡',
-                'low': '🔵'
-            };
+            priorityEl.className = `kanban-task-priority priority-label-${priority}`;
             
             const priorityNames = {
                 'high': '高优先级',
@@ -492,7 +518,7 @@ export class ProjectKanbanView {
                 'low': '低优先级'
             };
             
-            priorityEl.innerHTML = `<span>${priorityIcons[priority]}</span><span>${priorityNames[priority]}</span>`;
+            priorityEl.innerHTML = `<span class="priority-dot ${priority}"></span><span>${priorityNames[priority]}</span>`;
             infoEl.appendChild(priorityEl);
         }
 
@@ -547,8 +573,13 @@ export class ProjectKanbanView {
         taskEl.appendChild(titleEl);
         taskEl.appendChild(infoEl);
 
-        // 添加拖拽事件
-        this.addTaskDragEvents(taskEl, task);
+        // 在优先级排序模式下添加拖拽排序功能
+        if (this.currentSort === 'priority') {
+            this.addTaskSortDragEvents(taskEl, task);
+        } else {
+            // 添加普通拖拽事件（状态切换）
+            this.addTaskDragEvents(taskEl, task);
+        }
 
         // 添加右键菜单
         taskEl.addEventListener('contextmenu', (e) => {
@@ -633,6 +664,187 @@ export class ProjectKanbanView {
                 el.classList.remove('kanban-drop-zone-active');
             });
         });
+    }
+
+    // 新增：添加任务排序拖拽功能
+    private addTaskSortDragEvents(element: HTMLElement, task: any) {
+        element.addEventListener('dragstart', (e) => {
+            this.isDragging = true;
+            this.draggedTask = task;
+            this.draggedElement = element;
+            element.style.opacity = '0.5';
+            element.style.cursor = 'grabbing';
+
+            if (e.dataTransfer) {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', element.outerHTML);
+            }
+        });
+
+        element.addEventListener('dragend', () => {
+            this.isDragging = false;
+            this.draggedTask = null;
+            this.draggedElement = null;
+            element.style.opacity = '';
+            element.style.cursor = 'grab';
+            element.style.transform = 'translateY(0)';
+            element.style.boxShadow = 'none';
+
+            // 清理所有拖拽状态
+            this.container.querySelectorAll('.kanban-drop-zone-active, .drop-indicator').forEach(el => {
+                el.classList.remove('kanban-drop-zone-active');
+                if (el.classList.contains('drop-indicator')) {
+                    el.remove();
+                }
+            });
+        });
+
+        element.addEventListener('dragover', (e) => {
+            if (this.isDragging && this.draggedElement !== element) {
+                e.preventDefault();
+
+                const targetTask = this.getTaskFromElement(element);
+                // 只允许同优先级内的拖拽
+                if (targetTask && this.canDropHere(this.draggedTask, targetTask)) {
+                    e.dataTransfer.dropEffect = 'move';
+                    this.showDropIndicator(element, e);
+                }
+            }
+        });
+
+        element.addEventListener('drop', (e) => {
+            if (this.isDragging && this.draggedElement !== element) {
+                e.preventDefault();
+
+                const targetTask = this.getTaskFromElement(element);
+                if (targetTask && this.canDropHere(this.draggedTask, targetTask)) {
+                    this.handleTaskDrop(this.draggedTask, targetTask, e);
+                }
+            }
+            this.hideDropIndicator();
+        });
+
+        element.addEventListener('dragleave', (e) => {
+            this.hideDropIndicator();
+        });
+    }
+
+    // 新增：从元素获取任务数据
+    private getTaskFromElement(element: HTMLElement): any {
+        const taskId = element.dataset.taskId;
+        if (!taskId) return null;
+
+        // 从当前任务列表中查找
+        return this.tasks.find(t => t.id === taskId);
+    }
+
+    // 新增：检查是否可以放置
+    private canDropHere(draggedTask: any, targetTask: any): boolean {
+        const draggedPriority = draggedTask.priority || 'none';
+        const targetPriority = targetTask.priority || 'none';
+        const draggedStatus = draggedTask.status;
+        const targetStatus = targetTask.status;
+
+        // 只允许同优先级且同状态内的拖拽
+        return draggedPriority === targetPriority && draggedStatus === targetStatus;
+    }
+
+    // 新增：显示拖放指示器
+    private showDropIndicator(element: HTMLElement, event: DragEvent) {
+        this.hideDropIndicator(); // 先清除之前的指示器
+
+        const rect = element.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+
+        const indicator = document.createElement('div');
+        indicator.className = 'drop-indicator';
+        indicator.style.cssText = `
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: var(--b3-theme-primary);
+            z-index: 1000;
+            pointer-events: none;
+        `;
+
+        if (event.clientY < midpoint) {
+            // 插入到目标元素之前
+            indicator.style.top = '0';
+            element.style.position = 'relative';
+            element.insertBefore(indicator, element.firstChild);
+        } else {
+            // 插入到目标元素之后
+            indicator.style.bottom = '0';
+            element.style.position = 'relative';
+            element.appendChild(indicator);
+        }
+    }
+
+    // 新增：隐藏拖放指示器
+    private hideDropIndicator() {
+        const indicators = document.querySelectorAll('.drop-indicator');
+        indicators.forEach(indicator => indicator.remove());
+    }
+
+    // 新增：处理任务拖放
+    private async handleTaskDrop(draggedTask: any, targetTask: any, event: DragEvent) {
+        try {
+            const rect = (event.target as HTMLElement).getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            const insertBefore = event.clientY < midpoint;
+
+            await this.reorderTasks(draggedTask, targetTask, insertBefore);
+
+            showMessage("任务排序已更新");
+            this.loadTasks(); // 重新加载以应用新排序
+
+        } catch (error) {
+            console.error('处理任务拖放失败:', error);
+            showMessage("排序更新失败");
+        }
+    }
+
+    // 新增：重新排序任务
+    private async reorderTasks(draggedTask: any, targetTask: any, insertBefore: boolean) {
+        try {
+            const reminderData = await readReminderData();
+
+            // 获取同优先级同状态的所有任务
+            const samePriorityTasks = Object.values(reminderData)
+                .filter((t: any) =>
+                    t &&
+                    t.projectId === this.projectId &&
+                    (t.priority || 'none') === (draggedTask.priority || 'none') &&
+                    this.getTaskStatus(t) === draggedTask.status
+                )
+                .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+            // 移除被拖拽的任务
+            const filteredTasks = samePriorityTasks.filter((t: any) => t.id !== draggedTask.id);
+
+            // 找到目标位置
+            const targetIndex = filteredTasks.findIndex((t: any) => t.id === targetTask.id);
+            const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
+
+            // 插入被拖拽的任务
+            filteredTasks.splice(insertIndex, 0, draggedTask);
+
+            // 重新分配排序值
+            filteredTasks.forEach((task: any, index: number) => {
+                if (reminderData[task.id]) {
+                    reminderData[task.id].sort = index * 10; // 使用10的倍数便于后续插入
+                    reminderData[task.id].updatedTime = new Date().toISOString();
+                }
+            });
+
+            await writeReminderData(reminderData);
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+        } catch (error) {
+            console.error('重新排序任务失败:', error);
+            throw error;
+        }
     }
 
     private async moveTaskToStatus(task: any, newStatus: string) {
@@ -783,7 +995,24 @@ export class ProjectKanbanView {
     }
 
     private showSortMenu(event: MouseEvent) {
-        const menu = new Menu("kanbanSortMenu");
+        if (document.querySelector('.kanban-sort-menu')) {
+            return;
+        }
+
+        const menuEl = document.createElement('div');
+        menuEl.className = 'kanban-sort-menu';
+        menuEl.style.cssText = `
+            position: absolute;
+            background: var(--b3-theme-surface);
+            border: 1px solid var(--b3-theme-border);
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            padding: 8px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        `;
 
         const sortOptions = [
             { key: 'priority', label: '优先级', icon: '🎯' },
@@ -791,36 +1020,55 @@ export class ProjectKanbanView {
             { key: 'title', label: '标题', icon: '📝' }
         ];
 
+        const createOption = (option: any, order: 'asc' | 'desc') => {
+            const button = document.createElement('button');
+            button.className = 'b3-button b3-button--outline';
+            const isActive = this.currentSort === option.key && this.currentSortOrder === order;
+            button.style.cssText = `
+                width: 100%;
+                justify-content: flex-start;
+                text-align: left;
+                background-color: ${isActive ? 'var(--b3-theme-primary-lightest)' : 'transparent'};
+                color: ${isActive ? 'var(--b3-theme-primary)' : 'var(--b3-theme-on-surface)'};
+            `;
+            button.innerHTML = `
+                <span style="font-size: 16px; margin-right: 8px;">${option.icon}</span>
+                <span>${option.label} (${order === 'asc' ? '升序' : '降序'})</span>
+            `;
+            button.addEventListener('click', () => {
+                this.currentSort = option.key;
+                this.currentSortOrder = order;
+                this.updateSortButtonTitle();
+                this.sortTasks();
+                this.renderKanban();
+                closeMenu();
+            });
+            return button;
+        };
+
         sortOptions.forEach(option => {
-            menu.addItem({
-                iconHTML: option.icon,
-                label: `${option.label} (升序)`,
-                current: this.currentSort === option.key && this.currentSortOrder === 'asc',
-                click: () => {
-                    this.currentSort = option.key;
-                    this.currentSortOrder = 'asc';
-                    this.sortTasks();
-                    this.renderKanban();
-                }
-            });
-
-            menu.addItem({
-                iconHTML: option.icon,
-                label: `${option.label} (降序)`,
-                current: this.currentSort === option.key && this.currentSortOrder === 'desc',
-                click: () => {
-                    this.currentSort = option.key;
-                    this.currentSortOrder = 'desc';
-                    this.sortTasks();
-                    this.renderKanban();
-                }
-            });
+            menuEl.appendChild(createOption(option, 'desc'));
+            menuEl.appendChild(createOption(option, 'asc'));
         });
 
-        menu.open({
-            x: event.clientX,
-            y: event.clientY
-        });
+        document.body.appendChild(menuEl);
+
+        const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+        menuEl.style.top = `${rect.bottom + 4}px`;
+        menuEl.style.left = `${rect.right - menuEl.offsetWidth}px`;
+
+        const closeMenu = () => {
+            menuEl.remove();
+            document.removeEventListener('click', handleClickOutside);
+        };
+
+        const handleClickOutside = (e: MouseEvent) => {
+            if (!menuEl.contains(e.target as Node) && e.target !== event.currentTarget) {
+                closeMenu();
+            }
+        };
+
+        setTimeout(() => document.addEventListener('click', handleClickOutside), 0);
     }
 
     private showCreateTaskDialog() {
@@ -1031,7 +1279,15 @@ export class ProjectKanbanView {
             content: `
                 <div class="b3-dialog__content">
                     <p class="b3-typography">粘贴Markdown列表或多行文本，每行将创建一个任务。</p>
-                    <textarea id="taskList" class="b3-text-field" style="width: 100%; height: 200px; resize: vertical;"></textarea>
+                    <p class="b3-typography" style="font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8; margin-bottom: 8px;">
+                        支持语法：<code>@priority=high&startDate=2025-08-12&endDate=2025-08-30</code>
+                    </p>
+                    <textarea id="taskList" class="b3-text-field"
+                        placeholder="示例：
+完成项目文档 @priority=high&startDate=2025-08-12&endDate=2025-08-15
+准备会议材料 @priority=medium&startDate=2025-08-13
+学习新技术 @priority=low"
+                        style="width: 100%; height: 200px; resize: vertical;"></textarea>
                 </div>
                 <div class="b3-dialog__action">
                     <button class="b3-button b3-button--cancel" id="cancelBtn">取消</button>
@@ -1060,36 +1316,91 @@ export class ProjectKanbanView {
             }).filter(line => line.length > 0);
 
             if (lines.length > 0) {
-                await this.batchCreateTasks(lines);
+                await this.batchCreateTasksWithParams(lines);
                 dialog.destroy();
                 showMessage(`${lines.length} 个任务已创建`);
             }
         });
     }
 
-    private async batchCreateTasks(titles: string[]) {
+    private async batchCreateTasksWithParams(lines: string[]) {
         const reminderData = await readReminderData();
         const categoryId = this.project.categoryId; // 继承项目分类
 
-        for (const title of titles) {
+        for (const line of lines) {
             const taskId = `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            
+            // 解析任务参数
+            const taskData = this.parseTaskLine(line);
+            
             const newTask = {
                 id: taskId,
-                title: title,
+                title: taskData.title,
                 note: '',
-                priority: 'none', // 默认无优先级
+                priority: taskData.priority || 'none',
                 categoryId: categoryId,
                 projectId: this.projectId,
                 completed: false,
                 kanbanStatus: 'todo',
                 createdTime: new Date().toISOString(),
+                date: taskData.startDate,
+                endDate: taskData.endDate,
             };
+            
             reminderData[taskId] = newTask;
         }
 
         await writeReminderData(reminderData);
         await this.loadTasks();
         window.dispatchEvent(new CustomEvent('reminderUpdated'));
+    }
+
+    private parseTaskLine(line: string): { title: string; priority?: string; startDate?: string; endDate?: string } {
+        // 查找参数部分 @priority=high&startDate=2025-08-12&endDate=2025-08-30
+        const paramMatch = line.match(/@(.+)$/);
+        let title = line;
+        let priority: string | undefined;
+        let startDate: string | undefined;
+        let endDate: string | undefined;
+
+        if (paramMatch) {
+            // 移除参数部分，获取纯标题
+            title = line.replace(/@(.+)$/, '').trim();
+            
+            // 解析参数
+            const paramString = paramMatch[1];
+            const params = new URLSearchParams(paramString);
+            
+            priority = params.get('priority') || undefined;
+            startDate = params.get('startDate') || undefined;
+            endDate = params.get('endDate') || undefined;
+            
+            // 验证优先级值
+            if (priority && !['high', 'medium', 'low', 'none'].includes(priority)) {
+                priority = 'none';
+            }
+            
+            // 验证日期格式 (YYYY-MM-DD)
+            const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+            if (startDate && !dateRegex.test(startDate)) {
+                startDate = undefined;
+            }
+            if (endDate && !dateRegex.test(endDate)) {
+                endDate = undefined;
+            }
+        }
+
+        return {
+            title: title || '未命名任务',
+            priority,
+            startDate,
+            endDate
+        };
+    }
+
+    // 保留原有方法以兼容其他调用
+    private async batchCreateTasks(titles: string[]) {
+        return this.batchCreateTasksWithParams(titles);
     }
 
     private async deleteTask(task: any) {
@@ -1359,6 +1670,7 @@ export class ProjectKanbanView {
                 text-align: center;
             }
 
+            /* 基础任务卡片样式 */
             .kanban-task {
                 background: var(--b3-theme-surface-lighter);
                 border: 1px solid var(--b3-theme-border);
@@ -1378,6 +1690,40 @@ export class ProjectKanbanView {
             .kanban-task.dragging {
                 opacity: 0.5;
                 cursor: grabbing;
+            }
+
+            /* 优先级样式 - 参考 project-reminder.scss */
+            .kanban-task-priority-high {
+                border-left: 4px solid var(--b3-card-error-color) !important;
+                background-color: var(--b3-card-error-background) !important;
+            }
+
+            .kanban-task-priority-high .kanban-task-note {
+                border: 2px solid var(--b3-card-error-color) !important;
+                color: var(--b3-card-error-color) !important;
+                background-color: var(--b3-card-error-background) !important;
+            }
+
+            .kanban-task-priority-medium {
+                border-left: 4px solid var(--b3-card-warning-color) !important;
+                background-color: var(--b3-card-warning-background) !important;
+            }
+
+            .kanban-task-priority-medium .kanban-task-note {
+                color: var(--b3-card-warning-color) !important;
+                background-color: var(--b3-card-warning-background) !important;
+                border: 2px solid var(--b3-card-warning-color) !important;
+            }
+
+            .kanban-task-priority-low {
+                border-left: 4px solid var(--b3-card-info-color) !important;
+                background-color: var(--b3-card-info-background) !important;
+            }
+
+            .kanban-task-priority-low .kanban-task-note {
+                color: var(--b3-card-info-color) !important;
+                background-color: var(--b3-card-info-background) !important;
+                border: 2px solid var(--b3-card-info-color) !important;
             }
 
             .kanban-task-title {
@@ -1402,12 +1748,55 @@ export class ProjectKanbanView {
                 gap: 4px;
             }
 
+            /* 优先级标签样式 - 参考 project-priority-label */
             .kanban-task-priority {
-                font-size: 11px;
-                font-weight: 500;
-                display: flex;
+                display: inline-flex;
                 align-items: center;
-                gap: 4px;
+                gap: 2px;
+                padding: 1px 4px;
+                border-radius: 3px;
+                font-size: 10px;
+                font-weight: 500;
+                margin-top: 2px;
+                width: fit-content;
+                align-self: flex-start;
+            }
+
+            .priority-label-high {
+                background-color: rgba(231, 76, 60, 0.1);
+                color: #e74c3c;
+            }
+
+            .priority-label-medium {
+                background-color: rgba(243, 156, 18, 0.1);
+                color: #f39c12;
+            }
+
+            .priority-label-low {
+                background-color: rgba(52, 152, 219, 0.1);
+                color: #3498db;
+            }
+
+            .priority-dot {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+            }
+
+            .priority-dot.high {
+                background: #e74c3c;
+            }
+
+            .priority-dot.medium {
+                background: #f39c12;
+            }
+
+            .priority-dot.low {
+                background: #3498db;
+            }
+
+            .priority-dot.none {
+                background: #95a5a6;
             }
 
             .kanban-task-category {
@@ -1431,11 +1820,27 @@ export class ProjectKanbanView {
                 max-height: 40px;
                 overflow: hidden;
                 text-overflow: ellipsis;
+                padding: 4px 8px;
+                background: var(--b3-theme-surface-lighter);
+                border-radius: 4px;
+                border: 2px solid var(--b3-border-color);
             }
 
             .kanban-drop-zone-active {
                 background: var(--b3-theme-primary-lightest);
                 border-color: var(--b3-theme-primary);
+            }
+
+            .drop-indicator {
+                position: absolute;
+                left: 0;
+                right: 0;
+                height: 2px;
+                background-color: var(--b3-theme-primary);
+                z-index: 1000;
+                pointer-events: none;
+                border-radius: 1px;
+                box-shadow: 0 0 4px rgba(0, 123, 255, 0.3);
             }
 
             .reminder-dialog .b3-form__group {
@@ -1469,15 +1874,15 @@ export class ProjectKanbanView {
                 background-color: var(--b3-theme-primary-lightest);
                 color: var(--b3-theme-primary);
             }
-            .priority-dot {
+            .priority-option .priority-dot {
                 width: 10px;
                 height: 10px;
                 border-radius: 50%;
             }
-            .priority-dot.high { background-color: #e74c3c; }
-            .priority-dot.medium { background-color: #f39c12; }
-            .priority-dot.low { background-color: #3498db; }
-            .priority-dot.none { background-color: #95a5a6; }
+            .priority-option .priority-dot.high { background-color: #e74c3c; }
+            .priority-option .priority-dot.medium { background-color: #f39c12; }
+            .priority-option .priority-dot.low { background-color: #3498db; }
+            .priority-option .priority-dot.none { background-color: #95a5a6; }
             
             .category-selector .category-option {
                 padding: 4px 10px;
