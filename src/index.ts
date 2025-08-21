@@ -321,10 +321,18 @@ export default class ReminderPlugin extends Plugin {
 
         // 注册日历视图标签页
         this.addTab({
+            type: TAB_TYPE,
+            init: (tab) => {
+                const calendarView = new CalendarView(tab.element, this);
+                // 保存实例引用用于清理
+                this.calendarViews.set(tab.id, calendarView);
+            }
+        });
+        // 注册项目看板标签页
+        this.addTab({
             type: PROJECT_KANBAN_TAB_TYPE,
             init: (tab) => {
                 // 从tab数据中获取projectId
-                console.log("test")
                 const projectId = tab.data?.projectId;
                 if (!projectId) {
                     console.error('项目看板Tab缺少projectId');
