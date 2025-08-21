@@ -507,7 +507,7 @@ export class ReminderEditDialog {
                     <div class="b3-form__group">
                         <label class="b3-form__label">${t("reminderDate")}</label>
                         <div class="reminder-date-container">
-                            <input type="date" id="editReminderDate" class="b3-text-field" value="${this.reminder.date}" required>
+                            <input type="date" id="editReminderDate" class="b3-text-field" value="${this.reminder.date}">
                             <span class="reminder-arrow">→</span>
                             <input type="date" id="editReminderEndDate" class="b3-text-field" value="${this.reminder.endDate || ''}" placeholder="${t("endDateOptional")}">
                         </div>
@@ -777,8 +777,8 @@ export class ReminderEditDialog {
 
         if (noTimeCheckbox.checked) {
             // 不设置具体时间：直接使用date值
-            date = dateInput.value;
-            endDate = endDateInput.value;
+            date = dateInput.value || undefined;
+            endDate = endDateInput.value || undefined;
             time = undefined;
             endTime = undefined;
         } else {
@@ -788,7 +788,7 @@ export class ReminderEditDialog {
                 date = dateStr;
                 time = timeStr;
             } else {
-                date = dateInput.value;
+                date = dateInput.value || undefined;
                 time = undefined;
             }
 
@@ -798,19 +798,17 @@ export class ReminderEditDialog {
                     endDate = endDateStr;
                     endTime = endTimeStr;
                 } else {
-                    endDate = endDateInput.value;
+                    endDate = endDateInput.value || undefined;
                     endTime = undefined;
                 }
+            } else {
+                endDate = undefined;
+                endTime = undefined;
             }
         }
 
         if (!title) {
             showMessage(t("pleaseEnterTitle"));
-            return;
-        }
-
-        if (!date) {
-            showMessage(t("pleaseSelectDate"));
             return;
         }
 
