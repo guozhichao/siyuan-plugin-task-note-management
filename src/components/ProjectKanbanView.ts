@@ -718,7 +718,7 @@ export class ProjectKanbanView {
 
                 const targetTask = this.getTaskFromElement(element);
                 if (targetTask && this.canDropHere(this.draggedTask, targetTask)) {
-                    this.handleTaskDrop(this.draggedTask, targetTask, e);
+                    this.handleTaskDrop(this.draggedTask, targetTask, e, element);
                 }
             }
             this.hideDropIndicator();
@@ -788,16 +788,16 @@ export class ProjectKanbanView {
     }
 
     // 新增：处理任务拖放
-    private async handleTaskDrop(draggedTask: any, targetTask: any, event: DragEvent) {
+    private async handleTaskDrop(draggedTask: any, targetTask: any, event: DragEvent, dropElement: HTMLElement) {
         try {
-            const rect = (event.target as HTMLElement).getBoundingClientRect();
+            const rect = dropElement.getBoundingClientRect();
             const midpoint = rect.top + rect.height / 2;
             const insertBefore = event.clientY < midpoint;
 
             await this.reorderTasks(draggedTask, targetTask, insertBefore);
 
             showMessage("任务排序已更新");
-            this.loadTasks(); // 重新加载以应用新排序
+            await this.loadTasks(); // 重新加载以应用新排序
 
         } catch (error) {
             console.error('处理任务拖放失败:', error);
