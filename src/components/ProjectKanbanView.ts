@@ -6,6 +6,8 @@ import { CategoryManager } from "../utils/categoryManager";
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { t } from "../utils/i18n";
+import { ReminderDialog } from "./ReminderDialog";
+import { CategoryManageDialog } from "./CategoryManageDialog";
 
 export class ProjectKanbanView {
     private container: HTMLElement;
@@ -111,6 +113,12 @@ export class ProjectKanbanView {
         addTaskBtn.addEventListener('click', () => this.showCreateTaskDialog());
         controlsGroup.appendChild(addTaskBtn);
 
+        const pasteTaskBtn = document.createElement('button');
+        pasteTaskBtn.className = 'b3-button';
+        pasteTaskBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg> 粘贴列表';
+        pasteTaskBtn.addEventListener('click', () => this.showPasteTaskDialog());
+        controlsGroup.appendChild(pasteTaskBtn);
+
         // 显示/隐藏已完成任务
         const toggleDoneBtn = document.createElement('button');
         toggleDoneBtn.className = 'b3-button b3-button--outline';
@@ -143,13 +151,6 @@ export class ProjectKanbanView {
         // 创建看板容器
         const kanbanContainer = document.createElement('div');
         kanbanContainer.className = 'project-kanban-container';
-        kanbanContainer.style.cssText = `
-            display: flex;
-            gap: 16px;
-            padding: 16px;
-            height: calc(100% - 80px);
-            overflow-x: auto;
-        `;
         this.container.appendChild(kanbanContainer);
 
         // 创建三个列
@@ -165,16 +166,6 @@ export class ProjectKanbanView {
         const column = document.createElement('div');
         column.className = `kanban-column kanban-column-${status}`;
         column.dataset.status = status;
-        column.style.cssText = `
-            flex: 1;
-            min-width: 300px;
-            background: var(--b3-theme-surface);
-            border-radius: 8px;
-            border: 1px solid var(--b3-theme-border);
-            display: flex;
-            flex-direction: column;
-            max-height: 100%;
-        `;
 
         // 列标题
         const header = document.createElement('div');
@@ -306,25 +297,36 @@ export class ProjectKanbanView {
         const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
         const priorityA = priorityOrder[a.priority || 'none'] || 0;
         const priorityB = priorityOrder[b.priority || 'none'] || 0;
-        return priorityB - priorityA; // 高优先级在前
+        if (priorityA !== priorityB) {
+            return priorityB - priorityA; // 高优先级在前
+        }
+        return new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime();
     }
 
     private compareByTime(a: any, b: any): number {
         const dateA = a.date || '9999-12-31';
         const dateB = b.date || '9999-12-31';
-        const timeA = a.time || '23:59';
-        const timeB = b.time || '23:59';
+        const timeA = a.time || '00:00';
+        const timeB = b.time || '00:00';
         
         const datetimeA = `${dateA}T${timeA}`;
         const datetimeB = `${dateB}T${timeB}`;
         
-        return datetimeA.localeCompare(datetimeB);
+        const timeCompare = datetimeA.localeCompare(datetimeB);
+        if (timeCompare !== 0) {
+            return timeCompare;
+        }
+        return new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime();
     }
 
     private compareByTitle(a: any, b: any): number {
         const titleA = (a.title || '').toLowerCase();
         const titleB = (b.title || '').toLowerCase();
-        return titleA.localeCompare(titleB, 'zh-CN');
+        const titleCompare = titleA.localeCompare(titleB, 'zh-CN');
+        if (titleCompare !== 0) {
+            return titleCompare;
+        }
+        return new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime();
     }
 
     private renderKanban() {
@@ -420,17 +422,10 @@ export class ProjectKanbanView {
         `;
 
         // 日期时间
-        if (task.date) {
+        const hasDate = task.date || task.endDate;
+        if (hasDate) {
             const dateEl = document.createElement('div');
             dateEl.className = 'kanban-task-date';
-            dateEl.style.cssText = `
-                font-size: 12px;
-                color: var(--b3-theme-on-surface);
-                opacity: 0.7;
-                display: flex;
-                align-items: center;
-                gap: 4px;
-            `;
             
             const dateText = this.formatTaskDate(task);
             dateEl.innerHTML = `<span>📅</span><span>${dateText}</span>`;
@@ -552,18 +547,25 @@ export class ProjectKanbanView {
         } else if (task.date === tomorrowStr) {
             dateStr = '明天';
         } else {
-            const taskDate = new Date(task.date + 'T00:00:00');
-            dateStr = taskDate.toLocaleDateString('zh-CN', {
-                month: 'short',
-                day: 'numeric'
-            });
+            const taskDate = new Date(task.date);
+            dateStr = taskDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+        }
+
+        let endDateStr = '';
+        if (task.endDate && task.endDate !== task.date) {
+            const taskEndDate = new Date(task.endDate);
+            endDateStr = taskEndDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+        }
+        
+        if (endDateStr) {
+            return `${dateStr} → ${endDateStr}`;
         }
 
         if (task.time) {
             return `${dateStr} ${task.time}`;
         }
 
-        return dateStr;
+        return dateStr || "未设置日期";
     }
 
     private addTaskDragEvents(element: HTMLElement, task: any) {
@@ -624,7 +626,7 @@ export class ProjectKanbanView {
                 // 重新加载任务
                 await this.loadTasks();
 
-                showMessage(`任务已移动到${newStatus === 'todo' ? '待办' : newStatus === 'doing' ? '进行中' : '已完成'}`);
+                // showMessage(`任务已移动到${newStatus === 'todo' ? '待办' : newStatus === 'doing' ? '进行中' : '已完成'}`);
             }
         } catch (error) {
             console.error('移动任务失败:', error);
@@ -746,60 +748,81 @@ export class ProjectKanbanView {
         const dialog = new Dialog({
             title: "新建任务",
             content: `
-                <div class="create-task-dialog">
-                    <div class="b3-dialog__content">
+                <div class="reminder-dialog" style="padding-bottom: 0;">
+                    <div class="b3-dialog__content" style="padding-bottom: 0;">
                         <div class="b3-form__group">
-                            <label class="b3-form__label">任务标题 *</label>
-                            <input type="text" id="taskTitle" class="b3-text-field" placeholder="请输入任务标题" style="width: 100%;">
+                            <label class="b3-form__label">任务标题</label>
+                            <input type="text" id="taskTitle" class="b3-text-field" placeholder="请输入任务标题" required>
                         </div>
-                        
                         <div class="b3-form__group">
-                            <label class="b3-form__label">任务描述</label>
-                            <textarea id="taskNote" class="b3-text-field" placeholder="请输入任务描述" style="width: 100%; height: 80px; resize: vertical;"></textarea>
+                            <label class="b3-form__label">分类
+                                <button type="button" id="manageCategoriesBtn" class="b3-button b3-button--outline" title="管理分类" style="margin-left: 8px; vertical-align: middle;">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg>
+                                </button>
+                            </label>
+                            <div class="category-selector" id="categorySelector" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;"></div>
                         </div>
-                        
-                        <div style="display: flex; gap: 16px;">
-                            <div class="b3-form__group" style="flex: 1;">
-                                <label class="b3-form__label">日期</label>
-                                <input type="date" id="taskDate" class="b3-text-field" style="width: 100%;">
-                            </div>
-                            
-                            <div class="b3-form__group" style="flex: 1;">
-                                <label class="b3-form__label">时间</label>
-                                <input type="time" id="taskTime" class="b3-text-field" style="width: 100%;">
-                            </div>
-                        </div>
-                        
                         <div class="b3-form__group">
                             <label class="b3-form__label">优先级</label>
-                            <select id="taskPriority" class="b3-select" style="width: 100%;">
-                                <option value="none">无优先级</option>
-                                <option value="low">低优先级</option>
-                                <option value="medium">中优先级</option>
-                                <option value="high">高优先级</option>
-                            </select>
+                            <div class="priority-selector" id="prioritySelector">
+                                <div class="priority-option" data-priority="high"><div class="priority-dot high"></div><span>高</span></div>
+                                <div class="priority-option" data-priority="medium"><div class="priority-dot medium"></div><span>中</span></div>
+                                <div class="priority-option" data-priority="low"><div class="priority-dot low"></div><span>低</span></div>
+                                <div class="priority-option selected" data-priority="none"><div class="priority-dot none"></div><span>无</span></div>
+                            </div>
+                        </div>
+                         <div class="b3-form__group">
+                            <label class="b3-form__label">任务日期</label>
+                            <div class="reminder-date-container">
+                                <input type="date" id="taskStartDate" class="b3-text-field" title="开始日期">
+                                <span class="reminder-arrow">→</span>
+                                <input type="date" id="taskEndDate" class="b3-text-field" title="结束日期">
+                            </div>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">备注</label>
+                            <textarea id="taskNote" class="b3-text-field" placeholder="请输入任务备注" rows="2" style="width: 100%;resize: vertical; min-height: 60px;"></textarea>
                         </div>
                     </div>
                     <div class="b3-dialog__action">
                         <button class="b3-button b3-button--cancel" id="cancelBtn">取消</button>
-                        <button class="b3-button b3-button--primary" id="createBtn">创建任务</button>
+                        <button class="b3-button b3-button--primary" id="createBtn">创建</button>
                     </div>
-                </div>
-            `,
+                </div>`,
             width: "500px",
-            height: "400px"
+            height: "580px"
         });
 
         const titleInput = dialog.element.querySelector('#taskTitle') as HTMLInputElement;
         const noteInput = dialog.element.querySelector('#taskNote') as HTMLTextAreaElement;
-        const dateInput = dialog.element.querySelector('#taskDate') as HTMLInputElement;
-        const timeInput = dialog.element.querySelector('#taskTime') as HTMLInputElement;
-        const prioritySelect = dialog.element.querySelector('#taskPriority') as HTMLSelectElement;
+        const startDateInput = dialog.element.querySelector('#taskStartDate') as HTMLInputElement;
+        const endDateInput = dialog.element.querySelector('#taskEndDate') as HTMLInputElement;
+        const prioritySelector = dialog.element.querySelector('#prioritySelector') as HTMLElement;
+        const categorySelector = dialog.element.querySelector('#categorySelector') as HTMLElement;
+        const manageCategoriesBtn = dialog.element.querySelector('#manageCategoriesBtn') as HTMLButtonElement;
         const cancelBtn = dialog.element.querySelector('#cancelBtn') as HTMLButtonElement;
         const createBtn = dialog.element.querySelector('#createBtn') as HTMLButtonElement;
 
-        // 设置默认优先级
-        prioritySelect.value = 'medium';
+        // 渲染并绑定分类选择器
+        this.renderCategorySelector(categorySelector, this.project.categoryId);
+
+        // 绑定优先级选择事件
+        prioritySelector.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const option = target.closest('.priority-option') as HTMLElement;
+            if (option) {
+                prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+            }
+        });
+
+        // 管理分类按钮事件
+        manageCategoriesBtn.addEventListener('click', () => {
+             new CategoryManageDialog(() => {
+                this.renderCategorySelector(categorySelector, this.project.categoryId);
+            }).show();
+        });
+
 
         cancelBtn.addEventListener('click', () => dialog.destroy());
 
@@ -809,65 +832,52 @@ export class ProjectKanbanView {
                 showMessage("请输入任务标题");
                 return;
             }
+            
+            const selectedPriority = prioritySelector.querySelector('.priority-option.selected') as HTMLElement;
+            const priority = selectedPriority?.getAttribute('data-priority') || 'none';
 
-            try {
-                await this.createTask({
-                    title,
-                    note: noteInput.value.trim(),
-                    date: dateInput.value,
-                    time: timeInput.value,
-                    priority: prioritySelect.value
-                });
+            const selectedCategory = categorySelector.querySelector('.category-option.selected') as HTMLElement;
+            const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
 
-                dialog.destroy();
-                showMessage("任务创建成功");
-            } catch (error) {
-                console.error('创建任务失败:', error);
-                showMessage("创建任务失败");
-            }
+
+            await this.createTask({
+                title: title,
+                note: noteInput.value.trim(),
+                date: startDateInput.value,
+                endDate: endDateInput.value,
+                priority: priority,
+                categoryId: categoryId,
+            });
+
+            dialog.destroy();
         });
 
-        // 设置默认日期为今天
-        const today = new Date().toISOString().split('T')[0];
-        dateInput.value = today;
     }
 
     private async createTask(taskData: any) {
-        try {
-            const reminderData = await readReminderData();
-            
-            // 生成新的任务ID
-            const taskId = `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-            
-            // 创建任务对象
-            const newTask = {
-                id: taskId,
-                title: taskData.title,
-                note: taskData.note || '',
-                date: taskData.date,
-                time: taskData.time || undefined,
-                priority: taskData.priority || 'none',
-                projectId: this.projectId, // 关联项目ID
-                completed: false,
-                kanbanStatus: 'todo', // 默认状态为待办
-                createdTime: new Date().toISOString(),
-                categoryId: undefined // 可以后续添加分类支持
-            };
+        const reminderData = await readReminderData();
+        const taskId = `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-            // 保存到reminder数据中
-            reminderData[taskId] = newTask;
-            await writeReminderData(reminderData);
+        const newTask = {
+            id: taskId,
+            title: taskData.title,
+            note: taskData.note || '',
+            date: taskData.date || undefined,
+            endDate: taskData.endDate || undefined,
+            priority: taskData.priority || 'none',
+            categoryId: taskData.categoryId,
+            projectId: this.projectId,
+            completed: false,
+            kanbanStatus: 'todo',
+            createdTime: new Date().toISOString(),
+        };
 
-            // 触发更新事件
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+        reminderData[taskId] = newTask;
+        await writeReminderData(reminderData);
 
-            // 重新加载任务
-            await this.loadTasks();
-
-        } catch (error) {
-            console.error('创建任务失败:', error);
-            throw error;
-        }
+        showMessage("任务创建成功");
+        await this.loadTasks();
+        window.dispatchEvent(new CustomEvent('reminderUpdated'));
     }
 
     private async editTask(task: any) {
@@ -878,10 +888,77 @@ export class ProjectKanbanView {
         editDialog.show();
     }
 
+    private showPasteTaskDialog() {
+        const dialog = new Dialog({
+            title: "粘贴列表新建任务",
+            content: `
+                <div class="b3-dialog__content">
+                    <p class="b3-typography">粘贴Markdown列表或多行文本，每行将创建一个任务。</p>
+                    <textarea id="taskList" class="b3-text-field" style="width: 100%; height: 200px; resize: vertical;"></textarea>
+                </div>
+                <div class="b3-dialog__action">
+                    <button class="b3-button b3-button--cancel" id="cancelBtn">取消</button>
+                    <button class="b3-button b3-button--primary" id="createBtn">创建任务</button>
+                </div>
+            `,
+            width: "500px",
+        });
+
+        const textArea = dialog.element.querySelector('#taskList') as HTMLTextAreaElement;
+        const cancelBtn = dialog.element.querySelector('#cancelBtn') as HTMLButtonElement;
+        const createBtn = dialog.element.querySelector('#createBtn') as HTMLButtonElement;
+
+        cancelBtn.addEventListener('click', () => dialog.destroy());
+
+        createBtn.addEventListener('click', async () => {
+            const text = textArea.value.trim();
+            if (!text) {
+                showMessage("列表内容不能为空");
+                return;
+            }
+
+            const lines = text.split('\n').map(line => {
+                // 移除Markdown列表标记
+                return line.replace(/^-\s*/, '').trim();
+            }).filter(line => line.length > 0);
+
+            if (lines.length > 0) {
+                await this.batchCreateTasks(lines);
+                dialog.destroy();
+                showMessage(`${lines.length} 个任务已创建`);
+            }
+        });
+    }
+
+    private async batchCreateTasks(titles: string[]) {
+        const reminderData = await readReminderData();
+        const categoryId = this.project.categoryId; // 继承项目分类
+
+        for (const title of titles) {
+            const taskId = `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            const newTask = {
+                id: taskId,
+                title: title,
+                note: '',
+                priority: 'none', // 默认无优先级
+                categoryId: categoryId,
+                projectId: this.projectId,
+                completed: false,
+                kanbanStatus: 'todo',
+                createdTime: new Date().toISOString(),
+            };
+            reminderData[taskId] = newTask;
+        }
+
+        await writeReminderData(reminderData);
+        await this.loadTasks();
+        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+    }
+
     private async deleteTask(task: any) {
-        const result = await confirm(
+        confirm(
             "删除任务",
-            `确定要删除任务"${task.title}"吗？`,
+            `确定要删除任务 "${task.title}" 吗？此操作不可撤销。`,
             async () => {
                 try {
                     const reminderData = await readReminderData();
@@ -1102,21 +1179,23 @@ export class ProjectKanbanView {
             .project-kanban-container {
                 flex: 1;
                 display: flex;
+                flex-wrap: wrap;
                 gap: 16px;
                 padding: 16px;
-                overflow-x: auto;
+                overflow-y: auto;
                 min-height: 0;
             }
 
             .kanban-column {
-                flex: 1;
-                min-width: 300px;
+                flex: 1 1 300px;
+                min-width: 280px;
                 background: var(--b3-theme-surface);
                 border-radius: 8px;
                 border: 1px solid var(--b3-theme-border);
                 display: flex;
                 flex-direction: column;
                 max-height: 100%;
+                max-width: 100%;
             }
 
             .kanban-column-header {
@@ -1222,35 +1301,111 @@ export class ProjectKanbanView {
                 border-color: var(--b3-theme-primary);
             }
 
-            .create-task-dialog .b3-form__group {
+            .reminder-dialog .b3-form__group {
                 margin-bottom: 16px;
             }
-
-            .create-task-dialog .b3-form__label {
+            .reminder-dialog .b3-form__label {
                 display: block;
-                margin-bottom: 4px;
+                margin-bottom: 8px;
                 font-weight: 500;
+            }
+            .priority-selector {
+                display: flex;
+                gap: 8px;
+            }
+            .priority-option {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                padding: 6px 12px;
+                border-radius: 16px;
+                cursor: pointer;
+                border: 1px solid var(--b3-theme-border);
+                transition: all 0.2s ease;
+            }
+            .priority-option:hover {
+                background-color: var(--b3-theme-surface-lighter);
+            }
+            .priority-option.selected {
+                font-weight: 600;
+                border-color: var(--b3-theme-primary);
+                background-color: var(--b3-theme-primary-lightest);
+                color: var(--b3-theme-primary);
+            }
+            .priority-dot {
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+            }
+            .priority-dot.high { background-color: #e74c3c; }
+            .priority-dot.medium { background-color: #f39c12; }
+            .priority-dot.low { background-color: #3498db; }
+            .priority-dot.none { background-color: #95a5a6; }
+            
+            .category-selector .category-option {
+                padding: 4px 10px;
+                border-radius: 14px;
+                cursor: pointer;
+                transition: transform 0.15s ease;
+                border: 1px solid transparent;
+                color: white;
+            }
+            .category-selector .category-option.selected {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 2px var(--b3-theme-primary-lightest);
+                font-weight: bold;
+            }
+            .category-selector .category-option[data-category=""] {
+                background-color: var(--b3-theme-surface-lighter);
                 color: var(--b3-theme-on-surface);
             }
-
-            .create-task-dialog .b3-text-field {
-                width: 100%;
-                padding: 8px 12px;
-                border: 1px solid var(--b3-theme-border);
-                border-radius: 4px;
-                background: var(--b3-theme-surface);
-                color: var(--b3-theme-on-surface);
+            .reminder-date-container {
+                display: flex;
+                align-items: center;
+                gap: 8px;
             }
-
-            .create-task-dialog .b3-select {
-                width: 100%;
-                padding: 8px 12px;
-                border: 1px solid var(--b3-theme-border);
-                border-radius: 4px;
-                background: var(--b3-theme-surface);
+            .reminder-date-container .b3-text-field {
+                flex: 1;
+            }
+            .reminder-arrow {
                 color: var(--b3-theme-on-surface);
+                opacity: 0.7;
             }
         `;
         document.head.appendChild(style);
+    }
+    private renderCategorySelector(container: HTMLElement, defaultCategoryId?: string) {
+        container.innerHTML = '';
+        const categories = this.categoryManager.getCategories();
+        
+        const noCategoryEl = document.createElement('div');
+        noCategoryEl.className = 'category-option';
+        noCategoryEl.setAttribute('data-category', '');
+        noCategoryEl.innerHTML = `<span>无分类</span>`;
+        if (!defaultCategoryId) {
+            noCategoryEl.classList.add('selected');
+        }
+        container.appendChild(noCategoryEl);
+
+        categories.forEach(category => {
+            const categoryEl = document.createElement('div');
+            categoryEl.className = 'category-option';
+            categoryEl.setAttribute('data-category', category.id);
+            categoryEl.style.backgroundColor = category.color;
+            categoryEl.innerHTML = `<span>${category.icon ? category.icon + ' ' : ''}${category.name}</span>`;
+            if (category.id === defaultCategoryId) {
+                categoryEl.classList.add('selected');
+            }
+            container.appendChild(categoryEl);
+        });
+        
+        container.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const option = target.closest('.category-option') as HTMLElement;
+            if (option) {
+                container.querySelectorAll('.category-option').forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+            }
+        });
     }
 }
