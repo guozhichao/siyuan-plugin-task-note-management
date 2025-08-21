@@ -1,6 +1,6 @@
 import { showMessage, confirm, Menu, Dialog } from "siyuan";
 
-import { readReminderData, writeReminderData, readProjectData, getBlockByID, updateBlockReminderBookmark } from "../api";
+import { readReminderData, writeReminderData, readProjectData, getBlockByID, updateBlockReminderBookmark, openBlock } from "../api";
 import { getLocalDateString, getLocalDateTime, getLocalDateTimeString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { ReminderEditDialog } from "./ReminderEditDialog";
@@ -404,13 +404,48 @@ export class ProjectKanbanView {
         // 任务标题
         const titleEl = document.createElement('div');
         titleEl.className = 'kanban-task-title';
+        
+        if (task.blockId) {
+            // 如果有绑定块，标题显示为可点击的超链接
+            titleEl.setAttribute('data-type', 'a');
+            titleEl.setAttribute('data-href', `siyuan://blocks/${task.blockId}`);
+            titleEl.style.cssText = `
+                font-weight: 500;
+                margin-bottom: 8px;
+                color: var(--b3-theme-primary);
+                line-height: 1.4;
+                cursor: pointer;
+                text-decoration: underline;
+                text-decoration-style: dotted;
+                transition: color 0.2s ease;
+            `;
+            
+            // 点击事件：打开块
+            titleEl.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.openBlockTab(task.blockId);
+            });
+
+            // 鼠标悬停效果
+            titleEl.addEventListener('mouseenter', () => {
+                titleEl.style.color = 'var(--b3-theme-primary-light)';
+            });
+            titleEl.addEventListener('mouseleave', () => {
+                titleEl.style.color = 'var(--b3-theme-primary)';
+            });
+        } else {
+            // 没有绑定块，普通标题样式
+            titleEl.style.cssText = `
+                font-weight: 500;
+                margin-bottom: 8px;
+                color: var(--b3-theme-on-surface);
+                line-height: 1.4;
+            `;
+        }
+        
         titleEl.textContent = task.title || '未命名任务';
-        titleEl.style.cssText = `
-            font-weight: 500;
-            margin-bottom: 8px;
-            color: var(--b3-theme-on-surface);
-            line-height: 1.4;
-        `;
+        titleEl.title = task.blockId ? `点击打开绑定块: ${task.title || '未命名任务'}` : (task.title || '未命名任务');
 
         // 任务信息容器
         const infoEl = document.createElement('div');
@@ -506,6 +541,8 @@ export class ProjectKanbanView {
             `;
             infoEl.appendChild(noteEl);
         }
+
+        // 不再单独显示绑定块信息，因为已经集成到标题中
 
         taskEl.appendChild(titleEl);
         taskEl.appendChild(infoEl);
@@ -646,6 +683,48 @@ export class ProjectKanbanView {
 
         menu.addSeparator();
 
+        // 设置优先级子菜单
+        const priorityMenuItems = [];
+        const priorities = [
+            { key: 'high', label: '高优先级', icon: '🔴' },
+            { key: 'medium', label: '中优先级', icon: '🟡' },
+            { key: 'low', label: '低优先级', icon: '🔵' },
+            { key: 'none', label: '无优先级', icon: '⚫' }
+        ];
+
+        const currentPriority = task.priority || 'none';
+        priorities.forEach(priority => {
+            priorityMenuItems.push({
+                iconHTML: priority.icon,
+                label: priority.label,
+                current: currentPriority === priority.key,
+                click: () => this.setPriority(task.id, priority.key)
+            });
+        });
+
+        menu.addItem({
+            iconHTML: "🎯",
+            label: "设置优先级",
+            submenu: priorityMenuItems
+        });
+
+        // 绑定块功能
+        if (task.blockId) {
+            menu.addItem({
+                iconHTML: "📋",
+                label: "复制块引用",
+                click: () => this.copyBlockRef(task)
+            });
+        } else {
+            menu.addItem({
+                iconHTML: "🔗",
+                label: "绑定到块",
+                click: () => this.showBindToBlockDialog(task)
+            });
+        }
+
+        menu.addSeparator();
+
         // 状态切换
         const currentStatus = this.getTaskStatus(task);
         
@@ -780,6 +859,23 @@ export class ProjectKanbanView {
                             </div>
                         </div>
                         <div class="b3-form__group">
+                            <label class="b3-form__label">绑定块 (可选)</label>
+                            <div class="b3-form__desc">输入块ID将任务绑定到指定块</div>
+                            <input type="text" id="taskBlockId" class="b3-text-field" placeholder="请输入块ID (可选)" style="width: 100%; margin-top: 8px;">
+                            <div id="blockPreview" class="block-content-preview" style="
+                                display: none;
+                                padding: 8px;
+                                background-color: var(--b3-theme-surface-lighter);
+                                border-radius: 4px;
+                                border: 1px solid var(--b3-theme-border);
+                                max-height: 60px;
+                                overflow-y: auto;
+                                font-size: 12px;
+                                color: var(--b3-theme-on-surface);
+                                margin-top: 8px;
+                            "></div>
+                        </div>
+                        <div class="b3-form__group">
                             <label class="b3-form__label">备注</label>
                             <textarea id="taskNote" class="b3-text-field" placeholder="请输入任务备注" rows="2" style="width: 100%;resize: vertical; min-height: 60px;"></textarea>
                         </div>
@@ -790,7 +886,7 @@ export class ProjectKanbanView {
                     </div>
                 </div>`,
             width: "500px",
-            height: "580px"
+            height: "650px"
         });
 
         const titleInput = dialog.element.querySelector('#taskTitle') as HTMLInputElement;
@@ -800,6 +896,8 @@ export class ProjectKanbanView {
         const prioritySelector = dialog.element.querySelector('#prioritySelector') as HTMLElement;
         const categorySelector = dialog.element.querySelector('#categorySelector') as HTMLElement;
         const manageCategoriesBtn = dialog.element.querySelector('#manageCategoriesBtn') as HTMLButtonElement;
+        const blockIdInput = dialog.element.querySelector('#taskBlockId') as HTMLInputElement;
+        const blockPreview = dialog.element.querySelector('#blockPreview') as HTMLElement;
         const cancelBtn = dialog.element.querySelector('#cancelBtn') as HTMLButtonElement;
         const createBtn = dialog.element.querySelector('#createBtn') as HTMLButtonElement;
 
@@ -823,6 +921,26 @@ export class ProjectKanbanView {
             }).show();
         });
 
+        // 监听块ID输入变化
+        blockIdInput.addEventListener('input', async () => {
+            const blockId = blockIdInput.value.trim();
+            if (blockId.length >= 20) { // 块ID通常是20位字符
+                try {
+                    const block = await getBlockByID(blockId);
+                    if (block) {
+                        const blockContent = block.content || block.fcontent || '未命名块';
+                        blockPreview.textContent = `预览: ${blockContent}`;
+                        blockPreview.style.display = 'block';
+                    } else {
+                        blockPreview.style.display = 'none';
+                    }
+                } catch (error) {
+                    blockPreview.style.display = 'none';
+                }
+            } else {
+                blockPreview.style.display = 'none';
+            }
+        });
 
         cancelBtn.addEventListener('click', () => dialog.destroy());
 
@@ -839,6 +957,7 @@ export class ProjectKanbanView {
             const selectedCategory = categorySelector.querySelector('.category-option.selected') as HTMLElement;
             const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
 
+            const blockId = blockIdInput.value.trim() || undefined;
 
             await this.createTask({
                 title: title,
@@ -847,6 +966,7 @@ export class ProjectKanbanView {
                 endDate: endDateInput.value,
                 priority: priority,
                 categoryId: categoryId,
+                blockId: blockId
             });
 
             dialog.destroy();
@@ -858,7 +978,7 @@ export class ProjectKanbanView {
         const reminderData = await readReminderData();
         const taskId = `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-        const newTask = {
+        const newTask: any = {
             id: taskId,
             title: taskData.title,
             note: taskData.note || '',
@@ -871,6 +991,23 @@ export class ProjectKanbanView {
             kanbanStatus: 'todo',
             createdTime: new Date().toISOString(),
         };
+
+        // 如果提供了块ID，添加绑定信息
+        if (taskData.blockId) {
+            try {
+                const block = await getBlockByID(taskData.blockId);
+                if (block) {
+                    newTask.blockId = taskData.blockId;
+                    newTask.docId = block.root_id || taskData.blockId;
+                    
+                    // 更新块的书签状态
+                    await updateBlockReminderBookmark(taskData.blockId);
+                }
+            } catch (error) {
+                console.error('绑定块失败:', error);
+                showMessage("警告：块绑定失败，但任务已创建");
+            }
+        }
 
         reminderData[taskId] = newTask;
         await writeReminderData(reminderData);
@@ -1371,6 +1508,42 @@ export class ProjectKanbanView {
                 color: var(--b3-theme-on-surface);
                 opacity: 0.7;
             }
+
+            .kanban-task-block-info {
+                font-size: 11px;
+                color: var(--b3-theme-on-background);
+                margin-top: 4px;
+                opacity: 0.9;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                padding: 2px 6px;
+                background-color: var(--b3-theme-surface-lighter);
+                border-radius: 4px;
+                border: 1px solid var(--b3-theme-border);
+                transition: all 0.2s ease;
+            }
+
+            .kanban-task-block-info:hover {
+                background-color: var(--b3-theme-primary-lightest);
+                border-color: var(--b3-theme-primary);
+            }
+
+            .kanban-task-block-info span[data-type="a"] {
+                cursor: pointer;
+                color: var(--b3-theme-primary);
+                text-decoration: underline;
+                text-decoration-style: dotted;
+                flex: 1;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                transition: color 0.2s ease;
+            }
+
+            .kanban-task-block-info span[data-type="a"]:hover {
+                color: var(--b3-theme-primary-light);
+            }
         `;
         document.head.appendChild(style);
     }
@@ -1407,5 +1580,310 @@ export class ProjectKanbanView {
                 option.classList.add('selected');
             }
         });
+    }
+
+    // 设置任务优先级
+    private async setPriority(taskId: string, priority: string) {
+        try {
+            const reminderData = await readReminderData();
+            if (reminderData[taskId]) {
+                reminderData[taskId].priority = priority;
+                await writeReminderData(reminderData);
+                
+                showMessage("优先级已更新");
+                await this.loadTasks();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            } else {
+                showMessage("任务不存在");
+            }
+        } catch (error) {
+            console.error('设置优先级失败:', error);
+            showMessage("设置优先级失败");
+        }
+    }
+
+    // 复制块引用
+    private async copyBlockRef(task: any) {
+        try {
+            const blockId = task.blockId;
+            if (!blockId) {
+                showMessage("无法获取块ID");
+                return;
+            }
+
+            const title = task.title || "未命名任务";
+            const blockRef = `((${blockId} "${title}"))`;
+            
+            await navigator.clipboard.writeText(blockRef);
+            showMessage("块引用已复制到剪贴板");
+        } catch (error) {
+            console.error('复制块引用失败:', error);
+            showMessage("复制块引用失败");
+        }
+    }
+
+    // 显示绑定到块的对话框
+    private showBindToBlockDialog(task: any) {
+        const dialog = new Dialog({
+            title: "绑定任务到块",
+            content: `
+                <div class="bind-to-block-dialog">
+                    <div class="b3-dialog__content">
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">块ID</label>
+                            <div class="b3-form__desc">请输入要绑定的块ID</div>
+                            <input type="text" id="blockIdInput" class="b3-text-field" placeholder="请输入块ID" style="width: 100%; margin-top: 8px;">
+                        </div>
+                        <div class="b3-form__group" id="selectedBlockInfo" style="display: none;">
+                            <label class="b3-form__label">块信息预览</label>
+                            <div id="blockContent" class="block-content-preview" style="
+                                padding: 8px;
+                                background-color: var(--b3-theme-surface-lighter);
+                                border-radius: 4px;
+                                border: 1px solid var(--b3-theme-border);
+                                max-height: 100px;
+                                overflow-y: auto;
+                                font-size: 12px;
+                                color: var(--b3-theme-on-surface);
+                            "></div>
+                        </div>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="bindCancelBtn">取消</button>
+                        <button class="b3-button b3-button--primary" id="bindConfirmBtn">绑定</button>
+                    </div>
+                </div>
+            `,
+            width: "400px",
+            height: "300px"
+        });
+
+        const blockIdInput = dialog.element.querySelector('#blockIdInput') as HTMLInputElement;
+        const selectedBlockInfo = dialog.element.querySelector('#selectedBlockInfo') as HTMLElement;
+        const blockContentEl = dialog.element.querySelector('#blockContent') as HTMLElement;
+        const cancelBtn = dialog.element.querySelector('#bindCancelBtn') as HTMLButtonElement;
+        const confirmBtn = dialog.element.querySelector('#bindConfirmBtn') as HTMLButtonElement;
+
+        // 监听块ID输入变化
+        blockIdInput.addEventListener('input', async () => {
+            const blockId = blockIdInput.value.trim();
+            if (blockId.length >= 20) { // 块ID通常是20位字符
+                try {
+                    const block = await getBlockByID(blockId);
+                    if (block) {
+                        const blockContent = block.content || block.fcontent || '未命名块';
+                        blockContentEl.textContent = blockContent;
+                        selectedBlockInfo.style.display = 'block';
+                    } else {
+                        selectedBlockInfo.style.display = 'none';
+                    }
+                } catch (error) {
+                    selectedBlockInfo.style.display = 'none';
+                }
+            } else {
+                selectedBlockInfo.style.display = 'none';
+            }
+        });
+
+        // 取消按钮
+        cancelBtn.addEventListener('click', () => {
+            dialog.destroy();
+        });
+
+        // 确认按钮
+        confirmBtn.addEventListener('click', async () => {
+            const blockId = blockIdInput.value.trim();
+            if (!blockId) {
+                showMessage('请输入块ID');
+                return;
+            }
+
+            try {
+                await this.bindTaskToBlock(task, blockId);
+                showMessage("任务已绑定到块");
+                dialog.destroy();
+                await this.loadTasks();
+            } catch (error) {
+                console.error('绑定任务到块失败:', error);
+                showMessage("绑定失败");
+            }
+        });
+
+        // 自动聚焦输入框
+        setTimeout(() => {
+            blockIdInput.focus();
+        }, 100);
+    }
+
+    // 将任务绑定到指定的块
+    private async bindTaskToBlock(task: any, blockId: string) {
+        try {
+            const reminderData = await readReminderData();
+            
+            if (reminderData[task.id]) {
+                // 获取块信息
+                const block = await getBlockByID(blockId);
+                if (!block) {
+                    throw new Error('目标块不存在');
+                }
+
+                // 更新任务数据
+                reminderData[task.id].blockId = blockId;
+                reminderData[task.id].docId = block.root_id || blockId;
+                
+                await writeReminderData(reminderData);
+                
+                // 更新块的书签状态
+                await updateBlockReminderBookmark(blockId);
+                
+                // 触发更新事件
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            } else {
+                throw new Error('任务不存在');
+            }
+        } catch (error) {
+            console.error('绑定任务到块失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 异步添加绑定块信息显示
+     * @param container 信息容器元素
+     * @param task 任务对象
+     */
+    private async addBlockInfo(container: HTMLElement, task: any) {
+        try {
+            if (!task.blockId) return;
+
+            const block = await getBlockByID(task.blockId);
+            if (block && block.content) {
+                // 创建绑定块信息元素
+                const blockInfoEl = document.createElement('div');
+                blockInfoEl.className = 'kanban-task-block-info';
+                blockInfoEl.style.cssText = `
+                    font-size: 11px;
+                    color: var(--b3-theme-on-background);
+                    margin-top: 4px;
+                    opacity: 0.9;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    padding: 2px 6px;
+                    background-color: var(--b3-theme-surface-lighter);
+                    border-radius: 4px;
+                    border: 1px solid var(--b3-theme-border);
+                `;
+
+                // 添加块图标
+                const blockIcon = document.createElement('span');
+                blockIcon.innerHTML = '🔗';
+                blockIcon.style.fontSize = '10px';
+
+                // 创建支持悬浮预览的块标题链接
+                const blockTitleLink = document.createElement('span');
+                blockTitleLink.setAttribute('data-type', 'a');
+                blockTitleLink.setAttribute('data-href', `siyuan://blocks/${task.blockId}`);
+                blockTitleLink.textContent = block.content.length > 30 ?
+                    block.content.substring(0, 30) + '...' :
+                    block.content;
+                blockTitleLink.title = `绑定块: ${block.content}`;
+                blockTitleLink.style.cssText = `
+                    cursor: pointer;
+                    color: var(--b3-theme-primary);
+                    text-decoration: underline;
+                    text-decoration-style: dotted;
+                    flex: 1;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                `;
+
+                // 点击事件：打开块
+                blockTitleLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.openBlockTab(task.blockId);
+                });
+
+                // 鼠标悬停效果
+                blockTitleLink.addEventListener('mouseenter', () => {
+                    blockTitleLink.style.color = 'var(--b3-theme-primary-light)';
+                });
+                blockTitleLink.addEventListener('mouseleave', () => {
+                    blockTitleLink.style.color = 'var(--b3-theme-primary)';
+                });
+
+                blockInfoEl.appendChild(blockIcon);
+                blockInfoEl.appendChild(blockTitleLink);
+
+                // 将绑定块信息添加到容器
+                container.appendChild(blockInfoEl);
+            }
+        } catch (error) {
+            console.warn('获取绑定块信息失败:', error);
+            // 静默失败，不影响主要功能
+        }
+    }
+
+    /**
+     * 打开块标签页
+     * @param blockId 块ID
+     */
+    private async openBlockTab(blockId: string) {
+        try {
+            openBlock(blockId);
+        } catch (error) {
+            console.error('打开块失败:', error);
+            
+            // 询问用户是否删除无效的绑定
+            await confirm(
+                "打开块失败",
+                "绑定的块可能已被删除，是否解除绑定？",
+                async () => {
+                    // 解除任务的块绑定
+                    await this.unbindTaskFromBlock(blockId);
+                },
+                () => {
+                    showMessage("打开块失败");
+                }
+            );
+        }
+    }
+
+    /**
+     * 解除任务与块的绑定
+     * @param blockId 块ID
+     */
+    private async unbindTaskFromBlock(blockId: string) {
+        try {
+            const reminderData = await readReminderData();
+            let unboundCount = 0;
+
+            // 找到所有绑定到该块的任务并解除绑定
+            Object.keys(reminderData).forEach(taskId => {
+                const task = reminderData[taskId];
+                if (task && task.blockId === blockId) {
+                    delete task.blockId;
+                    delete task.docId;
+                    unboundCount++;
+                }
+            });
+
+            if (unboundCount > 0) {
+                await writeReminderData(reminderData);
+                
+                // 触发更新事件
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                
+                showMessage(`已解除 ${unboundCount} 个任务的块绑定`);
+                await this.loadTasks();
+            } else {
+                showMessage("未找到相关的任务绑定");
+            }
+        } catch (error) {
+            console.error('解除块绑定失败:', error);
+            showMessage("解除块绑定失败");
+        }
     }
 }

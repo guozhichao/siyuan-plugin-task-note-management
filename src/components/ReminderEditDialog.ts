@@ -934,7 +934,7 @@ export class ReminderEditDialog {
                 }
             }
 
-            showMessage(successMessage);
+            // showMessage(successMessage);
 
             // 调用保存回调（不传递参数，表示正常保存）
             if (this.onSaved) {
