@@ -1224,6 +1224,7 @@ export class ReminderDialog {
                 completed: false,
                 priority: priority,
                 categoryId: categoryId, // 添加分类ID
+                projectId: undefined, // 添加项目ID字段，默认为undefined
                 createdAt: new Date().toISOString(),
                 repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined
             };

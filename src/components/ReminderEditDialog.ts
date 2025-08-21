@@ -873,6 +873,7 @@ export class ReminderEditDialog {
                     reminderData[this.reminder.id].note = note;
                     reminderData[this.reminder.id].priority = priority;
                     reminderData[this.reminder.id].categoryId = categoryId; // 添加分类ID
+                    // 保持原有的projectId，不在编辑时修改
                     reminderData[this.reminder.id].repeat = this.repeatConfig.enabled ? this.repeatConfig : undefined;
 
                     // 重置通知状态

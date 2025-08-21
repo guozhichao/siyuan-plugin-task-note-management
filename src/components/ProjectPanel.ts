@@ -1,4 +1,5 @@
 import { showMessage, confirm, Menu, openTab } from "siyuan";
+import { PROJECT_KANBAN_TAB_TYPE } from '../index'
 import { readProjectData, writeProjectData, getBlockByID, openBlock } from "../api";
 import { getLocalDateString, compareDateStrings } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
@@ -931,6 +932,15 @@ export class ProjectPanel {
     private showProjectContextMenu(event: MouseEvent, project: any) {
         const menu = new Menu("projectContextMenu");
 
+        // 打开项目看板
+        menu.addItem({
+            iconHTML: "📋",
+            label: "打开项目看板",
+            click: () => this.openProjectKanban(project)
+        });
+
+        menu.addSeparator();
+
         // 复制块引用
         menu.addItem({
             iconHTML: "📋",
@@ -1205,5 +1215,27 @@ export class ProjectPanel {
             window.dispatchEvent(new CustomEvent('projectUpdated'));
         });
         categoryDialog.show();
+    }
+
+    private openProjectKanban(project: any) {
+        try {
+            // console.log("test")
+            // 打开项目看板Tab
+            openTab({
+                app: this.plugin?.app,
+                custom: {
+                    icon: "iconProject",
+                    title: `${project.title || '项目看板'} - 看板`,
+                    data: {
+                        projectId: project.id,
+                        projectTitle: project.title
+                    },
+                    id: this.plugin.name + PROJECT_KANBAN_TAB_TYPE,
+                }
+            });
+        } catch (error) {
+            console.error('打开项目看板失败:', error);
+            showMessage("打开项目看板失败");
+        }
     }
 }

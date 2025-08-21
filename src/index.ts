@@ -26,10 +26,12 @@ import { NotificationDialog } from "./components/NotificationDialog";
 import { DocumentReminderDialog } from "./components/DocumentReminderDialog";
 import { ProjectDialog } from "./components/ProjectDialog";
 import { ProjectPanel } from "./components/ProjectPanel";
+import { ProjectKanbanView } from "./components/ProjectKanbanView";
 import SettingPanelComponent from "./SettingPanel.svelte";
 
 export const SETTINGS_FILE = "reminder-settings.json";
 const TAB_TYPE = "reminder_calendar_tab";
+export const PROJECT_KANBAN_TAB_TYPE = "project_kanban_tab";
 
 // 默认设置
 export const DEFAULT_SETTINGS = {
@@ -319,11 +321,20 @@ export default class ReminderPlugin extends Plugin {
 
         // 注册日历视图标签页
         this.addTab({
-            type: TAB_TYPE,
+            type: PROJECT_KANBAN_TAB_TYPE,
             init: (tab) => {
-                const calendarView = new CalendarView(tab.element, this);
+                // 从tab数据中获取projectId
+                console.log("test")
+                const projectId = tab.data?.projectId;
+                if (!projectId) {
+                    console.error('项目看板Tab缺少projectId');
+                    tab.element.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--b3-theme-error);">错误：缺少项目ID</div>';
+                    return;
+                }
+                
+                const projectKanbanView = new ProjectKanbanView(tab.element, this, projectId);
                 // 保存实例引用用于清理
-                this.calendarViews.set(tab.id, calendarView);
+                this.calendarViews.set(tab.id, projectKanbanView);
             }
         });
 
