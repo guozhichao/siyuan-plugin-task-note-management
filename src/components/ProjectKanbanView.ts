@@ -573,6 +573,28 @@ export class ProjectKanbanView {
             infoEl.appendChild(noteEl);
         }
 
+        // 番茄钟数量
+        if (task.pomodoroCount && task.pomodoroCount > 0) {
+            const pomodoroDisplay = document.createElement('div');
+            pomodoroDisplay.className = 'kanban-task-pomodoro-count';
+            pomodoroDisplay.style.cssText = `
+                font-size: 12px;
+                display: inline-flex;
+                align-items: center;
+                gap: 2px;
+                margin-top: 4px;
+            `;
+
+            const tomatoEmojis = '🍅'.repeat(Math.min(task.pomodoroCount, 5));
+            const extraCount = task.pomodoroCount > 5 ? `+${task.pomodoroCount - 5}` : '';
+
+            pomodoroDisplay.innerHTML = `
+                <span title="完成的番茄钟数量: ${task.pomodoroCount}">${tomatoEmojis}${extraCount}</span>
+            `;
+
+            infoEl.appendChild(pomodoroDisplay);
+        }
+
         // 不再单独显示绑定块信息，因为已经集成到标题中
 
         taskEl.appendChild(titleEl);
@@ -1862,6 +1884,10 @@ export class ProjectKanbanView {
 
             .kanban-task-block-info span[data-type="a"]:hover {
                 color: var(--b3-theme-primary-light);
+            }
+
+            .kanban-task-pomodoro-count {
+                /* Styles for pomodoro count */
             }
         `;
         document.head.appendChild(style);
