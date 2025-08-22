@@ -23,6 +23,10 @@ export class ProjectKanbanView {
     private draggedTask: any = null;
     private draggedElement: HTMLElement | null = null;
     private sortButton: HTMLButtonElement;
+    private isLoading: boolean = false;
+    
+    // 添加缓存当前任务列表 - 照着 ReminderPanel 添加
+    private currentTasksCache: any[] = [];
 
     // 添加静态变量来跟踪当前活动的番茄钟
     private static currentPomodoroTimer: PomodoroTimer | null = null;
@@ -42,7 +46,7 @@ export class ProjectKanbanView {
         await this.loadTasks();
 
         // 监听提醒更新事件
-        window.addEventListener('reminderUpdated', () => this.loadTasks());
+        window.addEventListener('reminderUpdated2', () => this.loadTasks());
     }
 
     private async loadProject() {
@@ -251,6 +255,12 @@ export class ProjectKanbanView {
     }
 
     private async loadTasks() {
+        if (this.isLoading) {
+            console.log('任务正在加载中，跳过本次加载请求');
+            return;
+        }
+        
+        this.isLoading = true;
         try {
             const reminderData = await readReminderData();
             this.tasks = Object.values(reminderData)
@@ -261,10 +271,19 @@ export class ProjectKanbanView {
                 }));
 
             this.sortTasks();
+            
+            // 缓存当前任务列表 - 确保在排序后更新缓存
+            this.currentTasksCache = [...this.tasks];
+            
+            console.log('任务加载完成，缓存了', this.currentTasksCache.length, '个任务');
+            console.log('任务排序方式:', this.currentSort, this.currentSortOrder);
+            
             this.renderKanban();
         } catch (error) {
             console.error('加载任务失败:', error);
             showMessage("加载任务失败");
+        } finally {
+            this.isLoading = false;
         }
     }
 
@@ -430,6 +449,9 @@ export class ProjectKanbanView {
 
         const priority = task.priority || 'none';
         
+        // 存储任务数据到元素 - 照着 ReminderPanel 添加
+        taskEl.dataset.priority = priority;
+        
         // 添加优先级样式类
         if (priority !== 'none') {
             taskEl.classList.add(`kanban-task-priority-${priority}`);
@@ -458,6 +480,7 @@ export class ProjectKanbanView {
                 text-decoration: underline;
                 text-decoration-style: dotted;
                 transition: color 0.2s ease;
+                width: fit-content;
             `;
             
             // 点击事件：打开块
@@ -481,6 +504,7 @@ export class ProjectKanbanView {
                 margin-bottom: 8px;
                 color: var(--b3-theme-on-surface);
                 line-height: 1.4;
+                width: fit-content;
             `;
         }
         
@@ -575,7 +599,7 @@ export class ProjectKanbanView {
 
         // 在优先级排序模式下添加拖拽排序功能
         if (this.currentSort === 'priority') {
-            this.addTaskSortDragEvents(taskEl, task);
+            this.addDragFunctionality(taskEl, task);
         } else {
             // 添加普通拖拽事件（状态切换）
             this.addTaskDragEvents(taskEl, task);
@@ -666,12 +690,15 @@ export class ProjectKanbanView {
         });
     }
 
-    // 新增：添加任务排序拖拽功能
-    private addTaskSortDragEvents(element: HTMLElement, task: any) {
+    // 新增：添加拖拽功能 - 完全照着 ReminderPanel.addDragFunctionality 重写
+    private addDragFunctionality(element: HTMLElement, task: any) {
+        element.draggable = true;
+        element.style.cursor = 'grab';
+
         element.addEventListener('dragstart', (e) => {
             this.isDragging = true;
-            this.draggedTask = task;
             this.draggedElement = element;
+            this.draggedTask = task;
             element.style.opacity = '0.5';
             element.style.cursor = 'grabbing';
 
@@ -681,22 +708,12 @@ export class ProjectKanbanView {
             }
         });
 
-        element.addEventListener('dragend', () => {
+        element.addEventListener('dragend', (e) => {
             this.isDragging = false;
-            this.draggedTask = null;
             this.draggedElement = null;
+            this.draggedTask = null;
             element.style.opacity = '';
             element.style.cursor = 'grab';
-            element.style.transform = 'translateY(0)';
-            element.style.boxShadow = 'none';
-
-            // 清理所有拖拽状态
-            this.container.querySelectorAll('.kanban-drop-zone-active, .drop-indicator').forEach(el => {
-                el.classList.remove('kanban-drop-zone-active');
-                if (el.classList.contains('drop-indicator')) {
-                    el.remove();
-                }
-            });
         });
 
         element.addEventListener('dragover', (e) => {
@@ -718,7 +735,7 @@ export class ProjectKanbanView {
 
                 const targetTask = this.getTaskFromElement(element);
                 if (targetTask && this.canDropHere(this.draggedTask, targetTask)) {
-                    this.handleTaskDrop(this.draggedTask, targetTask, e, element);
+                    this.handleDrop(this.draggedTask, targetTask, e);
                 }
             }
             this.hideDropIndicator();
@@ -729,16 +746,22 @@ export class ProjectKanbanView {
         });
     }
 
-    // 新增：从元素获取任务数据
+    // 新增：从元素获取任务数据 - 修复：直接从缓存查找，避免循环依赖
     private getTaskFromElement(element: HTMLElement): any {
         const taskId = element.dataset.taskId;
         if (!taskId) return null;
 
-        // 从当前任务列表中查找
-        return this.tasks.find(t => t.id === taskId);
+        // 直接从当前任务缓存中查找，避免调用getDisplayedTasks造成循环
+        return this.currentTasksCache.find(t => t && t.id === taskId) || null;
     }
 
-    // 新增：检查是否可以放置
+    // 新增：获取当前显示的任务列表 - 修复：直接从缓存获取，不依赖DOM顺序
+    private getDisplayedTasks(): any[] {
+        // 直接返回当前缓存的任务列表，这样在拖拽过程中不会受DOM更新影响
+        return [...this.currentTasksCache];
+    }
+
+    // 新增：检查是否可以放置 - 照着 ReminderPanel.canDropHere 重写
     private canDropHere(draggedTask: any, targetTask: any): boolean {
         const draggedPriority = draggedTask.priority || 'none';
         const targetPriority = targetTask.priority || 'none';
@@ -749,7 +772,7 @@ export class ProjectKanbanView {
         return draggedPriority === targetPriority && draggedStatus === targetStatus;
     }
 
-    // 新增：显示拖放指示器
+    // 新增：显示拖放指示器 - 完全照着 ReminderPanel.showDropIndicator 重写
     private showDropIndicator(element: HTMLElement, event: DragEvent) {
         this.hideDropIndicator(); // 先清除之前的指示器
 
@@ -759,14 +782,14 @@ export class ProjectKanbanView {
         const indicator = document.createElement('div');
         indicator.className = 'drop-indicator';
         indicator.style.cssText = `
-            position: absolute;
-            left: 0;
-            right: 0;
-            height: 2px;
-            background-color: var(--b3-theme-primary);
-            z-index: 1000;
-            pointer-events: none;
-        `;
+                position: absolute;
+                left: 0;
+                right: 0;
+                height: 2px;
+                background-color: var(--b3-theme-primary);
+                z-index: 1000;
+                pointer-events: none;
+            `;
 
         if (event.clientY < midpoint) {
             // 插入到目标元素之前
@@ -781,65 +804,110 @@ export class ProjectKanbanView {
         }
     }
 
-    // 新增：隐藏拖放指示器
+    // 新增：隐藏拖放指示器 - 照着 ReminderPanel.hideDropIndicator 重写
     private hideDropIndicator() {
         const indicators = document.querySelectorAll('.drop-indicator');
         indicators.forEach(indicator => indicator.remove());
     }
 
-    // 新增：处理任务拖放
-    private async handleTaskDrop(draggedTask: any, targetTask: any, event: DragEvent, dropElement: HTMLElement) {
+    // 新增：处理拖放 - 修复：避免重复加载
+    private async handleDrop(draggedTask: any, targetTask: any, event: DragEvent) {
         try {
-            const rect = dropElement.getBoundingClientRect();
+            const rect = (event.target as HTMLElement).getBoundingClientRect();
             const midpoint = rect.top + rect.height / 2;
             const insertBefore = event.clientY < midpoint;
 
             await this.reorderTasks(draggedTask, targetTask, insertBefore);
 
-            showMessage("任务排序已更新");
-            await this.loadTasks(); // 重新加载以应用新排序
+            showMessage("排序已更新");
+            
+            // 延迟重新加载，确保数据库写入完成，但只加载一次
+            setTimeout(() => {
+                this.loadTasks();
+            }, 200);
 
         } catch (error) {
-            console.error('处理任务拖放失败:', error);
+            console.error('处理拖放失败:', error);
             showMessage("排序更新失败");
         }
     }
 
-    // 新增：重新排序任务
+    // 新增：重新排序任务 - 完全照着 ReminderPanel.reorderReminders 重写
     private async reorderTasks(draggedTask: any, targetTask: any, insertBefore: boolean) {
         try {
             const reminderData = await readReminderData();
 
-            // 获取同优先级同状态的所有任务
+            // 获取同优先级同状态的所有任务 - 修复：正确过滤同项目、同优先级、同状态的任务
             const samePriorityTasks = Object.values(reminderData)
-                .filter((t: any) =>
-                    t &&
-                    t.projectId === this.projectId &&
-                    (t.priority || 'none') === (draggedTask.priority || 'none') &&
-                    this.getTaskStatus(t) === draggedTask.status
-                )
+                .filter((t: any) => {
+                    if (!t || !t.id) return false;
+                    
+                    // 必须是同一个项目
+                    if (t.projectId !== this.projectId) return false;
+                    
+                    // 必须是同一个优先级
+                    const tPriority = t.priority || 'none';
+                    const draggedPriority = draggedTask.priority || 'none';
+                    if (tPriority !== draggedPriority) return false;
+                    
+                    // 必须是同一个状态
+                    const tStatus = this.getTaskStatus(t);
+                    const draggedStatus = draggedTask.status;
+                    if (tStatus !== draggedStatus) return false;
+                    
+                    return true;
+                })
                 .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+            console.log('找到同优先级同状态任务:', samePriorityTasks.length, '个');
+            console.log('拖拽任务:', draggedTask.title, '优先级:', draggedTask.priority, '状态:', draggedTask.status);
+            console.log('目标任务:', targetTask.title, '优先级:', targetTask.priority, '状态:', targetTask.status);
 
             // 移除被拖拽的任务
             const filteredTasks = samePriorityTasks.filter((t: any) => t.id !== draggedTask.id);
 
             // 找到目标位置
             const targetIndex = filteredTasks.findIndex((t: any) => t.id === targetTask.id);
+            if (targetIndex === -1) {
+                console.error('未找到目标任务在同优先级列表中');
+                throw new Error('未找到目标任务');
+            }
+            
             const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
+            console.log('插入位置:', insertIndex, '在', filteredTasks.length, '个任务中');
 
             // 插入被拖拽的任务
             filteredTasks.splice(insertIndex, 0, draggedTask);
 
-            // 重新分配排序值
+            // 重新分配排序值 - 修复：确保更新的是同一个对象引用
             filteredTasks.forEach((task: any, index: number) => {
-                if (reminderData[task.id]) {
-                    reminderData[task.id].sort = index * 10; // 使用10的倍数便于后续插入
-                    reminderData[task.id].updatedTime = new Date().toISOString();
+                const taskInDb = reminderData[task.id];
+                if (taskInDb) {
+                    const oldSort = taskInDb.sort || 0;
+                    const newSort = index * 10;
+                    console.log(`任务 ${task.title}: sort ${oldSort} -> ${newSort}`);
+                    
+                    // 更新数据库对象的 sort 值
+                    taskInDb.sort = newSort;
                 }
             });
 
+            console.log('准备保存数据到数据库...');
             await writeReminderData(reminderData);
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            console.log('数据已保存到数据库');
+            
+            // 验证保存是否成功 - 修复：使用正确的预期值进行验证
+            const verifyData = await readReminderData();
+            console.log('验证保存结果:');
+            filteredTasks.forEach((task: any, index: number) => {
+                const expectedSort = index * 10; // 这是我们刚刚设置的值
+                const savedSort = verifyData[task.id]?.sort;
+                const isCorrect = expectedSort === savedSort;
+                console.log(`任务 ${task.title}: 预期 sort=${expectedSort}, 实际 sort=${savedSort} ${isCorrect ? '✓' : '✗'}`);
+            });
+            
+            // 修复：移除事件广播，避免重复加载
+            // window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
         } catch (error) {
             console.error('重新排序任务失败:', error);
