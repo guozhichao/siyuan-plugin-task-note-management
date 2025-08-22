@@ -1202,7 +1202,12 @@ export class ProjectKanbanView {
         const reminderData = await readReminderData();
         const categoryId = this.project.categoryId; // 继承项目分类
 
-        for (const line of lines) {
+        // 获取当前项目中所有任务的最大排序值
+        const maxSort = Object.values(reminderData)
+            .filter((r: any) => r && r.projectId === this.projectId && typeof r.sort === 'number')
+            .reduce((max: number, task: any) => Math.max(max, task.sort), 0);
+
+        for (const [index, line] of lines.entries()) {
             const taskId = `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
             
             // 解析任务参数
@@ -1220,6 +1225,7 @@ export class ProjectKanbanView {
                 createdTime: new Date().toISOString(),
                 date: taskData.startDate,
                 endDate: taskData.endDate,
+                sort: maxSort + (index + 1) * 10, // 按顺序分配排序值
             };
 
             // 如果解析出了块ID，尝试绑定块
