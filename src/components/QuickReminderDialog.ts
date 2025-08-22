@@ -887,6 +887,16 @@ export class QuickReminderDialog {
                 isQuickReminder: true // 标记为快速创建的提醒
             };
 
+            // 如果任务时间早于当前时间，则标记为已通知
+            const reminderDateTime = new Date(time ? `${date}T${time}` : date);
+            if (!time) {
+                // 对于全天任务，我们比较当天的结束时间
+                reminderDateTime.setHours(23, 59, 59, 999);
+            }
+            if (reminderDateTime < new Date()) {
+                reminder.notified = true;
+            }
+
             if (endDate && endDate !== date) {
                 reminder.endDate = endDate;
             }
