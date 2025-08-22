@@ -464,9 +464,6 @@ export class ProjectPanel {
 
         const projectEl = document.createElement('div');
         projectEl.className = `project-item ${isOverdue ? 'project-item--overdue' : ''} project-item--${status} project-priority-${priority}`;
-        if (status === 'archived') {
-            projectEl.style.opacity = '0.5';
-        }
 
         // 存储项目数据到元素
         projectEl.dataset.projectId = project.id;
