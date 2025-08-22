@@ -462,5 +462,10 @@
     "daysLeftPlural": "${days} days left",
     "daysLeftSingle": "1 day left",
     "autoDetectDateTime": "Auto Detect Date Time",
-    "autoDetectDateTimeDesc": "Automatically detect date and time information in block content when creating reminders, supports natural language expressions like 'tomorrow 3pm', 'next Friday', etc."
+    "autoDetectDateTimeDesc": "Automatically detect date and time information in block content when creating reminders, supports natural language expressions like 'tomorrow 3pm', 'next Friday', etc.",
+    "addToProject": "Add to Project",
+    "searchProjectPlaceholder": "Search projects...",
+    "recentProjects": "Recent Projects",
+    "addedToProjectSuccess": "Successfully added ${count} blocks to the project",
+    "addedToProjectFailed": "Failed to add to project"
 }

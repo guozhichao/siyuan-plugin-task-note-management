@@ -27,11 +27,14 @@ import { DocumentReminderDialog } from "./components/DocumentReminderDialog";
 import { ProjectDialog } from "./components/ProjectDialog";
 import { ProjectPanel } from "./components/ProjectPanel";
 import { ProjectKanbanView } from "./components/ProjectKanbanView";
+import { AddToProjectDialog } from "./components/AddToProjectDialog";
 import SettingPanelComponent from "./SettingPanel.svelte";
 
 export const SETTINGS_FILE = "reminder-settings.json";
 const TAB_TYPE = "reminder_calendar_tab";
 export const PROJECT_KANBAN_TAB_TYPE = "project_kanban_tab";
+export const STORAGE_NAME = "siyuan-plugin-task-note-management";
+
 
 // 默认设置
 export const DEFAULT_SETTINGS = {
@@ -80,6 +83,7 @@ export default class ReminderPlugin extends Plugin {
 
     async onload() {
         console.log("Reminder Plugin loaded");
+        await this.loadData(STORAGE_NAME);
 
         // 添加自定义图标
         this.addIcons(`
@@ -322,16 +326,16 @@ export default class ReminderPlugin extends Plugin {
         // 注册日历视图标签页
         this.addTab({
             type: TAB_TYPE,
-            init: (tab) => {
+            init: ((tab) => {
                 const calendarView = new CalendarView(tab.element, this);
                 // 保存实例引用用于清理
                 this.calendarViews.set(tab.id, calendarView);
-            }
+            }) as any
         });
         // 注册项目看板标签页
         this.addTab({
             type: PROJECT_KANBAN_TAB_TYPE,
-            init: (tab) => {
+            init: ((tab) => {
                 // 从tab数据中获取projectId
                 const projectId = tab.data?.projectId;
                 if (!projectId) {
@@ -343,7 +347,7 @@ export default class ReminderPlugin extends Plugin {
                 const projectKanbanView = new ProjectKanbanView(tab.element, this, projectId);
                 // 保存实例引用用于清理
                 this.calendarViews.set(tab.id, projectKanbanView);
-            }
+            }) as any
         });
 
         // 文档块标添加菜单
@@ -814,7 +818,7 @@ export default class ReminderPlugin extends Plugin {
                 iconHTML: "📋",
                 label: t("viewDocumentAllReminders"),
                 click: () => {
-                    const documentReminderDialog = new DocumentReminderDialog(documentIds);
+                    const documentReminderDialog = new DocumentReminderDialog(documentIds[0]);
                     documentReminderDialog.show();
                 }
             });
@@ -887,6 +891,23 @@ export default class ReminderPlugin extends Plugin {
 
                     if (blockIds.length > 0) {
                         await this.handleMultipleBlocks(blockIds);
+                    }
+                }
+            }
+        });
+
+        detail.menu.addItem({
+            iconHTML: "📂",
+            label: t("addToProject"),
+            click: async () => {
+                if (detail.blockElements && detail.blockElements.length > 0) {
+                    const blockIds = detail.blockElements
+                        .map(el => el.getAttribute("data-node-id"))
+                        .filter(id => id);
+
+                    if (blockIds.length > 0) {
+                        const dialog = new AddToProjectDialog(this, blockIds);
+                        await dialog.show();
                     }
                 }
             }
