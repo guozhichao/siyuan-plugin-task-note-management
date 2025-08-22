@@ -501,8 +501,8 @@ export class ProjectKanbanView {
         taskIndentContainer.style.cssText = `
             display: flex;
             align-items: center;
-            gap: 4px;
-            width: 30px; /* 固定宽度以便对齐 */
+            justify-content: center;
+            width: 0px; /* 固定宽度以便对齐 */
             flex-shrink: 0;
         `;
 
@@ -2120,11 +2120,17 @@ export class ProjectKanbanView {
            }
 
            .kanban-task-collapse-btn {
-               padding: 2px;
-               height: 20px;
-               width: 20px;
+               height: 10px;
+               width: 10px;
+               min-width: auto;
                color: var(--b3-theme-on-surface);
                opacity: 0.6;
+               display: flex;
+               align-items: center;
+               justify-content: center;
+           }
+           .kanban-task-collapse-btn .b3-button__icon {
+                margin: 0;
            }
            .kanban-task-collapse-btn:hover {
                opacity: 1;
