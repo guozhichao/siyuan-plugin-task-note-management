@@ -69,7 +69,7 @@ export class ProjectKanbanView {
         // 项目标题
         const titleContainer = document.createElement('div');
         titleContainer.className = 'project-kanban-title';
-        
+
         const titleEl = document.createElement('h2');
         titleEl.textContent = this.project?.title || '项目看板';
         titleEl.style.cssText = `
@@ -159,7 +159,7 @@ export class ProjectKanbanView {
 
         // 添加自定义样式
         this.addCustomStyles();
-        
+
         // 更新排序按钮标题
         this.updateSortButtonTitle();
     }
@@ -254,22 +254,41 @@ export class ProjectKanbanView {
             console.log('任务正在加载中，跳过本次加载请求');
             return;
         }
-        
+
         this.isLoading = true;
         try {
             const reminderData = await readReminderData();
-            this.tasks = Object.values(reminderData)
-                .filter((reminder: any) => reminder && reminder.projectId === this.projectId)
-                .map((reminder: any) => ({
+            const projectTasks = Object.values(reminderData).filter((reminder: any) => reminder && reminder.projectId === this.projectId);
+            const taskMap = new Map(projectTasks.map((t: any) => [t.id, { ...t }]));
+
+            const getRootStatus = (task: any): string => {
+                let current = task;
+                while (current.parentId && taskMap.has(current.parentId)) {
+                    current = taskMap.get(current.parentId);
+                }
+                return this.getTaskStatus(current);
+            };
+
+            this.tasks = projectTasks.map((reminder: any) => {
+                let status;
+                if (reminder.parentId && taskMap.has(reminder.parentId)) {
+                    // For ALL subtasks, their column is determined by their root parent's status
+                    status = getRootStatus(reminder);
+                } else {
+                    // For top-level tasks, use their own status
+                    status = this.getTaskStatus(reminder);
+                }
+                return {
                     ...reminder,
-                    status: this.getTaskStatus(reminder)
-                }));
+                    status: status
+                };
+            });
 
             this.sortTasks();
-            
+
             console.log('任务加载完成');
             console.log('任务排序方式:', this.currentSort, this.currentSortOrder);
-            
+
             this.renderKanban();
         } catch (error) {
             console.error('加载任务失败:', error);
@@ -355,10 +374,10 @@ export class ProjectKanbanView {
         const dateB = b.date || '9999-12-31';
         const timeA = a.time || '00:00';
         const timeB = b.time || '00:00';
-        
+
         const datetimeA = `${dateA}T${timeA}`;
         const datetimeB = `${dateB}T${timeB}`;
-        
+
         const timeCompare = datetimeA.localeCompare(datetimeB);
         if (timeCompare !== 0) {
             return timeCompare;
@@ -383,7 +402,7 @@ export class ProjectKanbanView {
 
         this.renderColumn('todo', todoTasks);
         this.renderColumn('doing', doingTasks);
-        
+
         if (this.showDone) {
             this.renderColumn('done', doneTasks);
             this.showColumn('done');
@@ -402,10 +421,21 @@ export class ProjectKanbanView {
         content.innerHTML = '';
         count.textContent = tasks.length.toString();
 
-        tasks.forEach(task => {
-            const taskEl = this.createTaskElement(task);
+        const taskMap = new Map(tasks.map(t => [t.id, t]));
+        const topLevelTasks = tasks.filter(t => !t.parentId || !taskMap.has(t.parentId));
+        const childTasks = tasks.filter(t => t.parentId && taskMap.has(t.parentId));
+
+        const renderTaskWithChildren = (task: any, level: number) => {
+            const taskEl = this.createTaskElement(task, level);
             content.appendChild(taskEl);
-        });
+
+            const children = childTasks.filter(t => t.parentId === task.id);
+            if (children.length > 0) {
+                children.forEach(child => renderTaskWithChildren(child, level + 1));
+            }
+        };
+
+        topLevelTasks.forEach(task => renderTaskWithChildren(task, 0));
     }
 
     private showColumn(status: string) {
@@ -422,17 +452,20 @@ export class ProjectKanbanView {
         }
     }
 
-    private createTaskElement(task: any): HTMLElement {
+    private createTaskElement(task: any, level: number = 0): HTMLElement {
         const taskEl = document.createElement('div');
         taskEl.className = 'kanban-task';
+        if (level > 0) {
+            taskEl.classList.add('is-subtask');
+        }
         taskEl.draggable = true;
         taskEl.dataset.taskId = task.id;
 
         const priority = task.priority || 'none';
-        
+
         // 存储任务数据到元素
         taskEl.dataset.priority = priority;
-        
+
         // 添加优先级样式类
         if (priority !== 'none') {
             taskEl.classList.add(`kanban-task-priority-${priority}`);
@@ -444,10 +477,18 @@ export class ProjectKanbanView {
             position: relative;
         `;
 
+        if (task.completed) {
+            taskEl.style.opacity = '0.5';
+        }
+
+        if (level > 0) {
+            taskEl.style.marginLeft = `${level * 20}px`;
+        }
+
         // 任务标题
         const titleEl = document.createElement('div');
         titleEl.className = 'kanban-task-title';
-        
+
         if (task.blockId) {
             // 如果有绑定块，标题显示为可点击的超链接
             titleEl.setAttribute('data-type', 'a');
@@ -463,7 +504,7 @@ export class ProjectKanbanView {
                 transition: color 0.2s ease;
                 width: fit-content;
             `;
-            
+
             // 点击事件：打开块
             titleEl.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -488,9 +529,24 @@ export class ProjectKanbanView {
                 width: fit-content;
             `;
         }
-        
+
         titleEl.textContent = task.title || '未命名任务';
         titleEl.title = task.blockId ? `点击打开绑定块: ${task.title || '未命名任务'}` : (task.title || '未命名任务');
+
+        // 如果有子任务，添加指示器
+        const childTasks = this.tasks.filter(t => t.parentId === task.id);
+        if (childTasks.length > 0) {
+            const subtaskIndicator = document.createElement('span');
+            subtaskIndicator.className = 'subtask-indicator';
+            subtaskIndicator.textContent = ` (${childTasks.length})`;
+            subtaskIndicator.title = `包含 ${childTasks.length} 个子任务`;
+            subtaskIndicator.style.cssText = `
+                font-size: 12px;
+                color: var(--b3-theme-on-surface);
+                opacity: 0.7;
+            `;
+            titleEl.appendChild(subtaskIndicator);
+        }
 
         // 任务信息容器
         const infoEl = document.createElement('div');
@@ -501,12 +557,27 @@ export class ProjectKanbanView {
             gap: 4px;
         `;
 
+        if (task.completed && task.completedTime) {
+            const completedTimeEl = document.createElement('div');
+            completedTimeEl.className = 'kanban-task-completed-time';
+            completedTimeEl.innerHTML = `<span>✅</span><span>完成于: ${getLocalDateTimeString(new Date(task.completedTime))}</span>`;
+            completedTimeEl.style.cssText = `
+                font-size: 12px;
+                color: var(--b3-theme-on-surface);
+                opacity: 0.7;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            `;
+            infoEl.appendChild(completedTimeEl);
+        }
+
         // 日期时间
         const hasDate = task.date || task.endDate;
         if (hasDate) {
             const dateEl = document.createElement('div');
             dateEl.className = 'kanban-task-date';
-            
+
             const dateText = this.formatTaskDate(task);
             dateEl.innerHTML = `<span>📅</span><span>${dateText}</span>`;
             infoEl.appendChild(dateEl);
@@ -516,13 +587,13 @@ export class ProjectKanbanView {
         if (priority !== 'none') {
             const priorityEl = document.createElement('div');
             priorityEl.className = `kanban-task-priority priority-label-${priority}`;
-            
+
             const priorityNames = {
                 'high': '高优先级',
                 'medium': '中优先级',
                 'low': '低优先级'
             };
-            
+
             priorityEl.innerHTML = `<span class="priority-dot ${priority}"></span><span>${priorityNames[priority]}</span>`;
             infoEl.appendChild(priorityEl);
         }
@@ -545,7 +616,7 @@ export class ProjectKanbanView {
                     font-weight: 500;
                     align-self: flex-start;
                 `;
-                
+
                 if (category.icon) {
                     categoryEl.innerHTML = `<span>${category.icon}</span><span>${category.name}</span>`;
                 } else {
@@ -676,7 +747,7 @@ export class ProjectKanbanView {
             const taskEndDate = new Date(task.endDate);
             endDateStr = taskEndDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
         }
-        
+
         if (endDateStr) {
             return `${dateStr} → ${endDateStr}`;
         }
@@ -729,6 +800,12 @@ export class ProjectKanbanView {
             click: () => this.editTask(task)
         });
 
+        menu.addItem({
+            iconHTML: "➕",
+            label: "创建子任务",
+            click: () => this.showCreateTaskDialog(task)
+        });
+
         menu.addSeparator();
 
         // 设置优先级子菜单
@@ -775,7 +852,7 @@ export class ProjectKanbanView {
 
         // 状态切换
         const currentStatus = this.getTaskStatus(task);
-        
+
         if (currentStatus !== 'todo') {
             menu.addItem({
                 iconHTML: "📋",
@@ -833,7 +910,7 @@ export class ProjectKanbanView {
     private async changeTaskStatus(task: any, newStatus: string) {
         try {
             const reminderData = await readReminderData();
-            
+
             if (reminderData[task.id]) {
                 // 更新任务状态
                 if (newStatus === 'done') {
@@ -941,9 +1018,9 @@ export class ProjectKanbanView {
         setTimeout(() => document.addEventListener('click', handleClickOutside), 0);
     }
 
-    private showCreateTaskDialog() {
+    private showCreateTaskDialog(parentTask?: any) {
         const dialog = new Dialog({
-            title: "新建任务",
+            title: parentTask ? `为 "${parentTask.title}" 创建子任务` : "新建任务",
             content: `
                 <div class="reminder-dialog" style="padding-bottom: 0;">
                     <div class="b3-dialog__content" style="padding-bottom: 0;">
@@ -1034,7 +1111,7 @@ export class ProjectKanbanView {
 
         // 管理分类按钮事件
         manageCategoriesBtn.addEventListener('click', () => {
-             new CategoryManageDialog(() => {
+            new CategoryManageDialog(() => {
                 this.renderCategorySelector(categorySelector, this.project.categoryId);
             }).show();
         });
@@ -1062,13 +1139,30 @@ export class ProjectKanbanView {
 
         cancelBtn.addEventListener('click', () => dialog.destroy());
 
+        // 如果是创建子任务，预填父任务信息
+        if (parentTask) {
+            // 预选分类
+            const categoryOption = categorySelector.querySelector(`.category-option[data-category="${parentTask.categoryId || ''}"]`) as HTMLElement;
+            if (categoryOption) {
+                categorySelector.querySelectorAll('.category-option').forEach(opt => opt.classList.remove('selected'));
+                categoryOption.classList.add('selected');
+            }
+
+            // 预选优先级
+            const priorityOption = prioritySelector.querySelector(`.priority-option[data-priority="${parentTask.priority || 'none'}"]`) as HTMLElement;
+            if (priorityOption) {
+                prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
+                priorityOption.classList.add('selected');
+            }
+        }
+
         createBtn.addEventListener('click', async () => {
             const title = titleInput.value.trim();
             if (!title) {
                 showMessage("请输入任务标题");
                 return;
             }
-            
+
             const selectedPriority = prioritySelector.querySelector('.priority-option.selected') as HTMLElement;
             const priority = selectedPriority?.getAttribute('data-priority') || 'none';
 
@@ -1085,14 +1179,14 @@ export class ProjectKanbanView {
                 priority: priority,
                 categoryId: categoryId,
                 blockId: blockId
-            });
+            }, parentTask);
 
             dialog.destroy();
         });
 
     }
 
-    private async createTask(taskData: any) {
+    private async createTask(taskData: any, parentTask?: any) {
         const reminderData = await readReminderData();
         const taskId = `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
@@ -1110,6 +1204,15 @@ export class ProjectKanbanView {
             createdTime: new Date().toISOString(),
         };
 
+        // 如果是子任务，添加 parentId
+        if (parentTask) {
+            newTask.parentId = parentTask.id;
+            // 子任务继承父任务的状态
+            if (parentTask.status === 'doing') {
+                newTask.kanbanStatus = 'doing';
+            }
+        }
+
         // 如果提供了块ID，添加绑定信息
         if (taskData.blockId) {
             try {
@@ -1117,7 +1220,7 @@ export class ProjectKanbanView {
                 if (block) {
                     newTask.blockId = taskData.blockId;
                     newTask.docId = block.root_id || taskData.blockId;
-                    
+
                     // 更新块的书签状态
                     await updateBlockReminderBookmark(taskData.blockId);
                 }
@@ -1205,14 +1308,14 @@ export class ProjectKanbanView {
         // 获取当前项目中所有任务的最大排序值
         const maxSort = Object.values(reminderData)
             .filter((r: any) => r && r.projectId === this.projectId && typeof r.sort === 'number')
-            .reduce((max: number, task: any) => Math.max(max, task.sort), 0);
+            .reduce((max: number, task: any) => Math.max(max, task.sort || 0), 0);
 
         for (const [index, line] of lines.entries()) {
             const taskId = `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-            
+
             // 解析任务参数
             const taskData = this.parseTaskLine(line);
-            
+
             const newTask: any = {
                 id: taskId,
                 title: taskData.title,
@@ -1235,12 +1338,12 @@ export class ProjectKanbanView {
                     if (block) {
                         newTask.blockId = taskData.blockId;
                         newTask.docId = block.root_id || taskData.blockId;
-                        
+
                         // 如果任务标题为空或者是默认标题，使用块内容作为标题
                         if (!taskData.title || taskData.title === '未命名任务') {
                             newTask.title = block.content || block.fcontent || '未命名任务';
                         }
-                        
+
                         // 更新块的书签状态
                         await updateBlockReminderBookmark(taskData.blockId);
                     }
@@ -1249,7 +1352,7 @@ export class ProjectKanbanView {
                     // 绑定失败不影响任务创建，继续创建任务
                 }
             }
-            
+
             reminderData[taskId] = newTask;
         }
 
@@ -1269,7 +1372,7 @@ export class ProjectKanbanView {
 
         // 检查是否包含思源块链接或块引用
         blockId = this.extractBlockIdFromText(line);
-        
+
         // 如果找到了块链接，从标题中移除链接部分
         if (blockId) {
             // 移除 Markdown 链接格式 [标题](siyuan://blocks/blockId)
@@ -1285,20 +1388,20 @@ export class ProjectKanbanView {
         if (paramMatch) {
             // 移除参数部分，获取纯标题
             title = title.replace(/@(.+)$/, '').trim();
-            
+
             // 解析参数
             const paramString = paramMatch[1];
             const params = new URLSearchParams(paramString);
-            
+
             priority = params.get('priority') || undefined;
             startDate = params.get('startDate') || undefined;
             endDate = params.get('endDate') || undefined;
-            
+
             // 验证优先级值
             if (priority && !['high', 'medium', 'low', 'none'].includes(priority)) {
                 priority = 'none';
             }
-            
+
             // 验证日期格式 (YYYY-MM-DD)
             const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
             if (startDate && !dateRegex.test(startDate)) {
@@ -1358,25 +1461,37 @@ export class ProjectKanbanView {
     }
 
     private async deleteTask(task: any) {
+        const childTasks = this.tasks.filter(t => t.parentId === task.id);
+        let confirmMessage = `确定要删除任务 "${task.title}" 吗？此操作不可撤销。`;
+
+        if (childTasks.length > 0) {
+            confirmMessage += `\n\n此任务包含 ${childTasks.length} 个子任务，它们也将被一并删除。`;
+        }
+
         confirm(
             "删除任务",
-            `确定要删除任务 "${task.title}" 吗？此操作不可撤销。`,
+            confirmMessage,
             async () => {
                 try {
                     const reminderData = await readReminderData();
-                    
-                    if (reminderData[task.id]) {
-                        delete reminderData[task.id];
-                        await writeReminderData(reminderData);
 
-                        // 触发更新事件
-                        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    const tasksToDelete = [task.id, ...childTasks.map(t => t.id)];
 
-                        // 重新加载任务
-                        await this.loadTasks();
+                    tasksToDelete.forEach(taskId => {
+                        if (reminderData[taskId]) {
+                            delete reminderData[taskId];
+                        }
+                    });
 
-                        showMessage("任务已删除");
-                    }
+                    await writeReminderData(reminderData);
+
+                    // 触发更新事件
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+                    // 重新加载任务
+                    await this.loadTasks();
+
+                    showMessage("任务已删除");
                 } catch (error) {
                     console.error('删除任务失败:', error);
                     showMessage("删除任务失败");
@@ -1901,7 +2016,7 @@ export class ProjectKanbanView {
     private renderCategorySelector(container: HTMLElement, defaultCategoryId?: string) {
         container.innerHTML = '';
         const categories = this.categoryManager.getCategories();
-        
+
         const noCategoryEl = document.createElement('div');
         noCategoryEl.className = 'category-option';
         noCategoryEl.setAttribute('data-category', '');
@@ -1922,7 +2037,7 @@ export class ProjectKanbanView {
             }
             container.appendChild(categoryEl);
         });
-        
+
         container.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
             const option = target.closest('.category-option') as HTMLElement;
@@ -1940,7 +2055,7 @@ export class ProjectKanbanView {
             if (reminderData[taskId]) {
                 reminderData[taskId].priority = priority;
                 await writeReminderData(reminderData);
-                
+
                 showMessage("优先级已更新");
                 await this.loadTasks();
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -1964,7 +2079,7 @@ export class ProjectKanbanView {
 
             const title = task.title || "未命名任务";
             const blockRef = `((${blockId} "${title}"))`;
-            
+
             await navigator.clipboard.writeText(blockRef);
             showMessage("块引用已复制到剪贴板");
         } catch (error) {
@@ -2070,7 +2185,7 @@ export class ProjectKanbanView {
     private async bindTaskToBlock(task: any, blockId: string) {
         try {
             const reminderData = await readReminderData();
-            
+
             if (reminderData[task.id]) {
                 // 获取块信息
                 const block = await getBlockByID(blockId);
@@ -2081,12 +2196,12 @@ export class ProjectKanbanView {
                 // 更新任务数据
                 reminderData[task.id].blockId = blockId;
                 reminderData[task.id].docId = block.root_id || blockId;
-                
+
                 await writeReminderData(reminderData);
-                
+
                 // 更新块的书签状态
                 await updateBlockReminderBookmark(blockId);
-                
+
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
             } else {
@@ -2108,7 +2223,7 @@ export class ProjectKanbanView {
             openBlock(blockId);
         } catch (error) {
             console.error('打开块失败:', error);
-            
+
             // 询问用户是否删除无效的绑定
             await confirm(
                 "打开块失败",
@@ -2145,10 +2260,10 @@ export class ProjectKanbanView {
 
             if (unboundCount > 0) {
                 await writeReminderData(reminderData);
-                
+
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                
+
                 showMessage(`已解除 ${unboundCount} 个任务的块绑定`);
                 await this.loadTasks();
             } else {
