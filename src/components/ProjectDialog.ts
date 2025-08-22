@@ -2,16 +2,19 @@ import { Dialog, showMessage } from "siyuan";
 import { readProjectData, writeProjectData, getBlockByID } from "../api";
 import { getLocalDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
+import { StatusManager } from "../utils/statusManager";
 import { t } from "../utils/i18n";
 
 export class ProjectDialog {
     private dialog: Dialog;
     private blockId: string;
     private categoryManager: CategoryManager;
+    private statusManager: StatusManager;
 
     constructor(blockId?: string) {
         this.blockId = blockId;
         this.categoryManager = CategoryManager.getInstance();
+        this.statusManager = StatusManager.getInstance();
     }
 
     async show() {
@@ -38,6 +41,7 @@ export class ProjectDialog {
             });
 
             this.bindEvents();
+            await this.statusManager.initialize();
         } catch (error) {
             console.error('显示项目对话框失败:', error);
             showMessage(t("openModifyDialogFailed"));
@@ -47,9 +51,14 @@ export class ProjectDialog {
     private generateDialogHTML(title: string, existingProject?: any): string {
         const today = getLocalDateString();
         const categories = this.categoryManager.getCategories();
+        const statuses = this.statusManager.getStatuses();
 
         const categoryOptions = categories.map(cat =>
             `<option value="${cat.id}" ${existingProject?.categoryId === cat.id ? 'selected' : ''}>${cat.icon ? cat.icon + ' ' : ''}${cat.name}</option>`
+        ).join('');
+
+        const statusOptions = statuses.map(status =>
+            `<option value="${status.id}" ${existingProject?.status === status.id ? 'selected' : ''}>${status.icon ? status.icon + ' ' : ''}${status.name}</option>`
         ).join('');
 
         return `
@@ -68,9 +77,7 @@ export class ProjectDialog {
                     <div class="form-group">
                         <label>${t("projectStatus") || "项目状态"}:</label>
                         <select id="projectStatus" class="b3-select">
-                            <option value="active" ${(!existingProject?.status || existingProject?.status === 'active') ? 'selected' : ''}>${t("active") || "正在进行"}</option>
-                            <option value="someday" ${existingProject?.status === 'someday' ? 'selected' : ''}>${t("someday") || "未来也许"}</option>
-                            <option value="archived" ${existingProject?.status === 'archived' ? 'selected' : ''}>${t("archived") || "已归档"}</option>
+                            ${statusOptions}
                         </select>
                     </div>
                     

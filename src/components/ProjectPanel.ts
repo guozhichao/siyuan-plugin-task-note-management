@@ -3,8 +3,10 @@ import { PROJECT_KANBAN_TAB_TYPE } from '../index'
 import { readProjectData, writeProjectData, getBlockByID, openBlock } from "../api";
 import { getLocalDateString, compareDateStrings } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
+import { StatusManager } from "../utils/statusManager";
 import { ProjectDialog } from "./ProjectDialog";
 import { CategoryManageDialog } from "./CategoryManageDialog";
+import { StatusManageDialog } from "./StatusManageDialog";
 import { t } from "../utils/i18n";
 
 
@@ -20,6 +22,7 @@ export class ProjectPanel {
     private currentSort: string = 'priority';
     private currentSortOrder: 'asc' | 'desc' = 'desc';
     private categoryManager: CategoryManager;
+    private statusManager: StatusManager;
     private projectUpdatedHandler: () => void;
     // 添加拖拽相关属性
     private isDragging: boolean = false;
@@ -31,6 +34,7 @@ export class ProjectPanel {
         this.container = container;
         this.plugin = plugin;
         this.categoryManager = CategoryManager.getInstance();
+        this.statusManager = StatusManager.getInstance();
 
         this.projectUpdatedHandler = () => {
             this.loadProjects();
@@ -41,6 +45,7 @@ export class ProjectPanel {
 
     private async initializeAsync() {
         await this.categoryManager.initialize();
+        await this.statusManager.initialize();
         this.initUI();
         this.loadProjects();
 
@@ -89,6 +94,16 @@ export class ProjectPanel {
             this.showCategoryManageDialog();
         });
         actionContainer.appendChild(categoryManageBtn);
+
+        // 添加状态管理按钮
+        const statusManageBtn = document.createElement('button');
+        statusManageBtn.className = 'b3-button b3-button--outline';
+        statusManageBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg>';
+        statusManageBtn.title = t("manageStatuses") || "管理状态";
+        statusManageBtn.addEventListener('click', () => {
+            this.showStatusManageDialog();
+        });
+        actionContainer.appendChild(statusManageBtn);
 
         // 添加创建项目按钮
         const createProjectBtn = document.createElement('button');
@@ -141,12 +156,7 @@ export class ProjectPanel {
             flex: 1;
             min-width: 0;
         `;
-        this.filterSelect.innerHTML = `
-            <option value="active" selected>${t("active") || "正在进行"}</option>
-            <option value="someday">${t("someday") || "未来也许"}</option>
-            <option value="archived">${t("archived") || "已归档"}</option>
-            <option value="all">${t("allProjects") || "全部项目"}</option>
-        `;
+        this.renderStatusFilter();
         this.filterSelect.addEventListener('change', () => {
             this.currentTab = this.filterSelect.value;
             this.loadProjects();
@@ -177,6 +187,29 @@ export class ProjectPanel {
         // 渲染分类过滤器
         this.renderCategoryFilter();
         this.updateSortButtonTitle();
+    }
+
+    private async renderStatusFilter() {
+        if (!this.filterSelect) return;
+
+        try {
+            const statuses = this.statusManager.getStatuses();
+
+            this.filterSelect.innerHTML = `<option value="all">${t("allProjects") || "全部项目"}</option>`;
+
+            statuses.forEach(status => {
+                const optionEl = document.createElement('option');
+                optionEl.value = status.id;
+                const displayText = status.icon ? `${status.icon} ${status.name}` : status.name;
+                optionEl.textContent = displayText;
+                optionEl.selected = this.currentTab === status.id;
+                this.filterSelect.appendChild(optionEl);
+            });
+
+        } catch (error) {
+            console.error('渲染状态过滤器失败:', error);
+            this.filterSelect.innerHTML = `<option value="all">${t("allProjects") || "全部项目"}</option>`;
+        }
     }
 
     private async renderCategoryFilter() {
@@ -316,21 +349,10 @@ export class ProjectPanel {
 
             // 分类项目
             let displayProjects = [];
-            switch (this.currentTab) {
-                case 'active':
-                    displayProjects = filteredProjects.filter((project: any) => project.status === 'active');
-                    break;
-                case 'someday':
-                    displayProjects = filteredProjects.filter((project: any) => project.status === 'someday');
-                    break;
-                case 'archived':
-                    displayProjects = filteredProjects.filter((project: any) => project.status === 'archived');
-                    break;
-                case 'all':
-                    displayProjects = filteredProjects;
-                    break;
-                default:
-                    displayProjects = filteredProjects.filter((project: any) => project.status === 'active');
+            if (this.currentTab === 'all') {
+                displayProjects = filteredProjects;
+            } else {
+                displayProjects = filteredProjects.filter((project: any) => project.status === this.currentTab);
             }
 
             // 应用排序
@@ -434,13 +456,10 @@ export class ProjectPanel {
 
     private renderProjects(projects: any[]) {
         if (projects.length === 0) {
-            const filterNames = {
-                'active': t("noActiveProjects") || '暂无正在进行的项目',
-                'someday': t("noSomedayProjects") || '暂无未来也许的项目',
-                'archived': t("noArchivedProjects") || '暂无已归档的项目',
-                'all': t("noProjects") || '暂无项目'
-            };
-            this.projectsContainer.innerHTML = `<div class="project-empty">${filterNames[this.currentTab] || t("noProjects") || '暂无项目'}</div>`;
+            const status = this.statusManager.getStatusById(this.currentTab);
+            const statusName = status ? status.name : t("allProjects");
+            const emptyText = t("noProjectsInStatus")?.replace("${status}", statusName) || `暂无“${statusName}”状态的项目`;
+            this.projectsContainer.innerHTML = `<div class="project-empty">${this.currentTab === 'all' ? (t("noProjects") || '暂无项目') : emptyText}</div>`;
             return;
         }
 
@@ -563,12 +582,8 @@ export class ProjectPanel {
         // 添加状态标签
         const statusLabel = document.createElement('div');
         statusLabel.className = `project-status-label project-status-${status}`;
-        const statusNames = {
-            'active': '⏳' + (t("active") || '进行中'),
-            'someday': '💭' + (t("someday") || '未来也许'),
-            'archived': '📥' + (t("archived") || '已归档')
-        };
-        statusLabel.textContent = statusNames[status] || t("unknownStatus") || '未知状态';
+        const statusInfo = this.statusManager.getStatusById(status);
+        statusLabel.textContent = statusInfo ? `${statusInfo.icon || ''} ${statusInfo.name}` : (t("unknownStatus") || '未知状态');
         infoEl.appendChild(statusLabel);
         // 分类显示
         if (project.categoryId) {
@@ -1046,20 +1061,15 @@ export class ProjectPanel {
 
         // 设置状态子菜单
         const createStatusMenuItems = () => {
-            const statuses = [
-                { key: 'active', label: t("active") || '正在进行', icon: '⏳' },
-                { key: 'someday', label: t("someday") || '未来也许', icon: '💭' },
-                { key: 'archived', label: t("archived") || '已归档', icon: '📥' }
-            ];
-
+            const statuses = this.statusManager.getStatuses();
             const currentStatus = project.status || 'active';
 
             return statuses.map(status => ({
-                iconHTML: status.icon,
-                label: status.label,
-                current: currentStatus === status.key,
+                iconHTML: status.icon || '📝',
+                label: status.name,
+                current: currentStatus === status.id,
                 click: () => {
-                    this.setStatus(project.id, status.key);
+                    this.setStatus(project.id, status.id);
                 }
             }));
         };
@@ -1157,12 +1167,9 @@ export class ProjectPanel {
                 window.dispatchEvent(new CustomEvent('projectUpdated'));
                 this.loadProjects();
 
-                const statusNames = {
-                    'active': t("active") || '正在进行',
-                    'someday': t("someday") || '未来也许',
-                    'archived': t("archived") || '已归档'
-                };
-                showMessage(`${t("setStatus") || "已设置状态为"}：${statusNames[status]}`);
+                const statusInfo = this.statusManager.getStatusById(status);
+                const statusName = statusInfo ? statusInfo.name : t("unknown");
+                showMessage(`${t("setStatus") || "已设置状态为"}：${statusName}`);
             } else {
                 showMessage(t("projectNotExist") || "项目不存在");
             }
@@ -1241,6 +1248,16 @@ export class ProjectPanel {
             window.dispatchEvent(new CustomEvent('projectUpdated'));
         });
         categoryDialog.show();
+    }
+
+    private showStatusManageDialog() {
+        const statusDialog = new StatusManageDialog(() => {
+            // 状态更新后重新渲染过滤器和项目列表
+            this.renderStatusFilter();
+            this.loadProjects();
+            window.dispatchEvent(new CustomEvent('projectUpdated'));
+        });
+        statusDialog.show();
     }
 
     private openProjectKanban(project: any) {
