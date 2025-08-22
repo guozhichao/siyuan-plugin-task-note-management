@@ -1,12 +1,10 @@
 import { showMessage, confirm, Menu, Dialog } from "siyuan";
 
 import { readReminderData, writeReminderData, readProjectData, getBlockByID, updateBlockReminderBookmark, openBlock } from "../api";
-import { getLocalDateString, getLocalDateTime, getLocalDateTimeString } from "../utils/dateUtils";
+import { getLocalDateString, getLocalDateTimeString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
-import { t } from "../utils/i18n";
-import { ReminderDialog } from "./ReminderDialog";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 
 export class ProjectKanbanView {
@@ -21,12 +19,8 @@ export class ProjectKanbanView {
     private tasks: any[] = [];
     private isDragging: boolean = false;
     private draggedTask: any = null;
-    private draggedElement: HTMLElement | null = null;
     private sortButton: HTMLButtonElement;
     private isLoading: boolean = false;
-    
-    // 添加缓存当前任务列表 - 照着 ReminderPanel 添加
-    private currentTasksCache: any[] = [];
 
     // 添加静态变量来跟踪当前活动的番茄钟
     private static currentPomodoroTimer: PomodoroTimer | null = null;
@@ -46,7 +40,7 @@ export class ProjectKanbanView {
         await this.loadTasks();
 
         // 监听提醒更新事件
-        window.addEventListener('reminderUpdated2', () => this.loadTasks());
+        window.addEventListener('reminderUpdated', () => this.loadTasks());
     }
 
     private async loadProject() {
@@ -249,7 +243,7 @@ export class ProjectKanbanView {
             if (this.isDragging && this.draggedTask) {
                 e.preventDefault();
                 element.classList.remove('kanban-drop-zone-active');
-                this.moveTaskToStatus(this.draggedTask, status);
+                this.changeTaskStatus(this.draggedTask, status);
             }
         });
     }
@@ -272,10 +266,7 @@ export class ProjectKanbanView {
 
             this.sortTasks();
             
-            // 缓存当前任务列表 - 确保在排序后更新缓存
-            this.currentTasksCache = [...this.tasks];
-            
-            console.log('任务加载完成，缓存了', this.currentTasksCache.length, '个任务');
+            console.log('任务加载完成');
             console.log('任务排序方式:', this.currentSort, this.currentSortOrder);
             
             this.renderKanban();
@@ -314,7 +305,7 @@ export class ProjectKanbanView {
 
             switch (this.currentSort) {
                 case 'priority':
-                    result = this.compareByPriorityWithManualSort(a, b);
+                    result = this.compareByPriority(a, b);
                     break;
                 case 'time':
                     result = this.compareByTime(a, b);
@@ -323,7 +314,7 @@ export class ProjectKanbanView {
                     result = this.compareByTitle(a, b);
                     break;
                 default:
-                    result = this.compareByPriorityWithManualSort(a, b);
+                    result = this.compareByPriority(a, b);
             }
 
             // 优先级排序的结果相反
@@ -333,30 +324,6 @@ export class ProjectKanbanView {
 
             return this.currentSortOrder === 'desc' ? -result : result;
         });
-    }
-
-    // 新增：优先级排序与手动排序结合
-    private compareByPriorityWithManualSort(a: any, b: any): number {
-        const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
-        const priorityA = priorityOrder[a.priority || 'none'] || 0;
-        const priorityB = priorityOrder[b.priority || 'none'] || 0;
-
-        // 首先按优先级排序
-        const priorityDiff = priorityB - priorityA;
-        if (priorityDiff !== 0) {
-            return priorityDiff;
-        }
-
-        // 同优先级内按手动排序
-        const sortA = a.sort || 0;
-        const sortB = b.sort || 0;
-
-        if (sortA !== sortB) {
-            return sortA - sortB; // 手动排序值小的在前
-        }
-
-        // 如果手动排序值也相同，按时间排序
-        return this.compareByTime(a, b);
     }
 
     private compareByPriority(a: any, b: any): number {
@@ -449,7 +416,7 @@ export class ProjectKanbanView {
 
         const priority = task.priority || 'none';
         
-        // 存储任务数据到元素 - 照着 ReminderPanel 添加
+        // 存储任务数据到元素
         taskEl.dataset.priority = priority;
         
         // 添加优先级样式类
@@ -597,13 +564,8 @@ export class ProjectKanbanView {
         taskEl.appendChild(titleEl);
         taskEl.appendChild(infoEl);
 
-        // 在优先级排序模式下添加拖拽排序功能
-        if (this.currentSort === 'priority') {
-            this.addDragFunctionality(taskEl, task);
-        } else {
-            // 添加普通拖拽事件（状态切换）
-            this.addTaskDragEvents(taskEl, task);
-        }
+        // 添加拖拽事件（状态切换）
+        this.addTaskDragEvents(taskEl, task);
 
         // 添加右键菜单
         taskEl.addEventListener('contextmenu', (e) => {
@@ -664,7 +626,6 @@ export class ProjectKanbanView {
         element.addEventListener('dragstart', (e) => {
             this.isDragging = true;
             this.draggedTask = task;
-            this.draggedElement = element;
             element.style.opacity = '0.5';
             element.style.cursor = 'grabbing';
 
@@ -677,7 +638,6 @@ export class ProjectKanbanView {
         element.addEventListener('dragend', () => {
             this.isDragging = false;
             this.draggedTask = null;
-            this.draggedElement = null;
             element.style.opacity = '';
             element.style.cursor = 'grab';
             element.style.transform = 'translateY(0)';
@@ -688,267 +648,6 @@ export class ProjectKanbanView {
                 el.classList.remove('kanban-drop-zone-active');
             });
         });
-    }
-
-    // 新增：添加拖拽功能 - 完全照着 ReminderPanel.addDragFunctionality 重写
-    private addDragFunctionality(element: HTMLElement, task: any) {
-        element.draggable = true;
-        element.style.cursor = 'grab';
-
-        element.addEventListener('dragstart', (e) => {
-            this.isDragging = true;
-            this.draggedElement = element;
-            this.draggedTask = task;
-            element.style.opacity = '0.5';
-            element.style.cursor = 'grabbing';
-
-            if (e.dataTransfer) {
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/html', element.outerHTML);
-            }
-        });
-
-        element.addEventListener('dragend', (e) => {
-            this.isDragging = false;
-            this.draggedElement = null;
-            this.draggedTask = null;
-            element.style.opacity = '';
-            element.style.cursor = 'grab';
-        });
-
-        element.addEventListener('dragover', (e) => {
-            if (this.isDragging && this.draggedElement !== element) {
-                e.preventDefault();
-
-                const targetTask = this.getTaskFromElement(element);
-                // 只允许同优先级内的拖拽
-                if (targetTask && this.canDropHere(this.draggedTask, targetTask)) {
-                    e.dataTransfer.dropEffect = 'move';
-                    this.showDropIndicator(element, e);
-                }
-            }
-        });
-
-        element.addEventListener('drop', (e) => {
-            if (this.isDragging && this.draggedElement !== element) {
-                e.preventDefault();
-
-                const targetTask = this.getTaskFromElement(element);
-                if (targetTask && this.canDropHere(this.draggedTask, targetTask)) {
-                    this.handleDrop(this.draggedTask, targetTask, e);
-                }
-            }
-            this.hideDropIndicator();
-        });
-
-        element.addEventListener('dragleave', (e) => {
-            this.hideDropIndicator();
-        });
-    }
-
-    // 新增：从元素获取任务数据 - 修复：直接从缓存查找，避免循环依赖
-    private getTaskFromElement(element: HTMLElement): any {
-        const taskId = element.dataset.taskId;
-        if (!taskId) return null;
-
-        // 直接从当前任务缓存中查找，避免调用getDisplayedTasks造成循环
-        return this.currentTasksCache.find(t => t && t.id === taskId) || null;
-    }
-
-    // 新增：获取当前显示的任务列表 - 修复：直接从缓存获取，不依赖DOM顺序
-    private getDisplayedTasks(): any[] {
-        // 直接返回当前缓存的任务列表，这样在拖拽过程中不会受DOM更新影响
-        return [...this.currentTasksCache];
-    }
-
-    // 新增：检查是否可以放置 - 照着 ReminderPanel.canDropHere 重写
-    private canDropHere(draggedTask: any, targetTask: any): boolean {
-        const draggedPriority = draggedTask.priority || 'none';
-        const targetPriority = targetTask.priority || 'none';
-        const draggedStatus = draggedTask.status;
-        const targetStatus = targetTask.status;
-
-        // 只允许同优先级且同状态内的拖拽
-        return draggedPriority === targetPriority && draggedStatus === targetStatus;
-    }
-
-    // 新增：显示拖放指示器 - 完全照着 ReminderPanel.showDropIndicator 重写
-    private showDropIndicator(element: HTMLElement, event: DragEvent) {
-        this.hideDropIndicator(); // 先清除之前的指示器
-
-        const rect = element.getBoundingClientRect();
-        const midpoint = rect.top + rect.height / 2;
-
-        const indicator = document.createElement('div');
-        indicator.className = 'drop-indicator';
-        indicator.style.cssText = `
-                position: absolute;
-                left: 0;
-                right: 0;
-                height: 2px;
-                background-color: var(--b3-theme-primary);
-                z-index: 1000;
-                pointer-events: none;
-            `;
-
-        if (event.clientY < midpoint) {
-            // 插入到目标元素之前
-            indicator.style.top = '0';
-            element.style.position = 'relative';
-            element.insertBefore(indicator, element.firstChild);
-        } else {
-            // 插入到目标元素之后
-            indicator.style.bottom = '0';
-            element.style.position = 'relative';
-            element.appendChild(indicator);
-        }
-    }
-
-    // 新增：隐藏拖放指示器 - 照着 ReminderPanel.hideDropIndicator 重写
-    private hideDropIndicator() {
-        const indicators = document.querySelectorAll('.drop-indicator');
-        indicators.forEach(indicator => indicator.remove());
-    }
-
-    // 新增：处理拖放 - 修复：避免重复加载
-    private async handleDrop(draggedTask: any, targetTask: any, event: DragEvent) {
-        try {
-            const rect = (event.target as HTMLElement).getBoundingClientRect();
-            const midpoint = rect.top + rect.height / 2;
-            const insertBefore = event.clientY < midpoint;
-
-            await this.reorderTasks(draggedTask, targetTask, insertBefore);
-
-            showMessage("排序已更新");
-            
-            // 延迟重新加载，确保数据库写入完成，但只加载一次
-            setTimeout(() => {
-                this.loadTasks();
-            }, 200);
-
-        } catch (error) {
-            console.error('处理拖放失败:', error);
-            showMessage("排序更新失败");
-        }
-    }
-
-    // 新增：重新排序任务 - 完全照着 ReminderPanel.reorderReminders 重写
-    private async reorderTasks(draggedTask: any, targetTask: any, insertBefore: boolean) {
-        try {
-            const reminderData = await readReminderData();
-
-            // 获取同优先级同状态的所有任务 - 修复：正确过滤同项目、同优先级、同状态的任务
-            const samePriorityTasks = Object.values(reminderData)
-                .filter((t: any) => {
-                    if (!t || !t.id) return false;
-                    
-                    // 必须是同一个项目
-                    if (t.projectId !== this.projectId) return false;
-                    
-                    // 必须是同一个优先级
-                    const tPriority = t.priority || 'none';
-                    const draggedPriority = draggedTask.priority || 'none';
-                    if (tPriority !== draggedPriority) return false;
-                    
-                    // 必须是同一个状态
-                    const tStatus = this.getTaskStatus(t);
-                    const draggedStatus = draggedTask.status;
-                    if (tStatus !== draggedStatus) return false;
-                    
-                    return true;
-                })
-                .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
-
-            console.log('找到同优先级同状态任务:', samePriorityTasks.length, '个');
-            console.log('拖拽任务:', draggedTask.title, '优先级:', draggedTask.priority, '状态:', draggedTask.status);
-            console.log('目标任务:', targetTask.title, '优先级:', targetTask.priority, '状态:', targetTask.status);
-
-            // 移除被拖拽的任务
-            const filteredTasks = samePriorityTasks.filter((t: any) => t.id !== draggedTask.id);
-
-            // 找到目标位置
-            const targetIndex = filteredTasks.findIndex((t: any) => t.id === targetTask.id);
-            if (targetIndex === -1) {
-                console.error('未找到目标任务在同优先级列表中');
-                throw new Error('未找到目标任务');
-            }
-            
-            const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
-            console.log('插入位置:', insertIndex, '在', filteredTasks.length, '个任务中');
-
-            // 插入被拖拽的任务
-            filteredTasks.splice(insertIndex, 0, draggedTask);
-
-            // 重新分配排序值 - 修复：确保更新的是同一个对象引用
-            filteredTasks.forEach((task: any, index: number) => {
-                const taskInDb = reminderData[task.id];
-                if (taskInDb) {
-                    const oldSort = taskInDb.sort || 0;
-                    const newSort = index * 10;
-                    console.log(`任务 ${task.title}: sort ${oldSort} -> ${newSort}`);
-                    
-                    // 更新数据库对象的 sort 值
-                    taskInDb.sort = newSort;
-                }
-            });
-
-            console.log('准备保存数据到数据库...');
-            await writeReminderData(reminderData);
-            console.log('数据已保存到数据库');
-            
-            // 验证保存是否成功 - 修复：使用正确的预期值进行验证
-            const verifyData = await readReminderData();
-            console.log('验证保存结果:');
-            filteredTasks.forEach((task: any, index: number) => {
-                const expectedSort = index * 10; // 这是我们刚刚设置的值
-                const savedSort = verifyData[task.id]?.sort;
-                const isCorrect = expectedSort === savedSort;
-                console.log(`任务 ${task.title}: 预期 sort=${expectedSort}, 实际 sort=${savedSort} ${isCorrect ? '✓' : '✗'}`);
-            });
-            
-            // 修复：移除事件广播，避免重复加载
-            // window.dispatchEvent(new CustomEvent('reminderUpdated'));
-
-        } catch (error) {
-            console.error('重新排序任务失败:', error);
-            throw error;
-        }
-    }
-
-    private async moveTaskToStatus(task: any, newStatus: string) {
-        try {
-            const reminderData = await readReminderData();
-            
-            if (reminderData[task.id]) {
-                // 更新任务状态
-                if (newStatus === 'done') {
-                    reminderData[task.id].completed = true;
-                    reminderData[task.id].completedTime = getLocalDateTimeString(new Date());
-                } else {
-                    reminderData[task.id].completed = false;
-                    delete reminderData[task.id].completedTime;
-                    reminderData[task.id].kanbanStatus = newStatus;
-                }
-
-                await writeReminderData(reminderData);
-
-                // 更新块的书签状态
-                if (task.blockId) {
-                    await updateBlockReminderBookmark(task.blockId);
-                }
-
-                // 触发更新事件
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
-
-                // 重新加载任务
-                await this.loadTasks();
-
-                // showMessage(`任务已移动到${newStatus === 'todo' ? '待办' : newStatus === 'doing' ? '进行中' : '已完成'}`);
-            }
-        } catch (error) {
-            console.error('移动任务失败:', error);
-            showMessage("移动任务失败");
-        }
     }
 
     private showTaskContextMenu(event: MouseEvent, task: any) {
@@ -1012,7 +711,7 @@ export class ProjectKanbanView {
             menu.addItem({
                 iconHTML: "📋",
                 label: "移动到待办",
-                click: () => this.moveTaskToStatus(task, 'todo')
+                click: () => this.changeTaskStatus(task, 'todo')
             });
         }
 
@@ -1020,7 +719,7 @@ export class ProjectKanbanView {
             menu.addItem({
                 iconHTML: "⚡",
                 label: "移动到进行中",
-                click: () => this.moveTaskToStatus(task, 'doing')
+                click: () => this.changeTaskStatus(task, 'doing')
             });
         }
 
@@ -1028,7 +727,7 @@ export class ProjectKanbanView {
             menu.addItem({
                 iconHTML: "✅",
                 label: "标记为完成",
-                click: () => this.moveTaskToStatus(task, 'done')
+                click: () => this.changeTaskStatus(task, 'done')
             });
         }
 
@@ -1060,6 +759,40 @@ export class ProjectKanbanView {
             x: event.clientX,
             y: event.clientY
         });
+    }
+
+    private async changeTaskStatus(task: any, newStatus: string) {
+        try {
+            const reminderData = await readReminderData();
+            
+            if (reminderData[task.id]) {
+                // 更新任务状态
+                if (newStatus === 'done') {
+                    reminderData[task.id].completed = true;
+                    reminderData[task.id].completedTime = getLocalDateTimeString(new Date());
+                } else {
+                    reminderData[task.id].completed = false;
+                    delete reminderData[task.id].completedTime;
+                    reminderData[task.id].kanbanStatus = newStatus;
+                }
+
+                await writeReminderData(reminderData);
+
+                // 更新块的书签状态
+                if (task.blockId) {
+                    await updateBlockReminderBookmark(task.blockId);
+                }
+
+                // 触发更新事件
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+                // 重新加载任务
+                await this.loadTasks();
+            }
+        } catch (error) {
+            console.error('切换任务状态失败:', error);
+            showMessage("状态切换失败");
+        }
     }
 
     private showSortMenu(event: MouseEvent) {
@@ -1549,11 +1282,6 @@ export class ProjectKanbanView {
         return undefined;
     }
 
-    // 保留原有方法以兼容其他调用
-    private async batchCreateTasks(titles: string[]) {
-        return this.batchCreateTasksWithParams(titles);
-    }
-
     private async deleteTask(task: any) {
         confirm(
             "删除任务",
@@ -1982,18 +1710,6 @@ export class ProjectKanbanView {
                 border-color: var(--b3-theme-primary);
             }
 
-            .drop-indicator {
-                position: absolute;
-                left: 0;
-                right: 0;
-                height: 2px;
-                background-color: var(--b3-theme-primary);
-                z-index: 1000;
-                pointer-events: none;
-                border-radius: 1px;
-                box-shadow: 0 0 4px rgba(0, 123, 255, 0.3);
-            }
-
             .reminder-dialog .b3-form__group {
                 margin-bottom: 16px;
             }
@@ -2303,84 +2019,6 @@ export class ProjectKanbanView {
         }
     }
 
-    /**
-     * 异步添加绑定块信息显示
-     * @param container 信息容器元素
-     * @param task 任务对象
-     */
-    private async addBlockInfo(container: HTMLElement, task: any) {
-        try {
-            if (!task.blockId) return;
-
-            const block = await getBlockByID(task.blockId);
-            if (block && block.content) {
-                // 创建绑定块信息元素
-                const blockInfoEl = document.createElement('div');
-                blockInfoEl.className = 'kanban-task-block-info';
-                blockInfoEl.style.cssText = `
-                    font-size: 11px;
-                    color: var(--b3-theme-on-background);
-                    margin-top: 4px;
-                    opacity: 0.9;
-                    display: flex;
-                    align-items: center;
-                    gap: 4px;
-                    padding: 2px 6px;
-                    background-color: var(--b3-theme-surface-lighter);
-                    border-radius: 4px;
-                    border: 1px solid var(--b3-theme-border);
-                `;
-
-                // 添加块图标
-                const blockIcon = document.createElement('span');
-                blockIcon.innerHTML = '🔗';
-                blockIcon.style.fontSize = '10px';
-
-                // 创建支持悬浮预览的块标题链接
-                const blockTitleLink = document.createElement('span');
-                blockTitleLink.setAttribute('data-type', 'a');
-                blockTitleLink.setAttribute('data-href', `siyuan://blocks/${task.blockId}`);
-                blockTitleLink.textContent = block.content.length > 30 ?
-                    block.content.substring(0, 30) + '...' :
-                    block.content;
-                blockTitleLink.title = `绑定块: ${block.content}`;
-                blockTitleLink.style.cssText = `
-                    cursor: pointer;
-                    color: var(--b3-theme-primary);
-                    text-decoration: underline;
-                    text-decoration-style: dotted;
-                    flex: 1;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
-                `;
-
-                // 点击事件：打开块
-                blockTitleLink.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    this.openBlockTab(task.blockId);
-                });
-
-                // 鼠标悬停效果
-                blockTitleLink.addEventListener('mouseenter', () => {
-                    blockTitleLink.style.color = 'var(--b3-theme-primary-light)';
-                });
-                blockTitleLink.addEventListener('mouseleave', () => {
-                    blockTitleLink.style.color = 'var(--b3-theme-primary)';
-                });
-
-                blockInfoEl.appendChild(blockIcon);
-                blockInfoEl.appendChild(blockTitleLink);
-
-                // 将绑定块信息添加到容器
-                container.appendChild(blockInfoEl);
-            }
-        } catch (error) {
-            console.warn('获取绑定块信息失败:', error);
-            // 静默失败，不影响主要功能
-        }
-    }
 
     /**
      * 打开块标签页
