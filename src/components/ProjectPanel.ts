@@ -493,19 +493,26 @@ export class ProjectPanel {
         // 标题
         const titleEl = document.createElement('span');
         titleEl.className = 'project-item__title';
-        titleEl.setAttribute('data-type', 'a');
-        titleEl.setAttribute('data-href', `siyuan://blocks/${project.blockId || project.id}`);
         titleEl.textContent = project.title || t("unnamedNote") || '未命名项目';
-        titleEl.style.cssText = `
-            cursor: pointer;
-            color: var(--b3-theme-primary);
-            text-decoration: underline;
-            font-weight: 500;
-        `;
-        titleEl.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.openProject(project.blockId || project.id);
-        });
+
+        if (project.blockId) {
+            titleEl.setAttribute('data-type', 'a');
+            titleEl.setAttribute('data-href', `siyuan://blocks/${project.blockId}`);
+            titleEl.style.cssText = `
+                cursor: pointer;
+                color: var(--b3-theme-primary);
+                text-decoration: underline;
+                font-weight: 500;
+            `;
+            titleEl.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openProject(project.blockId);
+            });
+        } else {
+            titleEl.style.cssText = `
+                font-weight: 500;
+            `;
+        }
 
         // 时间信息容器
         const timeContainer = document.createElement('div');
@@ -1071,7 +1078,7 @@ export class ProjectPanel {
         // 删除项目
         menu.addItem({
             iconHTML: "🗑️",
-            label: t("delete") || "删除项目",
+            label:  "删除项目",
             click: () => this.deleteProject(project)
         });
 
@@ -1170,7 +1177,7 @@ export class ProjectPanel {
 
     private async deleteProject(project: any) {
         await confirm(
-            t("delete") || "删除项目",
+            "删除项目",
             `${t("confirmDelete")?.replace("${title}", project.title) || `确定要删除项目"${project.title}"吗？`}`,
             async () => {
                 try {
@@ -1271,12 +1278,21 @@ export class ProjectPanel {
             title: t("bindToBlock"),
             content: `<div class="b3-dialog__content">
                         <input id="blockIdInput" class="b3-text-field fn__block" placeholder="${t("pleaseEnterBlockID") || "请输入块ID"}">
+                      </div>
+                      <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel">${t("cancel") || "取消"}</button><div class="fn__space"></div>
+                        <button class="b3-button b3-button--primary">${t("confirm") || "确定"}</button>
                       </div>`,
             width: "520px",
         });
 
         const input = dialog.element.querySelector('#blockIdInput') as HTMLInputElement;
+        const cancelBtn = dialog.element.querySelector('.b3-button--cancel');
         const confirmBtn = dialog.element.querySelector('.b3-button--primary');
+
+        cancelBtn?.addEventListener('click', () => {
+            dialog.destroy();
+        });
 
         if (confirmBtn) {
             confirmBtn.addEventListener('click', async () => {
