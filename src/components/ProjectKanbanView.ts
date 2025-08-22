@@ -22,6 +22,7 @@ export class ProjectKanbanView {
     private draggedElement: HTMLElement | null = null;
     private sortButton: HTMLButtonElement;
     private isLoading: boolean = false;
+    private collapsedTasks: Set<string> = new Set();
 
     // 添加静态变量来跟踪当前活动的番茄钟
     private static currentPomodoroTimer: PomodoroTimer | null = null;
@@ -430,7 +431,9 @@ export class ProjectKanbanView {
             content.appendChild(taskEl);
 
             const children = childTasks.filter(t => t.parentId === task.id);
-            if (children.length > 0) {
+            const isCollapsed = this.collapsedTasks.has(task.id);
+
+            if (children.length > 0 && !isCollapsed) {
                 children.forEach(child => renderTaskWithChildren(child, level + 1));
             }
         };
@@ -485,6 +488,63 @@ export class ProjectKanbanView {
             taskEl.style.marginLeft = `${level * 20}px`;
         }
 
+        const taskMainContainer = document.createElement('div');
+        taskMainContainer.className = 'kanban-task-main';
+        taskMainContainer.style.cssText = `
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+        `;
+
+        const taskIndentContainer = document.createElement('div');
+        taskIndentContainer.className = 'kanban-task-indent';
+        taskIndentContainer.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            width: 30px; /* 固定宽度以便对齐 */
+            flex-shrink: 0;
+        `;
+
+        // 折叠按钮
+        const childTasks = this.tasks.filter(t => t.parentId === task.id);
+        if (childTasks.length > 0) {
+            const isCollapsed = this.collapsedTasks.has(task.id);
+            const collapseBtn = document.createElement('button');
+            collapseBtn.className = 'b3-button b3-button--text kanban-task-collapse-btn';
+            collapseBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#icon${isCollapsed ? 'Right' : 'Down'}"></use></svg>`;
+            collapseBtn.title = isCollapsed ? '展开子任务' : '折叠子任务';
+            collapseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (isCollapsed) {
+                    this.collapsedTasks.delete(task.id);
+                } else {
+                    this.collapsedTasks.add(task.id);
+                }
+                this.renderKanban();
+            });
+            taskIndentContainer.appendChild(collapseBtn);
+        }
+
+        taskMainContainer.appendChild(taskIndentContainer);
+
+        // 复选框
+        const checkboxEl = document.createElement('input');
+        checkboxEl.type = 'checkbox';
+        checkboxEl.className = 'kanban-task-checkbox';
+        checkboxEl.checked = task.completed;
+        checkboxEl.title = '点击完成/取消完成任务';
+        checkboxEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const newStatus = checkboxEl.checked ? 'done' : 'todo';
+            this.changeTaskStatus(task, newStatus);
+        });
+        taskMainContainer.appendChild(checkboxEl);
+
+        const taskContentContainer = document.createElement('div');
+        taskContentContainer.className = 'kanban-task-content';
+        taskContentContainer.style.flex = '1';
+
         // 任务标题
         const titleEl = document.createElement('div');
         titleEl.className = 'kanban-task-title';
@@ -533,8 +593,7 @@ export class ProjectKanbanView {
         titleEl.textContent = task.title || '未命名任务';
         titleEl.title = task.blockId ? `点击打开绑定块: ${task.title || '未命名任务'}` : (task.title || '未命名任务');
 
-        // 如果有子任务，添加指示器
-        const childTasks = this.tasks.filter(t => t.parentId === task.id);
+        // 如果有子任务，添加数量指示器
         if (childTasks.length > 0) {
             const subtaskIndicator = document.createElement('span');
             subtaskIndicator.className = 'subtask-indicator';
@@ -547,6 +606,8 @@ export class ProjectKanbanView {
             `;
             titleEl.appendChild(subtaskIndicator);
         }
+
+        taskContentContainer.appendChild(titleEl);
 
         // 任务信息容器
         const infoEl = document.createElement('div');
@@ -666,10 +727,12 @@ export class ProjectKanbanView {
             infoEl.appendChild(pomodoroDisplay);
         }
 
+        taskContentContainer.appendChild(infoEl);
+        taskMainContainer.appendChild(taskContentContainer);
+
         // 不再单独显示绑定块信息，因为已经集成到标题中
 
-        taskEl.appendChild(titleEl);
-        taskEl.appendChild(infoEl);
+        taskEl.appendChild(taskMainContainer);
 
         // 添加拖拽事件（状态切换）
         this.addTaskDragEvents(taskEl, task);
@@ -1308,7 +1371,7 @@ export class ProjectKanbanView {
         // 获取当前项目中所有任务的最大排序值
         const maxSort = Object.values(reminderData)
             .filter((r: any) => r && r.projectId === this.projectId && typeof r.sort === 'number')
-            .reduce((max: number, task: any) => Math.max(max, task.sort || 0), 0);
+            .reduce((max: number, task: any) => Math.max(max, task.sort || 0), 0) as number;
 
         for (const [index, line] of lines.entries()) {
             const taskId = `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -2010,6 +2073,64 @@ export class ProjectKanbanView {
             .kanban-task-pomodoro-count {
                 /* Styles for pomodoro count */
             }
+
+           .kanban-task-checkbox {
+               -webkit-appearance: none;
+               appearance: none;
+               background-color: var(--b3-theme-surface);
+               margin: 0;
+               margin-top: 5px; /* 微调对齐 */
+               font: inherit;
+               color: var(--b3-theme-on-surface);
+               width: 1.15em;
+               height: 1.15em;
+               border: 0.1em solid var(--b3-theme-on-surface);
+               border-radius: 0.25em;
+               transform: translateY(-0.075em);
+               display: grid;
+               place-content: center;
+               cursor: pointer;
+               transition: all 0.2s ease;
+               flex-shrink: 0;
+           }
+
+           .kanban-task-checkbox:hover {
+               border-color: var(--b3-theme-primary);
+           }
+
+           .kanban-task-checkbox::before {
+               content: "";
+               width: 0.65em;
+               height: 0.65em;
+               transform: scale(0);
+               transition: 120ms transform ease-in-out;
+               box-shadow: inset 1em 1em var(--b3-theme-primary);
+               transform-origin: bottom left;
+               clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+           }
+
+           .kanban-task-checkbox:checked {
+               background: var(--b3-theme-primary);
+               border-color: var(--b3-theme-primary);
+           }
+
+           .kanban-task-checkbox:checked::before {
+               transform: scale(1);
+               box-shadow: inset 1em 1em var(--b3-theme-surface);
+           }
+
+           .kanban-task-collapse-btn {
+               padding: 2px;
+               height: 20px;
+               width: 20px;
+               color: var(--b3-theme-on-surface);
+               opacity: 0.6;
+           }
+           .kanban-task-collapse-btn:hover {
+               opacity: 1;
+               color: var(--b3-theme-primary);
+               background: var(--b3-theme-surface-lighter);
+           }
         `;
         document.head.appendChild(style);
     }
