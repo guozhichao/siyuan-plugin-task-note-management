@@ -2120,7 +2120,6 @@ export class ProjectKanbanView {
            }
 
            .kanban-task-collapse-btn {
-               height: 10px;
                width: 10px;
                min-width: auto;
                color: var(--b3-theme-on-surface);
@@ -2131,7 +2130,11 @@ export class ProjectKanbanView {
            }
            .kanban-task-collapse-btn .b3-button__icon {
                 margin: 0;
-           }
+            }
+            .kanban-task-collapse-btn svg{
+                height: 10px;
+                width: 10px;
+            }
            .kanban-task-collapse-btn:hover {
                opacity: 1;
                color: var(--b3-theme-primary);
