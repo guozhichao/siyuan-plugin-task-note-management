@@ -1,4 +1,10 @@
 
+## v0.6.2 / 2025-08-22
+
+- ✨ feat(项目管理看板): 支持子任务
+- ✨ feat(项目管理看板): 支持显示完成时间
+
+
 ## v0.6.1 / 2025-08-22
 - ✨ feat(任务管理):块包含链接，添加到任务，在任务管理面板中会将链接一起展现出来 [#19](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/19)
 - ✨ feat(项目管理):项目管理支持自定义项目状态 [#24](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/24)
