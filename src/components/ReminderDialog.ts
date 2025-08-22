@@ -1,5 +1,5 @@
 import { showMessage, Dialog, Menu, confirm } from "siyuan";
-import { readReminderData, writeReminderData, getBlockByID, updateBlockReminderBookmark } from "../api";
+import { readReminderData, writeReminderData, getBlockByID, updateBlockReminderBookmark, getBlockDOM } from "../api";
 import { getLocalDateString, getLocalTimeString, compareDateStrings } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { ReminderEditDialog } from "./ReminderEditDialog";
@@ -438,7 +438,21 @@ export class ReminderDialog {
                 showMessage(t("blockNotExist"));
                 return;
             }
-            this.blockContent = block?.fcontent || block?.content || t("unnamedNote");
+            try {
+                const domString = await getBlockDOM(this.blockId);
+                const parser = new DOMParser();
+                const dom = parser.parseFromString(domString.dom, 'text/html');
+                const element = dom.querySelector('div[data-type="NodeParagraph"]');
+                if (element) {
+                    const attrElement = element.querySelector('div.protyle-attr');
+                    if (attrElement) {
+                        attrElement.remove();
+                    }
+                }
+                this.blockContent = element ? element.textContent.trim() : (block?.fcontent || block?.content || t("unnamedNote"));
+            } catch (e) {
+                this.blockContent = block?.fcontent || block?.content || t("unnamedNote");
+            }
             // 获取文档ID - 如果blockId就是文档ID，则直接使用，否则获取根块ID
             this.documentId = block.root_id || this.blockId;
         } catch (error) {

@@ -1,6 +1,6 @@
 import { Dialog, showMessage } from "siyuan";
 import { t } from "../utils/i18n";
-import { ensureReminderDataFile, updateBlockReminderBookmark,getBlockByID } from "../api";
+import { ensureReminderDataFile, updateBlockReminderBookmark,getBlockByID, getBlockDOM } from "../api";
 import { getRepeatDescription } from "../utils/repeatUtils";
 import { getLocalDateString, getLocalTimeString } from "../utils/dateUtils";
 import { RepeatConfig, RepeatSettingsDialog } from "./RepeatSettingsDialog";
@@ -183,10 +183,26 @@ export class BatchReminderDialog {
                 const block = await getBlockByID(blockId);
 
                 if (block) {
-                    const autoDetected = this.autoDetectDateTimeFromTitle(block?.fcontent || block?.content );
+                    let content;
+                    try {
+                        const domString = await getBlockDOM(blockId);
+                        const parser = new DOMParser();
+                        const dom = parser.parseFromString(domString.dom, 'text/html');
+                        const element = dom.querySelector('div[data-type="NodeParagraph"]');
+                        if (element) {
+                            const attrElement = element.querySelector('div.protyle-attr');
+                            if (attrElement) {
+                                attrElement.remove();
+                            }
+                        }
+                        content = element ? element.textContent.trim() : (block?.fcontent || block?.content);
+                    } catch (e) {
+                        content = block?.fcontent || block?.content;
+                    }
+                    const autoDetected = this.autoDetectDateTimeFromTitle(content);
                     results.push({
                         blockId,
-                        content: block.content,
+                        content: content,
                         ...autoDetected
                     });
                 }
@@ -212,10 +228,26 @@ export class BatchReminderDialog {
                 const block = await getBlockByID(blockId);
 
                 if (block) {
-                    const autoDetected = this.autoDetectDateTimeFromTitle(block.content);
+                    let content;
+                    try {
+                        const domString = await getBlockDOM(blockId);
+                        const parser = new DOMParser();
+                        const dom = parser.parseFromString(domString.dom, 'text/html');
+                        const element = dom.querySelector('div[data-type="NodeParagraph"]');
+                        if (element) {
+                            const attrElement = element.querySelector('div.protyle-attr');
+                            if (attrElement) {
+                                attrElement.remove();
+                            }
+                        }
+                        content = element ? element.textContent.trim() : (block?.fcontent || block?.content);
+                    } catch (e) {
+                        content = block?.fcontent || block?.content;
+                    }
+                    const autoDetected = this.autoDetectDateTimeFromTitle(content);
                     details.push({
                         blockId,
-                        content: block.content,
+                        content: content,
                         docId: block.root_id || blockId,
                         ...autoDetected,
                         selectedDate: autoDetected.date || getLocalDateString(),
@@ -389,7 +421,7 @@ class SmartBatchDialog {
 
     show() {
         const dialog = new Dialog({
-            title: t("smartBatchTitle", { count: this.blockIds.length }),
+            title: t("smartBatchTitle", { count: this.blockIds.length.toString() }),
             content: this.buildSmartBatchContent(),
             width: "700px",
             height: "700px"
@@ -477,7 +509,7 @@ class SmartBatchDialog {
                     
                     <div class="block-list-header">
                         <div class="list-summary">
-                            <span class="summary-text">${t("totalBlocks", { count: this.blockIds.length, detected: this.autoDetectedData.filter(d => d.date).length })}</span>
+                            <span class="summary-text">${t("totalBlocks", { count: this.blockIds.length.toString(), detected: this.autoDetectedData.filter(d => d.date).length.toString() })}</span>
                         </div>
                         <div class="list-actions">
                             <button type="button" id="selectAllBtn" class="b3-button b3-button--outline">
@@ -727,7 +759,7 @@ class SmartBatchDialog {
         const nlConfirmBtn = nlDialog.element.querySelector('#batchNlConfirmBtn') as HTMLButtonElement;
 
         const selectedCount = this.getSelectedBlockIds(parentDialog).length;
-        nlScope.textContent = t("applyToSelectedBlocks", { count: selectedCount });
+        nlScope.textContent = t("applyToSelectedBlocks", { count: selectedCount.toString() });
 
         let currentParseResult: { date?: string; time?: string; hasTime?: boolean } = {};
 
@@ -993,7 +1025,7 @@ class SmartBatchDialog {
 
                     const reminderId = `${blockId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                     const block = await getBlockByID(blockId);
-                    const reminder = {
+                    const reminder: any = {
                         id: reminderId,
                         blockId: blockId,
                         docId: block.root_id,
@@ -1037,8 +1069,8 @@ class SmartBatchDialog {
 
             if (successCount > 0) {
                 showMessage(t("batchCompleted", {
-                    success: successCount,
-                    failure: failureCount > 0 ? t("failureCount", { count: failureCount }) : ''
+                    success: successCount.toString(),
+                    failure: failureCount > 0 ? t("failureCount", { count: failureCount.toString() }) : ''
                 }));
             } else {
                 showMessage(t("batchSetFailed"));
