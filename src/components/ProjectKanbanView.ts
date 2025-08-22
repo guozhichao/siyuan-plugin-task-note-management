@@ -2413,10 +2413,10 @@ export class ProjectKanbanView {
 
     private canDropForSort(draggedTask: any, targetTask: any): boolean {
         if (!draggedTask || !targetTask) return false;
-        // 只允许在同一列（状态）和相同优先级内拖动
+        // 只允许在相同优先级内拖动
         const draggedPriority = draggedTask.priority || 'none';
         const targetPriority = targetTask.priority || 'none';
-        return draggedTask.status === targetTask.status && draggedPriority === targetPriority;
+        return draggedPriority === targetPriority;
     }
 
     private showDropIndicator(element: HTMLElement, event: DragEvent) {
@@ -2480,29 +2480,55 @@ export class ProjectKanbanView {
         try {
             const reminderData = await readReminderData();
 
-            // 获取相同优先级和状态的所有任务
-            const samePriorityTasks = Object.values(reminderData)
-                .filter((r: any) => r && r.projectId === this.projectId && (r.priority || 'none') === (draggedTask.priority || 'none') && this.getTaskStatus(r) === draggedTask.status)
-                .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+            const draggedId = draggedTask.id;
+            const targetId = targetTask.id;
 
-            // 移除被拖拽的任务
-            const draggedTaskIndex = samePriorityTasks.findIndex((r: any) => r.id === draggedTask.id);
-            if (draggedTaskIndex > -1) {
-                samePriorityTasks.splice(draggedTaskIndex, 1);
+            const draggedTaskInDb = reminderData[draggedId];
+            const targetTaskInDb = reminderData[targetId];
+
+            if (!draggedTaskInDb || !targetTaskInDb) {
+                throw new Error("Task not found in data");
             }
 
-            // 找到目标位置
-            const targetIndex = samePriorityTasks.findIndex((r: any) => r.id === targetTask.id);
+            const oldStatus = this.getTaskStatus(draggedTaskInDb);
+            const newStatus = this.getTaskStatus(targetTaskInDb);
+            const priority = draggedTaskInDb.priority || 'none';
+
+            // --- Update status of dragged task ---
+            if (oldStatus !== newStatus) {
+                if (newStatus === 'done') {
+                    draggedTaskInDb.completed = true;
+                    draggedTaskInDb.completedTime = getLocalDateTimeString(new Date());
+                } else {
+                    draggedTaskInDb.completed = false;
+                    delete draggedTaskInDb.completedTime;
+                    draggedTaskInDb.kanbanStatus = newStatus;
+                }
+            }
+
+            // --- Reorder source list (if status changed) ---
+            if (oldStatus !== newStatus) {
+                const sourceList = Object.values(reminderData)
+                    .filter((r: any) => r && r.projectId === this.projectId && this.getTaskStatus(r) === oldStatus && (r.priority || 'none') === priority && r.id !== draggedId)
+                    .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+                sourceList.forEach((task: any, index: number) => {
+                    reminderData[task.id].sort = index * 10;
+                });
+            }
+
+            // --- Reorder target list ---
+            const targetList = Object.values(reminderData)
+                .filter((r: any) => r && r.projectId === this.projectId && this.getTaskStatus(r) === newStatus && (r.priority || 'none') === priority && r.id !== draggedId)
+                .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+            const targetIndex = targetList.findIndex((t: any) => t.id === targetId);
             const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
 
-            // 在新位置插入被拖拽的任务
-            samePriorityTasks.splice(insertIndex, 0, draggedTask);
+            targetList.splice(insertIndex, 0, draggedTaskInDb);
 
-            // 重新分配排序值
-            samePriorityTasks.forEach((task: any, index: number) => {
-                if (reminderData[task.id]) {
-                    reminderData[task.id].sort = index * 10; // 使用10的倍数以便将来插入
-                }
+            targetList.forEach((task: any, index: number) => {
+                reminderData[task.id].sort = index * 10;
             });
 
             await writeReminderData(reminderData);
