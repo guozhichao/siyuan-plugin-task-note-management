@@ -1,3 +1,7 @@
+## v0.6.0 / 2025-08-22
+- ✨ feat: 支持项目看板模式 [#22](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/22)
+
+
 ## v0.5.6 / 2025-08-12
 
 * 🐛 正计时不参与计数的bug
