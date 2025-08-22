@@ -17,7 +17,7 @@ export class ProjectKanbanView {
     private currentSortOrder: 'asc' | 'desc' = 'desc';
     private doneSort: string = 'completedTime';
     private doneSortOrder: 'asc' | 'desc' = 'desc';
-    private showDone: boolean = false;
+    private showDone: boolean = true; // 改为默认显示已完成任务
     private tasks: any[] = [];
     private isDragging: boolean = false;
     private draggedTask: any = null;
