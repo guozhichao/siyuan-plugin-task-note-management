@@ -1,4 +1,4 @@
-import { showMessage, confirm, Menu, openTab } from "siyuan";
+import { showMessage, confirm, Menu, openTab, Dialog } from "siyuan";
 import { PROJECT_KANBAN_TAB_TYPE } from '../index'
 import { readProjectData, writeProjectData, getBlockByID, openBlock } from "../api";
 import { getLocalDateString, compareDateStrings } from "../utils/dateUtils";
@@ -89,6 +89,16 @@ export class ProjectPanel {
             this.showCategoryManageDialog();
         });
         actionContainer.appendChild(categoryManageBtn);
+
+        // 添加创建项目按钮
+        const createProjectBtn = document.createElement('button');
+        createProjectBtn.className = 'b3-button b3-button--outline';
+        createProjectBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>';
+        createProjectBtn.title = t("createProject") || "创建项目";
+        createProjectBtn.addEventListener('click', () => {
+            this.createQuickProject();
+        });
+        actionContainer.appendChild(createProjectBtn);
 
         // 添加排序按钮
         this.sortButton = document.createElement('button');
@@ -454,6 +464,9 @@ export class ProjectPanel {
 
         const projectEl = document.createElement('div');
         projectEl.className = `project-item ${isOverdue ? 'project-item--overdue' : ''} project-item--${status} project-priority-${priority}`;
+        if (status === 'archived') {
+            projectEl.style.opacity = '0.5';
+        }
 
         // 存储项目数据到元素
         projectEl.dataset.projectId = project.id;
@@ -932,21 +945,30 @@ export class ProjectPanel {
     private showProjectContextMenu(event: MouseEvent, project: any) {
         const menu = new Menu("projectContextMenu");
 
-        // 打开项目看板
-        menu.addItem({
-            iconHTML: "📋",
-            label: "打开项目看板",
-            click: () => this.openProjectKanban(project)
-        });
+        if (project.blockId) {
+            // 打开项目看板
+            menu.addItem({
+                iconHTML: "📋",
+                label: "打开项目看板",
+                click: () => this.openProjectKanban(project)
+            });
 
-        menu.addSeparator();
+            menu.addSeparator();
 
-        // 复制块引用
-        menu.addItem({
-            iconHTML: "📋",
-            label: t("copyBlockRef") || "复制块引用",
-            click: () => this.copyProjectRef(project)
-        });
+            // 复制块引用
+            menu.addItem({
+                iconHTML: "📋",
+                label: t("copyBlockRef") || "复制块引用",
+                click: () => this.copyProjectRef(project)
+            });
+        } else {
+            // 绑定到块
+            menu.addItem({
+                iconHTML: "🔗",
+                label: t("bindToBlock") || "绑定到块",
+                click: () => this.showBindToBlockDialog(project)
+            });
+        }
 
         // 编辑项目
         menu.addItem({
@@ -1236,6 +1258,60 @@ export class ProjectPanel {
         } catch (error) {
             console.error('打开项目看板失败:', error);
             showMessage("打开项目看板失败");
+        }
+    }
+
+    private createQuickProject() {
+        const dialog = new ProjectDialog();
+        dialog.show();
+    }
+
+    private showBindToBlockDialog(project: any) {
+        const dialog = new Dialog({
+            title: t("bindToBlock"),
+            content: `<div class="b3-dialog__content">
+                        <input id="blockIdInput" class="b3-text-field fn__block" placeholder="${t("pleaseEnterBlockID") || "请输入块ID"}">
+                      </div>`,
+            width: "520px",
+        });
+
+        const input = dialog.element.querySelector('#blockIdInput') as HTMLInputElement;
+        const confirmBtn = dialog.element.querySelector('.b3-button--primary');
+
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', async () => {
+                const blockId = input.value.trim();
+                if (blockId) {
+                    try {
+                        const targetBlock = await getBlockByID(blockId);
+                        if (targetBlock) {
+                            await this.bindProjectToBlock(project, blockId);
+                            showMessage(t("bindSuccess") || "绑定成功");
+                            dialog.destroy();
+                        } else {
+                            showMessage(t("blockNotFound") || "未找到块");
+                        }
+                    } catch (error) {
+                        showMessage(t("bindFailed") || "绑定失败");
+                        console.error(error);
+                    }
+                }
+            });
+        }
+    }
+
+    private async bindProjectToBlock(project: any, blockId: string) {
+        try {
+            const projectData = await readProjectData();
+            if (projectData[project.id]) {
+                projectData[project.id].blockId = blockId;
+                await writeProjectData(projectData);
+                window.dispatchEvent(new CustomEvent('projectUpdated'));
+                this.loadProjects();
+            }
+        } catch (error) {
+            console.error('绑定项目到块失败:', error);
+            throw error;
         }
     }
 }

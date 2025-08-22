@@ -9,27 +9,30 @@ export class ProjectDialog {
     private blockId: string;
     private categoryManager: CategoryManager;
 
-    constructor(blockId: string) {
+    constructor(blockId?: string) {
         this.blockId = blockId;
         this.categoryManager = CategoryManager.getInstance();
     }
 
     async show() {
         try {
-            // 获取块信息
-            const block = await getBlockByID(this.blockId);
-            if (!block) {
-                showMessage(t("cannotGetDocumentId"));
-                return;
+            let blockContent = '';
+            const projectData = await readProjectData();
+            const existingProject = this.blockId ? projectData[this.blockId] : undefined;
+
+            if (this.blockId && !existingProject) {
+                // Block being converted to project
+                const block = await getBlockByID(this.blockId);
+                if (!block) {
+                    showMessage(t("cannotGetDocumentId"));
+                    return;
+                }
+                blockContent = block.content;
             }
 
-            // 检查是否已经是项目
-            const projectData = await readProjectData();
-            const existingProject = projectData[this.blockId];
-
             this.dialog = new Dialog({
-                title: existingProject ? t("edit") + t("projectNote") : t("setAsProjectNote") || "设置为项目笔记",
-                content: this.generateDialogHTML(block.content, existingProject),
+                title: existingProject ? (t("edit") + t("projectNote")) : (this.blockId ? (t("setAsProjectNote") || "设置为项目笔记") : (t("createProject") || "创建项目")),
+                content: this.generateDialogHTML(existingProject?.title || blockContent, existingProject),
                 width: "500px",
                 height: "630px"
             });
@@ -184,10 +187,12 @@ export class ProjectDialog {
             }
 
             const projectData = await readProjectData();
+            const projectId = this.blockId || `quick-${Date.now()}`;
+            const existingProject = this.blockId ? projectData[this.blockId] : null;
 
             const project = {
-                id: this.blockId,
-                blockId: this.blockId,
+                id: projectId,
+                blockId: existingProject ? existingProject.blockId : (this.blockId || null),
                 title: title,
                 note: noteEl.value.trim(),
                 status: statusEl.value,
@@ -197,11 +202,12 @@ export class ProjectDialog {
                 endDate: endDate || null,
                 // 保持向后兼容
                 archived: statusEl.value === 'archived',
-                createdTime: projectData[this.blockId]?.createdTime || new Date().toISOString(),
-                updatedTime: new Date().toISOString()
+                createdTime: existingProject?.createdTime || new Date().toISOString(),
+                updatedTime: new Date().toISOString(),
+                sort: existingProject?.sort || 0
             };
 
-            projectData[this.blockId] = project;
+            projectData[projectId] = project;
             await writeProjectData(projectData);
 
             // 触发更新事件
