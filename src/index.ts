@@ -828,13 +828,31 @@ export default class ReminderPlugin extends Plugin {
         // 添加设置为项目笔记菜单项（只处理第一个选中的文档）
         detail.menu.addItem({
             iconHTML: "📂",
-            label: t("setAsProjectNote"),
-            click: () => {
-
-                // 循环传递所有id
-                for (const docId of documentIds) {
-                    const dialog = new ProjectDialog(docId);
-                    dialog.show();
+            label: t("projectManagement"),
+            click: async () => {
+                const { readProjectData } = await import("./api");
+                const projectData = await readProjectData();
+                const isProject = projectData && projectData.hasOwnProperty(firstDocumentId);
+                if (isProject) {
+                    // 打开项目看板
+                    openTab({
+                        app: this.app,
+                        custom: {
+                            title: projectData[firstDocumentId].title,
+                            icon: "iconProject",
+                            id: this.name + PROJECT_KANBAN_TAB_TYPE,
+                            data: {
+                                projectId: projectData[firstDocumentId].blockId,
+                                projectTitle: projectData[firstDocumentId].title
+                            }
+                        }
+                    });
+                } else {
+                    // 循环传递所有id
+                    for (const docId of documentIds) {
+                        const dialog = new ProjectDialog(docId);
+                        dialog.show();
+                    }
                 }
             }
         });
@@ -869,11 +887,31 @@ export default class ReminderPlugin extends Plugin {
         // 添加项目笔记设置功能
         detail.menu.addItem({
             iconHTML: "📂",
-            label: t("setAsProjectNote"),
-            click: () => {
+            label: t("projectManagement"),
+            click: async () => {
                 if (documentId) {
-                    const dialog = new ProjectDialog(documentId);
-                    dialog.show();
+                    const { readProjectData } = await import("./api");
+                    const projectData = await readProjectData();
+                    const isProject = projectData && projectData.hasOwnProperty(documentId);
+
+                    if (isProject) {
+                        // 打开项目看板
+                        openTab({
+                            app: this.app,
+                            custom: {
+                                title: projectData[documentId].title,
+                                icon: "iconProject",
+                                id: this.name + PROJECT_KANBAN_TAB_TYPE,
+                                data: {
+                                    projectId: projectData[documentId].blockId,
+                                    projectTitle: projectData[documentId].title
+                                }
+                            }
+                        });
+                    } else {
+                        const dialog = new ProjectDialog(documentId);
+                        dialog.show();
+                    }
                 }
             }
         });
