@@ -15,12 +15,15 @@ export class ProjectKanbanView {
     private categoryManager: CategoryManager;
     private currentSort: string = 'priority';
     private currentSortOrder: 'asc' | 'desc' = 'desc';
+    private doneSort: string = 'completedTime';
+    private doneSortOrder: 'asc' | 'desc' = 'desc';
     private showDone: boolean = false;
     private tasks: any[] = [];
     private isDragging: boolean = false;
     private draggedTask: any = null;
     private draggedElement: HTMLElement | null = null;
     private sortButton: HTMLButtonElement;
+    private doneSortButton: HTMLButtonElement;
     private isLoading: boolean = false;
     private collapsedTasks: Set<string> = new Set();
 
@@ -163,6 +166,7 @@ export class ProjectKanbanView {
 
         // 更新排序按钮标题
         this.updateSortButtonTitle();
+        this.updateDoneSortButtonTitle();
     }
 
     private createKanbanColumn(container: HTMLElement, status: string, title: string, color: string) {
@@ -183,6 +187,13 @@ export class ProjectKanbanView {
             justify-content: space-between;
         `;
 
+        const titleContainer = document.createElement('div');
+        titleContainer.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        `;
+
         const titleEl = document.createElement('h3');
         titleEl.textContent = title;
         titleEl.style.cssText = `
@@ -191,6 +202,19 @@ export class ProjectKanbanView {
             font-weight: 600;
             color: ${color};
         `;
+        titleContainer.appendChild(titleEl);
+
+        if (status === 'done') {
+            this.doneSortButton = document.createElement('button');
+            this.doneSortButton.className = 'b3-button b3-button--text';
+            this.doneSortButton.innerHTML = '<svg style="width: 14px; height: 14px;"><use xlink:href="#iconSort"></use></svg>';
+            this.doneSortButton.title = '排序';
+            this.doneSortButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.showDoneSortMenu(e);
+            });
+            titleContainer.appendChild(this.doneSortButton);
+        }
 
         const countEl = document.createElement('span');
         countEl.className = 'kanban-column-count';
@@ -205,7 +229,7 @@ export class ProjectKanbanView {
             text-align: center;
         `;
 
-        header.appendChild(titleEl);
+        header.appendChild(titleContainer);
         header.appendChild(countEl);
 
         // 列内容
@@ -320,6 +344,22 @@ export class ProjectKanbanView {
         }
     }
 
+    private updateDoneSortButtonTitle() {
+        if (this.doneSortButton) {
+            const sortNames = {
+                'completedTime': '完成时间',
+                'title': '标题',
+                'priority': '优先级',
+                'time': '设定时间'
+            };
+            const orderNames = {
+                'asc': '升序',
+                'desc': '降序'
+            };
+            this.doneSortButton.title = `排序: ${sortNames[this.doneSort] || '完成时间'} (${orderNames[this.doneSortOrder] || '降序'})`;
+        }
+    }
+
     private sortTasks() {
         this.tasks.sort((a, b) => {
             let result = 0;
@@ -396,6 +436,45 @@ export class ProjectKanbanView {
         return new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime();
     }
 
+    private compareByCompletedTime(a: any, b: any): number {
+        const timeA = a.completedTime ? new Date(a.completedTime).getTime() : 0;
+        const timeB = b.completedTime ? new Date(b.completedTime).getTime() : 0;
+        if (timeA === timeB) {
+            return new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime();
+        }
+        return timeA - timeB;
+    }
+
+    private sortDoneTasks(tasks: any[]): any[] {
+        const sortedTasks = [...tasks];
+        sortedTasks.sort((a, b) => {
+            let result = 0;
+            switch (this.doneSort) {
+                case 'completedTime':
+                    result = this.compareByCompletedTime(a, b);
+                    break;
+                case 'title':
+                    result = this.compareByTitle(a, b);
+                    break;
+                case 'priority':
+                    result = this.compareByPriority(a, b);
+                    break;
+                case 'time':
+                    result = this.compareByTime(a, b);
+                    break;
+                default:
+                    result = this.compareByCompletedTime(a, b);
+            }
+
+            if (this.doneSort === 'priority') {
+                result = -result;
+            }
+
+            return this.doneSortOrder === 'desc' ? -result : result;
+        });
+        return sortedTasks;
+    }
+
     private renderKanban() {
         const todoTasks = this.tasks.filter(task => task.status === 'todo');
         const doingTasks = this.tasks.filter(task => task.status === 'doing');
@@ -405,7 +484,8 @@ export class ProjectKanbanView {
         this.renderColumn('doing', doingTasks);
 
         if (this.showDone) {
-            this.renderColumn('done', doneTasks);
+            const sortedDoneTasks = this.sortDoneTasks(doneTasks);
+            this.renderColumn('done', sortedDoneTasks);
             this.showColumn('done');
         } else {
             this.hideColumn('done');
@@ -1079,6 +1159,40 @@ export class ProjectKanbanView {
         };
 
         setTimeout(() => document.addEventListener('click', handleClickOutside), 0);
+    }
+
+    private showDoneSortMenu(event: MouseEvent) {
+        const menu = new Menu("kanbanDoneSortMenu");
+
+        const addMenuItem = (label: string, sortKey: string, sortOrder: 'asc' | 'desc') => {
+            menu.addItem({
+                label: label,
+                current: this.doneSort === sortKey && this.doneSortOrder === sortOrder,
+                click: () => {
+                    this.doneSort = sortKey;
+                    this.doneSortOrder = sortOrder;
+                    this.updateDoneSortButtonTitle();
+                    this.renderKanban();
+                }
+            });
+        };
+
+        addMenuItem('完成时间 (降序)', 'completedTime', 'desc');
+        addMenuItem('完成时间 (升序)', 'completedTime', 'asc');
+        menu.addSeparator();
+        addMenuItem('优先级 (高到低)', 'priority', 'desc');
+        addMenuItem('优先级 (低到高)', 'priority', 'asc');
+        menu.addSeparator();
+        addMenuItem('设定时间 (降序)', 'time', 'desc');
+        addMenuItem('设定时间 (升序)', 'time', 'asc');
+        menu.addSeparator();
+        addMenuItem('标题 (升序)', 'title', 'asc');
+        addMenuItem('标题 (降序)', 'title', 'desc');
+
+        menu.open({
+            x: event.clientX,
+            y: event.clientY
+        });
     }
 
     private showCreateTaskDialog(parentTask?: any) {
