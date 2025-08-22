@@ -877,6 +877,17 @@ export default class ReminderPlugin extends Plugin {
                 }
             }
         });
+
+        detail.menu.addItem({
+            iconHTML: "📂",
+            label: t("addToProject"),
+            click: async () => {
+                if (documentId) {
+                    const dialog = new AddToProjectDialog(this, [documentId]);
+                    await dialog.show();
+                }
+            }
+        });
     }
 
     private handleBlockMenu({ detail }) {
