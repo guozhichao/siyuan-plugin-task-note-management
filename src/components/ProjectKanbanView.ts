@@ -19,6 +19,7 @@ export class ProjectKanbanView {
     private tasks: any[] = [];
     private isDragging: boolean = false;
     private draggedTask: any = null;
+    private draggedElement: HTMLElement | null = null;
     private sortButton: HTMLButtonElement;
     private isLoading: boolean = false;
 
@@ -226,7 +227,7 @@ export class ProjectKanbanView {
 
     private addDropZoneEvents(element: HTMLElement, status: string) {
         element.addEventListener('dragover', (e) => {
-            if (this.isDragging) {
+            if (this.isDragging && this.draggedTask && this.draggedTask.status !== status) {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
                 element.classList.add('kanban-drop-zone-active');
@@ -330,9 +331,22 @@ export class ProjectKanbanView {
         const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
         const priorityA = priorityOrder[a.priority || 'none'] || 0;
         const priorityB = priorityOrder[b.priority || 'none'] || 0;
-        if (priorityA !== priorityB) {
-            return priorityB - priorityA; // 高优先级在前
+
+        // 1. 按优先级排序
+        const priorityDiff = priorityB - priorityA; // 高优先级在前
+        if (priorityDiff !== 0) {
+            return priorityDiff;
         }
+
+        // 2. 同优先级内按手动排序
+        const sortA = a.sort || 0;
+        const sortB = b.sort || 0;
+
+        if (sortA !== sortB) {
+            return sortA - sortB; // 手动排序值小的在前
+        }
+
+        // 3. 如果手动排序值也相同，按创建时间排序
         return new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime();
     }
 
@@ -567,6 +581,36 @@ export class ProjectKanbanView {
         // 添加拖拽事件（状态切换）
         this.addTaskDragEvents(taskEl, task);
 
+        // 如果是优先级排序，则添加同级拖拽排序功能
+        if (this.currentSort === 'priority') {
+            taskEl.addEventListener('dragover', (e) => {
+                if (this.isDragging && this.draggedElement && this.draggedElement !== taskEl) {
+                    const targetTask = this.getTaskFromElement(taskEl);
+                    if (targetTask && this.canDropForSort(this.draggedTask, targetTask)) {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        this.showDropIndicator(taskEl, e);
+                    }
+                }
+            });
+
+            taskEl.addEventListener('dragleave', () => {
+                this.hideDropIndicator();
+            });
+
+            taskEl.addEventListener('drop', (e) => {
+                if (this.isDragging && this.draggedElement && this.draggedElement !== taskEl) {
+                    e.preventDefault();
+                    e.stopPropagation(); // 阻止事件冒泡到列的 drop 区域
+                    const targetTask = this.getTaskFromElement(taskEl);
+                    if (targetTask && this.canDropForSort(this.draggedTask, targetTask)) {
+                        this.handleSortDrop(targetTask, e);
+                    }
+                }
+                this.hideDropIndicator();
+            });
+        }
+
         // 添加右键菜单
         taskEl.addEventListener('contextmenu', (e) => {
             e.preventDefault();
@@ -626,6 +670,7 @@ export class ProjectKanbanView {
         element.addEventListener('dragstart', (e) => {
             this.isDragging = true;
             this.draggedTask = task;
+            this.draggedElement = element;
             element.style.opacity = '0.5';
             element.style.cursor = 'grabbing';
 
@@ -638,6 +683,7 @@ export class ProjectKanbanView {
         element.addEventListener('dragend', () => {
             this.isDragging = false;
             this.draggedTask = null;
+            this.draggedElement = null;
             element.style.opacity = '';
             element.style.cursor = 'grab';
             element.style.transform = 'translateY(0)';
@@ -647,6 +693,7 @@ export class ProjectKanbanView {
             this.container.querySelectorAll('.kanban-drop-zone-active').forEach(el => {
                 el.classList.remove('kanban-drop-zone-active');
             });
+            this.hideDropIndicator();
         });
     }
 
@@ -2078,6 +2125,115 @@ export class ProjectKanbanView {
         } catch (error) {
             console.error('解除块绑定失败:', error);
             showMessage("解除块绑定失败");
+        }
+    }
+
+    private getTaskFromElement(element: HTMLElement): any {
+        const taskId = element.dataset.taskId;
+        if (!taskId) return null;
+        return this.tasks.find(t => t.id === taskId);
+    }
+
+    private canDropForSort(draggedTask: any, targetTask: any): boolean {
+        if (!draggedTask || !targetTask) return false;
+        // 只允许在同一列（状态）和相同优先级内拖动
+        const draggedPriority = draggedTask.priority || 'none';
+        const targetPriority = targetTask.priority || 'none';
+        return draggedTask.status === targetTask.status && draggedPriority === targetPriority;
+    }
+
+    private showDropIndicator(element: HTMLElement, event: DragEvent) {
+        this.hideDropIndicator(); // 清除之前的指示器
+
+        const rect = element.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+
+        const indicator = document.createElement('div');
+        indicator.className = 'drop-indicator';
+        indicator.style.cssText = `
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: var(--b3-theme-primary);
+            z-index: 1000;
+            pointer-events: none;
+        `;
+
+        element.style.position = 'relative'; // 确保父元素是定位的
+
+        if (event.clientY < midpoint) {
+            // 插入到目标元素之前
+            indicator.style.top = '-1px';
+        } else {
+            // 插入到目标元素之后
+            indicator.style.bottom = '-1px';
+        }
+        element.appendChild(indicator);
+    }
+
+    private hideDropIndicator() {
+        this.container.querySelectorAll('.drop-indicator').forEach(indicator => indicator.remove());
+        this.container.querySelectorAll('.kanban-task').forEach((el: HTMLElement) => {
+            if (el.style.position === 'relative') {
+                el.style.position = '';
+            }
+        });
+    }
+
+    private async handleSortDrop(targetTask: any, event: DragEvent) {
+        if (!this.draggedTask) return;
+
+        try {
+            const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            const insertBefore = event.clientY < midpoint;
+
+            await this.reorderTasks(this.draggedTask, targetTask, insertBefore);
+
+            showMessage("排序已更新");
+            // 重新加载由 reorderTasks 中派发的 'reminderUpdated' 事件触发，此处无需重复调用
+        } catch (error) {
+            console.error('处理拖放排序失败:', error);
+            showMessage("排序更新失败");
+        }
+    }
+
+    private async reorderTasks(draggedTask: any, targetTask: any, insertBefore: boolean) {
+        try {
+            const reminderData = await readReminderData();
+
+            // 获取相同优先级和状态的所有任务
+            const samePriorityTasks = Object.values(reminderData)
+                .filter((r: any) => r && r.projectId === this.projectId && (r.priority || 'none') === (draggedTask.priority || 'none') && this.getTaskStatus(r) === draggedTask.status)
+                .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+            // 移除被拖拽的任务
+            const draggedTaskIndex = samePriorityTasks.findIndex((r: any) => r.id === draggedTask.id);
+            if (draggedTaskIndex > -1) {
+                samePriorityTasks.splice(draggedTaskIndex, 1);
+            }
+
+            // 找到目标位置
+            const targetIndex = samePriorityTasks.findIndex((r: any) => r.id === targetTask.id);
+            const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
+
+            // 在新位置插入被拖拽的任务
+            samePriorityTasks.splice(insertIndex, 0, draggedTask);
+
+            // 重新分配排序值
+            samePriorityTasks.forEach((task: any, index: number) => {
+                if (reminderData[task.id]) {
+                    reminderData[task.id].sort = index * 10; // 使用10的倍数以便将来插入
+                }
+            });
+
+            await writeReminderData(reminderData);
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+        } catch (error) {
+            console.error('重新排序任务失败:', error);
+            throw error;
         }
     }
 }
