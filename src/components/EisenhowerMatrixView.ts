@@ -1359,7 +1359,9 @@ export class EisenhowerMatrixView {
             .task-item.completed .task-title {
                 text-decoration: line-through;
             }
-
+            .quick_item{
+                margin-top: 2px;
+            }
             .task-content {
                 display: flex;
                 align-items: flex-start;
