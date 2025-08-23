@@ -1,5 +1,8 @@
 import { showMessage, confirm, Menu, openTab, Dialog } from "siyuan";
 import { PROJECT_KANBAN_TAB_TYPE } from '../index'
+
+// 添加四象限面板常量
+const EISENHOWER_TAB_TYPE = "reminder_eisenhower_tab";
 import { readProjectData, writeProjectData, getBlockByID, openBlock } from "../api";
 import { getLocalDateString, compareDateStrings } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
@@ -85,26 +88,6 @@ export class ProjectPanel {
         actionContainer.className = 'project-panel__actions';
         actionContainer.style.marginLeft = 'auto';
 
-        // 添加分类管理按钮
-        const categoryManageBtn = document.createElement('button');
-        categoryManageBtn.className = 'b3-button b3-button--outline';
-        categoryManageBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconTags"></use></svg>';
-        categoryManageBtn.title = t("manageCategories") || "管理分类";
-        categoryManageBtn.addEventListener('click', () => {
-            this.showCategoryManageDialog();
-        });
-        actionContainer.appendChild(categoryManageBtn);
-
-        // 添加状态管理按钮
-        const statusManageBtn = document.createElement('button');
-        statusManageBtn.className = 'b3-button b3-button--outline';
-        statusManageBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg>';
-        statusManageBtn.title = t("manageStatuses") || "管理状态";
-        statusManageBtn.addEventListener('click', () => {
-            this.showStatusManageDialog();
-        });
-        actionContainer.appendChild(statusManageBtn);
-
         // 添加创建项目按钮
         const createProjectBtn = document.createElement('button');
         createProjectBtn.className = 'b3-button b3-button--outline';
@@ -137,6 +120,16 @@ export class ProjectPanel {
                 this.plugin.openCalendarTab();
             });
             actionContainer.appendChild(calendarBtn);
+
+            // 添加四象限面板按钮（放在日历按钮旁边）
+            const eisenhowerBtn = document.createElement('button');
+            eisenhowerBtn.className = 'b3-button b3-button--outline';
+            eisenhowerBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconGrid"></use></svg>';
+            eisenhowerBtn.title = t("eisenhowerMatrix") || "四象限面板";
+            eisenhowerBtn.addEventListener('click', () => {
+                this.openEisenhowerMatrix();
+            });
+            actionContainer.appendChild(eisenhowerBtn);
         }
 
         // 添加刷新按钮
@@ -148,6 +141,18 @@ export class ProjectPanel {
             this.loadProjects();
         });
         actionContainer.appendChild(refreshBtn);
+
+        // 添加更多按钮（放在最右边）
+        const moreBtn = document.createElement('button');
+        moreBtn.className = 'b3-button b3-button--outline';
+        moreBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconMore"></use></svg>';
+        moreBtn.title = t("more") || "更多";
+        moreBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.showMoreMenu(e);
+        });
+        actionContainer.appendChild(moreBtn);
 
         titleContainer.appendChild(actionContainer);
         header.appendChild(titleContainer);
@@ -1354,6 +1359,77 @@ export class ProjectPanel {
         } catch (error) {
             console.error('绑定项目到块失败:', error);
             throw error;
+        }
+    }
+
+    // 新增：打开四象限面板
+    private openEisenhowerMatrix() {
+        try {
+            if (this.plugin) {
+                openTab({
+                    app: this.plugin.app,
+                    custom: {
+                        title: t("eisenhowerMatrix") || "四象限面板",
+                        icon: "iconGrid",
+                        id: this.plugin.name + EISENHOWER_TAB_TYPE,
+                        data: {}
+                    }
+                });
+            } else {
+                showMessage("插件实例不可用");
+            }
+        } catch (error) {
+            console.error('打开四象限面板失败:', error);
+            showMessage("打开四象限面板失败");
+        }
+    }
+
+    // 新增：显示更多菜单
+    private showMoreMenu(event: MouseEvent) {
+        try {
+            const menu = new Menu("projectMoreMenu");
+
+            // 添加分类管理
+            menu.addItem({
+                iconHTML: '<svg width="18" height="18" style="vertical-align: middle;"><use xlink:href="#iconTags"></use></svg>',
+                label: t("manageCategories") || "管理分类",
+                click: () => {
+                    this.showCategoryManageDialog();
+                }
+            });
+
+            // 添加状态管理
+            menu.addItem({
+                iconHTML: '<svg width="18" height="18" style="vertical-align: middle;"><use xlink:href="#iconSettings"></use></svg>',
+                label: t("manageStatuses") || "管理状态",
+                click: () => {
+                    this.showStatusManageDialog();
+                }
+            });
+
+            // 获取按钮位置并显示菜单
+            const target = event.target as HTMLElement;
+            const button = target.closest('button');
+            if (button) {
+                const rect = button.getBoundingClientRect();
+                const menuX = rect.left;
+                const menuY = rect.bottom + 4;
+
+                const maxX = window.innerWidth - 200;
+                const maxY = window.innerHeight - 200;
+
+                menu.open({
+                    x: Math.min(menuX, maxX),
+                    y: Math.min(menuY, maxY)
+                });
+            } else {
+                menu.open({
+                    x: event.clientX,
+                    y: event.clientY
+                });
+            }
+        } catch (error) {
+            console.error('显示更多菜单失败:', error);
         }
     }
 }
