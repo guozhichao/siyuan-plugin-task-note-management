@@ -1159,7 +1159,7 @@ export class EisenhowerMatrixView {
             .project-header {
                 font-weight: 600;
                 font-size: 14px;
-                color: var(--b3-theme-on-surface);
+                color: var(--b3-theme-primary);
                 margin-bottom: 8px;
                 padding: 4px 8px;
                 border-radius: 4px;
@@ -1362,6 +1362,35 @@ export class EisenhowerMatrixView {
             });
         }
 
+        // 设置优先级子菜单
+        const createPriorityMenuItems = () => {
+            const priorities = [
+                { key: 'high', label: t("highPriority") || '高', icon: '🔴' },
+                { key: 'medium', label: t("mediumPriority") || '中', icon: '🟡' },
+                { key: 'low', label: t("lowPriority") || '低', icon: '🔵' },
+                { key: 'none', label: t("noPriority") || '无', icon: '⚫' }
+            ];
+
+            const currentPriority = task.priority || 'none';
+
+            return priorities.map(priority => ({
+                iconHTML: priority.icon,
+                label: priority.label,
+                current: currentPriority === priority.key,
+                click: () => {
+                    this.setTaskPriority(task.id, priority.key);
+                }
+            }));
+        };
+
+        menu.addItem({
+            iconHTML: "🎯",
+            label: t("setPriority") || "设置优先级",
+            submenu: createPriorityMenuItems()
+        });
+
+        menu.addSeparator();
+
         // 添加编辑任务选项
         menu.addItem({
             label: t('edit'),
@@ -1484,12 +1513,31 @@ export class EisenhowerMatrixView {
         }
     }
 
+    private async setTaskPriority(taskId: string, priority: string) {
+        try {
+            const reminderData = await readReminderData();
+            if (reminderData[taskId]) {
+                reminderData[taskId].priority = priority;
+                await writeReminderData(reminderData);
+
+                await this.refresh();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                showMessage(t("priorityUpdated") || "优先级更新成功");
+            } else {
+                showMessage(t("taskNotExist") || "任务不存在");
+            }
+        } catch (error) {
+            console.error('设置任务优先级失败:', error);
+            showMessage(t("setPriorityFailed") || "操作失败");
+        }
+    }
+
     private getStatusDisplayName(statusKey: string): string {
         const status = this.projectManager.getStatusManager().getStatusById(statusKey);
         return status?.name || statusKey;
     }
 
-    private async createNewProjectAndAssign(task: QuadrantTask) {
+    private async createNewProjectAndAssign(_task: QuadrantTask) {
         try {
             const projectName = prompt(t('pleaseEnterProjectName'));
             if (!projectName) return;
