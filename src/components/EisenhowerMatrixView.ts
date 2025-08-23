@@ -452,20 +452,29 @@ export class EisenhowerMatrixView {
         taskEl.setAttribute('data-priority', task.priority || 'none');
 
         // 设置任务颜色（根据优先级）
-        let color = '';
+        let backgroundColor = '';
+        let borderColor = '';
         switch (task.priority) {
             case 'high':
-                color = '#e74c3c';
+                backgroundColor = 'var(--b3-card-error-background)';
+                borderColor = 'var(--b3-card-error-color)';
                 break;
             case 'medium':
-                color = '#f39c12';
+                backgroundColor = 'var(--b3-card-warning-background)';
+                borderColor = 'var(--b3-card-warning-color)';
                 break;
             case 'low':
-                color = '#3498db';
+                backgroundColor = 'var(--b3-card-info-background)';
+                borderColor = 'var(--b3-card-info-color)';
                 break;
             default:
-                color = '#95a5a6';
+                backgroundColor = 'var(--b3-theme-surface-lighter)';
+                borderColor = 'var(--b3-theme-surface-lighter)';
         }
+
+        // 设置任务元素的背景色
+        taskEl.style.backgroundColor = backgroundColor;
+        taskEl.style.border = `2px solid ${borderColor}`;
 
         // 创建任务内容容器
         const taskContent = document.createElement('div');
@@ -502,7 +511,6 @@ export class EisenhowerMatrixView {
         // 创建任务标题
         const taskTitle = document.createElement('div');
         taskTitle.className = 'task-title';
-        taskTitle.style.borderLeftColor = color;
         taskTitle.textContent = task.title;
 
         // 如果任务有绑定块，设置为链接样式
@@ -1212,8 +1220,6 @@ export class EisenhowerMatrixView {
             .task-title {
                 font-size: 14px;
                 margin-bottom: 4px;
-                border-left: 3px solid;
-                padding-left: 8px;
                 word-break: break-word;
                 width: fit-content;
             }
