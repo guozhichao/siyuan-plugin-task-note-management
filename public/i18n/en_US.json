@@ -489,5 +489,7 @@
     "statusesReset": "Statuses have been reset",
     "resetStatusesFailed": "Failed to reset statuses",
     "loadStatusesFailed": "Failed to load statuses",
-    "noProjectsInStatus": "No projects in \"${status}\" status"
+    "noProjectsInStatus": "No projects in \"${status}\" status",
+    "colorByCategory": "Color by Category",
+    "colorByPriority": "Color by Priority"
 }

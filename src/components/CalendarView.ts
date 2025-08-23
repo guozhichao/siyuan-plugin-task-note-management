@@ -21,6 +21,7 @@ export class CalendarView {
     private resizeTimeout: number;
     private categoryManager: CategoryManager; // 添加分类管理器
     private currentCategoryFilter: string = 'all'; // 当前分类过滤
+        private colorBy: 'category' | 'priority' = 'category'; // 按分类或优先级上色
     private tooltip: HTMLElement | null = null; // 添加提示框元素
     private hideTooltipTimeout: number | null = null; // 添加提示框隐藏超时控制
     private tooltipShowTimeout: number | null = null; // 添加提示框显示延迟控制
@@ -105,6 +106,21 @@ export class CalendarView {
             this.refreshEvents();
         });
         filterGroup.appendChild(categoryFilterSelect);
+
+        // 添加按分类/优先级上色切换
+        const colorBySelect = document.createElement('select');
+        colorBySelect.className = 'b3-select';
+        colorBySelect.style.marginLeft = '4px';
+        colorBySelect.innerHTML = `
+            <option value="category">${t("colorByCategory")}</option>
+            <option value="priority">${t("colorByPriority")}</option>
+        `;
+        colorBySelect.value = this.colorBy;
+        colorBySelect.addEventListener('change', () => {
+            this.colorBy = colorBySelect.value as 'category' | 'priority';
+            this.refreshEvents();
+        });
+        filterGroup.appendChild(colorBySelect);
 
         // 渲染分类过滤器
         await this.renderCategoryFilter(categoryFilterSelect);
@@ -2115,12 +2131,17 @@ export class CalendarView {
         const priority = reminder.priority || 'none';
         let backgroundColor, borderColor;
 
-        // 如果有分类，使用分类颜色；否则使用优先级颜色
-        if (reminder.categoryId) {
-            const categoryStyle = this.categoryManager.getCategoryStyle(reminder.categoryId);
-            backgroundColor = categoryStyle.backgroundColor;
-            borderColor = categoryStyle.borderColor;
-        } else {
+        if (this.colorBy === 'category') {
+            if (reminder.categoryId) {
+                const categoryStyle = this.categoryManager.getCategoryStyle(reminder.categoryId);
+                backgroundColor = categoryStyle.backgroundColor;
+                borderColor = categoryStyle.borderColor;
+            } else {
+                // No category, use grey
+                backgroundColor = '#95a5a6';
+                borderColor = '#7f8c8d';
+            }
+        } else { // colorBy === 'priority'
             // 根据优先级设置颜色
             switch (priority) {
                 case 'high':

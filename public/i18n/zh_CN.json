@@ -532,5 +532,7 @@
     "statusesReset": "状态已重置",
     "resetStatusesFailed": "重置状态失败",
     "loadStatusesFailed": "加载状态失败",
-    "noProjectsInStatus": "暂无“${status}”状态的项目"
+    "noProjectsInStatus": "暂无“${status}”状态的项目",
+    "colorByCategory": "按分类上色",
+    "colorByPriority": "按优先级上色"
 }

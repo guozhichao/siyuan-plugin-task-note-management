@@ -1288,90 +1288,90 @@
 }
 
 // 优先级颜色样式
-.reminder-priority-high {
-    border-left: 4px solid var(--b3-card-error-color) !important;
-    background-color: var(--b3-card-error-background) !important;
-}
+// .reminder-priority-high {
+//     border-left: 4px solid var(--b3-card-error-color) !important;
+//     background-color: var(--b3-card-error-background) !important;
+// }
 
-.reminder-priority-high .reminder-item__note {
-    border: 2px solid var(--b3-card-error-color) !important;
-    color: var(--b3-card-error-color) !important;
-    background-color: transparent !important;
-            white-space: pre-wrap;
-}
+// .reminder-priority-high .reminder-item__note {
+//     border: 2px solid var(--b3-card-error-color) !important;
+//     color: var(--b3-card-error-color) !important;
+//     background-color: transparent !important;
+//             white-space: pre-wrap;
+// }
 
-.reminder-priority-medium {
-    border-left: 4px solid var(--b3-card-warning-color) !important;
-    background-color: var(--b3-card-warning-background) !important;
-}
+// .reminder-priority-medium {
+//     border-left: 4px solid var(--b3-card-warning-color) !important;
+//     background-color: var(--b3-card-warning-background) !important;
+// }
 
-.reminder-priority-medium .reminder-item__note {
-    color: var(--b3-card-warning-color) !important;
-    background-color: var(--b3-card-warning-background) !important;
-    border: 2px solid var(--b3-card-warning-color) !important;
-    white-space: pre-wrap;
-}
+// .reminder-priority-medium .reminder-item__note {
+//     color: var(--b3-card-warning-color) !important;
+//     background-color: var(--b3-card-warning-background) !important;
+//     border: 2px solid var(--b3-card-warning-color) !important;
+//     white-space: pre-wrap;
+// }
 
-.reminder-priority-low {
-    border-left: 4px solid var(--b3-card-info-color) !important;
-    background-color: var(--b3-card-info-background) !important;
-}
+// .reminder-priority-low {
+//     border-left: 4px solid var(--b3-card-info-color) !important;
+//     background-color: var(--b3-card-info-background) !important;
+// }
 
-.reminder-priority-low .reminder-item__note {
-    color: var(--b3-card-info-color) !important;
-    background-color: var(--b3-card-info-background) !important;
-    border: 2px solid var(--b3-card-info-color) !important;
-    white-space: pre-wrap;
-}
+// .reminder-priority-low .reminder-item__note {
+//     color: var(--b3-card-info-color) !important;
+//     background-color: var(--b3-card-info-background) !important;
+//     border: 2px solid var(--b3-card-info-color) !important;
+//     white-space: pre-wrap;
+// }
 
 // .reminder-priority-none {
-.reminder-priority-none .reminder-item__note {
-    color: var(--b3-theme-on-background) !important;
-    background-color: transparent !important;
-    border: 2px solid var(--b3-border-color) !important;
-    white-space: pre-wrap;
-}
+// .reminder-priority-none .reminder-item__note {
+//     color: var(--b3-theme-on-background) !important;
+//     background-color: transparent !important;
+//     border: 2px solid var(--b3-border-color) !important;
+//     white-space: pre-wrap;
+// }
 
 // 日历事件优先级样式
-.fc-event.reminder-priority-high {
-    background-color: var(--b3-card-error-background) !important;
-    border-color: var(--b3-card-error-color) !important;
-    color: var(--b3-card-error-color) !important;
-}
+// .fc-event.reminder-priority-high {
+//     background-color: var(--b3-card-error-background) !important;
+//     border-color: var(--b3-card-error-color) !important;
+//     color: var(--b3-card-error-color) !important;
+// }
 
-.fc-event.reminder-priority-high .reminder-calendar-event-content {
-    color: var(--b3-card-error-color) !important;
-}
+// .fc-event.reminder-priority-high .reminder-calendar-event-content {
+//     color: var(--b3-card-error-color) !important;
+// }
 
-.fc-event.reminder-priority-medium {
-    background-color: var(--b3-card-warning-background) !important;
-    border-color: var(--b3-card-warning-color) !important;
-    color: var(--b3-card-warning-color) !important;
+// .fc-event.reminder-priority-medium {
+//     background-color: var(--b3-card-warning-background) !important;
+//     border-color: var(--b3-card-warning-color) !important;
+//     color: var(--b3-card-warning-color) !important;
 
-}
+// }
 
-.fc-event.reminder-priority-medium .reminder-calendar-event-content {
-    color: var(--b3-card-warning-color) !important;
-}
+// .fc-event.reminder-priority-medium .reminder-calendar-event-content {
+//     color: var(--b3-card-warning-color) !important;
+// }
 
-.fc-event.reminder-priority-low {
-    background-color: var(--b3-card-info-background) !important;
-    border-color: var(--b3-card-info-color) !important;
-    color: var(--b3-card-info-color) !important;
-}
+// .fc-event.reminder-priority-low {
+//     background-color: var(--b3-card-info-background) !important;
+//     border-color: var(--b3-card-info-color) !important;
+//     color: var(--b3-card-info-color) !important;
+// }
 
-.fc-event.reminder-priority-low .reminder-calendar-event-content {
-    color: var(--b3-card-info-color) !important;
-}
+// .fc-event.reminder-priority-low .reminder-calendar-event-content {
+//     color: var(--b3-card-info-color) !important;
+// }
 
-.fc-event.reminder-priority-none {
-    background-color: #c6d1c8 !important;
-    color: var(--b3-theme-on-background) !important;
-}
+// .fc-event.reminder-priority-none {
+//     background-color: #c6d1c8 !important;
+//     color: var(--b3-theme-on-background) !important;
+// }
 
-.fc-event.reminder-priority-none .reminder-calendar-event-content {
-    color: #000 !important;
-}
+// .fc-event.reminder-priority-none .reminder-calendar-event-content {
+//     color: #000 !important;
+// }
 
 
 // 优先级选择器样式
