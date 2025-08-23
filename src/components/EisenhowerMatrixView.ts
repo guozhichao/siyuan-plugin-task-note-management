@@ -592,7 +592,6 @@ export class EisenhowerMatrixView {
             dragHandle.style.cursor = 'grabbing';
             this.isDragging = true;
             this.draggedTaskId = task.id;
-            console.log('Started dragging task:', task.id);
         });
 
         dragHandle.addEventListener('dragend', (e) => {
@@ -602,7 +601,6 @@ export class EisenhowerMatrixView {
             this.hideDropIndicators();
             this.isDragging = false;
             this.draggedTaskId = null;
-            console.log('Ended dragging task');
         });
 
         // 添加拖放排序支持
@@ -612,7 +610,6 @@ export class EisenhowerMatrixView {
 
             // 检查是否有拖拽操作进行中
             if (!this.isDragging || !this.draggedTaskId) {
-                console.log('No drag operation in progress:', this.isDragging, this.draggedTaskId);
                 return;
             }
 
@@ -623,7 +620,6 @@ export class EisenhowerMatrixView {
                 // 找到被拖拽的任务
                 const draggedTask = this.filteredTasks.find(t => t.id === draggedTaskId);
                 if (!draggedTask) {
-                    console.log('Dragged task not found:', draggedTaskId);
                     return;
                 }
 
@@ -634,11 +630,8 @@ export class EisenhowerMatrixView {
 
                 // 只允许在同一项目和同一优先级内排序
                 if (draggedProjectId === currentProjectId && draggedPriority === currentPriority) {
-                    console.log('Conditions met, showing drop indicator for task:', task.id);
                     this.showDropIndicator(taskEl, e);
                     taskEl.classList.add('drag-over');
-                } else {
-                    console.log('Project/priority mismatch:', { draggedProjectId, currentProjectId, draggedPriority, currentPriority });
                 }
             }
         });
@@ -671,7 +664,6 @@ export class EisenhowerMatrixView {
                     const currentPriority = task.priority || 'none';
 
                     if (draggedProjectId === currentProjectId && draggedPriority === currentPriority) {
-                        console.log('Handling task reorder:', draggedTaskId, '->', task.id);
                         this.handleTaskReorder(draggedTaskId, task.id, e);
                     }
                 }
@@ -1542,7 +1534,6 @@ export class EisenhowerMatrixView {
             },
             () => {
                 // 取消回调
-                console.log('删除任务已取消');
             }
         );
     }
@@ -1575,21 +1566,16 @@ export class EisenhowerMatrixView {
         if (event.clientY < midpoint) {
             // 插入到目标元素之前
             indicator.style.top = '-2px';
-            console.log('Drop indicator positioned above element');
         } else {
             // 插入到目标元素之后
             indicator.style.bottom = '-2px';
-            console.log('Drop indicator positioned below element');
         }
 
         element.appendChild(indicator);
-
-
     }
 
     private hideDropIndicators() {
         const indicators = this.container.querySelectorAll('.drop-indicator');
-        console.log('Removing drop indicators:', indicators.length);
         indicators.forEach(indicator => indicator.remove());
 
         this.container.querySelectorAll('.task-item').forEach((el: HTMLElement) => {
@@ -1676,24 +1662,16 @@ export class EisenhowerMatrixView {
 
     private async loadProjectSortOrder() {
         try {
-            console.log('开始加载项目排序数据...');
-
             const content = await getFile('data/storage/petal/siyuan-plugin-task-note-management/project-sort.json');
             if (content) {
                 const data = typeof content === 'string' ? JSON.parse(content) : content;
-                console.log('加载的项目排序数据:', data);
                 this.projectSortOrder = data.projectSortOrder || [];
                 this.currentProjectSortMode = data.currentProjectSortMode || 'custom'; // 默认改为custom
-
-                console.log('加载的项目排序数组:', this.projectSortOrder);
-                console.log('加载的排序模式:', this.currentProjectSortMode);
             } else {
-                console.log('项目排序配置文件不存在，使用默认排序');
                 this.projectSortOrder = [];
                 this.currentProjectSortMode = 'custom'; // 默认改为custom
             }
         } catch (error) {
-            console.log('项目排序配置文件不存在，使用默认排序');
             this.projectSortOrder = [];
             this.currentProjectSortMode = 'custom'; // 默认改为custom
         }
@@ -1709,7 +1687,6 @@ export class EisenhowerMatrixView {
                 };
             }
         } catch (error) {
-            console.log('标准配置文件不存在，使用默认配置');
             this.criteriaSettings = {
                 importanceThreshold: 'medium',
                 urgencyDays: 3
@@ -1724,12 +1701,9 @@ export class EisenhowerMatrixView {
                 urgencyDays: this.criteriaSettings.urgencyDays
             };
 
-            console.log('保存标准设置数据:', data);
-
             const content = JSON.stringify(data, null, 2);
             const blob = new Blob([content], { type: 'application/json' });
             await putFile('data/storage/petal/siyuan-plugin-task-note-management/four-quadrant-settings.json', false, blob);
-            console.log('标准设置保存成功');
         } catch (error) {
             console.error('保存标准设置失败:', error);
         }
@@ -1742,18 +1716,11 @@ export class EisenhowerMatrixView {
                 currentProjectSortMode: this.currentProjectSortMode
             };
 
-            console.log('保存项目排序数据:', data);
-            console.log('项目排序数组长度:', this.projectSortOrder.length);
-            console.log('当前排序模式:', this.currentProjectSortMode);
-
             const content = JSON.stringify(data, null, 2);
             const blob = new Blob([content], { type: 'application/json' });
-            const response = await putFile('data/storage/petal/siyuan-plugin-task-note-management/project-sort.json', false, blob);
-
-            console.log('项目排序保存成功:', response);
+            await putFile('data/storage/petal/siyuan-plugin-task-note-management/project-sort.json', false, blob);
         } catch (error) {
             console.error('保存项目排序失败:', error);
-            console.error('错误堆栈:', error.stack);
         }
     }
 
@@ -1880,14 +1847,6 @@ export class EisenhowerMatrixView {
             // 获取当前排序
             const items = projectSortList.querySelectorAll('.project-sort-item');
             this.projectSortOrder = Array.from(items).map(item => item.getAttribute('data-project-id')).filter(Boolean) as string[];
-
-            console.log('即将保存的项目排序:', this.projectSortOrder);
-            console.log('项目排序项目数量:', items.length);
-
-            // 打印每个项目的ID和名称
-            items.forEach((item, index) => {
-                console.log(`项目 ${index}: ${item.getAttribute('data-project-id')} - ${item.textContent}`);
-            });
 
             await this.saveProjectSortOrder();
             dialog.destroy();
