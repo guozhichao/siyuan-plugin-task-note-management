@@ -575,15 +575,18 @@ export class EisenhowerMatrixView {
         const taskInfo = document.createElement('div');
         taskInfo.className = 'task-info';
 
-        // 创建拖拽手柄和折叠按钮容器
-        const taskIndentContainer = document.createElement('div');
-        taskIndentContainer.className = 'task-indent';
-        taskIndentContainer.style.cssText = `
+        // 创建控制按钮容器（折叠按钮和拖拽手柄）
+        const taskControlContainer = document.createElement('div');
+        taskControlContainer.className = 'task-control-container';
+        taskControlContainer.style.cssText = `
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            width: 16px; /* 固定宽度以便对齐 */
+            width: 20px;
+            min-width: 20px;
             flex-shrink: 0;
+            gap: 2px;
         `;
 
         // 折叠按钮（仅对有子任务的父任务显示）
@@ -599,7 +602,7 @@ export class EisenhowerMatrixView {
                 e.stopPropagation();
                 this.toggleTaskCollapse(task.id);
             });
-            taskIndentContainer.appendChild(collapseBtn);
+            taskControlContainer.appendChild(collapseBtn);
         }
 
         // 创建拖拽手柄
@@ -611,12 +614,16 @@ export class EisenhowerMatrixView {
         dragHandle.style.cssText = `
             cursor: grab;
             color: var(--b3-theme-on-surface-light);
-            margin-right: 8px;
-            font-size: 12px;
-            width: 16px;
-            text-align: center;
+            font-size: 10px;
+            line-height: 1;
             user-select: none;
+            padding: 2px 0;
+            height: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         `;
+        taskControlContainer.appendChild(dragHandle);
 
         // 创建任务标题
         const taskTitle = document.createElement('div');
@@ -717,7 +724,7 @@ export class EisenhowerMatrixView {
         taskInfo.appendChild(taskTitle);
         taskInfo.appendChild(taskMeta);
 
-        // 使用flex布局包含折叠按钮、拖拽手柄、复选框和任务信息
+        // 使用flex布局包含控制按钮、复选框和任务信息
         const taskInnerContent = document.createElement('div');
         taskInnerContent.className = 'task-inner-content';
         taskInnerContent.style.cssText = `
@@ -727,8 +734,7 @@ export class EisenhowerMatrixView {
             width: 100%;
         `;
 
-        taskInnerContent.appendChild(taskIndentContainer);
-        taskInnerContent.appendChild(dragHandle);
+        taskInnerContent.appendChild(taskControlContainer);
         taskInnerContent.appendChild(checkboxContainer);
         taskInnerContent.appendChild(taskInfo);
 
@@ -1549,33 +1555,52 @@ export class EisenhowerMatrixView {
                 opacity: 0.7;
             }
             
-            .child-task {
-                border-left: 2px solid var(--b3-theme-primary-lighter);
-            }
-            
             .task-collapse-btn {
-                width: 16px;
-                height: 16px;
-                min-width: 16px;
+                width: 14px;
+                height: 14px;
+                min-width: 14px;
                 padding: 0;
                 color: var(--b3-theme-on-surface);
-                opacity: 0.6;
+                opacity: 0.7;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 border: 1px solid var(--b3-theme-border);
+                border-radius: 2px;
+                background: var(--b3-theme-background);
+                margin-bottom: 2px;
             }
             .task-collapse-btn:hover {
                 opacity: 1;
                 color: var(--b3-theme-primary);
                 background: var(--b3-theme-surface-lighter);
+                border-color: var(--b3-theme-primary);
             }
             .task-collapse-btn .b3-button__icon {
                 margin: 0;
             }
             .task-collapse-btn svg {
-                height: 10px;
-                width: 10px;
+                height: 8px;
+                width: 8px;
+            }
+            
+            .task-control-container {
+                align-self: flex-start;
+                margin-top: 2px;
+            }
+            
+            .task-drag-handle {
+                opacity: 0.5;
+                transition: opacity 0.2s ease;
+            }
+            
+            .task-drag-handle:hover {
+                opacity: 0.8;
+                color: var(--b3-theme-primary);
+            }
+            
+            .task-item:hover .task-drag-handle {
+                opacity: 0.7;
             }
         `;
         document.head.appendChild(style);
