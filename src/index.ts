@@ -15,6 +15,7 @@ import { ReminderPanel } from "./components/ReminderPanel";
 import { BatchReminderDialog } from "./components/BatchReminderDialog";
 import { ensureReminderDataFile, updateBlockReminderBookmark, ensureProjectDataFile } from "./api";
 import { CalendarView } from "./components/CalendarView";
+import { EisenhowerMatrixView } from "./components/EisenhowerMatrixView";
 import { CategoryManager } from "./utils/categoryManager";
 import { getLocalDateString, getLocalTimeString, compareDateStrings } from "./utils/dateUtils";
 import { t, setPluginInstance } from "./utils/i18n";
@@ -32,6 +33,7 @@ import SettingPanelComponent from "./SettingPanel.svelte";
 
 export const SETTINGS_FILE = "reminder-settings.json";
 const TAB_TYPE = "reminder_calendar_tab";
+const EISENHOWER_TAB_TYPE = "reminder_eisenhower_tab";
 export const PROJECT_KANBAN_TAB_TYPE = "project_kanban_tab";
 export const STORAGE_NAME = "siyuan-plugin-task-note-management";
 
@@ -332,6 +334,19 @@ export default class ReminderPlugin extends Plugin {
                 this.calendarViews.set(tab.id, calendarView);
             }) as any
         });
+        
+        // 注册四象限视图标签页
+        this.addTab({
+            type: EISENHOWER_TAB_TYPE,
+            init: ((tab) => {
+                const eisenhowerView = new EisenhowerMatrixView(tab.element, this);
+                // 保存实例引用用于清理
+                this.calendarViews.set(tab.id, eisenhowerView);
+                // 初始化视图
+                eisenhowerView.initialize();
+            }) as any
+        });
+        
         // 注册项目看板标签页
         this.addTab({
             type: PROJECT_KANBAN_TAB_TYPE,

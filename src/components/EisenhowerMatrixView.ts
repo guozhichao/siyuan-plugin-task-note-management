@@ -3,10 +3,10 @@ import { ProjectManager } from "../utils/projectManager";
 import { CategoryManager } from "../utils/categoryManager";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { ReminderEditDialog } from "./ReminderEditDialog";
-import { showMessage, confirm, openTab, Menu } from "siyuan";
+import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
 import { t } from "../utils/i18n";
 import { getLocalDateString } from "../utils/dateUtils";
-
+import { openBlock } from '../api';
 interface QuadrantTask {
     id: string;
     title: string;
@@ -38,6 +38,9 @@ export class EisenhowerMatrixView {
     private categoryManager: CategoryManager;
     private quadrants: Quadrant[];
     private allTasks: QuadrantTask[] = [];
+    private filteredTasks: QuadrantTask[] = [];
+    private statusFilter: Set<string> = new Set();
+    private projectFilter: Set<string> = new Set();
 
     constructor(container: HTMLElement, plugin: any) {
         this.container = container;
@@ -99,13 +102,13 @@ export class EisenhowerMatrixView {
         headerEl.innerHTML = `
             <h2>${t("eisenhowerMatrix")}</h2>
             <div class="matrix-header-buttons">
+                <button class="b3-button b3-button--outline filter-btn" title="筛选">
+                    <svg class="b3-button__icon"><use xlink:href="#iconFilter"></use></svg>
+                    筛选
+                </button>
                 <button class="b3-button b3-button--outline refresh-btn" title="${t("refresh")}">
                     <svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>
                     ${t("refresh")}
-                </button>
-                <button class="b3-button b3-button--outline switch-to-calendar-btn" title="${t("calendarView")}">
-                    <svg class="b3-button__icon"><use xlink:href="#iconCalendar"></use></svg>
-                    ${t("calendarView")}
                 </button>
             </div>
         `;
@@ -215,8 +218,8 @@ export class EisenhowerMatrixView {
                 this.allTasks.push(task);
             }
 
-            // 按象限分组任务
-            this.groupTasksByQuadrant();
+            // 应用筛选并按象限分组任务
+            this.applyFiltersAndGroup();
         } catch (error) {
             console.error('加载任务失败:', error);
             showMessage(t('loadTasksFailed'));
@@ -238,12 +241,35 @@ export class EisenhowerMatrixView {
         return ['important-urgent', 'important-not-urgent', 'not-important-urgent', 'not-important-not-urgent'].includes(quadrant);
     }
 
-    private groupTasksByQuadrant() {
+    private applyFiltersAndGroup() {
+        // 应用筛选
+        this.filteredTasks = this.allTasks.filter(task => {
+            // 状态筛选
+            if (this.statusFilter.size > 0) {
+                const projectStatus = task.projectId ? 
+                    this.projectManager.getProjectById(task.projectId)?.status || 'active' : 
+                    'no-project';
+                if (!this.statusFilter.has(projectStatus)) {
+                    return false;
+                }
+            }
+
+            // 项目筛选
+            if (this.projectFilter.size > 0) {
+                const projectKey = task.projectId || 'no-project';
+                if (!this.projectFilter.has(projectKey)) {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+
         // 清空现有任务
         this.quadrants.forEach(q => q.tasks = []);
 
         // 按象限分组
-        this.allTasks.forEach(task => {
+        this.filteredTasks.forEach(task => {
             const quadrant = this.quadrants.find(q => q.key === task.quadrant);
             if (quadrant) {
                 quadrant.tasks.push(task);
@@ -446,11 +472,11 @@ export class EisenhowerMatrixView {
             });
         });
 
-        // 日历视图切换按钮
-        const switchToCalendarBtn = this.container.querySelector('.switch-to-calendar-btn');
-        if (switchToCalendarBtn) {
-            switchToCalendarBtn.addEventListener('click', () => {
-                this.switchToCalendarView();
+        // 筛选按钮
+        const filterBtn = this.container.querySelector('.filter-btn');
+        if (filterBtn) {
+            filterBtn.addEventListener('click', () => {
+                this.showFilterDialog();
             });
         }
 
@@ -530,55 +556,59 @@ export class EisenhowerMatrixView {
     }
 
     private handleTaskClick(task: QuadrantTask) {
+        // 如果任务有绑定块，直接打开
         if (task.blockId) {
-            // 打开关联的文档
-            const { openBlock } = require('../api');
-            
-            // 创建右键菜单
-            const menu = new Menu();
-            
-            menu.addItem({
-                label: t('openNote'),
-                icon: 'iconFile',
-                click: () => {
-                    openBlock(task.blockId);
-                }
-            });
+            try {
 
-            menu.addItem({
-                label: t('edit'),
-                icon: 'iconEdit',
-                click: () => {
-                    this.showTaskEditDialog(task);
-                }
-            });
-
-            menu.addSeparator();
-
-            // 项目分配选项
-            if (task.projectId) {
-                menu.addItem({
-                    label: t('openProjectKanban'),
-                    icon: 'iconProject',
-                    click: () => {
-                        this.openProjectKanban(task.projectId!);
-                    }
-                });
-            } else {
-                menu.addItem({
-                    label: t('addToProject'),
-                    icon: 'iconProject',
-                    click: () => {
-                        this.assignTaskToProject(task);
-                    }
-                });
+                openBlock(task.blockId);
+            } catch (error) {
+                console.error('打开思源笔记块失败:', error);
+                showMessage('打开笔记失败');
+                
+                // 如果打开失败，显示右键菜单提供其他选项
+                this.showTaskFallbackMenu(task);
             }
-
-            menu.open();
-        } else {
-            // 编辑任务
-            this.showTaskEditDialog(task);
+            return;
         }
+
+        // 如果没有绑定块，显示右键菜单提供选项
+        this.showTaskFallbackMenu(task);
+    }
+
+    private showTaskFallbackMenu(task: QuadrantTask) {
+        // 创建右键菜单
+        const menu = new Menu();
+
+        menu.addItem({
+            label: t('edit'),
+            icon: 'iconEdit',
+            click: () => {
+                this.showTaskEditDialog(task);
+            }
+        });
+
+        menu.addSeparator();
+
+        // 项目分配选项
+        if (task.projectId) {
+            menu.addItem({
+                label: t('openProjectKanban'),
+                icon: 'iconProject',
+                click: () => {
+                    this.openProjectKanban(task.projectId!);
+                }
+            });
+        } else {
+            menu.addItem({
+                label: t('addToProject'),
+                icon: 'iconProject',
+                click: () => {
+                    this.assignTaskToProject(task);
+                }
+            });
+        }
+
+        menu.open();
     }
 
     private showTaskEditDialog(task: QuadrantTask) {
@@ -933,6 +963,55 @@ export class EisenhowerMatrixView {
                     font-size: 11px !important;
                 }
             }
+            
+            /* 筛选对话框样式 */
+            .filter-dialog .filter-section {
+                margin-bottom: 20px;
+            }
+            
+            .filter-dialog .filter-section h3 {
+                margin: 0 0 10px 0;
+                font-size: 14px;
+                font-weight: 600;
+                color: var(--b3-theme-on-surface);
+            }
+            
+            .filter-checkboxes {
+                max-height: 150px;
+                overflow-y: auto;
+                border: 1px solid var(--b3-theme-border);
+                border-radius: 4px;
+                padding: 8px;
+            }
+            
+            .filter-checkbox-container {
+                display: flex;
+                align-items: center;
+                padding: 4px 0;
+                cursor: pointer;
+            }
+            
+            .filter-checkbox-container input[type="checkbox"] {
+                margin-right: 8px;
+            }
+            
+            .filter-checkbox-container span {
+                font-size: 13px;
+                color: var(--b3-theme-on-surface);
+            }
+            
+            .filter-group-label {
+                font-weight: 600;
+                color: var(--b3-theme-primary);
+                margin: 8px 0 4px 0;
+                font-size: 12px;
+                border-bottom: 1px solid var(--b3-theme-border);
+                padding-bottom: 2px;
+            }
+            
+            .filter-group-label:first-child {
+                margin-top: 0;
+            }
         `;
         document.head.appendChild(style);
     }
@@ -1142,10 +1221,141 @@ export class EisenhowerMatrixView {
         this.renderMatrix();
     }
 
-    private switchToCalendarView() {
-        // 触发事件通知父组件切换回日历视图
-        const event = new CustomEvent('switchToCalendarView');
-        window.dispatchEvent(event);
+    private showFilterDialog() {
+        const dialog = new Dialog({
+            title: "筛选设置",
+            content: `
+                <div class="filter-dialog">
+                    <div class="b3-dialog__content">
+                        <div class="filter-section">
+                            <h3>项目状态</h3>
+                            <div id="statusFilters" class="filter-checkboxes"></div>
+                        </div>
+                        <div class="filter-section">
+                            <h3>项目筛选</h3>
+                            <div id="projectFilters" class="filter-checkboxes"></div>
+                        </div>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="filterCancelBtn">取消</button>
+                        <button class="b3-button" id="filterResetBtn">重置</button>
+                        <button class="b3-button b3-button--primary" id="filterApplyBtn">应用</button>
+                    </div>
+                </div>
+            `,
+            width: "450px",
+            height: "500px"
+        });
+
+        this.renderFilterOptions(dialog);
+        this.setupFilterDialogEvents(dialog);
+    }
+
+    private renderFilterOptions(dialog: Dialog) {
+        const statusFiltersEl = dialog.element.querySelector('#statusFilters');
+        const projectFiltersEl = dialog.element.querySelector('#projectFilters');
+
+        if (statusFiltersEl) {
+            // 获取所有可能的状态
+            const statusManager = this.projectManager.getStatusManager();
+            const allStatuses = statusManager.getAllStatuses();
+            
+            // 添加"无项目"选项
+            const noProjectCheckbox = this.createCheckbox('no-project', '无项目', this.statusFilter.has('no-project'));
+            statusFiltersEl.appendChild(noProjectCheckbox);
+            
+            // 添加项目状态选项
+            allStatuses.forEach(status => {
+                const checkbox = this.createCheckbox(status.id, status.name, this.statusFilter.has(status.id));
+                statusFiltersEl.appendChild(checkbox);
+            });
+        }
+
+        if (projectFiltersEl) {
+            // 获取所有项目
+            const allProjects = this.projectManager.getAllProjects();
+            
+            // 添加"无项目"选项
+            const noProjectCheckbox = this.createCheckbox('no-project', '无项目', this.projectFilter.has('no-project'));
+            projectFiltersEl.appendChild(noProjectCheckbox);
+            
+            // 按状态分组显示项目
+            const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
+            Object.keys(groupedProjects).forEach(statusKey => {
+                const projects = groupedProjects[statusKey] || [];
+                if (projects.length > 0) {
+                    const statusName = this.getStatusDisplayName(statusKey);
+                    const groupLabel = document.createElement('div');
+                    groupLabel.className = 'filter-group-label';
+                    groupLabel.textContent = statusName;
+                    projectFiltersEl.appendChild(groupLabel);
+
+                    projects.forEach(project => {
+                        const checkbox = this.createCheckbox(project.id, project.name, this.projectFilter.has(project.id));
+                        projectFiltersEl.appendChild(checkbox);
+                    });
+                }
+            });
+        }
+    }
+
+    private createCheckbox(value: string, label: string, checked: boolean): HTMLElement {
+        const checkboxContainer = document.createElement('label');
+        checkboxContainer.className = 'filter-checkbox-container';
+        checkboxContainer.innerHTML = `
+            <input type="checkbox" value="${value}" ${checked ? 'checked' : ''}/>
+            <span>${label}</span>
+        `;
+        return checkboxContainer;
+    }
+
+    private setupFilterDialogEvents(dialog: Dialog) {
+        const cancelBtn = dialog.element.querySelector('#filterCancelBtn');
+        const resetBtn = dialog.element.querySelector('#filterResetBtn');
+        const applyBtn = dialog.element.querySelector('#filterApplyBtn');
+
+        cancelBtn?.addEventListener('click', () => {
+            dialog.destroy();
+        });
+
+        resetBtn?.addEventListener('click', () => {
+            // 重置所有筛选器
+            this.statusFilter.clear();
+            this.projectFilter.clear();
+            
+            // 更新复选框状态
+            const checkboxes = dialog.element.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                (checkbox as HTMLInputElement).checked = false;
+            });
+        });
+
+        applyBtn?.addEventListener('click', () => {
+            // 收集状态筛选
+            const statusCheckboxes = dialog.element.querySelectorAll('#statusFilters input[type="checkbox"]');
+            this.statusFilter.clear();
+            statusCheckboxes.forEach(checkbox => {
+                if ((checkbox as HTMLInputElement).checked) {
+                    this.statusFilter.add((checkbox as HTMLInputElement).value);
+                }
+            });
+
+            // 收集项目筛选
+            const projectCheckboxes = dialog.element.querySelectorAll('#projectFilters input[type="checkbox"]');
+            this.projectFilter.clear();
+            projectCheckboxes.forEach(checkbox => {
+                if ((checkbox as HTMLInputElement).checked) {
+                    this.projectFilter.add((checkbox as HTMLInputElement).value);
+                }
+            });
+
+            // 应用筛选
+            this.applyFiltersAndGroup();
+            this.renderMatrix();
+            
+            dialog.destroy();
+            showMessage("筛选已应用");
+        });
     }
 
     destroy() {
