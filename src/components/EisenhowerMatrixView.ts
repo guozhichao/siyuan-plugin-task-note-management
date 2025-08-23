@@ -98,10 +98,16 @@ export class EisenhowerMatrixView {
         headerEl.className = 'matrix-header';
         headerEl.innerHTML = `
             <h2>${t("eisenhowerMatrix")}</h2>
-            <button class="b3-button b3-button--outline switch-to-calendar-btn" title="${t("calendarView")}">
-                <svg class="b3-button__icon"><use xlink:href="#iconCalendar"></use></svg>
-                ${t("calendarView")}
-            </button>
+            <div class="matrix-header-buttons">
+                <button class="b3-button b3-button--outline refresh-btn" title="${t("refresh")}">
+                    <svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>
+                    ${t("refresh")}
+                </button>
+                <button class="b3-button b3-button--outline switch-to-calendar-btn" title="${t("calendarView")}">
+                    <svg class="b3-button__icon"><use xlink:href="#iconCalendar"></use></svg>
+                    ${t("calendarView")}
+                </button>
+            </div>
         `;
         this.container.appendChild(headerEl);
 
@@ -127,8 +133,9 @@ export class EisenhowerMatrixView {
 
         const header = document.createElement('div');
         header.className = 'quadrant-header';
+        header.style.backgroundColor = quadrant.color;
         header.innerHTML = `
-            <div class="quadrant-title" style="color: ${quadrant.color}">${quadrant.title}</div>
+            <div class="quadrant-title" style="color: white">${quadrant.title}</div>
             <button class="b3-button b3-button--outline add-task-btn" data-quadrant="${quadrant.key}">
                 <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
                 ${t("newTask")}
@@ -314,6 +321,14 @@ export class EisenhowerMatrixView {
                 projectHeader.className = 'project-header';
                 if (projectKey !== 'no-project') {
                     projectHeader.textContent = tasks[0].projectName || t('noProject');
+                    projectHeader.setAttribute('data-project-id', projectKey);
+                    projectHeader.style.cursor = 'pointer';
+                    projectHeader.title = t('openProjectKanban');
+                    
+                    // 添加点击事件打开项目看板
+                    projectHeader.addEventListener('click', () => {
+                        this.openProjectKanban(projectKey);
+                    });
                 } else {
                     projectHeader.textContent = t('noProject');
                 }
@@ -371,6 +386,11 @@ export class EisenhowerMatrixView {
             if ((e.target as HTMLElement).type !== 'checkbox') {
                 this.handleTaskClick(task);
             }
+        });
+
+        taskEl.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            this.showTaskContextMenu(task, e as MouseEvent);
         });
 
         taskEl.querySelector('input[type="checkbox"]')!.addEventListener('change', (e) => {
@@ -466,13 +486,80 @@ export class EisenhowerMatrixView {
             quadrant: quadrant
         };
 
+        // 获取项目列表供选择
+        const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
+        const activeProjects = groupedProjects['active'] || [];
+        
+        if (activeProjects.length > 0) {
+            // 如果有项目，让用户选择
+            const projectMenu = new Menu();
+            
+            // 无项目选项
+            projectMenu.addItem({
+                label: t('noProject'),
+                click: () => {
+                    this.showQuickReminderDialog(quadrant, null);
+                }
+            });
+
+            // 分隔线
+            projectMenu.addSeparator();
+
+            // 列出所有活跃项目
+            activeProjects.forEach(project => {
+                projectMenu.addItem({
+                    label: project.name,
+                    click: () => {
+                        this.showQuickReminderDialog(quadrant, project.id);
+                    }
+                });
+            });
+
+            // 新建项目选项
+            projectMenu.addSeparator();
+            projectMenu.addItem({
+                label: t('createNewDocument'),
+                icon: 'iconAdd',
+                click: () => {
+                    this.createNewProjectAndNewTask(quadrant);
+                }
+            });
+
+            projectMenu.open();
+        } else {
+            // 没有项目，直接创建任务
+            this.showQuickReminderDialog(quadrant, null);
+        }
+    }
+
+    private showQuickReminderDialog(quadrant: QuadrantTask['quadrant'], projectId: string | null) {
+        const today = getLocalDateString();
         const dialog = new QuickReminderDialog(today, null, async () => {
             await this.refresh();
         });
         
-        // 设置默认象限
+        // 设置默认象限和项目
         (dialog as any).defaultQuadrant = quadrant;
+        if (projectId) {
+            (dialog as any).defaultProjectId = projectId;
+        }
+        
         dialog.show();
+    }
+
+    private async createNewProjectAndNewTask(quadrant: QuadrantTask['quadrant']) {
+        try {
+            const projectName = prompt(t('pleaseEnterProjectName'));
+            if (!projectName) return;
+
+            const project = await this.projectManager.createProject(projectName);
+            if (project) {
+                this.showQuickReminderDialog(quadrant, project.id);
+            }
+        } catch (error) {
+            console.error('创建项目并新建任务失败:', error);
+            showMessage('操作失败，请重试');
+        }
     }
 
     private async toggleTaskCompletion(task: QuadrantTask, completed: boolean) {
@@ -496,14 +583,161 @@ export class EisenhowerMatrixView {
         if (task.blockId) {
             // 打开关联的文档
             const { openBlock } = require('../api');
-            openBlock(task.blockId);
+            
+            // 创建右键菜单
+            const menu = new Menu();
+            
+            menu.addItem({
+                label: t('openNote'),
+                icon: 'iconFile',
+                click: () => {
+                    openBlock(task.blockId);
+                }
+            });
+
+            menu.addItem({
+                label: t('edit'),
+                icon: 'iconEdit',
+                click: () => {
+                    this.showTaskEditDialog(task);
+                }
+            });
+
+            menu.addSeparator();
+
+            // 项目分配选项
+            if (task.projectId) {
+                menu.addItem({
+                    label: t('openProjectKanban'),
+                    icon: 'iconProject',
+                    click: () => {
+                        this.openProjectKanban(task.projectId!);
+                    }
+                });
+            } else {
+                menu.addItem({
+                    label: t('addToProject'),
+                    icon: 'iconProject',
+                    click: () => {
+                        this.assignTaskToProject(task);
+                    }
+                });
+            }
+
+            menu.open();
         } else {
             // 编辑任务
-            const editDialog = new ReminderEditDialog(task.extendedProps, async () => {
-                await this.refresh();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            this.showTaskEditDialog(task);
+        }
+    }
+
+    private showTaskEditDialog(task: QuadrantTask) {
+        const editDialog = new ReminderEditDialog(task.extendedProps, async () => {
+            await this.refresh();
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+        });
+        
+        // 添加项目选择功能到编辑对话框
+        (editDialog as any).showProjectSelector = () => {
+            this.showProjectSelectorForTask(task);
+        };
+        
+        editDialog.show();
+    }
+
+    private showProjectSelectorForTask(task: QuadrantTask) {
+        const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
+        const activeProjects = groupedProjects['active'] || [];
+        
+        if (activeProjects.length === 0) {
+            showMessage(t('noActiveProjects'));
+            return;
+        }
+
+        const menu = new Menu();
+        
+        // 当前项目显示
+        if (task.projectId) {
+            const currentProject = this.projectManager.getProjectById(task.projectId);
+            menu.addItem({
+                label: `当前: ${currentProject?.name || t('noProject')}`,
+                disabled: true
             });
-            editDialog.show();
+            menu.addSeparator();
+        }
+
+        // 无项目选项
+        menu.addItem({
+            label: t('noProject'),
+            icon: task.projectId ? 'iconRemove' : 'iconCheck',
+            click: async () => {
+                await this.updateTaskProject(task.id, null);
+                showMessage('项目已更新');
+            }
+        });
+
+        // 分隔线
+        menu.addSeparator();
+
+        // 列出所有活跃项目
+        activeProjects.forEach(project => {
+            const isCurrent = task.projectId === project.id;
+            menu.addItem({
+                label: project.name,
+                icon: isCurrent ? 'iconCheck' : undefined,
+                click: async () => {
+                    if (!isCurrent) {
+                        await this.updateTaskProject(task.id, project.id);
+                        showMessage('项目已更新');
+                    }
+                }
+            });
+        });
+
+        // 新建项目选项
+        menu.addSeparator();
+        menu.addItem({
+            label: t('createNewDocument'),
+            icon: 'iconAdd',
+            click: async () => {
+                const projectName = prompt(t('pleaseEnterProjectName'));
+                if (projectName) {
+                    const project = await this.projectManager.createProject(projectName);
+                    if (project) {
+                        await this.updateTaskProject(task.id, project.id);
+                        showMessage('项目已创建并分配');
+                    }
+                }
+            }
+        });
+
+        menu.open();
+    }
+
+    private openProjectKanban(projectId: string) {
+        try {
+            // 使用openTab打开项目看板
+            const project = this.projectManager.getProjectById(projectId);
+            if (!project) {
+                showMessage("项目不存在");
+                return;
+            }
+
+            openTab({
+                app: this.plugin.app,
+                custom: {
+                    title: project.name,
+                    icon: "iconProject",
+                    id: this.plugin.name + "project_kanban_tab",
+                    data: {
+                        projectId: project.blockId,
+                        projectTitle: project.name
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('打开项目看板失败:', error);
+            showMessage("打开项目看板失败");
         }
     }
 
@@ -548,6 +782,13 @@ export class EisenhowerMatrixView {
                 font-weight: 600;
             }
 
+            .matrix-header-buttons {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            }
+
+            .refresh-btn,
             .switch-to-calendar-btn {
                 display: flex;
                 align-items: center;
@@ -612,6 +853,13 @@ export class EisenhowerMatrixView {
                 padding: 4px 8px !important;
                 font-size: 12px !important;
                 align-self: center;
+                color: white !important;
+                border-color: rgba(255, 255, 255, 0.3) !important;
+            }
+            
+            .add-task-btn:hover {
+                background-color: rgba(255, 255, 255, 0.1) !important;
+                color: white !important;
             }
 
             .quadrant-content {
@@ -739,9 +987,204 @@ export class EisenhowerMatrixView {
         document.head.appendChild(style);
     }
 
+    private showTaskContextMenu(task: QuadrantTask, event: MouseEvent) {
+        const menu = new Menu();
+        
+        // 添加项目分配菜单
+        menu.addItem({
+            label: t('addToProject'),
+            icon: 'iconProject',
+            click: async () => {
+                await this.assignTaskToProject(task, event);
+            }
+        });
+
+        // 如果任务已有项目，添加移除项目选项
+        if (task.projectId) {
+            menu.addItem({
+                label: t('removeFromProject'),
+                icon: 'iconRemove',
+                click: async () => {
+                    await this.removeTaskFromProject(task);
+                }
+            });
+        }
+
+        // 添加编辑任务选项
+        menu.addItem({
+            label: t('edit'),
+            icon: 'iconEdit',
+            click: () => {
+                this.handleTaskClick(task);
+            }
+        });
+
+        // 添加删除任务选项
+        menu.addItem({
+            label: t('delete'),
+            icon: 'iconTrashcan',
+            click: async () => {
+                await this.deleteTask(task);
+            }
+        });
+
+        menu.open({x: event.clientX, y: event.clientY});
+    }
+
+    private async assignTaskToProject(task: QuadrantTask, event?: MouseEvent) {
+        try {
+            const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
+            const allProjects = [];
+            
+            // 收集所有非归档状态的项目
+            Object.keys(groupedProjects).forEach(statusKey => {
+                const projects = groupedProjects[statusKey] || [];
+                // 排除已归档的项目
+                projects.forEach(project => {
+                    const projectStatus = this.projectManager.getProjectById(project.id)?.status || 'doing';
+                    if (projectStatus !== 'archived') {
+                        allProjects.push(project);
+                    }
+                });
+            });
+            
+            if (allProjects.length === 0) {
+                showMessage(t('noActiveProjects'));
+                return;
+            }
+
+            const menu = new Menu();
+            
+            // 按状态分组显示项目
+            Object.keys(groupedProjects).forEach(statusKey => {
+                const projects = groupedProjects[statusKey] || [];
+                const nonArchivedProjects = projects.filter(project => {
+                    const projectStatus = this.projectManager.getProjectById(project.id)?.status || 'doing';
+                    return projectStatus !== 'archived';
+                });
+                
+                if (nonArchivedProjects.length > 0) {
+                    // 添加状态标题
+                    menu.addItem({
+                        label: this.getStatusDisplayName(statusKey),
+                        disabled: true
+                    });
+                    
+                    nonArchivedProjects.forEach(project => {
+                        menu.addItem({
+                            label: project.name,
+                            click: async () => {
+                                await this.updateTaskProject(task.id, project.id);
+                                showMessage(`${t('addedToProjectSuccess').replace('${count}', '1')}`);
+                            }
+                        });
+                    });
+                    
+                    menu.addSeparator();
+                }
+            });
+
+            // 添加新建项目选项
+            menu.addSeparator();
+            menu.addItem({
+                label: t('createNewDocument'),
+                icon: 'iconAdd',
+                click: () => {
+                    this.createNewProjectAndAssign(task);
+                }
+            });
+
+            if (event) {
+                menu.open({x: event.clientX, y: event.clientY});
+            } else {
+                menu.open();
+            }
+        } catch (error) {
+            console.error('分配项目失败:', error);
+            showMessage(t('addedToProjectFailed'));
+        }
+    }
+
+    private async removeTaskFromProject(task: QuadrantTask) {
+        try {
+            await this.updateTaskProject(task.id, null);
+            showMessage('已从项目中移除');
+        } catch (error) {
+            console.error('移除项目失败:', error);
+            showMessage('操作失败，请重试');
+        }
+    }
+
+    private async updateTaskProject(taskId: string, projectId: string | null) {
+        try {
+            const reminderData = await readReminderData();
+            
+            if (reminderData[taskId]) {
+                reminderData[taskId].projectId = projectId;
+                await writeReminderData(reminderData);
+                
+                await this.refresh();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            }
+        } catch (error) {
+            console.error('更新任务项目失败:', error);
+            throw error;
+        }
+    }
+
+    private getStatusDisplayName(statusKey: string): string {
+        const status = this.projectManager.getStatusManager().getStatusById(statusKey);
+        return status?.name || statusKey;
+    }
+
+    private async createNewProjectAndAssign(task: QuadrantTask) {
+        try {
+            const projectName = prompt(t('pleaseEnterProjectName'));
+            if (!projectName) return;
+
+            const project = await this.projectManager.createProject(projectName);
+            if (project) {
+                await this.updateTaskProject(task.id, project.id);
+                showMessage(`${t('addedToProjectSuccess').replace('${count}', '1')}`);
+            }
+        } catch (error) {
+            console.error('创建项目并分配失败:', error);
+            showMessage('操作失败，请重试');
+        }
+    }
+
+    private async deleteTask(task: QuadrantTask) {
+        try {
+            const confirmed = await confirm(
+                t('deleteReminderConfirm')
+                    .replace('${title}', task.title)
+                    .replace('${date}', task.date || t('noDate'))
+            );
+            
+            if (confirmed) {
+                const reminderData = await readReminderData();
+                delete reminderData[task.id];
+                await writeReminderData(reminderData);
+                
+                await this.refresh();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                showMessage(t('reminderDeleted'));
+            }
+        } catch (error) {
+            console.error('删除任务失败:', error);
+            showMessage(t('deleteReminderFailed'));
+        }
+    }
+
     async refresh() {
         await this.loadTasks();
         this.renderMatrix();
+    }
+
+    private switchToCalendarView() {
+        // 触发事件通知父组件切换回日历视图
+        const event = new CustomEvent('switchToCalendarView');
+        window.dispatchEvent(event);
     }
 
     destroy() {

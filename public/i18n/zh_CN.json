@@ -547,5 +547,7 @@
     "doing": "进行中",
     "done": "已完成",
     "archived": "已归档",
-    "openProjectKanban": "打开所属项目看板"
+    "openProjectKanban": "打开所属项目看板",
+    "removeFromProject": "从项目中移除",
+    "pleaseEnterProjectName": "请输入项目名称"
 }

@@ -262,6 +262,11 @@ export class CalendarView {
 
         // 监听提醒更新事件
         window.addEventListener('reminderUpdated', () => this.refreshEvents());
+        
+        // 监听四象限视图切换回日历视图事件
+        window.addEventListener('switchToCalendarView', () => {
+            this.switchView('calendar');
+        });
 
         // 添加窗口大小变化监听器
         this.addResizeListeners();
@@ -3613,6 +3618,7 @@ export class CalendarView {
      * 切换视图模式
      */
     private async switchView(view: 'calendar' | 'eisenhower') {
+        console.log('Switching view to:', view);
         // 切换视图模式
         this.currentView = view;
         
@@ -3623,30 +3629,70 @@ export class CalendarView {
                 await this.eisenhowerMatrixView.initialize();
             }
             
-            // 隐藏日历视图
+            // 隐藏日历视图，但保留DOM结构
             const calendarEl = this.container.querySelector('.reminder-calendar-container');
             if (calendarEl) {
                 (calendarEl as HTMLElement).style.display = 'none';
+                console.log('Hiding calendar container');
+            }
+            
+            // 隐藏工具栏
+            const toolbar = this.container.querySelector('.reminder-calendar-toolbar');
+            if (toolbar) {
+                (toolbar as HTMLElement).style.display = 'none';
+                console.log('Hiding toolbar');
             }
             
             // 显示四象限视图
             const matrixEl = this.container.querySelector('.eisenhower-matrix-view');
             if (matrixEl) {
                 (matrixEl as HTMLElement).style.display = 'flex';
+                console.log('Showing matrix view');
             }
         } else {
             // 切换到日历视图
+            console.log('Restoring calendar view...');
+            
             // 显示日历视图
             const calendarEl = this.container.querySelector('.reminder-calendar-container');
             if (calendarEl) {
                 (calendarEl as HTMLElement).style.display = 'block';
+                (calendarEl as HTMLElement).style.visibility = 'visible';
+                console.log('Showing calendar container');
+            }
+            
+            // 显示工具栏
+            const toolbar = this.container.querySelector('.reminder-calendar-toolbar');
+            if (toolbar) {
+                (toolbar as HTMLElement).style.display = 'flex';
+                (toolbar as HTMLElement).style.visibility = 'visible';
+                console.log('Showing toolbar');
             }
             
             // 隐藏四象限视图
             const matrixEl = this.container.querySelector('.eisenhower-matrix-view');
             if (matrixEl) {
                 (matrixEl as HTMLElement).style.display = 'none';
+                (matrixEl as HTMLElement).style.visibility = 'hidden';
+                console.log('Hiding matrix view');
             }
+            
+            // 强制刷新日历大小和布局
+            setTimeout(() => {
+                if (this.calendar) {
+                    try {
+                        this.calendar.updateSize();
+                        this.calendar.render();
+                        console.log('Calendar view restored successfully');
+                    } catch (error) {
+                        console.error('Error restoring calendar view:', error);
+                        // Force re-initialize if needed
+                        this.calendar.render();
+                    }
+                } else {
+                    console.error('Calendar instance not found');
+                }
+            }, 100);
         }
     }
 

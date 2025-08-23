@@ -166,4 +166,8 @@ export class ProjectManager {
     public getProjectById(id: string): Project | undefined {
         return this.projects.find(p => p.id === id);
     }
+
+    public getStatusManager(): StatusManager {
+        return this.statusManager;
+    }
 }
