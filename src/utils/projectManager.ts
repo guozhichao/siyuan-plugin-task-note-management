@@ -33,28 +33,50 @@ export class ProjectManager {
         await this.loadProjects();
     }
 
+    private async saveProjectColors() {
+        try {
+            const content = JSON.stringify(this.projectColors, null, 2);
+            const blob = new Blob([content], { type: 'application/json' });
+            const response = await putFile(PROJECT_COLOR_CONFIG_FILE, false, blob);
+
+            // 检查响应是否包含错误信息
+            if (response && typeof response === 'object' && 'code' in response && response.code !== 0) {
+                console.error('Failed to save project colors - API error:', response);
+                throw new Error(`API error: ${response.msg || 'Unknown error'}`);
+            }
+        } catch (error) {
+            console.error('Failed to save project colors:', error);
+            throw error;
+        }
+    }
+
     private async loadProjectColors() {
         try {
             const content = await getFile(PROJECT_COLOR_CONFIG_FILE);
             if (content) {
-                this.projectColors = typeof content === 'string' ? JSON.parse(content) : content;
+                const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+
+                // 检查解析的内容是否包含错误响应，如果是则忽略
+                if (parsed && typeof parsed === 'object' && 'code' in parsed && 'msg' in parsed) {
+                    console.warn('Project colors file contains error response, resetting to empty');
+                    this.projectColors = {};
+                    // 清理损坏的文件并重新保存
+                    await this.saveProjectColors();
+                } else {
+                    this.projectColors = parsed || {};
+                }
             } else {
                 this.projectColors = {};
             }
         } catch (error) {
             console.warn('Failed to load project colors, using defaults:', error);
             this.projectColors = {};
-        }
-    }
-
-    private async saveProjectColors() {
-        try {
-            const content = JSON.stringify(this.projectColors, null, 2);
-            const blob = new Blob([content], { type: 'application/json' });
-            await putFile(PROJECT_COLOR_CONFIG_FILE, false, blob);
-        } catch (error) {
-            console.error('Failed to save project colors:', error);
-            throw error;
+            // 尝试重新创建文件
+            try {
+                await this.saveProjectColors();
+            } catch (saveError) {
+                console.error('Failed to create initial project colors file:', saveError);
+            }
         }
     }
 
