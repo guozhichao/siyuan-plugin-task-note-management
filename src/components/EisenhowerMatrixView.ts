@@ -621,6 +621,7 @@ export class EisenhowerMatrixView {
                 // 只允许在同一项目和同一优先级内排序
                 if (draggedProjectId === currentProjectId && draggedPriority === currentPriority) {
                     this.showDropIndicator(taskEl, e);
+                    taskEl.classList.add('drag-over');
                 }
             }
         });
@@ -628,6 +629,7 @@ export class EisenhowerMatrixView {
         taskEl.addEventListener('dragleave', (e) => {
             e.stopPropagation();
             this.hideDropIndicators();
+            taskEl.classList.remove('drag-over');
         });
 
         taskEl.addEventListener('drop', (e) => {
@@ -646,6 +648,7 @@ export class EisenhowerMatrixView {
                 }
             }
             this.hideDropIndicators();
+            taskEl.classList.remove('drag-over');
         });
 
         return taskEl;
@@ -1277,6 +1280,41 @@ export class EisenhowerMatrixView {
             .filter-group-label:first-child {
                 margin-top: 0;
             }
+
+            /* 拖拽排序指示器样式 */
+            .drop-indicator {
+                position: absolute;
+                left: 0;
+                right: 0;
+                height: 2px;
+                background-color: var(--b3-theme-primary);
+                z-index: 1000;
+                pointer-events: none;
+                animation: drop-indicator-pulse 1s ease-in-out infinite;
+            }
+            
+            @keyframes drop-indicator-pulse {
+                0% { opacity: 0.6; transform: scaleX(0.8); }
+                50% { opacity: 1; transform: scaleX(1); }
+                100% { opacity: 0.6; transform: scaleX(0.8); }
+            }
+            
+            .task-item.drag-over {
+                background-color: var(--b3-theme-primary-lightest) !important;
+                border-color: var(--b3-theme-primary) !important;
+            }
+            
+            .task-item.drag-over::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                border: 2px dashed var(--b3-theme-primary);
+                border-radius: 4px;
+                pointer-events: none;
+            }
         `;
         document.head.appendChild(style);
     }
@@ -1488,6 +1526,13 @@ export class EisenhowerMatrixView {
 
         const indicator = document.createElement('div');
         indicator.className = 'drop-indicator';
+        
+        // 获取父容器的相对位置
+        const parentRect = element.parentElement?.getBoundingClientRect() || rect;
+        
+        // 计算相对于父容器的位置
+        const relativeTop = rect.top - parentRect.top;
+        
         indicator.style.cssText = `
             position: absolute;
             left: 0;
@@ -1501,9 +1546,9 @@ export class EisenhowerMatrixView {
         element.style.position = 'relative';
 
         if (event.clientY < midpoint) {
-            indicator.style.top = '-1px';
+            indicator.style.top = '0px';
         } else {
-            indicator.style.bottom = '-1px';
+            indicator.style.bottom = '0px';
         }
         element.appendChild(indicator);
     }
@@ -1514,6 +1559,7 @@ export class EisenhowerMatrixView {
             if (el.style.position === 'relative') {
                 el.style.position = '';
             }
+            el.classList.remove('drag-over');
         });
     }
 
@@ -1579,7 +1625,6 @@ export class EisenhowerMatrixView {
                 await writeReminderData(reminderData);
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
                 await this.refresh();
-                showMessage('排序已更新');
             }
         } catch (error) {
             console.error('重新排序任务失败:', error);
