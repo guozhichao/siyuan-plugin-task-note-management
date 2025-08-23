@@ -82,6 +82,28 @@ export class ProjectKanbanView {
             font-weight: 600;
             color: var(--b3-theme-on-background);
         `;
+        
+        // 如果项目有关联的笔记ID，添加点击跳转功能
+        if (this.project?.blockId) {
+            titleEl.style.cursor = 'pointer';
+            titleEl.style.textDecoration = 'underline';
+            titleEl.style.textDecorationStyle = 'dotted';
+            titleEl.title = '点击跳转到项目笔记';
+            titleEl.setAttribute('data-has-note', 'true');
+            
+            titleEl.addEventListener('click', () => {
+                this.openProjectNote(this.project.blockId);
+            });
+            
+            titleEl.addEventListener('mouseenter', () => {
+                titleEl.style.color = 'var(--b3-theme-primary)';
+            });
+            
+            titleEl.addEventListener('mouseleave', () => {
+                titleEl.style.color = 'var(--b3-theme-on-background)';
+            });
+        }
+        
         titleContainer.appendChild(titleEl);
 
         // 项目描述
@@ -2383,9 +2405,28 @@ export class ProjectKanbanView {
                color: var(--b3-theme-primary);
                background: var(--b3-theme-surface-lighter);
            }
-        `;
-        document.head.appendChild(style);
-    }
+
+           /* 项目标题点击样式 */
+           .project-kanban-title h2 {
+               cursor: pointer;
+               transition: color 0.2s ease;
+           }
+           
+           .project-kanban-title h2:hover {
+               color: var(--b3-theme-primary);
+           }
+           
+           .project-kanban-title h2[data-has-note="true"] {
+               text-decoration: underline;
+               text-decoration-style: dotted;
+           }
+           
+           .project-kanban-title h2[data-has-note="true"]:hover {
+               color: var(--b3-theme-primary);
+           }
+       `;
+       document.head.appendChild(style);
+   }
     private renderCategorySelector(container: HTMLElement, defaultCategoryId?: string) {
         container.innerHTML = '';
         const categories = this.categoryManager.getCategories();
@@ -2609,6 +2650,19 @@ export class ProjectKanbanView {
                     showMessage("打开块失败");
                 }
             );
+        }
+    }
+
+    /**
+     * 打开项目笔记
+     * @param blockId 项目笔记的块ID
+     */
+    private async openProjectNote(blockId: string) {
+        try {
+            openBlock(blockId);
+        } catch (error) {
+            console.error('打开项目笔记失败:', error);
+            showMessage("打开项目笔记失败");
         }
     }
 
