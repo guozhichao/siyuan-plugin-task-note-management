@@ -1477,21 +1477,18 @@ export default class ReminderPlugin extends Plugin {
         }
     }
 
-    private addBreadcrumbReminderButton(protyle: any) {
+    private async addBreadcrumbReminderButton(protyle: any) {
         if (!protyle || !protyle.element) return;
 
         const breadcrumb = protyle.element.querySelector('.protyle-breadcrumb');
         if (!breadcrumb) return;
-
-        // 检查是否已经添加过按钮
-        const existingViewButton = breadcrumb.querySelector('.view-reminder-breadcrumb-btn');
-        if (existingViewButton) return;
 
         // 查找文档按钮
         const docButton = breadcrumb.querySelector('button[data-type="doc"]');
         if (!docButton) return;
 
         // 创建查看提醒按钮（如果不存在）
+        const existingViewButton = breadcrumb.querySelector('.view-reminder-breadcrumb-btn');
         if (!existingViewButton) {
             const viewReminderBtn = document.createElement('button');
             viewReminderBtn.className = 'view-reminder-breadcrumb-btn block__icon fn__flex-center ariaLabel';
@@ -1532,6 +1529,62 @@ export default class ReminderPlugin extends Plugin {
 
             breadcrumb.insertBefore(viewReminderBtn, docButton);
         }
+
+        // --- Project Button ---
+        const documentId = protyle.block?.rootID;
+        if (!documentId) return;
+
+        const { readProjectData } = await import("./api");
+        const projectData = await readProjectData();
+        const isProject = projectData && projectData.hasOwnProperty(documentId);
+
+        const existingProjectButton = breadcrumb.querySelector('.project-breadcrumb-btn');
+        if (isProject) {
+            if (!existingProjectButton) {
+                const projectBtn = document.createElement('button');
+                projectBtn.className = 'project-breadcrumb-btn block__icon fn__flex-center ariaLabel';
+                projectBtn.setAttribute('aria-label', t("projectManagement"));
+                projectBtn.innerHTML = `<svg class="b3-list-item__graphic"><use xlink:href="#iconProject"></use></svg>`;
+                projectBtn.style.cssText = `
+                    margin-right: 4px;
+                    padding: 4px;
+                    border: none;
+                    background: transparent;
+                    cursor: pointer;
+                    border-radius: 4px;
+                    color: var(--b3-theme-on-background);
+                    opacity: 0.7;
+                    transition: all 0.2s ease;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 24px;
+                    height: 24px;
+                `;
+
+                projectBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openTab({
+                        app: this.app,
+                        custom: {
+                            title: projectData[documentId].title,
+                            icon: "iconProject",
+                            id: this.name + PROJECT_KANBAN_TAB_TYPE,
+                            data: {
+                                projectId: projectData[documentId].blockId,
+                                projectTitle: projectData[documentId].title
+                            }
+                        }
+                    });
+                });
+                breadcrumb.insertBefore(projectBtn, docButton);
+            }
+        } else {
+            if (existingProjectButton) {
+                existingProjectButton.remove();
+            }
+        }
     }
 
 
@@ -1558,7 +1611,7 @@ export default class ReminderPlugin extends Plugin {
         }
 
         // 清理所有面包屑按钮
-        document.querySelectorAll('.view-reminder-breadcrumb-btn').forEach(btn => {
+        document.querySelectorAll('.view-reminder-breadcrumb-btn, .project-breadcrumb-btn').forEach(btn => {
             btn.remove();
         });
     }    /**
