@@ -14,7 +14,7 @@ import { ProjectColorDialog } from "./ProjectColorDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { t } from "../utils/i18n";
 import { generateRepeatInstances, RepeatInstance } from "../utils/repeatUtils";
-
+import { CalendarConfigManager } from "../utils/calendarConfigManager";
 export class CalendarView {
     private container: HTMLElement;
     private calendar: Calendar;
@@ -23,8 +23,9 @@ export class CalendarView {
     private resizeTimeout: number;
     private categoryManager: CategoryManager; // 添加分类管理器
     private projectManager: ProjectManager;
+    private calendarConfigManager: CalendarConfigManager;
     private currentCategoryFilter: string = 'all'; // 当前分类过滤
-private colorBy: 'category' | 'priority' | 'project' = 'project'; // 按分类或优先级上色
+    private colorBy: 'category' | 'priority' | 'project' = 'project'; // 按分类或优先级上色
     private tooltip: HTMLElement | null = null; // 添加提示框元素
     private hideTooltipTimeout: number | null = null; // 添加提示框隐藏超时控制
     private tooltipShowTimeout: number | null = null; // 添加提示框显示延迟控制
@@ -40,6 +41,7 @@ private colorBy: 'category' | 'priority' | 'project' = 'project'; // 按分类�
         this.plugin = plugin;
         this.categoryManager = CategoryManager.getInstance(); // 初始化分类管理器
         this.projectManager = ProjectManager.getInstance();
+        this.calendarConfigManager = CalendarConfigManager.getInstance();
         this.initUI();
     }
 
@@ -47,6 +49,10 @@ private colorBy: 'category' | 'priority' | 'project' = 'project'; // 按分类�
         // 初始化分类管理器
         await this.categoryManager.initialize();
         await this.projectManager.initialize();
+        await this.calendarConfigManager.initialize();
+
+        // 从配置中读取colorBy设置
+        this.colorBy = this.calendarConfigManager.getColorBy();
 
         this.container.classList.add('reminder-calendar-view');
 
@@ -122,8 +128,9 @@ private colorBy: 'category' | 'priority' | 'project' = 'project'; // 按分类�
             <option value="priority">${t("colorByPriority")}</option>
         `;
         colorBySelect.value = this.colorBy;
-        colorBySelect.addEventListener('change', () => {
+        colorBySelect.addEventListener('change', async () => {
             this.colorBy = colorBySelect.value as 'category' | 'priority' | 'project';
+            await this.calendarConfigManager.setColorBy(this.colorBy);
             this.refreshEvents();
         });
         filterGroup.appendChild(colorBySelect);
