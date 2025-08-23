@@ -443,7 +443,7 @@ export class ReminderPanel {
             // 静默失败，不影响主要功能
         }
     }
-    
+
 
 
     private applyCategoryFilter(reminders: any[]): any[] {
@@ -1631,7 +1631,7 @@ export class ReminderPanel {
             }
         });
 
-        
+
         titleContainer.appendChild(titleEl);
 
         // 时间信息容器
@@ -1679,7 +1679,7 @@ export class ReminderPanel {
         if (priority !== 'none') {
             const priorityLabel = document.createElement('span');
             priorityLabel.className = `reminder-priority-label reminder-priority-label--${priority}`;
-            
+
             // 获取优先级对应的颜色
             let priorityColor = '';
             let priorityBgColor = '';
@@ -1697,13 +1697,13 @@ export class ReminderPanel {
                     priorityBgColor = 'var(--b3-card-info-background)';
                     break;
             }
-            
+
             const priorityNames = {
                 'high': t("highPriority"),
                 'medium': t("mediumPriority"),
                 'low': t("lowPriority")
             };
-            
+
             // 设置优先级标签样式
             priorityLabel.style.cssText = `
                 display: inline-flex;
@@ -1719,7 +1719,7 @@ export class ReminderPanel {
                 color: ${priorityColor};
                 flex-shrink: 0;
             `;
-            
+
             // 创建优先级圆点
             const priorityDot = document.createElement('div');
             priorityDot.style.cssText = `
@@ -1729,7 +1729,7 @@ export class ReminderPanel {
                 background-color: ${priorityColor};
                 flex-shrink: 0;
             `;
-            
+
             priorityLabel.appendChild(priorityDot);
             priorityLabel.appendChild(document.createTextNode(priorityNames[priority]));
             timeContainer.appendChild(priorityLabel);
@@ -3645,14 +3645,14 @@ export class ReminderPanel {
         const createNewBtn = dialog.element.querySelector('#createNewBtn') as HTMLButtonElement;
         const bindExistingPanel = dialog.element.querySelector('#bindExistingPanel') as HTMLElement;
         const createNewPanel = dialog.element.querySelector('#createNewPanel') as HTMLElement;
-        
+
         const blockIdInput = dialog.element.querySelector('#blockIdInput') as HTMLInputElement;
         const selectedBlockInfo = dialog.element.querySelector('#selectedBlockInfo') as HTMLElement;
         const blockContentEl = dialog.element.querySelector('#blockContent') as HTMLElement;
-        
+
         const docTitleInput = dialog.element.querySelector('#docTitleInput') as HTMLInputElement;
         const docContentInput = dialog.element.querySelector('#docContentInput') as HTMLTextAreaElement;
-        
+
         const cancelBtn = dialog.element.querySelector('#bindCancelBtn') as HTMLButtonElement;
         const confirmBtn = dialog.element.querySelector('#bindConfirmBtn') as HTMLButtonElement;
 
@@ -3675,7 +3675,7 @@ export class ReminderPanel {
             createNewPanel.style.display = 'block';
             bindExistingPanel.style.display = 'none';
             confirmBtn.textContent = t("createDocumentAndBind");
-            
+
             // 自动填充标题
             if (!docTitleInput.value && reminder.title) {
                 docTitleInput.value = reminder.title;
@@ -3731,7 +3731,7 @@ export class ReminderPanel {
                 // 创建新文档模式
                 const title = docTitleInput.value.trim();
                 const content = docContentInput.value.trim();
-                
+
                 if (!title) {
                     showMessage(t("pleaseEnterTitle"));
                     return;
@@ -3814,7 +3814,7 @@ export class ReminderPanel {
         try {
             const reminderData = await readReminderData();
             const reminderId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
-            
+
             if (reminderData[reminderId]) {
                 // 获取块信息
                 const block = await getBlockByID(blockId);
@@ -3826,12 +3826,12 @@ export class ReminderPanel {
                 reminderData[reminderId].blockId = blockId;
                 reminderData[reminderId].docId = block.root_id || blockId;
                 reminderData[reminderId].isQuickReminder = false; // 移除快速提醒标记
-                
+
                 await writeReminderData(reminderData);
-                
+
                 // 更新块的书签状态
                 await updateBlockReminderBookmark(blockId);
-                
+
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
             } else {
