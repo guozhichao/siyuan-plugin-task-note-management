@@ -614,6 +614,18 @@ export class CalendarView {
 
         menu.addSeparator();
 
+        // 添加项目管理选项（仅当任务有projectId时显示）
+        if (calendarEvent.extendedProps.projectId) {
+            menu.addItem({
+                iconHTML: "📂",
+                label: t("openProjectKanban"),
+                click: () => {
+                    this.openProjectKanban(calendarEvent.extendedProps.projectId);
+                }
+            });
+            menu.addSeparator();
+        }
+
         // 添加番茄钟选项
         menu.addItem({
             iconHTML: "🍅",
@@ -3580,6 +3592,42 @@ export class CalendarView {
                 console.error('清理番茄钟实例失败:', error);
             }
             CalendarView.currentPomodoroTimer = null;
+        }
+    }
+
+    /**
+     * 打开项目看板
+     * @param projectId 项目ID
+     */
+    private async openProjectKanban(projectId: string) {
+        try {
+            // 获取项目数据以获取项目标题
+            const { readProjectData } = await import("../api");
+            const projectData = await readProjectData();
+            
+            if (!projectData || !projectData[projectId]) {
+                showMessage("项目不存在");
+                return;
+            }
+
+            const project = projectData[projectId];
+            
+            // 使用openTab打开项目看板
+            openTab({
+                app: this.plugin.app,
+                custom: {
+                    title: project.title,
+                    icon: "iconProject",
+                    id: this.plugin.name + "project_kanban_tab",
+                    data: {
+                        projectId: project.blockId,
+                        projectTitle: project.title
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('打开项目看板失败:', error);
+            showMessage("打开项目看板失败");
         }
     }
 }

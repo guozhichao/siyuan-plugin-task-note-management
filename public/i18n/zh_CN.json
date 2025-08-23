@@ -541,5 +541,6 @@
     "colorSetSuccess": "颜色设置成功",
     "doing": "进行中",
     "done": "已完成",
-    "archived": "已归档"
+    "archived": "已归档",
+    "openProjectKanban": "打开所属项目看板"
 }

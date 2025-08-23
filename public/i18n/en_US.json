@@ -498,5 +498,6 @@
     "colorSetSuccess": "Color set successfully",
     "doing": "Doing",
     "done": "Done",
-    "archived": "Archived"
+    "archived": "Archived",
+    "openProjectKanban": "Open Project Kanban"
 }
