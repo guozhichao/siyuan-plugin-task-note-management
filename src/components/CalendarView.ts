@@ -12,6 +12,7 @@ import { ProjectManager } from "../utils/projectManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { ProjectColorDialog } from "./ProjectColorDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
+import { EisenhowerMatrixView } from "./EisenhowerMatrixView";
 import { t } from "../utils/i18n";
 import { generateRepeatInstances, RepeatInstance } from "../utils/repeatUtils";
 import { CalendarConfigManager } from "../utils/calendarConfigManager";
@@ -32,6 +33,8 @@ export class CalendarView {
     private lastClickTime: number = 0; // 添加双击检测
     private clickTimeout: number | null = null; // 添加单击延迟超时
     private refreshTimeout: number | null = null; // 添加刷新防抖超时
+    private eisenhowerMatrixView: any = null; // 四象限视图实例
+    private currentView: 'calendar' | 'eisenhower' = 'calendar'; // 当前视图模式
 
     // 添加静态变量来跟踪当前活动的番茄钟
     private static currentPomodoroTimer: PomodoroTimer | null = null;
@@ -72,6 +75,7 @@ export class CalendarView {
         monthBtn.className = 'b3-button b3-button--outline';
         monthBtn.textContent = t("month");
         monthBtn.addEventListener('click', async () => {
+            await this.switchView('calendar');
             await this.calendarConfigManager.setViewMode('dayGridMonth');
             this.calendar.changeView('dayGridMonth');
         });
@@ -81,6 +85,7 @@ export class CalendarView {
         weekBtn.className = 'b3-button b3-button--outline';
         weekBtn.textContent = t("week");
         weekBtn.addEventListener('click', async () => {
+            await this.switchView('calendar');
             await this.calendarConfigManager.setViewMode('timeGridWeek');
             this.calendar.changeView('timeGridWeek');
         });
@@ -90,10 +95,19 @@ export class CalendarView {
         dayBtn.className = 'b3-button b3-button--outline';
         dayBtn.textContent = t("day");
         dayBtn.addEventListener('click', async () => {
+            await this.switchView('calendar');
             await this.calendarConfigManager.setViewMode('timeGridDay');
             this.calendar.changeView('timeGridDay');
         });
         viewGroup.appendChild(dayBtn);
+
+        const matrixBtn = document.createElement('button');
+        matrixBtn.className = 'b3-button b3-button--outline';
+        matrixBtn.textContent = t("eisenhowerMatrix");
+        matrixBtn.addEventListener('click', async () => {
+            await this.switchView('eisenhower');
+        });
+        viewGroup.appendChild(matrixBtn);
 
 
         // 添加分类过滤器
@@ -3592,6 +3606,47 @@ export class CalendarView {
                 console.error('清理番茄钟实例失败:', error);
             }
             CalendarView.currentPomodoroTimer = null;
+        }
+    }
+
+    /**
+     * 切换视图模式
+     */
+    private async switchView(view: 'calendar' | 'eisenhower') {
+        // 切换视图模式
+        this.currentView = view;
+        
+        if (view === 'eisenhower') {
+            // 切换到四象限视图
+            if (!this.eisenhowerMatrixView) {
+                this.eisenhowerMatrixView = new EisenhowerMatrixView(this.container, this.plugin);
+                await this.eisenhowerMatrixView.initialize();
+            }
+            
+            // 隐藏日历视图
+            const calendarEl = this.container.querySelector('.reminder-calendar-container');
+            if (calendarEl) {
+                (calendarEl as HTMLElement).style.display = 'none';
+            }
+            
+            // 显示四象限视图
+            const matrixEl = this.container.querySelector('.eisenhower-matrix-view');
+            if (matrixEl) {
+                (matrixEl as HTMLElement).style.display = 'flex';
+            }
+        } else {
+            // 切换到日历视图
+            // 显示日历视图
+            const calendarEl = this.container.querySelector('.reminder-calendar-container');
+            if (calendarEl) {
+                (calendarEl as HTMLElement).style.display = 'block';
+            }
+            
+            // 隐藏四象限视图
+            const matrixEl = this.container.querySelector('.eisenhower-matrix-view');
+            if (matrixEl) {
+                (matrixEl as HTMLElement).style.display = 'none';
+            }
         }
     }
 
