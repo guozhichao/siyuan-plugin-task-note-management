@@ -127,6 +127,18 @@ export class ProjectPanel {
         });
         actionContainer.appendChild(this.sortButton);
 
+        // 添加日历视图按钮
+        if (this.plugin) {
+            const calendarBtn = document.createElement('button');
+            calendarBtn.className = 'b3-button b3-button--outline';
+            calendarBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconCalendar"></use></svg>';
+            calendarBtn.title = t("calendarView") || "日历视图";
+            calendarBtn.addEventListener('click', () => {
+                this.plugin.openCalendarTab();
+            });
+            actionContainer.appendChild(calendarBtn);
+        }
+
         // 添加刷新按钮
         const refreshBtn = document.createElement('button');
         refreshBtn.className = 'b3-button b3-button--outline';
