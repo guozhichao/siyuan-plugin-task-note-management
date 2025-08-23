@@ -718,9 +718,36 @@ export class ProjectKanbanView {
         if (hasDate) {
             const dateEl = document.createElement('div');
             dateEl.className = 'kanban-task-date';
+            dateEl.style.cssText = `
+                font-size: 12px;
+                color: var(--b3-theme-on-surface);
+                opacity: 0.7;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                flex-wrap: wrap;
+            `;
 
             const dateText = this.formatTaskDate(task);
-            dateEl.innerHTML = `<span>📅</span><span>${dateText}</span>`;
+            let dateHtml = `<span>📅</span><span>${dateText}</span>`;
+            
+            // 添加倒计时显示
+            if (!task.completed) {
+                const countdownInfo = this.getTaskCountdownInfo(task);
+                if (countdownInfo.type !== 'none' && countdownInfo.days >= 0) {
+                    let urgencyClass = 'countdown-normal';
+                    if (countdownInfo.days <= 1) {
+                        urgencyClass = 'countdown-urgent';
+                    } else if (countdownInfo.days <= 3) {
+                        urgencyClass = 'countdown-warning';
+                    }
+                    
+                    const prefix = countdownInfo.type === 'start' ? '剩' : '';
+                    dateHtml += `<span class="countdown-badge ${urgencyClass}">${prefix}${countdownInfo.text}</span>`;
+                }
+            }
+            
+            dateEl.innerHTML = dateHtml;
             infoEl.appendChild(dateEl);
         }
 
@@ -875,6 +902,19 @@ export class ProjectKanbanView {
         tomorrow.setDate(tomorrow.getDate() + 1);
         const tomorrowStr = getLocalDateString(tomorrow);
 
+        // 如果只有截止时间，显示截止时间
+        if (!task.date && task.endDate) {
+            const endDate = new Date(task.endDate);
+            if (task.endDate === today) {
+                return '今天截止';
+            } else if (task.endDate === tomorrowStr) {
+                return '明天截止';
+            } else {
+                return endDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) + ' 截止';
+            }
+        }
+
+        // 如果有开始时间，按原逻辑显示
         let dateStr = '';
         if (task.date === today) {
             dateStr = '今天';
@@ -900,6 +940,68 @@ export class ProjectKanbanView {
         }
 
         return dateStr || "未设置日期";
+    }
+
+    private getDaysUntilDate(targetDate: string): number {
+        if (!targetDate) return 0;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const target = new Date(targetDate);
+        target.setHours(0, 0, 0, 0);
+        const diffTime = target.getTime() - today.getTime();
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    }
+
+    private getTaskCountdownInfo(task: any): { text: string; days: number; type: 'start' | 'end' | 'none' } {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // 如果有开始日期
+        if (task.date) {
+            const startDate = new Date(task.date);
+            startDate.setHours(0, 0, 0, 0);
+            const startDays = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+            // 如果还没开始
+            if (startDays > 0) {
+                return {
+                    text: startDays === 1 ? '明天开始' : `${startDays}天后开始`,
+                    days: startDays,
+                    type: 'start'
+                };
+            }
+
+            // 如果已经开始且有结束日期
+            if (task.endDate) {
+                const endDate = new Date(task.endDate);
+                endDate.setHours(0, 0, 0, 0);
+                const endDays = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+                if (endDays >= 0) {
+                    return {
+                        text: endDays === 0 ? '今天截止' : `${endDays}天截止`,
+                        days: endDays,
+                        type: 'end'
+                    };
+                }
+            }
+        }
+        // 只有结束日期的情况
+        else if (task.endDate) {
+            const endDate = new Date(task.endDate);
+            endDate.setHours(0, 0, 0, 0);
+            const endDays = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+            if (endDays >= 0) {
+                return {
+                    text: endDays === 0 ? '今天截止' : `${endDays}天截止`,
+                    days: endDays,
+                    type: 'end'
+                };
+            }
+        }
+
+        return { text: '', days: 0, type: 'none' };
     }
 
     private addTaskDragEvents(element: HTMLElement, task: any) {
@@ -2186,6 +2288,33 @@ export class ProjectKanbanView {
 
             .kanban-task-pomodoro-count {
                 /* Styles for pomodoro count */
+            }
+
+            /* 倒计时样式 */
+            .countdown-badge {
+                font-size: 11px;
+                padding: 2px 6px;
+                border-radius: 10px;
+                font-weight: 500;
+                margin-left: 4px;
+            }
+
+            .countdown-urgent {
+                background-color: rgba(231, 76, 60, 0.15);
+                color: #e74c3c;
+                border: 1px solid rgba(231, 76, 60, 0.3);
+            }
+
+            .countdown-warning {
+                background-color: rgba(243, 156, 18, 0.15);
+                color: #f39c12;
+                border: 1px solid rgba(243, 156, 18, 0.3);
+            }
+
+            .countdown-normal {
+                background-color: rgba(46, 204, 113, 0.15);
+                color: #2ecc71;
+                border: 1px solid rgba(46, 204, 113, 0.3);
             }
 
            .kanban-task-checkbox {
