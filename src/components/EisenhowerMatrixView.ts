@@ -7,6 +7,7 @@ import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
 import { t } from "../utils/i18n";
 import { getLocalDateString } from "../utils/dateUtils";
 import { openBlock } from '../api';
+import { getFile, putFile } from "../api";
 interface QuadrantTask {
     id: string;
     title: string;
@@ -41,6 +42,12 @@ export class EisenhowerMatrixView {
     private filteredTasks: QuadrantTask[] = [];
     private statusFilter: Set<string> = new Set();
     private projectFilter: Set<string> = new Set();
+    private projectSortOrder: string[] = [];
+    private currentProjectSortMode: 'name' | 'custom' = 'name';
+    private criteriaSettings = {
+        importanceThreshold: 'medium' as 'high' | 'medium' | 'low',
+        urgencyDays: 3
+    };
 
     constructor(container: HTMLElement, plugin: any) {
         this.container = container;
@@ -86,6 +93,8 @@ export class EisenhowerMatrixView {
     async initialize() {
         await this.projectManager.initialize();
         await this.categoryManager.initialize();
+        await this.loadProjectSortOrder();
+        await this.loadCriteriaSettings();
         this.setupUI();
         await this.loadTasks();
         this.renderMatrix();
@@ -102,9 +111,17 @@ export class EisenhowerMatrixView {
         headerEl.innerHTML = `
             <h2>${t("eisenhowerMatrix")}</h2>
             <div class="matrix-header-buttons">
+                <button class="b3-button b3-button--outline sort-projects-btn" title="项目排序">
+                    <svg class="b3-button__icon"><use xlink:href="#iconSort"></use></svg>
+                    项目排序
+                </button>
                 <button class="b3-button b3-button--outline filter-btn" title="筛选">
                     <svg class="b3-button__icon"><use xlink:href="#iconFilter"></use></svg>
                     筛选
+                </button>
+                <button class="b3-button b3-button--outline settings-btn" title="设置">
+                    <svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg>
+                    设置
                 </button>
                 <button class="b3-button b3-button--outline refresh-btn" title="${t("refresh")}">
                     <svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>
@@ -170,7 +187,10 @@ export class EisenhowerMatrixView {
                 if (reminder.completed) continue;
 
                 // 判断重要性
-                const isImportant = reminder.priority === 'high' || reminder.priority === 'medium';
+                const importanceOrder = { 'none': 0, 'low': 1, 'medium': 2, 'high': 3 };
+                const thresholdValue = importanceOrder[this.criteriaSettings.importanceThreshold];
+                const taskValue = importanceOrder[reminder.priority || 'none'];
+                const isImportant = taskValue >= thresholdValue;
                 
                 // 判断紧急性
                 const isUrgent = this.isTaskUrgent(reminder);
@@ -228,13 +248,13 @@ export class EisenhowerMatrixView {
 
     private isTaskUrgent(reminder: any): boolean {
         const today = new Date();
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
+        const urgencyDate = new Date();
+        urgencyDate.setDate(urgencyDate.getDate() + this.criteriaSettings.urgencyDays);
 
         const taskDate = new Date(reminder.date);
         
-        // 过期、今天、明天的任务认为是紧急的
-        return taskDate <= tomorrow;
+        // 根据设置的天数判断紧急性
+        return taskDate <= urgencyDate;
     }
 
     private isValidQuadrant(quadrant: string): quadrant is QuadrantTask['quadrant'] {
@@ -294,16 +314,82 @@ export class EisenhowerMatrixView {
             grouped.get(projectKey)!.push(task);
         });
 
+        // 在每个项目分组内按优先级排序，同时支持手动排序
+        grouped.forEach((projectTasks, projectKey) => {
+            // 按优先级排序（高到低），同优先级按sort字段排序
+            projectTasks.sort((a, b) => {
+                const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
+                const priorityA = priorityOrder[a.priority || 'none'];
+                const priorityB = priorityOrder[b.priority || 'none'];
+                
+                // 优先级不同，按优先级降序排序
+                if (priorityA !== priorityB) {
+                    return priorityB - priorityA;
+                }
+                
+                // 同优先级内，按手动排序值排序（升序）
+                const sortA = a.extendedProps?.sort || 0;
+                const sortB = b.extendedProps?.sort || 0;
+                if (sortA !== sortB) {
+                    return sortA - sortB;
+                }
+                
+                // 如果排序值相同，按创建时间排序
+                return new Date(b.extendedProps?.createdTime || 0).getTime() - new Date(a.extendedProps?.createdTime || 0).getTime();
+            });
+        });
+
         // 转换为数组并保持顺序
         const result: QuadrantTask[] = [];
         
-        // 先添加有项目的任务
-        const sortedProjects = Array.from(grouped.entries())
-            .filter(([key]) => key !== 'no-project')
-            .sort((a, b) => (a[1][0].projectName || '').localeCompare(b[1][0].projectName || ''));
+        // 获取所有项目ID（排除无项目）
+        const projectIds = Array.from(grouped.keys()).filter(key => key !== 'no-project');
+        
+        // 根据排序模式排序项目
+        let sortedProjectIds: string[];
+        
+        if (this.currentProjectSortMode === 'custom' && this.projectSortOrder.length > 0) {
+            // 使用自定义排序
+            sortedProjectIds = [...this.projectSortOrder.filter(id => projectIds.includes(id))];
+            // 添加未排序的项目
+            const unsortedProjects = projectIds.filter(id => !this.projectSortOrder.includes(id));
+            sortedProjectIds = [...sortedProjectIds, ...unsortedProjects.sort((a, b) => {
+                const nameA = grouped.get(a)?.[0]?.projectName || '';
+                const nameB = grouped.get(b)?.[0]?.projectName || '';
+                return nameA.localeCompare(nameB);
+            })];
+        } else {
+            // 使用状态优先排序，同状态下按名称排序
+            // 获取状态顺序（需要获取所有状态）
+            const statusManager = this.projectManager.getStatusManager();
+            const allStatuses = statusManager.getStatuses();
+            const statusOrder = allStatuses.map(s => s.id);
+            
+            sortedProjectIds = projectIds.sort((a, b) => {
+                const projectA = grouped.get(a)?.[0];
+                const projectB = grouped.get(b)?.[0];
+                
+                if (!projectA || !projectB) return 0;
+                
+                // 首先按状态排序
+                const statusIndexA = statusOrder.indexOf(projectA.extendedProps?.status || 'active');
+                const statusIndexB = statusOrder.indexOf(projectB.extendedProps?.status || 'active');
+                
+                if (statusIndexA !== statusIndexB) {
+                    return statusIndexA - statusIndexB;
+                }
+                
+                // 同状态下按名称排序
+                return (projectA.projectName || '').localeCompare(projectB.projectName || '');
+            });
+        }
 
-        sortedProjects.forEach(([projectId, tasks]) => {
-            result.push(...tasks);
+        // 按排序后的项目ID顺序添加任务
+        sortedProjectIds.forEach(projectId => {
+            const tasks = grouped.get(projectId);
+            if (tasks) {
+                result.push(...tasks);
+            }
         });
 
         // 添加无项目的任务
@@ -375,6 +461,8 @@ export class EisenhowerMatrixView {
         taskEl.className = `task-item ${task.completed ? 'completed' : ''}`;
         taskEl.setAttribute('data-task-id', task.id);
         taskEl.setAttribute('draggable', 'true');
+        taskEl.setAttribute('data-project-id', task.projectId || 'no-project');
+        taskEl.setAttribute('data-priority', task.priority || 'none');
 
         // 设置任务颜色（根据优先级）
         let color = '';
@@ -407,6 +495,21 @@ export class EisenhowerMatrixView {
         // 创建任务信息容器
         const taskInfo = document.createElement('div');
         taskInfo.className = 'task-info';
+
+        // 创建拖拽手柄
+        const dragHandle = document.createElement('div');
+        dragHandle.className = 'task-drag-handle';
+        dragHandle.innerHTML = '⋮⋮';
+        dragHandle.title = '拖拽排序';
+        dragHandle.style.cssText = `
+            cursor: grab;
+            color: var(--b3-theme-on-surface-light);
+            margin-right: 8px;
+            font-size: 12px;
+            width: 16px;
+            text-align: center;
+            user-select: none;
+        `;
 
         // 创建任务标题
         const taskTitle = document.createElement('div');
@@ -452,8 +555,22 @@ export class EisenhowerMatrixView {
         // 组装元素
         taskInfo.appendChild(taskTitle);
         taskInfo.appendChild(taskMeta);
-        taskContent.appendChild(checkboxContainer);
-        taskContent.appendChild(taskInfo);
+        
+        // 使用flex布局包含拖拽手柄、复选框和任务信息
+        const taskInnerContent = document.createElement('div');
+        taskInnerContent.className = 'task-inner-content';
+        taskInnerContent.style.cssText = `
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            width: 100%;
+        `;
+        
+        taskInnerContent.appendChild(dragHandle);
+        taskInnerContent.appendChild(checkboxContainer);
+        taskInnerContent.appendChild(taskInfo);
+        
+        taskContent.appendChild(taskInnerContent);
         taskEl.appendChild(taskContent);
 
         // 添加事件监听
@@ -473,14 +590,77 @@ export class EisenhowerMatrixView {
             this.toggleTaskCompletion(task, (e.target as HTMLInputElement).checked);
         });
 
-        // 拖拽事件
+        // 拖拽事件 - 支持手动排序
         taskEl.addEventListener('dragstart', (e) => {
+            e.stopPropagation();
             e.dataTransfer!.setData('text/plain', task.id);
+            e.dataTransfer!.setData('task/project-id', task.projectId || 'no-project');
+            e.dataTransfer!.setData('task/priority', task.priority || 'none');
             taskEl.classList.add('dragging');
+            dragHandle.style.cursor = 'grabbing';
         });
 
-        taskEl.addEventListener('dragend', () => {
+        taskEl.addEventListener('dragend', (e) => {
+            e.stopPropagation();
             taskEl.classList.remove('dragging');
+            dragHandle.style.cursor = 'grab';
+            this.hideDropIndicators();
+        });
+
+        // 拖拽手柄事件 - 只在拖拽手柄上触发拖拽
+        dragHandle.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+        });
+
+        dragHandle.addEventListener('dragstart', (e) => {
+            e.stopPropagation();
+            e.dataTransfer!.setData('text/plain', task.id);
+            e.dataTransfer!.setData('task/project-id', task.projectId || 'no-project');
+            e.dataTransfer!.setData('task/priority', task.priority || 'none');
+            taskEl.classList.add('dragging');
+            dragHandle.style.cursor = 'grabbing';
+        });
+
+        // 添加拖放排序支持
+        taskEl.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const draggedTaskId = e.dataTransfer?.getData('text/plain');
+            const draggedProjectId = e.dataTransfer?.getData('task/project-id');
+            const draggedPriority = e.dataTransfer?.getData('task/priority');
+            
+            if (draggedTaskId && draggedTaskId !== task.id) {
+                const currentProjectId = task.projectId || 'no-project';
+                const currentPriority = task.priority || 'none';
+                
+                // 只允许在同一项目和同一优先级内排序
+                if (draggedProjectId === currentProjectId && draggedPriority === currentPriority) {
+                    this.showDropIndicator(taskEl, e);
+                }
+            }
+        });
+
+        taskEl.addEventListener('dragleave', (e) => {
+            e.stopPropagation();
+            this.hideDropIndicators();
+        });
+
+        taskEl.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const draggedTaskId = e.dataTransfer?.getData('text/plain');
+            const draggedProjectId = e.dataTransfer?.getData('task/project-id');
+            const draggedPriority = e.dataTransfer?.getData('task/priority');
+            
+            if (draggedTaskId && draggedTaskId !== task.id) {
+                const currentProjectId = task.projectId || 'no-project';
+                const currentPriority = task.priority || 'none';
+                
+                if (draggedProjectId === currentProjectId && draggedPriority === currentPriority) {
+                    this.handleTaskReorder(draggedTaskId, task.id, e);
+                }
+            }
+            this.hideDropIndicators();
         });
 
         return taskEl;
@@ -530,6 +710,22 @@ export class EisenhowerMatrixView {
             });
         }
 
+        // 设置按钮
+        const settingsBtn = this.container.querySelector('.settings-btn');
+        if (settingsBtn) {
+            settingsBtn.addEventListener('click', () => {
+                this.showSettingsDialog();
+            });
+        }
+
+        // 项目排序按钮
+        const sortProjectsBtn = this.container.querySelector('.sort-projects-btn');
+        if (sortProjectsBtn) {
+            sortProjectsBtn.addEventListener('click', () => {
+                this.showProjectSortDialog();
+            });
+        }
+
         // 监听任务更新事件
         window.addEventListener('reminderUpdated', () => {
             this.refresh();
@@ -545,7 +741,6 @@ export class EisenhowerMatrixView {
                 await writeReminderData(reminderData);
                 
                 await this.refresh();
-                showMessage(t('taskMovedToQuadrant'));
             }
         } catch (error) {
             console.error('移动任务失败:', error);
@@ -1300,9 +1495,552 @@ export class EisenhowerMatrixView {
         );
     }
 
+    private showDropIndicator(element: HTMLElement, event: DragEvent) {
+        this.hideDropIndicators();
+
+        const rect = element.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+
+        const indicator = document.createElement('div');
+        indicator.className = 'drop-indicator';
+        indicator.style.cssText = `
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: var(--b3-theme-primary);
+            z-index: 1000;
+            pointer-events: none;
+        `;
+
+        element.style.position = 'relative';
+
+        if (event.clientY < midpoint) {
+            indicator.style.top = '-1px';
+        } else {
+            indicator.style.bottom = '-1px';
+        }
+        element.appendChild(indicator);
+    }
+
+    private hideDropIndicators() {
+        this.container.querySelectorAll('.drop-indicator').forEach(indicator => indicator.remove());
+        this.container.querySelectorAll('.task-item').forEach((el: HTMLElement) => {
+            if (el.style.position === 'relative') {
+                el.style.position = '';
+            }
+        });
+    }
+
+    private async handleTaskReorder(draggedTaskId: string, targetTaskId: string, event: DragEvent) {
+        try {
+            const reminderData = await readReminderData();
+            
+            const draggedTask = reminderData[draggedTaskId];
+            const targetTask = reminderData[targetTaskId];
+            
+            if (!draggedTask || !targetTask) {
+                console.error('任务不存在');
+                return;
+            }
+
+            // 确保在同一项目和同一优先级内
+            const draggedProjectId = draggedTask.projectId || 'no-project';
+            const targetProjectId = targetTask.projectId || 'no-project';
+            const draggedPriority = draggedTask.priority || 'none';
+            const targetPriority = targetTask.priority || 'none';
+
+            if (draggedProjectId !== targetProjectId || draggedPriority !== targetPriority) {
+                return;
+            }
+
+            // 获取所有相关任务
+            const relatedTasks = Object.values(reminderData)
+                .filter((task: any) => 
+                    (task.projectId || 'no-project') === draggedProjectId &&
+                    (task.priority || 'none') === draggedPriority
+                )
+                .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+            // 找到目标任务的索引
+            const targetIndex = relatedTasks.findIndex((task: any) => task.id === targetTaskId);
+            
+            // 计算插入位置 - 修复空值检查
+            let insertIndex = targetIndex;
+            if (event.currentTarget instanceof HTMLElement) {
+                const rect = event.currentTarget.getBoundingClientRect();
+                const midpoint = rect.top + rect.height / 2;
+                insertIndex = event.clientY < midpoint ? targetIndex : targetIndex + 1;
+            }
+
+            // 重新排序
+            const draggedTaskObj = relatedTasks.find((task: any) => task.id === draggedTaskId);
+            if (draggedTaskObj) {
+                // 从原位置移除
+                const oldIndex = relatedTasks.findIndex((task: any) => task.id === draggedTaskId);
+                if (oldIndex !== -1) {
+                    relatedTasks.splice(oldIndex, 1);
+                }
+                
+                // 插入到新位置，确保索引有效
+                const validInsertIndex = Math.max(0, Math.min(insertIndex, relatedTasks.length));
+                relatedTasks.splice(validInsertIndex, 0, draggedTaskObj);
+                
+                // 更新排序值
+                relatedTasks.forEach((task: any, index: number) => {
+                    task.sort = index * 10;
+                });
+
+                await writeReminderData(reminderData);
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                await this.refresh();
+                showMessage('排序已更新');
+            }
+        } catch (error) {
+            console.error('重新排序任务失败:', error);
+            showMessage('排序更新失败');
+        }
+    }
+
     async refresh() {
         await this.loadTasks();
         this.renderMatrix();
+    }
+
+    private async loadProjectSortOrder() {
+        try {
+            console.log('开始加载项目排序数据...');
+            
+            const response = await fetch('/api/storage/getFile', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    path: 'data/storage/petal/siyuan-plugin-task-note-management/project-sort.json'
+                })
+            });
+            
+            console.log('项目排序文件加载响应状态:', response.status);
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log('加载的项目排序数据:', data);
+                this.projectSortOrder = data.projectSortOrder || [];
+                this.currentProjectSortMode = data.currentProjectSortMode || 'custom'; // 默认改为custom
+                
+                console.log('加载的项目排序数组:', this.projectSortOrder);
+                console.log('加载的排序模式:', this.currentProjectSortMode);
+            } else {
+                console.log('项目排序配置文件不存在，使用默认排序');
+                this.projectSortOrder = [];
+                this.currentProjectSortMode = 'custom'; // 默认改为custom
+            }
+        } catch (error) {
+            console.log('项目排序配置文件不存在，使用默认排序');
+            this.projectSortOrder = [];
+            this.currentProjectSortMode = 'custom'; // 默认改为custom
+        }
+    }
+
+    private async loadCriteriaSettings() {
+        try {
+            const data = await getFile('data/storage/petal/siyuan-plugin-task-note-management/criteria-settings.json');
+            if (data) {
+                this.criteriaSettings = {
+                    importanceThreshold: data.importanceThreshold || 'medium',
+                    urgencyDays: data.urgencyDays || 3
+                };
+            }
+        } catch (error) {
+            console.log('标准配置文件不存在，使用默认配置');
+            this.criteriaSettings = {
+                importanceThreshold: 'medium',
+                urgencyDays: 3
+            };
+        }
+    }
+
+    private async saveCriteriaSettings() {
+        try {
+            const data = {
+                importanceThreshold: this.criteriaSettings.importanceThreshold,
+                urgencyDays: this.criteriaSettings.urgencyDays
+            };
+
+            console.log('保存标准设置数据:', data);
+
+            await putFile('data/storage/petal/siyuan-plugin-task-note-management/criteria-settings.json', JSON.stringify(data, null, 2));
+            console.log('标准设置保存成功');
+        } catch (error) {
+            console.error('保存标准设置失败:', error);
+        }
+    }
+
+    private async saveProjectSortOrder() {
+        try {
+            const data = {
+                projectSortOrder: this.projectSortOrder,
+                currentProjectSortMode: this.currentProjectSortMode
+            };
+
+            console.log('保存项目排序数据:', data);
+            console.log('项目排序数组长度:', this.projectSortOrder.length);
+            console.log('当前排序模式:', this.currentProjectSortMode);
+
+            // 确保目录存在
+            const dirResponse = await fetch('/api/storage/putFile', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    path: 'data/storage/petal/siyuan-plugin-task-note-management/.keep',
+                    file: ''
+                })
+            });
+            console.log('目录检查响应:', dirResponse.status);
+
+            const response = await fetch('/api/storage/putFile', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    path: 'data/storage/petal/siyuan-plugin-task-note-management/project-sort.json',
+                    file: JSON.stringify(data, null, 2)
+                })
+            });
+
+            console.log('保存响应状态:', response.status);
+            console.log('保存响应对象:', response);
+
+            if (!response.ok) {
+                console.error('保存失败:', response.status, response.statusText);
+                const errorText = await response.text();
+                console.error('错误详情:', errorText);
+                console.error('完整响应:', response);
+            } else {
+                const result = await response.json();
+                console.log('项目排序保存成功:', result);
+                
+                // 验证文件是否已保存
+                const verifyResponse = await fetch('/api/storage/getFile', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        path: 'data/storage/petal/siyuan-plugin-task-note-management/project-sort.json'
+                    })
+                });
+                
+                if (verifyResponse.ok) {
+                    const savedData = await verifyResponse.json();
+                    console.log('验证保存的数据:', savedData);
+                }
+            }
+        } catch (error) {
+            console.error('保存项目排序失败:', error);
+            console.error('错误堆栈:', error.stack);
+        }
+    }
+
+    private showProjectSortDialog() {
+        const dialog = new Dialog({
+            title: "项目排序设置",
+            content: `
+                <div class="project-sort-dialog">
+                    <div class="b3-dialog__content">
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">项目状态排序</label>
+                            <div id="statusSortList" class="status-sort-list" style="border: 1px solid var(--b3-theme-border); border-radius: 4px; padding: 8px; max-height: 200px; overflow-y: auto;">
+                            </div>
+                        </div>
+                        <div class="b3-form__group" style="margin-top: 16px;">
+                            <label class="b3-form__label">项目排序（拖拽调整顺序）</label>
+                            <div id="projectSortList" class="project-sort-list" style="border: 1px solid var(--b3-theme-border); border-radius: 4px; padding: 8px; max-height: 300px; overflow-y: auto;">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="sortCancelBtn">取消</button>
+                        <button class="b3-button b3-button--primary" id="sortSaveBtn">保存</button>
+                    </div>
+                </div>
+            `,
+            width: "500px",
+            height: "500px"
+        });
+
+        const statusSortList = dialog.element.querySelector('#statusSortList') as HTMLElement;
+        const projectSortList = dialog.element.querySelector('#projectSortList') as HTMLElement;
+        const cancelBtn = dialog.element.querySelector('#sortCancelBtn') as HTMLButtonElement;
+        const saveBtn = dialog.element.querySelector('#sortSaveBtn') as HTMLButtonElement;
+
+        // 获取所有项目
+        const allProjects = this.projectManager.getProjectsGroupedByStatus();
+        const activeProjects: any[] = [];
+        Object.values(allProjects).forEach((projects: any[]) => {
+            activeProjects.push(...projects.filter(p => p.status !== 'archived'));
+        });
+
+        // 获取所有状态
+        const statusManager = this.projectManager.getStatusManager();
+        const allStatuses = statusManager.getStatuses();
+
+        // 状态排序数据
+        let statusSortOrder = [...allStatuses.map(s => s.id)];
+
+        // 渲染状态排序列表
+        const renderStatusSortList = () => {
+            statusSortList.innerHTML = '';
+            
+            statusSortOrder.forEach(statusId => {
+                const status = allStatuses.find(s => s.id === statusId);
+                if (!status) return;
+                
+                const item = document.createElement('div');
+                item.className = 'status-sort-item';
+                item.style.cssText = `
+                    padding: 8px;
+                    margin: 4px 0;
+                    background: var(--b3-theme-surface-lighter);
+                    border-radius: 4px;
+                    cursor: grab;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                `;
+                item.setAttribute('data-status-id', status.id);
+                item.setAttribute('draggable', 'true');
+                item.innerHTML = `
+                    <span style="cursor: grab; color: var(--b3-theme-on-surface); opacity: 0.7;">⋮⋮</span>
+                    <span>${status.name}</span>
+                `;
+                statusSortList.appendChild(item);
+            });
+        };
+
+        // 渲染项目排序列表
+        const renderProjectList = () => {
+            projectSortList.innerHTML = '';
+            
+            let projectsToShow: any[];
+            if (this.projectSortOrder.length > 0) {
+                // 使用自定义排序的项目
+                const orderedProjects = this.projectSortOrder
+                    .map(id => activeProjects.find(p => p.id === id))
+                    .filter(Boolean);
+                const remainingProjects = activeProjects.filter(p => !this.projectSortOrder.includes(p.id));
+                projectsToShow = [...orderedProjects, ...remainingProjects];
+            } else {
+                // 使用状态优先排序，同状态下按名称排序
+                projectsToShow = [...activeProjects].sort((a, b) => {
+                    // 首先按状态排序
+                    const statusIndexA = statusSortOrder.indexOf(a.status);
+                    const statusIndexB = statusSortOrder.indexOf(b.status);
+                    if (statusIndexA !== statusIndexB) {
+                        return statusIndexA - statusIndexB;
+                    }
+                    // 同状态下按名称排序
+                    return a.name.localeCompare(b.name);
+                });
+            }
+
+            projectsToShow.forEach(project => {
+                const item = document.createElement('div');
+                item.className = 'project-sort-item';
+                item.style.cssText = `
+                    padding: 8px;
+                    margin: 4px 0;
+                    background: var(--b3-theme-surface-lighter);
+                    border-radius: 4px;
+                    cursor: grab;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                `;
+                item.setAttribute('data-project-id', project.id);
+                item.setAttribute('draggable', 'true');
+                item.innerHTML = `
+                    <span style="cursor: grab; color: var(--b3-theme-on-surface); opacity: 0.7;">⋮⋮</span>
+                    <span>${project.name}</span>
+                    <span style="color: var(--b3-theme-on-surface-light); font-size: 12px; margin-left: auto;">${this.getStatusDisplayName(project.status)}</span>
+                `;
+                projectSortList.appendChild(item);
+            });
+        };
+
+        renderStatusSortList();
+        renderProjectList();
+
+
+        // 状态排序拖拽功能
+        let draggedStatusElement: HTMLElement | null = null;
+
+        statusSortList.addEventListener('dragstart', (e) => {
+            draggedStatusElement = e.target as HTMLElement;
+            (e.target as HTMLElement).classList.add('dragging');
+        });
+
+        statusSortList.addEventListener('dragend', (e) => {
+            (e.target as HTMLElement).classList.remove('dragging');
+            draggedStatusElement = null;
+            renderProjectList(); // 重新渲染项目列表
+        });
+
+        statusSortList.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const afterElement = this.getDragAfterElement(statusSortList, e.clientY);
+            if (draggedStatusElement) {
+                if (afterElement) {
+                    statusSortList.insertBefore(draggedStatusElement, afterElement);
+                } else {
+                    statusSortList.appendChild(draggedStatusElement);
+                }
+                // 更新状态排序顺序
+                statusSortOrder = Array.from(statusSortList.querySelectorAll('.status-sort-item'))
+                    .map(item => item.getAttribute('data-status-id'))
+                    .filter(Boolean) as string[];
+            }
+        });
+
+        // 自定义项目排序拖拽功能
+        let draggedProjectElement: HTMLElement | null = null;
+
+        projectSortList.addEventListener('dragstart', (e) => {
+            draggedProjectElement = e.target as HTMLElement;
+            (e.target as HTMLElement).classList.add('dragging');
+        });
+
+        projectSortList.addEventListener('dragend', (e) => {
+            (e.target as HTMLElement).classList.remove('dragging');
+            draggedProjectElement = null;
+        });
+
+        projectSortList.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const afterElement = this.getDragAfterElement(projectSortList, e.clientY);
+            if (draggedProjectElement) {
+                if (afterElement) {
+                    projectSortList.insertBefore(draggedProjectElement, afterElement);
+                } else {
+                    projectSortList.appendChild(draggedProjectElement);
+                }
+            }
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            dialog.destroy();
+        });
+
+        saveBtn.addEventListener('click', async () => {
+            // 始终使用自定义排序模式
+            this.currentProjectSortMode = 'custom';
+
+            // 获取当前排序
+            const items = projectSortList.querySelectorAll('.project-sort-item');
+            this.projectSortOrder = Array.from(items).map(item => item.getAttribute('data-project-id')).filter(Boolean) as string[];
+            
+            console.log('即将保存的项目排序:', this.projectSortOrder);
+            console.log('项目排序项目数量:', items.length);
+            
+            // 打印每个项目的ID和名称
+            items.forEach((item, index) => {
+                console.log(`项目 ${index}: ${item.getAttribute('data-project-id')} - ${item.textContent}`);
+            });
+
+            await this.saveProjectSortOrder();
+            dialog.destroy();
+            await this.refresh();
+            showMessage('项目排序已更新');
+        });
+    }
+
+    private getDragAfterElement(container: HTMLElement, y: number): HTMLElement | null {
+        const draggableElements = [...container.querySelectorAll('.project-sort-item:not(.dragging)')] as HTMLElement[];
+        
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element || null;
+    }
+
+    private showSettingsDialog() {
+        const dialog = new Dialog({
+            title: "四象限条件设置",
+            content: `
+                <div class="settings-dialog">
+                    <div class="b3-dialog__content">
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">重要性阈值</label>
+                            <div class="importance-selector">
+                                <label class="b3-form__radio">
+                                    <input type="radio" name="importanceThreshold" value="high" ${this.criteriaSettings.importanceThreshold === 'high' ? 'checked' : ''}>
+                                    <span>高优先级</span>
+                                </label>
+                                <label class="b3-form__radio">
+                                    <input type="radio" name="importanceThreshold" value="medium" ${this.criteriaSettings.importanceThreshold === 'medium' ? 'checked' : ''}>
+                                    <span>中优先级</span>
+                                </label>
+                                <label class="b3-form__radio">
+                                    <input type="radio" name="importanceThreshold" value="low" ${this.criteriaSettings.importanceThreshold === 'low' ? 'checked' : ''}>
+                                    <span>低优先级</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">紧急性阈值（天数）</label>
+                            <input type="number" id="urgencyDays" class="b3-text-field" value="${this.criteriaSettings.urgencyDays}" min="1" max="30">
+                            <div class="b3-form__help">任务截止日期在多少天内视为紧急</div>
+                        </div>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="settingsCancelBtn">取消</button>
+                        <button class="b3-button b3-button--primary" id="settingsSaveBtn">保存</button>
+                    </div>
+                </div>
+            `,
+            width: "400px",
+            height: "300px"
+        });
+
+        const cancelBtn = dialog.element.querySelector('#settingsCancelBtn') as HTMLButtonElement;
+        const saveBtn = dialog.element.querySelector('#settingsSaveBtn') as HTMLButtonElement;
+        const urgencyDaysInput = dialog.element.querySelector('#urgencyDays') as HTMLInputElement;
+        const importanceRadios = dialog.element.querySelectorAll('input[name="importanceThreshold"]') as NodeListOf<HTMLInputElement>;
+
+        cancelBtn.addEventListener('click', () => {
+            dialog.destroy();
+        });
+
+        saveBtn.addEventListener('click', async () => {
+            const urgencyDays = parseInt(urgencyDaysInput.value);
+            if (isNaN(urgencyDays) || urgencyDays < 1 || urgencyDays > 30) {
+                showMessage('请输入有效的天数（1-30）');
+                return;
+            }
+
+            const selectedImportance = Array.from(importanceRadios).find(r => r.checked)?.value as 'high' | 'medium' | 'low';
+            
+            this.criteriaSettings = {
+                importanceThreshold: selectedImportance,
+                urgencyDays: urgencyDays
+            };
+
+            await this.saveCriteriaSettings();
+            dialog.destroy();
+            
+            await this.refresh();
+            showMessage('设置已保存');
+        });
     }
 
     private showFilterDialog() {
