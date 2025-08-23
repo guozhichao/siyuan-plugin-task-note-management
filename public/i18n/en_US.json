@@ -499,5 +499,9 @@
     "doing": "Doing",
     "done": "Done",
     "archived": "Archived",
-    "openProjectKanban": "Open Project Kanban"
+    "openProjectKanban": "Open Project Kanban",
+    "removeFromProject": "Remove from Project",
+    "pleaseEnterProjectName": "Please enter project name",
+    "createProject": "Create Project",
+    "repeatSeries": "Repeat Series"
 }
