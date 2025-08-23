@@ -72,7 +72,6 @@ export class CalendarView {
         monthBtn.className = 'b3-button b3-button--outline';
         monthBtn.textContent = t("month");
         monthBtn.addEventListener('click', async () => {
-            await this.switchView('calendar');
             await this.calendarConfigManager.setViewMode('dayGridMonth');
             this.calendar.changeView('dayGridMonth');
         });
@@ -82,7 +81,6 @@ export class CalendarView {
         weekBtn.className = 'b3-button b3-button--outline';
         weekBtn.textContent = t("week");
         weekBtn.addEventListener('click', async () => {
-            await this.switchView('calendar');
             await this.calendarConfigManager.setViewMode('timeGridWeek');
             this.calendar.changeView('timeGridWeek');
         });
@@ -92,7 +90,6 @@ export class CalendarView {
         dayBtn.className = 'b3-button b3-button--outline';
         dayBtn.textContent = t("day");
         dayBtn.addEventListener('click', async () => {
-            await this.switchView('calendar');
             await this.calendarConfigManager.setViewMode('timeGridDay');
             this.calendar.changeView('timeGridDay');
         });

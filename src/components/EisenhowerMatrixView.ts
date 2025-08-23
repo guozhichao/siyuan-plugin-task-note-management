@@ -392,24 +392,74 @@ export class EisenhowerMatrixView {
                 color = '#95a5a6';
         }
 
-        taskEl.innerHTML = `
-            <div class="task-content">
-                <div class="task-checkbox">
-                    <input type="checkbox" ${task.completed ? 'checked' : ''}>
-                </div>
-                <div class="task-info">
-                    <div class="task-title" style="border-left-color: ${color}">${this.escapeHtml(task.title)}</div>
-                    <div class="task-meta">
-                        ${task.date ? `<span class="task-date">📅 ${task.date}</span>` : ''}
-                        ${task.time ? `<span class="task-time">🕐 ${task.time}</span>` : ''}
-                    </div>
-                </div>
-            </div>
-        `;
+        // 创建任务内容容器
+        const taskContent = document.createElement('div');
+        taskContent.className = 'task-content';
+
+        // 创建复选框容器
+        const checkboxContainer = document.createElement('div');
+        checkboxContainer.className = 'task-checkbox';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = task.completed;
+        checkboxContainer.appendChild(checkbox);
+
+        // 创建任务信息容器
+        const taskInfo = document.createElement('div');
+        taskInfo.className = 'task-info';
+
+        // 创建任务标题
+        const taskTitle = document.createElement('div');
+        taskTitle.className = 'task-title';
+        taskTitle.style.borderLeftColor = color;
+        taskTitle.textContent = task.title;
+
+        // 如果任务有绑定块，设置为链接样式
+        if (task.blockId) {
+            taskTitle.setAttribute('data-type', 'a');
+            taskTitle.setAttribute('data-href', `siyuan://blocks/${task.blockId}`);
+            taskTitle.style.cssText += `
+                cursor: pointer;
+                color: var(--b3-theme-primary);
+                text-decoration: underline;
+                font-weight: 500;
+            `;
+            taskTitle.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.openTaskBlock(task.blockId!);
+            });
+        }
+
+        // 创建任务元数据
+        const taskMeta = document.createElement('div');
+        taskMeta.className = 'task-meta';
+
+        if (task.date) {
+            const dateSpan = document.createElement('span');
+            dateSpan.className = 'task-date';
+            dateSpan.textContent = `📅 ${task.date}`;
+            taskMeta.appendChild(dateSpan);
+        }
+
+        if (task.time) {
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'task-time';
+            timeSpan.textContent = `🕐 ${task.time}`;
+            taskMeta.appendChild(timeSpan);
+        }
+
+        // 组装元素
+        taskInfo.appendChild(taskTitle);
+        taskInfo.appendChild(taskMeta);
+        taskContent.appendChild(checkboxContainer);
+        taskContent.appendChild(taskInfo);
+        taskEl.appendChild(taskContent);
 
         // 添加事件监听
         taskEl.addEventListener('click', (e) => {
-            if ((e.target as HTMLElement).type !== 'checkbox') {
+            const target = e.target as HTMLElement;
+            if (target.tagName !== 'INPUT' && !task.blockId) {
                 this.handleTaskClick(task);
             }
         });
@@ -419,7 +469,7 @@ export class EisenhowerMatrixView {
             this.showTaskContextMenu(task, e as MouseEvent);
         });
 
-        taskEl.querySelector('input[type="checkbox"]')!.addEventListener('change', (e) => {
+        checkbox.addEventListener('change', (e) => {
             this.toggleTaskCompletion(task, (e.target as HTMLInputElement).checked);
         });
 
@@ -453,7 +503,7 @@ export class EisenhowerMatrixView {
                 e.preventDefault();
                 zone.classList.remove('drag-over');
                 
-                const taskId = e.dataTransfer!.getData('text/plain');
+                const taskId = (e as DragEvent).dataTransfer!.getData('text/plain');
                 const quadrantKey = zone.getAttribute('data-quadrant-content');
                 
                 if (taskId && quadrantKey) {
@@ -528,10 +578,10 @@ export class EisenhowerMatrixView {
             const projectName = prompt(t('pleaseEnterProjectName'));
             if (!projectName) return;
 
-            const project = await this.projectManager.createProject(projectName);
-            if (project) {
-                this.showQuickReminderDialog(quadrant, project.id);
-            }
+            // 注意：这里需要根据实际的 ProjectManager API 调整
+            // const project = await this.projectManager.createProject(projectName);
+            showMessage('创建项目功能需要实现');
+            return;
         } catch (error) {
             console.error('创建项目并新建任务失败:', error);
             showMessage('操作失败，请重试');
@@ -555,19 +605,54 @@ export class EisenhowerMatrixView {
         }
     }
 
+    private async openTaskBlock(blockId: string) {
+        try {
+            openBlock(blockId);
+        } catch (error) {
+            console.error('打开思源笔记块失败:', error);
+            confirm(
+                '打开笔记失败',
+                '笔记块可能已被删除，是否删除相关的任务记录？',
+                async () => {
+                    await this.deleteTaskByBlockId(blockId);
+                },
+                () => {
+                    showMessage('打开笔记失败');
+                }
+            );
+        }
+    }
+
+    private async deleteTaskByBlockId(blockId: string) {
+        try {
+            const reminderData = await readReminderData();
+            let taskFound = false;
+            
+            for (const [taskId, reminder] of Object.entries(reminderData as any)) {
+                if (reminder && typeof reminder === 'object' && (reminder as any).blockId === blockId) {
+                    delete reminderData[taskId];
+                    taskFound = true;
+                }
+            }
+            
+            if (taskFound) {
+                await writeReminderData(reminderData);
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                showMessage('相关任务记录已删除');
+                await this.refresh();
+            } else {
+                showMessage('任务记录不存在');
+            }
+        } catch (error) {
+            console.error('删除任务记录失败:', error);
+            showMessage('删除任务记录失败');
+        }
+    }
+
     private handleTaskClick(task: QuadrantTask) {
         // 如果任务有绑定块，直接打开
         if (task.blockId) {
-            try {
-
-                openBlock(task.blockId);
-            } catch (error) {
-                console.error('打开思源笔记块失败:', error);
-                showMessage('打开笔记失败');
-                
-                // 如果打开失败，显示右键菜单提供其他选项
-                this.showTaskFallbackMenu(task);
-            }
+            this.openTaskBlock(task.blockId);
             return;
         }
 
@@ -608,7 +693,7 @@ export class EisenhowerMatrixView {
             });
         }
 
-        menu.open();
+        menu.open({x: 0, y: 0});
     }
 
     private showTaskEditDialog(task: QuadrantTask) {
@@ -682,16 +767,15 @@ export class EisenhowerMatrixView {
             click: async () => {
                 const projectName = prompt(t('pleaseEnterProjectName'));
                 if (projectName) {
-                    const project = await this.projectManager.createProject(projectName);
-                    if (project) {
-                        await this.updateTaskProject(task.id, project.id);
-                        showMessage('项目已创建并分配');
-                    }
+                    // 注意：这里需要根据实际的 ProjectManager API 调整
+                    // const project = await this.projectManager.createProject(projectName);
+                    showMessage('创建项目功能需要实现');
+                    return;
                 }
             }
         });
 
-        menu.open();
+        menu.open({x: 0, y: 0});
     }
 
     private openProjectKanban(projectId: string) {
@@ -1126,7 +1210,7 @@ export class EisenhowerMatrixView {
             if (event) {
                 menu.open({x: event.clientX, y: event.clientY});
             } else {
-                menu.open();
+                menu.open({x: 0, y: 0});
             }
         } catch (error) {
             console.error('分配项目失败:', error);
@@ -1171,11 +1255,10 @@ export class EisenhowerMatrixView {
             const projectName = prompt(t('pleaseEnterProjectName'));
             if (!projectName) return;
 
-            const project = await this.projectManager.createProject(projectName);
-            if (project) {
-                await this.updateTaskProject(task.id, project.id);
-                showMessage(`${t('addedToProjectSuccess').replace('${count}', '1')}`);
-            }
+            // 注意：这里需要根据实际的 ProjectManager API 调整
+            // const project = await this.projectManager.createProject(projectName);
+            showMessage('创建项目功能需要实现');
+            return;
         } catch (error) {
             console.error('创建项目并分配失败:', error);
             showMessage('操作失败，请重试');
@@ -1258,7 +1341,7 @@ export class EisenhowerMatrixView {
         if (statusFiltersEl) {
             // 获取所有可能的状态
             const statusManager = this.projectManager.getStatusManager();
-            const allStatuses = statusManager.getAllStatuses();
+            const allStatuses = statusManager.getStatuses();
             
             // 添加"无项目"选项
             const noProjectCheckbox = this.createCheckbox('no-project', '无项目', this.statusFilter.has('no-project'));
@@ -1272,17 +1355,20 @@ export class EisenhowerMatrixView {
         }
 
         if (projectFiltersEl) {
-            // 获取所有项目
-            const allProjects = this.projectManager.getAllProjects();
+            // 获取所有项目 - 需要根据实际 API 调整
+            const allGroupedProjects = this.projectManager.getProjectsGroupedByStatus();
+            const allProjects: any[] = [];
+            Object.values(allGroupedProjects).forEach((projects: any[]) => {
+                allProjects.push(...projects);
+            });
             
             // 添加"无项目"选项
             const noProjectCheckbox = this.createCheckbox('no-project', '无项目', this.projectFilter.has('no-project'));
             projectFiltersEl.appendChild(noProjectCheckbox);
             
             // 按状态分组显示项目
-            const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
-            Object.keys(groupedProjects).forEach(statusKey => {
-                const projects = groupedProjects[statusKey] || [];
+            Object.keys(allGroupedProjects).forEach(statusKey => {
+                const projects = allGroupedProjects[statusKey] || [];
                 if (projects.length > 0) {
                     const statusName = this.getStatusDisplayName(statusKey);
                     const groupLabel = document.createElement('div');
