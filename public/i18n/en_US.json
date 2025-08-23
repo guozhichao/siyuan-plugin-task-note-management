@@ -491,5 +491,12 @@
     "loadStatusesFailed": "Failed to load statuses",
     "noProjectsInStatus": "No projects in \"${status}\" status",
     "colorByCategory": "Color by Category",
-    "colorByPriority": "Color by Priority"
+    "colorByPriority": "Color by Priority",
+    "colorByProject": "Color by Project",
+    "setProjectColors": "Set Project Colors",
+    "manageProjectColors": "Manage Project Colors",
+    "colorSetSuccess": "Color set successfully",
+    "doing": "Doing",
+    "done": "Done",
+    "archived": "Archived"
 }

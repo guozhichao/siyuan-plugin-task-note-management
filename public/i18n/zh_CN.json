@@ -534,5 +534,12 @@
     "loadStatusesFailed": "加载状态失败",
     "noProjectsInStatus": "暂无“${status}”状态的项目",
     "colorByCategory": "按分类上色",
-    "colorByPriority": "按优先级上色"
+    "colorByPriority": "按优先级上色",
+    "colorByProject": "按项目上色",
+    "setProjectColors": "设置项目颜色",
+    "manageProjectColors": "管理项目颜色",
+    "colorSetSuccess": "颜色设置成功",
+    "doing": "进行中",
+    "done": "已完成",
+    "archived": "已归档"
 }

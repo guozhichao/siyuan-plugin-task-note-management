@@ -8,7 +8,9 @@ import { getLocalDateString, getLocalDateTime, getLocalDateTimeString } from "..
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
+import { ProjectManager } from "../utils/projectManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
+import { ProjectColorDialog } from "./ProjectColorDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { t } from "../utils/i18n";
 import { generateRepeatInstances, RepeatInstance } from "../utils/repeatUtils";
@@ -20,8 +22,9 @@ export class CalendarView {
     private resizeObserver: ResizeObserver;
     private resizeTimeout: number;
     private categoryManager: CategoryManager; // 添加分类管理器
+    private projectManager: ProjectManager;
     private currentCategoryFilter: string = 'all'; // 当前分类过滤
-        private colorBy: 'category' | 'priority' = 'category'; // 按分类或优先级上色
+private colorBy: 'category' | 'priority' | 'project' = 'project'; // 按分类或优先级上色
     private tooltip: HTMLElement | null = null; // 添加提示框元素
     private hideTooltipTimeout: number | null = null; // 添加提示框隐藏超时控制
     private tooltipShowTimeout: number | null = null; // 添加提示框显示延迟控制
@@ -36,12 +39,14 @@ export class CalendarView {
         this.container = container;
         this.plugin = plugin;
         this.categoryManager = CategoryManager.getInstance(); // 初始化分类管理器
+        this.projectManager = ProjectManager.getInstance();
         this.initUI();
     }
 
     private async initUI() {
         // 初始化分类管理器
         await this.categoryManager.initialize();
+        await this.projectManager.initialize();
 
         this.container.classList.add('reminder-calendar-view');
 
@@ -112,12 +117,13 @@ export class CalendarView {
         colorBySelect.className = 'b3-select';
         colorBySelect.style.marginLeft = '4px';
         colorBySelect.innerHTML = `
+            <option value="project">${t("colorByProject")}</option>
             <option value="category">${t("colorByCategory")}</option>
             <option value="priority">${t("colorByPriority")}</option>
         `;
         colorBySelect.value = this.colorBy;
         colorBySelect.addEventListener('change', () => {
-            this.colorBy = colorBySelect.value as 'category' | 'priority';
+            this.colorBy = colorBySelect.value as 'category' | 'priority' | 'project';
             this.refreshEvents();
         });
         filterGroup.appendChild(colorBySelect);
@@ -134,6 +140,16 @@ export class CalendarView {
             this.showCategoryManageDialog(categoryFilterSelect);
         });
         filterGroup.appendChild(categoryManageBtn);
+
+        // 项目颜色管理按钮
+        const projectColorManageBtn = document.createElement('button');
+        projectColorManageBtn.className = 'b3-button b3-button--outline';
+        projectColorManageBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconProject"></use></svg>';
+        projectColorManageBtn.title = t("manageProjectColors");
+        projectColorManageBtn.addEventListener('click', () => {
+            this.showProjectColorDialog();
+        });
+        filterGroup.appendChild(projectColorManageBtn);
 
         // 创建日历容器
         const calendarEl = document.createElement('div');
@@ -252,6 +268,13 @@ export class CalendarView {
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
         });
         categoryDialog.show();
+    }
+
+    private showProjectColorDialog() {
+        const projectColorDialog = new ProjectColorDialog(() => {
+            this.refreshEvents();
+        });
+        projectColorDialog.show();
     }
 
     private addResizeListeners() {
@@ -2013,6 +2036,8 @@ export class CalendarView {
                 // 获取文档标题（如果还没有缓存）
                 await this.ensureDocTitle(reminder, docTitleCache);
 
+
+
                 // 添加原始事件
                 this.addEventToList(events, reminder, reminder.id, false);
 
@@ -2115,6 +2140,7 @@ export class CalendarView {
         }
     }
 
+
     private passesCategoryFilter(reminder: any): boolean {
         if (this.currentCategoryFilter === 'all') {
             return true;
@@ -2131,7 +2157,16 @@ export class CalendarView {
         const priority = reminder.priority || 'none';
         let backgroundColor, borderColor;
 
-        if (this.colorBy === 'category') {
+        if (this.colorBy === 'project') {
+            if (reminder.projectId) {
+                const color = this.projectManager.getProjectColor(reminder.projectId);
+                backgroundColor = color;
+                borderColor = color;
+            } else {
+                backgroundColor = '#95a5a6';
+                borderColor = '#7f8c8d';
+            }
+        } else if (this.colorBy === 'category') {
             if (reminder.categoryId) {
                 const categoryStyle = this.categoryManager.getCategoryStyle(reminder.categoryId);
                 backgroundColor = categoryStyle.backgroundColor;
@@ -2212,6 +2247,7 @@ export class CalendarView {
                 endTime: reminder.endTime || null,
                 priority: priority,
                 categoryId: reminder.categoryId,
+                projectId: reminder.projectId,
                 blockId: reminder.blockId || reminder.id,
                 docId: reminder.docId, // 添加docId
                 docTitle: reminder.docTitle, // 添加文档标题
