@@ -1012,6 +1012,7 @@ export class EisenhowerMatrixView {
                 border-left: 3px solid;
                 padding-left: 8px;
                 word-break: break-word;
+                width: fit-content;
             }
 
             .task-meta {
@@ -1128,7 +1129,7 @@ export class EisenhowerMatrixView {
             label: t('edit'),
             icon: 'iconEdit',
             click: () => {
-                this.handleTaskClick(task);
+                this.showTaskEditDialog(task);
             }
         });
 
