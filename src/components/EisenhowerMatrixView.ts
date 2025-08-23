@@ -1316,7 +1316,7 @@ export class EisenhowerMatrixView {
                 left: 0 !important;
                 right: 0 !important;
                 height: 2px !important;
-                background-color: #007bff !important;
+                background-color: var(--b3-theme-primary) !important;
                 z-index: 1000 !important;
                 pointer-events: none !important;
                 border-radius: 1px !important;
@@ -1562,7 +1562,6 @@ export class EisenhowerMatrixView {
             left: 0;
             right: 0;
             height: 4px;
-            background-color: red !important;
             z-index: 10000;
             pointer-events: none;
             border: 1px solid blue;
