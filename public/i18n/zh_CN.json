@@ -517,7 +517,7 @@
     "addedToProjectSuccess": "已成功将 ${count} 个块添加到项目",
     "addedToProjectFailed": "添加到项目失败",
     "statusManagement": "状态管理",
-    "manageStatuses": "管理状态",
+    "manageStatuses": "管理项目状态",
     "addStatus": "添加状态",
     "editStatus": "编辑状态",
     "deleteStatus": "删除状态",

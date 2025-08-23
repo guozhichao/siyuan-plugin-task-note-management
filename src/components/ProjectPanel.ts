@@ -1391,7 +1391,7 @@ export class ProjectPanel {
 
             // 添加分类管理
             menu.addItem({
-                iconHTML: '<svg width="18" height="18" style="vertical-align: middle;"><use xlink:href="#iconTags"></use></svg>',
+                icon: 'iconTags',
                 label: t("manageCategories") || "管理分类",
                 click: () => {
                     this.showCategoryManageDialog();
@@ -1400,7 +1400,7 @@ export class ProjectPanel {
 
             // 添加状态管理
             menu.addItem({
-                iconHTML: '<svg width="18" height="18" style="vertical-align: middle;"><use xlink:href="#iconSettings"></use></svg>',
+                icon: 'iconSettings',
                 label: t("manageStatuses") || "管理状态",
                 click: () => {
                     this.showStatusManageDialog();
