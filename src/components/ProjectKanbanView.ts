@@ -1982,16 +1982,71 @@ export class ProjectKanbanView {
                 border-bottom: 1px solid var(--b3-theme-border);
                 background: var(--b3-theme-surface);
                 gap: 16px;
+                flex-wrap: wrap;
             }
 
             .project-kanban-title {
                 flex: 1;
+                min-width: 200px;
             }
 
             .project-kanban-controls {
                 display: flex;
                 align-items: center;
                 gap: 8px;
+                flex-wrap: wrap;
+            }
+
+            /* 响应式布局 - 窄屏优化 */
+            @media (max-width: 600px) {
+                .project-kanban-toolbar {
+                    flex-direction: column;
+                    align-items: stretch;
+                    gap: 12px;
+                }
+
+                .project-kanban-title {
+                    width: 100%;
+                    min-width: auto;
+                }
+
+                .project-kanban-controls {
+                    width: 100%;
+                    justify-content: flex-start;
+                    margin-left: 0;
+                    gap: 6px;
+                }
+
+                .project-kanban-controls .b3-button {
+                    flex: 1;
+                    min-width: 0;
+                    font-size: 12px;
+                    padding: 4px 8px;
+                }
+            }
+
+            @media (max-width: 400px) {
+                .project-kanban-toolbar {
+                    padding: 8px 12px;
+                }
+
+                .project-kanban-title h2 {
+                    font-size: 16px;
+                }
+
+                .project-kanban-description {
+                    font-size: 12px;
+                }
+
+                .project-kanban-controls {
+                    flex-direction: column;
+                    gap: 4px;
+                }
+
+                .project-kanban-controls .b3-button {
+                    width: 100%;
+                    justify-content: center;
+                }
             }
 
             .project-kanban-container {
