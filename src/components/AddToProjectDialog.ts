@@ -28,7 +28,7 @@ export class AddToProjectDialog {
             title: t("addToProject"),
             content: `<div class="add-to-project-dialog">${content}</div>`,
             width: "520px",
-            destroyCallback: () => {}
+            destroyCallback: () => { }
         });
 
         this.searchInput = this.dialog.element.querySelector("#project-search-input");
@@ -134,7 +134,7 @@ export class AddToProjectDialog {
             }
 
             for (const block of blocks) {
-                const taskId = `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+                const taskId = `quick_${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
                 const newTask = {
                     id: taskId,
                     title: block.content || '未命名任务',

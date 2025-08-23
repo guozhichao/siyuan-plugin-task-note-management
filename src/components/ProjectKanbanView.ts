@@ -1513,7 +1513,7 @@ export class ProjectKanbanView {
 
     private async createTask(taskData: any, parentTask?: any) {
         const reminderData = await readReminderData();
-        const taskId = `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const taskId = `quick_${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
         const newTask: any = {
             id: taskId,
@@ -1636,7 +1636,7 @@ export class ProjectKanbanView {
             .reduce((max: number, task: any) => Math.max(max, task.sort || 0), 0) as number;
 
         for (const [index, line] of lines.entries()) {
-            const taskId = `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            const taskId = `quick_${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
             // 解析任务参数
             const taskData = this.parseTaskLine(line);

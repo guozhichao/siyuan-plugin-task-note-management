@@ -194,7 +194,7 @@ export class ProjectDialog {
             }
 
             const projectData = await readProjectData();
-            const projectId = this.blockId || `quick-${Date.now()}`;
+            const projectId = this.blockId || `quick_${Date.now()}`;
             const existingProject = this.blockId ? projectData[this.blockId] : null;
 
             const project = {

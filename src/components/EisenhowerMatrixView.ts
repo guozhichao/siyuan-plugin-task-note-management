@@ -54,7 +54,7 @@ export class EisenhowerMatrixView {
     private isDragging: boolean = false;
     private draggedTaskId: string | null = null;
     private collapsedTasks: Set<string> = new Set();
-    
+
     // 添加静态变量来跟踪当前活动的番茄钟
     private static currentPomodoroTimer: PomodoroTimer | null = null;
 
@@ -207,7 +207,7 @@ export class EisenhowerMatrixView {
 
                 // 确定象限
                 let quadrant: QuadrantTask['quadrant'];
-                
+
                 // 如果是子任务，继承父任务的象限
                 if (reminder?.parentId) {
                     // 先尝试从已加载的任务中找父任务
@@ -226,7 +226,7 @@ export class EisenhowerMatrixView {
                                 const parentImportanceValue = importanceOrder[parentReminder?.priority || 'none'];
                                 const parentIsImportant = parentImportanceValue >= thresholdValue;
                                 const parentIsUrgent = this.isTaskUrgent(parentReminder);
-                                
+
                                 if (parentIsImportant && parentIsUrgent) {
                                     quadrant = 'important-urgent';
                                 } else if (parentIsImportant && !parentIsUrgent) {
@@ -310,10 +310,10 @@ export class EisenhowerMatrixView {
 
     private isTaskUrgent(reminder: any): boolean {
         if (!reminder?.date) return false;
-        
+
         const today = new Date();
         today.setHours(0, 0, 0, 0); // 重置时间到当天开始
-        
+
         const urgencyDate = new Date();
         urgencyDate.setDate(urgencyDate.getDate() + this.criteriaSettings.urgencyDays);
         urgencyDate.setHours(23, 59, 59, 999); // 设置到当天结束
@@ -524,7 +524,7 @@ export class EisenhowerMatrixView {
 
     private createTaskElement(task: QuadrantTask, level: number = 0): HTMLElement {
         const taskEl = document.createElement('div');
-        taskEl.className = `task-item ${task.completed ? 'completed' : ''}`;
+        taskEl.className = `quick_item ${task.completed ? 'completed' : ''}`;
         if (level > 0) {
             taskEl.classList.add('child-task');
             taskEl.style.marginLeft = `${level * 20}px`;
@@ -628,7 +628,7 @@ export class EisenhowerMatrixView {
         // 创建任务标题
         const taskTitle = document.createElement('div');
         taskTitle.className = 'task-title';
-        
+
         // 如果任务有绑定块，设置为链接样式
         if (task.blockId) {
             taskTitle.setAttribute('data-type', 'a');
@@ -928,7 +928,7 @@ export class EisenhowerMatrixView {
             if (reminderData[taskId]) {
                 // 更新当前任务的象限
                 reminderData[taskId].quadrant = newQuadrant;
-                
+
                 // 递归更新所有子任务的象限
                 const updateChildrenQuadrant = (parentId: string) => {
                     Object.values(reminderData).forEach((reminder: any) => {
@@ -939,7 +939,7 @@ export class EisenhowerMatrixView {
                         }
                     });
                 };
-                
+
                 updateChildrenQuadrant(taskId);
                 await writeReminderData(reminderData);
 
@@ -951,7 +951,7 @@ export class EisenhowerMatrixView {
             showMessage(t('moveTaskFailed'));
         }
     }
-    
+
     private getQuadrantDisplayName(quadrant: QuadrantTask['quadrant']): string {
         const quadrantInfo = this.quadrants.find(q => q.key === quadrant);
         return quadrantInfo ? quadrantInfo.title : quadrant;
@@ -1689,13 +1689,13 @@ export class EisenhowerMatrixView {
                 label: "打开绑定块",
                 click: () => this.openTaskBlock(task.blockId!)
             });
-            
+
             menu.addItem({
                 iconHTML: "📋",
                 label: "复制块引用",
                 click: () => this.copyBlockRef(task)
             });
-            
+
             menu.addItem({
                 iconHTML: "🔓",
                 label: "解除绑定",
@@ -2600,7 +2600,7 @@ export class EisenhowerMatrixView {
 
     private async createTask(taskData: any, parentTask?: QuadrantTask) {
         const reminderData = await readReminderData();
-        const taskId = `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const taskId = `quick_${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
         const newTask: any = {
             id: taskId,
@@ -2741,7 +2741,7 @@ export class EisenhowerMatrixView {
                 showMessage('任务未绑定到块');
                 return;
             }
-            
+
             const blockRef = `((${task.blockId} '${task.title}'))`;
             await navigator.clipboard.writeText(blockRef);
             showMessage('已复制块引用到剪贴板');
@@ -2846,11 +2846,11 @@ export class EisenhowerMatrixView {
     private async bindTaskToBlock(task: QuadrantTask, blockId: string) {
         try {
             const reminderData = await readReminderData();
-            
+
             if (reminderData[task.id]) {
                 reminderData[task.id].blockId = blockId;
                 await writeReminderData(reminderData);
-                
+
                 await this.refresh();
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
             }
@@ -2868,7 +2868,7 @@ export class EisenhowerMatrixView {
         try {
             const reminderData = await readReminderData();
             let taskFound = false;
-            
+
             for (const [, reminder] of Object.entries(reminderData as any)) {
                 if (reminder && typeof reminder === 'object' && (reminder as any).blockId === blockId) {
                     delete (reminder as any).blockId;
@@ -2876,7 +2876,7 @@ export class EisenhowerMatrixView {
                     break;
                 }
             }
-            
+
             if (taskFound) {
                 await writeReminderData(reminderData);
                 await this.refresh();
