@@ -1693,8 +1693,8 @@ export class EisenhowerMatrixView {
                     </div>
                 </div>
             `,
-            width: "400px",
-            height: "450px"
+            width: "500px",
+            height: "650px"
         });
 
         const projectSortList = dialog.element.querySelector('#projectSortList') as HTMLElement;
@@ -1921,8 +1921,8 @@ export class EisenhowerMatrixView {
                     </div>
                 </div>
             `,
-            width: "450px",
-            height: "500px"
+            width: "500px",
+            height: "600px"
         });
 
         this.renderFilterOptions(dialog);
