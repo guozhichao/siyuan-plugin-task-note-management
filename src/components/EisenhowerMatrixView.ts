@@ -46,6 +46,8 @@ export class EisenhowerMatrixView {
         importanceThreshold: 'medium' as 'high' | 'medium' | 'low',
         urgencyDays: 3
     };
+    private isDragging: boolean = false;
+    private draggedTaskId: string | null = null;
 
     constructor(container: HTMLElement, plugin: any) {
         this.container = container;
@@ -132,7 +134,7 @@ export class EisenhowerMatrixView {
         // 创建四象限网格
         const matrixGrid = document.createElement('div');
         matrixGrid.className = 'matrix-grid';
-        
+
         this.quadrants.forEach(quadrant => {
             const quadrantEl = this.createQuadrantElement(quadrant);
             matrixGrid.appendChild(quadrantEl);
@@ -189,7 +191,7 @@ export class EisenhowerMatrixView {
                 const thresholdValue = importanceOrder[this.criteriaSettings.importanceThreshold];
                 const taskValue = importanceOrder[reminder.priority || 'none'];
                 const isImportant = taskValue >= thresholdValue;
-                
+
                 // 判断紧急性
                 const isUrgent = this.isTaskUrgent(reminder);
 
@@ -250,7 +252,7 @@ export class EisenhowerMatrixView {
         urgencyDate.setDate(urgencyDate.getDate() + this.criteriaSettings.urgencyDays);
 
         const taskDate = new Date(reminder.date);
-        
+
         // 根据设置的天数判断紧急性
         return taskDate <= urgencyDate;
     }
@@ -264,8 +266,8 @@ export class EisenhowerMatrixView {
         this.filteredTasks = this.allTasks.filter(task => {
             // 状态筛选
             if (this.statusFilter.size > 0) {
-                const projectStatus = task.projectId ? 
-                    this.projectManager.getProjectById(task.projectId)?.status || 'active' : 
+                const projectStatus = task.projectId ?
+                    this.projectManager.getProjectById(task.projectId)?.status || 'active' :
                     'no-project';
                 if (!this.statusFilter.has(projectStatus)) {
                     return false;
@@ -303,7 +305,7 @@ export class EisenhowerMatrixView {
 
     private groupTasksByProject(tasks: QuadrantTask[]): QuadrantTask[] {
         const grouped = new Map<string, QuadrantTask[]>();
-        
+
         tasks.forEach(task => {
             const projectKey = task.projectId || 'no-project';
             if (!grouped.has(projectKey)) {
@@ -319,19 +321,19 @@ export class EisenhowerMatrixView {
                 const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
                 const priorityA = priorityOrder[a.priority || 'none'];
                 const priorityB = priorityOrder[b.priority || 'none'];
-                
+
                 // 优先级不同，按优先级降序排序
                 if (priorityA !== priorityB) {
                     return priorityB - priorityA;
                 }
-                
+
                 // 同优先级内，按手动排序值排序（升序）
                 const sortA = a.extendedProps?.sort || 0;
                 const sortB = b.extendedProps?.sort || 0;
                 if (sortA !== sortB) {
                     return sortA - sortB;
                 }
-                
+
                 // 如果排序值相同，按创建时间排序
                 return new Date(b.extendedProps?.createdTime || 0).getTime() - new Date(a.extendedProps?.createdTime || 0).getTime();
             });
@@ -339,13 +341,13 @@ export class EisenhowerMatrixView {
 
         // 转换为数组并保持顺序
         const result: QuadrantTask[] = [];
-        
+
         // 获取所有项目ID（排除无项目）
         const projectIds = Array.from(grouped.keys()).filter(key => key !== 'no-project');
-        
+
         // 根据排序模式排序项目
         let sortedProjectIds: string[];
-        
+
         if (this.currentProjectSortMode === 'custom' && this.projectSortOrder.length > 0) {
             // 使用自定义排序
             sortedProjectIds = [...this.projectSortOrder.filter(id => projectIds.includes(id))];
@@ -361,9 +363,9 @@ export class EisenhowerMatrixView {
             sortedProjectIds = projectIds.sort((a, b) => {
                 const projectA = grouped.get(a)?.[0];
                 const projectB = grouped.get(b)?.[0];
-                
+
                 if (!projectA || !projectB) return 0;
-                
+
                 // 按项目名称排序
                 return (projectA.projectName || '').localeCompare(projectB.projectName || '');
             });
@@ -421,7 +423,7 @@ export class EisenhowerMatrixView {
                     projectHeader.setAttribute('data-project-id', projectKey);
                     projectHeader.style.cursor = 'pointer';
                     projectHeader.title = t('openProjectKanban');
-                    
+
                     // 添加点击事件打开项目看板
                     projectHeader.addEventListener('click', () => {
                         this.openProjectKanban(projectKey);
@@ -445,7 +447,7 @@ export class EisenhowerMatrixView {
         const taskEl = document.createElement('div');
         taskEl.className = `task-item ${task.completed ? 'completed' : ''}`;
         taskEl.setAttribute('data-task-id', task.id);
-        taskEl.setAttribute('draggable', 'true');
+        taskEl.setAttribute('draggable', 'false'); // 任务元素本身不可拖拽
         taskEl.setAttribute('data-project-id', task.projectId || 'no-project');
         taskEl.setAttribute('data-priority', task.priority || 'none');
 
@@ -486,6 +488,7 @@ export class EisenhowerMatrixView {
         dragHandle.className = 'task-drag-handle';
         dragHandle.innerHTML = '⋮⋮';
         dragHandle.title = '拖拽排序';
+        dragHandle.setAttribute('draggable', 'true');
         dragHandle.style.cssText = `
             cursor: grab;
             color: var(--b3-theme-on-surface-light);
@@ -540,7 +543,7 @@ export class EisenhowerMatrixView {
         // 组装元素
         taskInfo.appendChild(taskTitle);
         taskInfo.appendChild(taskMeta);
-        
+
         // 使用flex布局包含拖拽手柄、复选框和任务信息
         const taskInnerContent = document.createElement('div');
         taskInnerContent.className = 'task-inner-content';
@@ -550,11 +553,11 @@ export class EisenhowerMatrixView {
             gap: 8px;
             width: 100%;
         `;
-        
+
         taskInnerContent.appendChild(dragHandle);
         taskInnerContent.appendChild(checkboxContainer);
         taskInnerContent.appendChild(taskInfo);
-        
+
         taskContent.appendChild(taskInnerContent);
         taskEl.appendChild(taskContent);
 
@@ -575,23 +578,6 @@ export class EisenhowerMatrixView {
             this.toggleTaskCompletion(task, (e.target as HTMLInputElement).checked);
         });
 
-        // 拖拽事件 - 支持手动排序
-        taskEl.addEventListener('dragstart', (e) => {
-            e.stopPropagation();
-            e.dataTransfer!.setData('text/plain', task.id);
-            e.dataTransfer!.setData('task/project-id', task.projectId || 'no-project');
-            e.dataTransfer!.setData('task/priority', task.priority || 'none');
-            taskEl.classList.add('dragging');
-            dragHandle.style.cursor = 'grabbing';
-        });
-
-        taskEl.addEventListener('dragend', (e) => {
-            e.stopPropagation();
-            taskEl.classList.remove('dragging');
-            dragHandle.style.cursor = 'grab';
-            this.hideDropIndicators();
-        });
-
         // 拖拽手柄事件 - 只在拖拽手柄上触发拖拽
         dragHandle.addEventListener('mousedown', (e) => {
             e.stopPropagation();
@@ -604,24 +590,55 @@ export class EisenhowerMatrixView {
             e.dataTransfer!.setData('task/priority', task.priority || 'none');
             taskEl.classList.add('dragging');
             dragHandle.style.cursor = 'grabbing';
+            this.isDragging = true;
+            this.draggedTaskId = task.id;
+            console.log('Started dragging task:', task.id);
+        });
+
+        dragHandle.addEventListener('dragend', (e) => {
+            e.stopPropagation();
+            taskEl.classList.remove('dragging');
+            dragHandle.style.cursor = 'grab';
+            this.hideDropIndicators();
+            this.isDragging = false;
+            this.draggedTaskId = null;
+            console.log('Ended dragging task');
         });
 
         // 添加拖放排序支持
         taskEl.addEventListener('dragover', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            const draggedTaskId = e.dataTransfer?.getData('text/plain');
-            const draggedProjectId = e.dataTransfer?.getData('task/project-id');
-            const draggedPriority = e.dataTransfer?.getData('task/priority');
-            
+
+            // 检查是否有拖拽操作进行中
+            if (!this.isDragging || !this.draggedTaskId) {
+                console.log('No drag operation in progress:', this.isDragging, this.draggedTaskId);
+                return;
+            }
+
+            // 使用内部状态而不是依赖 dataTransfer
+            const draggedTaskId = this.draggedTaskId;
+
             if (draggedTaskId && draggedTaskId !== task.id) {
+                // 找到被拖拽的任务
+                const draggedTask = this.filteredTasks.find(t => t.id === draggedTaskId);
+                if (!draggedTask) {
+                    console.log('Dragged task not found:', draggedTaskId);
+                    return;
+                }
+
+                const draggedProjectId = draggedTask.projectId || 'no-project';
+                const draggedPriority = draggedTask.priority || 'none';
                 const currentProjectId = task.projectId || 'no-project';
                 const currentPriority = task.priority || 'none';
-                
+
                 // 只允许在同一项目和同一优先级内排序
                 if (draggedProjectId === currentProjectId && draggedPriority === currentPriority) {
+                    console.log('Conditions met, showing drop indicator for task:', task.id);
                     this.showDropIndicator(taskEl, e);
                     taskEl.classList.add('drag-over');
+                } else {
+                    console.log('Project/priority mismatch:', { draggedProjectId, currentProjectId, draggedPriority, currentPriority });
                 }
             }
         });
@@ -635,16 +652,28 @@ export class EisenhowerMatrixView {
         taskEl.addEventListener('drop', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            const draggedTaskId = e.dataTransfer?.getData('text/plain');
-            const draggedProjectId = e.dataTransfer?.getData('task/project-id');
-            const draggedPriority = e.dataTransfer?.getData('task/priority');
-            
+
+            if (!this.isDragging || !this.draggedTaskId) {
+                this.hideDropIndicators();
+                taskEl.classList.remove('drag-over');
+                return;
+            }
+
+            const draggedTaskId = this.draggedTaskId;
+
             if (draggedTaskId && draggedTaskId !== task.id) {
-                const currentProjectId = task.projectId || 'no-project';
-                const currentPriority = task.priority || 'none';
-                
-                if (draggedProjectId === currentProjectId && draggedPriority === currentPriority) {
-                    this.handleTaskReorder(draggedTaskId, task.id, e);
+                // 找到被拖拽的任务
+                const draggedTask = this.filteredTasks.find(t => t.id === draggedTaskId);
+                if (draggedTask) {
+                    const draggedProjectId = draggedTask.projectId || 'no-project';
+                    const draggedPriority = draggedTask.priority || 'none';
+                    const currentProjectId = task.projectId || 'no-project';
+                    const currentPriority = task.priority || 'none';
+
+                    if (draggedProjectId === currentProjectId && draggedPriority === currentPriority) {
+                        console.log('Handling task reorder:', draggedTaskId, '->', task.id);
+                        this.handleTaskReorder(draggedTaskId, task.id, e);
+                    }
                 }
             }
             this.hideDropIndicators();
@@ -670,10 +699,10 @@ export class EisenhowerMatrixView {
             zone.addEventListener('drop', async (e) => {
                 e.preventDefault();
                 zone.classList.remove('drag-over');
-                
+
                 const taskId = (e as DragEvent).dataTransfer!.getData('text/plain');
                 const quadrantKey = zone.getAttribute('data-quadrant-content');
-                
+
                 if (taskId && quadrantKey) {
                     await this.moveTaskToQuadrant(taskId, quadrantKey as QuadrantTask['quadrant']);
                 }
@@ -723,11 +752,11 @@ export class EisenhowerMatrixView {
     private async moveTaskToQuadrant(taskId: string, newQuadrant: QuadrantTask['quadrant']) {
         try {
             const reminderData = await readReminderData();
-            
+
             if (reminderData[taskId]) {
                 reminderData[taskId].quadrant = newQuadrant;
                 await writeReminderData(reminderData);
-                
+
                 await this.refresh();
             }
         } catch (error) {
@@ -746,13 +775,13 @@ export class EisenhowerMatrixView {
         const dialog = new QuickReminderDialog(today, null, async () => {
             await this.refresh();
         });
-        
+
         // 设置默认象限和项目
         (dialog as any).defaultQuadrant = quadrant;
         if (projectId) {
             (dialog as any).defaultProjectId = projectId;
         }
-        
+
         dialog.show();
     }
 
@@ -774,11 +803,11 @@ export class EisenhowerMatrixView {
     private async toggleTaskCompletion(task: QuadrantTask, completed: boolean) {
         try {
             const reminderData = await readReminderData();
-            
+
             if (reminderData[task.id]) {
                 reminderData[task.id].completed = completed;
                 await writeReminderData(reminderData);
-                
+
                 await this.refresh();
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
             }
@@ -810,14 +839,14 @@ export class EisenhowerMatrixView {
         try {
             const reminderData = await readReminderData();
             let taskFound = false;
-            
+
             for (const [taskId, reminder] of Object.entries(reminderData as any)) {
                 if (reminder && typeof reminder === 'object' && (reminder as any).blockId === blockId) {
                     delete reminderData[taskId];
                     taskFound = true;
                 }
             }
-            
+
             if (taskFound) {
                 await writeReminderData(reminderData);
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -876,7 +905,7 @@ export class EisenhowerMatrixView {
             });
         }
 
-        menu.open({x: 0, y: 0});
+        menu.open({ x: 0, y: 0 });
     }
 
     private showTaskEditDialog(task: QuadrantTask) {
@@ -884,26 +913,26 @@ export class EisenhowerMatrixView {
             await this.refresh();
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
         });
-        
+
         // 添加项目选择功能到编辑对话框
         (editDialog as any).showProjectSelector = () => {
             this.showProjectSelectorForTask(task);
         };
-        
+
         editDialog.show();
     }
 
     private showProjectSelectorForTask(task: QuadrantTask) {
         const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
         const activeProjects = groupedProjects['active'] || [];
-        
+
         if (activeProjects.length === 0) {
             showMessage(t('noActiveProjects'));
             return;
         }
 
         const menu = new Menu();
-        
+
         // 当前项目显示
         if (task.projectId) {
             const currentProject = this.projectManager.getProjectById(task.projectId);
@@ -958,7 +987,7 @@ export class EisenhowerMatrixView {
             }
         });
 
-        menu.open({x: 0, y: 0});
+        menu.open({ x: 0, y: 0 });
     }
 
     private openProjectKanban(projectId: string) {
@@ -1283,14 +1312,14 @@ export class EisenhowerMatrixView {
 
             /* 拖拽排序指示器样式 */
             .drop-indicator {
-                position: absolute;
-                left: 0;
-                right: 0;
-                height: 2px;
-                background-color: var(--b3-theme-primary);
-                z-index: 1000;
-                pointer-events: none;
-                animation: drop-indicator-pulse 1s ease-in-out infinite;
+                position: absolute !important;
+                left: 0 !important;
+                right: 0 !important;
+                height: 2px !important;
+                background-color: #007bff !important;
+                z-index: 1000 !important;
+                pointer-events: none !important;
+                border-radius: 1px !important;
             }
             
             @keyframes drop-indicator-pulse {
@@ -1321,7 +1350,7 @@ export class EisenhowerMatrixView {
 
     private showTaskContextMenu(task: QuadrantTask, event: MouseEvent) {
         const menu = new Menu();
-        
+
         // 添加项目分配菜单
         menu.addItem({
             label: t('addToProject'),
@@ -1360,14 +1389,14 @@ export class EisenhowerMatrixView {
             }
         });
 
-        menu.open({x: event.clientX, y: event.clientY});
+        menu.open({ x: event.clientX, y: event.clientY });
     }
 
     private async assignTaskToProject(task: QuadrantTask, event?: MouseEvent) {
         try {
             const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
             const allProjects = [];
-            
+
             // 收集所有非归档状态的项目
             Object.keys(groupedProjects).forEach(statusKey => {
                 const projects = groupedProjects[statusKey] || [];
@@ -1379,14 +1408,14 @@ export class EisenhowerMatrixView {
                     }
                 });
             });
-            
+
             if (allProjects.length === 0) {
                 showMessage(t('noActiveProjects'));
                 return;
             }
 
             const menu = new Menu();
-            
+
             // 按状态分组显示项目
             Object.keys(groupedProjects).forEach(statusKey => {
                 const projects = groupedProjects[statusKey] || [];
@@ -1394,14 +1423,14 @@ export class EisenhowerMatrixView {
                     const projectStatus = this.projectManager.getProjectById(project.id)?.status || 'doing';
                     return projectStatus !== 'archived';
                 });
-                
+
                 if (nonArchivedProjects.length > 0) {
                     // 添加状态标题
                     menu.addItem({
                         label: this.getStatusDisplayName(statusKey),
                         disabled: true
                     });
-                    
+
                     nonArchivedProjects.forEach(project => {
                         menu.addItem({
                             label: project.name,
@@ -1411,7 +1440,7 @@ export class EisenhowerMatrixView {
                             }
                         });
                     });
-                    
+
                     menu.addSeparator();
                 }
             });
@@ -1427,9 +1456,9 @@ export class EisenhowerMatrixView {
             });
 
             if (event) {
-                menu.open({x: event.clientX, y: event.clientY});
+                menu.open({ x: event.clientX, y: event.clientY });
             } else {
-                menu.open({x: 0, y: 0});
+                menu.open({ x: 0, y: 0 });
             }
         } catch (error) {
             console.error('分配项目失败:', error);
@@ -1450,11 +1479,11 @@ export class EisenhowerMatrixView {
     private async updateTaskProject(taskId: string, projectId: string | null) {
         try {
             const reminderData = await readReminderData();
-            
+
             if (reminderData[taskId]) {
                 reminderData[taskId].projectId = projectId;
                 await writeReminderData(reminderData);
-                
+
                 await this.refresh();
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
             }
@@ -1485,10 +1514,10 @@ export class EisenhowerMatrixView {
     }
 
     private async deleteTask(task: QuadrantTask) {
-        const title =  '删除提醒';
+        const title = '删除提醒';
         const content = '确定要删除任务 "${title}" 吗？\n\n此操作不可撤销。'
             .replace(/\${title}/g, task.title);
-        
+
         confirm(
             title,
             content,
@@ -1498,7 +1527,7 @@ export class EisenhowerMatrixView {
                     if (reminderData && reminderData[task.id]) {
                         delete reminderData[task.id];
                         await writeReminderData(reminderData);
-                        
+
                         await this.refresh();
                         window.dispatchEvent(new CustomEvent('reminderUpdated'));
                         showMessage(t('reminderDeleted'));
@@ -1526,35 +1555,44 @@ export class EisenhowerMatrixView {
 
         const indicator = document.createElement('div');
         indicator.className = 'drop-indicator';
-        
-        // 获取父容器的相对位置
-        const parentRect = element.parentElement?.getBoundingClientRect() || rect;
-        
-        // 计算相对于父容器的位置
-        const relativeTop = rect.top - parentRect.top;
-        
+
+        // 使用更明显的样式进行测试
         indicator.style.cssText = `
             position: absolute;
             left: 0;
             right: 0;
-            height: 2px;
-            background-color: var(--b3-theme-primary);
-            z-index: 1000;
+            height: 4px;
+            background-color: red !important;
+            z-index: 10000;
             pointer-events: none;
+            border: 1px solid blue;
         `;
 
-        element.style.position = 'relative';
+        // 确保父元素有相对定位
+        if (!element.style.position || element.style.position === 'static') {
+            element.style.position = 'relative';
+        }
 
         if (event.clientY < midpoint) {
-            indicator.style.top = '0px';
+            // 插入到目标元素之前
+            indicator.style.top = '-2px';
+            console.log('Drop indicator positioned above element');
         } else {
-            indicator.style.bottom = '0px';
+            // 插入到目标元素之后
+            indicator.style.bottom = '-2px';
+            console.log('Drop indicator positioned below element');
         }
+
         element.appendChild(indicator);
+
+
     }
 
     private hideDropIndicators() {
-        this.container.querySelectorAll('.drop-indicator').forEach(indicator => indicator.remove());
+        const indicators = this.container.querySelectorAll('.drop-indicator');
+        console.log('Removing drop indicators:', indicators.length);
+        indicators.forEach(indicator => indicator.remove());
+
         this.container.querySelectorAll('.task-item').forEach((el: HTMLElement) => {
             if (el.style.position === 'relative') {
                 el.style.position = '';
@@ -1566,10 +1604,10 @@ export class EisenhowerMatrixView {
     private async handleTaskReorder(draggedTaskId: string, targetTaskId: string, event: DragEvent) {
         try {
             const reminderData = await readReminderData();
-            
+
             const draggedTask = reminderData[draggedTaskId];
             const targetTask = reminderData[targetTaskId];
-            
+
             if (!draggedTask || !targetTask) {
                 console.error('任务不存在');
                 return;
@@ -1587,7 +1625,7 @@ export class EisenhowerMatrixView {
 
             // 获取所有相关任务
             const relatedTasks = Object.values(reminderData)
-                .filter((task: any) => 
+                .filter((task: any) =>
                     (task.projectId || 'no-project') === draggedProjectId &&
                     (task.priority || 'none') === draggedPriority
                 )
@@ -1595,7 +1633,7 @@ export class EisenhowerMatrixView {
 
             // 找到目标任务的索引
             const targetIndex = relatedTasks.findIndex((task: any) => task.id === targetTaskId);
-            
+
             // 计算插入位置 - 修复空值检查
             let insertIndex = targetIndex;
             if (event.currentTarget instanceof HTMLElement) {
@@ -1612,11 +1650,11 @@ export class EisenhowerMatrixView {
                 if (oldIndex !== -1) {
                     relatedTasks.splice(oldIndex, 1);
                 }
-                
+
                 // 插入到新位置，确保索引有效
                 const validInsertIndex = Math.max(0, Math.min(insertIndex, relatedTasks.length));
                 relatedTasks.splice(validInsertIndex, 0, draggedTaskObj);
-                
+
                 // 更新排序值
                 relatedTasks.forEach((task: any, index: number) => {
                     task.sort = index * 10;
@@ -1640,14 +1678,14 @@ export class EisenhowerMatrixView {
     private async loadProjectSortOrder() {
         try {
             console.log('开始加载项目排序数据...');
-            
+
             const content = await getFile('data/storage/petal/siyuan-plugin-task-note-management/project-sort.json');
             if (content) {
                 const data = typeof content === 'string' ? JSON.parse(content) : content;
                 console.log('加载的项目排序数据:', data);
                 this.projectSortOrder = data.projectSortOrder || [];
                 this.currentProjectSortMode = data.currentProjectSortMode || 'custom'; // 默认改为custom
-                
+
                 console.log('加载的项目排序数组:', this.projectSortOrder);
                 console.log('加载的排序模式:', this.currentProjectSortMode);
             } else {
@@ -1712,7 +1750,7 @@ export class EisenhowerMatrixView {
             const content = JSON.stringify(data, null, 2);
             const blob = new Blob([content], { type: 'application/json' });
             const response = await putFile('data/storage/petal/siyuan-plugin-task-note-management/project-sort.json', false, blob);
-            
+
             console.log('项目排序保存成功:', response);
         } catch (error) {
             console.error('保存项目排序失败:', error);
@@ -1764,7 +1802,7 @@ export class EisenhowerMatrixView {
         // 渲染项目排序列表
         const renderProjectList = () => {
             projectSortList.innerHTML = '';
-            
+
             let projectsToShow: any[];
             if (this.projectSortOrder.length > 0) {
                 // 使用自定义排序的项目
@@ -1843,10 +1881,10 @@ export class EisenhowerMatrixView {
             // 获取当前排序
             const items = projectSortList.querySelectorAll('.project-sort-item');
             this.projectSortOrder = Array.from(items).map(item => item.getAttribute('data-project-id')).filter(Boolean) as string[];
-            
+
             console.log('即将保存的项目排序:', this.projectSortOrder);
             console.log('项目排序项目数量:', items.length);
-            
+
             // 打印每个项目的ID和名称
             items.forEach((item, index) => {
                 console.log(`项目 ${index}: ${item.getAttribute('data-project-id')} - ${item.textContent}`);
@@ -1861,17 +1899,17 @@ export class EisenhowerMatrixView {
 
     private getDragAfterElement(container: HTMLElement, y: number): HTMLElement | null {
         const draggableElements = [...container.querySelectorAll('.project-sort-item:not(.dragging)')] as HTMLElement[];
-        
+
         return draggableElements.reduce((closest, child) => {
             const box = child.getBoundingClientRect();
             const offset = y - box.top - box.height / 2;
-            
+
             if (offset < 0 && offset > closest.offset) {
                 return { offset: offset, element: child };
             } else {
                 return closest;
             }
-        }, { offset: Number.NEGATIVE_INFINITY }).element || null;
+        }, { offset: Number.NEGATIVE_INFINITY, element: null as HTMLElement | null }).element || null;
     }
 
     private showSettingsDialog() {
@@ -1930,7 +1968,7 @@ export class EisenhowerMatrixView {
             }
 
             const selectedImportance = Array.from(importanceRadios).find(r => r.checked)?.value as 'high' | 'medium' | 'low';
-            
+
             this.criteriaSettings = {
                 importanceThreshold: selectedImportance,
                 urgencyDays: urgencyDays
@@ -1938,7 +1976,7 @@ export class EisenhowerMatrixView {
 
             await this.saveCriteriaSettings();
             dialog.destroy();
-            
+
             await this.refresh();
             showMessage('设置已保存');
         });
@@ -1982,11 +2020,11 @@ export class EisenhowerMatrixView {
             // 获取所有可能的状态
             const statusManager = this.projectManager.getStatusManager();
             const allStatuses = statusManager.getStatuses();
-            
+
             // 添加"无项目"选项
             const noProjectCheckbox = this.createCheckbox('no-project', '无项目', this.statusFilter.has('no-project'));
             statusFiltersEl.appendChild(noProjectCheckbox);
-            
+
             // 添加项目状态选项
             allStatuses.forEach(status => {
                 const checkbox = this.createCheckbox(status.id, status.name, this.statusFilter.has(status.id));
@@ -2001,11 +2039,11 @@ export class EisenhowerMatrixView {
             Object.values(allGroupedProjects).forEach((projects: any[]) => {
                 allProjects.push(...projects);
             });
-            
+
             // 添加"无项目"选项
             const noProjectCheckbox = this.createCheckbox('no-project', '无项目', this.projectFilter.has('no-project'));
             projectFiltersEl.appendChild(noProjectCheckbox);
-            
+
             // 按状态分组显示项目
             Object.keys(allGroupedProjects).forEach(statusKey => {
                 const projects = allGroupedProjects[statusKey] || [];
@@ -2048,7 +2086,7 @@ export class EisenhowerMatrixView {
             // 重置所有筛选器
             this.statusFilter.clear();
             this.projectFilter.clear();
-            
+
             // 更新复选框状态
             const checkboxes = dialog.element.querySelectorAll('input[type="checkbox"]');
             checkboxes.forEach(checkbox => {
@@ -2078,7 +2116,7 @@ export class EisenhowerMatrixView {
             // 应用筛选
             this.applyFiltersAndGroup();
             this.renderMatrix();
-            
+
             dialog.destroy();
             showMessage("筛选已应用");
         });
@@ -2087,7 +2125,7 @@ export class EisenhowerMatrixView {
     destroy() {
         // 清理事件监听器
         window.removeEventListener('reminderUpdated', this.refresh);
-        
+
         // 清理样式
         const style = document.querySelector('#eisenhower-matrix-styles');
         if (style) {
