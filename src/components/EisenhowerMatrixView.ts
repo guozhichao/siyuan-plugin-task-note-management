@@ -557,7 +557,7 @@ export class EisenhowerMatrixView {
 
         // 设置任务元素的背景色
         taskEl.style.backgroundColor = backgroundColor;
-        taskEl.style.border = `2px solid ${borderColor}`;
+        taskEl.style.border = `1px solid ${borderColor}`;
 
         // 创建任务内容容器
         const taskContent = document.createElement('div');
@@ -1873,9 +1873,21 @@ export class EisenhowerMatrixView {
     }
 
     private async deleteTask(task: QuadrantTask) {
-        const title = '删除提醒';
-        const content = '确定要删除任务 "${title}" 吗？\n\n此操作不可撤销。'
-            .replace(/\${title}/g, task.title);
+        // 检查是否有子任务
+        const childTasks = this.allTasks.filter(t => t.parentId === task.id);
+        const hasChildren = childTasks.length > 0;
+        
+        let title = '删除提醒';
+        let content = '确定要删除任务 "${title}" 吗？\n\n此操作不可撤销。';
+        
+        if (hasChildren) {
+            title = '删除任务及子任务';
+            content = '确定要删除任务 "${title}" 及其 ${count} 个子任务吗？\n\n此操作不可撤销。';
+        }
+        
+        content = content
+            .replace(/\${title}/g, task.title)
+            .replace(/\${count}/g, childTasks.length.toString());
 
         confirm(
             title,
@@ -1883,15 +1895,50 @@ export class EisenhowerMatrixView {
             async () => {
                 try {
                     const reminderData = await readReminderData();
-                    if (reminderData && reminderData[task.id]) {
-                        delete reminderData[task.id];
-                        await writeReminderData(reminderData);
+                    if (!reminderData) {
+                        console.warn('No reminder data found');
+                        showMessage('任务数据不存在');
+                        return;
+                    }
 
+                    // 收集所有要删除的任务ID（包括子任务）
+                    const taskIdsToDelete = new Set<string>();
+                    taskIdsToDelete.add(task.id);
+                    
+                    // 递归收集所有子任务
+                    const collectChildTasks = (parentId: string) => {
+                        Object.entries(reminderData).forEach(([id, reminder]) => {
+                            if (reminder && typeof reminder === 'object' && (reminder as any).parentId === parentId) {
+                                taskIdsToDelete.add(id);
+                                // 递归收集孙子任务
+                                collectChildTasks(id);
+                            }
+                        });
+                    };
+                    
+                    collectChildTasks(task.id);
+
+                    // 删除所有相关任务
+                    let deletedCount = 0;
+                    taskIdsToDelete.forEach(taskId => {
+                        if (reminderData[taskId]) {
+                            delete reminderData[taskId];
+                            deletedCount++;
+                        }
+                    });
+
+                    if (deletedCount > 0) {
+                        await writeReminderData(reminderData);
                         await this.refresh();
                         window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                        showMessage(t('reminderDeleted'));
+                        
+                        if (deletedCount > 1) {
+                            showMessage(`已删除 ${deletedCount} 个任务（包括子任务）`);
+                        } else {
+                            showMessage(t('reminderDeleted'));
+                        }
                     } else {
-                        console.warn('Task not found in reminder data:', task.id);
+                        console.warn('No tasks found to delete');
                         showMessage('任务不存在或已被删除');
                     }
                 } catch (error) {
