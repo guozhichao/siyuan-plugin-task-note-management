@@ -1,4 +1,4 @@
-import { readReminderData, writeReminderData } from "../api";
+import { readReminderData, writeReminderData, getFile, putFile, openBlock } from "../api";
 import { ProjectManager } from "../utils/projectManager";
 import { CategoryManager } from "../utils/categoryManager";
 import { QuickReminderDialog } from "./QuickReminderDialog";
@@ -6,8 +6,6 @@ import { ReminderEditDialog } from "./ReminderEditDialog";
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
 import { t } from "../utils/i18n";
 import { getLocalDateString } from "../utils/dateUtils";
-import { openBlock } from '../api';
-import { getFile, putFile } from "../api";
 interface QuadrantTask {
     id: string;
     title: string;
@@ -359,27 +357,14 @@ export class EisenhowerMatrixView {
                 return nameA.localeCompare(nameB);
             })];
         } else {
-            // 使用状态优先排序，同状态下按名称排序
-            // 获取状态顺序（需要获取所有状态）
-            const statusManager = this.projectManager.getStatusManager();
-            const allStatuses = statusManager.getStatuses();
-            const statusOrder = allStatuses.map(s => s.id);
-            
+            // 使用名称排序作为默认排序
             sortedProjectIds = projectIds.sort((a, b) => {
                 const projectA = grouped.get(a)?.[0];
                 const projectB = grouped.get(b)?.[0];
                 
                 if (!projectA || !projectB) return 0;
                 
-                // 首先按状态排序
-                const statusIndexA = statusOrder.indexOf(projectA.extendedProps?.status || 'active');
-                const statusIndexB = statusOrder.indexOf(projectB.extendedProps?.status || 'active');
-                
-                if (statusIndexA !== statusIndexB) {
-                    return statusIndexA - statusIndexB;
-                }
-                
-                // 同状态下按名称排序
+                // 按项目名称排序
                 return (projectA.projectName || '').localeCompare(projectB.projectName || '');
             });
         }
@@ -1611,20 +1596,9 @@ export class EisenhowerMatrixView {
         try {
             console.log('开始加载项目排序数据...');
             
-            const response = await fetch('/api/storage/getFile', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    path: 'data/storage/petal/siyuan-plugin-task-note-management/project-sort.json'
-                })
-            });
-            
-            console.log('项目排序文件加载响应状态:', response.status);
-            
-            if (response.ok) {
-                const data = await response.json();
+            const content = await getFile('data/storage/petal/siyuan-plugin-task-note-management/project-sort.json');
+            if (content) {
+                const data = typeof content === 'string' ? JSON.parse(content) : content;
                 console.log('加载的项目排序数据:', data);
                 this.projectSortOrder = data.projectSortOrder || [];
                 this.currentProjectSortMode = data.currentProjectSortMode || 'custom'; // 默认改为custom
@@ -1645,7 +1619,7 @@ export class EisenhowerMatrixView {
 
     private async loadCriteriaSettings() {
         try {
-            const data = await getFile('data/storage/petal/siyuan-plugin-task-note-management/criteria-settings.json');
+            const data = await getFile('data/storage/petal/siyuan-plugin-task-note-management/four-quadrant-settings.json');
             if (data) {
                 this.criteriaSettings = {
                     importanceThreshold: data.importanceThreshold || 'medium',
@@ -1670,7 +1644,9 @@ export class EisenhowerMatrixView {
 
             console.log('保存标准设置数据:', data);
 
-            await putFile('data/storage/petal/siyuan-plugin-task-note-management/criteria-settings.json', JSON.stringify(data, null, 2));
+            const content = JSON.stringify(data, null, 2);
+            const blob = new Blob([content], { type: 'application/json' });
+            await putFile('data/storage/petal/siyuan-plugin-task-note-management/four-quadrant-settings.json', false, blob);
             console.log('标准设置保存成功');
         } catch (error) {
             console.error('保存标准设置失败:', error);
@@ -1688,58 +1664,11 @@ export class EisenhowerMatrixView {
             console.log('项目排序数组长度:', this.projectSortOrder.length);
             console.log('当前排序模式:', this.currentProjectSortMode);
 
-            // 确保目录存在
-            const dirResponse = await fetch('/api/storage/putFile', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    path: 'data/storage/petal/siyuan-plugin-task-note-management/.keep',
-                    file: ''
-                })
-            });
-            console.log('目录检查响应:', dirResponse.status);
-
-            const response = await fetch('/api/storage/putFile', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    path: 'data/storage/petal/siyuan-plugin-task-note-management/project-sort.json',
-                    file: JSON.stringify(data, null, 2)
-                })
-            });
-
-            console.log('保存响应状态:', response.status);
-            console.log('保存响应对象:', response);
-
-            if (!response.ok) {
-                console.error('保存失败:', response.status, response.statusText);
-                const errorText = await response.text();
-                console.error('错误详情:', errorText);
-                console.error('完整响应:', response);
-            } else {
-                const result = await response.json();
-                console.log('项目排序保存成功:', result);
-                
-                // 验证文件是否已保存
-                const verifyResponse = await fetch('/api/storage/getFile', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        path: 'data/storage/petal/siyuan-plugin-task-note-management/project-sort.json'
-                    })
-                });
-                
-                if (verifyResponse.ok) {
-                    const savedData = await verifyResponse.json();
-                    console.log('验证保存的数据:', savedData);
-                }
-            }
+            const content = JSON.stringify(data, null, 2);
+            const blob = new Blob([content], { type: 'application/json' });
+            const response = await putFile('data/storage/petal/siyuan-plugin-task-note-management/project-sort.json', false, blob);
+            
+            console.log('项目排序保存成功:', response);
         } catch (error) {
             console.error('保存项目排序失败:', error);
             console.error('错误堆栈:', error.stack);
@@ -1753,13 +1682,8 @@ export class EisenhowerMatrixView {
                 <div class="project-sort-dialog">
                     <div class="b3-dialog__content">
                         <div class="b3-form__group">
-                            <label class="b3-form__label">项目状态排序</label>
-                            <div id="statusSortList" class="status-sort-list" style="border: 1px solid var(--b3-theme-border); border-radius: 4px; padding: 8px; max-height: 200px; overflow-y: auto;">
-                            </div>
-                        </div>
-                        <div class="b3-form__group" style="margin-top: 16px;">
                             <label class="b3-form__label">项目排序（拖拽调整顺序）</label>
-                            <div id="projectSortList" class="project-sort-list" style="border: 1px solid var(--b3-theme-border); border-radius: 4px; padding: 8px; max-height: 300px; overflow-y: auto;">
+                            <div id="projectSortList" class="project-sort-list" style="border: 1px solid var(--b3-theme-border); border-radius: 4px; padding: 8px; max-height: 400px; overflow-y: auto;">
                             </div>
                         </div>
                     </div>
@@ -1769,11 +1693,10 @@ export class EisenhowerMatrixView {
                     </div>
                 </div>
             `,
-            width: "500px",
-            height: "500px"
+            width: "400px",
+            height: "450px"
         });
 
-        const statusSortList = dialog.element.querySelector('#statusSortList') as HTMLElement;
         const projectSortList = dialog.element.querySelector('#projectSortList') as HTMLElement;
         const cancelBtn = dialog.element.querySelector('#sortCancelBtn') as HTMLButtonElement;
         const saveBtn = dialog.element.querySelector('#sortSaveBtn') as HTMLButtonElement;
@@ -1782,45 +1705,16 @@ export class EisenhowerMatrixView {
         const allProjects = this.projectManager.getProjectsGroupedByStatus();
         const activeProjects: any[] = [];
         Object.values(allProjects).forEach((projects: any[]) => {
-            activeProjects.push(...projects.filter(p => p.status !== 'archived'));
+            if (projects && projects.length > 0) {
+                activeProjects.push(...projects.filter(p => p && p.status !== 'archived'));
+            }
         });
 
-        // 获取所有状态
-        const statusManager = this.projectManager.getStatusManager();
-        const allStatuses = statusManager.getStatuses();
-
-        // 状态排序数据
-        let statusSortOrder = [...allStatuses.map(s => s.id)];
-
-        // 渲染状态排序列表
-        const renderStatusSortList = () => {
-            statusSortList.innerHTML = '';
-            
-            statusSortOrder.forEach(statusId => {
-                const status = allStatuses.find(s => s.id === statusId);
-                if (!status) return;
-                
-                const item = document.createElement('div');
-                item.className = 'status-sort-item';
-                item.style.cssText = `
-                    padding: 8px;
-                    margin: 4px 0;
-                    background: var(--b3-theme-surface-lighter);
-                    border-radius: 4px;
-                    cursor: grab;
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                `;
-                item.setAttribute('data-status-id', status.id);
-                item.setAttribute('draggable', 'true');
-                item.innerHTML = `
-                    <span style="cursor: grab; color: var(--b3-theme-on-surface); opacity: 0.7;">⋮⋮</span>
-                    <span>${status.name}</span>
-                `;
-                statusSortList.appendChild(item);
-            });
-        };
+        // 如果没有任何项目，显示提示信息
+        if (activeProjects.length === 0) {
+            projectSortList.innerHTML = '<div style="padding: 16px; text-align: center; color: var(--b3-theme-on-surface-light);">没有可用的项目</div>';
+            return;
+        }
 
         // 渲染项目排序列表
         const renderProjectList = () => {
@@ -1833,19 +1727,10 @@ export class EisenhowerMatrixView {
                     .map(id => activeProjects.find(p => p.id === id))
                     .filter(Boolean);
                 const remainingProjects = activeProjects.filter(p => !this.projectSortOrder.includes(p.id));
-                projectsToShow = [...orderedProjects, ...remainingProjects];
+                projectsToShow = [...orderedProjects, ...remainingProjects.sort((a, b) => a.name.localeCompare(b.name))];
             } else {
-                // 使用状态优先排序，同状态下按名称排序
-                projectsToShow = [...activeProjects].sort((a, b) => {
-                    // 首先按状态排序
-                    const statusIndexA = statusSortOrder.indexOf(a.status);
-                    const statusIndexB = statusSortOrder.indexOf(b.status);
-                    if (statusIndexA !== statusIndexB) {
-                        return statusIndexA - statusIndexB;
-                    }
-                    // 同状态下按名称排序
-                    return a.name.localeCompare(b.name);
-                });
+                // 按名称排序
+                projectsToShow = [...activeProjects].sort((a, b) => a.name.localeCompare(b.name));
             }
 
             projectsToShow.forEach(project => {
@@ -1872,39 +1757,10 @@ export class EisenhowerMatrixView {
             });
         };
 
-        renderStatusSortList();
         renderProjectList();
 
 
-        // 状态排序拖拽功能
-        let draggedStatusElement: HTMLElement | null = null;
 
-        statusSortList.addEventListener('dragstart', (e) => {
-            draggedStatusElement = e.target as HTMLElement;
-            (e.target as HTMLElement).classList.add('dragging');
-        });
-
-        statusSortList.addEventListener('dragend', (e) => {
-            (e.target as HTMLElement).classList.remove('dragging');
-            draggedStatusElement = null;
-            renderProjectList(); // 重新渲染项目列表
-        });
-
-        statusSortList.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            const afterElement = this.getDragAfterElement(statusSortList, e.clientY);
-            if (draggedStatusElement) {
-                if (afterElement) {
-                    statusSortList.insertBefore(draggedStatusElement, afterElement);
-                } else {
-                    statusSortList.appendChild(draggedStatusElement);
-                }
-                // 更新状态排序顺序
-                statusSortOrder = Array.from(statusSortList.querySelectorAll('.status-sort-item'))
-                    .map(item => item.getAttribute('data-status-id'))
-                    .filter(Boolean) as string[];
-            }
-        });
 
         // 自定义项目排序拖拽功能
         let draggedProjectElement: HTMLElement | null = null;
