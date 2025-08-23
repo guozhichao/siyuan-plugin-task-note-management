@@ -2142,34 +2142,20 @@ export class ProjectKanbanView {
             }
 
             /* 优先级样式美化 - 使用思源主题颜色 */
-            .kanban-task-priority-high {
-                border: 2px solid var(--b3-card-error-color) !important;
-                background-color: var(--b3-card-error-background) !important;
-                box-shadow: 0 0 0 1px var(--b3-card-error-color), 0 2px 8px rgba(231, 76, 60, 0.15) !important;
-            }
 
             .kanban-task-priority-high:hover {
-                box-shadow: 0 0 0 2px var(--b3-card-error-color), 0 4px 12px rgba(231, 76, 60, 0.25) !important;
+                box-shadow: 0 0 0 1px var(--b3-card-error-color), 0 4px 12px rgba(231, 76, 60, 0.25) !important;
             }
 
-            .kanban-task-priority-medium {
-                border: 2px solid var(--b3-card-warning-color) !important;
-                background-color: var(--b3-card-warning-background) !important;
-                box-shadow: 0 0 0 1px var(--b3-card-warning-color), 0 2px 8px rgba(243, 156, 18, 0.15) !important;
-            }
 
             .kanban-task-priority-medium:hover {
-                box-shadow: 0 0 0 2px var(--b3-card-warning-color), 0 4px 12px rgba(243, 156, 18, 0.25) !important;
+                box-shadow: 0 0 0 1px var(--b3-card-warning-color), 0 4px 12px rgba(243, 156, 18, 0.25) !important;
             }
 
-            .kanban-task-priority-low {
-                border: 2px solid var(--b3-card-info-color) !important;
-                background-color: var(--b3-card-info-background) !important;
-                box-shadow: 0 0 0 1px var(--b3-card-info-color), 0 2px 8px rgba(52, 152, 219, 0.15) !important;
-            }
+
 
             .kanban-task-priority-low:hover {
-                box-shadow: 0 0 0 2px var(--b3-card-info-color), 0 4px 12px rgba(52, 152, 219, 0.25) !important;
+                box-shadow: 0 0 0 1px var(--b3-card-info-color), 0 4px 12px rgba(52, 152, 219, 0.25) !important;
             }
 
             .kanban-task-title {

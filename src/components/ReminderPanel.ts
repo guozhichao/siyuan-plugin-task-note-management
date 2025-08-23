@@ -1521,6 +1521,38 @@ export class ReminderPanel {
         const reminderEl = document.createElement('div');
         reminderEl.className = `reminder-item ${isOverdue ? 'reminder-item--overdue' : ''} ${isSpanningDays ? 'reminder-item--spanning' : ''} reminder-priority-${priority}`;
 
+        // 设置任务优先级颜色（根据优先级）
+        let backgroundColor = '';
+        let borderColor = '';
+        switch (priority) {
+            case 'high':
+                backgroundColor = 'var(--b3-card-error-background)';
+                borderColor = 'var(--b3-card-error-color)';
+                break;
+            case 'medium':
+                backgroundColor = 'var(--b3-card-warning-background)';
+                borderColor = 'var(--b3-card-warning-color)';
+                break;
+            case 'low':
+                backgroundColor = 'var(--b3-card-info-background)';
+                borderColor = 'var(--b3-card-info-color)';
+                break;
+            default:
+                backgroundColor = 'var(--b3-theme-surface-lighter)';
+                borderColor = 'var(--b3-theme-surface-lighter)';
+        }
+
+        // 设置任务元素的背景色和边框，但不覆盖过期状态的样式
+        if (!isOverdue) {
+            reminderEl.style.backgroundColor = backgroundColor;
+            reminderEl.style.border = `2px solid ${borderColor}`;
+        } else {
+            // 过期任务保持原有样式，但添加左边框以显示优先级
+            if (priority !== 'none') {
+                reminderEl.style.borderLeft = `4px solid ${borderColor}`;
+            }
+        }
+
         // 存储提醒数据到元素
         reminderEl.dataset.reminderId = reminder.id;
         reminderEl.dataset.priority = priority;
@@ -1646,14 +1678,61 @@ export class ReminderPanel {
         // 添加优先级标签
         if (priority !== 'none') {
             const priorityLabel = document.createElement('span');
-            priorityLabel.className = `reminder-priority-label ${priority}`;
+            priorityLabel.className = `reminder-priority-label reminder-priority-label--${priority}`;
+            
+            // 获取优先级对应的颜色
+            let priorityColor = '';
+            let priorityBgColor = '';
+            switch (priority) {
+                case 'high':
+                    priorityColor = 'var(--b3-card-error-color)';
+                    priorityBgColor = 'var(--b3-card-error-background)';
+                    break;
+                case 'medium':
+                    priorityColor = 'var(--b3-card-warning-color)';
+                    priorityBgColor = 'var(--b3-card-warning-background)';
+                    break;
+                case 'low':
+                    priorityColor = 'var(--b3-card-info-color)';
+                    priorityBgColor = 'var(--b3-card-info-background)';
+                    break;
+            }
+            
             const priorityNames = {
                 'high': t("highPriority"),
                 'medium': t("mediumPriority"),
                 'low': t("lowPriority")
             };
-            priorityLabel.innerHTML = `<div class="priority-dot ${priority}"></div>${priorityNames[priority]}`;
-            timeEl.appendChild(priorityLabel);
+            
+            // 设置优先级标签样式
+            priorityLabel.style.cssText = `
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                padding: 2px 6px;
+                margin-left: 8px;
+                background-color: ${priorityBgColor};
+                border: 1px solid ${priorityColor};
+                border-radius: 4px;
+                font-size: 10px;
+                font-weight: 500;
+                color: ${priorityColor};
+                flex-shrink: 0;
+            `;
+            
+            // 创建优先级圆点
+            const priorityDot = document.createElement('div');
+            priorityDot.style.cssText = `
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background-color: ${priorityColor};
+                flex-shrink: 0;
+            `;
+            
+            priorityLabel.appendChild(priorityDot);
+            priorityLabel.appendChild(document.createTextNode(priorityNames[priority]));
+            timeContainer.appendChild(priorityLabel);
         }
 
         // 添加时间点击编辑事件
