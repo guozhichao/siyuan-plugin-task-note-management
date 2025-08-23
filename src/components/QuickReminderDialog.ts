@@ -2,6 +2,7 @@ import { showMessage, Dialog } from "siyuan";
 import { readReminderData, writeReminderData, getBlockByID, updateBlockReminderBookmark } from "../api";
 import { getLocalDateString, getLocalTimeString } from "../utils/dateUtils";
 import { CategoryManager, Category } from "../utils/categoryManager";
+import { ProjectManager } from "../utils/projectManager";
 import { t } from "../utils/i18n";
 import { RepeatSettingsDialog, RepeatConfig } from "./RepeatSettingsDialog";
 import { getRepeatDescription } from "../utils/repeatUtils";
@@ -19,6 +20,9 @@ export class QuickReminderDialog {
     private initialEndTime?: string;
     private isTimeRange: boolean = false;
     private chronoParser: any;
+    private projectManager: ProjectManager;
+    private defaultProjectId?: string;
+    private defaultQuadrant?: string;
 
     constructor(initialDate: string, initialTime?: string, onSaved?: () => void, timeRangeOptions?: {
         endDate?: string;
@@ -45,6 +49,7 @@ export class QuickReminderDialog {
             this.isTimeRange = timeRangeOptions.isTimeRange || false;
         }
         this.categoryManager = CategoryManager.getInstance();
+        this.projectManager = ProjectManager.getInstance();
         this.repeatConfig = {
             enabled: false,
             type: 'daily',
@@ -430,6 +435,13 @@ export class QuickReminderDialog {
                             </div>
                         </div>
                         <div class="b3-form__group">
+                            <label class="b3-form__label">${t("projectManagement")}</label>
+                            <select id="quickProjectSelector" class="b3-select" style="width: 100%;">
+                                <option value="">${t("noProject")}</option>
+                                <!-- 项目选择器将在这里渲染 -->
+                            </select>
+                        </div>
+                        <div class="b3-form__group">
                             <label class="b3-form__label">${t("priority")}</label>
                             <div class="priority-selector" id="quickPrioritySelector">
                                 <div class="priority-option" data-priority="high">
@@ -495,6 +507,7 @@ export class QuickReminderDialog {
 
         this.bindEvents();
         await this.renderCategorySelector();
+        await this.renderProjectSelector();
 
         // 确保日期和时间输入框正确设置初始值
         setTimeout(() => {
@@ -804,12 +817,70 @@ export class QuickReminderDialog {
         categoryDialog.show();
     }
 
+    private async renderProjectSelector() {
+        const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
+        if (!projectSelector) return;
+
+        try {
+            await this.projectManager.initialize();
+            const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
+            
+            // 清空并重新构建项目选择器
+            projectSelector.innerHTML = '';
+            
+            // 添加无项目选项
+            const noProjectOption = document.createElement('option');
+            noProjectOption.value = '';
+            noProjectOption.textContent = t('noProject');
+            projectSelector.appendChild(noProjectOption);
+            
+            // 按状态分组添加项目
+            Object.keys(groupedProjects).forEach(statusKey => {
+                const projects = groupedProjects[statusKey] || [];
+                const nonArchivedProjects = projects.filter(project => {
+                    const projectStatus = this.projectManager.getProjectById(project.id)?.status || 'doing';
+                    return projectStatus !== 'archived';
+                });
+                
+                if (nonArchivedProjects.length > 0) {
+                    // 添加状态分组
+                    const statusName = this.getStatusDisplayName(statusKey);
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = statusName;
+                    
+                    nonArchivedProjects.forEach(project => {
+                        const option = document.createElement('option');
+                        option.value = project.id;
+                        option.textContent = project.name;
+                        
+                        // 如果设置了默认项目，选中它
+                        if (this.defaultProjectId === project.id) {
+                            option.selected = true;
+                        }
+                        
+                        optgroup.appendChild(option);
+                    });
+                    
+                    projectSelector.appendChild(optgroup);
+                }
+            });
+        } catch (error) {
+            console.error('渲染项目选择器失败:', error);
+        }
+    }
+
+    private getStatusDisplayName(statusKey: string): string {
+        const status = this.projectManager.getStatusManager().getStatusById(statusKey);
+        return status?.name || statusKey;
+    }
+
     private async saveReminder() {
         const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
         const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
         const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
         const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
         const noteInput = this.dialog.element.querySelector('#quickReminderNote') as HTMLTextAreaElement;
+        const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
         const selectedPriority = this.dialog.element.querySelector('#quickPrioritySelector .priority-option.selected') as HTMLElement;
         const selectedCategory = this.dialog.element.querySelector('#quickCategorySelector .category-option.selected') as HTMLElement;
 
@@ -817,6 +888,7 @@ export class QuickReminderDialog {
         const note = noteInput.value.trim() || undefined;
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
         const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
+        const projectId = projectSelector.value || undefined;
 
         // 解析日期和时间
         let date: string;
@@ -882,6 +954,7 @@ export class QuickReminderDialog {
                 completed: false,
                 priority: priority,
                 categoryId: categoryId,
+                projectId: projectId,
                 createdAt: new Date().toISOString(),
                 repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined,
                 isQuickReminder: true // 标记为快速创建的提醒
@@ -940,6 +1013,14 @@ export class QuickReminderDialog {
                 const category = this.categoryManager.getCategoryById(categoryId);
                 if (category) {
                     successMessage += `，${t("category")}: ${category.name}`;
+                }
+            }
+
+            // 添加项目信息到成功消息
+            if (projectId) {
+                const project = this.projectManager.getProjectById(projectId);
+                if (project) {
+                    successMessage += `，${t("project")}: ${project.name}`;
                 }
             }
 

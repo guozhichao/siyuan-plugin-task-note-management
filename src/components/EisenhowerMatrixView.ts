@@ -478,58 +478,8 @@ export class EisenhowerMatrixView {
     }
 
     private async createNewTask(quadrant: QuadrantTask['quadrant']) {
-        const today = getLocalDateString();
-        const defaultTask = {
-            title: '',
-            date: today,
-            priority: 'medium',
-            quadrant: quadrant
-        };
-
-        // 获取项目列表供选择
-        const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
-        const activeProjects = groupedProjects['active'] || [];
-        
-        if (activeProjects.length > 0) {
-            // 如果有项目，让用户选择
-            const projectMenu = new Menu();
-            
-            // 无项目选项
-            projectMenu.addItem({
-                label: t('noProject'),
-                click: () => {
-                    this.showQuickReminderDialog(quadrant, null);
-                }
-            });
-
-            // 分隔线
-            projectMenu.addSeparator();
-
-            // 列出所有活跃项目
-            activeProjects.forEach(project => {
-                projectMenu.addItem({
-                    label: project.name,
-                    click: () => {
-                        this.showQuickReminderDialog(quadrant, project.id);
-                    }
-                });
-            });
-
-            // 新建项目选项
-            projectMenu.addSeparator();
-            projectMenu.addItem({
-                label: t('createNewDocument'),
-                icon: 'iconAdd',
-                click: () => {
-                    this.createNewProjectAndNewTask(quadrant);
-                }
-            });
-
-            projectMenu.open();
-        } else {
-            // 没有项目，直接创建任务
-            this.showQuickReminderDialog(quadrant, null);
-        }
+        // 直接打开快速提醒对话框，项目选择将在对话框中进行
+        this.showQuickReminderDialog(quadrant, null);
     }
 
     private showQuickReminderDialog(quadrant: QuadrantTask['quadrant'], projectId: string | null) {
@@ -730,7 +680,7 @@ export class EisenhowerMatrixView {
                     icon: "iconProject",
                     id: this.plugin.name + "project_kanban_tab",
                     data: {
-                        projectId: project.blockId,
+                        projectId: project.id,
                         projectTitle: project.name
                     }
                 }
@@ -1154,26 +1104,37 @@ export class EisenhowerMatrixView {
     }
 
     private async deleteTask(task: QuadrantTask) {
-        try {
-            const confirmed = await confirm(
-                t('deleteReminderConfirm')
-                    .replace('${title}', task.title)
-                    .replace('${date}', task.date || t('noDate'))
-            );
-            
-            if (confirmed) {
-                const reminderData = await readReminderData();
-                delete reminderData[task.id];
-                await writeReminderData(reminderData);
-                
-                await this.refresh();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                showMessage(t('reminderDeleted'));
+        const title =  '删除提醒';
+        const content = '确定要删除任务 "${title}" 吗？\n\n此操作不可撤销。'
+            .replace(/\${title}/g, task.title);
+        
+        confirm(
+            title,
+            content,
+            async () => {
+                try {
+                    const reminderData = await readReminderData();
+                    if (reminderData && reminderData[task.id]) {
+                        delete reminderData[task.id];
+                        await writeReminderData(reminderData);
+                        
+                        await this.refresh();
+                        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                        showMessage(t('reminderDeleted'));
+                    } else {
+                        console.warn('Task not found in reminder data:', task.id);
+                        showMessage('任务不存在或已被删除');
+                    }
+                } catch (error) {
+                    console.error('删除任务失败:', error);
+                    showMessage(t('deleteReminderFailed'));
+                }
+            },
+            () => {
+                // 取消回调
+                console.log('删除任务已取消');
             }
-        } catch (error) {
-            console.error('删除任务失败:', error);
-            showMessage(t('deleteReminderFailed'));
-        }
+        );
     }
 
     async refresh() {

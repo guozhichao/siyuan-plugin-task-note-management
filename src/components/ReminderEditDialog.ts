@@ -2,6 +2,7 @@ import { showMessage, Dialog } from "siyuan";
 import { readReminderData, writeReminderData } from "../api";
 import { getLocalTimeString } from "../utils/dateUtils";
 import { CategoryManager, Category } from "../utils/categoryManager";
+import { ProjectManager } from "../utils/projectManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { t } from "../utils/i18n";
 import { RepeatSettingsDialog, RepeatConfig } from "./RepeatSettingsDialog";
@@ -14,12 +15,14 @@ export class ReminderEditDialog {
     private onSaved?: (modifiedReminder?: any) => void;
     private repeatConfig: RepeatConfig;
     private categoryManager: CategoryManager; // 添加分类管理器
+    private projectManager: ProjectManager;
     private chronoParser: any; // chrono解析器实例
 
     constructor(reminder: any, onSaved?: (modifiedReminder?: any) => void) {
         this.reminder = reminder;
         this.onSaved = onSaved;
         this.categoryManager = CategoryManager.getInstance(); // 初始化分类管理器
+        this.projectManager = ProjectManager.getInstance(); // 初始化项目管理器
 
         // 初始化重复配置
         this.repeatConfig = reminder.repeat || {
@@ -400,6 +403,7 @@ export class ReminderEditDialog {
     public async show() {
         // 初始化分类管理器
         await this.categoryManager.initialize();
+        await this.projectManager.initialize(); // 初始化项目管理器
 
         this.dialog = new Dialog({
             title: this.reminder.isInstance ? t("modifyInstance") :
@@ -411,6 +415,7 @@ export class ReminderEditDialog {
 
         this.bindEvents();
         await this.renderCategorySelector(); // 渲染分类选择器
+        await this.renderProjectSelector(); // 渲染项目选择器
         
         // 初始化日期时间输入框
         setTimeout(() => {
@@ -475,6 +480,13 @@ export class ReminderEditDialog {
                         <div class="category-selector" id="editCategorySelector" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
                             <!-- 分类选择器将在这里渲染 -->
                         </div>
+                    </div>
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">${t("projectManagement")}</label>
+                        <select id="editProjectSelector" class="b3-select" style="width: 100%;">
+                            <option value="">${t("noProject")}</option>
+                            <!-- 项目选择器将在这里渲染 -->
+                        </select>
                     </div>
                     <div class="b3-form__group">
                         <label class="b3-form__label">${t("priority")}</label>
@@ -763,11 +775,13 @@ export class ReminderEditDialog {
         const noteInput = this.dialog.element.querySelector('#editReminderNote') as HTMLTextAreaElement;
         const selectedPriority = this.dialog.element.querySelector('#editPrioritySelector .priority-option.selected') as HTMLElement;
         const selectedCategory = this.dialog.element.querySelector('#editCategorySelector .category-option.selected') as HTMLElement;
+        const projectSelector = this.dialog.element.querySelector('#editProjectSelector') as HTMLSelectElement;
 
         const title = titleInput.value.trim();
         const note = noteInput.value.trim() || undefined;
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
         const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
+        const projectId = projectSelector.value || undefined;
 
         // 解析日期和时间
         let date: string;
@@ -833,6 +847,7 @@ export class ReminderEditDialog {
                     note: note,
                     priority: priority,
                     categoryId: categoryId, // 添加分类ID
+                    projectId: projectId,
                     repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined,
                     notified: shouldResetNotified ? false : this.reminder.notified
                 };
@@ -859,6 +874,7 @@ export class ReminderEditDialog {
                     note: note,
                     priority: priority,
                     categoryId: categoryId, // 添加分类ID
+                    projectId: projectId,
                     notified: shouldResetNotified ? false : this.reminder.notified
                 });
             } else {
@@ -871,7 +887,7 @@ export class ReminderEditDialog {
                     reminderData[this.reminder.id].note = note;
                     reminderData[this.reminder.id].priority = priority;
                     reminderData[this.reminder.id].categoryId = categoryId; // 添加分类ID
-                    // 保持原有的projectId，不在编辑时修改
+                    reminderData[this.reminder.id].projectId = projectId;
                     reminderData[this.reminder.id].repeat = this.repeatConfig.enabled ? this.repeatConfig : undefined;
 
                     // 重置通知状态
@@ -934,6 +950,14 @@ export class ReminderEditDialog {
                 }
             }
 
+            // 添加项目信息到成功消息
+            if (projectId) {
+                const project = this.projectManager.getProjectById(projectId);
+                if (project) {
+                    successMessage += `，${t("project")}: ${project.name}`;
+                }
+            }
+
             // showMessage(successMessage);
 
             // 调用保存回调（不传递参数，表示正常保存）
@@ -981,7 +1005,7 @@ export class ReminderEditDialog {
                 reminderData[originalId].repeat.instanceModifications = {};
             }
 
-            // 保存此实例的修改数据（包括分类）
+            // 保存此实例的修改数据（包括分类和项目）
             reminderData[originalId].repeat.instanceModifications[instanceDate] = {
                 title: instanceData.title,
                 date: instanceData.date,
@@ -991,6 +1015,7 @@ export class ReminderEditDialog {
                 note: instanceData.note,
                 priority: instanceData.priority,
                 categoryId: instanceData.categoryId, // 添加分类ID
+                projectId: instanceData.projectId, // 添加项目ID
                 notified: instanceData.notified, // 添加通知状态
                 modifiedAt: new Date().toISOString()
             };
@@ -1011,5 +1036,65 @@ export class ReminderEditDialog {
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
         });
         categoryDialog.show();
+    }
+
+    private async renderProjectSelector() {
+        const projectSelector = this.dialog.element.querySelector('#editProjectSelector') as HTMLSelectElement;
+        if (!projectSelector) return;
+
+        try {
+            const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
+            
+            // 清空并重新构建项目选择器
+            projectSelector.innerHTML = '';
+            
+            // 添加无项目选项
+            const noProjectOption = document.createElement('option');
+            noProjectOption.value = '';
+            noProjectOption.textContent = t('noProject');
+            if (!this.reminder.projectId) {
+                noProjectOption.selected = true;
+            }
+            projectSelector.appendChild(noProjectOption);
+            
+            // 按状态分组添加项目
+            Object.keys(groupedProjects).forEach(statusKey => {
+                const projects = groupedProjects[statusKey] || [];
+                const nonArchivedProjects = projects.filter(project => {
+                    const projectStatus = this.projectManager.getProjectById(project.id)?.status || 'doing';
+                    return projectStatus !== 'archived';
+                });
+                
+                if (nonArchivedProjects.length > 0) {
+                    // 添加状态分组
+                    const statusName = this.getStatusDisplayName(statusKey);
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = statusName;
+                    
+                    nonArchivedProjects.forEach(project => {
+                        const option = document.createElement('option');
+                        option.value = project.id;
+                        option.textContent = project.name;
+                        
+                        // 如果提醒有项目ID，选中它
+                        if (this.reminder.projectId === project.id) {
+                            option.selected = true;
+                        }
+                        
+                        optgroup.appendChild(option);
+                    });
+                    
+                    projectSelector.appendChild(optgroup);
+                }
+            });
+        } catch (error) {
+            console.error('渲染项目选择器失败:', error);
+            projectSelector.innerHTML = '<option value="">加载项目失败</option>';
+        }
+    }
+
+    private getStatusDisplayName(statusKey: string): string {
+        const status = this.projectManager.getStatusManager().getStatusById(statusKey);
+        return status?.name || statusKey;
     }
 }

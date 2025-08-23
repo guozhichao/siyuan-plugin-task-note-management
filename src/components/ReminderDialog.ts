@@ -5,6 +5,7 @@ import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sort
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { RepeatSettingsDialog, RepeatConfig } from "./RepeatSettingsDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
+import { ProjectManager } from "../utils/projectManager";
 import { t } from "../utils/i18n";
 import { getRepeatDescription } from "../utils/repeatUtils";
 import { CategoryManageDialog } from "./CategoryManageDialog";
@@ -19,6 +20,7 @@ export class ReminderDialog {
     private sortConfigUpdatedHandler: (event: CustomEvent) => void;
     private repeatConfig: RepeatConfig;
     private categoryManager: CategoryManager;
+    private projectManager: ProjectManager;
     private isAllDayDefault: boolean = true;
     private documentId: string = '';
     private chronoParser: any; // chrono解析器实例
@@ -28,6 +30,7 @@ export class ReminderDialog {
         this.blockId = blockId;
         this.autoDetectDateTime = autoDetectDateTime; // 存储参数
         this.categoryManager = CategoryManager.getInstance();
+        this.projectManager = ProjectManager.getInstance();
         this.repeatConfig = {
             enabled: false,
             type: 'daily',
@@ -461,8 +464,9 @@ export class ReminderDialog {
             return;
         }
 
-        // 初始化分类管理器
+        // 初始化分类管理器和项目管理器
         await this.categoryManager.initialize();
+        await this.projectManager.initialize();
 
         const today = getLocalDateString();
         const currentTime = getLocalTimeString();
@@ -558,6 +562,13 @@ export class ReminderDialog {
                         </div>
                         
                         <div class="b3-form__group">
+                            <label class="b3-form__label">${t("projectManagement")}</label>
+                            <select id="projectSelector" class="b3-select" style="width: 100%;">
+                                <option value="">${t("noProject")}</option>
+                                <!-- 项目选择器将在这里渲染 -->
+                            </select>
+                        </div>
+                        <div class="b3-form__group">
                             <label class="b3-form__label">${t("reminderNoteOptional")}</label>
                             <textarea id="reminderNote" class="b3-text-field" placeholder="${t("enterReminderNote")}" rows="2" style="width: 100%;resize: vertical; min-height: 60px;"></textarea>
                         </div>
@@ -581,6 +592,7 @@ export class ReminderDialog {
         this.bindEvents();
         await this.renderCategorySelector();
         await this.renderPrioritySelector();
+        await this.renderProjectSelector();
         await this.loadExistingReminder();
 
         // 初始化日期时间输入框
@@ -696,6 +708,58 @@ export class ReminderDialog {
             console.error('获取默认分类失败:', error);
             return null;
         }
+    }
+
+    private async renderProjectSelector() {
+        const projectSelector = this.dialog.element.querySelector('#projectSelector') as HTMLSelectElement;
+        if (!projectSelector) return;
+
+        try {
+            const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
+            
+            // 清空并重新构建项目选择器
+            projectSelector.innerHTML = '';
+            
+            // 添加无项目选项
+            const noProjectOption = document.createElement('option');
+            noProjectOption.value = '';
+            noProjectOption.textContent = t('noProject');
+            noProjectOption.selected = true;
+            projectSelector.appendChild(noProjectOption);
+            
+            // 按状态分组添加项目
+            Object.keys(groupedProjects).forEach(statusKey => {
+                const projects = groupedProjects[statusKey] || [];
+                const nonArchivedProjects = projects.filter(project => {
+                    const projectStatus = this.projectManager.getProjectById(project.id)?.status || 'doing';
+                    return projectStatus !== 'archived';
+                });
+                
+                if (nonArchivedProjects.length > 0) {
+                    // 添加状态分组
+                    const statusName = this.getStatusDisplayName(statusKey);
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = statusName;
+                    
+                    nonArchivedProjects.forEach(project => {
+                        const option = document.createElement('option');
+                        option.value = project.id;
+                        option.textContent = project.name;
+                        optgroup.appendChild(option);
+                    });
+                    
+                    projectSelector.appendChild(optgroup);
+                }
+            });
+        } catch (error) {
+            console.error('渲染项目选择器失败:', error);
+            projectSelector.innerHTML = '<option value="">加载项目失败</option>';
+        }
+    }
+
+    private getStatusDisplayName(statusKey: string): string {
+        const status = this.projectManager.getStatusManager().getStatusById(statusKey);
+        return status?.name || statusKey;
     }
 
     // 修改获取文档默认分类的方法
@@ -1035,6 +1099,7 @@ export class ReminderDialog {
         const endDateInput = this.dialog.element.querySelector('#reminderEndDate') as HTMLInputElement;
         const prioritySelector = this.dialog.element.querySelector('#prioritySelector') as HTMLElement;
         const categorySelector = this.dialog.element.querySelector('#categorySelector') as HTMLElement;
+        const projectSelector = this.dialog.element.querySelector('#projectSelector') as HTMLSelectElement;
         const repeatSettingsBtn = this.dialog.element.querySelector('#repeatSettingsBtn') as HTMLButtonElement;
         const manageCategoriesBtn = this.dialog.element.querySelector('#manageCategoriesBtn') as HTMLButtonElement;
         const nlBtn = this.dialog.element.querySelector('#nlBtn') as HTMLButtonElement;
@@ -1165,11 +1230,13 @@ export class ReminderDialog {
         const noteInput = this.dialog.element.querySelector('#reminderNote') as HTMLTextAreaElement;
         const selectedPriority = this.dialog.element.querySelector('#prioritySelector .priority-option.selected') as HTMLElement;
         const selectedCategory = this.dialog.element.querySelector('#categorySelector .category-option.selected') as HTMLElement;
+        const projectSelector = this.dialog.element.querySelector('#projectSelector') as HTMLSelectElement;
 
         const title = titleInput.value.trim();
         const note = noteInput.value.trim() || undefined;
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
         const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
+        const projectId = projectSelector.value || undefined;
 
         // 解析日期和时间
         let date: string;
@@ -1238,7 +1305,7 @@ export class ReminderDialog {
                 completed: false,
                 priority: priority,
                 categoryId: categoryId, // 添加分类ID
-                projectId: undefined, // 添加项目ID字段，默认为undefined
+                projectId: projectId, // 添加项目ID字段
                 createdAt: new Date().toISOString(),
                 repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined
             };
@@ -1299,6 +1366,14 @@ export class ReminderDialog {
                 const category = this.categoryManager.getCategoryById(categoryId);
                 if (category) {
                     successMessage += `，${t("category")}: ${category.name}`;
+                }
+            }
+
+            // 添加项目信息到成功消息
+            if (projectId) {
+                const project = this.projectManager.getProjectById(projectId);
+                if (project) {
+                    successMessage += `，${t("project")}: ${project.name}`;
                 }
             }
 
