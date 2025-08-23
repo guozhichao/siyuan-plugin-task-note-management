@@ -82,7 +82,7 @@ export class ProjectKanbanView {
             font-weight: 600;
             color: var(--b3-theme-on-background);
         `;
-        
+
         // 如果项目有关联的笔记ID，添加点击跳转功能
         if (this.project?.blockId) {
             titleEl.style.cursor = 'pointer';
@@ -90,20 +90,20 @@ export class ProjectKanbanView {
             titleEl.style.textDecorationStyle = 'dotted';
             titleEl.title = '点击跳转到项目笔记';
             titleEl.setAttribute('data-has-note', 'true');
-            
+
             titleEl.addEventListener('click', () => {
                 this.openProjectNote(this.project.blockId);
             });
-            
+
             titleEl.addEventListener('mouseenter', () => {
                 titleEl.style.color = 'var(--b3-theme-primary)';
             });
-            
+
             titleEl.addEventListener('mouseleave', () => {
                 titleEl.style.color = 'var(--b3-theme-on-background)';
             });
         }
-        
+
         titleContainer.appendChild(titleEl);
 
         // 项目描述
@@ -141,7 +141,7 @@ export class ProjectKanbanView {
 
         const pasteTaskBtn = document.createElement('button');
         pasteTaskBtn.className = 'b3-button';
-        pasteTaskBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg> 粘贴列表';
+        pasteTaskBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg> 粘贴新建';
         pasteTaskBtn.addEventListener('click', () => this.showPasteTaskDialog());
         controlsGroup.appendChild(pasteTaskBtn);
 
@@ -752,7 +752,7 @@ export class ProjectKanbanView {
 
             const dateText = this.formatTaskDate(task);
             let dateHtml = `<span>📅</span><span>${dateText}</span>`;
-            
+
             // 添加倒计时显示
             if (!task.completed) {
                 const countdownInfo = this.getTaskCountdownInfo(task);
@@ -763,12 +763,12 @@ export class ProjectKanbanView {
                     } else if (countdownInfo.days <= 3) {
                         urgencyClass = 'countdown-warning';
                     }
-                    
+
                     const prefix = countdownInfo.type === 'start' ? '剩' : '';
                     dateHtml += `<span class="countdown-badge ${urgencyClass}">${prefix}${countdownInfo.text}</span>`;
                 }
             }
-            
+
             dateEl.innerHTML = dateHtml;
             infoEl.appendChild(dateEl);
         }
@@ -2480,8 +2480,8 @@ export class ProjectKanbanView {
                color: var(--b3-theme-primary);
            }
        `;
-       document.head.appendChild(style);
-   }
+        document.head.appendChild(style);
+    }
     private renderCategorySelector(container: HTMLElement, defaultCategoryId?: string) {
         container.innerHTML = '';
         const categories = this.categoryManager.getCategories();
