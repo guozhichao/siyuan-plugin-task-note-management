@@ -1611,26 +1611,37 @@ export class ReminderPanel {
         // 标题
         const titleEl = document.createElement('span');
         titleEl.className = 'reminder-item__title';
-        titleEl.setAttribute('data-type', 'a');
-        titleEl.setAttribute('data-href', `siyuan://blocks/${reminder.blockId || reminder.id}`);
-        titleEl.textContent = reminder.title || t("unnamedNote");
-        titleEl.style.cssText = `
-            cursor: pointer;
-            color: var(--b3-theme-primary);
-            text-decoration: underline;
-            font-weight: 500;
-        `;
-        titleEl.addEventListener('click', (e) => {
-            e.preventDefault();
-            // 如果存在docId
-            if (reminder.docId) {
-                // 打开文档
-                this.openBlockTab(reminder.blockId || reminder.id);
-            } else {
-                this.openBlockTab(reminder.blockId || reminder.id);
-            }
-        });
 
+        if (reminder.blockId) {
+            titleEl.setAttribute('data-type', 'a');
+            titleEl.setAttribute('data-href', `siyuan://blocks/${reminder.blockId}`);
+            titleEl.style.cssText = `
+                cursor: pointer;
+                color: var(--b3-theme-primary);
+                text-decoration: underline;
+                text-decoration-style: dotted;
+                font-weight: 500;
+            `;
+            titleEl.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.openBlockTab(reminder.blockId);
+            });
+            titleEl.addEventListener('mouseenter', () => {
+                titleEl.style.color = 'var(--b3-theme-primary-light)';
+            });
+            titleEl.addEventListener('mouseleave', () => {
+                titleEl.style.color = 'var(--b3-theme-primary)';
+            });
+        } else {
+            titleEl.style.cssText = `
+                font-weight: 500;
+                color: var(--b3-theme-on-surface);
+            `;
+        }
+
+        titleEl.textContent = reminder.title || t("unnamedNote");
+        titleEl.title = reminder.blockId ? `点击打开绑定块: ${reminder.title || t("unnamedNote")}` : (reminder.title || t("unnamedNote"));
 
         titleContainer.appendChild(titleEl);
 
