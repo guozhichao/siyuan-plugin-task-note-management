@@ -1162,7 +1162,6 @@ export class EisenhowerMatrixView {
                 color: var(--b3-theme-on-surface);
                 margin-bottom: 8px;
                 padding: 4px 8px;
-                background: var(--b3-theme-surface-lighter);
                 border-radius: 4px;
             }
 
