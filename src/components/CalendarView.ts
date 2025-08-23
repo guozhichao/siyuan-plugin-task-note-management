@@ -51,7 +51,7 @@ export class CalendarView {
         await this.projectManager.initialize();
         await this.calendarConfigManager.initialize();
 
-        // 从配置中读取colorBy设置
+        // 从配置中读取colorBy和viewMode设置
         this.colorBy = this.calendarConfigManager.getColorBy();
 
         this.container.classList.add('reminder-calendar-view');
@@ -71,19 +71,28 @@ export class CalendarView {
         const monthBtn = document.createElement('button');
         monthBtn.className = 'b3-button b3-button--outline';
         monthBtn.textContent = t("month");
-        monthBtn.addEventListener('click', () => this.calendar.changeView('dayGridMonth'));
+        monthBtn.addEventListener('click', async () => {
+            await this.calendarConfigManager.setViewMode('dayGridMonth');
+            this.calendar.changeView('dayGridMonth');
+        });
         viewGroup.appendChild(monthBtn);
 
         const weekBtn = document.createElement('button');
         weekBtn.className = 'b3-button b3-button--outline';
         weekBtn.textContent = t("week");
-        weekBtn.addEventListener('click', () => this.calendar.changeView('timeGridWeek'));
+        weekBtn.addEventListener('click', async () => {
+            await this.calendarConfigManager.setViewMode('timeGridWeek');
+            this.calendar.changeView('timeGridWeek');
+        });
         viewGroup.appendChild(weekBtn);
 
         const dayBtn = document.createElement('button');
         dayBtn.className = 'b3-button b3-button--outline';
         dayBtn.textContent = t("day");
-        dayBtn.addEventListener('click', () => this.calendar.changeView('timeGridDay'));
+        dayBtn.addEventListener('click', async () => {
+            await this.calendarConfigManager.setViewMode('timeGridDay');
+            this.calendar.changeView('timeGridDay');
+        });
         viewGroup.appendChild(dayBtn);
 
 
@@ -166,7 +175,7 @@ export class CalendarView {
         // 初始化日历
         this.calendar = new Calendar(calendarEl, {
             plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
-            initialView: 'timeGridWeek',
+            initialView: this.calendarConfigManager.getViewMode(),
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
