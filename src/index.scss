@@ -785,12 +785,73 @@
         border-color: var(--b3-theme-error-light);
         background: var(--b3-theme-error-lighter);
     }
+
+
+
+
+
 }
 
 .reminder-item__content {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     align-items: flex-start;
+}
+
+.reminder-item__left-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 2px;
+    flex-shrink: 0;
+    margin-right: 6px;
+    min-width: 16px;
+    padding-top: 2px; // 轻微向下调整，更好对齐标题
+    
+    input[type="checkbox"] {
+        width: 14px;
+        height: 14px;
+        margin: 0;
+        flex-shrink: 0;
+        order: 1; // 复选框在上方
+    }
+}
+
+.collapse-btn {
+    min-width: 14px !important;
+    width: 14px !important;
+    height: 14px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    color: var(--b3-theme-on-surface-light) !important;
+    transition: all 0.2s ease !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    order: 2; // 折叠按钮在下方
+
+    &:hover {
+        background: var(--b3-theme-surface-light) !important;
+        color: var(--b3-theme-primary) !important;
+        border-radius: 2px !important;
+    }
+
+    svg {
+        width: 10px;
+        height: 10px;
+        transition: transform 0.2s ease;
+    }
+}
+
+.collapse-spacer {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    margin: 0;
+    order: 1; // 占位符也在上方，与折叠按钮位置一致
 }
 
 .reminder-item__info {

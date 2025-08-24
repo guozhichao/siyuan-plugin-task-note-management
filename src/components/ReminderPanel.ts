@@ -601,6 +601,8 @@ export class ReminderPanel {
 
             // 3. 实现父/子驱动逻辑
             const idsToRender = new Set<string>();
+            
+            // 添加所有直接匹配的提醒
             directlyMatchingReminders.forEach(r => idsToRender.add(r.id));
 
             // 父任务驱动: 如果父任务匹配，其所有后代都应显示
@@ -610,56 +612,18 @@ export class ReminderPanel {
             }
 
             // 子任务驱动: 如果子任务匹配，其所有祖先都应显示
-            const parentsShownByChild = new Map<string, Set<string>>(); // parentId -> Set<directChildId>
             for (const child of directlyMatchingReminders) {
-                if (!child.parentId) continue;
                 const ancestors = this.getAllAncestorIds(child.id, reminderMap);
-                ancestors.forEach(ancestorId => {
-                    idsToRender.add(ancestorId);
-                    if (!parentsShownByChild.has(ancestorId)) {
-                        parentsShownByChild.set(ancestorId, new Set<string>());
-                    }
-                    // 找到在 ancestorId 下的直接子任务
-                    let directChildId = child.id;
-                    let current = child;
-                    while (current && current.parentId && current.parentId !== ancestorId) {
-                        directChildId = current.parentId;
-                        current = reminderMap.get(current.parentId);
-                    }
-                    if (current && current.parentId === ancestorId) {
-                        parentsShownByChild.get(ancestorId)!.add(directChildId);
-                    }
-                });
+                ancestors.forEach(ancestorId => idsToRender.add(ancestorId));
             }
 
-            // 4. 组装最终要显示的提醒列表
-            let displayReminders = categoryFilteredReminders.filter(r => idsToRender.has(r.id));
-
-            // 5. 应用子任务驱动的显示规则（仅显示触发链）
-            const directlyMatchingIds = new Set(directlyMatchingReminders.map(r => r.id));
-            displayReminders = displayReminders.filter(reminder => {
-                if (!reminder.parentId) return true; // 顶层任务总是显示
-
-                // 如果父任务是直接匹配的，那么其所有子任务都应显示
-                if (directlyMatchingIds.has(reminder.parentId)) {
-                    return true;
-                }
-
-                // 如果父任务是被子任务驱动显示的
-                if (parentsShownByChild.has(reminder.parentId)) {
-                    // 那么只有当这个子任务是触发显示的子任务之一时才显示
-                    return parentsShownByChild.get(reminder.parentId)!.has(reminder.id);
-                }
-
-                // 默认情况下，如果父任务不在显示列表里，子任务也不显示（除非是顶层）
-                // 这一步由`displayReminders.filter(r => idsToRender.has(r.id))`保证
-                return true;
-            });
+            // 4. 组装最终要显示的提醒列表（所有被标记为需要渲染的提醒）
+            const displayReminders = categoryFilteredReminders.filter(r => idsToRender.has(r.id));
 
             this.sortReminders(displayReminders);
             this.currentRemindersCache = [...displayReminders];
 
-            // 6. 渲染
+            // 5. 渲染
             this.remindersContainer.innerHTML = '';
             const topLevelReminders = displayReminders.filter(r => !r.parentId || !displayReminders.some(p => p.id === r.parentId));
 
@@ -1422,7 +1386,20 @@ export class ReminderPanel {
         // 折叠按钮和复选框容器
         const leftControls = document.createElement('div');
         leftControls.className = 'reminder-item__left-controls';
-
+        // 复选框
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = reminder.completed || false;
+        checkbox.addEventListener('change', () => {
+            if (reminder.isRepeatInstance) {
+                this.toggleReminder(reminder.originalId, checkbox.checked, true, reminder.date);
+            } else {
+                this.toggleReminder(reminder.id, checkbox.checked);
+            }
+        });
+        
+        
+        leftControls.appendChild(checkbox);
         // 折叠按钮
         if (hasChildren) {
             const collapseBtn = document.createElement('button');
@@ -1445,19 +1422,6 @@ export class ReminderPanel {
             spacer.className = 'collapse-spacer';
             leftControls.appendChild(spacer);
         }
-
-        // 复选框
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.checked = reminder.completed || false;
-        checkbox.addEventListener('change', () => {
-            if (reminder.isRepeatInstance) {
-                this.toggleReminder(reminder.originalId, checkbox.checked, true, reminder.date);
-            } else {
-                this.toggleReminder(reminder.id, checkbox.checked);
-            }
-        });
-        leftControls.appendChild(checkbox);
 
 
         // 信息容器
