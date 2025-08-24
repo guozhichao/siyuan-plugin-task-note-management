@@ -1182,35 +1182,10 @@ export class ProjectKanbanView {
             });
         }
 
-        // 如果有其他可选的父任务，显示设置父任务的选项
-        const potentialParents = this.tasks.filter(t =>
-            t.id !== task.id && // 不是自己
-            !t.parentId && // 顶级任务
-            !this.isDescendant(t, task) // 不是自己的子任务
-        );
 
-        if (potentialParents.length > 0) {
-            const parentMenuItems = potentialParents.slice(0, 10).map(parentTask => ({
-                iconHTML: "📋",
-                label: `设为 "${parentTask.title}" 的子任务`,
-                click: () => this.setParentChildRelation(task, parentTask)
-            }));
 
-            if (potentialParents.length > 10) {
-                parentMenuItems.push({
-                    iconHTML: "⋯",
-                    label: `还有 ${potentialParents.length - 10} 个选项...`,
-                    click: async () => showMessage("请使用拖拽功能设置更多父任务关系")
-                });
-            }
 
-            menu.addItem({
-                iconHTML: "🔗",
-                label: "设置父任务",
-                submenu: parentMenuItems
-            });
-        }
-
+   
         menu.addSeparator();
 
         // 设置优先级子菜单
