@@ -456,7 +456,7 @@ export class ReminderPanel {
         try {
             const projectData = await readProjectData();
             const project = projectData[projectId];
-            
+
             if (project && project.title) {
                 // 创建项目信息元素
                 const projectEl = document.createElement('div');
@@ -636,11 +636,20 @@ export class ReminderPanel {
     private getAllAncestorIds(id: string, reminderMap: Map<string, any>): string[] {
         const result: string[] = [];
         let current = reminderMap.get(id);
+        console.log(`获取任务 ${id} 的祖先, 当前任务:`, current);
+        
         while (current && current.parentId) {
-            if (result.includes(current.parentId)) break; // 防止循环引用
+            console.log(`找到父任务: ${current.parentId}`);
+            if (result.includes(current.parentId)) {
+                console.log(`检测到循环引用，停止查找`);
+                break; // 防止循环引用
+            }
             result.push(current.parentId);
             current = reminderMap.get(current.parentId);
+            console.log(`父任务详情:`, current);
         }
+        
+        console.log(`任务 ${id} 的所有祖先:`, result);
         return result;
     }
 
@@ -682,11 +691,19 @@ export class ReminderPanel {
             // 子任务驱动: 如果子任务匹配，其所有祖先都应显示
             for (const child of directlyMatchingReminders) {
                 const ancestors = this.getAllAncestorIds(child.id, reminderMap);
-                ancestors.forEach(ancestorId => idsToRender.add(ancestorId));
+                console.log(`子任务 ${child.id} 的祖先任务:`, ancestors);
+                ancestors.forEach(ancestorId => {
+                    console.log(`添加祖先任务到渲染列表: ${ancestorId}`);
+                    idsToRender.add(ancestorId);
+                });
             }
 
+            console.log(`需要渲染的任务ID集合:`, Array.from(idsToRender));
+
             // 4. 组装最终要显示的提醒列表（所有被标记为需要渲染的提醒）
-            const displayReminders = categoryFilteredReminders.filter(r => idsToRender.has(r.id));
+            // 修改：从所有提醒中筛选，而不是从分类过滤后的提醒中筛选
+            // 这样可以确保祖先任务即使不满足分类筛选也能显示
+            const displayReminders = allRemindersWithInstances.filter(r => idsToRender.has(r.id));
 
             this.sortReminders(displayReminders);
             this.currentRemindersCache = [...displayReminders];
@@ -727,11 +744,33 @@ export class ReminderPanel {
             showMessage(t("loadRemindersFailed"));
         }
     }
-    private generateAllRemindersWithInstances(reminderData: any, today: string): any[] {
-        const reminders = Object.values(reminderData).filter((reminder: any) =>
-            reminder && typeof reminder === 'object' && reminder.id && (reminder.date || reminder.parentId) // 包含无日期子任务
+    /**
+     * 检查指定任务是否有子任务
+     */
+    private hasChildren(reminderId: string, reminderData: any): boolean {
+        return Object.values(reminderData).some((reminder: any) => 
+            reminder && reminder.parentId === reminderId
         );
+    }
 
+    private generateAllRemindersWithInstances(reminderData: any, today: string): any[] {
+        const reminders = Object.values(reminderData).filter((reminder: any) => {
+            const shouldInclude = reminder && typeof reminder === 'object' && reminder.id && 
+                (reminder.date || reminder.parentId || this.hasChildren(reminder.id, reminderData));
+            
+            if (reminder && reminder.id) {
+                console.log(`任务 ${reminder.id} (${reminder.title}):`, {
+                    hasDate: !!reminder.date,
+                    hasParentId: !!reminder.parentId,
+                    hasChildren: this.hasChildren(reminder.id, reminderData),
+                    shouldInclude
+                });
+            }
+            
+            return shouldInclude;
+        });
+
+        console.log(`生成的所有任务数量: ${reminders.length}`);
         const allReminders = [];
         const repeatInstancesMap = new Map();
 
@@ -2009,7 +2048,7 @@ export class ReminderPanel {
         // 添加项目管理选项（仅当任务有projectId时显示）
         if (reminder.projectId) {
             menu.addItem({
-                iconHTML: "📂",
+                icon: "iconGrid",
                 label: "打开项目看板",
                 click: () => this.openProjectKanban(reminder.projectId)
             });
