@@ -38,6 +38,11 @@ export class ProjectKanbanView {
     private isLoading: boolean = false;
     private collapsedTasks: Set<string> = new Set();
 
+    // 指示器状态跟踪
+    private currentIndicatorType: 'none' | 'sort' | 'parentChild' = 'none';
+    private currentIndicatorTarget: HTMLElement | null = null;
+    private currentIndicatorPosition: 'top' | 'bottom' | 'middle' | null = null;
+
     // 添加静态变量来跟踪当前活动的番茄钟
     private static currentPomodoroTimer: PomodoroTimer | null = null;
 
@@ -295,12 +300,8 @@ export class ProjectKanbanView {
                     e.dataTransfer.dropEffect = 'move';
                     element.classList.add('kanban-drop-zone-active');
 
-                    // 如果可以解除父子关系，显示相应提示
-                    if (canUnsetParent && !canChangeStatus) {
-                        this.showUnsetParentIndicator(element);
-                    } else {
-                        this.hideUnsetParentIndicator();
-                    }
+                    // 不显示解除父任务关系的提示，让用户通过拖拽区域自然判断
+                    // 移除了原来的 unsetParent 指示器显示逻辑
                 }
             }
         });
@@ -308,7 +309,7 @@ export class ProjectKanbanView {
         element.addEventListener('dragleave', (e) => {
             if (!element.contains(e.relatedTarget as Node)) {
                 element.classList.remove('kanban-drop-zone-active');
-                this.hideUnsetParentIndicator();
+                this.updateIndicator('none', null, null);
             }
         });
 
@@ -316,7 +317,7 @@ export class ProjectKanbanView {
             if (this.isDragging && this.draggedTask) {
                 e.preventDefault();
                 element.classList.remove('kanban-drop-zone-active');
-                this.hideUnsetParentIndicator();
+                this.updateIndicator('none', null, null);
 
                 // 如果状态改变，执行状态切换
                 if (this.draggedTask.status !== status) {
@@ -942,26 +943,25 @@ export class ProjectKanbanView {
                 const isInBottomSortZone = mouseY >= taskBottom - sortZoneHeight;
                 const isInParentChildZone = !isInTopSortZone && !isInBottomSortZone;
 
-                // 优先级排序检查
-                const canSort = this.currentSort === 'priority' && this.canDropForSort(this.draggedTask, targetTask);
+                // 排序检查（支持优先级排序和子任务排序）
+                const canSort = (this.currentSort === 'priority' && this.canDropForSort(this.draggedTask, targetTask)) || 
+                              this.canDropForSort(this.draggedTask, targetTask);
                 const canSetParentChild = this.canSetAsParentChild(this.draggedTask, targetTask);
 
                 if ((isInTopSortZone || isInBottomSortZone) && canSort) {
                     // 排序操作
                     e.preventDefault();
                     e.dataTransfer.dropEffect = 'move';
-                    this.hideParentChildDropIndicator();
-                    this.showDropIndicator(taskEl, e);
+                    const position = isInTopSortZone ? 'top' : 'bottom';
+                    this.updateIndicator('sort', taskEl, position, e);
                 } else if (isInParentChildZone && canSetParentChild) {
                     // 父子任务操作
                     e.preventDefault();
                     e.dataTransfer.dropEffect = 'move';
-                    this.hideDropIndicator();
-                    this.showParentChildDropIndicator(taskEl);
+                    this.updateIndicator('parentChild', taskEl, 'middle');
                 } else {
                     // 清除所有指示器
-                    this.hideDropIndicator();
-                    this.hideParentChildDropIndicator();
+                    this.updateIndicator('none', null, null);
                 }
             }
         });
@@ -969,8 +969,7 @@ export class ProjectKanbanView {
         taskEl.addEventListener('dragleave', (e) => {
             // 检查是否真的离开了目标区域
             if (!taskEl.contains(e.relatedTarget as Node)) {
-                this.hideDropIndicator();
-                this.hideParentChildDropIndicator();
+                this.updateIndicator('none', null, null);
             }
         });
 
@@ -994,7 +993,7 @@ export class ProjectKanbanView {
                 const isInBottomSortZone = mouseY >= taskBottom - sortZoneHeight;
                 const isInParentChildZone = !isInTopSortZone && !isInBottomSortZone;
 
-                if ((isInTopSortZone || isInBottomSortZone) && this.currentSort === 'priority' && this.canDropForSort(this.draggedTask, targetTask)) {
+                if ((isInTopSortZone || isInBottomSortZone) && this.canDropForSort(this.draggedTask, targetTask)) {
                     // 执行排序
                     this.handleSortDrop(targetTask, e);
                 } else if (isInParentChildZone && this.canSetAsParentChild(this.draggedTask, targetTask)) {
@@ -1002,8 +1001,7 @@ export class ProjectKanbanView {
                     this.handleParentChildDrop(targetTask);
                 }
             }
-            this.hideDropIndicator();
-            this.hideParentChildDropIndicator();
+            this.updateIndicator('none', null, null);
         });
 
         // 添加右键菜单
@@ -1153,7 +1151,8 @@ export class ProjectKanbanView {
             this.container.querySelectorAll('.kanban-drop-zone-active').forEach(el => {
                 el.classList.remove('kanban-drop-zone-active');
             });
-            this.hideDropIndicator();
+            // 清除所有指示器和状态
+            this.updateIndicator('none', null, null);
         });
     }
 
@@ -2594,20 +2593,6 @@ export class ProjectKanbanView {
                 position: relative;
             }
 
-            .parent-child-drop-target::before {
-                content: '';
-                position: absolute;
-                top: 20%;
-                left: 2px;
-                right: 2px;
-                bottom: 20%;
-                border: 1px solid var(--b3-theme-primary);
-                border-radius: 4px;
-                background: rgba(var(--b3-theme-primary-rgb), 0.1);
-                pointer-events: none;
-                z-index: 1;
-            }
-
             .parent-child-indicator {
                 animation: fadeInUp 0.2s ease-out;
             }
@@ -3154,10 +3139,22 @@ export class ProjectKanbanView {
 
     private canDropForSort(draggedTask: any, targetTask: any): boolean {
         if (!draggedTask || !targetTask) return false;
-        // 只允许在相同优先级内拖动
-        const draggedPriority = draggedTask.priority || 'none';
-        const targetPriority = targetTask.priority || 'none';
-        return draggedPriority === targetPriority;
+        
+        // 情况1：同级顶层任务之间排序（相同优先级）
+        if (!draggedTask.parentId && !targetTask.parentId) {
+            // 只允许在相同优先级内拖动
+            const draggedPriority = draggedTask.priority || 'none';
+            const targetPriority = targetTask.priority || 'none';
+            return draggedPriority === targetPriority;
+        }
+        
+        // 情况2：子任务之间排序（同一个父任务下）
+        if (draggedTask.parentId && targetTask.parentId) {
+            return draggedTask.parentId === targetTask.parentId;
+        }
+        
+        // 情况3：不允许顶层任务与子任务之间排序
+        return false;
     }
 
     /**
@@ -3171,6 +3168,13 @@ export class ProjectKanbanView {
 
         // 不能将任务拖拽到自己身上
         if (draggedTask.id === targetTask.id) return false;
+        
+        // 如果两个任务都是子任务且属于同一个父任务，不显示父子关系提示
+        // （应该显示排序提示）
+        if (draggedTask.parentId && targetTask.parentId && 
+            draggedTask.parentId === targetTask.parentId) {
+            return false;
+        }
 
         // 不能将父任务拖拽到自己的子任务上（防止循环依赖）
         if (this.isDescendant(targetTask, draggedTask)) return false;
@@ -3208,15 +3212,116 @@ export class ProjectKanbanView {
     }
 
     /**
-     * 显示父子任务拖拽的视觉指示器
-     * @param element 目标任务元素
+     * 统一的指示器更新方法，避免频繁的DOM操作导致闪烁
+     * @param type 指示器类型
+     * @param target 目标元素
+     * @param position 位置
+     * @param event 可选的拖拽事件
      */
-    private showParentChildDropIndicator(element: HTMLElement) {
-        this.hideParentChildDropIndicator(); // 清除之前的指示器
+    private updateIndicator(
+        type: 'none' | 'sort' | 'parentChild',
+        target: HTMLElement | null,
+        position: 'top' | 'bottom' | 'middle' | null,
+        event?: DragEvent
+    ) {
+        // 检查是否需要更新
+        const needsUpdate = this.currentIndicatorType !== type || 
+                           this.currentIndicatorTarget !== target ||
+                           this.currentIndicatorPosition !== position;
 
+        if (!needsUpdate) {
+            return; // 状态没有改变，不需要更新
+        }
+
+        // 清除现有的所有指示器
+        this.clearAllIndicators();
+
+        // 更新状态
+        this.currentIndicatorType = type;
+        this.currentIndicatorTarget = target;
+        this.currentIndicatorPosition = position;
+
+        // 显示新的指示器
+        switch (type) {
+            case 'sort':
+                if (target && event) {
+                    this.createSortIndicator(target, event);
+                }
+                break;
+            case 'parentChild':
+                if (target) {
+                    this.createParentChildIndicator(target);
+                }
+                break;
+            case 'none':
+            default:
+                // 已经清除了所有指示器，无需额外操作
+                break;
+        }
+    }
+
+    /**
+     * 清除所有指示器
+     */
+    private clearAllIndicators() {
+        // 移除排序指示器
+        this.container.querySelectorAll('.drop-indicator').forEach(indicator => indicator.remove());
+        
+        // 移除父子关系指示器
+        this.container.querySelectorAll('.parent-child-indicator').forEach(indicator => indicator.remove());
+        this.container.querySelectorAll('.parent-child-drop-target').forEach(el => {
+            el.classList.remove('parent-child-drop-target');
+        });
+
+        // 重置position样式
+        this.container.querySelectorAll('.kanban-task').forEach((el: HTMLElement) => {
+            if (el.style.position === 'relative') {
+                el.style.position = '';
+            }
+        });
+    }
+
+    /**
+     * 创建排序指示器
+     * @param element 目标元素
+     * @param event 拖拽事件
+     */
+    private createSortIndicator(element: HTMLElement, event: DragEvent) {
+        const rect = element.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+
+        const indicator = document.createElement('div');
+        indicator.className = 'drop-indicator';
+        indicator.style.cssText = `
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: var(--b3-theme-primary);
+            z-index: 1000;
+            pointer-events: none;
+            box-shadow: 0 0 4px var(--b3-theme-primary);
+        `;
+
+        element.style.position = 'relative';
+
+        if (event.clientY < midpoint) {
+            indicator.style.top = '-1px';
+        } else {
+            indicator.style.bottom = '-1px';
+        }
+
+        // 不再添加排序提示文字，只显示蓝色指示线
+        element.appendChild(indicator);
+    }
+
+    /**
+     * 创建父子任务指示器
+     * @param element 目标元素
+     */
+    private createParentChildIndicator(element: HTMLElement) {
         element.classList.add('parent-child-drop-target');
 
-        // 创建一个父子关系指示器
         const indicator = document.createElement('div');
         indicator.className = 'parent-child-indicator';
         indicator.innerHTML = `
@@ -3245,26 +3350,6 @@ export class ProjectKanbanView {
 
         element.style.position = 'relative';
         element.appendChild(indicator);
-    }
-
-    /**
-     * 隐藏父子任务拖拽的视觉指示器
-     */
-    private hideParentChildDropIndicator() {
-        // 移除所有父子关系指示器
-        this.container.querySelectorAll('.parent-child-indicator').forEach(indicator => indicator.remove());
-
-        // 移除目标样式类
-        this.container.querySelectorAll('.parent-child-drop-target').forEach(el => {
-            el.classList.remove('parent-child-drop-target');
-        });
-
-        // 重置position样式
-        this.container.querySelectorAll('.kanban-task').forEach((el: HTMLElement) => {
-            if (el.style.position === 'relative') {
-                el.style.position = '';
-            }
-        });
     }
 
     /**
@@ -3356,119 +3441,6 @@ export class ProjectKanbanView {
         }
     }
 
-    /**
-     * 显示解除父任务关系的指示器
-     * @param element 目标列元素
-     */
-    private showUnsetParentIndicator(element: HTMLElement) {
-        this.hideUnsetParentIndicator(); // 清除之前的指示器
-
-        // 创建解除父任务关系指示器
-        const indicator = document.createElement('div');
-        indicator.className = 'unset-parent-indicator';
-        indicator.innerHTML = `
-            <div class="unset-parent-hint">
-                <svg style="width: 16px; height: 16px; margin-right: 4px;">
-                    <use xlink:href="#iconUnlink"></use>
-                </svg>
-                独立任务
-            </div>
-        `;
-        indicator.style.cssText = `
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--b3-theme-secondary);
-            color: white;
-            padding: 6px 12px;
-            border-radius: 4px;
-            font-size: 12px;
-            white-space: nowrap;
-            z-index: 1001;
-            pointer-events: none;
-            animation: fadeInUp 0.2s ease-out;
-        `;
-
-        element.style.position = 'relative';
-        element.appendChild(indicator);
-    }
-
-    /**
-     * 隐藏解除父任务关系的指示器
-     */
-    private hideUnsetParentIndicator() {
-        this.container.querySelectorAll('.unset-parent-indicator').forEach(indicator => indicator.remove());
-    }
-
-    private showDropIndicator(element: HTMLElement, event: DragEvent) {
-        this.hideDropIndicator(); // 清除之前的指示器
-
-        const rect = element.getBoundingClientRect();
-        const midpoint = rect.top + rect.height / 2;
-
-        const indicator = document.createElement('div');
-        indicator.className = 'drop-indicator';
-        indicator.style.cssText = `
-            position: absolute;
-            left: 0;
-            right: 0;
-            height: 2px;
-            background-color: var(--b3-theme-primary);
-            z-index: 1000;
-            pointer-events: none;
-            box-shadow: 0 0 4px var(--b3-theme-primary);
-        `;
-
-        // 创建排序提示
-        const sortHint = document.createElement('div');
-        sortHint.className = 'sort-hint';
-        sortHint.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 4px;">
-                <svg style="width: 14px; height: 14px;">
-                    <use xlink:href="#iconSort"></use>
-                </svg>
-                <span>排序</span>
-            </div>
-        `;
-        sortHint.style.cssText = `
-            position: absolute;
-            right: -60px;
-            top: -10px;
-            background: var(--b3-theme-secondary);
-            color: white;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            white-space: nowrap;
-            z-index: 1001;
-            pointer-events: none;
-            animation: fadeInUp 0.2s ease-out;
-        `;
-
-        element.style.position = 'relative'; // 确保父元素是定位的
-
-        if (event.clientY < midpoint) {
-            // 插入到目标元素之前
-            indicator.style.top = '-1px';
-        } else {
-            // 插入到目标元素之后
-            indicator.style.bottom = '-1px';
-        }
-
-        indicator.appendChild(sortHint);
-        element.appendChild(indicator);
-    }
-
-    private hideDropIndicator() {
-        this.container.querySelectorAll('.drop-indicator').forEach(indicator => indicator.remove());
-        this.container.querySelectorAll('.kanban-task').forEach((el: HTMLElement) => {
-            if (el.style.position === 'relative') {
-                el.style.position = '';
-            }
-        });
-    }
-
     private async handleSortDrop(targetTask: any, event: DragEvent) {
         if (!this.draggedTask) return;
 
@@ -3503,6 +3475,37 @@ export class ProjectKanbanView {
 
             const oldStatus = this.getTaskStatus(draggedTaskInDb);
             const newStatus = this.getTaskStatus(targetTaskInDb);
+
+            // 检查是否为子任务排序
+            const isSubtaskReorder = draggedTaskInDb.parentId && targetTaskInDb.parentId && 
+                                   draggedTaskInDb.parentId === targetTaskInDb.parentId;
+
+            if (isSubtaskReorder) {
+                // 子任务排序逻辑
+                const parentId = draggedTaskInDb.parentId;
+                
+                // 获取同一父任务下的所有子任务
+                const siblingTasks = Object.values(reminderData)
+                    .filter((r: any) => r && r.parentId === parentId && r.id !== draggedId)
+                    .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+                const targetIndex = siblingTasks.findIndex((t: any) => t.id === targetId);
+                const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
+
+                // 插入被拖拽的任务
+                siblingTasks.splice(insertIndex, 0, draggedTaskInDb);
+
+                // 重新分配排序值
+                siblingTasks.forEach((task: any, index: number) => {
+                    reminderData[task.id].sort = index * 10;
+                });
+
+                await writeReminderData(reminderData);
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                return; // 子任务排序完成，直接返回
+            }
+
+            // 顶层任务排序逻辑（原有逻辑）
             const priority = draggedTaskInDb.priority || 'none';
 
             // --- Update status of dragged task ---
@@ -3520,7 +3523,7 @@ export class ProjectKanbanView {
             // --- Reorder source list (if status changed) ---
             if (oldStatus !== newStatus) {
                 const sourceList = Object.values(reminderData)
-                    .filter((r: any) => r && r.projectId === this.projectId && this.getTaskStatus(r) === oldStatus && (r.priority || 'none') === priority && r.id !== draggedId)
+                    .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && this.getTaskStatus(r) === oldStatus && (r.priority || 'none') === priority && r.id !== draggedId)
                     .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
 
                 sourceList.forEach((task: any, index: number) => {
@@ -3530,7 +3533,7 @@ export class ProjectKanbanView {
 
             // --- Reorder target list ---
             const targetList = Object.values(reminderData)
-                .filter((r: any) => r && r.projectId === this.projectId && this.getTaskStatus(r) === newStatus && (r.priority || 'none') === priority && r.id !== draggedId)
+                .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && this.getTaskStatus(r) === newStatus && (r.priority || 'none') === priority && r.id !== draggedId)
                 .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
 
             const targetIndex = targetList.findIndex((t: any) => t.id === targetId);
