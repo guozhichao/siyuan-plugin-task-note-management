@@ -447,6 +447,73 @@ export class ReminderPanel {
         }
     }
 
+    /**
+     * 异步添加项目信息显示
+     * @param container 信息容器元素
+     * @param projectId 项目ID
+     */
+    private async addProjectInfo(container: HTMLElement, projectId: string) {
+        try {
+            const projectData = await readProjectData();
+            const project = projectData[projectId];
+            
+            if (project && project.title) {
+                // 创建项目信息元素
+                const projectEl = document.createElement('div');
+                projectEl.className = 'reminder-item__project';
+                projectEl.style.cssText = `
+                    font-size: 11px;
+                    color: var(--b3-theme-on-background);
+                    margin-top: 4px;
+                    opacity: 0.8;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                `;
+
+                // 添加项目图标
+                const projectIcon = document.createElement('span');
+                projectIcon.textContent = '📂';
+                projectIcon.style.fontSize = '12px';
+
+                // 创建项目标题链接
+                const projectLink = document.createElement('span');
+                projectLink.textContent = project.title;
+                projectLink.title = `所属项目: ${project.title}`;
+                projectLink.style.cssText = `
+                    cursor: pointer;
+                    color: var(--b3-theme-on-background);
+                    text-decoration: underline;
+                    text-decoration-style: dotted;
+                `;
+
+                // 点击事件：打开项目看板
+                projectEl.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.openProjectKanban(projectId);
+                });
+
+                // 鼠标悬停效果
+                projectLink.addEventListener('mouseenter', () => {
+                    projectLink.style.color = 'var(--b3-theme-primary)';
+                });
+                projectLink.addEventListener('mouseleave', () => {
+                    projectLink.style.color = 'var(--b3-theme-on-background)';
+                });
+
+                projectEl.appendChild(projectIcon);
+                projectEl.appendChild(projectLink);
+
+                // 将项目信息添加到容器底部
+                container.appendChild(projectEl);
+            }
+        } catch (error) {
+            console.warn('获取项目信息失败:', error);
+            // 静默失败，不影响主要功能
+        }
+    }
+
 
 
     private applyCategoryFilter(reminders: any[]): any[] {
@@ -1289,7 +1356,7 @@ export class ReminderPanel {
         }
     }
 
-    private createReminderElement(reminder: any, today: string, level: number = 0, allVisibleReminders: any[] = []): HTMLElement {
+    private async createReminderElement(reminder: any, today: string, level: number = 0, allVisibleReminders: any[] = []): Promise<HTMLElement> {
         // 改进过期判断逻辑
         let isOverdue = false;
         if (!reminder.completed && reminder.date) {
@@ -1501,6 +1568,11 @@ export class ReminderPanel {
             noteEl.className = 'reminder-item__note';
             noteEl.textContent = reminder.note;
             infoEl.appendChild(noteEl);
+        }
+
+        // 添加项目信息显示
+        if (reminder.projectId) {
+            await this.addProjectInfo(infoEl, reminder.projectId);
         }
 
         contentEl.appendChild(leftControls);
