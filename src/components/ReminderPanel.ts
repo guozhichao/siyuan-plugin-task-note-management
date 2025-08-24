@@ -34,6 +34,8 @@ export class ReminderPanel {
     // 添加静态变量来跟踪当前活动的番茄钟
     private static currentPomodoroTimer: PomodoroTimer | null = null;
     private currentRemindersCache: any[] = [];
+    private isLoading: boolean = false;
+    private loadTimeoutId: number | null = null;
 
     constructor(container: HTMLElement, plugin?: any, closeCallback?: () => void) {
         this.container = container;
@@ -43,7 +45,16 @@ export class ReminderPanel {
 
         // 创建事件处理器
         this.reminderUpdatedHandler = () => {
-            this.loadReminders();
+            // 防抖处理，避免短时间内的多次更新
+            if (this.loadTimeoutId) {
+                clearTimeout(this.loadTimeoutId);
+            }
+            this.loadTimeoutId = window.setTimeout(() => {
+                if (!this.isLoading) {
+                    this.loadReminders();
+                }
+                this.loadTimeoutId = null;
+            }, 100);
         };
 
         this.sortConfigUpdatedHandler = (event: CustomEvent) => {
@@ -75,6 +86,12 @@ export class ReminderPanel {
 
     // 添加销毁方法以清理事件监听器
     public destroy() {
+        // 清理定时器
+        if (this.loadTimeoutId) {
+            clearTimeout(this.loadTimeoutId);
+            this.loadTimeoutId = null;
+        }
+
         if (this.reminderUpdatedHandler) {
             window.removeEventListener('reminderUpdated', this.reminderUpdatedHandler);
         }
@@ -637,7 +654,7 @@ export class ReminderPanel {
         const result: string[] = [];
         let current = reminderMap.get(id);
         console.log(`获取任务 ${id} 的祖先, 当前任务:`, current);
-        
+
         while (current && current.parentId) {
             console.log(`找到父任务: ${current.parentId}`);
             if (result.includes(current.parentId)) {
@@ -648,13 +665,20 @@ export class ReminderPanel {
             current = reminderMap.get(current.parentId);
             console.log(`父任务详情:`, current);
         }
-        
+
         console.log(`任务 ${id} 的所有祖先:`, result);
         return result;
     }
 
 
     private async loadReminders() {
+        // 防止重复加载
+        if (this.isLoading) {
+            console.log('任务正在加载中，跳过本次加载请求');
+            return;
+        }
+
+        this.isLoading = true;
         try {
             const reminderData = await readReminderData();
             if (!reminderData || typeof reminderData !== 'object') {
@@ -708,7 +732,7 @@ export class ReminderPanel {
             this.sortReminders(displayReminders);
             this.currentRemindersCache = [...displayReminders];
 
-            // 5. 渲染
+            // 5. 清理之前的内容并渲染新内容
             this.remindersContainer.innerHTML = '';
             const topLevelReminders = displayReminders.filter(r => !r.parentId || !displayReminders.some(p => p.id === r.parentId));
 
@@ -742,22 +766,24 @@ export class ReminderPanel {
         } catch (error) {
             console.error('加载提醒失败:', error);
             showMessage(t("loadRemindersFailed"));
+        } finally {
+            this.isLoading = false;
         }
     }
     /**
      * 检查指定任务是否有子任务
      */
     private hasChildren(reminderId: string, reminderData: any): boolean {
-        return Object.values(reminderData).some((reminder: any) => 
+        return Object.values(reminderData).some((reminder: any) =>
             reminder && reminder.parentId === reminderId
         );
     }
 
     private generateAllRemindersWithInstances(reminderData: any, today: string): any[] {
         const reminders = Object.values(reminderData).filter((reminder: any) => {
-            const shouldInclude = reminder && typeof reminder === 'object' && reminder.id && 
+            const shouldInclude = reminder && typeof reminder === 'object' && reminder.id &&
                 (reminder.date || reminder.parentId || this.hasChildren(reminder.id, reminderData));
-            
+
             if (reminder && reminder.id) {
                 console.log(`任务 ${reminder.id} (${reminder.title}):`, {
                     hasDate: !!reminder.date,
@@ -766,7 +792,7 @@ export class ReminderPanel {
                     shouldInclude
                 });
             }
-            
+
             return shouldInclude;
         });
 
