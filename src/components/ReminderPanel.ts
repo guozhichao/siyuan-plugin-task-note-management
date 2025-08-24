@@ -1,5 +1,5 @@
 import { showMessage, confirm, Dialog, Menu, openTab } from "siyuan";
-import { readReminderData, writeReminderData, sql, updateBlock, getBlockKramdown, getBlockByID, updateBlockReminderBookmark, openBlock, createDocWithMd, renderSprig } from "../api";
+import { readReminderData, writeReminderData, sql, updateBlock, getBlockKramdown, getBlockByID, updateBlockReminderBookmark, openBlock, createDocWithMd, renderSprig, readProjectData } from "../api";
 import { getLocalDateString, compareDateStrings, getLocalDateTime, getLocalDateTimeString } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { ReminderEditDialog } from "./ReminderEditDialog";
@@ -9,6 +9,7 @@ import { t } from "../utils/i18n";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroStatsView } from "./PomodoroStatsView";
+import { PROJECT_KANBAN_TAB_TYPE } from "../index";
 
 export class ReminderPanel {
     private container: HTMLElement;
@@ -601,7 +602,7 @@ export class ReminderPanel {
 
             // 3. 实现父/子驱动逻辑
             const idsToRender = new Set<string>();
-            
+
             // 添加所有直接匹配的提醒
             directlyMatchingReminders.forEach(r => idsToRender.add(r.id));
 
@@ -1397,8 +1398,8 @@ export class ReminderPanel {
                 this.toggleReminder(reminder.id, checkbox.checked);
             }
         });
-        
-        
+
+
         leftControls.appendChild(checkbox);
         // 折叠按钮
         if (hasChildren) {
@@ -1932,6 +1933,16 @@ export class ReminderPanel {
 
         // 检查是否为未绑定的快速事件
         const isUnboundQuickReminder = (reminder.isQuickReminder || reminder.id.startsWith('quick')) && !reminder.blockId;
+
+        // 添加项目管理选项（仅当任务有projectId时显示）
+        if (reminder.projectId) {
+            menu.addItem({
+                iconHTML: "📂",
+                label: "打开项目看板",
+                click: () => this.openProjectKanban(reminder.projectId)
+            });
+            menu.addSeparator();
+        }
 
         if (reminder.isRepeatInstance) {
             // --- Menu for a REPEAT INSTANCE ---
@@ -3489,6 +3500,41 @@ export class ReminderPanel {
         } catch (error) {
             console.error('绑定提醒到块失败:', error);
             throw error;
+        }
+    }
+
+    /**
+     * 打开项目看板
+     * @param projectId 项目ID
+     */
+    private async openProjectKanban(projectId: string) {
+        try {
+            // 获取项目数据以获取项目标题
+            const projectData = await readProjectData();
+
+            if (!projectData || !projectData[projectId]) {
+                showMessage("项目不存在");
+                return;
+            }
+
+            const project = projectData[projectId];
+
+            // 使用openTab打开项目看板
+            openTab({
+                app: this.plugin.app,
+                custom: {
+                    title: project.title,
+                    icon: "iconProject",
+                    id: this.plugin.name + PROJECT_KANBAN_TAB_TYPE,
+                    data: {
+                        projectId: project.blockId,
+                        projectTitle: project.title
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('打开项目看板失败:', error);
+            showMessage("打开项目看板失败");
         }
     }
 
