@@ -1125,6 +1125,38 @@ export class ProjectKanbanView {
     }
 
     private addTaskDragEvents(element: HTMLElement, task: any) {
+        // 支持子任务拖拽到父任务上边缘解除父子关系
+        element.addEventListener('dragover', (e) => {
+            if (!this.isDragging || !this.draggedTask || this.draggedTask.id === task.id) return;
+            // 仅允许子任务拖拽到父任务上边缘
+            if (task.id === this.draggedTask.parentId) {
+                const rect = element.getBoundingClientRect();
+                const offsetY = e.clientY - rect.top;
+                if (offsetY < 16) { // 上边缘区域
+                    e.preventDefault();
+                    this.updateIndicator('parentChild', element, 'top', e);
+                } else {
+                    this.updateIndicator('none', null, null);
+                }
+            }
+        });
+
+        element.addEventListener('dragleave', (e) => {
+            this.updateIndicator('none', null, null);
+        });
+
+        element.addEventListener('drop', async (e) => {
+            if (!this.isDragging || !this.draggedTask || this.draggedTask.id === task.id) return;
+            if (task.id === this.draggedTask.parentId) {
+                const rect = element.getBoundingClientRect();
+                const offsetY = e.clientY - rect.top;
+                if (offsetY < 16) {
+                    // 解除父子关系
+                    await this.unsetParentChildRelation(this.draggedTask);
+                    this.clearAllIndicators();
+                }
+            }
+        });
         element.addEventListener('dragstart', (e) => {
             this.isDragging = true;
             this.draggedTask = task;
@@ -3249,7 +3281,9 @@ export class ProjectKanbanView {
                 }
                 break;
             case 'parentChild':
-                if (target) {
+                if (target && position === 'top') {
+                    this.createParentChildIndicator(target, 'top');
+                } else if (target) {
                     this.createParentChildIndicator(target);
                 }
                 break;
@@ -3319,7 +3353,10 @@ export class ProjectKanbanView {
      * 创建父子任务指示器
      * @param element 目标元素
      */
-    private createParentChildIndicator(element: HTMLElement) {
+    /**
+     * 创建父子任务指示器，支持指定位置
+     */
+    private createParentChildIndicator(element: HTMLElement, position: 'top' | 'middle' = 'middle') {
         element.classList.add('parent-child-drop-target');
 
     }
