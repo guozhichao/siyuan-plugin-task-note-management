@@ -674,9 +674,12 @@ export class ReminderPanel {
 
                 const isCollapsed = this.collapsedTasks.has(reminder.id);
                 if (!isCollapsed) {
+                    // 获取所有子任务并按sort字段排序
                     const children = displayReminders
                         .filter(r => r.parentId === reminder.id)
                         .sort((a, b) => (a.sort || 0) - (b.sort || 0)); // 子任务也需要排序
+
+                    // 递归渲染所有子任务，支持任意深度
                     for (const child of children) {
                         await renderReminderWithChildren(child, level + 1);
                     }
@@ -1337,9 +1340,39 @@ export class ReminderPanel {
         const hasChildren = allVisibleReminders.some(r => r.parentId === reminder.id);
         const isCollapsed = this.collapsedTasks.has(reminder.id);
 
+        // 计算子任务的层级深度，用于显示层级指示
+        let maxChildDepth = 0;
+        if (hasChildren) {
+            const calculateDepth = (id: string, currentDepth: number): number => {
+                const children = allVisibleReminders.filter(r => r.parentId === id);
+                if (children.length === 0) return currentDepth;
+
+                let maxDepth = currentDepth;
+                for (const child of children) {
+                    const childDepth = calculateDepth(child.id, currentDepth + 1);
+                    maxDepth = Math.max(maxDepth, childDepth);
+                }
+                return maxDepth;
+            };
+            maxChildDepth = calculateDepth(reminder.id, 0);
+        }
+
         const reminderEl = document.createElement('div');
         reminderEl.className = `reminder-item ${isOverdue ? 'reminder-item--overdue' : ''} ${isSpanningDays ? 'reminder-item--spanning' : ''} reminder-priority-${priority}`;
-        reminderEl.style.paddingLeft = `${level * 20}px`; // 子任务缩进
+
+        // 子任务缩进：使用margin-left让整个任务块缩进，包括背景色
+        if (level > 0) {
+            reminderEl.style.marginLeft = `${level * 20}px`;
+            reminderEl.style.width = `calc(100% - ${level * 20}px)`;
+            // 为子任务添加层级数据属性，用于CSS样式
+            reminderEl.setAttribute('data-level', level.toString());
+        }
+
+        // 为有深层子任务的父任务添加额外的视觉提示
+        if (hasChildren && maxChildDepth > 1) {
+            reminderEl.setAttribute('data-has-deep-children', maxChildDepth.toString());
+            reminderEl.classList.add('reminder-item--has-deep-children');
+        }
 
         // ... 优先级背景色和边框设置 ...
         let backgroundColor = '';
