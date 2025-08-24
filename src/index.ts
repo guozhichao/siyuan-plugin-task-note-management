@@ -1511,48 +1511,6 @@ export default class ReminderPlugin extends Plugin {
         const docButton = breadcrumb.querySelector('button[data-type="doc"]');
         if (!docButton) return;
 
-        // 创建查看提醒按钮（如果不存在）
-        const existingViewButton = breadcrumb.querySelector('.view-reminder-breadcrumb-btn');
-        if (!existingViewButton) {
-            const viewReminderBtn = document.createElement('button');
-            viewReminderBtn.className = 'view-reminder-breadcrumb-btn block__icon fn__flex-center ariaLabel';
-            viewReminderBtn.setAttribute('aria-label', t("viewDocumentAllReminders"));
-            viewReminderBtn.innerHTML = `
-                <svg class="b3-list-item__graphic"><use xlink:href="#iconCheck"></use></svg>
-            `;
-
-            viewReminderBtn.style.cssText = `
-                margin-right: 4px;
-                padding: 4px;
-                border: none;
-                background: transparent;
-                cursor: pointer;
-                border-radius: 4px;
-                color: var(--b3-theme-on-background);
-                opacity: 0.7;
-                transition: all 0.2s ease;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                width: 24px;
-                height: 24px;
-            `;
-
-            viewReminderBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-
-                const documentId = protyle.block?.rootID;
-                if (documentId) {
-                    const documentReminderDialog = new DocumentReminderDialog(documentId);
-                    documentReminderDialog.show();
-                } else {
-                    showMessage(t("cannotGetDocumentId"));
-                }
-            });
-
-            breadcrumb.insertBefore(viewReminderBtn, docButton);
-        }
 
         // --- Project Button ---
         const documentId = protyle.block?.rootID;
