@@ -614,7 +614,7 @@ export class ReminderDialog {
         setTimeout(() => {
             const noTimeCheckbox = this.dialog.element.querySelector('#noSpecificTime') as HTMLInputElement;
             const dateInput = this.dialog.element.querySelector('#reminderDate') as HTMLInputElement;
-            
+
             if (!initialNoTime && initialTime) {
                 // 有时间：设置为datetime-local格式
                 noTimeCheckbox.checked = false;
@@ -731,17 +731,17 @@ export class ReminderDialog {
 
         try {
             const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
-            
+
             // 清空并重新构建项目选择器
             projectSelector.innerHTML = '';
-            
+
             // 添加无项目选项
             const noProjectOption = document.createElement('option');
             noProjectOption.value = '';
             noProjectOption.textContent = t('noProject');
             noProjectOption.selected = true;
             projectSelector.appendChild(noProjectOption);
-            
+
             // 按状态分组添加项目
             Object.keys(groupedProjects).forEach(statusKey => {
                 const projects = groupedProjects[statusKey] || [];
@@ -749,13 +749,13 @@ export class ReminderDialog {
                     const projectStatus = this.projectManager.getProjectById(project.id)?.status || 'doing';
                     return projectStatus !== 'archived';
                 });
-                
+
                 if (nonArchivedProjects.length > 0) {
                     // 添加状态分组
                     const statusName = this.getStatusDisplayName(statusKey);
                     const optgroup = document.createElement('optgroup');
                     optgroup.label = statusName;
-                    
+
                     nonArchivedProjects.forEach(project => {
                         const option = document.createElement('option');
                         option.value = project.id;
@@ -766,7 +766,7 @@ export class ReminderDialog {
                         }
                         optgroup.appendChild(option);
                     });
-                    
+
                     projectSelector.appendChild(optgroup);
                 }
             });
@@ -1051,24 +1051,24 @@ export class ReminderDialog {
             // 先保存当前值
             const startValue = startDateInput.value;
             const endValue = endDateInput.value;
-            
+
             // 切换类型
             startDateInput.type = 'date';
             endDateInput.type = 'date';
-            
+
             // 如果当前值包含时间，只保留日期部分，不清空日期
             if (startValue && startValue.includes('T')) {
                 startDateInput.value = startValue.split('T')[0];
             } else if (startValue) {
                 startDateInput.value = startValue;
             }
-            
+
             if (endValue && endValue.includes('T')) {
                 endDateInput.value = endValue.split('T')[0];
             } else if (endValue) {
                 endDateInput.value = endValue;
             }
-            
+
             if (dateTimeDesc) {
                 dateTimeDesc.textContent = t("dateOnlyDesc");
             }
@@ -1077,11 +1077,11 @@ export class ReminderDialog {
             // 先保存当前值
             const startValue = startDateInput.value;
             const endValue = endDateInput.value;
-            
+
             // 切换类型
             startDateInput.type = 'datetime-local';
             endDateInput.type = 'datetime-local';
-            
+
             // 如果当前值只有日期，添加默认时间，保留原有日期
             if (startValue && !startValue.includes('T')) {
                 const currentTime = getLocalTimeString();
@@ -1094,7 +1094,7 @@ export class ReminderDialog {
                 const today = getLocalDateString();
                 startDateInput.value = `${today}T${currentTime}`;
             }
-            
+
             // 处理结束日期
             if (endValue && !endValue.includes('T')) {
                 const currentTime = getLocalTimeString();
@@ -1102,7 +1102,7 @@ export class ReminderDialog {
             } else if (endValue) {
                 endDateInput.value = endValue;
             }
-            
+
             if (dateTimeDesc) {
                 dateTimeDesc.textContent = t("dateTimeDesc");
             }
