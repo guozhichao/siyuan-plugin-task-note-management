@@ -28,6 +28,9 @@ export class QuickReminderDialog {
         endDate?: string;
         endTime?: string;
         isTimeRange?: boolean;
+    }, options?: {
+        defaultProjectId?: string;
+        defaultQuadrant?: string;
     }) {
         // 确保日期格式正确 - 只保留 YYYY-MM-DD 部分
         this.initialDate = this.formatDateForInput(initialDate);
@@ -48,6 +51,13 @@ export class QuickReminderDialog {
             this.initialEndTime = timeRangeOptions.endTime;
             this.isTimeRange = timeRangeOptions.isTimeRange || false;
         }
+        
+        // 处理额外选项
+        if (options) {
+            this.defaultProjectId = options.defaultProjectId;
+            this.defaultQuadrant = options.defaultQuadrant;
+        }
+        
         this.categoryManager = CategoryManager.getInstance();
         this.projectManager = ProjectManager.getInstance();
         this.repeatConfig = {
@@ -957,7 +967,8 @@ export class QuickReminderDialog {
                 projectId: projectId,
                 createdAt: new Date().toISOString(),
                 repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined,
-                isQuickReminder: true // 标记为快速创建的提醒
+                isQuickReminder: true, // 标记为快速创建的提醒
+                quadrant: this.defaultQuadrant // 添加象限信息
             };
 
             // 如果任务时间早于当前时间，则标记为已通知

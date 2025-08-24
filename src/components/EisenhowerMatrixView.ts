@@ -2,6 +2,7 @@ import { readReminderData, writeReminderData, getFile, putFile, openBlock, getBl
 import { ProjectManager } from "../utils/projectManager";
 import { CategoryManager } from "../utils/categoryManager";
 import { ReminderEditDialog } from "./ReminderEditDialog";
+import { QuickReminderDialog } from "./QuickReminderDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
 import { t } from "../utils/i18n";
@@ -121,6 +122,10 @@ export class EisenhowerMatrixView {
         headerEl.innerHTML = `
             <h2>${t("eisenhowerMatrix")}</h2>
             <div class="matrix-header-buttons">
+                <button class="b3-button b3-button--primary new-task-btn" title="${t("newTask")}">
+                    <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
+                    ${t("newTask")}
+                </button>
                 <button class="b3-button b3-button--outline sort-projects-btn" title="项目排序">
                     <svg class="b3-button__icon"><use xlink:href="#iconSort"></use></svg>
                     项目排序
@@ -882,7 +887,7 @@ export class EisenhowerMatrixView {
             });
         });
 
-        // 新建任务按钮
+        // 新建任务按钮（象限内的）
         const newTaskButtons = this.container.querySelectorAll('.add-task-btn');
         newTaskButtons.forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -891,6 +896,14 @@ export class EisenhowerMatrixView {
                 this.showCreateTaskDialog(quadrant as QuadrantTask['quadrant']);
             });
         });
+
+        // 顶部新建任务按钮（通用的）
+        const topNewTaskBtn = this.container.querySelector('.new-task-btn');
+        if (topNewTaskBtn) {
+            topNewTaskBtn.addEventListener('click', () => {
+                this.showCreateGeneralTaskDialog();
+            });
+        }
 
         // 筛选按钮
         const filterBtn = this.container.querySelector('.filter-btn');
@@ -1297,6 +1310,19 @@ export class EisenhowerMatrixView {
                 align-items: center;
             }
 
+            .new-task-btn {
+                font-weight: 600;
+                background-color: var(--b3-theme-primary);
+                color: var(--b3-theme-on-primary) !important;
+                border-color: var(--b3-theme-primary);
+            }
+
+            .new-task-btn:hover {
+                background-color: var(--b3-theme-primary-hover) !important;
+                border-color: var(--b3-theme-primary-hover) !important;
+                color: var(--b3-theme-on-primary) !important;
+            }
+
             .refresh-btn,
             .switch-to-calendar-btn {
                 display: flex;
@@ -1678,6 +1704,20 @@ export class EisenhowerMatrixView {
             
             .task-item:hover .task-drag-handle {
                 opacity: 0.7;
+            }
+            
+            /* 象限预览样式 */
+            .quadrant-preview {
+                transition: background-color 0.2s, color 0.2s;
+                border-radius: 4px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }
+            
+            /* 新建任务对话框额外样式 */
+            .reminder-dialog .b3-form__help {
+                font-size: 12px;
+                color: var(--b3-theme-on-surface-light);
+                margin-top: 4px;
             }
         `;
         document.head.appendChild(style);
@@ -2581,184 +2621,177 @@ export class EisenhowerMatrixView {
     }
 
     private showCreateTaskDialog(quadrant: QuadrantTask['quadrant'], parentTask?: QuadrantTask) {
-        const dialog = new Dialog({
-            title: parentTask ? `为 "${parentTask.title}" 创建子任务` : "新建任务",
-            content: `
-                <div class="reminder-dialog" style="padding-bottom: 0;">
-                    <div class="b3-dialog__content" style="padding-bottom: 0;">
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">任务标题</label>
-                            <input type="text" id="taskTitle" class="b3-text-field" placeholder="请输入任务标题" required>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">优先级</label>
-                            <div class="priority-selector" id="prioritySelector">
-                                <div class="priority-option" data-priority="high"><div class="priority-dot high"></div><span>高</span></div>
-                                <div class="priority-option" data-priority="medium"><div class="priority-dot medium"></div><span>中</span></div>
-                                <div class="priority-option" data-priority="low"><div class="priority-dot low"></div><span>低</span></div>
-                                <div class="priority-option selected" data-priority="none"><div class="priority-dot none"></div><span>无</span></div>
-                            </div>
-                        </div>
-                         <div class="b3-form__group">
-                            <label class="b3-form__label">任务日期</label>
-                            <div class="reminder-date-container">
-                                <input type="date" id="taskStartDate" class="b3-text-field" title="开始日期">
-                                <span class="reminder-arrow">→</span>
-                                <input type="date" id="taskEndDate" class="b3-text-field" title="结束日期">
-                            </div>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">绑定块 (可选)</label>
-                            <div class="b3-form__desc">输入块ID将任务绑定到指定块</div>
-                            <input type="text" id="taskBlockId" class="b3-text-field" placeholder="请输入块ID (可选)" style="width: 100%; margin-top: 8px;">
-                            <div id="blockPreview" class="block-content-preview" style="
-                                display: none;
-                                padding: 8px;
-                                background-color: var(--b3-theme-surface-lighter);
-                                border-radius: 4px;
-                                border: 1px solid var(--b3-theme-border);
-                                max-height: 60px;
-                                overflow-y: auto;
-                                font-size: 12px;
-                                color: var(--b3-theme-on-surface);
-                                margin-top: 8px;
-                            "></div>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">备注</label>
-                            <textarea id="taskNote" class="b3-text-field" placeholder="请输入任务备注" rows="2" style="width: 100%;resize: vertical; min-height: 60px;"></textarea>
-                        </div>
-                    </div>
-                    <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="cancelBtn">取消</button>
-                        <button class="b3-button b3-button--primary" id="createBtn">创建</button>
-                    </div>
-                </div>`,
-            width: "500px",
-            height: "600px"
-        });
-
-        const titleInput = dialog.element.querySelector('#taskTitle') as HTMLInputElement;
-        const noteInput = dialog.element.querySelector('#taskNote') as HTMLTextAreaElement;
-        const startDateInput = dialog.element.querySelector('#taskStartDate') as HTMLInputElement;
-        const endDateInput = dialog.element.querySelector('#taskEndDate') as HTMLInputElement;
-        const prioritySelector = dialog.element.querySelector('#prioritySelector') as HTMLElement;
-        const blockIdInput = dialog.element.querySelector('#taskBlockId') as HTMLInputElement;
-        const blockPreview = dialog.element.querySelector('#blockPreview') as HTMLElement;
-        const cancelBtn = dialog.element.querySelector('#cancelBtn') as HTMLButtonElement;
-        const createBtn = dialog.element.querySelector('#createBtn') as HTMLButtonElement;
-
-        // 绑定优先级选择事件
-        prioritySelector.addEventListener('click', (e) => {
-            const target = e.target as HTMLElement;
-            const option = target.closest('.priority-option') as HTMLElement;
-            if (option) {
-                prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
-                option.classList.add('selected');
+        // 根据象限和当前设置计算推荐的日期和时间
+        const { date, time } = this.calculateRecommendedDateTime(quadrant);
+        
+        // 创建 QuickReminderDialog，传入象限信息
+        const quickDialog = new QuickReminderDialog(
+            date,
+            time,
+            async () => {
+                // 任务创建成功后的回调
+                await this.refresh();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            },
+            undefined, // timeRangeOptions
+            {
+                defaultProjectId: parentTask?.projectId,
+                // 如果是子任务，使用父任务的象限；否则使用当前点击的象限
+                defaultQuadrant: parentTask ? parentTask.quadrant : quadrant
             }
-        });
-
-        // 监听块ID输入变化
-        blockIdInput.addEventListener('input', async () => {
-            const blockId = blockIdInput.value.trim();
-            if (blockId && blockId.length >= 22) {
-                try {
-                    const blockInfo = await getBlockByID(blockId);
-                    if (blockInfo && blockInfo.content) {
-                        blockPreview.style.display = 'block';
-                        blockPreview.innerHTML = blockInfo.content;
-                    } else {
-                        blockPreview.style.display = 'none';
-                    }
-                } catch (error) {
-                    blockPreview.style.display = 'none';
-                }
-            } else {
-                blockPreview.style.display = 'none';
-            }
-        });
-
-        cancelBtn.addEventListener('click', () => dialog.destroy());
-
-        // 如果是创建子任务，预填父任务信息
+        );
+        
+        // 如果有父任务，需要在任务创建后设置父子关系
         if (parentTask) {
-            if (parentTask.priority && parentTask.priority !== 'none') {
-                const targetOption = prioritySelector.querySelector(`[data-priority="${parentTask.priority}"]`) as HTMLElement;
-                if (targetOption) {
-                    prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
-                    targetOption.classList.add('selected');
+            // 保存原始 saveReminder 方法的引用
+            const originalSaveReminder = quickDialog['saveReminder'].bind(quickDialog);
+            
+            // 重写 saveReminder 方法以支持父任务关系
+            quickDialog['saveReminder'] = async function() {
+                try {
+                    // 调用原始方法保存任务
+                    await originalSaveReminder();
+                    
+                    // 保存成功后，设置父子关系
+                    await this.setParentTaskRelationship(parentTask);
+                } catch (error) {
+                    console.error('创建子任务失败:', error);
+                    throw error;
                 }
-            }
+            }.bind(this);
         }
-
-        createBtn.addEventListener('click', async () => {
-            const title = titleInput.value.trim();
-            if (!title) {
-                showMessage('请输入任务标题');
-                titleInput.focus();
-                return;
-            }
-
-            const selectedPriorityEl = prioritySelector.querySelector('.priority-option.selected') as HTMLElement;
-            const priority = selectedPriorityEl?.dataset?.priority || 'none';
-
-            const taskData = {
-                title,
-                note: noteInput.value.trim(),
-                date: startDateInput.value || undefined,
-                endDate: endDateInput.value || undefined,
-                priority,
-                blockId: blockIdInput.value.trim() || undefined,
-                quadrant
-            };
-
-            try {
-                await this.createTask(taskData, parentTask);
-                dialog.destroy();
-            } catch (error) {
-                console.error('创建任务失败:', error);
-                showMessage('创建任务失败，请重试');
-            }
-        });
+        
+        // 显示对话框
+        quickDialog.show();
     }
 
-    private async createTask(taskData: any, parentTask?: QuadrantTask) {
-        const reminderData = await readReminderData();
-        const taskId = `quick_${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-
-        const newTask: any = {
-            id: taskId,
-            title: taskData.title,
-            note: taskData.note || '',
-            date: taskData.date || undefined,
-            endDate: taskData.endDate || undefined,
-            priority: taskData.priority || 'none',
-            completed: false,
-            createdTime: new Date().toISOString(),
-            // 子任务继承父任务的象限，否则使用传入的象限
-            quadrant: parentTask ? parentTask.quadrant : taskData.quadrant
-        };
-
-        // 如果是子任务，添加 parentId
-        if (parentTask) {
-            newTask.parentId = parentTask.id;
-            // 继承父任务的项目ID
-            if (parentTask.projectId) {
-                newTask.projectId = parentTask.projectId;
+    /**
+     * 显示通用新建任务对话框（不指定特定象限）
+     */
+    private showCreateGeneralTaskDialog() {
+        // 使用今天作为默认日期，不指定特定时间
+        const today = new Date();
+        const defaultDate = today.toISOString().split('T')[0];
+        
+        // 创建 QuickReminderDialog，不传入象限信息
+        const quickDialog = new QuickReminderDialog(
+            defaultDate,
+            undefined, // 不指定时间
+            async () => {
+                // 任务创建成功后的回调
+                await this.refresh();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            },
+            undefined, // timeRangeOptions
+            {
+                // 不指定默认项目和象限，让任务根据优先级和日期自动分配
+                defaultProjectId: undefined,
+                defaultQuadrant: undefined
             }
+        );
+        
+        // 显示对话框
+        quickDialog.show();
+    }
+
+    /**
+     * 根据象限计算推荐的日期和时间
+     */
+    private calculateRecommendedDateTime(quadrant: QuadrantTask['quadrant']): { date: string; time?: string } {
+        const today = new Date();
+        let recommendedDate = today;
+        let recommendedTime: string | undefined;
+
+        switch (quadrant) {
+            case 'important-urgent':
+                // 重要且紧急：今天，建议有具体时间
+                recommendedDate = today;
+                recommendedTime = this.getNextAvailableTime();
+                break;
+            case 'important-not-urgent':
+                // 重要不紧急：一周后
+                recommendedDate = new Date(today);
+                recommendedDate.setDate(today.getDate() + 7);
+                break;
+            case 'not-important-urgent':
+                // 不重要但紧急：紧急期限内
+                recommendedDate = new Date(today);
+                recommendedDate.setDate(today.getDate() + Math.max(1, this.criteriaSettings.urgencyDays - 1));
+                recommendedTime = this.getNextAvailableTime();
+                break;
+            case 'not-important-not-urgent':
+                // 不重要不紧急：较远的将来
+                recommendedDate = new Date(today);
+                recommendedDate.setDate(today.getDate() + 14);
+                break;
         }
 
-        // 如果提供了块ID，添加绑定信息
-        if (taskData.blockId) {
-            newTask.blockId = taskData.blockId;
+        return {
+            date: recommendedDate.toISOString().split('T')[0],
+            time: recommendedTime
+        };
+    }
+
+    /**
+     * 获取下一个可用时间（避免过去的时间）
+     */
+    private getNextAvailableTime(): string {
+        const now = new Date();
+        const currentHour = now.getHours();
+        
+        // 如果当前时间在合理的工作时间内，推荐下一个整点
+        if (currentHour >= 8 && currentHour < 18) {
+            const nextHour = currentHour + 1;
+            return `${nextHour.toString().padStart(2, '0')}:00`;
+        } else if (currentHour < 8) {
+            // 如果是早晨，推荐9点
+            return '09:00';
+        } else {
+            // 如果是晚上，推荐明天上午9点（但这种情况下日期计算会在调用处处理）
+            return '09:00';
         }
+    }
 
-        reminderData[taskId] = newTask;
-        await writeReminderData(reminderData);
-
-        showMessage("任务创建成功");
-        await this.refresh();
-        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+    /**
+     * 设置父任务关系（在 QuickReminderDialog 保存任务后调用）
+     * 注意：此方法通过动态绑定在 showCreateTaskDialog 中被调用
+     */
+    private async setParentTaskRelationship(parentTask: QuadrantTask): Promise<void> {
+        try {
+            const reminderData = await readReminderData();
+            
+            // 找到最近创建的任务（通过 isQuickReminder 标识和时间戳）
+            let latestTaskId: string | null = null;
+            let latestCreatedAt = 0;
+            
+            for (const [id, reminder] of Object.entries(reminderData as any)) {
+                const reminderObj = reminder as any;
+                if (reminderObj?.isQuickReminder && reminderObj?.createdAt) {
+                    const createdAt = new Date(reminderObj.createdAt).getTime();
+                    if (createdAt > latestCreatedAt) {
+                        latestCreatedAt = createdAt;
+                        latestTaskId = id;
+                    }
+                }
+            }
+            
+            if (latestTaskId && reminderData[latestTaskId]) {
+                const taskToUpdate = reminderData[latestTaskId] as any;
+                
+                // 设置父任务ID
+                taskToUpdate.parentId = parentTask.id;
+                
+                // 注意：象限信息已经在创建时通过 defaultQuadrant 设置了
+                // 这里不再需要重新设置象限
+                
+                // 保存数据
+                await writeReminderData(reminderData);
+                
+                console.log(`成功创建子任务: ${taskToUpdate.title}，父任务: ${parentTask.title}`);
+            }
+        } catch (error) {
+            console.error('设置父任务关系失败:', error);
+        }
     }
 
     private startPomodoro(task: QuadrantTask) {
