@@ -1321,7 +1321,7 @@ export class ProjectKanbanView {
                 if (newStatus === 'done') {
                     reminderData[task.id].completed = true;
                     reminderData[task.id].completedTime = getLocalDateTimeString(new Date());
-                    
+
                     // 父任务完成时，自动完成所有子任务
                     await this.completeAllChildTasks(task.id, reminderData);
                 } else {
@@ -1358,7 +1358,7 @@ export class ProjectKanbanView {
         try {
             // 获取所有子任务ID（递归获取所有后代）
             const descendantIds = this.getAllDescendantIds(parentId, reminderData);
-            
+
             if (descendantIds.length === 0) {
                 return; // 没有子任务，直接返回
             }

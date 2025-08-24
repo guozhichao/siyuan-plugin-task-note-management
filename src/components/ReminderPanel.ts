@@ -667,7 +667,7 @@ export class ReminderPanel {
 
             // 获取所有后代任务ID
             const descendantIds = this.getAllDescendantIds(parentId, reminderMap);
-            
+
             if (descendantIds.length === 0) {
                 return; // 没有子任务，直接返回
             }
@@ -1180,7 +1180,7 @@ export class ReminderPanel {
                 // 记录或清除完成时间
                 if (completed) {
                     reminderData[reminderId].completedTime = getLocalDateTimeString(new Date());
-                    
+
                     // 父任务完成时，自动完成所有子任务
                     await this.completeAllChildTasks(reminderId, reminderData);
                 } else {
@@ -1555,14 +1555,9 @@ export class ReminderPanel {
                 backgroundColor = 'var(--b3-theme-surface-lighter)';
                 borderColor = 'var(--b3-theme-surface-lighter)';
         }
-        if (!isOverdue) {
-            reminderEl.style.backgroundColor = backgroundColor;
-            reminderEl.style.border = `2px solid ${borderColor}`;
-        } else {
-            if (priority !== 'none') {
-                reminderEl.style.borderLeft = `4px solid ${borderColor}`;
-            }
-        }
+        reminderEl.style.backgroundColor = backgroundColor;
+        reminderEl.style.border = `2px solid ${borderColor}`;
+
 
 
         reminderEl.dataset.reminderId = reminder.id;
@@ -3564,6 +3559,11 @@ export class ReminderPanel {
                             <input type="text" id="taskTitle" class="b3-text-field" placeholder="请输入任务标题" required>
                         </div>
                         <div class="b3-form__group">
+                            <label class="b3-form__label">所属项目</label>
+                            <div class="b3-form__desc">选择子任务所属的项目</div>
+                            <div class="project-selector" id="projectSelector" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;"></div>
+                        </div>
+                        <div class="b3-form__group">
                             <label class="b3-form__label">分类
                                 <button type="button" id="manageCategoriesBtn" class="b3-button b3-button--outline" title="管理分类" style="margin-left: 8px; vertical-align: middle;">
                                     <svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg>
@@ -3616,7 +3616,7 @@ export class ReminderPanel {
                     </div>
                 </div>`,
             width: "500px",
-            height: "650px"
+            height: "720px"
         });
 
         const titleInput = dialog.element.querySelector('#taskTitle') as HTMLInputElement;
@@ -3625,6 +3625,7 @@ export class ReminderPanel {
         const endDateInput = dialog.element.querySelector('#taskEndDate') as HTMLInputElement;
         const prioritySelector = dialog.element.querySelector('#prioritySelector') as HTMLElement;
         const categorySelector = dialog.element.querySelector('#categorySelector') as HTMLElement;
+        const projectSelector = dialog.element.querySelector('#projectSelector') as HTMLElement;
         const manageCategoriesBtn = dialog.element.querySelector('#manageCategoriesBtn') as HTMLButtonElement;
         const blockIdInput = dialog.element.querySelector('#taskBlockId') as HTMLInputElement;
         const blockPreview = dialog.element.querySelector('#blockPreview') as HTMLElement;
@@ -3636,6 +3637,9 @@ export class ReminderPanel {
 
         // 渲染并绑定分类选择器
         this.renderCategorySelector(categorySelector);
+
+        // 渲染并绑定项目选择器
+        this.renderProjectSelector(projectSelector);
 
         // 绑定优先级选择事件
         prioritySelector.addEventListener('click', (e) => {
@@ -3679,6 +3683,13 @@ export class ReminderPanel {
 
         // 预填父任务信息
         if (parentReminder) {
+            // 预选项目
+            const projectOption = projectSelector.querySelector(`.project-option[data-project="${parentReminder.projectId || ''}"]`) as HTMLElement;
+            if (projectOption) {
+                projectSelector.querySelectorAll('.project-option').forEach(opt => opt.classList.remove('selected'));
+                projectOption.classList.add('selected');
+            }
+
             // 预选分类
             const categoryOption = categorySelector.querySelector(`.category-option[data-category="${parentReminder.categoryId || ''}"]`) as HTMLElement;
             if (categoryOption) {
@@ -3713,6 +3724,9 @@ export class ReminderPanel {
                 const selectedCategory = categorySelector.querySelector('.category-option.selected') as HTMLElement;
                 const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
 
+                const selectedProject = projectSelector.querySelector('.project-option.selected') as HTMLElement;
+                const projectId = selectedProject?.getAttribute('data-project') || undefined;
+
                 const blockId = blockIdInput.value.trim() || undefined;
 
                 await this.createSubtask({
@@ -3722,6 +3736,7 @@ export class ReminderPanel {
                     endDate: endDateInput.value,
                     priority: priority,
                     categoryId: categoryId,
+                    projectId: projectId,
                     blockId: blockId
                 }, parentReminder);
 
@@ -3754,6 +3769,7 @@ export class ReminderPanel {
             endDate: taskData.endDate || undefined,
             priority: taskData.priority === 'none' ? undefined : taskData.priority,
             categoryId: taskData.categoryId,
+            projectId: taskData.projectId, // 添加项目ID
             parentId: parentReminder.id,
             completed: false,
             created: getLocalDateTimeString(),
@@ -3816,6 +3832,58 @@ export class ReminderPanel {
                 option.classList.add('selected');
             }
         });
+    }
+
+    private async renderProjectSelector(container: HTMLElement, defaultProjectId?: string) {
+        container.innerHTML = '';
+        
+        try {
+            const projectData = await readProjectData();
+            const projects = Object.values(projectData || {});
+
+            // 添加"无项目"选项
+            const noProjectEl = document.createElement('div');
+            noProjectEl.className = 'project-option';
+            noProjectEl.setAttribute('data-project', '');
+            noProjectEl.innerHTML = `<span>📂 无项目</span>`;
+            if (!defaultProjectId) {
+                noProjectEl.classList.add('selected');
+            }
+            container.appendChild(noProjectEl);
+
+            // 添加所有项目选项
+            projects.forEach((project: any) => {
+                if (project && project.id && project.title) {
+                    const projectEl = document.createElement('div');
+                    projectEl.className = 'project-option';
+                    projectEl.setAttribute('data-project', project.id);
+                    projectEl.innerHTML = `<span>📁 ${project.title}</span>`;
+                    if (project.id === defaultProjectId) {
+                        projectEl.classList.add('selected');
+                    }
+                    container.appendChild(projectEl);
+                }
+            });
+
+            // 绑定点击事件
+            container.addEventListener('click', (e) => {
+                const target = e.target as HTMLElement;
+                const option = target.closest('.project-option') as HTMLElement;
+                if (option) {
+                    container.querySelectorAll('.project-option').forEach(opt => opt.classList.remove('selected'));
+                    option.classList.add('selected');
+                }
+            });
+
+        } catch (error) {
+            console.error('加载项目数据失败:', error);
+            // 出错时至少显示"无项目"选项
+            const noProjectEl = document.createElement('div');
+            noProjectEl.className = 'project-option selected';
+            noProjectEl.setAttribute('data-project', '');
+            noProjectEl.innerHTML = `<span>📂 无项目</span>`;
+            container.appendChild(noProjectEl);
+        }
     }
 
     private addReminderDialogStyles() {
@@ -3885,6 +3953,36 @@ export class ReminderPanel {
                 background-color: var(--b3-theme-surface-lighter);
                 color: var(--b3-theme-on-surface);
             }
+            
+            .project-selector .project-option {
+                padding: 4px 12px;
+                border-radius: 14px;
+                cursor: pointer;
+                transition: all 0.15s ease;
+                border: 1px solid var(--b3-theme-border);
+                background-color: var(--b3-theme-surface-lighter);
+                color: var(--b3-theme-on-surface);
+                margin: 2px;
+            }
+            .project-selector .project-option:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                border-color: var(--b3-theme-primary);
+            }
+            .project-selector .project-option.selected {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 2px var(--b3-theme-primary-lightest);
+                background-color: var(--b3-theme-primary-lightest);
+                border-color: var(--b3-theme-primary);
+                color: var(--b3-theme-primary);
+                font-weight: 500;
+            }
+            .project-selector .project-option[data-project=""] {
+                border: 1px dashed var(--b3-theme-border);
+                color: var(--b3-theme-on-surface);
+                opacity: 0.8;
+            }
+            
             .reminder-date-container {
                 display: flex;
                 align-items: center;

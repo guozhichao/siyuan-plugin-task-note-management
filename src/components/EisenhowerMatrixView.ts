@@ -969,7 +969,7 @@ export class EisenhowerMatrixView {
 
             if (reminderData[task.id]) {
                 reminderData[task.id].completed = completed;
-                
+
                 // 如果是完成任务，记录完成时间并自动完成所有子任务
                 if (completed) {
                     reminderData[task.id].completedTime = getLocalDateTimeString(new Date());
@@ -977,7 +977,7 @@ export class EisenhowerMatrixView {
                 } else {
                     delete reminderData[task.id].completedTime;
                 }
-                
+
                 await writeReminderData(reminderData);
 
                 await this.refresh();
@@ -998,7 +998,7 @@ export class EisenhowerMatrixView {
         try {
             // 获取所有子任务ID（递归获取所有后代）
             const descendantIds = this.getAllDescendantIds(parentId, reminderData);
-            
+
             if (descendantIds.length === 0) {
                 return; // 没有子任务，直接返回
             }
@@ -1953,15 +1953,15 @@ export class EisenhowerMatrixView {
         // 检查是否有子任务
         const childTasks = this.allTasks.filter(t => t.parentId === task.id);
         const hasChildren = childTasks.length > 0;
-        
+
         let title = '删除提醒';
         let content = '确定要删除任务 "${title}" 吗？\n\n此操作不可撤销。';
-        
+
         if (hasChildren) {
             title = '删除任务及子任务';
             content = '确定要删除任务 "${title}" 及其 ${count} 个子任务吗？\n\n此操作不可撤销。';
         }
-        
+
         content = content
             .replace(/\${title}/g, task.title)
             .replace(/\${count}/g, childTasks.length.toString());
@@ -1981,7 +1981,7 @@ export class EisenhowerMatrixView {
                     // 收集所有要删除的任务ID（包括子任务）
                     const taskIdsToDelete = new Set<string>();
                     taskIdsToDelete.add(task.id);
-                    
+
                     // 递归收集所有子任务
                     const collectChildTasks = (parentId: string) => {
                         Object.entries(reminderData).forEach(([id, reminder]) => {
@@ -1992,7 +1992,7 @@ export class EisenhowerMatrixView {
                             }
                         });
                     };
-                    
+
                     collectChildTasks(task.id);
 
                     // 删除所有相关任务
@@ -2008,7 +2008,7 @@ export class EisenhowerMatrixView {
                         await writeReminderData(reminderData);
                         await this.refresh();
                         window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                        
+
                         if (deletedCount > 1) {
                             showMessage(`已删除 ${deletedCount} 个任务（包括子任务）`);
                         } else {
