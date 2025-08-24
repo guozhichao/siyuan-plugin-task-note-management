@@ -944,8 +944,8 @@ export class ProjectKanbanView {
                 const isInParentChildZone = !isInTopSortZone && !isInBottomSortZone;
 
                 // 排序检查（支持优先级排序和子任务排序）
-                const canSort = (this.currentSort === 'priority' && this.canDropForSort(this.draggedTask, targetTask)) || 
-                              this.canDropForSort(this.draggedTask, targetTask);
+                const canSort = (this.currentSort === 'priority' && this.canDropForSort(this.draggedTask, targetTask)) ||
+                    this.canDropForSort(this.draggedTask, targetTask);
                 const canSetParentChild = this.canSetAsParentChild(this.draggedTask, targetTask);
 
                 if ((isInTopSortZone || isInBottomSortZone) && canSort) {
@@ -1184,7 +1184,7 @@ export class ProjectKanbanView {
 
 
 
-   
+
         menu.addSeparator();
 
         // 设置优先级子菜单
@@ -3139,7 +3139,7 @@ export class ProjectKanbanView {
 
     private canDropForSort(draggedTask: any, targetTask: any): boolean {
         if (!draggedTask || !targetTask) return false;
-        
+
         // 情况1：同级顶层任务之间排序（相同优先级）
         if (!draggedTask.parentId && !targetTask.parentId) {
             // 只允许在相同优先级内拖动
@@ -3147,12 +3147,12 @@ export class ProjectKanbanView {
             const targetPriority = targetTask.priority || 'none';
             return draggedPriority === targetPriority;
         }
-        
+
         // 情况2：子任务之间排序（同一个父任务下）
         if (draggedTask.parentId && targetTask.parentId) {
             return draggedTask.parentId === targetTask.parentId;
         }
-        
+
         // 情况3：不允许顶层任务与子任务之间排序
         return false;
     }
@@ -3168,10 +3168,10 @@ export class ProjectKanbanView {
 
         // 不能将任务拖拽到自己身上
         if (draggedTask.id === targetTask.id) return false;
-        
+
         // 如果两个任务都是子任务且属于同一个父任务，不显示父子关系提示
         // （应该显示排序提示）
-        if (draggedTask.parentId && targetTask.parentId && 
+        if (draggedTask.parentId && targetTask.parentId &&
             draggedTask.parentId === targetTask.parentId) {
             return false;
         }
@@ -3225,9 +3225,9 @@ export class ProjectKanbanView {
         event?: DragEvent
     ) {
         // 检查是否需要更新
-        const needsUpdate = this.currentIndicatorType !== type || 
-                           this.currentIndicatorTarget !== target ||
-                           this.currentIndicatorPosition !== position;
+        const needsUpdate = this.currentIndicatorType !== type ||
+            this.currentIndicatorTarget !== target ||
+            this.currentIndicatorPosition !== position;
 
         if (!needsUpdate) {
             return; // 状态没有改变，不需要更新
@@ -3266,7 +3266,7 @@ export class ProjectKanbanView {
     private clearAllIndicators() {
         // 移除排序指示器
         this.container.querySelectorAll('.drop-indicator').forEach(indicator => indicator.remove());
-        
+
         // 移除父子关系指示器
         this.container.querySelectorAll('.parent-child-indicator').forEach(indicator => indicator.remove());
         this.container.querySelectorAll('.parent-child-drop-target').forEach(el => {
@@ -3322,34 +3322,6 @@ export class ProjectKanbanView {
     private createParentChildIndicator(element: HTMLElement) {
         element.classList.add('parent-child-drop-target');
 
-        const indicator = document.createElement('div');
-        indicator.className = 'parent-child-indicator';
-        indicator.innerHTML = `
-            <div class="parent-child-hint">
-                <svg style="width: 16px; height: 16px; margin-right: 4px;">
-                    <use xlink:href="#iconLink"></use>
-                </svg>
-                拖拽到中间设置子任务
-            </div>
-        `;
-        indicator.style.cssText = `
-            position: absolute;
-            top: -35px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--b3-theme-primary);
-            color: white;
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 12px;
-            white-space: nowrap;
-            z-index: 1001;
-            pointer-events: none;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        `;
-
-        element.style.position = 'relative';
-        element.appendChild(indicator);
     }
 
     /**
@@ -3477,13 +3449,13 @@ export class ProjectKanbanView {
             const newStatus = this.getTaskStatus(targetTaskInDb);
 
             // 检查是否为子任务排序
-            const isSubtaskReorder = draggedTaskInDb.parentId && targetTaskInDb.parentId && 
-                                   draggedTaskInDb.parentId === targetTaskInDb.parentId;
+            const isSubtaskReorder = draggedTaskInDb.parentId && targetTaskInDb.parentId &&
+                draggedTaskInDb.parentId === targetTaskInDb.parentId;
 
             if (isSubtaskReorder) {
                 // 子任务排序逻辑
                 const parentId = draggedTaskInDb.parentId;
-                
+
                 // 获取同一父任务下的所有子任务
                 const siblingTasks = Object.values(reminderData)
                     .filter((r: any) => r && r.parentId === parentId && r.id !== draggedId)
