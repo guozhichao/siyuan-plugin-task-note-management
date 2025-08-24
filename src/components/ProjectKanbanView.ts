@@ -306,8 +306,9 @@ export class ProjectKanbanView {
             }
         });
 
-        element.addEventListener('dragleave', (e) => {
-            if (!element.contains(e.relatedTarget as Node)) {
+        element.addEventListener('dragleave', (_e) => {
+            // 使用 contains 检查离开目标区域时清除样式
+            if (!element.contains((_e as any).relatedTarget as Node)) {
                 element.classList.remove('kanban-drop-zone-active');
                 this.updateIndicator('none', null, null);
             }
@@ -367,6 +368,32 @@ export class ProjectKanbanView {
             });
 
             this.sortTasks();
+
+            // 默认将所有存在子任务的父任务设置为折叠状态，但跳过处于进行中的父任务（保持进行中任务展开）
+            try {
+                this.collapsedTasks.clear();
+                const taskIds = new Set(this.tasks.map(t => t.id));
+
+                // 收集父任务及其子任务
+                const parentMap = new Map<string, any[]>();
+                this.tasks.forEach(t => {
+                    if (t.parentId && taskIds.has(t.parentId)) {
+                        if (!parentMap.has(t.parentId)) parentMap.set(t.parentId, []);
+                        parentMap.get(t.parentId)!.push(t);
+                    }
+                });
+
+                // 仅折叠那些父任务本身不是 'doing' 的父任务
+                parentMap.forEach((_children, parentId) => {
+                    const parent = this.tasks.find(p => p.id === parentId);
+                    if (!parent) return;
+                    if (parent.status !== 'doing') {
+                        this.collapsedTasks.add(parentId);
+                    }
+                });
+            } catch (err) {
+                console.warn('设置默认折叠任务失败:', err);
+            }
 
             console.log('任务加载完成');
             console.log('任务排序方式:', this.currentSort, this.currentSortOrder);
@@ -966,9 +993,9 @@ export class ProjectKanbanView {
             }
         });
 
-        taskEl.addEventListener('dragleave', (e) => {
+        taskEl.addEventListener('dragleave', (_e) => {
             // 检查是否真的离开了目标区域
-            if (!taskEl.contains(e.relatedTarget as Node)) {
+            if (!taskEl.contains((_e as any).relatedTarget as Node)) {
                 this.updateIndicator('none', null, null);
             }
         });
@@ -3356,7 +3383,7 @@ export class ProjectKanbanView {
     /**
      * 创建父子任务指示器，支持指定位置
      */
-    private createParentChildIndicator(element: HTMLElement, position: 'top' | 'middle' = 'middle') {
+    private createParentChildIndicator(element: HTMLElement, _position: 'top' | 'middle' = 'middle') {
         element.classList.add('parent-child-drop-target');
 
     }
