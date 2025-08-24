@@ -9,7 +9,11 @@ import { t } from "../utils/i18n";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroStatsView } from "./PomodoroStatsView";
+import { EisenhowerMatrixView } from "./EisenhowerMatrixView";
 import { PROJECT_KANBAN_TAB_TYPE } from "../index";
+
+// 添加四象限面板常量
+const EISENHOWER_TAB_TYPE = "reminder_eisenhower_tab";
 
 export class ReminderPanel {
     private container: HTMLElement;
@@ -146,38 +150,6 @@ export class ReminderPanel {
         actionContainer.className = 'reminder-panel__actions';
         actionContainer.style.marginLeft = 'auto';
 
-        // 添加分类管理按钮
-        const categoryManageBtn = document.createElement('button');
-        categoryManageBtn.className = 'b3-button b3-button--outline';
-        categoryManageBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconTags"></use></svg>';
-        categoryManageBtn.title = t("manageCategories");
-        categoryManageBtn.addEventListener('click', () => {
-            this.showCategoryManageDialog();
-        });
-        actionContainer.appendChild(categoryManageBtn);
-
-        // 添加番茄钟统计按钮
-        const pomodoroStatsBtn = document.createElement('button');
-        pomodoroStatsBtn.className = 'b3-button b3-button--outline';
-        pomodoroStatsBtn.innerHTML = '🍅';
-        pomodoroStatsBtn.title = t("pomodoroStats");
-        pomodoroStatsBtn.addEventListener('click', () => {
-            this.showPomodoroStatsView();
-        });
-        actionContainer.appendChild(pomodoroStatsBtn);
-
-        // 添加日历视图按钮
-        if (this.plugin) {
-            const calendarBtn = document.createElement('button');
-            calendarBtn.className = 'b3-button b3-button--outline';
-            calendarBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconCalendar"></use></svg>';
-            calendarBtn.title = t("calendarView");
-            calendarBtn.addEventListener('click', () => {
-                this.plugin.openCalendarTab();
-            });
-            actionContainer.appendChild(calendarBtn);
-        }
-
         // 添加排序按钮
         this.sortButton = document.createElement('button');
         this.sortButton.className = 'b3-button b3-button--outline';
@@ -190,15 +162,51 @@ export class ReminderPanel {
         });
         actionContainer.appendChild(this.sortButton);
 
-        // 添加刷新按钮
-        const refreshBtn = document.createElement('button');
-        refreshBtn.className = 'b3-button b3-button--outline';
-        refreshBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>';
-        refreshBtn.title = t("refresh");
-        refreshBtn.addEventListener('click', () => {
-            this.loadReminders();
+        // 添加日历视图按钮和番茄钟统计按钮放在一起
+        if (this.plugin) {
+            const calendarBtn = document.createElement('button');
+            calendarBtn.className = 'b3-button b3-button--outline';
+            calendarBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconCalendar"></use></svg>';
+            calendarBtn.title = t("calendarView");
+            calendarBtn.addEventListener('click', () => {
+                this.plugin.openCalendarTab();
+            });
+            actionContainer.appendChild(calendarBtn);
+
+
+
+            // 添加四象限面板按钮
+            const eisenhowerBtn = document.createElement('button');
+            eisenhowerBtn.className = 'b3-button b3-button--outline';
+            eisenhowerBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconGrid"></use></svg>';
+            eisenhowerBtn.title = t("eisenhowerMatrix") || "四象限面板";
+            eisenhowerBtn.addEventListener('click', () => {
+                this.openEisenhowerMatrix();
+            });
+            actionContainer.appendChild(eisenhowerBtn);
+
+            // 添加番茄钟统计按钮
+            const pomodoroStatsBtn = document.createElement('button');
+            pomodoroStatsBtn.className = 'b3-button b3-button--outline';
+            pomodoroStatsBtn.innerHTML = '🍅';
+            pomodoroStatsBtn.title = t("pomodoroStats");
+            pomodoroStatsBtn.addEventListener('click', () => {
+                this.showPomodoroStatsView();
+            });
+            actionContainer.appendChild(pomodoroStatsBtn);
+        }
+
+        // 添加更多按钮（放在最右边）
+        const moreBtn = document.createElement('button');
+        moreBtn.className = 'b3-button b3-button--outline';
+        moreBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconMore"></use></svg>';
+        moreBtn.title = t("more") || "更多";
+        moreBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.showMoreMenu(e);
         });
-        actionContainer.appendChild(refreshBtn);
+        actionContainer.appendChild(moreBtn);
 
         titleContainer.appendChild(actionContainer);
 
@@ -4031,6 +4039,65 @@ export class ReminderPanel {
         } catch (error) {
             console.error('打开番茄钟统计视图失败:', error);
             showMessage("打开番茄钟统计视图失败");
+        }
+    }
+
+    /**
+     * 打开四象限面板
+     */
+    private openEisenhowerMatrix() {
+        try {
+            // 使用openTab打开四象限面板
+            openTab({
+                app: this.plugin.app,
+                custom: {
+                    title: t("eisenhowerMatrix") || "四象限面板",
+                    icon: "iconGrid",
+                    id: this.plugin.name + EISENHOWER_TAB_TYPE
+                }
+            });
+        } catch (error) {
+            console.error('打开四象限面板失败:', error);
+            showMessage("打开四象限面板失败");
+        }
+    }
+
+    /**
+     * 显示更多菜单
+     */
+    private showMoreMenu(event: MouseEvent) {
+        try {
+            const menu = new Menu("reminderMoreMenu");
+
+            // 添加刷新
+            menu.addItem({
+                icon: 'iconRefresh',
+                label: t("refresh") || "刷新",
+                click: () => this.loadReminders()
+            });
+
+            // 添加分类管理
+            menu.addItem({
+                icon: 'iconTags',
+                label: t("manageCategories") || "管理分类",
+                click: () => this.showCategoryManageDialog()
+            });
+
+            // 显示菜单
+            if (event.target instanceof HTMLElement) {
+                const rect = event.target.getBoundingClientRect();
+                menu.open({
+                    x: rect.left,
+                    y: rect.bottom + 4
+                });
+            } else {
+                menu.open({
+                    x: event.clientX,
+                    y: event.clientY
+                });
+            }
+        } catch (error) {
+            console.error('显示更多菜单失败:', error);
         }
     }
 }

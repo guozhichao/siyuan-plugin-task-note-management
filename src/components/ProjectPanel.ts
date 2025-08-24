@@ -1,5 +1,6 @@
 import { showMessage, confirm, Menu, openTab, Dialog } from "siyuan";
 import { PROJECT_KANBAN_TAB_TYPE } from '../index'
+import { PomodoroStatsView } from "./PomodoroStatsView";
 
 // 添加四象限面板常量
 const EISENHOWER_TAB_TYPE = "reminder_eisenhower_tab";
@@ -130,17 +131,17 @@ export class ProjectPanel {
                 this.openEisenhowerMatrix();
             });
             actionContainer.appendChild(eisenhowerBtn);
-        }
 
-        // 添加刷新按钮
-        const refreshBtn = document.createElement('button');
-        refreshBtn.className = 'b3-button b3-button--outline';
-        refreshBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>';
-        refreshBtn.title = t("refresh") || "刷新";
-        refreshBtn.addEventListener('click', () => {
-            this.loadProjects();
-        });
-        actionContainer.appendChild(refreshBtn);
+            // 添加番茄钟看板按钮
+            const pomodoroStatsBtn = document.createElement('button');
+            pomodoroStatsBtn.className = 'b3-button b3-button--outline';
+            pomodoroStatsBtn.innerHTML = '🍅';
+            pomodoroStatsBtn.title = t("pomodoroStats") || "番茄钟统计";
+            pomodoroStatsBtn.addEventListener('click', () => {
+                this.showPomodoroStatsView();
+            });
+            actionContainer.appendChild(pomodoroStatsBtn);
+        }
 
         // 添加更多按钮（放在最右边）
         const moreBtn = document.createElement('button');
@@ -1102,7 +1103,7 @@ export class ProjectPanel {
         // 删除项目
         menu.addItem({
             iconHTML: "🗑️",
-            label:  "删除项目",
+            label: "删除项目",
             click: () => this.deleteProject(project)
         });
 
@@ -1389,6 +1390,13 @@ export class ProjectPanel {
         try {
             const menu = new Menu("projectMoreMenu");
 
+            // 添加刷新
+            menu.addItem({
+                icon: 'iconRefresh',
+                label: t("refresh") || "刷新",
+                click: () => this.loadProjects()
+            });
+
             // 添加分类管理
             menu.addItem({
                 icon: 'iconTags',
@@ -1430,6 +1438,19 @@ export class ProjectPanel {
             }
         } catch (error) {
             console.error('显示更多菜单失败:', error);
+        }
+    }
+
+    /**
+     * 显示番茄钟统计视图
+     */
+    private showPomodoroStatsView() {
+        try {
+            const statsView = new PomodoroStatsView();
+            statsView.show();
+        } catch (error) {
+            console.error('打开番茄钟统计视图失败:', error);
+            showMessage("打开番茄钟统计视图失败");
         }
     }
 }
