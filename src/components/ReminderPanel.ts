@@ -78,6 +78,9 @@ export class ReminderPanel {
         this.loadSortConfig();
         this.loadReminders();
 
+        // 确保对话框样式已加载
+        this.addReminderDialogStyles();
+
         // 监听提醒更新事件
         window.addEventListener('reminderUpdated', this.reminderUpdatedHandler);
         // 监听排序配置更新事件
@@ -3488,72 +3491,353 @@ export class ReminderPanel {
             }
         }, 100);
     }
-    private async createReminder(reminder: any) {
-        const data = await readReminderData();
-        data[reminder.id] = reminder;
-        await writeReminderData(data);
-        window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: reminder }));
-    }
 
     private showCreateSubtaskDialog(parentReminder: any) {
         const dialog = new Dialog({
             title: `为 "${parentReminder.title}" 创建子任务`,
             content: `
-                <form id="create-subtask-form" class="b3-form">
-                    <div class="b3-form__group">
-                        <label class="b3-form__label">${t("title")}</label>
-                        <input type="text" name="title" class="b3-text-field" style="width:100%;" />
+                <div class="reminder-dialog" style="padding-bottom: 0;">
+                    <div class="b3-dialog__content" style="padding-bottom: 0;">
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">任务标题</label>
+                            <input type="text" id="taskTitle" class="b3-text-field" placeholder="请输入任务标题" required>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">分类
+                                <button type="button" id="manageCategoriesBtn" class="b3-button b3-button--outline" title="管理分类" style="margin-left: 8px; vertical-align: middle;">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg>
+                                </button>
+                            </label>
+                            <div class="category-selector" id="categorySelector" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;"></div>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">优先级</label>
+                            <div class="priority-selector" id="prioritySelector">
+                                <div class="priority-option" data-priority="high"><div class="priority-dot high"></div><span>高</span></div>
+                                <div class="priority-option" data-priority="medium"><div class="priority-dot medium"></div><span>中</span></div>
+                                <div class="priority-option" data-priority="low"><div class="priority-dot low"></div><span>低</span></div>
+                                <div class="priority-option selected" data-priority="none"><div class="priority-dot none"></div><span>无</span></div>
+                            </div>
+                        </div>
+                         <div class="b3-form__group">
+                            <label class="b3-form__label">任务日期</label>
+                            <div class="reminder-date-container">
+                                <input type="date" id="taskStartDate" class="b3-text-field" title="开始日期">
+                                <span class="reminder-arrow">→</span>
+                                <input type="date" id="taskEndDate" class="b3-text-field" title="结束日期">
+                            </div>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">绑定块 (可选)</label>
+                            <div class="b3-form__desc">输入块ID将任务绑定到指定块</div>
+                            <input type="text" id="taskBlockId" class="b3-text-field" placeholder="请输入块ID (可选)" style="width: 100%; margin-top: 8px;">
+                            <div id="blockPreview" class="block-content-preview" style="
+                                display: none;
+                                padding: 8px;
+                                background-color: var(--b3-theme-surface-lighter);
+                                border-radius: 4px;
+                                border: 1px solid var(--b3-theme-border);
+                                max-height: 60px;
+                                overflow-y: auto;
+                                font-size: 12px;
+                                color: var(--b3-theme-on-surface);
+                                margin-top: 8px;
+                            "></div>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">备注</label>
+                            <textarea id="taskNote" class="b3-text-field" placeholder="请输入任务备注" rows="2" style="width: 100%;resize: vertical; min-height: 60px;"></textarea>
+                        </div>
                     </div>
-                    <div class="b3-form__group">
-                        <label class="b3-form__label">${t("date")} (可选)</label>
-                        <input type="date" name="date" class="b3-text-field" style="width:100%;" />
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="cancelBtn">取消</button>
+                        <button class="b3-button b3-button--primary" id="createBtn">创建</button>
                     </div>
-                </form>
-            `,
-            width: "400px",
-            buttons: [
-                {
-                    text: t("cancel"),
-                    className: "b3-button b3-button--cancel",
-                    onclick: () => dialog.destroy()
-                },
-                {
-                    text: t("create"),
-                    className: "b3-button b3-button--primary",
-                    onclick: async () => {
-                        try {
-                            const form = dialog.element.querySelector("#create-subtask-form") as HTMLFormElement;
-                            const title = (form.querySelector('input[name="title"]') as HTMLInputElement).value.trim();
-                            const date = (form.querySelector('input[name="date"]') as HTMLInputElement).value || undefined;
-
-                            if (!title) {
-                                showMessage(t("titleCannotBeEmpty"));
-                                return;
-                            }
-
-                            const newId = `rem-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-                            const subtask: any = {
-                                id: newId,
-                                title,
-                                parentId: parentReminder.id,
-                                date: date,
-                                completed: false,
-                                created: getLocalDateTimeString(),
-                                sort: 0
-                            };
-
-                            await this.createReminder(subtask);
-                            dialog.destroy();
-                        } catch (error) {
-                            console.error('创建子任务失败:', error);
-                            showMessage("创建子任务失败");
-                        }
-                    }
-                }
-            ]
+                </div>`,
+            width: "500px",
+            height: "650px"
         });
-        const titleInput = dialog.element.querySelector('input[name="title"]') as HTMLInputElement;
-        setTimeout(() => titleInput.focus(), 100);
+
+        const titleInput = dialog.element.querySelector('#taskTitle') as HTMLInputElement;
+        const noteInput = dialog.element.querySelector('#taskNote') as HTMLTextAreaElement;
+        const startDateInput = dialog.element.querySelector('#taskStartDate') as HTMLInputElement;
+        const endDateInput = dialog.element.querySelector('#taskEndDate') as HTMLInputElement;
+        const prioritySelector = dialog.element.querySelector('#prioritySelector') as HTMLElement;
+        const categorySelector = dialog.element.querySelector('#categorySelector') as HTMLElement;
+        const manageCategoriesBtn = dialog.element.querySelector('#manageCategoriesBtn') as HTMLButtonElement;
+        const blockIdInput = dialog.element.querySelector('#taskBlockId') as HTMLInputElement;
+        const blockPreview = dialog.element.querySelector('#blockPreview') as HTMLElement;
+        const cancelBtn = dialog.element.querySelector('#cancelBtn') as HTMLButtonElement;
+        const createBtn = dialog.element.querySelector('#createBtn') as HTMLButtonElement;
+
+        // 确保样式已加载
+        this.addReminderDialogStyles();
+
+        // 渲染并绑定分类选择器
+        this.renderCategorySelector(categorySelector);
+
+        // 绑定优先级选择事件
+        prioritySelector.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const option = target.closest('.priority-option') as HTMLElement;
+            if (option) {
+                prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+            }
+        });
+
+        // 管理分类按钮事件
+        manageCategoriesBtn.addEventListener('click', () => {
+            new CategoryManageDialog(() => {
+                this.renderCategorySelector(categorySelector);
+            }).show();
+        });
+
+        // 监听块ID输入变化
+        blockIdInput.addEventListener('input', async () => {
+            const blockId = blockIdInput.value.trim();
+            if (blockId.length >= 20) { // 块ID通常是20位字符
+                try {
+                    const block = await getBlockByID(blockId);
+                    if (block) {
+                        const blockContent = block.content || block.fcontent || '未命名块';
+                        blockPreview.textContent = `预览: ${blockContent}`;
+                        blockPreview.style.display = 'block';
+                    } else {
+                        blockPreview.style.display = 'none';
+                    }
+                } catch (error) {
+                    blockPreview.style.display = 'none';
+                }
+            } else {
+                blockPreview.style.display = 'none';
+            }
+        });
+
+        cancelBtn.addEventListener('click', () => dialog.destroy());
+
+        // 预填父任务信息
+        if (parentReminder) {
+            // 预选分类
+            const categoryOption = categorySelector.querySelector(`.category-option[data-category="${parentReminder.categoryId || ''}"]`) as HTMLElement;
+            if (categoryOption) {
+                categorySelector.querySelectorAll('.category-option').forEach(opt => opt.classList.remove('selected'));
+                categoryOption.classList.add('selected');
+            }
+
+            // 预选优先级
+            const priorityOption = prioritySelector.querySelector(`.priority-option[data-priority="${parentReminder.priority || 'none'}"]`) as HTMLElement;
+            if (priorityOption) {
+                prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
+                priorityOption.classList.add('selected');
+            }
+        }
+
+        createBtn.addEventListener('click', async () => {
+            const title = titleInput.value.trim();
+            if (!title) {
+                showMessage("请输入任务标题");
+                titleInput.focus();
+                return;
+            }
+
+            // 禁用按钮防止重复提交
+            createBtn.disabled = true;
+            createBtn.textContent = "创建中...";
+
+            try {
+                const selectedPriority = prioritySelector.querySelector('.priority-option.selected') as HTMLElement;
+                const priority = selectedPriority?.getAttribute('data-priority') || 'none';
+
+                const selectedCategory = categorySelector.querySelector('.category-option.selected') as HTMLElement;
+                const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
+
+                const blockId = blockIdInput.value.trim() || undefined;
+
+                await this.createSubtask({
+                    title: title,
+                    note: noteInput.value.trim(),
+                    date: startDateInput.value,
+                    endDate: endDateInput.value,
+                    priority: priority,
+                    categoryId: categoryId,
+                    blockId: blockId
+                }, parentReminder);
+
+                showMessage("子任务创建成功");
+                dialog.destroy();
+            } catch (error) {
+                console.error('创建子任务失败:', error);
+                showMessage("创建子任务失败");
+                // 恢复按钮状态
+                createBtn.disabled = false;
+                createBtn.textContent = "创建";
+            }
+        });
+
+        // 自动聚焦标题输入框
+        setTimeout(() => {
+            titleInput.focus();
+        }, 100);
+    }
+
+    private async createSubtask(taskData: any, parentReminder: any) {
+        const reminderData = await readReminderData();
+        const taskId = `rem-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+        const newSubtask: any = {
+            id: taskId,
+            title: taskData.title,
+            note: taskData.note || '',
+            date: taskData.date || undefined,
+            endDate: taskData.endDate || undefined,
+            priority: taskData.priority === 'none' ? undefined : taskData.priority,
+            categoryId: taskData.categoryId,
+            parentId: parentReminder.id,
+            completed: false,
+            created: getLocalDateTimeString(),
+            sort: 0
+        };
+
+        // 如果提供了块ID，添加绑定信息
+        if (taskData.blockId) {
+            try {
+                const block = await getBlockByID(taskData.blockId);
+                if (block) {
+                    newSubtask.blockId = taskData.blockId;
+                    newSubtask.docId = block.root_id || taskData.blockId;
+
+                    // 更新块的书签状态
+                    await updateBlockReminderBookmark(taskData.blockId);
+                }
+            } catch (error) {
+                console.error('绑定块失败:', error);
+                showMessage("警告：块绑定失败，但任务已创建");
+            }
+        }
+
+        reminderData[taskId] = newSubtask;
+        await writeReminderData(reminderData);
+
+        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+    }
+
+    private renderCategorySelector(container: HTMLElement, defaultCategoryId?: string) {
+        container.innerHTML = '';
+        const categories = this.categoryManager.getCategories();
+
+        const noCategoryEl = document.createElement('div');
+        noCategoryEl.className = 'category-option';
+        noCategoryEl.setAttribute('data-category', '');
+        noCategoryEl.innerHTML = `<span>无分类</span>`;
+        if (!defaultCategoryId) {
+            noCategoryEl.classList.add('selected');
+        }
+        container.appendChild(noCategoryEl);
+
+        categories.forEach(category => {
+            const categoryEl = document.createElement('div');
+            categoryEl.className = 'category-option';
+            categoryEl.setAttribute('data-category', category.id);
+            categoryEl.style.backgroundColor = category.color;
+            categoryEl.innerHTML = `<span>${category.icon ? category.icon + ' ' : ''}${category.name}</span>`;
+            if (category.id === defaultCategoryId) {
+                categoryEl.classList.add('selected');
+            }
+            container.appendChild(categoryEl);
+        });
+
+        container.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const option = target.closest('.category-option') as HTMLElement;
+            if (option) {
+                container.querySelectorAll('.category-option').forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+            }
+        });
+    }
+
+    private addReminderDialogStyles() {
+        // 检查是否已经添加过样式
+        if (document.querySelector('#reminder-dialog-styles')) {
+            return;
+        }
+
+        const style = document.createElement('style');
+        style.id = 'reminder-dialog-styles';
+        style.textContent = `
+            .reminder-dialog .b3-form__group {
+                margin-bottom: 16px;
+            }
+            .reminder-dialog .b3-form__label {
+                display: block;
+                margin-bottom: 8px;
+                font-weight: 500;
+            }
+            .priority-selector {
+                display: flex;
+                gap: 8px;
+            }
+            .priority-option {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                padding: 6px 12px;
+                border-radius: 16px;
+                cursor: pointer;
+                border: 1px solid var(--b3-theme-border);
+                transition: all 0.2s ease;
+            }
+            .priority-option:hover {
+                background-color: var(--b3-theme-surface-lighter);
+            }
+            .priority-option.selected {
+                font-weight: 600;
+                border-color: var(--b3-theme-primary);
+                background-color: var(--b3-theme-primary-lightest);
+                color: var(--b3-theme-primary);
+            }
+            .priority-option .priority-dot {
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+            }
+            .priority-option .priority-dot.high { background-color: #e74c3c; }
+            .priority-option .priority-dot.medium { background-color: #f39c12; }
+            .priority-option .priority-dot.low { background-color: #3498db; }
+            .priority-option .priority-dot.none { background-color: #95a5a6; }
+            
+            .category-selector .category-option {
+                padding: 4px 10px;
+                border-radius: 14px;
+                cursor: pointer;
+                transition: transform 0.15s ease;
+                border: 1px solid transparent;
+                color: white;
+            }
+            .category-selector .category-option.selected {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 2px var(--b3-theme-primary-lightest);
+                font-weight: bold;
+            }
+            .category-selector .category-option[data-category=""] {
+                background-color: var(--b3-theme-surface-lighter);
+                color: var(--b3-theme-on-surface);
+            }
+            .reminder-date-container {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .reminder-date-container .b3-text-field {
+                flex: 1;
+            }
+            .reminder-arrow {
+                color: var(--b3-theme-on-surface);
+                opacity: 0.7;
+            }
+        `;
+        document.head.appendChild(style);
     }
 
     /**
