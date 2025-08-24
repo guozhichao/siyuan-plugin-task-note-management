@@ -416,19 +416,19 @@ export class ReminderEditDialog {
         this.bindEvents();
         await this.renderCategorySelector(); // 渲染分类选择器
         await this.renderProjectSelector(); // 渲染项目选择器
-        
+
         // 初始化日期时间输入框
         setTimeout(() => {
             const noTimeCheckbox = this.dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
             const dateInput = this.dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
             const endDateInput = this.dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
-            
+
             if (this.reminder.time) {
                 // 有时间：设置为datetime-local格式
                 noTimeCheckbox.checked = false;
                 this.toggleDateTimeInputs(false);
                 dateInput.value = `${this.reminder.date}T${this.reminder.time}`;
-                
+
                 // 处理结束时间：如果有结束日期或结束时间，设置结束日期输入框
                 if (this.reminder.endDate) {
                     // 跨天事件：有明确的结束日期
@@ -443,7 +443,7 @@ export class ReminderEditDialog {
                 noTimeCheckbox.checked = true;
                 this.toggleDateTimeInputs(true);
                 dateInput.value = this.reminder.date;
-                
+
                 if (this.reminder.endDate) {
                     endDateInput.value = this.reminder.endDate;
                 }
@@ -603,24 +603,24 @@ export class ReminderEditDialog {
             // 先保存当前值
             const startValue = startDateInput.value;
             const endValue = endDateInput.value;
-            
+
             // 切换类型
             startDateInput.type = 'date';
             endDateInput.type = 'date';
-            
+
             // 如果当前值包含时间，只保留日期部分，不清空日期
             if (startValue && startValue.includes('T')) {
                 startDateInput.value = startValue.split('T')[0];
             } else if (startValue) {
                 startDateInput.value = startValue;
             }
-            
+
             if (endValue && endValue.includes('T')) {
                 endDateInput.value = endValue.split('T')[0];
             } else if (endValue) {
                 endDateInput.value = endValue;
             }
-            
+
             if (dateTimeDesc) {
                 dateTimeDesc.textContent = t("dateOnlyDesc");
             }
@@ -629,11 +629,11 @@ export class ReminderEditDialog {
             // 先保存当前值
             const startValue = startDateInput.value;
             const endValue = endDateInput.value;
-            
+
             // 切换类型
             startDateInput.type = 'datetime-local';
             endDateInput.type = 'datetime-local';
-            
+
             // 如果当前值只有日期，添加默认时间，保留原有日期
             if (startValue && !startValue.includes('T')) {
                 const currentTime = this.reminder.time || getLocalTimeString();
@@ -646,7 +646,7 @@ export class ReminderEditDialog {
                 // 如果已经有完整的datetime-local格式，直接设置
                 startDateInput.value = startValue;
             }
-            
+
             // 处理结束日期输入框
             if (endValue && !endValue.includes('T')) {
                 // 如果结束日期有值但没有时间，添加默认时间
@@ -656,7 +656,7 @@ export class ReminderEditDialog {
                 // 如果已经有完整的datetime-local格式，直接设置
                 endDateInput.value = endValue;
             }
-            
+
             if (dateTimeDesc) {
                 dateTimeDesc.textContent = t("dateTimeDesc");
             }
@@ -773,8 +773,8 @@ export class ReminderEditDialog {
     }
 
     private async saveTimeEdit() {
-    const titleInput = this.dialog.element.querySelector('#editReminderTitle') as HTMLInputElement;
-    const blockInput = this.dialog.element.querySelector('#editBlockInput') as HTMLInputElement;
+        const titleInput = this.dialog.element.querySelector('#editReminderTitle') as HTMLInputElement;
+        const blockInput = this.dialog.element.querySelector('#editBlockInput') as HTMLInputElement;
         const dateInput = this.dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
         const endDateInput = this.dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
         const noTimeCheckbox = this.dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
@@ -783,8 +783,8 @@ export class ReminderEditDialog {
         const selectedCategory = this.dialog.element.querySelector('#editCategorySelector .category-option.selected') as HTMLElement;
         const projectSelector = this.dialog.element.querySelector('#editProjectSelector') as HTMLSelectElement;
 
-    const title = titleInput.value.trim();
-    const inputId = blockInput?.value?.trim() || undefined;
+        const title = titleInput.value.trim();
+        const inputId = blockInput?.value?.trim() || undefined;
         const note = noteInput.value.trim() || undefined;
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
         const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
@@ -952,7 +952,7 @@ export class ReminderEditDialog {
             // 显示保存成功消息
             const isSpanning = endDate && endDate !== date;
             let dateStr: string;
-            
+
             if (isSpanning) {
                 // 跨天事件
                 const startTimeStr = time ? ` ${time}` : '';
@@ -966,7 +966,7 @@ export class ReminderEditDialog {
                 const timeStr = time ? ` ${time}` : '';
                 dateStr = `${date}${timeStr}`;
             }
-            
+
             let successMessage = this.reminder.isInstance ? t("instanceModified") : t("reminderUpdated");
             successMessage += `: ${dateStr}`;
 
@@ -1076,10 +1076,10 @@ export class ReminderEditDialog {
 
         try {
             const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
-            
+
             // 清空并重新构建项目选择器
             projectSelector.innerHTML = '';
-            
+
             // 添加无项目选项
             const noProjectOption = document.createElement('option');
             noProjectOption.value = '';
@@ -1088,7 +1088,7 @@ export class ReminderEditDialog {
                 noProjectOption.selected = true;
             }
             projectSelector.appendChild(noProjectOption);
-            
+
             // 按状态分组添加项目
             Object.keys(groupedProjects).forEach(statusKey => {
                 const projects = groupedProjects[statusKey] || [];
@@ -1096,26 +1096,26 @@ export class ReminderEditDialog {
                     const projectStatus = this.projectManager.getProjectById(project.id)?.status || 'doing';
                     return projectStatus !== 'archived';
                 });
-                
+
                 if (nonArchivedProjects.length > 0) {
                     // 添加状态分组
                     const statusName = this.getStatusDisplayName(statusKey);
                     const optgroup = document.createElement('optgroup');
                     optgroup.label = statusName;
-                    
+
                     nonArchivedProjects.forEach(project => {
                         const option = document.createElement('option');
                         option.value = project.id;
                         option.textContent = project.name;
-                        
+
                         // 如果提醒有项目ID，选中它
                         if (this.reminder.projectId === project.id) {
                             option.selected = true;
                         }
-                        
+
                         optgroup.appendChild(option);
                     });
-                    
+
                     projectSelector.appendChild(optgroup);
                 }
             });
