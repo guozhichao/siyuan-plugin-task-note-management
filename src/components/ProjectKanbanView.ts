@@ -7,6 +7,17 @@ import { ReminderEditDialog } from "./ReminderEditDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 
+// 层级化任务接口
+interface HierarchicalTask {
+    title: string;
+    priority?: string;
+    startDate?: string;
+    endDate?: string;
+    blockId?: string;
+    level: number;
+    children: HierarchicalTask[];
+}
+
 export class ProjectKanbanView {
     private container: HTMLElement;
     private plugin: any;
@@ -1576,21 +1587,29 @@ export class ProjectKanbanView {
             title: "粘贴列表新建任务",
             content: `
                 <div class="b3-dialog__content">
-                    <p class="b3-typography">粘贴Markdown列表或多行文本，每行将创建一个任务。</p>
+                    <p class="b3-typography">粘贴Markdown列表或多行文本，每行将创建一个任务。支持多层级列表自动创建父子任务。</p>
                     <p class="b3-typography" style="font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8; margin-bottom: 4px;">
                         支持语法：<code>@priority=high&startDate=2025-08-12&endDate=2025-08-30</code>
                     </p>
-                    <p class="b3-typography" style="font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8; margin-bottom: 8px;">
+                    <p class="b3-typography" style="font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8; margin-bottom: 4px;">
                         支持块链接：<code>[任务标题](siyuan://blocks/块ID)</code> 或 <code>((块ID '任务标题'))</code>
+                    </p>
+                    <p class="b3-typography" style="font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8; margin-bottom: 8px;">
+                        支持多层级：使用缩进或多个<code>-</code>符号创建父子任务关系
                     </p>
                     <textarea id="taskList" class="b3-text-field"
                         placeholder="示例：
-完成项目文档 @priority=high&startDate=2025-08-12&endDate=2025-08-15
-准备会议材料 @priority=medium&startDate=2025-08-13
-[思源笔记插件开发丨任务笔记管理插件](siyuan://blocks/20250610000808-3vqwuh3)
-((20250610000808-3vqwuh3 '思源笔记插件开发丨任务笔记管理插件'))
-学习新技术 @priority=low"
-                        style="width: 100%; height: 200px; resize: vertical;"></textarea>
+- 完成项目文档 @priority=high&startDate=2025-08-12&endDate=2025-08-15
+  - 需求文档
+  - 技术方案
+    - 架构设计
+    - 接口设计
+- 准备会议材料 @priority=medium&startDate=2025-08-13
+  - PPT制作
+  - 数据整理
+- [思源笔记插件开发丨任务笔记管理插件](siyuan://blocks/20250610000808-3vqwuh3)
+- 学习新技术 @priority=low"
+                        style="width: 100%; height: 250px; resize: vertical;"></textarea>
                 </div>
                 <div class="b3-dialog__action">
                     <button class="b3-button b3-button--cancel" id="cancelBtn">取消</button>
@@ -1613,20 +1632,104 @@ export class ProjectKanbanView {
                 return;
             }
 
-            const lines = text.split('\n').map(line => {
-                // 移除Markdown列表标记
-                return line.replace(/^-\s*/, '').trim();
-            }).filter(line => line.length > 0);
-
-            if (lines.length > 0) {
-                await this.batchCreateTasksWithParams(lines);
+            // 使用新的层级解析方法
+            const hierarchicalTasks = this.parseHierarchicalTaskList(text);
+            
+            if (hierarchicalTasks.length > 0) {
+                await this.batchCreateTasksWithHierarchy(hierarchicalTasks);
                 dialog.destroy();
-                showMessage(`${lines.length} 个任务已创建`);
+                const totalTasks = this.countTotalTasks(hierarchicalTasks);
+                showMessage(`${totalTasks} 个任务已创建`);
             }
         });
     }
 
-    private async batchCreateTasksWithParams(lines: string[]) {
+    /**
+     * 解析层级化任务列表
+     * @param text 输入的文本
+     * @returns 层级化的任务结构
+     */
+    private parseHierarchicalTaskList(text: string): HierarchicalTask[] {
+        const lines = text.split('\n');
+        const tasks: HierarchicalTask[] = [];
+        const stack: Array<{ task: HierarchicalTask; level: number }> = [];
+
+        for (const line of lines) {
+            if (!line.trim()) continue;
+
+            // 计算缩进级别
+            const level = this.calculateIndentLevel(line);
+            const cleanLine = line.trim();
+
+            // 跳过空行和非列表项
+            if (!cleanLine || (!cleanLine.startsWith('-') && level === 0 && !cleanLine.match(/^\s*-/))) {
+                // 如果不是列表项但有内容，作为顶级任务处理
+                if (cleanLine && level === 0) {
+                    const taskData = this.parseTaskLine(cleanLine);
+                    const task: HierarchicalTask = {
+                        ...taskData,
+                        level: 0,
+                        children: []
+                    };
+                    tasks.push(task);
+                    stack.length = 0;
+                    stack.push({ task, level: 0 });
+                }
+                continue;
+            }
+
+            // 移除列表标记（- 或 * 等）
+            const taskContent = cleanLine.replace(/^[-*+]\s*/, '');
+            if (!taskContent) continue;
+
+            const taskData = this.parseTaskLine(taskContent);
+            const task: HierarchicalTask = {
+                ...taskData,
+                level,
+                children: []
+            };
+
+            // 清理栈，移除级别更高或相等的项
+            while (stack.length > 0 && stack[stack.length - 1].level >= level) {
+                stack.pop();
+            }
+
+            if (stack.length === 0) {
+                // 顶级任务
+                tasks.push(task);
+            } else {
+                // 子任务
+                const parent = stack[stack.length - 1].task;
+                parent.children.push(task);
+            }
+
+            stack.push({ task, level });
+        }
+
+        return tasks;
+    }
+
+    /**
+     * 计算行的缩进级别
+     * @param line 文本行
+     * @returns 缩进级别
+     */
+    private calculateIndentLevel(line: string): number {
+        // 匹配开头的空格或制表符
+        const match = line.match(/^(\s*)/);
+        if (!match) return 0;
+
+        const indent = match[1];
+        // 每2个空格或1个制表符算一级
+        const spaces = indent.replace(/\t/g, '  ').length;
+        return Math.floor(spaces / 2);
+    }
+
+    /**
+     * 批量创建层级化任务
+     * @param tasks 层级化任务列表
+     */
+    private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[]) {
         const reminderData = await readReminderData();
         const categoryId = this.project.categoryId; // 继承项目分类
 
@@ -1635,42 +1738,51 @@ export class ProjectKanbanView {
             .filter((r: any) => r && r.projectId === this.projectId && typeof r.sort === 'number')
             .reduce((max: number, task: any) => Math.max(max, task.sort || 0), 0) as number;
 
-        for (const [index, line] of lines.entries()) {
-            const taskId = `quick_${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        let sortCounter = maxSort;
 
-            // 解析任务参数
-            const taskData = this.parseTaskLine(line);
+        // 递归创建任务
+        const createTaskRecursively = async (
+            task: HierarchicalTask, 
+            parentId?: string
+        ): Promise<string> => {
+            const taskId = `quick_${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            sortCounter += 10;
 
             const newTask: any = {
                 id: taskId,
-                title: taskData.title,
+                title: task.title,
                 note: '',
-                priority: taskData.priority || 'none',
+                priority: task.priority || 'none',
                 categoryId: categoryId,
                 projectId: this.projectId,
                 completed: false,
                 kanbanStatus: 'todo',
                 createdTime: new Date().toISOString(),
-                date: taskData.startDate,
-                endDate: taskData.endDate,
-                sort: maxSort + (index + 1) * 10, // 按顺序分配排序值
+                date: task.startDate,
+                endDate: task.endDate,
+                sort: sortCounter,
             };
 
+            // 如果有父任务ID，设置parentId
+            if (parentId) {
+                newTask.parentId = parentId;
+            }
+
             // 如果解析出了块ID，尝试绑定块
-            if (taskData.blockId) {
+            if (task.blockId) {
                 try {
-                    const block = await getBlockByID(taskData.blockId);
+                    const block = await getBlockByID(task.blockId);
                     if (block) {
-                        newTask.blockId = taskData.blockId;
-                        newTask.docId = block.root_id || taskData.blockId;
+                        newTask.blockId = task.blockId;
+                        newTask.docId = block.root_id || task.blockId;
 
                         // 如果任务标题为空或者是默认标题，使用块内容作为标题
-                        if (!taskData.title || taskData.title === '未命名任务') {
+                        if (!task.title || task.title === '未命名任务') {
                             newTask.title = block.content || block.fcontent || '未命名任务';
                         }
 
                         // 更新块的书签状态
-                        await updateBlockReminderBookmark(taskData.blockId);
+                        await updateBlockReminderBookmark(task.blockId);
                     }
                 } catch (error) {
                     console.error('绑定块失败:', error);
@@ -1679,11 +1791,46 @@ export class ProjectKanbanView {
             }
 
             reminderData[taskId] = newTask;
+
+            // 递归创建子任务
+            if (task.children && task.children.length > 0) {
+                for (let i = 0; i < task.children.length; i++) {
+                    await createTaskRecursively(task.children[i], taskId);
+                }
+            }
+
+            return taskId;
+        };
+
+        // 创建所有顶级任务及其子任务
+        for (let i = 0; i < tasks.length; i++) {
+            await createTaskRecursively(tasks[i], undefined);
         }
 
         await writeReminderData(reminderData);
         await this.loadTasks();
         window.dispatchEvent(new CustomEvent('reminderUpdated'));
+    }
+
+    /**
+     * 计算总任务数量（包括子任务）
+     * @param tasks 层级化任务列表
+     * @returns 总任务数量
+     */
+    private countTotalTasks(tasks: HierarchicalTask[]): number {
+        let count = 0;
+        
+        const countRecursively = (taskList: HierarchicalTask[]) => {
+            for (const task of taskList) {
+                count++;
+                if (task.children && task.children.length > 0) {
+                    countRecursively(task.children);
+                }
+            }
+        };
+
+        countRecursively(tasks);
+        return count;
     }
 
     private parseTaskLine(line: string): { title: string; priority?: string; startDate?: string; endDate?: string; blockId?: string } {
