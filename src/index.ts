@@ -952,16 +952,7 @@ export default class ReminderPlugin extends Plugin {
             }
         });
 
-        detail.menu.addItem({
-            iconHTML: "📂",
-            label: t("addToProject"),
-            click: async () => {
-                if (documentId) {
-                    const dialog = new AddToProjectDialog(this, [documentId]);
-                    await dialog.show();
-                }
-            }
-        });
+
     }
 
     private handleBlockMenu({ detail }) {
@@ -981,22 +972,7 @@ export default class ReminderPlugin extends Plugin {
             }
         });
 
-        detail.menu.addItem({
-            iconHTML: "📂",
-            label: t("addToProject"),
-            click: async () => {
-                if (detail.blockElements && detail.blockElements.length > 0) {
-                    const blockIds = detail.blockElements
-                        .map(el => el.getAttribute("data-node-id"))
-                        .filter(id => id);
 
-                    if (blockIds.length > 0) {
-                        const dialog = new AddToProjectDialog(this, blockIds);
-                        await dialog.show();
-                    }
-                }
-            }
-        });
     }
 
     private async handleMultipleBlocks(blockIds: string[]) {
