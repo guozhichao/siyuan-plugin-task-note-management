@@ -369,10 +369,19 @@ export class ProjectKanbanView {
 
             this.sortTasks();
 
-            // 默认将所有存在子任务的父任务设置为折叠状态，但跳过处于进行中的父任务（保持进行中任务展开）
+            // 默认折叠逻辑：
+            // - 首次加载（或用户无任何折叠偏好）时，按照旧逻辑为非 doing 的父任务设置为折叠状态；
+            // - 之后的加载尽量保留用户通过界面展开/折叠的偏好（即不再盲目 clear 并重新折叠已展开的父任务）；
+            // - 同时移除那些已经不存在的任务 id，防止内存泄漏或过期状态。
             try {
-                this.collapsedTasks.clear();
                 const taskIds = new Set(this.tasks.map(t => t.id));
+
+                // 清理 collapsedTasks 中已不存在的任务 id
+                for (const id of Array.from(this.collapsedTasks)) {
+                    if (!taskIds.has(id)) {
+                        this.collapsedTasks.delete(id);
+                    }
+                }
 
                 // 收集父任务及其子任务
                 const parentMap = new Map<string, any[]>();
@@ -383,14 +392,16 @@ export class ProjectKanbanView {
                     }
                 });
 
-                // 仅折叠那些父任务本身不是 'doing' 的父任务
-                parentMap.forEach((_children, parentId) => {
-                    const parent = this.tasks.find(p => p.id === parentId);
-                    if (!parent) return;
-                    if (parent.status !== 'doing') {
-                        this.collapsedTasks.add(parentId);
-                    }
-                });
+                // 仅在用户没有任何折叠偏好（collapsedTasks 为空）时，应用默认折叠策略
+                if (this.collapsedTasks.size === 0) {
+                    parentMap.forEach((_children, parentId) => {
+                        const parent = this.tasks.find(p => p.id === parentId);
+                        if (!parent) return;
+                        if (parent.status !== 'doing') {
+                            this.collapsedTasks.add(parentId);
+                        }
+                    });
+                }
             } catch (err) {
                 console.warn('设置默认折叠任务失败:', err);
             }
@@ -3399,8 +3410,7 @@ export class ProjectKanbanView {
             await this.setParentChildRelation(this.draggedTask, targetTask);
             showMessage(`"${this.draggedTask.title}" 已设置为 "${targetTask.title}" 的子任务`);
         } catch (error) {
-            console.error('设置父子任务关系失败:', error);
-            showMessage("设置父子任务关系失败");
+            // showMessage("设置父子任务关系失败");
         }
     }
 
