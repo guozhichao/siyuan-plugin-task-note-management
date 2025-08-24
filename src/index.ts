@@ -338,7 +338,7 @@ export default class ReminderPlugin extends Plugin {
                 this.calendarViews.set(tab.id, calendarView);
             }) as any
         });
-        
+
         // 注册四象限视图标签页
         this.addTab({
             type: EISENHOWER_TAB_TYPE,
@@ -350,7 +350,7 @@ export default class ReminderPlugin extends Plugin {
                 eisenhowerView.initialize();
             }) as any
         });
-        
+
         // 注册项目看板标签页
         this.addTab({
             type: PROJECT_KANBAN_TAB_TYPE,
@@ -362,7 +362,7 @@ export default class ReminderPlugin extends Plugin {
                     tab.element.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--b3-theme-error);">错误：缺少项目ID</div>';
                     return;
                 }
-                
+
                 const projectKanbanView = new ProjectKanbanView(tab.element, this, projectId);
                 // 保存实例引用用于清理
                 this.calendarViews.set(tab.id, projectKanbanView);
@@ -1459,7 +1459,7 @@ export default class ReminderPlugin extends Plugin {
     // 打开日历视图标签页
     openCalendarTab() {
         const isMobile = getFrontend().endsWith('mobile');
-        
+
         if (isMobile) {
             // 手机端：使用Dialog打开日历视图
             const dialog = new Dialog({
