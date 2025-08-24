@@ -1321,6 +1321,9 @@ export class ProjectKanbanView {
                 if (newStatus === 'done') {
                     reminderData[task.id].completed = true;
                     reminderData[task.id].completedTime = getLocalDateTimeString(new Date());
+                    
+                    // 父任务完成时，自动完成所有子任务
+                    await this.completeAllChildTasks(task.id, reminderData);
                 } else {
                     reminderData[task.id].completed = false;
                     delete reminderData[task.id].completedTime;
@@ -1344,6 +1347,80 @@ export class ProjectKanbanView {
             console.error('切换任务状态失败:', error);
             showMessage("状态切换失败");
         }
+    }
+
+    /**
+     * 当父任务完成时，自动完成所有子任务
+     * @param parentId 父任务ID
+     * @param reminderData 任务数据
+     */
+    private async completeAllChildTasks(parentId: string, reminderData: any): Promise<void> {
+        try {
+            // 获取所有子任务ID（递归获取所有后代）
+            const descendantIds = this.getAllDescendantIds(parentId, reminderData);
+            
+            if (descendantIds.length === 0) {
+                return; // 没有子任务，直接返回
+            }
+
+            const currentTime = getLocalDateTimeString(new Date());
+            let completedCount = 0;
+
+            // 自动完成所有子任务
+            for (const childId of descendantIds) {
+                const childTask = reminderData[childId];
+                if (childTask && !childTask.completed) {
+                    childTask.completed = true;
+                    childTask.completedTime = currentTime;
+                    completedCount++;
+
+                    // 如果子任务有绑定块，也需要处理书签更新
+                    if (childTask.blockId) {
+                        try {
+                            await updateBlockReminderBookmark(childTask.blockId);
+                        } catch (error) {
+                            console.warn(`更新子任务 ${childId} 的块书签失败:`, error);
+                        }
+                    }
+                }
+            }
+
+            if (completedCount > 0) {
+                console.log(`父任务 ${parentId} 完成时，自动完成了 ${completedCount} 个子任务`);
+                showMessage(`已自动完成 ${completedCount} 个子任务`, 2000);
+            }
+        } catch (error) {
+            console.error('自动完成子任务失败:', error);
+            // 不要阻止父任务的完成，只是记录错误
+        }
+    }
+
+    /**
+     * 递归获取所有后代任务ID
+     * @param parentId 父任务ID
+     * @param reminderData 任务数据
+     * @returns 所有后代任务ID数组
+     */
+    private getAllDescendantIds(parentId: string, reminderData: any): string[] {
+        const result: string[] = [];
+        const visited = new Set<string>(); // 防止循环引用
+
+        const getChildren = (currentParentId: string) => {
+            if (visited.has(currentParentId)) {
+                return; // 避免循环引用
+            }
+            visited.add(currentParentId);
+
+            Object.values(reminderData).forEach((task: any) => {
+                if (task && task.parentId === currentParentId) {
+                    result.push(task.id);
+                    getChildren(task.id); // 递归获取子任务的子任务
+                }
+            });
+        };
+
+        getChildren(parentId);
+        return result;
     }
 
     private showSortMenu(event: MouseEvent) {

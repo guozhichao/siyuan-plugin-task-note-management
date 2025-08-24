@@ -651,6 +651,61 @@ export class ReminderPanel {
     }
 
     /**
+     * 当父任务完成时，自动完成所有子任务
+     * @param parentId 父任务ID
+     * @param reminderData 任务数据
+     */
+    private async completeAllChildTasks(parentId: string, reminderData: any): Promise<void> {
+        try {
+            // 构建任务映射
+            const reminderMap = new Map<string, any>();
+            Object.values(reminderData).forEach((reminder: any) => {
+                if (reminder && reminder.id) {
+                    reminderMap.set(reminder.id, reminder);
+                }
+            });
+
+            // 获取所有后代任务ID
+            const descendantIds = this.getAllDescendantIds(parentId, reminderMap);
+            
+            if (descendantIds.length === 0) {
+                return; // 没有子任务，直接返回
+            }
+
+            const currentTime = getLocalDateTimeString(new Date());
+            let completedCount = 0;
+
+            // 自动完成所有子任务
+            for (const childId of descendantIds) {
+                const childReminder = reminderData[childId];
+                if (childReminder && !childReminder.completed) {
+                    childReminder.completed = true;
+                    childReminder.completedTime = currentTime;
+                    completedCount++;
+
+                    // 如果子任务有绑定块，也需要处理任务列表完成
+                    if (childReminder.blockId) {
+                        try {
+                            await updateBlockReminderBookmark(childReminder.blockId);
+                            await this.handleTaskListCompletion(childReminder.blockId);
+                        } catch (error) {
+                            console.warn(`处理子任务 ${childId} 的块更新失败:`, error);
+                        }
+                    }
+                }
+            }
+
+            if (completedCount > 0) {
+                console.log(`父任务 ${parentId} 完成时，自动完成了 ${completedCount} 个子任务`);
+                showMessage(`已自动完成 ${completedCount} 个子任务`, 2000);
+            }
+        } catch (error) {
+            console.error('自动完成子任务失败:', error);
+            // 不要阻止父任务的完成，只是记录错误
+        }
+    }
+
+    /**
      * 获取给定提醒的所有祖先 id（从直接父到最顶层）
      */
     private getAllAncestorIds(id: string, reminderMap: Map<string, any>): string[] {
@@ -1087,6 +1142,9 @@ export class ReminderPanel {
                             completedInstances.push(instanceDate);
                         }
                         completedTimes[instanceDate] = getLocalDateTimeString(new Date());
+
+                        // 父任务完成时，自动完成所有子任务
+                        await this.completeAllChildTasks(originalId, reminderData);
                     } else {
                         // 从已完成列表中移除并删除完成时间
                         const index = completedInstances.indexOf(instanceDate);
@@ -1122,6 +1180,9 @@ export class ReminderPanel {
                 // 记录或清除完成时间
                 if (completed) {
                     reminderData[reminderId].completedTime = getLocalDateTimeString(new Date());
+                    
+                    // 父任务完成时，自动完成所有子任务
+                    await this.completeAllChildTasks(reminderId, reminderData);
                 } else {
                     delete reminderData[reminderId].completedTime;
                 }
