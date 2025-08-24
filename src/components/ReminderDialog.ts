@@ -25,10 +25,12 @@ export class ReminderDialog {
     private documentId: string = '';
     private chronoParser: any; // chrono解析器实例
     private autoDetectDateTime: boolean; // 新增：是否自动识别日期时间
+    private defaultProjectId?: string;
 
-    constructor(blockId: string, autoDetectDateTime: boolean = false) {
+    constructor(blockId: string, autoDetectDateTime: boolean = false, defaultProjectId?: string) {
         this.blockId = blockId;
         this.autoDetectDateTime = autoDetectDateTime; // 存储参数
+        this.defaultProjectId = defaultProjectId;
         this.categoryManager = CategoryManager.getInstance();
         this.projectManager = ProjectManager.getInstance();
         this.repeatConfig = {
@@ -458,6 +460,19 @@ export class ReminderDialog {
             }
             // 获取文档ID - 如果blockId就是文档ID，则直接使用，否则获取根块ID
             this.documentId = block.root_id || this.blockId;
+            // 如果没有传入默认项目，则检测当前文档是否配置为项目并设置默认项目
+            if (!this.defaultProjectId) {
+                try {
+                    const { readProjectData } = await import("../api");
+                    const projectData = await readProjectData();
+                    if (projectData && projectData.hasOwnProperty(this.documentId)) {
+                        // projectData 存储的键为文档ID，值包含 blockId（项目ID）等
+                        this.defaultProjectId = projectData[this.documentId].blockId || projectData[this.documentId].id || undefined;
+                    }
+                } catch (err) {
+                    // ignore
+                }
+            }
         } catch (error) {
             console.error('获取块内容失败:', error);
             showMessage(t("cannotGetNoteContent"));
@@ -745,6 +760,10 @@ export class ReminderDialog {
                         const option = document.createElement('option');
                         option.value = project.id;
                         option.textContent = project.name;
+                        // 如果存在默认项目ID，设置为选中
+                        if (this.defaultProjectId && option.value === this.defaultProjectId) {
+                            option.selected = true;
+                        }
                         optgroup.appendChild(option);
                     });
                     
@@ -1236,7 +1255,11 @@ export class ReminderDialog {
         const note = noteInput.value.trim() || undefined;
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
         const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
-        const projectId = projectSelector.value || undefined;
+        let projectId = projectSelector.value || undefined;
+        // 如果用户未选择项目，但存在默认项目ID（例如文档被设置为项目），则使用该默认项目
+        if ((!projectId || projectId === '') && this.defaultProjectId) {
+            projectId = this.defaultProjectId;
+        }
 
         // 解析日期和时间
         let date: string;

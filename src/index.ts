@@ -825,8 +825,17 @@ export default class ReminderPlugin extends Plugin {
                 } else {
                     // 单选文档使用普通设置对话框，使用设置中的自动检测配置
                     const autoDetect = await this.getAutoDetectDateTimeEnabled();
-                    const dialog = new ReminderDialog(firstDocumentId, autoDetect);
-                    dialog.show();
+                    // 如果文档本身是一个项目，传入该项目ID作为默认项目
+                    try {
+                        const { readProjectData } = await import("./api");
+                        const projectData = await readProjectData();
+                        const projectId = projectData && projectData[firstDocumentId] ? projectData[firstDocumentId].blockId || projectData[firstDocumentId].id : undefined;
+                        const dialog = new ReminderDialog(firstDocumentId, autoDetect, projectId);
+                        dialog.show();
+                    } catch (err) {
+                        const dialog = new ReminderDialog(firstDocumentId, autoDetect);
+                        dialog.show();
+                    }
                 }
             }
         });
@@ -885,8 +894,16 @@ export default class ReminderPlugin extends Plugin {
             click: async () => {
                 if (documentId) {
                     const autoDetect = await this.getAutoDetectDateTimeEnabled();
-                    const dialog = new ReminderDialog(documentId, autoDetect);
-                    dialog.show();
+                    try {
+                        const { readProjectData } = await import("./api");
+                        const projectData = await readProjectData();
+                        const projectId = projectData && projectData[documentId] ? projectData[documentId].blockId || projectData[documentId].id : undefined;
+                        const dialog = new ReminderDialog(documentId, autoDetect, projectId);
+                        dialog.show();
+                    } catch (err) {
+                        const dialog = new ReminderDialog(documentId, autoDetect);
+                        dialog.show();
+                    }
                 }
             }
         });
@@ -986,8 +1003,20 @@ export default class ReminderPlugin extends Plugin {
         if (blockIds.length === 1) {
             // 单个块时使用普通对话框，应用自动检测设置
             const autoDetect = await this.getAutoDetectDateTimeEnabled();
-            const dialog = new ReminderDialog(blockIds[0], autoDetect);
-            dialog.show();
+            try {
+                const { readProjectData } = await import("./api");
+                // blockIds[0] 所在文档是否为项目（需要读取块以确定根文档ID）
+                const { getBlockByID } = await import("./api");
+                const block = await getBlockByID(blockIds[0]);
+                const docId = block?.root_id || blockIds[0];
+                const projectData = await readProjectData();
+                const projectId = projectData && projectData[docId] ? projectData[docId].blockId || projectData[docId].id : undefined;
+                const dialog = new ReminderDialog(blockIds[0], autoDetect, projectId);
+                dialog.show();
+            } catch (err) {
+                const dialog = new ReminderDialog(blockIds[0], autoDetect);
+                dialog.show();
+            }
         } else {
             // 确保 batchReminderDialog 已初始化
             if (!this.batchReminderDialog) {
