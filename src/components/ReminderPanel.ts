@@ -146,10 +146,11 @@ export class ReminderPanel {
         titleContainer.appendChild(iconSpan);
         titleContainer.appendChild(titleSpan);
 
-        // 添加右侧按钮容器
-        const actionContainer = document.createElement('div');
-        actionContainer.className = 'reminder-panel__actions';
-        actionContainer.style.marginLeft = 'auto';
+    // 添加右侧按钮容器（单独一行，将在标题下方显示）
+    const actionContainer = document.createElement('div');
+    actionContainer.className = 'reminder-panel__actions';
+    // 在单独一行时使用 flex 右对齐
+    actionContainer.style.cssText = 'display:flex; justify-content:flex-start; gap:8px; margin-bottom:8px;';
 
         // 添加新建任务按钮
         const newTaskBtn = document.createElement('button');
@@ -221,9 +222,10 @@ export class ReminderPanel {
         });
         actionContainer.appendChild(moreBtn);
 
-        titleContainer.appendChild(actionContainer);
-
-        header.appendChild(titleContainer);
+    // 标题单独一行
+    header.appendChild(titleContainer);
+    // 按钮单独一行，置于标题下方并右对齐
+    header.appendChild(actionContainer);
 
         // 筛选控件
         const controls = document.createElement('div');
@@ -1545,7 +1547,7 @@ export class ReminderPanel {
         // 子任务缩进：使用margin-left让整个任务块缩进，包括背景色
         if (level > 0) {
             reminderEl.style.marginLeft = `${level * 20}px`;
-            reminderEl.style.width = `calc(100% - ${level * 20}px)`;
+            // reminderEl.style.width = `calc(100% - ${level * 20}px)`;
             // 为子任务添加层级数据属性，用于CSS样式
             reminderEl.setAttribute('data-level', level.toString());
         }

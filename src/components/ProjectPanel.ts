@@ -158,6 +158,19 @@ export class ProjectPanel {
         titleContainer.appendChild(actionContainer);
         header.appendChild(titleContainer);
 
+        // 把按钮容器移到标题下方，确保标题独占一行，按钮右对齐
+        const actionRow = document.createElement('div');
+        actionRow.className = 'project-header__actions-row';
+        // 使用 flex 布局使按钮靠右
+        actionRow.style.cssText = `display:flex; justify-content:flex-start; margin-bottom:8px; gap:8px;`;
+        // 将 actionContainer 中的按钮移动到 actionRow
+        while (actionContainer.firstChild) {
+            // 由于 actionContainer 可能包含样式 marginLeft:auto，我们直接把子节点移动
+            actionRow.appendChild(actionContainer.firstChild);
+        }
+
+        header.appendChild(actionRow);
+
         // 筛选控件
         const controls = document.createElement('div');
         controls.className = 'project-controls';
