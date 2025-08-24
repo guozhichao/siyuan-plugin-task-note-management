@@ -51,7 +51,12 @@
                     title: t('autoDetectDateTime'),
                     description: t('autoDetectDateTimeDesc'),
                 },
-                {
+            ],
+        },
+        {
+            name: '✅'+t('timeReminder'),
+            items: [
+                                {
                     key: 'newDocNotebook',
                     value: settings.newDocNotebook,
                     type: 'select',
@@ -69,7 +74,7 @@
                     title: t('newDocPath'),
                     description: t('newDocPathDesc'),
                 },
-            ],
+            ]
         },
         {
             name: t('pomodoroSettings'),

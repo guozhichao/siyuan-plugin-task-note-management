@@ -1,5 +1,5 @@
 import { showMessage, Dialog } from "siyuan";
-import { readReminderData, writeReminderData } from "../api";
+import { readReminderData, writeReminderData, getBlockByID } from "../api";
 import { getLocalTimeString } from "../utils/dateUtils";
 import { CategoryManager, Category } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
@@ -471,6 +471,11 @@ export class ReminderEditDialog {
                             </button>
                         </div>
                     </div>
+                    <!-- 绑定块/文档输入，允许手动修改 reminder 关联的块 ID 或文档 ID -->
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">${t("bindToBlock") || '块或文档 ID'}</label>
+                        <input type="text" id="editBlockInput" class="b3-text-field" value="${this.reminder.blockId || this.reminder.docId || this.reminder.boundBlockId || ''}" placeholder="${t("enterBlockId") || '请输入块或文档 ID'}" style="width: 100%;">
+                    </div>
                     <div class="b3-form__group">
                         <label class="b3-form__label">${t("eventCategory")}
                             <button type="button" id="editManageCategoriesBtn" class="b3-button b3-button--outline" title="管理分类">
@@ -768,7 +773,8 @@ export class ReminderEditDialog {
     }
 
     private async saveTimeEdit() {
-        const titleInput = this.dialog.element.querySelector('#editReminderTitle') as HTMLInputElement;
+    const titleInput = this.dialog.element.querySelector('#editReminderTitle') as HTMLInputElement;
+    const blockInput = this.dialog.element.querySelector('#editBlockInput') as HTMLInputElement;
         const dateInput = this.dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
         const endDateInput = this.dialog.element.querySelector('#editReminderEndDate') as HTMLInputElement;
         const noTimeCheckbox = this.dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
@@ -777,7 +783,8 @@ export class ReminderEditDialog {
         const selectedCategory = this.dialog.element.querySelector('#editCategorySelector .category-option.selected') as HTMLElement;
         const projectSelector = this.dialog.element.querySelector('#editProjectSelector') as HTMLSelectElement;
 
-        const title = titleInput.value.trim();
+    const title = titleInput.value.trim();
+    const inputId = blockInput?.value?.trim() || undefined;
         const note = noteInput.value.trim() || undefined;
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
         const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
@@ -847,6 +854,7 @@ export class ReminderEditDialog {
                     note: note,
                     priority: priority,
                     categoryId: categoryId, // 添加分类ID
+                    blockId: inputId || undefined,
                     projectId: projectId,
                     repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined,
                     notified: shouldResetNotified ? false : this.reminder.notified
@@ -874,6 +882,7 @@ export class ReminderEditDialog {
                     note: note,
                     priority: priority,
                     categoryId: categoryId, // 添加分类ID
+                    blockId: inputId || undefined,
                     projectId: projectId,
                     notified: shouldResetNotified ? false : this.reminder.notified
                 });
@@ -893,6 +902,29 @@ export class ReminderEditDialog {
                     // 重置通知状态
                     if (shouldResetNotified) {
                         reminderData[this.reminder.id].notified = false;
+                    }
+
+                    // 处理输入 ID（可能是块 ID 或文档 ID）
+                    if (inputId) {
+                        try {
+                            const blockInfo = await getBlockByID(inputId);
+                            // 如果 blockInfo 存在且 type !== 'd'，视为块，保存 blockId 并设置 docId 为 root_id 或 inputId
+                            if (blockInfo && blockInfo.type && blockInfo.type !== 'd') {
+                                reminderData[this.reminder.id].blockId = inputId;
+                                reminderData[this.reminder.id].docId = blockInfo.root_id || inputId;
+                            } else {
+                                // 否则视为文档 ID，保存 docId 并删除 blockId
+                                reminderData[this.reminder.id].docId = inputId;
+                                delete reminderData[this.reminder.id].blockId;
+                            }
+                        } catch (err) {
+                            // 如果 getBlockByID 抛错或不存在，保守地当作 blockId 保存
+                            reminderData[this.reminder.id].blockId = inputId;
+                        }
+                    } else {
+                        // 未填写：删除 blockId 和 docId
+                        delete reminderData[this.reminder.id].blockId;
+                        delete reminderData[this.reminder.id].docId;
                     }
 
                     // 处理结束日期和结束时间
