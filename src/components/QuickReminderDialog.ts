@@ -34,7 +34,7 @@ export class QuickReminderDialog {
     }) {
         // 确保日期格式正确 - 只保留 YYYY-MM-DD 部分
         this.initialDate = this.formatDateForInput(initialDate);
-        
+
         // 如果第二个参数是函数，说明没有传入时间参数，第二个参数是回调函数
         if (typeof initialTime === 'function') {
             this.onSaved = initialTime;
@@ -44,20 +44,20 @@ export class QuickReminderDialog {
             this.initialTime = initialTime;
             this.onSaved = onSaved;
         }
-        
+
         // 处理时间段选项
         if (timeRangeOptions) {
             this.initialEndDate = timeRangeOptions.endDate ? this.formatDateForInput(timeRangeOptions.endDate) : undefined;
             this.initialEndTime = timeRangeOptions.endTime;
             this.isTimeRange = timeRangeOptions.isTimeRange || false;
         }
-        
+
         // 处理额外选项
         if (options) {
             this.defaultProjectId = options.defaultProjectId;
             this.defaultQuadrant = options.defaultQuadrant;
         }
-        
+
         this.categoryManager = CategoryManager.getInstance();
         this.projectManager = ProjectManager.getInstance();
         this.repeatConfig = {
@@ -75,17 +75,17 @@ export class QuickReminderDialog {
     // 格式化日期为 input[type="date"] 所需的格式 (YYYY-MM-DD)
     private formatDateForInput(dateStr: string): string {
         if (!dateStr) return '';
-        
+
         // 如果已经是正确格式 (YYYY-MM-DD)，直接返回
         if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
             return dateStr;
         }
-        
+
         // 如果包含时间信息，提取日期部分
         if (dateStr.includes('T')) {
             return dateStr.split('T')[0];
         }
-        
+
         // 尝试解析日期并格式化
         try {
             const date = new Date(dateStr);
@@ -98,7 +98,7 @@ export class QuickReminderDialog {
         } catch (error) {
             console.warn('无法解析日期:', dateStr, error);
         }
-        
+
         return dateStr; // 如果无法解析，返回原始值
     }
 
@@ -525,7 +525,7 @@ export class QuickReminderDialog {
             const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
             const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
             const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
-            
+
             // 根据是否有初始时间设置输入框类型和值
             if (this.initialTime) {
                 // 有时间：先设置复选框状态，再切换输入框类型，最后设置值
@@ -533,7 +533,7 @@ export class QuickReminderDialog {
                 this.toggleDateTimeInputs(false);
                 // 确保在切换类型后设置正确格式的值
                 dateInput.value = `${this.initialDate}T${this.initialTime}`;
-                
+
                 // 如果是时间段选择且有结束时间，设置结束日期时间
                 if (this.isTimeRange && this.initialEndDate) {
                     const endDateTime = this.initialEndTime ?
@@ -547,14 +547,14 @@ export class QuickReminderDialog {
                 this.toggleDateTimeInputs(true);
                 // 确保在切换类型后设置正确格式的值
                 dateInput.value = this.initialDate;
-                
+
                 // 如果是时间段选择，设置结束日期
                 if (this.isTimeRange && this.initialEndDate) {
                     // 确保结束日期输入框也是正确的类型
                     endDateInput.value = this.initialEndDate;
                 }
             }
-            
+
             // 自动聚焦标题输入框
             titleInput?.focus();
         }, 100);
@@ -604,11 +604,11 @@ export class QuickReminderDialog {
             // 先保存当前值
             const startValue = startDateInput.value;
             const endValue = endDateInput.value;
-            
+
             // 切换类型
             startDateInput.type = 'date';
             endDateInput.type = 'date';
-            
+
             // 如果当前值包含时间，只保留日期部分，不清空日期
             if (startValue && startValue.includes('T')) {
                 startDateInput.value = startValue.split('T')[0];
@@ -618,7 +618,7 @@ export class QuickReminderDialog {
                 // 如果没有当前值但有初始日期，设置初始日期
                 startDateInput.value = this.initialDate;
             }
-            
+
             if (endValue && endValue.includes('T')) {
                 endDateInput.value = endValue.split('T')[0];
             } else if (endValue) {
@@ -627,7 +627,7 @@ export class QuickReminderDialog {
                 // 如果没有当前值但是时间段选择且有初始结束日期，设置初始结束日期
                 endDateInput.value = this.initialEndDate;
             }
-            
+
             if (dateTimeDesc) {
                 dateTimeDesc.textContent = t("dateOnlyDesc");
             }
@@ -636,11 +636,11 @@ export class QuickReminderDialog {
             // 先保存当前值
             const startValue = startDateInput.value;
             const endValue = endDateInput.value;
-            
+
             // 切换类型
             startDateInput.type = 'datetime-local';
             endDateInput.type = 'datetime-local';
-            
+
             // 如果当前值只有日期，添加默认时间，保留原有日期
             if (startValue && !startValue.includes('T')) {
                 const currentTime = this.initialTime || getLocalTimeString();
@@ -653,7 +653,7 @@ export class QuickReminderDialog {
                 // 如果已经有完整的datetime-local格式，直接设置
                 startDateInput.value = startValue;
             }
-            
+
             // 处理结束日期输入框
             if (endValue && !endValue.includes('T')) {
                 // 如果结束日期有值但没有时间，添加默认时间
@@ -667,7 +667,7 @@ export class QuickReminderDialog {
                 const endTime = this.initialEndTime || this.initialTime || getLocalTimeString();
                 endDateInput.value = `${this.initialEndDate}T${endTime}`;
             }
-            
+
             if (dateTimeDesc) {
                 dateTimeDesc.textContent = t("dateTimeDesc");
             }
@@ -834,16 +834,16 @@ export class QuickReminderDialog {
         try {
             await this.projectManager.initialize();
             const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
-            
+
             // 清空并重新构建项目选择器
             projectSelector.innerHTML = '';
-            
+
             // 添加无项目选项
             const noProjectOption = document.createElement('option');
             noProjectOption.value = '';
             noProjectOption.textContent = t('noProject');
             projectSelector.appendChild(noProjectOption);
-            
+
             // 按状态分组添加项目
             Object.keys(groupedProjects).forEach(statusKey => {
                 const projects = groupedProjects[statusKey] || [];
@@ -851,26 +851,26 @@ export class QuickReminderDialog {
                     const projectStatus = this.projectManager.getProjectById(project.id)?.status || 'doing';
                     return projectStatus !== 'archived';
                 });
-                
+
                 if (nonArchivedProjects.length > 0) {
                     // 添加状态分组
                     const statusName = this.getStatusDisplayName(statusKey);
                     const optgroup = document.createElement('optgroup');
                     optgroup.label = statusName;
-                    
+
                     nonArchivedProjects.forEach(project => {
                         const option = document.createElement('option');
                         option.value = project.id;
                         option.textContent = project.name;
-                        
+
                         // 如果设置了默认项目，选中它
                         if (this.defaultProjectId === project.id) {
                             option.selected = true;
                         }
-                        
+
                         optgroup.appendChild(option);
                     });
-                    
+
                     projectSelector.appendChild(optgroup);
                 }
             });

@@ -10,6 +10,7 @@ import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUt
 import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroStatsView } from "./PomodoroStatsView";
 import { EisenhowerMatrixView } from "./EisenhowerMatrixView";
+import { QuickReminderDialog } from "./QuickReminderDialog";
 import { PROJECT_KANBAN_TAB_TYPE } from "../index";
 
 // 添加四象限面板常量
@@ -149,6 +150,18 @@ export class ReminderPanel {
         const actionContainer = document.createElement('div');
         actionContainer.className = 'reminder-panel__actions';
         actionContainer.style.marginLeft = 'auto';
+
+        // 添加新建任务按钮
+        const newTaskBtn = document.createElement('button');
+        newTaskBtn.className = 'b3-button b3-button--outline';
+        newTaskBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>';
+        newTaskBtn.title = t("newTask") || "新建任务";
+        newTaskBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.showNewTaskDialog();
+        });
+        actionContainer.appendChild(newTaskBtn);
 
         // 添加排序按钮
         this.sortButton = document.createElement('button');
@@ -4059,6 +4072,27 @@ export class ReminderPanel {
         } catch (error) {
             console.error('打开四象限面板失败:', error);
             showMessage("打开四象限面板失败");
+        }
+    }
+
+    /**
+     * 显示新建任务对话框
+     */
+    private showNewTaskDialog() {
+        try {
+            const today = getLocalDateString();
+            const quickDialog = new QuickReminderDialog(
+                today, // 初始日期为今天
+                undefined, // 不指定初始时间
+                () => {
+                    // 保存回调：刷新提醒列表
+                    this.loadReminders();
+                }
+            );
+            quickDialog.show();
+        } catch (error) {
+            console.error('显示新建任务对话框失败:', error);
+            showMessage("打开新建任务对话框失败");
         }
     }
 

@@ -2623,7 +2623,7 @@ export class EisenhowerMatrixView {
     private showCreateTaskDialog(quadrant: QuadrantTask['quadrant'], parentTask?: QuadrantTask) {
         // 根据象限和当前设置计算推荐的日期和时间
         const { date, time } = this.calculateRecommendedDateTime(quadrant);
-        
+
         // 创建 QuickReminderDialog，传入象限信息
         const quickDialog = new QuickReminderDialog(
             date,
@@ -2640,18 +2640,18 @@ export class EisenhowerMatrixView {
                 defaultQuadrant: parentTask ? parentTask.quadrant : quadrant
             }
         );
-        
+
         // 如果有父任务，需要在任务创建后设置父子关系
         if (parentTask) {
             // 保存原始 saveReminder 方法的引用
             const originalSaveReminder = quickDialog['saveReminder'].bind(quickDialog);
-            
+
             // 重写 saveReminder 方法以支持父任务关系
-            quickDialog['saveReminder'] = async function() {
+            quickDialog['saveReminder'] = async function () {
                 try {
                     // 调用原始方法保存任务
                     await originalSaveReminder();
-                    
+
                     // 保存成功后，设置父子关系
                     await this.setParentTaskRelationship(parentTask);
                 } catch (error) {
@@ -2660,7 +2660,7 @@ export class EisenhowerMatrixView {
                 }
             }.bind(this);
         }
-        
+
         // 显示对话框
         quickDialog.show();
     }
@@ -2672,7 +2672,7 @@ export class EisenhowerMatrixView {
         // 使用今天作为默认日期，不指定特定时间
         const today = new Date();
         const defaultDate = today.toISOString().split('T')[0];
-        
+
         // 创建 QuickReminderDialog，不传入象限信息
         const quickDialog = new QuickReminderDialog(
             defaultDate,
@@ -2689,7 +2689,7 @@ export class EisenhowerMatrixView {
                 defaultQuadrant: undefined
             }
         );
-        
+
         // 显示对话框
         quickDialog.show();
     }
@@ -2738,7 +2738,7 @@ export class EisenhowerMatrixView {
     private getNextAvailableTime(): string {
         const now = new Date();
         const currentHour = now.getHours();
-        
+
         // 如果当前时间在合理的工作时间内，推荐下一个整点
         if (currentHour >= 8 && currentHour < 18) {
             const nextHour = currentHour + 1;
@@ -2759,11 +2759,11 @@ export class EisenhowerMatrixView {
     private async setParentTaskRelationship(parentTask: QuadrantTask): Promise<void> {
         try {
             const reminderData = await readReminderData();
-            
+
             // 找到最近创建的任务（通过 isQuickReminder 标识和时间戳）
             let latestTaskId: string | null = null;
             let latestCreatedAt = 0;
-            
+
             for (const [id, reminder] of Object.entries(reminderData as any)) {
                 const reminderObj = reminder as any;
                 if (reminderObj?.isQuickReminder && reminderObj?.createdAt) {
@@ -2774,19 +2774,19 @@ export class EisenhowerMatrixView {
                     }
                 }
             }
-            
+
             if (latestTaskId && reminderData[latestTaskId]) {
                 const taskToUpdate = reminderData[latestTaskId] as any;
-                
+
                 // 设置父任务ID
                 taskToUpdate.parentId = parentTask.id;
-                
+
                 // 注意：象限信息已经在创建时通过 defaultQuadrant 设置了
                 // 这里不再需要重新设置象限
-                
+
                 // 保存数据
                 await writeReminderData(reminderData);
-                
+
                 console.log(`成功创建子任务: ${taskToUpdate.title}，父任务: ${parentTask.title}`);
             }
         } catch (error) {
