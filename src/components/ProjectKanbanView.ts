@@ -672,8 +672,10 @@ export class ProjectKanbanView {
         }
 
         // 设置任务元素的背景色和边框
+        // 如果task.blockId有值，则设置cursor为pointer，否则为grab
+        const cursorStyle = task.blockId ? 'pointer' : 'grab';
         taskEl.style.cssText = `
-            cursor: grab;
+            cursor: ${cursorStyle};
             transition: all 0.2s ease;
             position: relative;
             background-color: ${backgroundColor};
@@ -1113,6 +1115,14 @@ export class ProjectKanbanView {
         taskEl.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             this.showTaskContextMenu(e, task);
+        });
+
+        // 点击事件：打开块
+        taskEl.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (task.blockId) {
+                this.openBlockTab(task.blockId);
+            }
         });
 
         // 添加悬停效果
