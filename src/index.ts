@@ -65,7 +65,7 @@ export const DEFAULT_SETTINGS = {
     dailyFocusGoal: 6,
     autoDetectDateTime: false, // 新增：是否自动识别日期时间
     newDocNotebook: '', // 新增：新建文档的笔记本ID
-    newDocPath: '/任务管理/{{now | date "2006-01-02"}}/', // 新增：新建文档的路径模板，支持sprig语法
+    newDocPath: '/{{now | date "2006-01-02"}}/', // 新增：新建文档的路径模板，支持sprig语法
 };
 
 export default class ReminderPlugin extends Plugin {
