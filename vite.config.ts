@@ -13,6 +13,8 @@ import vitePluginYamlI18n from './yaml-plugin';
 const env = process.env;
 const isSrcmap = env.VITE_SOURCEMAP === 'inline';
 const isDev = env.NODE_ENV === 'development';
+// 检查是否禁用自动拷贝（用于符号链接模式）
+const disableAutoCopy = env.DISABLE_AUTO_COPY === 'true';
 
 const outputDir = isDev ? "dev" : "dist";
 
@@ -45,8 +47,8 @@ export default defineConfig({
             ],
         }),
 
-        // Auto copy to SiYuan plugins directory in dev mode
-        ...(isDev ? [
+        // Auto copy to SiYuan plugins directory in dev mode (可通过 DISABLE_AUTO_COPY=true 禁用)
+        ...(isDev && !disableAutoCopy ? [
             {
                 name: 'auto-copy-to-siyuan',
                 writeBundle() {
