@@ -530,6 +530,14 @@ export class ProjectPanel {
             this.showProjectContextMenu(e, project);
         });
 
+         // 添加左键点击事件，点击后打开项目看板
+        projectEl.addEventListener('click', (e) => {
+            // 防止事件冒泡
+            e.stopPropagation();
+            // 打开项目看板
+            this.openProjectKanban(project);
+        });
+
         const contentEl = document.createElement('div');
         contentEl.className = 'project-item__content';
 
