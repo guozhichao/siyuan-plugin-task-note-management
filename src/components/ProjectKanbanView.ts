@@ -1233,7 +1233,7 @@ export class ProjectKanbanView {
             }
         });
 
-        element.addEventListener('dragleave', (e) => {
+        element.addEventListener('dragleave', () => {
             this.updateIndicator('none', null, null);
         });
 
@@ -1402,6 +1402,34 @@ export class ProjectKanbanView {
             iconHTML: "🗑️",
             label: "删除任务",
             click: () => this.deleteTask(task)
+        });
+
+        // 复制子任务为多级 Markdown 列表
+        menu.addItem({
+            iconHTML: "📋",
+            label: "复制子任务为列表",
+            click: () => {
+                const childLines = this.buildMarkdownListFromChildren(task.id);
+                if (childLines && childLines.length > 0) {
+                    const text = childLines.join('\n');
+                    // 复制到剪贴板
+                    try {
+                        navigator.clipboard.writeText(text);
+                        showMessage('已复制子任务列表到剪贴板');
+                    } catch (err) {
+                        // 备用：使用临时 textarea
+                        const ta = document.createElement('textarea');
+                        ta.value = text;
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(ta);
+                        showMessage('已复制子任务列表到剪贴板');
+                    }
+                } else {
+                    showMessage('该任务没有子任务可复制');
+                }
+            }
         });
 
         menu.open({
@@ -3849,5 +3877,50 @@ export class ProjectKanbanView {
             console.error('重新排序任务失败:', error);
             throw error;
         }
+    }
+
+    /**
+     * 递归收集指定父任务的所有直接子任务和后代，保持原有的任务顺序。
+     * 返回一个按层级组织的节点数组，节点包含 task 对象和 level。
+     */
+    private collectChildrenRecursively(parentId: string): Array<{ task: any; level: number }> {
+        const result: Array<{ task: any; level: number }> = [];
+
+        const children = this.tasks.filter(t => t.parentId === parentId);
+
+        const walk = (items: any[], level: number) => {
+            for (const it of items) {
+                result.push({ task: it, level });
+                const sub = this.tasks.filter(t => t.parentId === it.id);
+                if (sub && sub.length > 0) {
+                    walk(sub, level + 1);
+                }
+            }
+        };
+
+        walk(children, 0);
+        return result;
+    }
+
+    /**
+     * 根据父任务ID生成多级 Markdown 列表文本数组，每行为一行 Markdown。
+     * 对于绑定块的任务，使用 siyuan://blocks/<id> 格式的链接。
+     */
+    private buildMarkdownListFromChildren(parentId: string): string[] {
+        const nodes = this.collectChildrenRecursively(parentId);
+        if (!nodes || nodes.length === 0) return [];
+
+        const lines: string[] = [];
+        for (const node of nodes) {
+            const indent = '  '.repeat(node.level);
+            const t = node.task;
+            let title = t.title || '未命名任务';
+            if (t.blockId) {
+                // 使用思源块链接
+                title = `[${title}](siyuan://blocks/${t.blockId})`;
+            }
+            lines.push(`${indent}- ${title}`);
+        }
+        return lines;
     }
 }

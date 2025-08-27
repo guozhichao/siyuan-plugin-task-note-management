@@ -66,9 +66,9 @@ export class EisenhowerMatrixView {
         this.projectManager = ProjectManager.getInstance();
         this.categoryManager = CategoryManager.getInstance();
         this.initQuadrants();
-    // 引用方法以避免编译器提示未使用（此方法通过动态绑定使用）
-    // 读取属性作为引用，不执行调用
-    void (this as any).setParentTaskRelationship;
+        // 引用方法以避免编译器提示未使用（此方法通过动态绑定使用）
+        // 读取属性作为引用，不执行调用
+        void (this as any).setParentTaskRelationship;
     }
 
     private initQuadrants() {
