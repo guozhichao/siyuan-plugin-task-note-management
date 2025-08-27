@@ -1650,30 +1650,30 @@ export class ProjectPanel {
 
         header.appendChild(left);
 
-    const right = document.createElement('div');
-    right.style.cssText = 'display:flex; align-items:center; gap:8px;';
+        const right = document.createElement('div');
+        right.style.cssText = 'display:flex; align-items:center; gap:8px;';
 
-    // toggle button as chevron icon on the right
-    const toggleBtn = document.createElement('button');
-    toggleBtn.className = 'b3-button b3-button--tiny b3-button--outline project-group__toggle';
-    toggleBtn.title = this.groupCollapsedState[statusId] ? '展开该分组' : '折叠该分组';
-    toggleBtn.style.display = 'inline-flex';
-    toggleBtn.style.alignItems = 'center';
-    toggleBtn.style.justifyContent = 'center';
-    toggleBtn.style.width = '28px';
-    toggleBtn.style.height = '28px';
-    toggleBtn.style.padding = '0';
+        // toggle button as chevron icon on the right
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'b3-button b3-button--tiny b3-button--outline project-group__toggle';
+        toggleBtn.title = this.groupCollapsedState[statusId] ? '展开该分组' : '折叠该分组';
+        toggleBtn.style.display = 'inline-flex';
+        toggleBtn.style.alignItems = 'center';
+        toggleBtn.style.justifyContent = 'center';
+        toggleBtn.style.width = '28px';
+        toggleBtn.style.height = '28px';
+        toggleBtn.style.padding = '0';
 
-    toggleBtn.innerHTML = `<svg class="project-group__toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        toggleBtn.innerHTML = `<svg class="project-group__toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-    // initial rotation based on collapsed state
-    const collapsed = !!this.groupCollapsedState[statusId];
-    const iconEl = toggleBtn.querySelector('.project-group__toggle-icon') as HTMLElement;
-    if (iconEl) iconEl.style.transform = collapsed ? 'rotate(-180deg)' : 'rotate(0deg)';
+        // initial rotation based on collapsed state
+        const collapsed = !!this.groupCollapsedState[statusId];
+        const iconEl = toggleBtn.querySelector('.project-group__toggle-icon') as HTMLElement;
+        if (iconEl) iconEl.style.transform = collapsed ? 'rotate(-180deg)' : 'rotate(0deg)';
 
-    right.appendChild(toggleBtn);
+        right.appendChild(toggleBtn);
 
-    header.appendChild(right);
+        header.appendChild(right);
 
         groupWrapper.appendChild(header);
 
