@@ -1035,17 +1035,21 @@ export class ProjectKanbanView {
                 const isInBottomSortZone = mouseY >= taskBottom - sortZoneHeight;
                 const isInParentChildZone = !isInTopSortZone && !isInBottomSortZone;
 
-                // 排序检查（支持优先级排序和子任务排序）
-                const canSort = (this.currentSort === 'priority' && this.canDropForSort(this.draggedTask, targetTask)) ||
-                    this.canDropForSort(this.draggedTask, targetTask);
+                // 排序检查 (支持现有同级排序和新的成为同级排序)
+                const canSort = this.canDropForSort(this.draggedTask, targetTask);
+                const canBecomeSibling = this.canBecomeSiblingOf(this.draggedTask, targetTask);
                 const canSetParentChild = this.canSetAsParentChild(this.draggedTask, targetTask);
 
-                if ((isInTopSortZone || isInBottomSortZone) && canSort) {
+                if ((isInTopSortZone || isInBottomSortZone)) {
                     // 排序操作
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    const position = isInTopSortZone ? 'top' : 'bottom';
-                    this.updateIndicator('sort', taskEl, position, e);
+                    if (canSort || canBecomeSibling) {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        const position = isInTopSortZone ? 'top' : 'bottom';
+                        this.updateIndicator('sort', taskEl, position, e);
+                    } else {
+                        this.updateIndicator('none', null, null);
+                    }
                 } else if (isInParentChildZone && canSetParentChild) {
                     // 父子任务操作
                     e.preventDefault();
@@ -1085,10 +1089,19 @@ export class ProjectKanbanView {
                 const isInBottomSortZone = mouseY >= taskBottom - sortZoneHeight;
                 const isInParentChildZone = !isInTopSortZone && !isInBottomSortZone;
 
-                if ((isInTopSortZone || isInBottomSortZone) && this.canDropForSort(this.draggedTask, targetTask)) {
-                    // 执行排序
-                    this.handleSortDrop(targetTask, e);
-                } else if (isInParentChildZone && this.canSetAsParentChild(this.draggedTask, targetTask)) {
+                const canSort = this.canDropForSort(this.draggedTask, targetTask);
+                const canBecomeSibling = this.canBecomeSiblingOf(this.draggedTask, targetTask);
+                const canSetParentChild = this.canSetAsParentChild(this.draggedTask, targetTask);
+
+                if ((isInTopSortZone || isInBottomSortZone)) {
+                    if (canSort) {
+                        // 执行排序
+                        this.handleSortDrop(targetTask, e);
+                    } else if (canBecomeSibling) {
+                        // 执行成为兄弟任务并排序的操作
+                        this.handleBecomeSiblingDrop(this.draggedTask, targetTask, e);
+                    }
+                } else if (isInParentChildZone && canSetParentChild) {
                     // 执行父子任务设置
                     this.handleParentChildDrop(targetTask);
                 }
@@ -3507,6 +3520,34 @@ export class ProjectKanbanView {
     }
 
     /**
+     * Checks if a dragged task can become a sibling of a target task.
+     * This is true if the target is a subtask and the dragged task is not an ancestor of the target.
+     * @param draggedTask The task being dragged
+     * @param targetTask The drop target task
+     * @returns boolean
+     */
+    private canBecomeSiblingOf(draggedTask: any, targetTask: any): boolean {
+        if (!draggedTask || !targetTask) return false;
+
+        // Target task must be a subtask to define a sibling context.
+        if (!targetTask.parentId) return false;
+
+        // Dragged task cannot be the same as the target task.
+        if (draggedTask.id === targetTask.id) return false;
+
+        // Dragged task cannot be the parent of the target task.
+        if (draggedTask.id === targetTask.parentId) return false;
+
+        // If dragged task is already a sibling, this case is handled by canDropForSort.
+        if (draggedTask.parentId === targetTask.parentId) return false;
+
+        // To prevent circular dependencies, the dragged task cannot be an ancestor of the target task.
+        if (this.isDescendant(targetTask, draggedTask)) return false;
+
+        return true;
+    }
+
+    /**
      * 检查是否可以设置父子任务关系
      * @param draggedTask 被拖拽的任务
      * @param targetTask 目标任务（潜在的父任务）
@@ -3781,6 +3822,83 @@ export class ProjectKanbanView {
         } catch (error) {
             console.error('处理拖放排序失败:', error);
             showMessage("排序更新失败");
+        }
+    }
+
+    /**
+     * Handles the drop event for making a task a sibling of another and sorting it.
+     * @param draggedTask The task that was dragged
+     * @param targetTask The task that was the drop target
+     * @param event The drop event
+     */
+    private async handleBecomeSiblingDrop(draggedTask: any, targetTask: any, event: DragEvent) {
+        if (!draggedTask || !targetTask || !targetTask.parentId) return;
+
+        try {
+            const reminderData = await readReminderData();
+            const draggedTaskInDb = reminderData[draggedTask.id];
+            if (!draggedTaskInDb) {
+                throw new Error("Dragged task not found in data");
+            }
+
+            const newParentId = targetTask.parentId;
+            const parentTaskInDb = reminderData[newParentId];
+            if (!parentTaskInDb) {
+                throw new Error("Parent task not found in data");
+            }
+
+            // 1. Set parentId for the dragged task
+            draggedTaskInDb.parentId = newParentId;
+
+            // 2. A sub-task inherits the status of its parent (or more accurately, its root parent)
+            const parentStatus = this.getTaskStatus(parentTaskInDb);
+            if (parentStatus === 'doing' && !draggedTaskInDb.completed) {
+                draggedTaskInDb.kanbanStatus = 'doing';
+            } else if (!draggedTaskInDb.completed) {
+                // If parent is not 'doing', child becomes 'todo'
+                draggedTaskInDb.kanbanStatus = 'todo';
+            }
+
+            // 3. Reorder siblings
+            // Get all new siblings, EXCEPT the dragged task itself
+            const siblingTasks = Object.values(reminderData)
+                .filter((r: any) => r && r.parentId === newParentId && r.id !== draggedTask.id)
+                .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+            // Determine insertion point
+            // Use event.target instead of event.currentTarget to avoid null reference
+            const targetElement = event.target as HTMLElement;
+            if (!targetElement) {
+                throw new Error("Event target is null");
+            }
+
+            // Find the task element that contains the target
+            let taskElement = targetElement.closest('.kanban-task') as HTMLElement;
+            if (!taskElement) {
+                throw new Error("Could not find task element");
+            }
+
+            const rect = taskElement.getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            const insertBefore = event.clientY < midpoint;
+
+            const targetIndex = siblingTasks.findIndex((t: any) => t.id === targetTask.id);
+            const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
+
+            // Insert the dragged task into the siblings list
+            siblingTasks.splice(insertIndex, 0, draggedTaskInDb);
+
+            // Re-assign sort values
+            siblingTasks.forEach((task: any, index: number) => {
+                reminderData[task.id].sort = index * 10;
+            });
+
+            await writeReminderData(reminderData);
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+        } catch (error) {
+            console.error('Failed to set task as sibling and sort:', error);
+            showMessage("移动任务失败");
         }
     }
 
