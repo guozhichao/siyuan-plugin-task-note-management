@@ -313,7 +313,7 @@ export class ProjectPanel {
             ];
 
             sortOptions.forEach(option => {
-                // 为每个排序方式添加升序和降序选项
+                // 升序
                 menu.addItem({
                     iconHTML: option.icon,
                     label: `${option.label} (${t("ascending") || "升序"}↑)`,
@@ -326,6 +326,7 @@ export class ProjectPanel {
                     }
                 });
 
+                // 降序
                 menu.addItem({
                     iconHTML: option.icon,
                     label: `${option.label} (${t("descending") || "降序"}↓)`,
@@ -1629,7 +1630,10 @@ export class ProjectPanel {
 
         const header = document.createElement('div');
         header.className = 'project-group__header';
-        header.style.cssText = `display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 6px;`;
+        // make header sticky so it stays at top while scrolling within the panel
+        // compute top offset based on the main header height to avoid overlapping
+
+        header.style.cssText = `display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 6px;   z-index:3; background: var(--b3-surface, #fff); border-bottom: 1px solid rgba(0,0,0,0.04);`;
 
         const left = document.createElement('div');
         left.style.cssText = 'display:flex; align-items:center; gap:8px;';
@@ -1646,16 +1650,30 @@ export class ProjectPanel {
 
         header.appendChild(left);
 
-        const right = document.createElement('div');
-        right.style.cssText = 'display:flex; align-items:center; gap:8px;';
+    const right = document.createElement('div');
+    right.style.cssText = 'display:flex; align-items:center; gap:8px;';
 
-        const toggleBtn = document.createElement('button');
-        toggleBtn.className = 'b3-button b3-button--tiny b3-button--outline project-group__toggle';
-        toggleBtn.textContent = this.groupCollapsedState[statusId] ? '展开' : '折叠';
-        toggleBtn.title = this.groupCollapsedState[statusId] ? '展开该分组' : '折叠该分组';
-        right.appendChild(toggleBtn);
+    // toggle button as chevron icon on the right
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'b3-button b3-button--tiny b3-button--outline project-group__toggle';
+    toggleBtn.title = this.groupCollapsedState[statusId] ? '展开该分组' : '折叠该分组';
+    toggleBtn.style.display = 'inline-flex';
+    toggleBtn.style.alignItems = 'center';
+    toggleBtn.style.justifyContent = 'center';
+    toggleBtn.style.width = '28px';
+    toggleBtn.style.height = '28px';
+    toggleBtn.style.padding = '0';
 
-        header.appendChild(right);
+    toggleBtn.innerHTML = `<svg class="project-group__toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+    // initial rotation based on collapsed state
+    const collapsed = !!this.groupCollapsedState[statusId];
+    const iconEl = toggleBtn.querySelector('.project-group__toggle-icon') as HTMLElement;
+    if (iconEl) iconEl.style.transform = collapsed ? 'rotate(-180deg)' : 'rotate(0deg)';
+
+    right.appendChild(toggleBtn);
+
+    header.appendChild(right);
 
         groupWrapper.appendChild(header);
 
@@ -1664,7 +1682,6 @@ export class ProjectPanel {
         listContainer.style.cssText = 'display:flex; flex-direction:column; gap:6px; padding:6px;';
 
         // 根据折叠状态决定是否隐藏
-        const collapsed = !!this.groupCollapsedState[statusId];
         if (collapsed) {
             listContainer.style.display = 'none';
         }
@@ -1675,16 +1692,16 @@ export class ProjectPanel {
         });
 
         toggleBtn.addEventListener('click', () => {
-            const isCollapsed = !!this.groupCollapsedState[statusId];
-            this.groupCollapsedState[statusId] = !isCollapsed;
+            const isCollapsedNow = !!this.groupCollapsedState[statusId];
+            this.groupCollapsedState[statusId] = !isCollapsedNow;
 
             if (this.groupCollapsedState[statusId]) {
                 listContainer.style.display = 'none';
-                toggleBtn.textContent = '展开';
+                if (iconEl) iconEl.style.transform = 'rotate(-180deg)';
                 toggleBtn.title = '展开该分组';
             } else {
                 listContainer.style.display = 'flex';
-                toggleBtn.textContent = '折叠';
+                if (iconEl) iconEl.style.transform = 'rotate(0deg)';
                 toggleBtn.title = '折叠该分组';
             }
         });
