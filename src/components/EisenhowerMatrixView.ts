@@ -686,6 +686,18 @@ export class EisenhowerMatrixView {
             taskMeta.appendChild(timeSpan);
         }
 
+        // 如果任务已完成，显示完成时间（从 extendedProps.completedTime 中读取）
+        if (task.completed) {
+            const completedTimeStr = task.extendedProps?.completedTime || '';
+            if (completedTimeStr) {
+                const completedSpan = document.createElement('span');
+                completedSpan.className = 'task-completed-time';
+                completedSpan.textContent = `✅ ${this.formatCompletedTime(completedTimeStr)}`;
+                completedSpan.title = this.formatCompletedTime(completedTimeStr);
+                taskMeta.appendChild(completedSpan);
+            }
+        }
+
         // 番茄钟数量
         if (task.pomodoroCount && task.pomodoroCount > 0) {
             const pomodoroSpan = document.createElement('span');
@@ -751,16 +763,20 @@ export class EisenhowerMatrixView {
         if (childTasks.length > 0) {
             const progressContainer = document.createElement('div');
             progressContainer.className = 'task-progress-container';
-            progressContainer.style.cssText = `display:flex; align-items:center; gap:8px; justify-content:space-between;`;
+            // ensure the progress bar fills vertically and the percent text sits to the right
+            progressContainer.style.cssText = `display:flex; align-items:stretch; gap:8px; justify-content:space-between;`;
 
             const progressWrap = document.createElement('div');
-            progressWrap.style.cssText = `flex:1; min-width:0;`;
+            // make sure the wrapper enforces the desired height so the inner bar can expand
+            progressWrap.style.cssText = `flex:1; min-width:0;  display:flex; align-items:center;`;
 
             const progressBar = document.createElement('div');
             progressBar.className = 'task-progress';
             const percent = this.calculateChildCompletionPercent(task.id);
             progressBar.style.width = `${percent}%`;
             progressBar.setAttribute('data-progress', String(percent));
+            // ensure bar takes full height of wrapper
+            progressBar.style.cssText = `height:8px; width:${percent}%; display:block; border-radius:6px; background:linear-gradient(90deg, #2ecc71, #27ae60); transition:width 300ms ease-in-out;`;
 
             progressWrap.appendChild(progressBar);
 
@@ -1020,12 +1036,79 @@ export class EisenhowerMatrixView {
 
                 await writeReminderData(reminderData);
 
-                await this.refresh();
+                // 更新本地缓存 this.allTasks 中对应任务的状态
+                const localTask = this.allTasks.find(t => t.id === task.id);
+                if (localTask) {
+                    localTask.completed = completed;
+                    if (completed) {
+                        localTask.extendedProps = localTask.extendedProps || {};
+                        localTask.extendedProps.completedTime = reminderData[task.id].completedTime;
+                    } else {
+                        if (localTask.extendedProps) delete localTask.extendedProps.completedTime;
+                    }
+                }
+
+                // 如果该任务是子任务，局部更新父任务的进度UI；如果是父任务并自动完成了子任务，则更新对应子任务所在父的进度
+                if (task.parentId) {
+                    this.updateParentProgressUI(task.parentId);
+                } else {
+                    // 如果父任务自身被完成并触发对子任务的自动完成，更新所有被影响父级（本任务可能有父级）
+                    // 更新自身所在父级（如果有）
+                    if ((task as any).parentId) {
+                        this.updateParentProgressUI((task as any).parentId);
+                    }
+                }
+
+                // 广播更新事件给其他组件（不在本组件触发完整刷新）
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
             }
         } catch (error) {
             console.error('更新任务状态失败:', error);
             showMessage(t('updateTaskStatusFailed'));
+        }
+    }
+
+    /**
+     * 局部更新父任务的进度条和百分比文本
+     * @param parentId 父任务ID
+     */
+    private updateParentProgressUI(parentId: string) {
+        try {
+            const percent = this.calculateChildCompletionPercent(parentId);
+
+            // 找到父任务元素
+            const parentEl = this.container.querySelector(`[data-task-id="${parentId}"]`) as HTMLElement | null;
+            if (!parentEl) return;
+
+            const progressBar = parentEl.querySelector('.task-progress') as HTMLElement | null;
+            const percentText = parentEl.querySelector('.task-progress-percent') as HTMLElement | null;
+
+            if (progressBar) {
+                progressBar.style.width = `${percent}%`;
+                progressBar.setAttribute('data-progress', String(percent));
+            }
+
+            if (percentText) {
+                percentText.textContent = `${percent}%`;
+                percentText.title = `${percent}% 完成`;
+            }
+        } catch (error) {
+            console.error('更新父任务进度UI失败:', error);
+        }
+    }
+
+    private formatCompletedTime(completedTime: string): string {
+        try {
+            const d = new Date(completedTime);
+            if (isNaN(d.getTime())) return completedTime;
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mi = String(d.getMinutes()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+        } catch (error) {
+            return completedTime;
         }
     }
 
@@ -1754,8 +1837,6 @@ export class EisenhowerMatrixView {
             /* 父任务底部进度条 */
             .task-progress-container {
                 width: 100%;
-                height: 6px;
-                background: rgba(0,0,0,0.06);
                 border-radius: 6px;
                 margin-top: 6px;
                 overflow: hidden;
@@ -1771,10 +1852,15 @@ export class EisenhowerMatrixView {
             .task-progress-percent {
                 flex-shrink: 0;
                 min-width: 36px;
-                text-align: right;
-                font-size: 8px;
+                font-size: 12px;
                 color: var(--b3-theme-on-surface-light);
                 padding-left: 6px;
+            }
+            .task-completed-time {
+                display: inline-block;
+                font-size: 12px;
+                color: var(--b3-theme-on-surface-light);
+                margin-left: 8px;
             }
             
             /* 象限预览样式 */
