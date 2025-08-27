@@ -1296,6 +1296,8 @@ export class ProjectKanbanView {
     private showTaskContextMenu(event: MouseEvent, task: any) {
         const menu = new Menu("kanbanTaskContextMenu");
 
+        const childTasks = this.tasks.filter(t => t.parentId === task.id);
+
         // 编辑任务
         menu.addItem({
             iconHTML: "📝",
@@ -1418,32 +1420,34 @@ export class ProjectKanbanView {
         });
 
         // 复制子任务为多级 Markdown 列表
-        menu.addItem({
-            iconHTML: "📋",
-            label: "复制子任务为列表",
-            click: () => {
-                const childLines = this.buildMarkdownListFromChildren(task.id);
-                if (childLines && childLines.length > 0) {
-                    const text = childLines.join('\n');
-                    // 复制到剪贴板
-                    try {
-                        navigator.clipboard.writeText(text);
-                        showMessage('已复制子任务列表到剪贴板');
-                    } catch (err) {
-                        // 备用：使用临时 textarea
-                        const ta = document.createElement('textarea');
-                        ta.value = text;
-                        document.body.appendChild(ta);
-                        ta.select();
-                        document.execCommand('copy');
-                        document.body.removeChild(ta);
-                        showMessage('已复制子任务列表到剪贴板');
+        if (childTasks.length > 0) {
+            menu.addItem({
+                iconHTML: "📋",
+                label: "复制子任务为列表",
+                click: () => {
+                    const childLines = this.buildMarkdownListFromChildren(task.id);
+                    if (childLines && childLines.length > 0) {
+                        const text = childLines.join('\n');
+                        // 复制到剪贴板
+                        try {
+                            navigator.clipboard.writeText(text);
+                            showMessage('已复制子任务列表到剪贴板');
+                        } catch (err) {
+                            // 备用：使用临时 textarea
+                            const ta = document.createElement('textarea');
+                            ta.value = text;
+                            document.body.appendChild(ta);
+                            ta.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(ta);
+                            showMessage('已复制子任务列表到剪贴板');
+                        }
+                    } else {
+                        showMessage('该任务没有子任务可复制');
                     }
-                } else {
-                    showMessage('该任务没有子任务可复制');
                 }
-            }
-        });
+            });
+        }
 
         menu.open({
             x: event.clientX,
