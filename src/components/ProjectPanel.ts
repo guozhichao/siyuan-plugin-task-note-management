@@ -4,7 +4,7 @@ import { PomodoroStatsView } from "./PomodoroStatsView";
 
 // 添加四象限面板常量
 const EISENHOWER_TAB_TYPE = "reminder_eisenhower_tab";
-import { readProjectData, writeProjectData, getBlockByID, openBlock } from "../api";
+import { readProjectData, writeProjectData, getBlockByID, openBlock, readReminderData } from "../api";
 import { getLocalDateString, compareDateStrings } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { StatusManager } from "../utils/statusManager";
@@ -28,11 +28,14 @@ export class ProjectPanel {
     private categoryManager: CategoryManager;
     private statusManager: StatusManager;
     private projectUpdatedHandler: () => void;
+    private reminderUpdatedHandler: () => void;
     // 添加拖拽相关属性
     private isDragging: boolean = false;
     private draggedElement: HTMLElement | null = null;
     private draggedProject: any = null;
     private currentProjectsCache: any[] = [];
+    // 缓存提醒数据，避免为每个项目重复读取
+    private reminderDataCache: any = null;
 
     constructor(container: HTMLElement, plugin?: any) {
         this.container = container;
@@ -41,6 +44,14 @@ export class ProjectPanel {
         this.statusManager = StatusManager.getInstance();
 
         this.projectUpdatedHandler = () => {
+            this.loadProjects();
+        };
+
+        this.reminderUpdatedHandler = () => {
+            // 清空提醒缓存并重新加载计数
+            this.reminderDataCache = null;
+            // 重新渲染当前已加载的项目计数
+            // 如果项目已渲染，则触发一次重新加载以刷新计数显示
             this.loadProjects();
         };
 
@@ -55,11 +66,16 @@ export class ProjectPanel {
 
         // 监听项目更新事件
         window.addEventListener('projectUpdated', this.projectUpdatedHandler);
+    // 监听提醒更新事件，更新计数缓存
+    window.addEventListener('reminderUpdated', this.reminderUpdatedHandler);
     }
 
     public destroy() {
         if (this.projectUpdatedHandler) {
             window.removeEventListener('projectUpdated', this.projectUpdatedHandler);
+        }
+        if (this.reminderUpdatedHandler) {
+            window.removeEventListener('reminderUpdated', this.reminderUpdatedHandler);
         }
     }
 
@@ -389,6 +405,14 @@ export class ProjectPanel {
             // 应用排序
             this.sortProjects(displayProjects);
 
+            // 预先读取提醒数据缓存，用于计算每个项目的任务计数
+            try {
+                this.reminderDataCache = await readReminderData();
+            } catch (err) {
+                console.warn('读取提醒数据失败，计数将异步回退：', err);
+                this.reminderDataCache = null;
+            }
+
             // 渲染项目
             this.renderProjects(displayProjects);
 
@@ -472,12 +496,7 @@ export class ProjectPanel {
         return dateA.localeCompare(dateB);
     }
 
-    private compareByPriority(a: any, b: any): number {
-        const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
-        const priorityA = priorityOrder[a.priority || 'none'] || 0;
-        const priorityB = priorityOrder[b.priority || 'none'] || 0;
-        return priorityA - priorityB;
-    }
+    // ...existing code...
 
     private compareByTitle(a: any, b: any): number {
         const titleA = (a.title || '').toLowerCase();
@@ -616,6 +635,33 @@ export class ProjectPanel {
         const statusInfo = this.statusManager.getStatusById(status);
         statusLabel.textContent = statusInfo ? `${statusInfo.icon || ''} ${statusInfo.name}` : (t("unknownStatus") || '未知状态');
         infoEl.appendChild(statusLabel);
+
+        // 添加项目下顶级任务计数（todo/doing/done）
+        const countsContainer = document.createElement('div');
+        countsContainer.className = 'project-item__counts';
+        countsContainer.style.cssText = `display:flex; gap:8px; margin-top:6px; align-items:center;`;
+
+        const todoCountEl = document.createElement('span');
+        todoCountEl.className = 'project-count project-count--todo';
+        todoCountEl.textContent = '待办: ...';
+        countsContainer.appendChild(todoCountEl);
+
+        const doingCountEl = document.createElement('span');
+        doingCountEl.className = 'project-count project-count--doing';
+        doingCountEl.textContent = '进行中: ...';
+        countsContainer.appendChild(doingCountEl);
+
+        const doneCountEl = document.createElement('span');
+        doneCountEl.className = 'project-count project-count--done';
+        doneCountEl.textContent = '已完成: ...';
+        countsContainer.appendChild(doneCountEl);
+
+        infoEl.appendChild(countsContainer);
+
+        // 异步填充计数（使用缓存或实时读取）
+        this.fillProjectTopLevelCounts(project.id, todoCountEl, doingCountEl, doneCountEl).catch(err => {
+            console.warn('填充项目任务计数失败:', err);
+        });
         // 分类显示
         if (project.categoryId) {
             const category = this.categoryManager.getCategoryById(project.categoryId);
@@ -676,6 +722,58 @@ export class ProjectPanel {
 
         return projectEl;
     }
+
+    /**
+     * 填充某个项目的顶级任务计数到三个元素
+     */
+    private async fillProjectTopLevelCounts(projectId: string, todoEl: HTMLElement, doingEl: HTMLElement, doneEl: HTMLElement) {
+        try {
+            let reminderData = this.reminderDataCache;
+            if (!reminderData) {
+                reminderData = await readReminderData();
+                this.reminderDataCache = reminderData;
+            }
+
+            const counts = this.countTopLevelKanbanStatus(projectId, reminderData);
+
+            todoEl.textContent = `${t("todo") || '待办'}: ${counts.todo}`;
+            doingEl.textContent = `${t("doing") || '进行中'}: ${counts.doing}`;
+            doneEl.textContent = `${t("done") || '已完成'}: ${counts.done}`;
+        } catch (error) {
+            console.error('获取项目顶级任务计数失败:', error);
+            todoEl.textContent = `${t("todo") || '待办'}: ?`;
+            doingEl.textContent = `${t("doing") || '进行中'}: ?`;
+            doneEl.textContent = `${t("done") || '已完成'}: ?`;
+        }
+    }
+
+    /**
+     * 计算给定项目的顶级任务在 kanbanStatus 上的数量（只计顶级，即没有 parentId）
+     */
+    private countTopLevelKanbanStatus(projectId: string, reminderData: any): { todo: number; doing: number; done: number } {
+        const allReminders = reminderData && typeof reminderData === 'object' ? Object.values(reminderData) : [];
+        let todo = 0, doing = 0, done = 0;
+
+        allReminders.forEach((r: any) => {
+            if (!r || typeof r !== 'object') return;
+            // 仅统计属于该 project 且为顶级任务（parentId 严格为 undefined/null/空字符串认为是顶级）
+            const hasParent = r.hasOwnProperty('parentId') && r.parentId !== undefined && r.parentId !== null && String(r.parentId).trim() !== '';
+            if (r.projectId === projectId && !hasParent) {
+                // 已完成优先判断：completed 字段或 completedTime 存在
+                const isCompleted = !!r.completed || (r.completedTime !== undefined && r.completedTime !== null && String(r.completedTime).trim() !== '');
+                if (isCompleted) {
+                    done += 1;
+                    return;
+                }
+
+                const status = (r.kanbanStatus || '').toString();
+                if (status === 'doing') doing += 1;
+                else todo += 1;
+            }
+        });
+
+        return { todo, doing, done };
+    }
     // 新增：添加拖拽功能
     private addDragFunctionality(element: HTMLElement, project: any) {
         element.draggable = true;
@@ -694,7 +792,7 @@ export class ProjectPanel {
             }
         });
 
-        element.addEventListener('dragend', (e) => {
+    element.addEventListener('dragend', () => {
             this.isDragging = false;
             this.draggedElement = null;
             this.draggedProject = null;
@@ -727,7 +825,7 @@ export class ProjectPanel {
             this.hideDropIndicator();
         });
 
-        element.addEventListener('dragleave', (e) => {
+    element.addEventListener('dragleave', () => {
             this.hideDropIndicator();
         });
     }
