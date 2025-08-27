@@ -721,10 +721,166 @@ export class ReminderPanel {
             if (completedCount > 0) {
                 console.log(`父任务 ${parentId} 完成时，自动完成了 ${completedCount} 个子任务`);
                 showMessage(`已自动完成 ${completedCount} 个子任务`, 2000);
+
+                // 局部更新已完成的子任务的DOM显示（避免刷新整个面板）
+                for (const childId of descendantIds) {
+                    const childReminder = reminderData[childId];
+                    if (childReminder) {
+                        // 更新当前缓存并DOM
+                        this.updateReminderElement(childId, childReminder);
+                    }
+                }
+
+                // 更新父任务的进度显示
+                this.updateParentProgress(parentId);
             }
         } catch (error) {
             console.error('自动完成子任务失败:', error);
             // 不要阻止父任务的完成，只是记录错误
+        }
+    }
+
+    /**
+     * 局部更新单个提醒的 DOM 显示（如果该提醒当前正在显示）
+     * @param reminderId 原始或实例的提醒 id
+     * @param updatedReminder 可选，包含最新数据的提醒对象
+     * @param instanceDate 可选，对于重复实例传入实例日期
+     */
+    private updateReminderElement(reminderId: string, updatedReminder?: any, instanceDate?: string) {
+        try {
+            // 从当前显示的提醒缓存中找到目标提醒
+            const displayed = this.getDisplayedReminders();
+            const target = displayed.find(r => r.id === reminderId || (r.originalId === reminderId && instanceDate && r.date === instanceDate) || r.id === `${reminderId}_${instanceDate}`);
+
+            if (!target) {
+                return; // 目标未在当前面板中显示，无需更新
+            }
+
+            // 使用传入的 updatedReminder 更新缓存，并使用最新缓存对象继续后续更新，避免使用已失效的引用
+            const cacheIndex = this.currentRemindersCache.findIndex(r => r.id === target.id);
+            if (cacheIndex > -1 && updatedReminder) {
+                this.currentRemindersCache[cacheIndex] = { ...this.currentRemindersCache[cacheIndex], ...updatedReminder };
+            }
+
+            // 重新读取最新的缓存对象（优先使用缓存中的最新条目）
+            const latest = cacheIndex > -1 ? this.currentRemindersCache[cacheIndex] : target;
+
+            const el = this.remindersContainer.querySelector(`[data-reminder-id="${latest.id}"]`) as HTMLElement | null;
+            if (!el) return;
+
+            // 更新复选框状态
+            const checkbox = el.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+            if (checkbox) {
+                let completedVal = false;
+                if (updatedReminder && typeof updatedReminder.completed !== 'undefined') {
+                    completedVal = !!updatedReminder.completed;
+                } else if (updatedReminder && updatedReminder.repeat && updatedReminder.repeat.completedInstances && instanceDate) {
+                    completedVal = updatedReminder.repeat.completedInstances.includes(instanceDate);
+                } else {
+                    completedVal = !!latest.completed;
+                }
+                checkbox.checked = completedVal;
+            }
+
+            // 更新透明度与完成时间显示
+            let isCompleted = false;
+            if (updatedReminder && typeof updatedReminder.completed !== 'undefined') {
+                isCompleted = !!updatedReminder.completed;
+            } else {
+                isCompleted = !!latest.completed;
+            }
+            if (isCompleted) {
+                el.style.opacity = '0.5';
+                // 更新/添加完成时间元素
+                const infoEl = el.querySelector('.reminder-item__info') as HTMLElement | null;
+                if (infoEl) {
+                    // 移除原有完成时间显示
+                    const old = infoEl.querySelector('.reminder-item__completed-time');
+                    if (old) old.remove();
+
+                    // 获取完成时间：优先使用 updatedReminder 中的记录，其次使用最新缓存对象
+                    let completedTimeStr: string | null = null;
+                    if (updatedReminder && updatedReminder.completedTime) {
+                        completedTimeStr = updatedReminder.completedTime;
+                    } else if (latest && latest.completedTime) {
+                        completedTimeStr = latest.completedTime;
+                    } else {
+                        completedTimeStr = this.getCompletedTime(updatedReminder || latest);
+                    }
+                    if (completedTimeStr) {
+                        const completedEl = document.createElement('div');
+                        completedEl.className = 'reminder-item__completed-time';
+                        completedEl.textContent = `✅ ${this.formatCompletedTime(completedTimeStr)}`;
+                        completedEl.style.cssText = 'font-size:12px;  margin-top:6px; opacity:0.95;';
+                        infoEl.appendChild(completedEl);
+                    }
+                }
+            } else {
+                el.style.opacity = '';
+                const infoEl = el.querySelector('.reminder-item__info') as HTMLElement | null;
+                if (infoEl) {
+                    const old = infoEl.querySelector('.reminder-item__completed-time');
+                    if (old) old.remove();
+                }
+            }
+
+        } catch (error) {
+            console.error('局部更新提醒元素失败:', error);
+        }
+    }
+
+    /**
+     * 更新父任务底部的进度条显示（如果父任务当前显示）
+     * @param parentId 父任务ID
+     */
+    private updateParentProgress(parentId: string) {
+        try {
+            const parentEl = this.remindersContainer.querySelector(`[data-reminder-id="${parentId}"]`) as HTMLElement | null;
+            if (!parentEl) return;
+
+            // 计算直接子任务
+            const directChildren = this.currentRemindersCache.filter(r => r.parentId === parentId);
+            if (!directChildren || directChildren.length === 0) {
+                // 移除进度条（如果存在）
+                const progressContainer = parentEl.querySelector('.reminder-progress-container');
+                if (progressContainer) progressContainer.remove();
+                return;
+            }
+
+            const completedCount = directChildren.filter(c => c.completed).length;
+            const percent = Math.round((completedCount / directChildren.length) * 100);
+
+            let progressContainer = parentEl.querySelector('.reminder-progress-container') as HTMLElement | null;
+            if (!progressContainer) {
+                // 创建新的进度条结构
+                progressContainer = document.createElement('div');
+                progressContainer.className = 'reminder-progress-container';
+
+                const progressWrap = document.createElement('div');
+                progressWrap.className = 'reminder-progress-wrap';
+
+                const progressBar = document.createElement('div');
+                progressBar.className = 'reminder-progress-bar';
+                progressBar.style.width = `${percent}%`;
+
+                progressWrap.appendChild(progressBar);
+
+                const percentLabel = document.createElement('div');
+                percentLabel.className = 'reminder-progress-text';
+                percentLabel.textContent = `${percent}%`;
+
+                progressContainer.appendChild(progressWrap);
+                progressContainer.appendChild(percentLabel);
+
+                parentEl.appendChild(progressContainer);
+            } else {
+                const bar = progressContainer.querySelector('.reminder-progress-bar') as HTMLElement | null;
+                const label = progressContainer.querySelector('.reminder-progress-text') as HTMLElement | null;
+                if (bar) bar.style.width = `${percent}%`;
+                if (label) label.textContent = `${percent}%`;
+            }
+        } catch (error) {
+            console.error('更新父任务进度失败:', error);
         }
     }
 
@@ -1144,89 +1300,83 @@ export class ReminderPanel {
             const reminderData = await readReminderData();
 
             if (isRepeatInstance && instanceDate) {
-                // 处理重复事件实例的完成状态
-                const originalId = reminderId; // 这里 reminderId 应该是原始ID
+                // reminderId 是原始提醒的 id
+                const originalId = reminderId;
+                const original = reminderData[originalId];
+                if (!original) return;
 
-                if (reminderData[originalId]) {
-                    // 初始化已完成实例列表和完成时间记录
-                    if (!reminderData[originalId].repeat.completedInstances) {
-                        reminderData[originalId].repeat.completedInstances = [];
-                    }
-                    if (!reminderData[originalId].repeat.completedTimes) {
-                        reminderData[originalId].repeat.completedTimes = {};
-                    }
+                // 初始化结构
+                if (!original.repeat) original.repeat = {};
+                if (!original.repeat.completedInstances) original.repeat.completedInstances = [];
+                if (!original.repeat.completedTimes) original.repeat.completedTimes = {};
 
-                    const completedInstances = reminderData[originalId].repeat.completedInstances;
-                    const completedTimes = reminderData[originalId].repeat.completedTimes;
+                const completedInstances = original.repeat.completedInstances;
+                const completedTimes = original.repeat.completedTimes;
 
-                    if (completed) {
-                        // 添加到已完成列表并记录完成时间
-                        if (!completedInstances.includes(instanceDate)) {
-                            completedInstances.push(instanceDate);
-                        }
-                        completedTimes[instanceDate] = getLocalDateTimeString(new Date());
-
-                        // 父任务完成时，自动完成所有子任务
-                        await this.completeAllChildTasks(originalId, reminderData);
-                    } else {
-                        // 从已完成列表中移除并删除完成时间
-                        const index = completedInstances.indexOf(instanceDate);
-                        if (index > -1) {
-                            completedInstances.splice(index, 1);
-                        }
-                        delete completedTimes[instanceDate];
-                    }
-
-                    await writeReminderData(reminderData);
-
-                    // 更新块的书签状态
-                    const blockId = reminderData[originalId].blockId;
-                    if (blockId) {
-                        await updateBlockReminderBookmark(blockId);
-                        // 完成时自动处理任务列表
-                        if (completed) {
-                            await this.handleTaskListCompletion(blockId);
-                        }
-                        else {
-                            await this.handleTaskListCompletionCancel(blockId);
-                        }
-                    }
-
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                    this.loadReminders();
-                }
-            } else if (reminderData[reminderId]) {
-                // 处理普通事件的完成状态
-                const blockId = reminderData[reminderId].blockId;
-                reminderData[reminderId].completed = completed;
-
-                // 记录或清除完成时间
                 if (completed) {
-                    reminderData[reminderId].completedTime = getLocalDateTimeString(new Date());
+                    if (!completedInstances.includes(instanceDate)) completedInstances.push(instanceDate);
+                    completedTimes[instanceDate] = getLocalDateTimeString(new Date());
 
-                    // 父任务完成时，自动完成所有子任务
-                    await this.completeAllChildTasks(reminderId, reminderData);
+                    // 如果需要，自动完成子任务（局部更新内部会处理DOM）
+                    await this.completeAllChildTasks(originalId, reminderData);
                 } else {
-                    delete reminderData[reminderId].completedTime;
+                    const idx = completedInstances.indexOf(instanceDate);
+                    if (idx > -1) completedInstances.splice(idx, 1);
+                    delete completedTimes[instanceDate];
                 }
 
                 await writeReminderData(reminderData);
 
-                // 更新块的书签状态
+                // 更新块书签与任务列表状态
+                const blockId = original.blockId;
                 if (blockId) {
                     await updateBlockReminderBookmark(blockId);
-                    // 完成时自动处理任务列表
-                    if (completed) {
-                        await this.handleTaskListCompletion(blockId);
-                    }
-                    else {
-                        await this.handleTaskListCompletionCancel(blockId);
-                    }
+                    if (completed) await this.handleTaskListCompletion(blockId);
+                    else await this.handleTaskListCompletionCancel(blockId);
                 }
 
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                this.loadReminders();
+                // 局部更新：更新实例与父任务进度
+                this.updateReminderElement(originalId, original, instanceDate);
+                if (original.parentId) this.updateParentProgress(original.parentId);
+
+                // 更新徽章
+                if (this.plugin && typeof this.plugin.updateBadges === 'function') {
+                    this.plugin.updateBadges();
+                }
+
+                return;
             }
+
+            // 非重复事件
+            const reminder = reminderData[reminderId];
+            if (!reminder) return;
+
+            reminder.completed = completed;
+            if (completed) {
+                reminder.completedTime = getLocalDateTimeString(new Date());
+                // 自动完成子任务（局部更新内部会处理DOM）
+                await this.completeAllChildTasks(reminderId, reminderData);
+            } else {
+                delete reminder.completedTime;
+            }
+
+            await writeReminderData(reminderData);
+
+            // 更新块书签与任务列表状态
+            if (reminder.blockId) {
+                await updateBlockReminderBookmark(reminder.blockId);
+                if (completed) await this.handleTaskListCompletion(reminder.blockId);
+                else await this.handleTaskListCompletionCancel(reminder.blockId);
+            }
+
+            // 局部更新：更新当前提醒元素和其父任务进度
+            this.updateReminderElement(reminderId, reminder);
+            if (reminder.parentId) this.updateParentProgress(reminder.parentId);
+
+            if (this.plugin && typeof this.plugin.updateBadges === 'function') {
+                this.plugin.updateBadges();
+            }
+
         } catch (error) {
             console.error('切换提醒状态失败:', error);
             showMessage(t("operationFailed"));
@@ -1710,6 +1860,27 @@ export class ReminderPanel {
         // (The rest of the element creation logic remains the same)
         infoEl.appendChild(titleContainer);
         infoEl.appendChild(timeContainer);
+
+        // 已完成任务显示透明度并显示完成时间
+        if (reminder.completed) {
+            // 设置整体透明度为 0.5
+            try {
+                reminderEl.style.opacity = '0.5';
+            } catch (e) {
+                // ignore style errors
+            }
+
+            // 获取完成时间（支持重复实例）并显示
+            const completedTimeStr = this.getCompletedTime(reminder);
+            if (completedTimeStr) {
+                const completedEl = document.createElement('div');
+                completedEl.className = 'reminder-item__completed-time';
+                completedEl.textContent = `✅ ${this.formatCompletedTime(completedTimeStr)}`;
+                completedEl.style.cssText = 'font-size:12px;  margin-top:6px; opacity:0.95;';
+                infoEl.appendChild(completedEl);
+            }
+        }
+
         if (reminder.note) {
             const noteEl = document.createElement('div');
             noteEl.className = 'reminder-item__note';
@@ -2512,8 +2683,15 @@ export class ReminderPanel {
 
             await writeReminderData(reminderData);
             showMessage(t("markedTodayCompleted"));
-            this.loadReminders();
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+            // 局部更新：更新该提醒显示及其父项进度（如果显示）
+            if (reminder.isRepeatInstance) {
+                this.updateReminderElement(reminder.originalId, reminder, getLocalDateString());
+                if (reminder.parentId) this.updateParentProgress(reminder.parentId);
+            } else {
+                this.updateReminderElement(reminder.id, reminder);
+                if (reminder.parentId) this.updateParentProgress(reminder.parentId);
+            }
 
             // 通知插件更新徽章
             if (this.plugin && typeof this.plugin.updateBadges === 'function') {
@@ -2549,8 +2727,15 @@ export class ReminderPanel {
 
             await writeReminderData(reminderData);
             showMessage(t("unmarkedTodayCompleted"));
-            this.loadReminders();
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+            // 局部更新：更新该提醒显示及其父项进度（如果显示）
+            if (reminder.isRepeatInstance) {
+                this.updateReminderElement(reminder.originalId, reminder, getLocalDateString());
+                if (reminder.parentId) this.updateParentProgress(reminder.parentId);
+            } else {
+                this.updateReminderElement(reminder.id, reminder);
+                if (reminder.parentId) this.updateParentProgress(reminder.parentId);
+            }
 
             // 通知插件更新徽章
             if (this.plugin && typeof this.plugin.updateBadges === 'function') {
