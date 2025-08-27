@@ -66,6 +66,9 @@ export class EisenhowerMatrixView {
         this.projectManager = ProjectManager.getInstance();
         this.categoryManager = CategoryManager.getInstance();
         this.initQuadrants();
+    // 引用方法以避免编译器提示未使用（此方法通过动态绑定使用）
+    // 读取属性作为引用，不执行调用
+    void (this as any).setParentTaskRelationship;
     }
 
     private initQuadrants() {
@@ -199,7 +202,22 @@ export class EisenhowerMatrixView {
                 const reminder = reminderObj as any;
                 if (!reminder || typeof reminder !== 'object') continue;
 
-                // 跳过已完成的顶层任务，但保留已完成的子任务以便在父任务下显示
+                // 如果该任务或其任一祖先父任务已完成，则跳过
+                // 目标：不显示已完成的父任务及其所有子任务
+                const isAncestorCompleted = (r: any): boolean => {
+                    let current = r;
+                    while (current && current.parentId) {
+                        const parent = reminderData[current.parentId];
+                        if (!parent) break;
+                        if (parent.completed) return true;
+                        current = parent;
+                    }
+                    return false;
+                };
+
+                if (isAncestorCompleted(reminder)) continue;
+
+                // 跳过已完成的顶层任务
                 if (reminder?.completed && !reminder?.parentId) continue;
 
                 // 判断重要性
@@ -2913,6 +2931,9 @@ export class EisenhowerMatrixView {
      * 设置父任务关系（在 QuickReminderDialog 保存任务后调用）
      * 注意：此方法通过动态绑定在 showCreateTaskDialog 中被调用
      */
+    // 该方法在 showCreateTaskDialog 中通过动态绑定调用，静态分析可能提示未使用，禁用相关检查
+    // eslint-disable-next-line @typescript-eslint/no-unused-private-class-members
+    // @ts-ignore: 方法通过动态绑定使用，避免未使用提示
     private async setParentTaskRelationship(parentTask: QuadrantTask): Promise<void> {
         try {
             const reminderData = await readReminderData();
