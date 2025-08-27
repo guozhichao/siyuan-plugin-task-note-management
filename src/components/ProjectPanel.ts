@@ -34,6 +34,8 @@ export class ProjectPanel {
     private draggedElement: HTMLElement | null = null;
     private draggedProject: any = null;
     private currentProjectsCache: any[] = [];
+    // 保存每个状态分组的折叠状态（key = statusId, value = boolean; true=collapsed）
+    private groupCollapsedState: Record<string, boolean> = {};
     // 缓存提醒数据，避免为每个项目重复读取
     private reminderDataCache: any = null;
 
@@ -66,8 +68,8 @@ export class ProjectPanel {
 
         // 监听项目更新事件
         window.addEventListener('projectUpdated', this.projectUpdatedHandler);
-    // 监听提醒更新事件，更新计数缓存
-    window.addEventListener('reminderUpdated', this.reminderUpdatedHandler);
+        // 监听提醒更新事件，更新计数缓存
+        window.addEventListener('reminderUpdated', this.reminderUpdatedHandler);
     }
 
     public destroy() {
@@ -505,24 +507,72 @@ export class ProjectPanel {
     }
 
     private renderProjects(projects: any[]) {
-        if (projects.length === 0) {
-            const status = this.statusManager.getStatusById(this.currentTab);
-            const statusName = status ? status.name : t("allProjects");
-            const emptyText = t("noProjectsInStatus")?.replace("${status}", statusName) || `暂无“${statusName}”状态的项目`;
-            this.projectsContainer.innerHTML = `<div class="project-empty">${this.currentTab === 'all' ? (t("noProjects") || '暂无项目') : emptyText}</div>`;
+        // 如果没有项目则显示空提示
+        if (!projects || projects.length === 0) {
+            // 当在 "all" 标签下，排除归档后可能为空
+            if (this.currentTab === 'all') {
+                this.projectsContainer.innerHTML = `<div class="project-empty">${t("noProjects") || '暂无项目'}</div>`;
+            } else {
+                const status = this.statusManager.getStatusById(this.currentTab);
+                const statusName = status ? status.name : t("allProjects");
+                const emptyText = t("noProjectsInStatus")?.replace("${status}", statusName) || `暂无“${statusName}”状态的项目`;
+                this.projectsContainer.innerHTML = `<div class="project-empty">${emptyText}</div>`;
+            }
+            // 清空缓存
+            this.currentProjectsCache = [];
             return;
         }
 
         // 缓存当前项目列表
         this.currentProjectsCache = [...projects];
 
-        this.projectsContainer.innerHTML = '';
+        // 如果 currentTab 为 'all'，则按状态分组并排除 archived
+        if (this.currentTab === 'all') {
+            // 按状态分组
+            const groups: Record<string, any[]> = {};
+            projects.forEach(p => {
+                const st = p.status || 'active';
+                // 跳过归档状态
+                if (st === 'archived') return;
+                if (!groups[st]) groups[st] = [];
+                groups[st].push(p);
+            });
 
+            // 清空容器
+            this.projectsContainer.innerHTML = '';
+
+            // 获取按状态显示顺序（先使用 statusManager 中的顺序）
+            const statuses = this.statusManager.getStatuses();
+
+            // 先渲染非 statusManager 中定义的状态
+            const rendered = new Set<string>();
+
+            statuses.forEach(status => {
+                const sid = status.id;
+                if (groups[sid] && groups[sid].length > 0) {
+                    rendered.add(sid);
+                    const groupEl = this.createStatusGroupElement(status, groups[sid]);
+                    this.projectsContainer.appendChild(groupEl);
+                }
+            });
+
+            // 剩余自定义状态
+            Object.keys(groups).forEach(sid => {
+                if (rendered.has(sid)) return;
+                const statusInfo = this.statusManager.getStatusById(sid) || { id: sid, name: sid, icon: '' };
+                const groupEl = this.createStatusGroupElement(statusInfo, groups[sid]);
+                this.projectsContainer.appendChild(groupEl);
+            });
+
+            return;
+        }
+
+        // 非 'all' 标签，直接渲染列表（同之前逻辑）
+        this.projectsContainer.innerHTML = '';
         projects.forEach((project: any) => {
             const projectEl = this.createProjectElement(project);
             this.projectsContainer.appendChild(projectEl);
         });
-
     }
 
     private createProjectElement(project: any): HTMLElement {
@@ -792,7 +842,7 @@ export class ProjectPanel {
             }
         });
 
-    element.addEventListener('dragend', () => {
+        element.addEventListener('dragend', () => {
             this.isDragging = false;
             this.draggedElement = null;
             this.draggedProject = null;
@@ -825,7 +875,7 @@ export class ProjectPanel {
             this.hideDropIndicator();
         });
 
-    element.addEventListener('dragleave', () => {
+        element.addEventListener('dragleave', () => {
             this.hideDropIndicator();
         });
     }
@@ -1563,5 +1613,84 @@ export class ProjectPanel {
             console.error('打开番茄钟统计视图失败:', error);
             showMessage("打开番茄钟统计视图失败");
         }
+    }
+
+    /**
+     * 创建按状态分组的 DOM 元素，包含标题行（支持折叠/展开）和项目列表容器
+     */
+    private createStatusGroupElement(status: any, projects: any[]): HTMLElement {
+        const statusId = status.id || 'unknown';
+        const statusName = status.name || statusId;
+        const statusIcon = status.icon || '';
+
+        const groupWrapper = document.createElement('div');
+        groupWrapper.className = 'project-group';
+        groupWrapper.dataset.statusId = statusId;
+
+        const header = document.createElement('div');
+        header.className = 'project-group__header';
+        header.style.cssText = `display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 6px;`;
+
+        const left = document.createElement('div');
+        left.style.cssText = 'display:flex; align-items:center; gap:8px;';
+
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'project-group__icon';
+        iconSpan.textContent = statusIcon;
+        left.appendChild(iconSpan);
+
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'project-group__title';
+        titleSpan.textContent = `${statusName} (${projects.length})`;
+        left.appendChild(titleSpan);
+
+        header.appendChild(left);
+
+        const right = document.createElement('div');
+        right.style.cssText = 'display:flex; align-items:center; gap:8px;';
+
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'b3-button b3-button--tiny b3-button--outline project-group__toggle';
+        toggleBtn.textContent = this.groupCollapsedState[statusId] ? '展开' : '折叠';
+        toggleBtn.title = this.groupCollapsedState[statusId] ? '展开该分组' : '折叠该分组';
+        right.appendChild(toggleBtn);
+
+        header.appendChild(right);
+
+        groupWrapper.appendChild(header);
+
+        const listContainer = document.createElement('div');
+        listContainer.className = 'project-group__list';
+        listContainer.style.cssText = 'display:flex; flex-direction:column; gap:6px; padding:6px;';
+
+        // 根据折叠状态决定是否隐藏
+        const collapsed = !!this.groupCollapsedState[statusId];
+        if (collapsed) {
+            listContainer.style.display = 'none';
+        }
+
+        projects.forEach((project: any) => {
+            const projectEl = this.createProjectElement(project);
+            listContainer.appendChild(projectEl);
+        });
+
+        toggleBtn.addEventListener('click', () => {
+            const isCollapsed = !!this.groupCollapsedState[statusId];
+            this.groupCollapsedState[statusId] = !isCollapsed;
+
+            if (this.groupCollapsedState[statusId]) {
+                listContainer.style.display = 'none';
+                toggleBtn.textContent = '展开';
+                toggleBtn.title = '展开该分组';
+            } else {
+                listContainer.style.display = 'flex';
+                toggleBtn.textContent = '折叠';
+                toggleBtn.title = '折叠该分组';
+            }
+        });
+
+        groupWrapper.appendChild(listContainer);
+
+        return groupWrapper;
     }
 }
