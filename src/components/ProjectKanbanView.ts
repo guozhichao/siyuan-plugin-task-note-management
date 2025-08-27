@@ -1790,6 +1790,40 @@ export class ProjectKanbanView {
             }
         }
 
+        // 计算 newTask 应该插入的分组（同项目，同父任务/顶层，同状态，同优先级）的最大 sort
+        try {
+            const parentId = parentTask ? parentTask.id : undefined;
+            const desiredPriority = taskData.priority || 'none';
+            // 目标状态（使用与加载任务时相同的判定逻辑）
+            const desiredStatus = parentTask && parentTask.status === 'doing' ? 'doing' : 'todo';
+
+            const maxSortForGroup = Object.values(reminderData)
+                .filter((r: any) => r && r.projectId === this.projectId)
+                .filter((r: any) => {
+                    const rParent = r.parentId || undefined;
+                    // 父任务分组一致
+                    if (parentId !== undefined) {
+                        if (rParent !== parentId) return false;
+                    } else {
+                        if (rParent !== undefined) return false;
+                    }
+                    // 状态一致
+                    const rStatus = this.getTaskStatus(r);
+                    if (rStatus !== desiredStatus) return false;
+                    // 优先级一致
+                    const rPriority = r.priority || 'none';
+                    if (rPriority !== desiredPriority) return false;
+                    return typeof r.sort === 'number';
+                })
+                .reduce((max: number, t: any) => Math.max(max, t.sort || 0), 0) as number;
+
+            // 使用步长10与批量创建保持一致，确保插到末尾
+            newTask.sort = maxSortForGroup + 10;
+        } catch (err) {
+            // 如果任何错误，回退为默认排序0
+            newTask.sort = 0;
+        }
+
         reminderData[taskId] = newTask;
         await writeReminderData(reminderData);
 
