@@ -199,8 +199,8 @@ export class EisenhowerMatrixView {
                 const reminder = reminderObj as any;
                 if (!reminder || typeof reminder !== 'object') continue;
 
-                // 跳过已完成的任务
-                if (reminder?.completed) continue;
+                // 跳过已完成的顶层任务，但保留已完成的子任务以便在父任务下显示
+                if (reminder?.completed && !reminder?.parentId) continue;
 
                 // 判断重要性
                 const importanceOrder = { 'none': 0, 'low': 1, 'medium': 2, 'high': 3 };
@@ -747,6 +747,33 @@ export class EisenhowerMatrixView {
         taskContent.appendChild(taskInnerContent);
         taskEl.appendChild(taskContent);
 
+        // 如果有子任务且为父任务，添加进度条容器（显示在任务元素底部）
+        if (childTasks.length > 0) {
+            const progressContainer = document.createElement('div');
+            progressContainer.className = 'task-progress-container';
+            progressContainer.style.cssText = `display:flex; align-items:center; gap:8px; justify-content:space-between;`;
+
+            const progressWrap = document.createElement('div');
+            progressWrap.style.cssText = `flex:1; min-width:0;`;
+
+            const progressBar = document.createElement('div');
+            progressBar.className = 'task-progress';
+            const percent = this.calculateChildCompletionPercent(task.id);
+            progressBar.style.width = `${percent}%`;
+            progressBar.setAttribute('data-progress', String(percent));
+
+            progressWrap.appendChild(progressBar);
+
+            const percentText = document.createElement('span');
+            percentText.className = 'task-progress-percent';
+            percentText.textContent = `${percent}%`;
+            percentText.title = `${percent}% 完成`;
+
+            progressContainer.appendChild(progressWrap);
+            progressContainer.appendChild(percentText);
+            taskEl.appendChild(progressContainer);
+        }
+
         // 添加事件监听
         taskEl.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
@@ -1065,6 +1092,23 @@ export class EisenhowerMatrixView {
 
         getChildren(parentId);
         return result;
+    }
+
+    /**
+     * 计算指定父任务的子任务完成百分比（已完成子任务数 / 子任务总数 * 100）
+     * @param parentId 父任务ID
+     */
+    private calculateChildCompletionPercent(parentId: string): number {
+        try {
+            const childTasks = this.allTasks.filter(t => t.parentId === parentId);
+            if (childTasks.length === 0) return 0;
+            const completedCount = childTasks.filter(t => t.completed).length;
+            const percent = Math.round((completedCount / childTasks.length) * 100);
+            return Math.min(100, Math.max(0, percent));
+        } catch (error) {
+            console.error('计算子任务完成百分比失败:', error);
+            return 0;
+        }
     }
 
     private async openTaskBlock(blockId: string) {
@@ -1462,6 +1506,7 @@ export class EisenhowerMatrixView {
             }
             .quick_item{
                 margin-top: 2px;
+                border-radius: 4px;
             }
             .task-content {
                 display: flex;
@@ -1704,6 +1749,32 @@ export class EisenhowerMatrixView {
             
             .task-item:hover .task-drag-handle {
                 opacity: 0.7;
+            }
+
+            /* 父任务底部进度条 */
+            .task-progress-container {
+                width: 100%;
+                height: 6px;
+                background: rgba(0,0,0,0.06);
+                border-radius: 6px;
+                margin-top: 6px;
+                overflow: hidden;
+            }
+
+            .task-progress {
+                height: 100%;
+                width: 0%;
+                background: linear-gradient(90deg, #2ecc71, #27ae60);
+                border-radius: 6px;
+                transition: width 300ms ease-in-out;
+            }
+            .task-progress-percent {
+                flex-shrink: 0;
+                min-width: 36px;
+                text-align: right;
+                font-size: 8px;
+                color: var(--b3-theme-on-surface-light);
+                padding-left: 6px;
             }
             
             /* 象限预览样式 */

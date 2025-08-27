@@ -961,6 +961,59 @@ export class ProjectKanbanView {
 
         taskEl.appendChild(taskMainContainer);
 
+        // 如果为父任务，计算子任务完成进度并在底部显示进度条
+        const directChildren = this.tasks.filter(t => t.parentId === task.id);
+        if (directChildren.length > 0) {
+            const completedCount = directChildren.filter(c => c.completed).length;
+            const percent = Math.round((completedCount / directChildren.length) * 100);
+
+            const progressContainer = document.createElement('div');
+            progressContainer.className = 'kanban-task-progress-container';
+            progressContainer.style.cssText = `
+                margin-top: 8px;
+                padding: 6px 0 0 0;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            `;
+
+            const progressBarWrap = document.createElement('div');
+            progressBarWrap.className = 'kanban-task-progress-wrap';
+            progressBarWrap.style.cssText = `
+                flex: 1;
+                background: rgba(0,0,0,0.06);
+                height: 8px;
+                border-radius: 6px;
+                overflow: hidden;
+            `;
+
+            const progressBar = document.createElement('div');
+            progressBar.className = 'kanban-task-progress-bar';
+            progressBar.style.cssText = `
+                width: ${percent}%;
+                height: 100%;
+                background: linear-gradient(90deg, #2ecc71, #27ae60);
+                transition: width 0.3s ease;
+            `;
+
+            progressBarWrap.appendChild(progressBar);
+
+            const percentLabel = document.createElement('div');
+            percentLabel.className = 'kanban-task-progress-text';
+            percentLabel.textContent = `${percent}%`;
+            percentLabel.style.cssText = `
+                font-size: 12px;
+                color: var(--b3-theme-on-surface);
+                opacity: 0.85;
+                min-width: 34px;
+                text-align: right;
+            `;
+
+            progressContainer.appendChild(progressBarWrap);
+            progressContainer.appendChild(percentLabel);
+            taskEl.appendChild(progressContainer);
+        }
+
         // 添加拖拽事件（状态切换）
         this.addTaskDragEvents(taskEl, task);
 
@@ -2958,6 +3011,32 @@ export class ProjectKanbanView {
            .project-kanban-title h2[data-has-note="true"]:hover {
                color: var(--b3-theme-primary);
            }
+            /* 父任务子任务进度条 */
+            .kanban-task-progress-container {
+                margin-top: 8px;
+            }
+
+            .kanban-task-progress-wrap {
+                background: rgba(0,0,0,0.06);
+                height: 8px;
+                border-radius: 6px;
+                overflow: hidden;
+            }
+
+            .kanban-task-progress-bar {
+                height: 100%;
+                background: linear-gradient(90deg, #2ecc71, #27ae60);
+                transition: width 0.3s ease;
+                border-radius: 6px 0 0 6px;
+            }
+
+            .kanban-task-progress-text {
+                font-size: 12px;
+                color: var(--b3-theme-on-surface);
+                opacity: 0.9;
+                min-width: 34px;
+                text-align: right;
+            }
        `;
         document.head.appendChild(style);
     }
@@ -3162,7 +3241,7 @@ export class ProjectKanbanView {
             dialog.destroy();
         });
 
-    // 确认按钮
+        // 确认按钮
         confirmBtn.addEventListener('click', async () => {
             if (currentMode === 'existing') {
                 // 绑定现有块模式

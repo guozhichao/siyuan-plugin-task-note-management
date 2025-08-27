@@ -1726,6 +1726,34 @@ export class ReminderPanel {
         contentEl.appendChild(infoEl);
         reminderEl.appendChild(contentEl);
 
+        // 如果为父任务，计算直接子任务完成进度并在底部显示进度条
+        if (hasChildren) {
+            const directChildren = allVisibleReminders.filter(r => r.parentId === reminder.id);
+            const completedCount = directChildren.filter(c => c.completed).length;
+            const percent = Math.round((completedCount / directChildren.length) * 100);
+
+            const progressContainer = document.createElement('div');
+            progressContainer.className = 'reminder-progress-container';
+
+            const progressWrap = document.createElement('div');
+            progressWrap.className = 'reminder-progress-wrap';
+
+            const progressBar = document.createElement('div');
+            progressBar.className = 'reminder-progress-bar';
+            progressBar.style.width = `${percent}%`;
+
+            progressWrap.appendChild(progressBar);
+
+            const percentLabel = document.createElement('div');
+            percentLabel.className = 'reminder-progress-text';
+            percentLabel.textContent = `${percent}%`;
+
+            progressContainer.appendChild(progressWrap);
+            progressContainer.appendChild(percentLabel);
+
+            reminderEl.appendChild(progressContainer);
+        }
+
         return reminderEl;
     }
     // 新增：添加拖拽功能
@@ -3920,6 +3948,33 @@ export class ReminderPanel {
             .reminder-arrow {
                 color: var(--b3-theme-on-surface);
                 opacity: 0.7;
+            }
+            /* 父任务子任务进度条样式 */
+            .reminder-progress-container {
+                margin-top: 8px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .reminder-progress-wrap {
+                flex: 1;
+                background: rgba(0,0,0,0.06);
+                height: 8px;
+                border-radius: 6px;
+                overflow: hidden;
+            }
+            .reminder-progress-bar {
+                height: 100%;
+                background: linear-gradient(90deg, #2ecc71, #27ae60);
+                transition: width 0.3s ease;
+                border-radius: 6px 0 0 6px;
+            }
+            .reminder-progress-text {
+                font-size: 12px;
+                color: var(--b3-theme-on-surface);
+                opacity: 0.9;
+                min-width: 34px;
+                text-align: right;
             }
         `;
         document.head.appendChild(style);
