@@ -444,17 +444,23 @@ export class ReminderDialog {
                 return;
             }
             try {
-                const domString = await getBlockDOM(this.blockId);
-                const parser = new DOMParser();
-                const dom = parser.parseFromString(domString.dom, 'text/html');
-                const element = dom.querySelector('div[data-type="NodeParagraph"]');
-                if (element) {
-                    const attrElement = element.querySelector('div.protyle-attr');
-                    if (attrElement) {
-                        attrElement.remove();
+                // 如果是文档块，直接使用文档标题
+                if (block.type === 'd') {
+                    this.blockContent = block.content || t("unnamedNote");
+                } else {
+                    // 对于其他块类型，获取DOM内容
+                    const domString = await getBlockDOM(this.blockId);
+                    const parser = new DOMParser();
+                    const dom = parser.parseFromString(domString.dom, 'text/html');
+                    const element = dom.querySelector('div[data-type="NodeParagraph"]');
+                    if (element) {
+                        const attrElement = element.querySelector('div.protyle-attr');
+                        if (attrElement) {
+                            attrElement.remove();
+                        }
                     }
+                    this.blockContent = element ? element.textContent.trim() : (block?.fcontent || block?.content || t("unnamedNote"));
                 }
-                this.blockContent = element ? element.textContent.trim() : (block?.fcontent || block?.content || t("unnamedNote"));
             } catch (e) {
                 this.blockContent = block?.fcontent || block?.content || t("unnamedNote");
             }
