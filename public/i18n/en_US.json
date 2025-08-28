@@ -500,7 +500,6 @@
     "todo": "Todo",
     "doing": "Doing",
     "done": "Done",
-    "archived": "Archived",
     "openProjectKanban": "Open Project Kanban",
     "removeFromProject": "Remove from Project",
     "pleaseEnterProjectName": "Please enter project name",
