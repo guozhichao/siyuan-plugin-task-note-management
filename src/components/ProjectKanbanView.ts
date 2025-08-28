@@ -2035,19 +2035,31 @@ export class ProjectKanbanView {
                 continue;
             }
 
-            // 移除列表标记（- 或 * 等）
-            const taskContent = cleanLine.replace(/^[-*+]\s*/, '');
+            // 支持多个连续的列表标记（-- 表示更深层级）以及复选框语法 "- [ ]" 或 "- [x]"
+            // 先计算基于连续 '-' 的额外层级（例如 "-- item" 看作更深一层）
+            let levelFromDashes = 0;
+            const dashPrefixMatch = cleanLine.match(/^(-{2,})\s*/);
+            if (dashPrefixMatch) {
+                // 连续的 '-' 比第一个额外增加层级数
+                levelFromDashes = dashPrefixMatch[1].length - 1;
+            }
+
+            // 合并缩进级别和 '-' 表示的额外级别
+            const combinedLevel = level + levelFromDashes;
+
+            // 移除所有开头的列表标记（- * +）以及前导空格
+            const taskContent = cleanLine.replace(/^[-*+]+\s*/, '');
             if (!taskContent) continue;
 
             const taskData = this.parseTaskLine(taskContent);
             const task: HierarchicalTask = {
                 ...taskData,
-                level,
+                level: combinedLevel,
                 children: []
             };
 
             // 清理栈，移除级别更高或相等的项
-            while (stack.length > 0 && stack[stack.length - 1].level >= level) {
+            while (stack.length > 0 && stack[stack.length - 1].level >= combinedLevel) {
                 stack.pop();
             }
 
@@ -2060,7 +2072,7 @@ export class ProjectKanbanView {
                 parent.children.push(task);
             }
 
-            stack.push({ task, level });
+            stack.push({ task, level: combinedLevel });
         }
 
         return tasks;
@@ -2190,31 +2202,48 @@ export class ProjectKanbanView {
         return count;
     }
 
-    private parseTaskLine(line: string): { title: string; priority?: string; startDate?: string; endDate?: string; blockId?: string } {
-        // 查找参数部分 @priority=high&startDate=2025-08-12&endDate=2025-08-30
-        const paramMatch = line.match(/@(.+)$/);
+    private parseTaskLine(line: string): { title: string; priority?: string; startDate?: string; endDate?: string; blockId?: string; completed?: boolean } {
+    // 查找参数部分 @priority=high&startDate=2025-08-12&endDate=2025-08-30
+    const paramMatch = line.match(/@(.+)$/);
         let title = line;
         let priority: string | undefined;
         let startDate: string | undefined;
         let endDate: string | undefined;
         let blockId: string | undefined;
+    let completed: boolean | undefined;
 
-        // 检查是否包含思源块链接或块引用
-        blockId = this.extractBlockIdFromText(line);
+    // 检查是否包含思源块链接或块引用
+    blockId = this.extractBlockIdFromText(line);
 
         // 如果找到了块链接，从标题中移除链接部分
         if (blockId) {
             // 移除 Markdown 链接格式 [标题](siyuan://blocks/blockId)
             title = title.replace(/\[([^\]]+)\]\(siyuan:\/\/blocks\/[^)]+\)/g, '$1');
             // 移除块引用格式 ((blockId '标题'))
-            title = title.replace(/\(\([^)]+\s+'([^']+)'\)\)/g, '$1');
+            title = title.replace(/\(\([^\s)]+\s+'([^']+)'\)\)/g, '$1');
             // 移除块引用格式 ((blockId "标题"))
-            title = title.replace(/\(\([^)]+\s+"([^"]+)"\)\)/g, '$1');
+            title = title.replace(/\(\([^\s)]+\s+"([^"]+)"\)\)/g, '$1');
             // 移除简单块引用格式 ((blockId))
-            title = title.replace(/\(\([^)]+\)\)/g, '');
+            title = title.replace(/\(\([^\)]+\)\)/g, '');
         }
 
-        if (paramMatch) {
+        // 解析复选框语法 (- [ ] 或 - [x])，并从标题中移除复选框标记
+        const checkboxMatch = title.match(/^\s*\[\s*([ xX])\s*\]\s*/);
+        if (checkboxMatch) {
+            const mark = checkboxMatch[1];
+            completed = (mark.toLowerCase() === 'x');
+            title = title.replace(/^\s*\[\s*([ xX])\s*\]\s*/, '').trim();
+        }
+
+        // 有些 Markdown 列表中复选框放在 - [ ] 后面，处理示例："- [ ] 任务标题"
+        // 如果 title 起始包含 '- [ ]' 或 '- [x]'，也要处理
+        const leadingCheckboxMatch = line.match(/^\s*[-*+]\s*\[\s*([ xX])\s*\]\s*(.+)$/);
+        if (leadingCheckboxMatch) {
+            completed = (leadingCheckboxMatch[1].toLowerCase() === 'x');
+            title = leadingCheckboxMatch[2];
+        }
+
+    if (paramMatch) {
             // 移除参数部分，获取纯标题
             title = title.replace(/@(.+)$/, '').trim();
 
@@ -2247,6 +2276,7 @@ export class ProjectKanbanView {
             startDate,
             endDate,
             blockId
+            ,completed
         };
     }
 
