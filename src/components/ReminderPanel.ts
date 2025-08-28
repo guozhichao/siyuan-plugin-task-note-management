@@ -1856,6 +1856,29 @@ export class ReminderPanel {
             }
         }
 
+        // 添加番茄钟计数显示
+        const pomodoroCount = await this.getReminderPomodoroCount(reminder.id);
+        if (pomodoroCount && pomodoroCount > 0) {
+            const pomodoroDisplay = document.createElement('div');
+            pomodoroDisplay.className = 'reminder-item__pomodoro-count';
+            pomodoroDisplay.style.cssText = `
+                font-size: 12px;
+                display: inline-flex;
+                align-items: center;
+                gap: 2px;
+                margin-top: 4px;
+            `;
+
+            const tomatoEmojis = '🍅'.repeat(Math.min(pomodoroCount, 5));
+            const extraCount = pomodoroCount > 5 ? `+${pomodoroCount - 5}` : '';
+
+            pomodoroDisplay.innerHTML = `
+                <span title="完成的番茄钟数量: ${pomodoroCount}">${tomatoEmojis}${extraCount}</span>
+            `;
+
+            timeContainer.appendChild(pomodoroDisplay);
+        }
+
         // ... 优先级标签、完成时间、分类、番茄钟等 ...
         // (The rest of the element creation logic remains the same)
         infoEl.appendChild(titleContainer);
@@ -1945,7 +1968,7 @@ export class ReminderPanel {
             }
         });
 
-        element.addEventListener('dragend', (e) => {
+        element.addEventListener('dragend', () => {
             this.isDragging = false;
             this.draggedElement = null;
             this.draggedReminder = null;
@@ -1978,7 +2001,7 @@ export class ReminderPanel {
             this.hideDropIndicator();
         });
 
-        element.addEventListener('dragleave', (e) => {
+        element.addEventListener('dragleave', () => {
             this.hideDropIndicator();
         });
     }
@@ -2350,7 +2373,7 @@ export class ReminderPanel {
             compareDateStrings(today, reminder.endDate) <= 0;
 
         // 检查是否为未绑定的快速事件
-        const isUnboundQuickReminder = (reminder.isQuickReminder || reminder.id.startsWith('quick')) && !reminder.blockId;
+        // const isUnboundQuickReminder = (reminder.isQuickReminder || reminder.id.startsWith('quick')) && !reminder.blockId;
 
         // 添加项目管理选项（仅当任务有projectId时显示）
         if (reminder.projectId) {
@@ -2802,7 +2825,7 @@ export class ReminderPanel {
                     `工作时间 ${Math.floor(currentState.timeElapsed / 60)}:${(currentState.timeElapsed % 60).toString().padStart(2, '0')}` :
                     `休息时间 ${Math.floor(currentState.timeLeft / 60)}:${(currentState.timeLeft % 60).toString().padStart(2, '0')}`;
 
-                confirmMessage += `\n\n选择"确定"将继承当前进度继续计时。`;
+                confirmMessage += `\n\n\n选择"确定"将继承当前进度继续计时。`;
             }
 
 
@@ -4374,6 +4397,20 @@ export class ReminderPanel {
             }
         } catch (error) {
             console.error('显示更多菜单失败:', error);
+        }
+    }
+
+    /**
+     * 获取提醒的番茄钟计数
+     */
+    private async getReminderPomodoroCount(reminderId: string): Promise<number> {
+        try {
+            const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
+            const pomodoroManager = PomodoroRecordManager.getInstance();
+            return await pomodoroManager.getReminderPomodoroCount(reminderId);
+        } catch (error) {
+            console.error('获取番茄钟计数失败:', error);
+            return 0;
         }
     }
 }
