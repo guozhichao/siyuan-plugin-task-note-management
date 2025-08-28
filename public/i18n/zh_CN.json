@@ -545,6 +545,7 @@
     "setProjectColors": "设置项目颜色",
     "manageProjectColors": "管理项目颜色",
     "colorSetSuccess": "颜色设置成功",
+    "todo":"待办",
     "doing": "进行中",
     "done": "已完成",
     "archived": "已归档",
