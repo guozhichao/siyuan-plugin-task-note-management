@@ -908,14 +908,19 @@ export class ReminderEditDialog {
                     if (inputId) {
                         try {
                             const blockInfo = await getBlockByID(inputId);
+                            // // 如果 blockInfo 存在且 type !== 'd'，视为块，保存 blockId 并设置 docId 为 root_id 或 inputId
+                            // if (blockInfo && blockInfo.type && blockInfo.type !== 'd') {
+                            //     reminderData[this.reminder.id].blockId = inputId;
+                            //     reminderData[this.reminder.id].docId = blockInfo.root_id || inputId;
+                            // } else {
+                            //     // 否则视为文档 ID，保存 docId 并删除 blockId
+                            //     reminderData[this.reminder.id].docId = inputId;
+                            //     delete reminderData[this.reminder.id].blockId;
+                            // }
                             // 如果 blockInfo 存在且 type !== 'd'，视为块，保存 blockId 并设置 docId 为 root_id 或 inputId
-                            if (blockInfo && blockInfo.type && blockInfo.type !== 'd') {
+                            if (blockInfo) {
                                 reminderData[this.reminder.id].blockId = inputId;
                                 reminderData[this.reminder.id].docId = blockInfo.root_id || inputId;
-                            } else {
-                                // 否则视为文档 ID，保存 docId 并删除 blockId
-                                reminderData[this.reminder.id].docId = inputId;
-                                delete reminderData[this.reminder.id].blockId;
                             }
                         } catch (err) {
                             // 如果 getBlockByID 抛错或不存在，保守地当作 blockId 保存
