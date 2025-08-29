@@ -327,11 +327,7 @@ export class ReminderPanel {
                 // 这确保了无日期但有完成时间的任务不会回退到日期排序
                 let result = this.compareByCompletedTime(a, b);
 
-                // 在已完成视图中，子任务优先展示（子任务在前）
-                const aIsChild = !!a.parentId;
-                const bIsChild = !!b.parentId;
-                if (aIsChild && !bIsChild) return -1;
-                if (!aIsChild && bIsChild) return 1;
+
 
                 // compareByCompletedTime 已返回降序的基础结果，直接返回（不再受 sortOrder 影响）
                 return result;
