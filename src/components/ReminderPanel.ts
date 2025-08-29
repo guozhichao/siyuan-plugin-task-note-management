@@ -291,7 +291,7 @@ export class ReminderPanel {
     private sortReminders(reminders: any[]) {
         const sortType = this.currentSort;
         const sortOrder = this.currentSortOrder;
-        console.log('应用排序方式:', sortType, sortOrder, '提醒数量:', reminders.length);
+        // console.log('应用排序方式:', sortType, sortOrder, '提醒数量:', reminders.length);
 
         // 特殊处理已完成相关的筛选器
         const isCompletedFilter = this.currentTab === 'completed' || this.currentTab === 'todayCompleted';
@@ -348,7 +348,7 @@ export class ReminderPanel {
             return sortOrder === 'desc' ? -result : result;
         });
 
-        console.log('排序完成，排序方式:', sortType, sortOrder);
+        // console.log('排序完成，排序方式:', sortType, sortOrder);
     }
     // 新增：优先级排序与手动排序结合
     private compareByPriorityWithManualSort(a: any, b: any): number {
@@ -597,7 +597,7 @@ export class ReminderPanel {
                             this.updateSortButtonTitle();
                             await saveSortConfig(option.key, 'asc');
                             await this.loadReminders();
-                            console.log('排序已更新为:', option.key, 'asc');
+                            // console.log('排序已更新为:', option.key, 'asc');
                         } catch (error) {
                             console.error('保存排序配置失败:', error);
                             await this.loadReminders();
@@ -616,7 +616,7 @@ export class ReminderPanel {
                             this.updateSortButtonTitle();
                             await saveSortConfig(option.key, 'desc');
                             await this.loadReminders();
-                            console.log('排序已更新为:', option.key, 'desc');
+                            // console.log('排序已更新为:', option.key, 'desc');
                         } catch (error) {
                             console.error('保存排序配置失败:', error);
                             await this.loadReminders();
@@ -648,7 +648,7 @@ export class ReminderPanel {
         } catch (error) {
             console.error('显示排序菜单失败:', error);
             const currentName = getSortMethodName(this.currentSort, this.currentSortOrder);
-            console.log(`当前排序方式: ${currentName}`);
+            // console.log(`当前排序方式: ${currentName}`);
         }
     }
     /**
@@ -719,7 +719,7 @@ export class ReminderPanel {
             }
 
             if (completedCount > 0) {
-                console.log(`父任务 ${parentId} 完成时，自动完成了 ${completedCount} 个子任务`);
+                // console.log(`父任务 ${parentId} 完成时，自动完成了 ${completedCount} 个子任务`);
                 showMessage(`已自动完成 ${completedCount} 个子任务`, 2000);
 
                 // 局部更新已完成的子任务的DOM显示（避免刷新整个面板）
@@ -890,20 +890,20 @@ export class ReminderPanel {
     private getAllAncestorIds(id: string, reminderMap: Map<string, any>): string[] {
         const result: string[] = [];
         let current = reminderMap.get(id);
-        console.log(`获取任务 ${id} 的祖先, 当前任务:`, current);
+        // console.log(`获取任务 ${id} 的祖先, 当前任务:`, current);
 
         while (current && current.parentId) {
-            console.log(`找到父任务: ${current.parentId}`);
+            // console.log(`找到父任务: ${current.parentId}`);
             if (result.includes(current.parentId)) {
-                console.log(`检测到循环引用，停止查找`);
+                // console.log(`检测到循环引用，停止查找`);
                 break; // 防止循环引用
             }
             result.push(current.parentId);
             current = reminderMap.get(current.parentId);
-            console.log(`父任务详情:`, current);
+            // console.log(`父任务详情:`, current);
         }
 
-        console.log(`任务 ${id} 的所有祖先:`, result);
+        // console.log(`任务 ${id} 的所有祖先:`, result);
         return result;
     }
 
@@ -911,7 +911,7 @@ export class ReminderPanel {
     private async loadReminders() {
         // 防止重复加载
         if (this.isLoading) {
-            console.log('任务正在加载中，跳过本次加载请求');
+            // console.log('任务正在加载中，跳过本次加载请求');
             return;
         }
 
@@ -952,14 +952,11 @@ export class ReminderPanel {
             // 子任务驱动: 如果子任务匹配，其所有祖先都应显示
             for (const child of directlyMatchingReminders) {
                 const ancestors = this.getAllAncestorIds(child.id, reminderMap);
-                console.log(`子任务 ${child.id} 的祖先任务:`, ancestors);
                 ancestors.forEach(ancestorId => {
-                    console.log(`添加祖先任务到渲染列表: ${ancestorId}`);
                     idsToRender.add(ancestorId);
                 });
             }
 
-            console.log(`需要渲染的任务ID集合:`, Array.from(idsToRender));
 
             // 4. 组装最终要显示的提醒列表（所有被标记为需要渲染的提醒）
             // 修改：从所有提醒中筛选，而不是从分类过滤后的提醒中筛选
@@ -1022,18 +1019,18 @@ export class ReminderPanel {
                 (reminder.date || reminder.parentId || this.hasChildren(reminder.id, reminderData));
 
             if (reminder && reminder.id) {
-                console.log(`任务 ${reminder.id} (${reminder.title}):`, {
-                    hasDate: !!reminder.date,
-                    hasParentId: !!reminder.parentId,
-                    hasChildren: this.hasChildren(reminder.id, reminderData),
-                    shouldInclude
-                });
+                // console.log(`任务 ${reminder.id} (${reminder.title}):`, {
+                //     hasDate: !!reminder.date,
+                //     hasParentId: !!reminder.parentId,
+                //     hasChildren: this.hasChildren(reminder.id, reminderData),
+                //     shouldInclude
+                // });
             }
 
             return shouldInclude;
         });
 
-        console.log(`生成的所有任务数量: ${reminders.length}`);
+        // console.log(`生成的所有任务数量: ${reminders.length}`);
         const allReminders = [];
         const repeatInstancesMap = new Map();
 
@@ -1443,7 +1440,6 @@ export class ReminderPanel {
 
             // 2. 获取块的 kramdown 内容
             const kramdown = (await getBlockKramdown(blockId)).kramdown;
-            console.log('获取块的 kramdown 内容:', blockId, kramdown);
             if (!kramdown) {
                 console.warn('无法获取块的 kramdown 内容:', blockId);
                 return;
@@ -2782,7 +2778,6 @@ export class ReminderPanel {
         }
 
         const settings = await this.plugin.getPomodoroSettings();
-        console.log('结果', settings);
         const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState);
 
         // 设置当前活动的番茄钟实例
@@ -3168,14 +3163,14 @@ export class ReminderPanel {
     private updateReminderCounts(overdueCount: number, todayCount: number, tomorrowCount: number, future7Count: number, completedCount: number, todayCompletedCount: number) {
         // 更新各个标签的提醒数量 - 添加未来7天和今日已完成的数量更新
         // 这里可以根据需要添加UI更新逻辑
-        console.log('提醒数量统计:', {
-            overdue: overdueCount,
-            today: todayCount,
-            tomorrow: tomorrowCount,
-            future7: future7Count,
-            completed: completedCount,
-            todayCompleted: todayCompletedCount
-        });
+        // console.log('提醒数量统计:', {
+        //     overdue: overdueCount,
+        //     today: todayCount,
+        //     tomorrow: tomorrowCount,
+        //     future7: future7Count,
+        //     completed: completedCount,
+        //     todayCompleted: todayCompletedCount
+        // });
     }
 
     private async setPriority(reminderId: string, priority: string) {
