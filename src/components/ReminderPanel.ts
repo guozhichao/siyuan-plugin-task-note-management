@@ -2553,6 +2553,12 @@ export class ReminderPanel {
                 label: "创建子任务",
                 click: () => this.showCreateSubtaskDialog(reminder)
             });
+            // 粘贴新建子任务（参考 ProjectKanbanView 的实现）
+            menu.addItem({
+                iconHTML: "📋",
+                label: "粘贴新建子任务",
+                click: () => this.showPasteSubtaskDialog(reminder)
+            });
         } else {
             menu.addItem({
                 iconHTML: "➕",
@@ -4251,6 +4257,255 @@ export class ReminderPanel {
         setTimeout(() => {
             titleInput.focus();
         }, 100);
+    }
+
+    private showPasteSubtaskDialog(parentReminder: any) {
+        const dialog = new Dialog({
+            title: "粘贴列表新建子任务",
+            content: `
+                <div class="b3-dialog__content">
+                    <p class="b3-typography">粘贴Markdown列表或多行文本，每行将创建一个子任务。支持多层级列表自动创建父子任务。</p>
+                    <textarea id="taskList" class="b3-text-field" placeholder="示例：\n- 需求文档\n  - 功能列表\n  - 接口设计\n- 测试用例" style="width:100%; height:220px; resize:vertical;"></textarea>
+                </div>
+                <div class="b3-dialog__action">
+                    <button class="b3-button b3-button--cancel" id="cancelBtn">取消</button>
+                    <button class="b3-button b3-button--primary" id="createBtn">创建子任务</button>
+                </div>
+            `,
+            width: "500px",
+        });
+
+        const textArea = dialog.element.querySelector('#taskList') as HTMLTextAreaElement;
+        const cancelBtn = dialog.element.querySelector('#cancelBtn') as HTMLButtonElement;
+        const createBtn = dialog.element.querySelector('#createBtn') as HTMLButtonElement;
+
+        cancelBtn.addEventListener('click', () => dialog.destroy());
+
+        createBtn.addEventListener('click', async () => {
+            const text = textArea.value.trim();
+            if (!text) {
+                showMessage("列表内容不能为空");
+                return;
+            }
+
+            const hierarchicalTasks = this.parseHierarchicalTaskList(text);
+
+            if (hierarchicalTasks.length > 0) {
+                await this.batchCreateSubtasksWithHierarchy(hierarchicalTasks, parentReminder.id);
+                dialog.destroy();
+                const totalTasks = this.countTotalTasks(hierarchicalTasks);
+                showMessage(`${totalTasks} 个子任务已创建`);
+            }
+        });
+    }
+
+    // 复用 ProjectKanbanView 的解析方法，适配为在 ReminderPanel 创建子任务
+    private parseHierarchicalTaskList(text: string): any[] {
+        const lines = text.split('\n');
+        const tasks: any[] = [];
+        const stack: Array<{ task: any; level: number }> = [];
+
+        for (const line of lines) {
+            if (!line.trim()) continue;
+
+            const level = this.calculateIndentLevel(line);
+            const cleanLine = line.trim();
+
+            if (!cleanLine || (!cleanLine.startsWith('-') && level === 0 && !cleanLine.match(/^\s*-/))) {
+                if (cleanLine && level === 0) {
+                    const taskData = this.parseTaskLine(cleanLine);
+                    const task = { ...taskData, level: 0, children: [] };
+                    tasks.push(task);
+                    stack.length = 0;
+                    stack.push({ task, level: 0 });
+                }
+                continue;
+            }
+
+            let levelFromDashes = 0;
+            const dashPrefixMatch = cleanLine.match(/^(-{2,})\s*/);
+            if (dashPrefixMatch) {
+                levelFromDashes = dashPrefixMatch[1].length - 1;
+            }
+
+            const combinedLevel = level + levelFromDashes;
+            const taskContent = cleanLine.replace(/^[-*+]+\s*/, '');
+            if (!taskContent) continue;
+
+            const taskData = this.parseTaskLine(taskContent);
+            const task = { ...taskData, level: combinedLevel, children: [] };
+
+            while (stack.length > 0 && stack[stack.length - 1].level >= combinedLevel) {
+                stack.pop();
+            }
+
+            if (stack.length === 0) {
+                tasks.push(task);
+            } else {
+                const parent = stack[stack.length - 1].task;
+                parent.children.push(task);
+            }
+
+            stack.push({ task, level: combinedLevel });
+        }
+
+        return tasks;
+    }
+
+    private calculateIndentLevel(line: string): number {
+        const match = line.match(/^(\s*)/);
+        if (!match) return 0;
+        const indent = match[1];
+        const spaces = indent.replace(/\t/g, '  ').length;
+        return Math.floor(spaces / 2);
+    }
+
+    private parseTaskLine(line: string): { title: string; priority?: string; startDate?: string; endDate?: string; blockId?: string; completed?: boolean } {
+        const paramMatch = line.match(/@(.*)$/);
+        let title = line;
+        let priority: string | undefined;
+        let startDate: string | undefined;
+        let endDate: string | undefined;
+        let blockId: string | undefined;
+        let completed: boolean | undefined;
+
+        blockId = this.extractBlockIdFromText(line);
+
+        if (blockId) {
+            title = title.replace(/\[([^\]]+)\]\(siyuan:\/\/blocks\/[^)]+\)/g, '$1');
+            title = title.replace(/\(\([^\s)]+\s+'([^']+)'\)\)/g, '$1');
+            title = title.replace(/\(\([^\s)]+\s+"([^\"]+)"\)\)/g, '$1');
+            title = title.replace(/\(\([^\)]+\)\)/g, '');
+        }
+
+        const checkboxMatch = title.match(/^\s*\[\s*([ xX])\s*\]\s*/);
+        if (checkboxMatch) {
+            const mark = checkboxMatch[1];
+            completed = (mark.toLowerCase() === 'x');
+            title = title.replace(/^\s*\[\s*([ xX])\s*\]\s*/, '').trim();
+        }
+
+        const leadingCheckboxMatch = line.match(/^\s*[-*+]\s*\[\s*([ xX])\s*\]\s*(.+)$/);
+        if (leadingCheckboxMatch) {
+            completed = (leadingCheckboxMatch[1].toLowerCase() === 'x');
+            title = leadingCheckboxMatch[2];
+        }
+
+        if (paramMatch) {
+            title = title.replace(/@(.*)$/, '').trim();
+            const paramString = paramMatch[1];
+            const params = new URLSearchParams(paramString);
+            priority = params.get('priority') || undefined;
+            startDate = params.get('startDate') || undefined;
+            endDate = params.get('endDate') || undefined;
+            if (priority && !['high', 'medium', 'low', 'none'].includes(priority)) priority = 'none';
+            const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+            if (startDate && !dateRegex.test(startDate)) startDate = undefined;
+            if (endDate && !dateRegex.test(endDate)) endDate = undefined;
+        }
+
+        return { title: title.trim() || '未命名任务', priority, startDate, endDate, blockId, completed };
+    }
+
+    private async batchCreateSubtasksWithHierarchy(tasks: any[], parentIdForAllTopLevel: string) {
+        const reminderData = await readReminderData();
+
+        // 获取项目ID从父任务
+        const parent = reminderData[parentIdForAllTopLevel];
+        const projectId = parent ? parent.projectId : undefined;
+
+        // 获取当前最大 sort
+        const maxSort = Object.values(reminderData)
+            .filter((r: any) => r && r.projectId === projectId && typeof r.sort === 'number')
+            .reduce((max: number, task: any) => Math.max(max, task.sort || 0), 0) as number;
+
+        let sortCounter = maxSort;
+
+        const createRecursively = async (task: any, parentId?: string) => {
+            const taskId = `rem-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            sortCounter += 10;
+
+            const newSubtask: any = {
+                id: taskId,
+                title: task.title,
+                note: '',
+                date: task.startDate || undefined,
+                endDate: task.endDate || undefined,
+                priority: task.priority === 'none' ? undefined : task.priority,
+                categoryId: parent ? parent.categoryId : undefined,
+                projectId: projectId,
+                parentId: parentId || parentIdForAllTopLevel,
+                completed: !!task.completed,
+                created: getLocalDateTimeString(new Date()),
+                sort: sortCounter
+            };
+
+            if (task.blockId) {
+                try {
+                    const block = await getBlockByID(task.blockId);
+                    if (block) {
+                        newSubtask.blockId = task.blockId;
+                        newSubtask.docId = block.root_id || task.blockId;
+                        if (!task.title || task.title === '未命名任务') {
+                            newSubtask.title = block.content || block.fcontent || '未命名任务';
+                        }
+                        await updateBlockReminderBookmark(task.blockId);
+                    }
+                } catch (err) {
+                    console.warn('绑定块失败:', err);
+                }
+            }
+
+            reminderData[taskId] = newSubtask;
+
+            if (task.children && task.children.length > 0) {
+                for (const child of task.children) {
+                    await createRecursively(child, taskId);
+                }
+            }
+        };
+
+        for (const t of tasks) {
+            await createRecursively(t, undefined);
+        }
+
+        await writeReminderData(reminderData);
+        await this.loadReminders();
+        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+    }
+
+    private countTotalTasks(tasks: any[]): number {
+        let count = 0;
+        const countRecursively = (list: any[]) => {
+            for (const t of list) {
+                count++;
+                if (t.children && t.children.length > 0) countRecursively(t.children);
+            }
+        };
+        countRecursively(tasks);
+        return count;
+    }
+
+    private extractBlockIdFromText(text: string): string | undefined {
+        const markdownLinkMatch = text.match(/\[([^\]]+)\]\(siyuan:\/\/blocks\/([^)]+)\)/);
+        if (markdownLinkMatch) {
+            const blockId = markdownLinkMatch[2];
+            if (blockId && blockId.length >= 20) return blockId;
+        }
+
+        const blockRefWithTitleMatch = text.match(/\(\(([^)\s]+)\s+['"]([^'\"]+)['"]\)\)/);
+        if (blockRefWithTitleMatch) {
+            const blockId = blockRefWithTitleMatch[1];
+            if (blockId && blockId.length >= 20) return blockId;
+        }
+
+        const simpleBlockRefMatch = text.match(/\(\(([^)]+)\)\)/);
+        if (simpleBlockRefMatch) {
+            const blockId = simpleBlockRefMatch[1].trim();
+            if (blockId && blockId.length >= 20) return blockId;
+        }
+
+        return undefined;
     }
 
     private async createSubtask(taskData: any, parentReminder: any) {
