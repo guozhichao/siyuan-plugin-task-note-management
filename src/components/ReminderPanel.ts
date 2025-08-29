@@ -1119,9 +1119,22 @@ export class ReminderPanel {
                 return reminders.filter(r => isEffectivelyCompleted(r));
             case 'todayCompleted':
                 return reminders.filter(r => {
+                    // 已标记为完成的：如果其日期范围包含今日，或其原始日期是今日，或其完成时间（completedTime）在今日，则视为今日已完成
                     if (r.completed) {
+                        try {
+                            const completedTime = this.getCompletedTime(r);
+                            if (completedTime) {
+                                const completedDate = completedTime.split(' ')[0];
+                                if (completedDate === today) return true;
+                            }
+                        } catch (e) {
+                            // ignore and fallback to date checks
+                        }
+
                         return (r.endDate && compareDateStrings(r.date, today) <= 0 && compareDateStrings(today, r.endDate) <= 0) || r.date === today;
                     }
+
+                    // 未直接标记为完成的（可能为跨天事件的今日已完成标记）
                     return r.endDate && this.isSpanningEventTodayCompleted(r) && compareDateStrings(r.date, today) <= 0 && compareDateStrings(today, r.endDate) <= 0;
                 });
             case 'all': // Past 7 days
