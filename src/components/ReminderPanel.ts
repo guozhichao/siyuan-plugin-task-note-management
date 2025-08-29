@@ -35,6 +35,8 @@ export class ReminderPanel {
     private draggedElement: HTMLElement | null = null;
     private draggedReminder: any = null;
     private collapsedTasks: Set<string> = new Set(); // 管理任务的折叠状态
+    // 记录用户手动展开的任务（优先于默认折叠）
+    private userExpandedTasks: Set<string> = new Set();
 
     // 添加静态变量来跟踪当前活动的番茄钟
     private static currentPomodoroTimer: PomodoroTimer | null = null;
@@ -193,8 +195,6 @@ export class ReminderPanel {
                 this.plugin.openCalendarTab();
             });
             actionContainer.appendChild(calendarBtn);
-
-
 
             // 添加四象限面板按钮
             const eisenhowerBtn = document.createElement('button');
@@ -962,6 +962,49 @@ export class ReminderPanel {
         return result;
     }
 
+    /**
+     * 从当前缓存获取所有后代 id
+     */
+    private getDescendantIdsFromCache(parentId: string): string[] {
+        const reminderMap = new Map<string, any>();
+        this.currentRemindersCache.forEach((r: any) => reminderMap.set(r.id, r));
+        return this.getAllDescendantIds(parentId, reminderMap);
+    }
+
+    /**
+     * 隐藏指定父任务的所有后代 DOM 元素（不刷新数据）
+     */
+    private hideAllDescendants(parentId: string) {
+        try {
+            const descendantIds = this.getDescendantIdsFromCache(parentId);
+            for (const id of descendantIds) {
+                const el = this.remindersContainer.querySelector(`[data-reminder-id="${id}"]`) as HTMLElement | null;
+                if (el) el.style.display = 'none';
+            }
+        } catch (e) {
+            console.error('hideAllDescendants failed', e);
+        }
+    }
+
+    /**
+     * 展示指定父任务的直接子项，并递归展示那些用户已手动展开的子树
+     */
+    private showChildrenRecursively(parentId: string) {
+        try {
+            const children = this.currentRemindersCache.filter(r => r.parentId === parentId).sort((a, b) => (a.sort || 0) - (b.sort || 0));
+            for (const child of children) {
+                const el = this.remindersContainer.querySelector(`[data-reminder-id="${child.id}"]`) as HTMLElement | null;
+                if (el) el.style.display = '';
+                // 如果用户手动展开了该 child，则继续展示其子项
+                if (this.userExpandedTasks.has(child.id)) {
+                    this.showChildrenRecursively(child.id);
+                }
+            }
+        } catch (e) {
+            console.error('showChildrenRecursively failed', e);
+        }
+    }
+
 
     private async loadReminders(force: boolean = false) {
         // 防止重复加载，但当传入 force 时强制重新加载
@@ -1066,21 +1109,36 @@ export class ReminderPanel {
                 return;
             }
 
-            const renderReminderWithChildren = async (reminder: any, level: number) => {
+            // 现在改为总是渲染子节点 DOM，但根据祖先折叠状态设置 display，这样我们可以通过 DOM 层级局部隐藏/显示
+            const renderReminderWithChildren = async (reminder: any, level: number, ancestorHidden: boolean = false) => {
                 const reminderEl = await this.createReminderElement(reminder, today, level, displayReminders);
+                // 如果任一祖先被折叠，则当前节点初始隐藏
+                if (ancestorHidden) {
+                    reminderEl.style.display = 'none';
+                }
                 this.remindersContainer.appendChild(reminderEl);
 
-                const isCollapsed = this.collapsedTasks.has(reminder.id);
-                if (!isCollapsed) {
-                    // 获取所有子任务并按sort字段排序
-                    const children = displayReminders
-                        .filter(r => r.parentId === reminder.id)
-                        .sort((a, b) => (a.sort || 0) - (b.sort || 0)); // 子任务也需要排序
+                // 先计算子任务列表并判断是否存在子任务
+                const children = displayReminders
+                    .filter(r => r.parentId === reminder.id)
+                    .sort((a, b) => (a.sort || 0) - (b.sort || 0)); // 子任务也需要排序
+                const hasChildren = children.length > 0;
 
-                    // 递归渲染所有子任务，支持任意深度
-                    for (const child of children) {
-                        await renderReminderWithChildren(child, level + 1);
-                    }
+                // 决定当前任务是否折叠：优先考虑用户手动展开，其次是collapsedTasks集合，
+                // 如果都没有，则使用默认行为：父任务默认折叠（如果有子任务）
+                let isCollapsed: boolean;
+                if (this.userExpandedTasks.has(reminder.id)) {
+                    isCollapsed = false;
+                } else if (this.collapsedTasks.has(reminder.id)) {
+                    isCollapsed = true;
+                } else {
+                    // 默认：如果为父任务且有子任务，则折叠；否则不折叠
+                    isCollapsed = hasChildren;
+                }
+
+                // 递归渲染所有子任务，支持任意深度；子项的 ancestorHidden 为 ancestorHidden || isCollapsed
+                for (const child of children) {
+                    await renderReminderWithChildren(child, level + 1, ancestorHidden || isCollapsed);
                 }
             };
 
@@ -1832,7 +1890,16 @@ export class ReminderPanel {
         const isSpanningDays = reminder.endDate && reminder.endDate !== reminder.date;
         const priority = reminder.priority || 'none';
         const hasChildren = allVisibleReminders.some(r => r.parentId === reminder.id);
-        const isCollapsed = this.collapsedTasks.has(reminder.id);
+        // 决定当前任务是否折叠：优先考虑用户手动展开，其次是collapsedTasks集合，
+        // 如果都没有，则使用默认行为：父任务默认折叠（如果有子任务）
+        let isCollapsed: boolean;
+        if (this.userExpandedTasks.has(reminder.id)) {
+            isCollapsed = false;
+        } else if (this.collapsedTasks.has(reminder.id)) {
+            isCollapsed = true;
+        } else {
+            isCollapsed = hasChildren;
+        }
 
         // 计算子任务的层级深度，用于显示层级指示
         let maxChildDepth = 0;
@@ -1933,12 +2000,39 @@ export class ReminderPanel {
             collapseBtn.title = isCollapsed ? t("expand") : t("collapse");
             collapseBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (isCollapsed) {
-                    this.collapsedTasks.delete(reminder.id);
-                } else {
+
+                // 切换折叠状态并仅在 DOM 上操作，避免重新渲染整个面板
+                if (this.userExpandedTasks.has(reminder.id)) {
+                    // 已由用户展开 -> 切换为折叠
+                    this.userExpandedTasks.delete(reminder.id);
                     this.collapsedTasks.add(reminder.id);
+                    // 隐藏后代
+                    this.hideAllDescendants(reminder.id);
+                    // 更新按钮图标与标题
+                    collapseBtn.innerHTML = '<svg><use xlink:href="#iconRight"></use></svg>';
+                    collapseBtn.title = t("expand");
+                } else if (this.collapsedTasks.has(reminder.id)) {
+                    // 当前是折叠 -> 展开
+                    this.collapsedTasks.delete(reminder.id);
+                    this.userExpandedTasks.add(reminder.id);
+                    this.showChildrenRecursively(reminder.id);
+                    collapseBtn.innerHTML = '<svg><use xlink:href="#iconDown"></use></svg>';
+                    collapseBtn.title = t("collapse");
+                } else {
+                    // 两者都没有：依据默认（父默认折叠）决定切换方向
+                    if (hasChildren) {
+                        // 默认折叠 -> 展开
+                        this.userExpandedTasks.add(reminder.id);
+                        this.showChildrenRecursively(reminder.id);
+                        collapseBtn.innerHTML = '<svg><use xlink:href="#iconDown"></use></svg>';
+                        collapseBtn.title = t("collapse");
+                    } else {
+                        // 无子节点，标记为折叠是一种罕见情况，仅更新集合
+                        this.collapsedTasks.add(reminder.id);
+                        collapseBtn.innerHTML = '<svg><use xlink:href="#iconRight"></use></svg>';
+                        collapseBtn.title = t("expand");
+                    }
                 }
-                this.loadReminders();
             });
             leftControls.appendChild(collapseBtn);
         } else {
