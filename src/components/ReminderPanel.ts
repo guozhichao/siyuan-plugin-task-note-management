@@ -1025,7 +1025,7 @@ export class ReminderPanel {
             // 4. 组装最终要显示的提醒列表（所有被标记为需要渲染的提醒）
             // 修改：从所有提醒中筛选，而不是从分类过滤后的提醒中筛选
             // 这样可以确保祖先任务即使不满足分类筛选也能显示
-            const displayReminders = allRemindersWithInstances.filter(r => idsToRender.has(r.id));
+            let displayReminders = allRemindersWithInstances.filter(r => idsToRender.has(r.id));
 
             this.sortReminders(displayReminders);
             this.currentRemindersCache = [...displayReminders];
@@ -1034,8 +1034,26 @@ export class ReminderPanel {
             let truncatedTotal = 0;
             if (this.currentTab === 'completed') {
                 if (displayReminders.length > 30) {
-                    truncatedTotal = displayReminders.length - 30;
-                    displayReminders.splice(30); // 保留前30条
+                    // 分离今天完成的提醒和其他提醒，确保今天完成的提醒不被截断
+                    const todayCompletedReminders = [];
+                    const otherCompletedReminders = [];
+
+                    displayReminders.forEach(reminder => {
+                        if (this.isTodayCompleted(reminder, today)) {
+                            todayCompletedReminders.push(reminder);
+                        } else {
+                            otherCompletedReminders.push(reminder);
+                        }
+                    });
+
+                    // 保留所有今天完成的提醒，加上最近的其他已完成提醒
+                    const remainingSlots = Math.max(0, 30 - todayCompletedReminders.length);
+                    const truncatedOther = otherCompletedReminders.slice(0, remainingSlots);
+
+                    // 重新组合显示列表：今天完成的提醒在前，然后是最近的其他已完成提醒
+                    displayReminders = [...todayCompletedReminders, ...truncatedOther];
+                    truncatedTotal = otherCompletedReminders.length - truncatedOther.length;
+
                     // 更新缓存为实际显示的条目
                     this.currentRemindersCache = [...displayReminders];
                 }
@@ -1226,6 +1244,32 @@ export class ReminderPanel {
             default:
                 return [];
         }
+    }
+
+    /**
+     * 检查提醒是否是今天完成的
+     * @param reminder 提醒对象
+     * @param today 今天的日期字符串
+     * @returns 是否是今天完成的
+     */
+    private isTodayCompleted(reminder: any, today: string): boolean {
+        // 已标记为完成的：如果其日期范围包含今日，或其原始日期是今日，或其完成时间（completedTime）在今日，则视为今日已完成
+        if (reminder.completed) {
+            try {
+                const completedTime = this.getCompletedTime(reminder);
+                if (completedTime) {
+                    const completedDate = completedTime.split(' ')[0];
+                    if (completedDate === today) return true;
+                }
+            } catch (e) {
+                // ignore and fallback to date checks
+            }
+
+            return (reminder.endDate && compareDateStrings(reminder.date, today) <= 0 && compareDateStrings(today, reminder.endDate) <= 0) || reminder.date === today;
+        }
+
+        // 未直接标记为完成的（可能为跨天事件的今日已完成标记）
+        return reminder.endDate && this.isSpanningEventTodayCompleted(reminder) && compareDateStrings(reminder.date, today) <= 0 && compareDateStrings(today, reminder.endDate) <= 0;
     }
 
     /**
