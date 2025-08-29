@@ -709,8 +709,54 @@ export class ProjectPanel {
 
         infoEl.appendChild(countsContainer);
 
-        // 异步填充计数（使用缓存或实时读取）
-        this.fillProjectTopLevelCounts(project.id, todoCountEl, doingCountEl, doneCountEl).catch(err => {
+        // 添加项目进度条（参考 ProjectKanbanView 样式）
+        const progressWrapper = document.createElement('div');
+        progressWrapper.className = 'project-progress-wrapper';
+        progressWrapper.style.cssText = `
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        `;
+
+        const progressBarOuter = document.createElement('div');
+        progressBarOuter.className = 'project-progress-outer';
+        progressBarOuter.style.cssText = `
+            flex: 1;
+            height: 8px;
+            background: var(--b3-theme-border);
+            border-radius: 6px;
+            overflow: hidden;
+        `;
+
+        const progressBarInner = document.createElement('div');
+        progressBarInner.className = 'project-progress-inner';
+        progressBarInner.style.cssText = `
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #28a745, #7bd389);
+            border-radius: 6px;
+            transition: width 0.3s ease;
+        `;
+
+        progressBarOuter.appendChild(progressBarInner);
+
+        const progressText = document.createElement('div');
+        progressText.className = 'project-progress-text';
+        progressText.style.cssText = `
+            min-width: 48px;
+            font-size: 12px;
+            color: var(--b3-font-color6);
+            text-align: right;
+        `;
+
+        progressWrapper.appendChild(progressBarOuter);
+        progressWrapper.appendChild(progressText);
+
+        infoEl.appendChild(progressWrapper);
+
+    // 异步填充计数（使用缓存或实时读取），并同时更新进度条
+    this.fillProjectTopLevelCounts(project.id, todoCountEl, doingCountEl, doneCountEl, progressBarInner, progressText).catch(err => {
             console.warn('填充项目任务计数失败:', err);
         });
         // 分类显示
@@ -777,7 +823,7 @@ export class ProjectPanel {
     /**
      * 填充某个项目的顶级任务计数到三个元素
      */
-    private async fillProjectTopLevelCounts(projectId: string, todoEl: HTMLElement, doingEl: HTMLElement, doneEl: HTMLElement) {
+    private async fillProjectTopLevelCounts(projectId: string, todoEl: HTMLElement, doingEl: HTMLElement, doneEl: HTMLElement, progressBarInner?: HTMLElement | null, progressText?: HTMLElement | null) {
         try {
             let reminderData = this.reminderDataCache;
             if (!reminderData) {
@@ -790,11 +836,23 @@ export class ProjectPanel {
             todoEl.textContent = `${t("todo") || '待办'}: ${counts.todo}`;
             doingEl.textContent = `${t("doing") || '进行中'}: ${counts.doing}`;
             doneEl.textContent = `${t("done") || '已完成'}: ${counts.done}`;
+
+            // 计算进度： done / (todo + doing + done)
+            if (progressBarInner && progressText) {
+                const total = counts.todo + counts.doing + counts.done;
+                const percent = total === 0 ? 0 : Math.round((counts.done / total) * 100);
+                progressBarInner.style.width = `${percent}%`;
+                progressText.textContent = `${percent}%`;
+            }
         } catch (error) {
             console.error('获取项目顶级任务计数失败:', error);
             todoEl.textContent = `${t("todo") || '待办'}: ?`;
             doingEl.textContent = `${t("doing") || '进行中'}: ?`;
             doneEl.textContent = `${t("done") || '已完成'}: ?`;
+            if (progressBarInner && progressText) {
+                progressBarInner.style.width = `0%`;
+                progressText.textContent = `0%`;
+            }
         }
     }
 
