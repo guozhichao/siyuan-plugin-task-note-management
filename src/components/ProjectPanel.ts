@@ -724,7 +724,7 @@ export class ProjectPanel {
         progressBarOuter.style.cssText = `
             flex: 1;
             height: 8px;
-            background: var(--b3-theme-border);
+            background: rgba(0,0,0,0.06);
             border-radius: 6px;
             overflow: hidden;
         `;
@@ -744,9 +744,8 @@ export class ProjectPanel {
         const progressText = document.createElement('div');
         progressText.className = 'project-progress-text';
         progressText.style.cssText = `
-            min-width: 48px;
             font-size: 12px;
-            color: var(--b3-font-color6);
+            color: var(--b3-theme-on-surface);
             text-align: right;
         `;
 
