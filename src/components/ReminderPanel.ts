@@ -304,6 +304,37 @@ export class ReminderPanel {
         const isCompletedFilter = this.currentTab === 'completed' || this.currentTab === 'todayCompleted';
         const isPast7Filter = this.currentTab === 'all';
 
+        // 如果当前视图是“今日已完成”或“全部已完成”，始终按完成时间降序显示
+        // 不受用户选择的排序方式（如按优先级）影响，也不受升降序切换影响
+        if (isCompletedFilter) {
+            reminders.sort((a: any, b: any) => {
+                // 先按完成时间降序
+                let result = this.compareByCompletedTime(a, b);
+
+                // 完成时间相同或都不存在完成时间时，退回到仅按开始日期时间排序（不考虑优先级）以保证稳定性
+                if (result === 0) {
+                    const dateA = new Date(a.date + (a.time ? `T${a.time}` : 'T00:00')).getTime();
+                    const dateB = new Date(b.date + (b.time ? `T${b.time}` : 'T00:00')).getTime();
+                    if (dateA !== dateB) {
+                        result = dateA - dateB;
+                    } else {
+                        result = 0; // 仍然相等，保留原有相对顺序
+                    }
+                }
+
+                // 在已完成视图中，子任务优先展示（子任务在前）
+                const aIsChild = !!a.parentId;
+                const bIsChild = !!b.parentId;
+                if (aIsChild && !bIsChild) return -1;
+                if (!aIsChild && bIsChild) return 1;
+
+                // compareByCompletedTime 已返回降序的基础结果，直接返回（不再受 sortOrder 影响）
+                return result;
+            });
+
+            return;
+        }
+
         reminders.sort((a: any, b: any) => {
             let result = 0;
 
@@ -1041,14 +1072,14 @@ export class ReminderPanel {
                 await renderReminderWithChildren(top, 0);
             }
 
-                // 如果有被截断的已完成项，添加一个简短提示在列表底部
-                if (truncatedTotal > 0) {
-                    const note = document.createElement('div');
-                    note.className = 'reminder-truncate-note';
-                    note.style.cssText = 'padding:8px; text-align:center; color:var(--b3-theme-on-surface); opacity:0.75; font-size:12px;';
-                    note.textContent = `已展示最近 30 条已完成任务，还隐藏 ${truncatedTotal} 条`; 
-                    this.remindersContainer.appendChild(note);
-                }
+            // 如果有被截断的已完成项，添加一个简短提示在列表底部
+            if (truncatedTotal > 0) {
+                const note = document.createElement('div');
+                note.className = 'reminder-truncate-note';
+                note.style.cssText = 'padding:8px; text-align:center; color:var(--b3-theme-on-surface); opacity:0.75; font-size:12px;';
+                note.textContent = `已展示最近 30 条已完成任务，还隐藏 ${truncatedTotal} 条`;
+                this.remindersContainer.appendChild(note);
+            }
 
         } catch (error) {
             console.error('加载提醒失败:', error);
