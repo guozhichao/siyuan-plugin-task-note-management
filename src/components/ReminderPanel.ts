@@ -248,9 +248,9 @@ export class ReminderPanel {
             <option value="tomorrow">${t("tomorrowReminders")}</option>
             <option value="future7">${t("future7Reminders")}</option>
             <option value="overdue">${t("overdueReminders")}</option>
+            <option value="all">${t("past7Reminders")}</option>
             <option value="todayCompleted">${t("todayCompletedReminders")}</option>
             <option value="completed">${t("completedReminders")}</option>
-            <option value="all">${t("past7Reminders")}</option>
         `;
         this.filterSelect.addEventListener('change', () => {
             this.currentTab = this.filterSelect.value;
