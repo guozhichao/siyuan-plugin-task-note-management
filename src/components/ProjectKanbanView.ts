@@ -40,7 +40,7 @@ export class ProjectKanbanView {
     private collapsedTasks: Set<string> = new Set();
 
     // 分页：每页最多显示的顶层任务数量
-    private pageSize: number = 20;
+    private pageSize: number = 30;
     // 存储每列当前页，key 为 status ('todo'|'doing'|'done')
     private pageIndexMap: { [status: string]: number } = { todo: 1, doing: 1, done: 1 };
 
@@ -664,38 +664,45 @@ export class ProjectKanbanView {
             count.textContent = totalTop.toString();
         }
 
-        // 渲染分页控件
+        // 渲染分页控件：仅在顶层任务数量超过 pageSize 时显示分页
         const pagination = column.querySelector('.kanban-column-pagination') as HTMLElement;
         if (pagination) {
-            pagination.innerHTML = '';
+            // 如果不需要分页，则隐藏分页容器
+            if (totalTop <= this.pageSize) {
+                pagination.innerHTML = '';
+                pagination.style.display = 'none';
+            } else {
+                pagination.style.display = 'flex';
+                pagination.innerHTML = '';
 
-            // 上一页按钮
-            const prevBtn = document.createElement('button');
-            prevBtn.className = 'b3-button b3-button--text';
-            prevBtn.textContent = '上一页';
-            prevBtn.disabled = currentPage <= 1;
-            prevBtn.addEventListener('click', () => {
-                this.pageIndexMap[status] = Math.max(1, currentPage - 1);
-                this.renderKanban();
-            });
-            pagination.appendChild(prevBtn);
+                // 上一页按钮
+                const prevBtn = document.createElement('button');
+                prevBtn.className = 'b3-button b3-button--text';
+                prevBtn.textContent = '上一页';
+                prevBtn.disabled = currentPage <= 1;
+                prevBtn.addEventListener('click', () => {
+                    this.pageIndexMap[status] = Math.max(1, currentPage - 1);
+                    this.renderKanban();
+                });
+                pagination.appendChild(prevBtn);
 
-            // 页码信息
-            const pageInfo = document.createElement('div');
-            pageInfo.style.cssText = 'min-width: 120px; text-align: center; font-size: 13px; color: var(--b3-theme-on-surface);';
-            pageInfo.textContent = `第 ${currentPage} / ${totalPages} 页（共 ${totalTop} 项）`;
-            pagination.appendChild(pageInfo);
+                // 页码信息
+                const pageInfo = document.createElement('div');
+                pageInfo.style.cssText = 'min-width: 120px; text-align: center; font-size: 13px; color: var(--b3-theme-on-surface);';
+                pageInfo.textContent = `第 ${currentPage} / ${totalPages} 页（共 ${totalTop} 项）`;
+                pagination.appendChild(pageInfo);
 
-            // 下一页按钮
-            const nextBtn = document.createElement('button');
-            nextBtn.className = 'b3-button b3-button--text';
-            nextBtn.textContent = '下一页';
-            nextBtn.disabled = currentPage >= totalPages;
-            nextBtn.addEventListener('click', () => {
-                this.pageIndexMap[status] = Math.min(totalPages, currentPage + 1);
-                this.renderKanban();
-            });
-            pagination.appendChild(nextBtn);
+                // 下一页按钮
+                const nextBtn = document.createElement('button');
+                nextBtn.className = 'b3-button b3-button--text';
+                nextBtn.textContent = '下一页';
+                nextBtn.disabled = currentPage >= totalPages;
+                nextBtn.addEventListener('click', () => {
+                    this.pageIndexMap[status] = Math.min(totalPages, currentPage + 1);
+                    this.renderKanban();
+                });
+                pagination.appendChild(nextBtn);
+            }
         }
     }
 
@@ -2416,11 +2423,16 @@ export class ProjectKanbanView {
     }
 
     private async deleteTask(task: any) {
-        const childTasks = this.tasks.filter(t => t.parentId === task.id);
+        // 先尝试读取数据以计算所有后代任务数量，用于更准确的确认提示
         let confirmMessage = `确定要删除任务 "${task.title}" 吗？此操作不可撤销。`;
-
-        if (childTasks.length > 0) {
-            confirmMessage += `\n\n此任务包含 ${childTasks.length} 个子任务，它们也将被一并删除。`;
+        try {
+            const reminderDataForPreview = await readReminderData();
+            const descendantIdsPreview = this.getAllDescendantIds(task.id, reminderDataForPreview);
+            if (descendantIdsPreview.length > 0) {
+                confirmMessage += `\n\n此任务包含 ${descendantIdsPreview.length} 个子任务（包括多级子任务），它们也将被一并删除。`;
+            }
+        } catch (err) {
+            // 无法读取数据时，仍然显示通用提示
         }
 
         confirm(
@@ -2428,15 +2440,31 @@ export class ProjectKanbanView {
             confirmMessage,
             async () => {
                 try {
+                    // 重读数据以确保删除时数据为最新
                     const reminderData = await readReminderData();
 
-                    const tasksToDelete = [task.id, ...childTasks.map(t => t.id)];
+                    // 获取所有后代任务ID（递归）
+                    const descendantIds = this.getAllDescendantIds(task.id, reminderData);
 
-                    tasksToDelete.forEach(taskId => {
-                        if (reminderData[taskId]) {
+                    const tasksToDelete = [task.id, ...descendantIds];
+
+                    // 删除并为绑定块更新书签状态
+                    for (const taskId of tasksToDelete) {
+                        const t = reminderData[taskId];
+                        if (t) {
+                            // 先删除数据项
                             delete reminderData[taskId];
+
+                            // 如果绑定了块，更新块的书签（忽略错误）
+                            if (t.blockId) {
+                                try {
+                                    await updateBlockReminderBookmark(t.blockId);
+                                } catch (err) {
+                                    console.warn(`更新已删除任务 ${taskId} 的块书签失败:`, err);
+                                }
+                            }
                         }
-                    });
+                    }
 
                     await writeReminderData(reminderData);
 
