@@ -755,8 +755,8 @@ export class ProjectPanel {
 
         infoEl.appendChild(progressWrapper);
 
-    // 异步填充计数（使用缓存或实时读取），并同时更新进度条
-    this.fillProjectTopLevelCounts(project.id, todoCountEl, doingCountEl, doneCountEl, progressBarInner, progressText).catch(err => {
+        // 异步填充计数（使用缓存或实时读取），并同时更新进度条
+        this.fillProjectTopLevelCounts(project.id, todoCountEl, doingCountEl, doneCountEl, progressBarInner, progressText).catch(err => {
             console.warn('填充项目任务计数失败:', err);
         });
         // 分类显示
