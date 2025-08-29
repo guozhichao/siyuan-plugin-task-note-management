@@ -254,7 +254,14 @@ export class ReminderPanel {
         `;
         this.filterSelect.addEventListener('change', () => {
             this.currentTab = this.filterSelect.value;
-            this.loadReminders();
+            // 切换筛选时清理防抖，清空当前缓存并强制刷新，避免从 "completed" 切换到 "todayCompleted" 时不更新的问题
+            if (this.loadTimeoutId) {
+                clearTimeout(this.loadTimeoutId);
+                this.loadTimeoutId = null;
+            }
+            this.currentRemindersCache = [];
+            // 强制刷新，允许在 isLoading 为 true 时也能覆盖加载（例如快速切换时）
+            this.loadReminders(true);
         });
         controls.appendChild(this.filterSelect);
 
@@ -337,6 +344,14 @@ export class ReminderPanel {
                 default:
                     console.warn('未知的排序类型:', sortType, '默认使用时间排序');
                     result = this.compareByTime(a, b);
+            }
+
+            // 在已完成视图中，优先展示子任务（子任务靠前），以满足父未完成时只展示子任务的需求
+            if (isCompletedFilter) {
+                const aIsChild = !!a.parentId;
+                const bIsChild = !!b.parentId;
+                if (aIsChild && !bIsChild) return -1; // 子任务在前
+                if (!aIsChild && bIsChild) return 1;
             }
 
             // 优先级升降序的结果相反
@@ -908,11 +923,16 @@ export class ReminderPanel {
     }
 
 
-    private async loadReminders() {
-        // 防止重复加载
-        if (this.isLoading) {
+    private async loadReminders(force: boolean = false) {
+        // 防止重复加载，但当传入 force 时强制重新加载
+        if (this.isLoading && !force) {
             // console.log('任务正在加载中，跳过本次加载请求');
             return;
+        }
+
+        // 如果强制刷新，重置正在加载标志以允许覆盖进行中的加载
+        if (force) {
+            this.isLoading = false;
         }
 
         this.isLoading = true;
@@ -950,10 +970,23 @@ export class ReminderPanel {
             }
 
             // 子任务驱动: 如果子任务匹配，其所有祖先都应显示
+            // 但是对于已完成的视图（completed / todayCompleted），仅当祖先也已完成时才显示祖先（父任务未完成时只展示子任务）
+            const isCompletedView = this.currentTab === 'completed' || this.currentTab === 'todayCompleted';
             for (const child of directlyMatchingReminders) {
                 const ancestors = this.getAllAncestorIds(child.id, reminderMap);
                 ancestors.forEach(ancestorId => {
-                    idsToRender.add(ancestorId);
+                    if (!isCompletedView) {
+                        idsToRender.add(ancestorId);
+                    } else {
+                        const anc = reminderMap.get(ancestorId);
+                        // 仅当祖先被标记为完成或其跨天事件在今日被标记为已完成时添加
+                        if (anc) {
+                            const ancCompleted = !!anc.completed || this.isSpanningEventTodayCompleted(anc);
+                            if (ancCompleted) {
+                                idsToRender.add(ancestorId);
+                            }
+                        }
+                    }
                 });
             }
 
@@ -965,6 +998,17 @@ export class ReminderPanel {
 
             this.sortReminders(displayReminders);
             this.currentRemindersCache = [...displayReminders];
+
+            // 如果是全部已完成视图，默认只显示前30条（已经排序），其余项不渲染
+            let truncatedTotal = 0;
+            if (this.currentTab === 'completed') {
+                if (displayReminders.length > 30) {
+                    truncatedTotal = displayReminders.length - 30;
+                    displayReminders.splice(30); // 保留前30条
+                    // 更新缓存为实际显示的条目
+                    this.currentRemindersCache = [...displayReminders];
+                }
+            }
 
             // 5. 清理之前的内容并渲染新内容
             this.remindersContainer.innerHTML = '';
@@ -996,6 +1040,15 @@ export class ReminderPanel {
             for (const top of topLevelReminders) {
                 await renderReminderWithChildren(top, 0);
             }
+
+                // 如果有被截断的已完成项，添加一个简短提示在列表底部
+                if (truncatedTotal > 0) {
+                    const note = document.createElement('div');
+                    note.className = 'reminder-truncate-note';
+                    note.style.cssText = 'padding:8px; text-align:center; color:var(--b3-theme-on-surface); opacity:0.75; font-size:12px;';
+                    note.textContent = `已展示最近 30 条已完成任务，还隐藏 ${truncatedTotal} 条`; 
+                    this.remindersContainer.appendChild(note);
+                }
 
         } catch (error) {
             console.error('加载提醒失败:', error);
