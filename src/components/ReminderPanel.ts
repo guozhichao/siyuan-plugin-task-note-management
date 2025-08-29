@@ -42,6 +42,13 @@ export class ReminderPanel {
     private isLoading: boolean = false;
     private loadTimeoutId: number | null = null;
 
+    // 分页相关状态
+    private currentPage: number = 1;
+    private itemsPerPage: number = 30;
+    private isPaginationEnabled: boolean = true; // 是否启用分页
+    private totalPages: number = 1;
+    private totalItems: number = 0;
+
     constructor(container: HTMLElement, plugin?: any, closeCallback?: () => void) {
         this.container = container;
         this.plugin = plugin;
@@ -260,6 +267,10 @@ export class ReminderPanel {
                 this.loadTimeoutId = null;
             }
             this.currentRemindersCache = [];
+            // 重置分页状态
+            this.currentPage = 1;
+            this.totalPages = 1;
+            this.totalItems = 0;
             // 强制刷新，允许在 isLoading 为 true 时也能覆盖加载（例如快速切换时）
             this.loadReminders(true);
         });
@@ -274,6 +285,10 @@ export class ReminderPanel {
         `;
         this.categoryFilterSelect.addEventListener('change', () => {
             this.currentCategoryFilter = this.categoryFilterSelect.value;
+            // 重置分页状态
+            this.currentPage = 1;
+            this.totalPages = 1;
+            this.totalItems = 0;
             this.loadReminders();
         });
         controls.appendChild(this.categoryFilterSelect);
@@ -308,19 +323,9 @@ export class ReminderPanel {
         // 不受用户选择的排序方式（如按优先级）影响，也不受升降序切换影响
         if (isCompletedFilter) {
             reminders.sort((a: any, b: any) => {
-                // 先按完成时间降序
+                // 直接使用 compareByCompletedTime 的结果作为最终排序依据
+                // 这确保了无日期但有完成时间的任务不会回退到日期排序
                 let result = this.compareByCompletedTime(a, b);
-
-                // 完成时间相同或都不存在完成时间时，退回到仅按开始日期时间排序（不考虑优先级）以保证稳定性
-                if (result === 0) {
-                    const dateA = new Date(a.date + (a.time ? `T${a.time}` : 'T00:00')).getTime();
-                    const dateB = new Date(b.date + (b.time ? `T${b.time}` : 'T00:00')).getTime();
-                    if (dateA !== dateB) {
-                        result = dateA - dateB;
-                    } else {
-                        result = 0; // 仍然相等，保留原有相对顺序
-                    }
-                }
 
                 // 在已完成视图中，子任务优先展示（子任务在前）
                 const aIsChild = !!a.parentId;
@@ -642,6 +647,10 @@ export class ReminderPanel {
                             this.currentSortOrder = 'asc';
                             this.updateSortButtonTitle();
                             await saveSortConfig(option.key, 'asc');
+                            // 重置分页状态
+                            this.currentPage = 1;
+                            this.totalPages = 1;
+                            this.totalItems = 0;
                             await this.loadReminders();
                             // console.log('排序已更新为:', option.key, 'asc');
                         } catch (error) {
@@ -661,6 +670,10 @@ export class ReminderPanel {
                             this.currentSortOrder = 'desc';
                             this.updateSortButtonTitle();
                             await saveSortConfig(option.key, 'desc');
+                            // 重置分页状态
+                            this.currentPage = 1;
+                            this.totalPages = 1;
+                            this.totalItems = 0;
                             await this.loadReminders();
                             // console.log('排序已更新为:', option.key, 'desc');
                         } catch (error) {
@@ -1030,33 +1043,22 @@ export class ReminderPanel {
             this.sortReminders(displayReminders);
             this.currentRemindersCache = [...displayReminders];
 
-            // 如果是全部已完成视图，默认只显示前30条（已经排序），其余项不渲染
+            // 分页逻辑：计算总数和总页数
+            this.totalItems = displayReminders.length;
+            this.totalPages = Math.ceil(this.totalItems / this.itemsPerPage);
+
+            // 如果启用了分页且有多个页面，则进行分页截断
             let truncatedTotal = 0;
-            if (this.currentTab === 'completed') {
-                if (displayReminders.length > 30) {
-                    // 分离今天完成的提醒和其他提醒，确保今天完成的提醒不被截断
-                    const todayCompletedReminders = [];
-                    const otherCompletedReminders = [];
+            if (this.isPaginationEnabled && this.totalPages > 1) {
+                const startIndex = (this.currentPage - 1) * this.itemsPerPage;
+                const endIndex = startIndex + this.itemsPerPage;
+                const originalLength = displayReminders.length;
 
-                    displayReminders.forEach(reminder => {
-                        if (this.isTodayCompleted(reminder, today)) {
-                            todayCompletedReminders.push(reminder);
-                        } else {
-                            otherCompletedReminders.push(reminder);
-                        }
-                    });
+                displayReminders = displayReminders.slice(startIndex, endIndex);
+                truncatedTotal = originalLength - displayReminders.length;
 
-                    // 保留所有今天完成的提醒，加上最近的其他已完成提醒
-                    const remainingSlots = Math.max(0, 30 - todayCompletedReminders.length);
-                    const truncatedOther = otherCompletedReminders.slice(0, remainingSlots);
-
-                    // 重新组合显示列表：今天完成的提醒在前，然后是最近的其他已完成提醒
-                    displayReminders = [...todayCompletedReminders, ...truncatedOther];
-                    truncatedTotal = otherCompletedReminders.length - truncatedOther.length;
-
-                    // 更新缓存为实际显示的条目
-                    this.currentRemindersCache = [...displayReminders];
-                }
+                // 更新缓存为当前页的条目
+                this.currentRemindersCache = [...displayReminders];
             }
 
             // 5. 清理之前的内容并渲染新内容
@@ -1090,13 +1092,15 @@ export class ReminderPanel {
                 await renderReminderWithChildren(top, 0);
             }
 
-            // 如果有被截断的已完成项，添加一个简短提示在列表底部
-            if (truncatedTotal > 0) {
-                const note = document.createElement('div');
-                note.className = 'reminder-truncate-note';
-                note.style.cssText = 'padding:8px; text-align:center; color:var(--b3-theme-on-surface); opacity:0.75; font-size:12px;';
-                note.textContent = `已展示最近 30 条已完成任务，还隐藏 ${truncatedTotal} 条`;
-                this.remindersContainer.appendChild(note);
+            // 总是先移除旧的分页控件，确保切换筛选条件时能正确隐藏
+            const existingControls = this.container.querySelector('.reminder-pagination-controls');
+            if (existingControls) {
+                existingControls.remove();
+            }
+
+            // 如果有被截断的项，添加分页提示
+            if (truncatedTotal > 0 || (this.isPaginationEnabled && this.totalPages > 1)) {
+                this.renderPaginationControls(truncatedTotal);
             }
 
         } catch (error) {
@@ -1118,13 +1122,14 @@ export class ReminderPanel {
     private generateAllRemindersWithInstances(reminderData: any, today: string): any[] {
         const reminders = Object.values(reminderData).filter((reminder: any) => {
             const shouldInclude = reminder && typeof reminder === 'object' && reminder.id &&
-                (reminder.date || reminder.parentId || this.hasChildren(reminder.id, reminderData));
+                (reminder.date || reminder.parentId || this.hasChildren(reminder.id, reminderData) || reminder.completed);
 
             if (reminder && reminder.id) {
                 // console.log(`任务 ${reminder.id} (${reminder.title}):`, {
                 //     hasDate: !!reminder.date,
                 //     hasParentId: !!reminder.parentId,
                 //     hasChildren: this.hasChildren(reminder.id, reminderData),
+                //     completed: reminder.completed,
                 //     shouldInclude
                 // });
             }
@@ -1186,10 +1191,15 @@ export class ReminderPanel {
         const sevenDaysAgo = getLocalDateString(new Date(Date.now() - 7 * 86400000));
 
         const isEffectivelyCompleted = (reminder: any) => {
+            // 如果任务已标记为完成，直接返回 true
             if (reminder.completed) return true;
+
+            // 如果是跨天事件且今天在范围内，检查是否今天已完成
             if (reminder.endDate && compareDateStrings(reminder.date, today) <= 0 && compareDateStrings(today, reminder.endDate) <= 0) {
                 return this.isSpanningEventTodayCompleted(reminder);
             }
+
+            // 其他情况返回 false
             return false;
         };
 
@@ -1359,8 +1369,25 @@ export class ReminderPanel {
         if (completedTimeA && !completedTimeB) return -1;
         if (!completedTimeA && completedTimeB) return 1;
 
-        // 如果都没有完成时间，返回0表示相等，让其他排序条件生效
-        return 0;
+        // 如果都没有完成时间，则按以下优先级排序：
+        // 1. 有日期的任务优先于无日期的任务
+        // 2. 同等情况下，按日期时间排序
+        const hasDateA = !!(a.date);
+        const hasDateB = !!(b.date);
+
+        if (hasDateA && !hasDateB) return -1; // 有日期的排在前面
+        if (!hasDateA && hasDateB) return 1;  // 无日期的排在后面
+
+        // 都有日期或都没有日期的情况下，按日期时间排序
+        if (hasDateA && hasDateB) {
+            const dateA = new Date(a.date + (a.time ? `T${a.time}` : 'T00:00')).getTime();
+            const dateB = new Date(b.date + (b.time ? `T${b.time}` : 'T00:00')).getTime();
+            return dateA - dateB; // 较早的日期排在前面
+        }
+
+        // 都没有日期，按创建时间或其他标识符排序
+        // 使用任务ID作为最后排序依据（ID通常包含时间戳）
+        return (a.id || '').localeCompare(b.id || '');
     }
 
     // 新增：获取完成时间的辅助方法
@@ -4320,6 +4347,21 @@ export class ReminderPanel {
                 min-width: 34px;
                 text-align: right;
             }
+
+            /* 分页控件样式 */
+            .reminder-pagination-controls {
+                margin-top: 8px;
+            }
+            .reminder-pagination-controls .b3-button {
+                min-width: 32px;
+                height: 32px;
+                padding: 0 8px;
+                font-size: 14px;
+            }
+            .reminder-pagination-controls .b3-button:disabled {
+                opacity: 0.4;
+                cursor: not-allowed;
+            }
         `;
         document.head.appendChild(style);
     }
@@ -4534,6 +4576,87 @@ export class ReminderPanel {
         } catch (error) {
             console.error('显示更多菜单失败:', error);
         }
+    }
+
+    /**
+     * 渲染分页控件
+     */
+    private renderPaginationControls(truncatedTotal: number) {
+        // 移除现有的分页控件
+        const existingControls = this.container.querySelector('.reminder-pagination-controls');
+        if (existingControls) {
+            existingControls.remove();
+        }
+
+        // 如果没有分页需求，直接返回
+        if (this.totalPages <= 1 && truncatedTotal === 0) {
+            return;
+        }
+
+        // 创建分页控件容器
+        const paginationContainer = document.createElement('div');
+        paginationContainer.className = 'reminder-pagination-controls';
+        paginationContainer.style.cssText = `
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-top: 1px solid var(--b3-theme-border);
+            background: var(--b3-theme-surface);
+        `;
+
+        // 分页信息
+        const pageInfo = document.createElement('span');
+        pageInfo.style.cssText = `
+            font-size: 14px;
+            color: var(--b3-theme-on-surface);
+            opacity: 0.8;
+        `;
+
+        if (this.isPaginationEnabled && this.totalPages > 1) {
+            // 上一页按钮
+            const prevBtn = document.createElement('button');
+            prevBtn.className = 'b3-button b3-button--outline';
+            prevBtn.innerHTML = '‹';
+            prevBtn.disabled = this.currentPage <= 1;
+            prevBtn.onclick = () => {
+                if (this.currentPage > 1) {
+                    this.currentPage--;
+                    this.loadReminders();
+                }
+            };
+
+            // 下一页按钮
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'b3-button b3-button--outline';
+            nextBtn.innerHTML = '›';
+            nextBtn.disabled = this.currentPage >= this.totalPages;
+            nextBtn.onclick = () => {
+                if (this.currentPage < this.totalPages) {
+                    this.currentPage++;
+                    this.loadReminders();
+                }
+            };
+
+            // 页码信息
+            pageInfo.textContent = `第 ${this.currentPage} 页，共 ${this.totalPages} 页 (${this.totalItems} 条)`;
+
+            paginationContainer.appendChild(prevBtn);
+            paginationContainer.appendChild(pageInfo);
+            paginationContainer.appendChild(nextBtn);
+        } else if (truncatedTotal > 0) {
+            // 非分页模式下的截断提示
+            pageInfo.textContent = `已展示 ${this.currentRemindersCache.length} 条，还隐藏 ${truncatedTotal} 条`;
+            paginationContainer.appendChild(pageInfo);
+        } else {
+            // 没有截断时的信息
+            pageInfo.textContent = `共 ${this.totalItems} 条`;
+            paginationContainer.appendChild(pageInfo);
+        }
+
+        // 将分页控件添加到容器底部
+        this.container.appendChild(paginationContainer);
     }
 
     /**
