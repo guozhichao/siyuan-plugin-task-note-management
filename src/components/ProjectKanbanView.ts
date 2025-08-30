@@ -39,6 +39,11 @@ export class ProjectKanbanView {
     private isLoading: boolean = false;
     private collapsedTasks: Set<string> = new Set();
 
+    // 分页：每页最多显示的顶层任务数量
+    private pageSize: number = 30;
+    // 存储每列当前页，key 为 status ('todo'|'doing'|'done')
+    private pageIndexMap: { [status: string]: number } = { todo: 1, doing: 1, done: 1 };
+
     // 指示器状态跟踪
     private currentIndicatorType: 'none' | 'sort' | 'parentChild' = 'none';
     private currentIndicatorTarget: HTMLElement | null = null;
@@ -286,6 +291,19 @@ export class ProjectKanbanView {
 
         column.appendChild(header);
         column.appendChild(content);
+
+        // 分页容器（插入在列内容之后）
+        const pagination = document.createElement('div');
+        pagination.className = 'kanban-column-pagination';
+        pagination.style.cssText = `
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px;
+        `;
+
+        column.appendChild(pagination);
         container.appendChild(column);
     }
 
@@ -409,6 +427,23 @@ export class ProjectKanbanView {
 
             console.log('任务加载完成');
             console.log('任务排序方式:', this.currentSort, this.currentSortOrder);
+
+            // 重置分页索引，防止页码超出范围
+            try {
+                const counts = {
+                    todo: this.tasks.filter(t => t.status === 'todo').filter(t => !t.parentId || !this.tasks.find(tt => tt.id === t.parentId)).length,
+                    doing: this.tasks.filter(t => t.status === 'doing').filter(t => !t.parentId || !this.tasks.find(tt => tt.id === t.parentId)).length,
+                    done: this.tasks.filter(t => t.status === 'done').filter(t => !t.parentId || !this.tasks.find(tt => tt.id === t.parentId)).length,
+                };
+                for (const status of ['todo', 'doing', 'done']) {
+                    const totalTop = counts[status as keyof typeof counts] || 0;
+                    const totalPages = Math.max(1, Math.ceil(totalTop / this.pageSize));
+                    const current = this.pageIndexMap[status] || 1;
+                    this.pageIndexMap[status] = Math.min(Math.max(1, current), totalPages);
+                }
+            } catch (err) {
+                // ignore
+            }
 
             this.renderKanban();
         } catch (error) {
@@ -596,11 +631,19 @@ export class ProjectKanbanView {
         const count = column.querySelector('.kanban-column-count') as HTMLElement;
 
         content.innerHTML = '';
-        count.textContent = tasks.length.toString();
 
         const taskMap = new Map(tasks.map(t => [t.id, t]));
         const topLevelTasks = tasks.filter(t => !t.parentId || !taskMap.has(t.parentId));
         const childTasks = tasks.filter(t => t.parentId && taskMap.has(t.parentId));
+
+        // 分页计算
+        const totalTop = topLevelTasks.length;
+        const totalPages = Math.max(1, Math.ceil(totalTop / this.pageSize));
+        const currentPage = Math.min(Math.max(1, this.pageIndexMap[status] || 1), totalPages);
+
+        const startIdx = (currentPage - 1) * this.pageSize;
+        const endIdx = startIdx + this.pageSize;
+        const pagedTopLevel = topLevelTasks.slice(startIdx, endIdx);
 
         const renderTaskWithChildren = (task: any, level: number) => {
             const taskEl = this.createTaskElement(task, level);
@@ -614,7 +657,53 @@ export class ProjectKanbanView {
             }
         };
 
-        topLevelTasks.forEach(task => renderTaskWithChildren(task, 0));
+        pagedTopLevel.forEach(task => renderTaskWithChildren(task, 0));
+
+        // 更新列顶部计数为仅统计顶层任务数量
+        if (count) {
+            count.textContent = totalTop.toString();
+        }
+
+        // 渲染分页控件：仅在顶层任务数量超过 pageSize 时显示分页
+        const pagination = column.querySelector('.kanban-column-pagination') as HTMLElement;
+        if (pagination) {
+            // 如果不需要分页，则隐藏分页容器
+            if (totalTop <= this.pageSize) {
+                pagination.innerHTML = '';
+                pagination.style.display = 'none';
+            } else {
+                pagination.style.display = 'flex';
+                pagination.innerHTML = '';
+
+                // 上一页按钮
+                const prevBtn = document.createElement('button');
+                prevBtn.className = 'b3-button b3-button--text';
+                prevBtn.textContent = '上一页';
+                prevBtn.disabled = currentPage <= 1;
+                prevBtn.addEventListener('click', () => {
+                    this.pageIndexMap[status] = Math.max(1, currentPage - 1);
+                    this.renderKanban();
+                });
+                pagination.appendChild(prevBtn);
+
+                // 页码信息
+                const pageInfo = document.createElement('div');
+                pageInfo.style.cssText = 'min-width: 120px; text-align: center; font-size: 13px; color: var(--b3-theme-on-surface);';
+                pageInfo.textContent = `第 ${currentPage} / ${totalPages} 页（共 ${totalTop} 项）`;
+                pagination.appendChild(pageInfo);
+
+                // 下一页按钮
+                const nextBtn = document.createElement('button');
+                nextBtn.className = 'b3-button b3-button--text';
+                nextBtn.textContent = '下一页';
+                nextBtn.disabled = currentPage >= totalPages;
+                nextBtn.addEventListener('click', () => {
+                    this.pageIndexMap[status] = Math.min(totalPages, currentPage + 1);
+                    this.renderKanban();
+                });
+                pagination.appendChild(nextBtn);
+            }
+        }
     }
 
     private showColumn(status: string) {
@@ -1321,6 +1410,13 @@ export class ProjectKanbanView {
             click: () => this.showCreateTaskDialog(task)
         });
 
+        // 粘贴新建子任务
+        menu.addItem({
+            iconHTML: "📋",
+            label: "粘贴新建子任务",
+            click: () => this.showPasteTaskDialog(task)
+        });
+
         // 父子任务管理
         if (task.parentId) {
             menu.addItem({
@@ -1949,7 +2045,7 @@ export class ProjectKanbanView {
         editDialog.show();
     }
 
-    private showPasteTaskDialog() {
+    private showPasteTaskDialog(parentTask?: any) {
         const dialog = new Dialog({
             title: "粘贴列表新建任务",
             content: `
@@ -2003,7 +2099,12 @@ export class ProjectKanbanView {
             const hierarchicalTasks = this.parseHierarchicalTaskList(text);
 
             if (hierarchicalTasks.length > 0) {
-                await this.batchCreateTasksWithHierarchy(hierarchicalTasks);
+                // 如果传入 parentTask，则把所有顶级解析项作为 parentTask 的子任务
+                if (parentTask) {
+                    await this.batchCreateTasksWithHierarchy(hierarchicalTasks, parentTask.id);
+                } else {
+                    await this.batchCreateTasksWithHierarchy(hierarchicalTasks);
+                }
                 dialog.destroy();
                 const totalTasks = this.countTotalTasks(hierarchicalTasks);
                 showMessage(`${totalTasks} 个任务已创建`);
@@ -2045,19 +2146,31 @@ export class ProjectKanbanView {
                 continue;
             }
 
-            // 移除列表标记（- 或 * 等）
-            const taskContent = cleanLine.replace(/^[-*+]\s*/, '');
+            // 支持多个连续的列表标记（-- 表示更深层级）以及复选框语法 "- [ ]" 或 "- [x]"
+            // 先计算基于连续 '-' 的额外层级（例如 "-- item" 看作更深一层）
+            let levelFromDashes = 0;
+            const dashPrefixMatch = cleanLine.match(/^(-{2,})\s*/);
+            if (dashPrefixMatch) {
+                // 连续的 '-' 比第一个额外增加层级数
+                levelFromDashes = dashPrefixMatch[1].length - 1;
+            }
+
+            // 合并缩进级别和 '-' 表示的额外级别
+            const combinedLevel = level + levelFromDashes;
+
+            // 移除所有开头的列表标记（- * +）以及前导空格
+            const taskContent = cleanLine.replace(/^[-*+]+\s*/, '');
             if (!taskContent) continue;
 
             const taskData = this.parseTaskLine(taskContent);
             const task: HierarchicalTask = {
                 ...taskData,
-                level,
+                level: combinedLevel,
                 children: []
             };
 
             // 清理栈，移除级别更高或相等的项
-            while (stack.length > 0 && stack[stack.length - 1].level >= level) {
+            while (stack.length > 0 && stack[stack.length - 1].level >= combinedLevel) {
                 stack.pop();
             }
 
@@ -2070,7 +2183,7 @@ export class ProjectKanbanView {
                 parent.children.push(task);
             }
 
-            stack.push({ task, level });
+            stack.push({ task, level: combinedLevel });
         }
 
         return tasks;
@@ -2096,7 +2209,7 @@ export class ProjectKanbanView {
      * 批量创建层级化任务
      * @param tasks 层级化任务列表
      */
-    private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[]) {
+    private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[], parentIdForAllTopLevel?: string) {
         const reminderData = await readReminderData();
         const categoryId = this.project.categoryId; // 继承项目分类
 
@@ -2171,7 +2284,9 @@ export class ProjectKanbanView {
 
         // 创建所有顶级任务及其子任务
         for (let i = 0; i < tasks.length; i++) {
-            await createTaskRecursively(tasks[i], undefined);
+            // 如果提供了 parentIdForAllTopLevel，则把解析出的顶级任务作为该父任务的子任务
+            const topParent = parentIdForAllTopLevel ? parentIdForAllTopLevel : undefined;
+            await createTaskRecursively(tasks[i], topParent);
         }
 
         await writeReminderData(reminderData);
@@ -2200,7 +2315,7 @@ export class ProjectKanbanView {
         return count;
     }
 
-    private parseTaskLine(line: string): { title: string; priority?: string; startDate?: string; endDate?: string; blockId?: string } {
+    private parseTaskLine(line: string): { title: string; priority?: string; startDate?: string; endDate?: string; blockId?: string; completed?: boolean } {
         // 查找参数部分 @priority=high&startDate=2025-08-12&endDate=2025-08-30
         const paramMatch = line.match(/@(.+)$/);
         let title = line;
@@ -2208,6 +2323,7 @@ export class ProjectKanbanView {
         let startDate: string | undefined;
         let endDate: string | undefined;
         let blockId: string | undefined;
+        let completed: boolean | undefined;
 
         // 检查是否包含思源块链接或块引用
         blockId = this.extractBlockIdFromText(line);
@@ -2217,11 +2333,27 @@ export class ProjectKanbanView {
             // 移除 Markdown 链接格式 [标题](siyuan://blocks/blockId)
             title = title.replace(/\[([^\]]+)\]\(siyuan:\/\/blocks\/[^)]+\)/g, '$1');
             // 移除块引用格式 ((blockId '标题'))
-            title = title.replace(/\(\([^)]+\s+'([^']+)'\)\)/g, '$1');
+            title = title.replace(/\(\([^\s)]+\s+'([^']+)'\)\)/g, '$1');
             // 移除块引用格式 ((blockId "标题"))
-            title = title.replace(/\(\([^)]+\s+"([^"]+)"\)\)/g, '$1');
+            title = title.replace(/\(\([^\s)]+\s+"([^"]+)"\)\)/g, '$1');
             // 移除简单块引用格式 ((blockId))
-            title = title.replace(/\(\([^)]+\)\)/g, '');
+            title = title.replace(/\(\([^\)]+\)\)/g, '');
+        }
+
+        // 解析复选框语法 (- [ ] 或 - [x])，并从标题中移除复选框标记
+        const checkboxMatch = title.match(/^\s*\[\s*([ xX])\s*\]\s*/);
+        if (checkboxMatch) {
+            const mark = checkboxMatch[1];
+            completed = (mark.toLowerCase() === 'x');
+            title = title.replace(/^\s*\[\s*([ xX])\s*\]\s*/, '').trim();
+        }
+
+        // 有些 Markdown 列表中复选框放在 - [ ] 后面，处理示例："- [ ] 任务标题"
+        // 如果 title 起始包含 '- [ ]' 或 '- [x]'，也要处理
+        const leadingCheckboxMatch = line.match(/^\s*[-*+]\s*\[\s*([ xX])\s*\]\s*(.+)$/);
+        if (leadingCheckboxMatch) {
+            completed = (leadingCheckboxMatch[1].toLowerCase() === 'x');
+            title = leadingCheckboxMatch[2];
         }
 
         if (paramMatch) {
@@ -2257,6 +2389,7 @@ export class ProjectKanbanView {
             startDate,
             endDate,
             blockId
+            , completed
         };
     }
 
@@ -2300,11 +2433,16 @@ export class ProjectKanbanView {
     }
 
     private async deleteTask(task: any) {
-        const childTasks = this.tasks.filter(t => t.parentId === task.id);
+        // 先尝试读取数据以计算所有后代任务数量，用于更准确的确认提示
         let confirmMessage = `确定要删除任务 "${task.title}" 吗？此操作不可撤销。`;
-
-        if (childTasks.length > 0) {
-            confirmMessage += `\n\n此任务包含 ${childTasks.length} 个子任务，它们也将被一并删除。`;
+        try {
+            const reminderDataForPreview = await readReminderData();
+            const descendantIdsPreview = this.getAllDescendantIds(task.id, reminderDataForPreview);
+            if (descendantIdsPreview.length > 0) {
+                confirmMessage += `\n\n此任务包含 ${descendantIdsPreview.length} 个子任务（包括多级子任务），它们也将被一并删除。`;
+            }
+        } catch (err) {
+            // 无法读取数据时，仍然显示通用提示
         }
 
         confirm(
@@ -2312,15 +2450,31 @@ export class ProjectKanbanView {
             confirmMessage,
             async () => {
                 try {
+                    // 重读数据以确保删除时数据为最新
                     const reminderData = await readReminderData();
 
-                    const tasksToDelete = [task.id, ...childTasks.map(t => t.id)];
+                    // 获取所有后代任务ID（递归）
+                    const descendantIds = this.getAllDescendantIds(task.id, reminderData);
 
-                    tasksToDelete.forEach(taskId => {
-                        if (reminderData[taskId]) {
+                    const tasksToDelete = [task.id, ...descendantIds];
+
+                    // 删除并为绑定块更新书签状态
+                    for (const taskId of tasksToDelete) {
+                        const t = reminderData[taskId];
+                        if (t) {
+                            // 先删除数据项
                             delete reminderData[taskId];
+
+                            // 如果绑定了块，更新块的书签（忽略错误）
+                            if (t.blockId) {
+                                try {
+                                    await updateBlockReminderBookmark(t.blockId);
+                                } catch (err) {
+                                    console.warn(`更新已删除任务 ${taskId} 的块书签失败:`, err);
+                                }
+                            }
                         }
-                    });
+                    }
 
                     await writeReminderData(reminderData);
 
