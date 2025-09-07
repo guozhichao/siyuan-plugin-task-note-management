@@ -36,7 +36,7 @@ export class TaskSummaryDialog {
       console.log('过滤后的任务:', filteredEvents);
 
       // 按日期和项目分组任务
-      const groupedTasks = this.groupTasksByDateAndProject(filteredEvents);
+      const groupedTasks = this.groupTasksByDateAndProject(filteredEvents, dateRange);
 
       // 获取当前视图类型信息
       const viewInfo = this.getCurrentViewInfo();
@@ -327,7 +327,7 @@ export class TaskSummaryDialog {
   /**
    * 按日期和项目分组任务
    */
-  private groupTasksByDateAndProject(events: any[]) {
+  private groupTasksByDateAndProject(events: any[], dateRange: { start: string; end: string; }) {
     // 检查当前是否为日视图
     const isDayView = this.calendar && this.calendar.view.type === 'timeGridDay';
     const grouped = new Map<string, Map<string, any[]>>();
@@ -351,8 +351,8 @@ export class TaskSummaryDialog {
 
       // 如果有结束日期，说明是跨天任务，在每个相关日期都显示
       if (endDate && endDate !== startDate) {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
+        const start = new Date(Math.max(new Date(startDate).getTime(), new Date(dateRange.start).getTime()));
+        const end = new Date(Math.min(new Date(endDate).getTime(), new Date(dateRange.end).getTime()));
 
         // 遍历从开始日期到结束日期的每一天
         const currentDate = new Date(start);
