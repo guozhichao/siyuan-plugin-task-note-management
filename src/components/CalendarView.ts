@@ -3808,18 +3808,79 @@ export class CalendarView {
         let html = `
             <div class="task-summary-container">
                 <div class="task-summary-header">
-                    <button class="b3-button b3-button--outline" id="copy-summary-btn">
-                        <svg class="b3-button__icon"><use xlink:href="#iconCopy"></use></svg>
-                        ${t("copyAll") || "复制 Markdown"}
-                    </button>
-                    <button class="b3-button b3-button--outline" id="copy-plain-text-btn" style="margin-left: 8px;">
-                        <svg class="b3-button__icon"><use xlink:href="#iconCopy"></use></svg>
-                        ${t("copyPlainText") || "复制纯文本"}
-                    </button>
-                    <button class="b3-button b3-button--outline" id="copy-rich-text-btn" style="margin-left: 8px;">
-                        <svg class="b3-button__icon"><use xlink:href="#iconCopy"></use></svg>
-                        ${t("copyRichText") || "复制富文本"}
-                    </button>
+                    <div class="copy-dropdown-container" style="position: relative; display: inline-block;">
+                        <button class="copy-dropdown-btn" id="copy-dropdown-btn" style="
+                            background: #4A90E2;
+                            color: white;
+                            border: none;
+                            border-radius: 6px;
+                            padding: 8px 16px;
+                            font-size: 13px;
+                            cursor: pointer;
+                            display: flex;
+                            align-items: center;
+                            gap: 8px;
+                            transition: background-color 0.2s ease;
+                            box-shadow: 0 2px 4px rgba(74, 144, 226, 0.2);
+                        ">
+                            <svg style="width: 14px; height: 14px;"><use xlink:href="#iconCopy"></use></svg>
+                            <span id="copy-main-text">${t("copyRichText") || "复制富文本"}</span>
+                            <svg style="width: 12px; height: 12px; margin-left: 4px;"><use xlink:href="#iconDown"></use></svg>
+                        </button>
+                        <div class="copy-dropdown-menu" id="copy-dropdown-menu" style="
+                            display: none;
+                            position: absolute;
+                            top: calc(100% + 4px);
+                            right: 0;
+                            z-index: 1000;
+                            min-width: 180px;
+                            background: white;
+                            border-radius: 8px;
+                            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                            padding: 4px 0;
+                            border: 1px solid #e1e5e9;
+                        ">
+                            <div class="copy-menu-item" data-copy-type="rich" style="
+                                padding: 10px 16px;
+                                cursor: pointer;
+                                font-size: 13px;
+                                color: #333;
+                                display: flex;
+                                align-items: center;
+                                gap: 10px;
+                                transition: background-color 0.2s ease;
+                            ">
+                                <svg style="width: 14px; height: 14px; color: #666;"><use xlink:href="#iconCopy"></use></svg>
+                                ${t("copyRichText") || "复制富文本"}
+                            </div>
+                            <div class="copy-menu-item" data-copy-type="markdown" style="
+                                padding: 10px 16px;
+                                cursor: pointer;
+                                font-size: 13px;
+                                color: #333;
+                                display: flex;
+                                align-items: center;
+                                gap: 10px;
+                                transition: background-color 0.2s ease;
+                            ">
+                                <svg style="width: 14px; height: 14px; color: #666;"><use xlink:href="#iconCopy"></use></svg>
+                                ${t("copyAll") || "复制 Markdown"}
+                            </div>
+                            <div class="copy-menu-item" data-copy-type="plain" style="
+                                padding: 10px 16px;
+                                cursor: pointer;
+                                font-size: 13px;
+                                color: #333;
+                                display: flex;
+                                align-items: center;
+                                gap: 10px;
+                                transition: background-color 0.2s ease;
+                            ">
+                                <svg style="width: 14px; height: 14px; color: #666;"><use xlink:href="#iconCopy"></use></svg>
+                                ${t("copyPlainText") || "复制纯文本"}
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="task-summary-content" id="summary-content">
         `;
@@ -3943,24 +4004,68 @@ export class CalendarView {
         
         // 添加复制功能
         setTimeout(() => {
-            const copyBtn = document.getElementById('copy-summary-btn');
-            if (copyBtn) {
-                copyBtn.addEventListener('click', () => {
-                    this.copyTaskSummary(groupedTasks);
-                });
-            }
+            // 复制下拉按钮功能
+            let currentCopyType = 'rich'; // 默认复制富文本
             
-            const copyPlainTextBtn = document.getElementById('copy-plain-text-btn');
-            if (copyPlainTextBtn) {
-                copyPlainTextBtn.addEventListener('click', () => {
-                    this.copyTaskSummaryPlainText(groupedTasks);
-                });
-            }
+            const copyDropdownBtn = document.getElementById('copy-dropdown-btn');
+            const copyDropdownMenu = document.getElementById('copy-dropdown-menu');
+            const copyMainText = document.getElementById('copy-main-text');
             
-            const copyRichTextBtn = document.getElementById('copy-rich-text-btn');
-            if (copyRichTextBtn) {
-                copyRichTextBtn.addEventListener('click', () => {
-                    this.copyTaskSummaryRichText(groupedTasks);
+            // 下拉按钮点击事件
+            if (copyDropdownBtn && copyDropdownMenu) {
+                // 按钮悬停效果
+                copyDropdownBtn.addEventListener('mouseenter', () => {
+                    copyDropdownBtn.style.backgroundColor = '#3A7BD5';
+                });
+                copyDropdownBtn.addEventListener('mouseleave', () => {
+                    copyDropdownBtn.style.backgroundColor = '#4A90E2';
+                });
+                
+                copyDropdownBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isVisible = copyDropdownMenu.style.display !== 'none';
+                    if (isVisible) {
+                        copyDropdownMenu.style.display = 'none';
+                    } else {
+                        copyDropdownMenu.style.display = 'block';
+                        // 如果点击的是主按钮区域（不是下拉箭头），直接执行复制
+                        const rect = copyDropdownBtn.getBoundingClientRect();
+                        const clickX = e.clientX - rect.left;
+                        const buttonWidth = rect.width;
+                        // 如果点击位置在按钮左侧80%的区域，执行富文本复制
+                        if (clickX < buttonWidth * 0.8) {
+                            this.executeCopy('rich', groupedTasks);
+                            copyDropdownMenu.style.display = 'none';
+                        }
+                    }
+                });
+                
+                // 点击其他地方关闭下拉菜单
+                document.addEventListener('click', () => {
+                    copyDropdownMenu.style.display = 'none';
+                });
+                
+                // 下拉菜单项点击事件
+                const menuItems = copyDropdownMenu.querySelectorAll('.copy-menu-item');
+                menuItems.forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const copyType = (e.currentTarget as HTMLElement).getAttribute('data-copy-type');
+                        if (copyType) {
+                            // 执行对应类型的复制，不改变按钮文本
+                            this.executeCopy(copyType, groupedTasks);
+                            // 关闭下拉菜单
+                            copyDropdownMenu.style.display = 'none';
+                        }
+                    });
+                    
+                    // 菜单项悬停效果
+                    item.addEventListener('mouseenter', () => {
+                        (item as HTMLElement).style.backgroundColor = '#f5f7fa';
+                    });
+                    item.addEventListener('mouseleave', () => {
+                        (item as HTMLElement).style.backgroundColor = '';
+                    });
                 });
             }
         }, 100);
@@ -3972,9 +4077,10 @@ export class CalendarView {
      * 复制任务摘要到剪贴板
      */
     private copyTaskSummary(groupedTasks: Map<string, Map<string, any[]>>) {
-      let text = `任务摘要
-${'='.repeat(20)}      
-`;
+//       let text = `任务摘要
+// ${'='.repeat(20)}
+// `;
+      let text = '';
 
       const sortedDates = Array.from(groupedTasks.keys()).sort();
 
@@ -3988,9 +4094,9 @@ ${'='.repeat(20)}
           weekday: 'long'
         });
 
-        text += `## ${formattedDate}
-
-`;
+//         text += `## ${formattedDate}
+//
+// `;
 
         dateProjects.forEach((tasks, projectName) => {
           text += `### ${projectName}
@@ -4140,6 +4246,25 @@ ${'='.repeat(20)}
                 showMessage(t("copyFailed") || "复制失败");
             });
         });
+    }
+
+    /**
+     * 执行复制操作
+     */
+    private executeCopy(copyType: string, groupedTasks: Map<string, Map<string, any[]>>) {
+        switch (copyType) {
+            case 'rich':
+                this.copyTaskSummaryRichText(groupedTasks);
+                break;
+            case 'markdown':
+                this.copyTaskSummary(groupedTasks);
+                break;
+            case 'plain':
+                this.copyTaskSummaryPlainText(groupedTasks);
+                break;
+            default:
+                this.copyTaskSummaryRichText(groupedTasks);
+        }
     }
 
     /**

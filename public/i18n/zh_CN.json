@@ -558,6 +558,7 @@
     "showSummaryFailed": "显示摘要失败",
     "copyAll": "复制 Markdown",
     "copyPlainText": "复制纯文本",
+    "copyRichText": "复制富文本",
     "copiedToClipboard": "已复制到剪贴板",
     "copyFailed": "复制失败",
     "currentView": "当前视图"
