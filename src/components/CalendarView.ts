@@ -15,7 +15,7 @@ import { PomodoroTimer } from "./PomodoroTimer";
 import { t } from "../utils/i18n";
 import { generateRepeatInstances, RepeatInstance } from "../utils/repeatUtils";
 import { CalendarConfigManager } from "../utils/calendarConfigManager";
-import { TaskSummaryManager } from "../utils/TaskSummaryManager";
+import { TaskSummaryDialog } from "@/components/TaskSummaryDialog";
 export class CalendarView {
     private container: HTMLElement;
     private calendar: Calendar;
@@ -25,7 +25,7 @@ export class CalendarView {
     private categoryManager: CategoryManager; // 添加分类管理器
     private projectManager: ProjectManager;
     private calendarConfigManager: CalendarConfigManager;
-    private taskSummaryManager: TaskSummaryManager;
+    private taskSummaryDialog: TaskSummaryDialog;
     private currentCategoryFilter: string = 'all'; // 当前分类过滤
     private colorBy: 'category' | 'priority' | 'project' = 'project'; // 按分类或优先级上色
     private tooltip: HTMLElement | null = null; // 添加提示框元素
@@ -44,7 +44,7 @@ export class CalendarView {
         this.categoryManager = CategoryManager.getInstance(); // 初始化分类管理器
         this.projectManager = ProjectManager.getInstance();
         this.calendarConfigManager = CalendarConfigManager.getInstance();
-        this.taskSummaryManager = new TaskSummaryManager();
+        this.taskSummaryDialog = new TaskSummaryDialog();
         this.initUI();
     }
 
@@ -184,7 +184,7 @@ export class CalendarView {
         summaryBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconList"></use></svg>';
         summaryBtn.title = t("taskSummary") || "任务摘要";
         summaryBtn.addEventListener('click', () => {
-            this.showTaskSummaryDialog();
+            this.taskSummaryDialog.showTaskSummaryDialog();
         });
         filterGroup.appendChild(summaryBtn);
 
@@ -274,7 +274,8 @@ export class CalendarView {
         this.addResizeListeners();
         
         // 设置日历实例到任务摘要管理器
-        this.taskSummaryManager.setCalendar(this.calendar);
+        this.taskSummaryDialog.setCalendar(this.calendar);
+        this.taskSummaryDialog.setCategoryManager(this);
     }
 
     private async renderCategoryFilter(selectElement: HTMLSelectElement) {
@@ -2060,7 +2061,6 @@ export class CalendarView {
     private async getEvents() {
         try {
             const reminderData = await readReminderData();
-            console.log('获取事件数据:', reminderData);
 
             const events = [];
 
@@ -2109,7 +2109,6 @@ export class CalendarView {
                             const instanceModifications = reminder.repeat?.instanceModifications || {};
                             const instanceMod = instanceModifications[instance.date];
 
-                            debugger
                             const instanceReminder = {
                                 ...reminder,
                                 date: instance.date,
@@ -2362,7 +2361,6 @@ export class CalendarView {
         if (reminder.categoryId) {
             const category = this.categoryManager.getCategoryById(reminder.categoryId);
             if (category && category.icon) {
-                eventObj.originalTitle = `${eventObj.title}`;
                 eventObj.title = `${category.icon} ${eventObj.title}`;
             }
         }
@@ -3657,186 +3655,6 @@ export class CalendarView {
             console.error('打开项目看板失败:', error);
             showMessage("打开项目看板失败");
         }
-    }
-
-    /**
-     * 显示任务摘要弹窗
-     */
-    private async showTaskSummaryDialog() {
-        try {
-            const events = await this.getEvents();
-
-            console.log('所有任务:', events);
-            
-            // 获取当前日历视图的日期范围
-            const dateRange = this.getCurrentViewDateRange();
-
-            console.log('当前视图的日期范围:', dateRange);
-            
-            // 过滤在当前视图范围内的任务
-            const filteredEvents = this.filterEventsByDateRange(events, dateRange);
-
-            console.log('过滤后的任务:', filteredEvents);
-            
-            // 按日期和项目分组任务
-            const groupedTasks = this.groupTasksByDateAndProject(filteredEvents);
-            
-            // 获取当前视图类型信息
-            const viewInfo = this.getCurrentViewInfo();
-            
-            // 创建弹窗
-            const dialog = new Dialog({
-                title: `${t("taskSummary") || "任务摘要"} - ${viewInfo}`,
-                content: this.taskSummaryManager.generateSummaryContent(groupedTasks, dateRange),
-                width: "80vw",
-                height: "70vh"
-            });
-        } catch (error) {
-            console.error('显示任务摘要失败:', error);
-            showMessage(t("showSummaryFailed") || "显示摘要失败");
-        }
-    }
-
-    /**
-     * 获取当前日历视图的日期范围
-     */
-    private getCurrentViewDateRange(): { start: string, end: string } {
-        if (this.calendar && this.calendar.view) {
-            const currentView = this.calendar.view;
-            const startDate = getLocalDateString(currentView.activeStart);
-            
-            // 对于不同视图类型，计算正确的结束日期
-            let endDate: string;
-            if (currentView.type === 'timeGridDay') {
-                // 日视图：结束日期就是开始日期（只显示当天）
-                endDate = startDate;
-            } else {
-                // 月视图和周视图：结束日期需要减去1天，因为activeEnd是下一个周期的开始
-                const actualEndDate = new Date(currentView.activeEnd.getTime() - 24 * 60 * 60 * 1000);
-                endDate = getLocalDateString(actualEndDate);
-            }
-            
-            return { start: startDate, end: endDate };
-        } else {
-            // 如果日历未初始化，返回当前月份范围
-            const now = new Date();
-            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-            const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-            return {
-                start: getLocalDateString(monthStart),
-                end: getLocalDateString(monthEnd)
-            };
-        }
-    }
-
-    /**
-     * 根据日期范围过滤事件
-     */
-    private filterEventsByDateRange(events: any[], dateRange: { start: string, end: string }): any[] {
-        return events.filter(event => {
-            const eventDate = event.extendedProps.date;
-            return eventDate >= dateRange.start && eventDate <= dateRange.end;
-        });
-    }
-
-    /**
-     * 获取当前视图信息
-     */
-    private getCurrentViewInfo(): string {
-        if (this.calendar && this.calendar.view) {
-            const currentView = this.calendar.view;
-            const viewType = currentView.type;
-            const startDate = currentView.activeStart;
-            
-            switch (viewType) {
-                case 'dayGridMonth':
-                    return `${startDate.getFullYear()}年${startDate.getMonth() + 1}月`;
-                case 'timeGridWeek':
-                    // 周视图：计算实际的结束日期
-                    const actualWeekEnd = new Date(currentView.activeEnd.getTime() - 24 * 60 * 60 * 1000);
-                    const weekStart = startDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-                    const weekEnd = actualWeekEnd.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-                    return `${weekStart} - ${weekEnd}`;
-                case 'timeGridDay':
-                    // 日视图：只显示当天
-                    return startDate.toLocaleDateString('zh-CN', { 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric',
-                        weekday: 'long'
-                    });
-                default:
-                    return t("currentView") || "当前视图";
-            }
-        }
-        return t("currentView") || "当前视图";
-    }
-
-    /**
-     * 按日期和项目分组任务
-     */
-    private groupTasksByDateAndProject(events: any[]) {
-        // 检查当前是否为日视图
-        const isDayView = this.calendar && this.calendar.view.type === 'timeGridDay';
-        const grouped = new Map<string, Map<string, any[]>>();
-        
-        events.forEach(event => {
-            const startDate = event.extendedProps.date;
-            const endDate = event.extendedProps.endDate;
-            const projectId = event.extendedProps.projectId || 'no-project';
-            const projectName = projectId === 'no-project' ? 
-                (t("noProject") || "无项目") : 
-                this.projectManager.getProjectName(projectId) || projectId;
-            
-            const taskData = {
-                title: event.originalTitle || event.title,
-                completed: event.extendedProps.completed,
-                priority: event.extendedProps.priority,
-                time: event.extendedProps.time,
-                note: event.extendedProps.note,
-                docTitle: event.extendedProps.docTitle
-            };
-            
-            // 如果有结束日期，说明是跨天任务，在每个相关日期都显示
-            if (endDate && endDate !== startDate) {
-                const start = new Date(startDate);
-                const end = new Date(endDate);
-                
-                // 遍历从开始日期到结束日期的每一天
-                const currentDate = new Date(start);
-                while (currentDate <= end) {
-                    const dateStr = currentDate.toISOString().split('T')[0];
-                    
-                    if (!grouped.has(dateStr)) {
-                        grouped.set(dateStr, new Map());
-                    }
-                    
-                    const dateGroup = grouped.get(dateStr);
-                    if (!dateGroup.has(projectName)) {
-                        dateGroup.set(projectName, []);
-                    }
-                    
-                    dateGroup.get(projectName).push(taskData);
-                    
-                    // 移动到下一天
-                    currentDate.setDate(currentDate.getDate() + 1);
-                }
-            } else {
-                // 单日任务，按原来的逻辑处理
-                if (!grouped.has(startDate)) {
-                    grouped.set(startDate, new Map());
-                }
-                
-                const dateGroup = grouped.get(startDate);
-                if (!dateGroup.has(projectName)) {
-                    dateGroup.set(projectName, []);
-                }
-                
-                dateGroup.get(projectName).push(taskData);
-            }
-        });
-        
-        return grouped;
     }
 
     /**

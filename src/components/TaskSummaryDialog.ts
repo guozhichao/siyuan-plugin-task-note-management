@@ -1,9 +1,13 @@
-import { showMessage } from "siyuan";
+import {Dialog, showMessage} from "siyuan";
 import { t } from "../utils/i18n";
-import { getLocalDateString } from "./dateUtils";
-import { ProjectManager } from "./projectManager";
+import { getLocalDateString } from "../utils/dateUtils";
+import { ProjectManager } from "../utils/projectManager";
+import {readReminderData} from "@/api";
+import {generateRepeatInstances} from "@/utils/repeatUtils";
+import {CalendarView} from "@/components/CalendarView";
 
-export class TaskSummaryManager {
+export class TaskSummaryDialog {
+    private calendarView: CalendarView;
     private projectManager: ProjectManager;
     private calendar: any;
 
@@ -12,12 +16,380 @@ export class TaskSummaryManager {
         this.calendar = calendar;
     }
 
-    /**
+  /**
+   * 显示任务摘要弹窗
+   */
+  public async showTaskSummaryDialog() {
+    try {
+      const events = await this.getEvents();
+
+      console.log('所有任务:', events);
+
+      // 获取当前日历视图的日期范围
+      const dateRange = this.getCurrentViewDateRange();
+
+      console.log('当前视图的日期范围:', dateRange);
+
+      // 过滤在当前视图范围内的任务
+      const filteredEvents = this.filterEventsByDateRange(events, dateRange);
+
+      console.log('过滤后的任务:', filteredEvents);
+
+      // 按日期和项目分组任务
+      const groupedTasks = this.groupTasksByDateAndProject(filteredEvents);
+
+      // 获取当前视图类型信息
+      const viewInfo = this.getCurrentViewInfo();
+
+      // 创建弹窗
+      const dialog = new Dialog({
+        title: `${t("taskSummary") || "任务摘要"} - ${viewInfo}`,
+        content: this.generateSummaryContent(groupedTasks, dateRange),
+        width: "80vw",
+        height: "70vh"
+      });
+    } catch (error) {
+      console.error('显示任务摘要失败:', error);
+      showMessage(t("showSummaryFailed") || "显示摘要失败");
+    }
+  }
+
+  private async getEvents() {
+    try {
+      const reminderData = await readReminderData();
+
+      const events = [];
+
+      // 获取当前视图的日期范围
+      let startDate, endDate;
+      if (this.calendar && this.calendar.view) {
+        const currentView = this.calendar.view;
+        startDate = getLocalDateString(currentView.activeStart);
+        endDate = getLocalDateString(currentView.activeEnd);
+      } else {
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        startDate = getLocalDateString(monthStart);
+        endDate = getLocalDateString(monthEnd);
+      }
+
+      for (const reminder of Object.values(reminderData) as any[]) {
+        if (!reminder || typeof reminder !== 'object') continue;
+
+        // 应用分类过滤
+        if (!this.calendarView.passesCategoryFilter(reminder)) continue;
+
+        // 添加原始事件
+        this.addEventToList(events, reminder, reminder.id, false);
+
+        // 如果有重复设置，生成重复事件实例
+        if (reminder.repeat?.enabled) {
+          const repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
+          repeatInstances.forEach(instance => {
+            // 跳过与原始事件相同日期的实例
+            if (instance.date !== reminder.date) {
+              // 检查实例级别的完成状态
+              const completedInstances = reminder.repeat?.completedInstances || [];
+              const isInstanceCompleted = completedInstances.includes(instance.date);
+
+              // 检查实例级别的修改
+              const instanceModifications = reminder.repeat?.instanceModifications || {};
+              const instanceMod = instanceModifications[instance.date];
+
+              const instanceReminder = {
+                ...reminder,
+                date: instance.date,
+                endDate: instance.endDate,
+                time: instance.time,
+                endTime: instance.endTime,
+                completed: isInstanceCompleted,
+                note: instanceMod?.note || '',
+                docTitle: reminder.docTitle // 保持文档标题
+              };
+
+              // 确保实例ID的唯一性，避免重复
+              const uniqueInstanceId = `${reminder.id}_instance_${instance.date}`;
+              this.addEventToList(events, instanceReminder, uniqueInstanceId, true, instance.originalId);
+            }
+          });
+        }
+      }
+
+      return events;
+    } catch (error) {
+      console.error('获取事件数据失败:', error);
+      showMessage(t("loadReminderDataFailed"));
+      return [];
+    }
+  }
+
+  addEventToList(events: any[], reminder: any, eventId: string, isRepeated: boolean, originalId?: string) {
+    const priority = reminder.priority || 'none';
+    let backgroundColor, borderColor;
+
+    // 如果是快速创建的提醒（没有绑定块），使用特殊的样式
+    if (reminder.isQuickReminder || !reminder.blockId) {
+      backgroundColor = backgroundColor + 'aa'; // 添加透明度
+      borderColor = borderColor + 'aa';
+    }
+
+    // 检查完成状态
+    let isCompleted = false;
+    if (isRepeated && originalId) {
+      isCompleted = reminder.completed || false;
+    } else {
+      isCompleted = reminder.completed || false;
+    }
+
+    // 如果任务已完成，使用灰色
+    if (isCompleted) {
+      backgroundColor = '#e3e3e3';
+      borderColor = '#e3e3e3';
+    }
+
+    // 重复事件使用稍微不同的样式
+    if (isRepeated) {
+      backgroundColor = backgroundColor + 'dd';
+      borderColor = borderColor + 'dd';
+    }
+
+    // 构建 className，包含已完成状态
+    const classNames = [
+      `reminder-priority-${priority}`,
+      isRepeated ? 'reminder-repeated' : '',
+      isCompleted ? 'completed' : '' // 将 completed 类添加到 FullCalendar 事件元素上
+    ].filter(Boolean).join(' ');
+
+    let eventObj: any = {
+      id: eventId,
+      title: reminder.title || t("unnamedNote"),
+      backgroundColor: backgroundColor,
+      borderColor: borderColor,
+      textColor: isCompleted ? '#999999' : '#ffffff',
+      className: classNames,
+      extendedProps: {
+        completed: isCompleted,
+        note: reminder.note || '',
+        date: reminder.date,
+        endDate: reminder.endDate || null,
+        time: reminder.time || null,
+        endTime: reminder.endTime || null,
+        priority: priority,
+        categoryId: reminder.categoryId,
+        projectId: reminder.projectId,
+        blockId: reminder.blockId || reminder.id,
+        docId: reminder.docId, // 添加docId
+        docTitle: reminder.docTitle, // 添加文档标题
+        isRepeated: isRepeated,
+        originalId: originalId || reminder.id,
+        repeat: reminder.repeat,
+        isQuickReminder: reminder.isQuickReminder || false // 添加快速提醒标记
+      }
+    };
+
+    // 处理跨天事件
+    if (reminder.endDate) {
+      if (reminder.time && reminder.endTime) {
+        eventObj.start = `${reminder.date}T${reminder.time}:00`;
+        eventObj.end = `${reminder.endDate}T${reminder.endTime}:00`;
+        eventObj.allDay = false;
+      } else {
+        eventObj.start = reminder.date;
+        const endDate = new Date(reminder.endDate);
+        endDate.setDate(endDate.getDate() + 1);
+        eventObj.end = getLocalDateString(endDate);
+        eventObj.allDay = true;
+
+        if (reminder.time) {
+          eventObj.title = `${reminder.title || t("unnamedNote")} (${reminder.time})`;
+        }
+      }
+    } else {
+      if (reminder.time) {
+        eventObj.start = `${reminder.date}T${reminder.time}:00`;
+        if (reminder.endTime) {
+          eventObj.end = `${reminder.date}T${reminder.endTime}:00`;
+        } else {
+          // 对于只有开始时间的提醒，设置30分钟的默认持续时间，但确保不跨天
+          const startTime = new Date(`${reminder.date}T${reminder.time}:00`);
+          const endTime = new Date(startTime);
+          endTime.setMinutes(endTime.getMinutes() + 30);
+
+          // 检查是否跨天，如果跨天则设置为当天23:59
+          if (endTime.getDate() !== startTime.getDate()) {
+            endTime.setDate(startTime.getDate());
+            endTime.setHours(23, 59, 0, 0);
+          }
+
+          const endTimeStr = endTime.toTimeString().substring(0, 5);
+          eventObj.end = `${reminder.date}T${endTimeStr}:00`;
+        }
+        eventObj.allDay = false;
+      } else {
+        eventObj.start = reminder.date;
+        eventObj.allDay = true;
+        eventObj.display = 'block';
+      }
+    }
+
+    events.push(eventObj);
+  }
+
+
+  /**
+   * 获取当前日历视图的日期范围
+   */
+  private getCurrentViewDateRange(): { start: string, end: string } {
+    if (this.calendar && this.calendar.view) {
+      const currentView = this.calendar.view;
+      const startDate = getLocalDateString(currentView.activeStart);
+
+      // 对于不同视图类型，计算正确的结束日期
+      let endDate: string;
+      if (currentView.type === 'timeGridDay') {
+        // 日视图：结束日期就是开始日期（只显示当天）
+        endDate = startDate;
+      } else {
+        // 月视图和周视图：结束日期需要减去1天，因为activeEnd是下一个周期的开始
+        const actualEndDate = new Date(currentView.activeEnd.getTime() - 24 * 60 * 60 * 1000);
+        endDate = getLocalDateString(actualEndDate);
+      }
+
+      return { start: startDate, end: endDate };
+    } else {
+      // 如果日历未初始化，返回当前月份范围
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      return {
+        start: getLocalDateString(monthStart),
+        end: getLocalDateString(monthEnd)
+      };
+    }
+  }
+
+  /**
+   * 根据日期范围过滤事件
+   */
+  private filterEventsByDateRange(events: any[], dateRange: { start: string, end: string }): any[] {
+    return events.filter(event => {
+      const eventDate = event.extendedProps.date;
+      return eventDate >= dateRange.start && eventDate <= dateRange.end;
+    });
+  }
+
+  /**
+   * 获取当前视图信息
+   */
+  private getCurrentViewInfo(): string {
+    if (this.calendar && this.calendar.view) {
+      const currentView = this.calendar.view;
+      const viewType = currentView.type;
+      const startDate = currentView.activeStart;
+
+      switch (viewType) {
+        case 'dayGridMonth':
+          return `${startDate.getFullYear()}年${startDate.getMonth() + 1}月`;
+        case 'timeGridWeek':
+          // 周视图：计算实际的结束日期
+          const actualWeekEnd = new Date(currentView.activeEnd.getTime() - 24 * 60 * 60 * 1000);
+          const weekStart = startDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+          const weekEnd = actualWeekEnd.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+          return `${weekStart} - ${weekEnd}`;
+        case 'timeGridDay':
+          // 日视图：只显示当天
+          return startDate.toLocaleDateString('zh-CN', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            weekday: 'long'
+          });
+        default:
+          return t("currentView") || "当前视图";
+      }
+    }
+    return t("currentView") || "当前视图";
+  }
+
+  /**
+   * 按日期和项目分组任务
+   */
+  private groupTasksByDateAndProject(events: any[]) {
+    // 检查当前是否为日视图
+    const isDayView = this.calendar && this.calendar.view.type === 'timeGridDay';
+    const grouped = new Map<string, Map<string, any[]>>();
+
+    events.forEach(event => {
+      const startDate = event.extendedProps.date;
+      const endDate = event.extendedProps.endDate;
+      const projectId = event.extendedProps.projectId || 'no-project';
+      const projectName = projectId === 'no-project' ?
+          (t("noProject") || "无项目") :
+          this.projectManager.getProjectName(projectId) || projectId;
+
+      const taskData = {
+        title: event.originalTitle || event.title,
+        completed: event.extendedProps.completed,
+        priority: event.extendedProps.priority,
+        time: event.extendedProps.time,
+        note: event.extendedProps.note,
+        docTitle: event.extendedProps.docTitle
+      };
+
+      // 如果有结束日期，说明是跨天任务，在每个相关日期都显示
+      if (endDate && endDate !== startDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+
+        // 遍历从开始日期到结束日期的每一天
+        const currentDate = new Date(start);
+        while (currentDate <= end) {
+          const dateStr = currentDate.toISOString().split('T')[0];
+
+          if (!grouped.has(dateStr)) {
+            grouped.set(dateStr, new Map());
+          }
+
+          const dateGroup = grouped.get(dateStr);
+          if (!dateGroup.has(projectName)) {
+            dateGroup.set(projectName, []);
+          }
+
+          dateGroup.get(projectName).push(taskData);
+
+          // 移动到下一天
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+      } else {
+        // 单日任务，按原来的逻辑处理
+        if (!grouped.has(startDate)) {
+          grouped.set(startDate, new Map());
+        }
+
+        const dateGroup = grouped.get(startDate);
+        if (!dateGroup.has(projectName)) {
+          dateGroup.set(projectName, []);
+        }
+
+        dateGroup.get(projectName).push(taskData);
+      }
+    });
+
+    return grouped;
+  }
+
+
+  /**
      * 设置日历实例
      */
     public setCalendar(calendar: any) {
         this.calendar = calendar;
     }
+
+  setCategoryManager(calendarView: any) {
+this.calendarView = calendarView;
+  }
 
     /**
      * 生成摘要内容HTML
@@ -496,4 +868,5 @@ ${'-'.repeat(formattedDate.length)}
                 this.copyTaskSummaryRichText(groupedTasks);
         }
     }
+
 }
