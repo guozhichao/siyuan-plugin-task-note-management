@@ -275,6 +275,18 @@ export class TaskSummaryDialog {
   private filterEventsByDateRange(events: any[], dateRange: { start: string, end: string }): any[] {
     return events.filter(event => {
       const eventDate = event.extendedProps.date;
+      if (event.extendedProps.endDate) {
+        // 检查事件日期范围是否与给定日期范围有重叠
+        const eventStart = eventDate;
+        const eventEnd = event.extendedProps.endDate;
+        const rangeStart = dateRange.start;
+        const rangeEnd = dateRange.end;
+        
+        // 如果事件开始日期在范围内，或者事件结束日期在范围内，或者事件包含整个范围
+        return (eventStart >= rangeStart && eventStart <= rangeEnd) ||
+               (eventEnd >= rangeStart && eventEnd <= rangeEnd) ||
+               (eventStart <= rangeStart && eventEnd >= rangeEnd);
+      }
       return eventDate >= dateRange.start && eventDate <= dateRange.end;
     });
   }

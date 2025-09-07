@@ -2195,7 +2195,7 @@ export class CalendarView {
     }
 
 
-    private passesCategoryFilter(reminder: any): boolean {
+    passesCategoryFilter(reminder: any): boolean {
         if (this.currentCategoryFilter === 'all') {
             return true;
         }
