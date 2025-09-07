@@ -2054,6 +2054,8 @@ export class CalendarView {
     private async getEvents() {
         try {
             const reminderData = await readReminderData();
+            console.log('获取事件数据:', reminderData);
+
             const events = [];
 
             // 获取当前视图的日期范围
@@ -2101,6 +2103,7 @@ export class CalendarView {
                             const instanceModifications = reminder.repeat?.instanceModifications || {};
                             const instanceMod = instanceModifications[instance.date];
 
+                            debugger
                             const instanceReminder = {
                                 ...reminder,
                                 date: instance.date,
@@ -2353,6 +2356,7 @@ export class CalendarView {
         if (reminder.categoryId) {
             const category = this.categoryManager.getCategoryById(reminder.categoryId);
             if (category && category.icon) {
+                eventObj.originalTitle = `${eventObj.title}`;
                 eventObj.title = `${category.icon} ${eventObj.title}`;
             }
         }
@@ -3655,6 +3659,8 @@ export class CalendarView {
     private async showTaskSummaryDialog() {
         try {
             const events = await this.getEvents();
+
+            console.log('所有任务:', events);
             
             // 获取当前日历视图的日期范围
             const dateRange = this.getCurrentViewDateRange();
@@ -3783,7 +3789,7 @@ export class CalendarView {
             }
             
             dateGroup.get(projectName).push({
-                title: event.title,
+                title: event.originalTitle || event.title,
                 completed: event.extendedProps.completed,
                 priority: event.extendedProps.priority,
                 time: event.extendedProps.time,
@@ -3805,6 +3811,10 @@ export class CalendarView {
                     <button class="b3-button b3-button--outline" id="copy-summary-btn">
                         <svg class="b3-button__icon"><use xlink:href="#iconCopy"></use></svg>
                         ${t("copyAll") || "复制 Markdown"}
+                    </button>
+                    <button class="b3-button b3-button--outline" id="copy-plain-text-btn" style="margin-left: 8px;">
+                        <svg class="b3-button__icon"><use xlink:href="#iconCopy"></use></svg>
+                        ${t("copyPlainText") || "复制纯文本"}
                     </button>
                 </div>
                 <div class="task-summary-content" id="summary-content">
@@ -3935,6 +3945,13 @@ export class CalendarView {
                     this.copyTaskSummary(groupedTasks);
                 });
             }
+            
+            const copyPlainTextBtn = document.getElementById('copy-plain-text-btn');
+            if (copyPlainTextBtn) {
+                copyPlainTextBtn.addEventListener('click', () => {
+                    this.copyTaskSummaryPlainText(groupedTasks);
+                });
+            }
         }, 100);
         
         return html;
@@ -3999,6 +4016,65 @@ ${'='.repeat(20)}
     }
 
     /**
+     * 复制任务摘要纯文本到剪贴板（带编号）
+     */
+    private copyTaskSummaryPlainText(groupedTasks: Map<string, Map<string, any[]>>) {
+        let text = '';
+        
+        const sortedDates = Array.from(groupedTasks.keys()).sort();
+        
+        sortedDates.forEach(date => {
+            const dateProjects = groupedTasks.get(date);
+            const dateObj = new Date(date);
+            const formattedDate = dateObj.toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                weekday: 'long'
+            });
+            
+//             text += `${formattedDate}
+// ${'-'.repeat(formattedDate.length)}
+//
+// `;
+            
+            dateProjects.forEach((tasks, projectName) => {
+                text += `【${projectName}】
+`;
+
+                let taskNumber = 1; // 全局任务编号
+                tasks.forEach(task => {
+                  console.log(task);
+                    // const status = task.completed ? '✅' : '⬜';
+                    const timeStr = task.time ? ` (${task.time})` : '';
+                    // const docTitleStr = task.docTitle ? ` [${task.docTitle}]` : '';
+                    
+                    text += `${taskNumber}.  ${task.title}
+`;
+//                     if (task.note) {
+//                         text += `   备注：${task.note}
+// `;
+//                     }
+                    taskNumber++;
+                });
+                
+                text += `
+`;
+            });
+            
+            text += `
+`;
+        });
+        
+        navigator.clipboard.writeText(text).then(() => {
+            showMessage(t("copiedToClipboard") || "已复制到剪贴板");
+        }).catch(err => {
+            console.error('复制失败:', err);
+            showMessage(t("copyFailed") || "复制失败");
+        });
+    }
+
+    /**
      * 打开四象限视图Tab
      */
     private openEisenhowerTab() {
@@ -4014,4 +4090,5 @@ ${'='.repeat(20)}
         });
     }
 }
+
 

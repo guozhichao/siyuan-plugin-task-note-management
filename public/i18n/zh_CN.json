@@ -557,6 +557,7 @@
     "taskSummary": "任务摘要",
     "showSummaryFailed": "显示摘要失败",
     "copyAll": "一键复制",
+    "copyPlainText": "复制纯文本",
     "copiedToClipboard": "已复制到剪贴板",
     "copyFailed": "复制失败",
     "currentView": "当前视图"
