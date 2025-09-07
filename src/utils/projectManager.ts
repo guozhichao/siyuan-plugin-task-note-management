@@ -167,6 +167,11 @@ export class ProjectManager {
         return this.projects.find(p => p.id === id);
     }
 
+    public getProjectName(id: string): string | undefined {
+        const project = this.getProjectById(id);
+        return project?.name;
+    }
+
     public getStatusManager(): StatusManager {
         return this.statusManager;
     }
