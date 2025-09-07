@@ -3816,6 +3816,10 @@ export class CalendarView {
                         <svg class="b3-button__icon"><use xlink:href="#iconCopy"></use></svg>
                         ${t("copyPlainText") || "复制纯文本"}
                     </button>
+                    <button class="b3-button b3-button--outline" id="copy-rich-text-btn" style="margin-left: 8px;">
+                        <svg class="b3-button__icon"><use xlink:href="#iconCopy"></use></svg>
+                        ${t("copyRichText") || "复制富文本"}
+                    </button>
                 </div>
                 <div class="task-summary-content" id="summary-content">
         `;
@@ -3952,6 +3956,13 @@ export class CalendarView {
                     this.copyTaskSummaryPlainText(groupedTasks);
                 });
             }
+            
+            const copyRichTextBtn = document.getElementById('copy-rich-text-btn');
+            if (copyRichTextBtn) {
+                copyRichTextBtn.addEventListener('click', () => {
+                    this.copyTaskSummaryRichText(groupedTasks);
+                });
+            }
         }, 100);
         
         return html;
@@ -4071,6 +4082,63 @@ ${'='.repeat(20)}
         }).catch(err => {
             console.error('复制失败:', err);
             showMessage(t("copyFailed") || "复制失败");
+        });
+    }
+
+    /**
+     * 复制任务摘要富文本到剪贴板（带编号，HTML格式）
+     */
+    private copyTaskSummaryRichText(groupedTasks: Map<string, Map<string, any[]>>) {
+        let html = '';
+        
+        const sortedDates = Array.from(groupedTasks.keys()).sort();
+        
+        html += '<div style="font-family: Arial, sans-serif; line-height: 1.6;">';
+        
+        sortedDates.forEach(date => {
+            const dateProjects = groupedTasks.get(date);
+            const dateObj = new Date(date);
+            const formattedDate = dateObj.toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                weekday: 'long'
+            });
+            
+            dateProjects.forEach((tasks, projectName) => {
+                html += `<h3 style="color: #2196F3; margin: 16px 0 8px 0; font-size: 16px;">【${projectName}】</h3>`;
+                html += '<ol style="margin: 0 0 16px 0; padding-left: 20px;">';
+
+                tasks.forEach(task => {
+                    const timeStr = task.time ? ` <span style="color: #666; font-size: 12px;">(${task.time})</span>` : '';
+                    
+                    html += `<li style="margin: 4px 0; color: #333;">${task.title}${timeStr}</li>`;
+                });
+                
+                html += '</ol>';
+            });
+            
+            html += '<br>';
+        });
+        
+        html += '</div>';
+        
+        // 创建一个临时的 ClipboardItem 来复制富文本
+        const blob = new Blob([html], { type: 'text/html' });
+        const clipboardItem = new ClipboardItem({ 'text/html': blob });
+        
+        navigator.clipboard.write([clipboardItem]).then(() => {
+            showMessage(t("copiedToClipboard") || "已复制到剪贴板");
+        }).catch(err => {
+            console.error('富文本复制失败:', err);
+            // 如果富文本复制失败，尝试复制纯文本版本
+            const plainText = html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ');
+            navigator.clipboard.writeText(plainText).then(() => {
+                showMessage(t("copiedToClipboard") || "已复制到剪贴板（纯文本格式）");
+            }).catch(err2 => {
+                console.error('纯文本复制也失败:', err2);
+                showMessage(t("copyFailed") || "复制失败");
+            });
         });
     }
 
