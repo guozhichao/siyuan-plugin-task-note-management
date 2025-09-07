@@ -4094,9 +4094,12 @@ export class CalendarView {
           weekday: 'long'
         });
 
-//         text += `## ${formattedDate}
-//
-// `;
+        // 非日视图时才添加日期标题
+        if (this.calendar && this.calendar.view.type !== 'timeGridDay') {
+            text += `## ${formattedDate}
+
+`;
+        }
 
         dateProjects.forEach((tasks, projectName) => {
           text += `### ${projectName}
@@ -4150,10 +4153,13 @@ export class CalendarView {
                 weekday: 'long'
             });
             
-//             text += `${formattedDate}
-// ${'-'.repeat(formattedDate.length)}
-//
-// `;
+            // 非日视图时才添加日期标题
+            if (this.calendar && this.calendar.view.type !== 'timeGridDay') {
+                text += `${formattedDate}
+${'-'.repeat(formattedDate.length)}
+
+`;
+            }
             
             dateProjects.forEach((tasks, projectName) => {
                 text += `【${projectName}】
@@ -4210,6 +4216,11 @@ export class CalendarView {
                 day: 'numeric',
                 weekday: 'long'
             });
+            
+            // 非日视图时才添加日期标题
+            if (this.calendar && this.calendar.view.type !== 'timeGridDay') {
+                html += `<h2 style="color: #1976D2; margin: 20px 0 12px 0; font-size: 18px; border-bottom: 2px solid #1976D2; padding-bottom: 4px;">${formattedDate}</h2>`;
+            }
             
             dateProjects.forEach((tasks, projectName) => {
                 html += `<h3 style="color: #2196F3; margin: 16px 0 8px 0; font-size: 16px;">【${projectName}】</h3>`;
