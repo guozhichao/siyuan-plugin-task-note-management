@@ -830,9 +830,9 @@ ${'-'.repeat(formattedDate.length)}
                 html += '<ol style="margin: 0 0 16px 0; padding-left: 20px;">';
 
                 tasks.forEach(task => {
-                    const timeStr = task.time ? ` <span style="color: #666; font-size: 12px;">(${task.time})</span>` : '';
+                    // const timeStr = task.time ? ` <span style="color: #666; font-size: 12px;">(${task.time})</span>` : '';
                     
-                    html += `<li style="margin: 4px 0; color: #333;">${task.title}${timeStr}</li>`;
+                    html += `<li style="margin: 4px 0; color: #333;">${task.title}</li>`;
                 });
                 
                 html += '</ol>';
