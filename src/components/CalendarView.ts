@@ -3770,32 +3770,64 @@ export class CalendarView {
      * 按日期和项目分组任务
      */
     private groupTasksByDateAndProject(events: any[]) {
+        // 检查当前是否为日视图
+        const isDayView = this.calendar && this.calendar.view.type === 'timeGridDay';
         const grouped = new Map<string, Map<string, any[]>>();
         
         events.forEach(event => {
-            const date = event.extendedProps.date;
+            const startDate = event.extendedProps.date;
+            const endDate = event.extendedProps.endDate;
             const projectId = event.extendedProps.projectId || 'no-project';
             const projectName = projectId === 'no-project' ? 
                 (t("noProject") || "无项目") : 
                 this.projectManager.getProjectName(projectId) || projectId;
             
-            if (!grouped.has(date)) {
-                grouped.set(date, new Map());
-            }
-            
-            const dateGroup = grouped.get(date);
-            if (!dateGroup.has(projectName)) {
-                dateGroup.set(projectName, []);
-            }
-            
-            dateGroup.get(projectName).push({
+            const taskData = {
                 title: event.originalTitle || event.title,
                 completed: event.extendedProps.completed,
                 priority: event.extendedProps.priority,
                 time: event.extendedProps.time,
                 note: event.extendedProps.note,
                 docTitle: event.extendedProps.docTitle
-            });
+            };
+            
+            // 如果有结束日期，说明是跨天任务，在每个相关日期都显示
+            if (endDate && endDate !== startDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+                
+                // 遍历从开始日期到结束日期的每一天
+                const currentDate = new Date(start);
+                while (currentDate <= end) {
+                    const dateStr = currentDate.toISOString().split('T')[0];
+                    
+                    if (!grouped.has(dateStr)) {
+                        grouped.set(dateStr, new Map());
+                    }
+                    
+                    const dateGroup = grouped.get(dateStr);
+                    if (!dateGroup.has(projectName)) {
+                        dateGroup.set(projectName, []);
+                    }
+                    
+                    dateGroup.get(projectName).push(taskData);
+                    
+                    // 移动到下一天
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+            } else {
+                // 单日任务，按原来的逻辑处理
+                if (!grouped.has(startDate)) {
+                    grouped.set(startDate, new Map());
+                }
+                
+                const dateGroup = grouped.get(startDate);
+                if (!dateGroup.has(projectName)) {
+                    dateGroup.set(projectName, []);
+                }
+                
+                dateGroup.get(projectName).push(taskData);
+            }
         });
         
         return grouped;
@@ -3888,7 +3920,17 @@ export class CalendarView {
         // 按日期排序
         const sortedDates = Array.from(groupedTasks.keys()).sort();
         
-        sortedDates.forEach(date => {
+        // 检查当前是否为日视图
+        const isDayView = this.calendar && this.calendar.view.type === 'timeGridDay';
+        
+        // 在日视图下，只显示当前日期的任务
+        const datesToShow = isDayView && dateRange ? [dateRange.start] : sortedDates;
+        
+        datesToShow.forEach(date => {
+            // 在日视图下，确保只处理存在的日期
+            if (isDayView && !groupedTasks.has(date)) {
+                return;
+            }
             const dateProjects = groupedTasks.get(date);
             const dateObj = new Date(date);
             const formattedDate = dateObj.toLocaleDateString('zh-CN', {
