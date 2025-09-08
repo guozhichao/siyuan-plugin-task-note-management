@@ -412,13 +412,23 @@ this.calendarView = calendarView;
                 <div class="task-summary-header" style="
                     display: flex;
                     justify-content: flex-end;
+                    gap: 8px;
                     margin-bottom: 16px;
                 ">
+                    <button class="b3-button b3-button--outline" id="copy-rich-text-btn" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 4px;
+                        padding: 6px 6px;
+                        font-size: 13px;
+                    " title="复制富文本">
+                        <svg class="b3-button__icon"><use xlink:href="#iconCopy"></use></svg>
+                    </button>
                     <button class="b3-button b3-button--outline" id="more-menu-btn" style="
                         display: flex;
                         align-items: center;
                         gap: 4px;
-                        padding: 6px 12px;
+                        padding: 6px 6px;
                         font-size: 13px;
                     ">
                         <svg class="b3-button__icon"><use xlink:href="#iconMore"></use></svg>
@@ -547,6 +557,11 @@ this.calendarView = calendarView;
                 .priority-low .task-title {
                     color: #3498db;
                 }
+                
+                /* 重置复制按钮中 SVG 图标的 margin-right */
+                .task-summary-container .b3-button svg.b3-button__icon {
+                    margin-right: 0;
+                }
             </style>
         `;
         
@@ -563,6 +578,7 @@ this.calendarView = calendarView;
      */
     private bindMoreMenuEvents(groupedTasks: Map<string, Map<string, any[]>>) {
         const moreMenuBtn = document.getElementById('more-menu-btn');
+        const copyRichTextBtn = document.getElementById('copy-rich-text-btn');
         
         if (!moreMenuBtn) return;
         
@@ -571,6 +587,15 @@ this.calendarView = calendarView;
             e.stopPropagation();
             this.showMoreMenu(e as MouseEvent, groupedTasks);
         });
+
+        // 添加复制富文本按钮事件监听器
+        if (copyRichTextBtn) {
+            copyRichTextBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.executeCopy('rich', groupedTasks);
+            });
+        }
     }
 
     /**
