@@ -1,4 +1,4 @@
-import {Dialog, showMessage} from "siyuan";
+import {Dialog, showMessage, Menu} from "siyuan";
 import { t } from "../utils/i18n";
 import { getLocalDateString } from "../utils/dateUtils";
 import { ProjectManager } from "../utils/projectManager";
@@ -407,82 +407,22 @@ this.calendarView = calendarView;
      * 生成摘要内容HTML
      */
     public generateSummaryContent(groupedTasks: Map<string, Map<string, any[]>>, dateRange?: { start: string, end: string }): string {
-        let html = `
+      let html = `
             <div class="task-summary-container">
-                <div class="task-summary-header">
-                    <div class="copy-dropdown-container" style="position: relative; display: inline-block;">
-                        <button class="copy-dropdown-btn" id="copy-dropdown-btn" style="
-                            background: #4A90E2;
-                            color: white;
-                            border: none;
-                            border-radius: 6px;
-                            padding: 8px 16px;
-                            font-size: 13px;
-                            cursor: pointer;
-                            display: flex;
-                            align-items: center;
-                            gap: 8px;
-                            transition: background-color 0.2s ease;
-                            box-shadow: 0 2px 4px rgba(74, 144, 226, 0.2);
-                        ">
-                            <svg style="width: 14px; height: 14px;"><use xlink:href="#iconCopy"></use></svg>
-                            <span id="copy-main-text">${t("copyRichText") || "复制富文本"}</span>
-                            <svg style="width: 12px; height: 12px; margin-left: 4px;"><use xlink:href="#iconDown"></use></svg>
-                        </button>
-                        <div class="copy-dropdown-menu" id="copy-dropdown-menu" style="
-                            display: none;
-                            position: absolute;
-                            top: calc(100% + 4px);
-                            right: 0;
-                            z-index: 1000;
-                            min-width: 180px;
-                            background: white;
-                            border-radius: 8px;
-                            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-                            padding: 4px 0;
-                            border: 1px solid #e1e5e9;
-                        ">
-                            <div class="copy-menu-item" data-copy-type="rich" style="
-                                padding: 10px 16px;
-                                cursor: pointer;
-                                font-size: 13px;
-                                color: #333;
-                                display: flex;
-                                align-items: center;
-                                gap: 10px;
-                                transition: background-color 0.2s ease;
-                            ">
-                                <svg style="width: 14px; height: 14px; color: #666;"><use xlink:href="#iconCopy"></use></svg>
-                                ${t("copyRichText") || "复制富文本"}
-                            </div>
-                            <div class="copy-menu-item" data-copy-type="markdown" style="
-                                padding: 10px 16px;
-                                cursor: pointer;
-                                font-size: 13px;
-                                color: #333;
-                                display: flex;
-                                align-items: center;
-                                gap: 10px;
-                                transition: background-color 0.2s ease;
-                            ">
-                                <svg style="width: 14px; height: 14px; color: #666;"><use xlink:href="#iconCopy"></use></svg>
-                                ${t("copyAll") || "复制 Markdown"}
-                            </div>
-                            <div class="copy-menu-item" data-copy-type="plain" style="
-                                padding: 10px 16px;
-                                cursor: pointer;
-                                font-size: 13px;
-                                color: #333;
-                                display: flex;
-                                align-items: center;
-                                gap: 10px;
-                                transition: background-color 0.2s ease;
-                            ">
-                                <svg style="width: 14px; height: 14px; color: #666;"><use xlink:href="#iconCopy"></use></svg>
-                                ${t("copyPlainText") || "复制纯文本"}
-                            </div>
-                        </div>
-                    </div>
+                <div class="task-summary-header" style="
+                    display: flex;
+                    justify-content: flex-end;
+                    margin-bottom: 16px;
+                ">
+                    <button class="b3-button b3-button--outline" id="more-menu-btn" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 4px;
+                        padding: 6px 12px;
+                        font-size: 13px;
+                    ">
+                        <svg class="b3-button__icon"><use xlink:href="#iconMore"></use></svg>
+                    </button>
                 </div>
                 <div class="task-summary-content" id="summary-content">
         `;
@@ -548,10 +488,7 @@ this.calendarView = calendarView;
                     max-height: 60vh;
                     overflow-y: auto;
                 }
-                .task-summary-header {
-                    margin-bottom: 16px;
-                    text-align: right;
-                }
+
                 .task-date-group {
                     margin-bottom: 24px;
                 }
@@ -613,78 +550,73 @@ this.calendarView = calendarView;
             </style>
         `;
         
-        // 添加复制功能
+        // 添加更多菜单功能
         setTimeout(() => {
-            this.bindCopyEvents(groupedTasks);
+            this.bindMoreMenuEvents(groupedTasks);
         }, 100);
         
         return html;
     }
 
     /**
-     * 绑定复制事件
+     * 绑定更多菜单事件
      */
-    private bindCopyEvents(groupedTasks: Map<string, Map<string, any[]>>) {
-        // 复制下拉按钮功能
-        const copyDropdownBtn = document.getElementById('copy-dropdown-btn');
-        const copyDropdownMenu = document.getElementById('copy-dropdown-menu');
+    private bindMoreMenuEvents(groupedTasks: Map<string, Map<string, any[]>>) {
+        const moreMenuBtn = document.getElementById('more-menu-btn');
         
-        if (!copyDropdownBtn || !copyDropdownMenu) return;
+        if (!moreMenuBtn) return;
         
-        // 按钮悬停效果
-        copyDropdownBtn.addEventListener('mouseenter', () => {
-            copyDropdownBtn.style.backgroundColor = '#3A7BD5';
-        });
-        copyDropdownBtn.addEventListener('mouseleave', () => {
-            copyDropdownBtn.style.backgroundColor = '#4A90E2';
-        });
-        
-        copyDropdownBtn.addEventListener('click', (e) => {
+        moreMenuBtn.addEventListener('click', (e) => {
+            e.preventDefault();
             e.stopPropagation();
-            const isVisible = copyDropdownMenu.style.display !== 'none';
-            if (isVisible) {
-                copyDropdownMenu.style.display = 'none';
+            this.showMoreMenu(e as MouseEvent, groupedTasks);
+        });
+    }
+
+    /**
+     * 显示更多菜单
+     */
+    private showMoreMenu(event: MouseEvent, groupedTasks: Map<string, Map<string, any[]>>) {
+        try {
+            const menu = new Menu("taskSummaryMoreMenu");
+
+            // 添加复制富文本选项
+            menu.addItem({
+                icon: 'iconCopy',
+                label: t("copyRichText") || "复制富文本",
+                click: () => this.executeCopy('rich', groupedTasks)
+            });
+
+            // 添加复制 Markdown 选项
+            menu.addItem({
+                icon: 'iconCopy',
+                label: t("copyAll") || "复制 Markdown",
+                click: () => this.executeCopy('markdown', groupedTasks)
+            });
+
+            // 添加复制纯文本选项
+            menu.addItem({
+                icon: 'iconCopy',
+                label: t("copyPlainText") || "复制纯文本",
+                click: () => this.executeCopy('plain', groupedTasks)
+            });
+
+            // 显示菜单
+            if (event.target instanceof HTMLElement) {
+                const rect = event.target.getBoundingClientRect();
+                menu.open({
+                    x: rect.left,
+                    y: rect.bottom + 4
+                });
             } else {
-                copyDropdownMenu.style.display = 'block';
-                // 如果点击的是主按钮区域（不是下拉箭头），直接执行复制
-                const rect = copyDropdownBtn.getBoundingClientRect();
-                const clickX = e.clientX - rect.left;
-                const buttonWidth = rect.width;
-                // 如果点击位置在按钮左侧80%的区域，执行富文本复制
-                if (clickX < buttonWidth * 0.8) {
-                    this.executeCopy('rich', groupedTasks);
-                    copyDropdownMenu.style.display = 'none';
-                }
+                menu.open({
+                    x: event.clientX,
+                    y: event.clientY
+                });
             }
-        });
-        
-        // 点击其他地方关闭下拉菜单
-        document.addEventListener('click', () => {
-            copyDropdownMenu.style.display = 'none';
-        });
-        
-        // 下拉菜单项点击事件
-        const menuItems = copyDropdownMenu.querySelectorAll('.copy-menu-item');
-        menuItems.forEach(item => {
-            item.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const copyType = (e.currentTarget as HTMLElement).getAttribute('data-copy-type');
-                if (copyType) {
-                    // 执行对应类型的复制，不改变按钮文本
-                    this.executeCopy(copyType, groupedTasks);
-                    // 关闭下拉菜单
-                    copyDropdownMenu.style.display = 'none';
-                }
-            });
-            
-            // 菜单项悬停效果
-            item.addEventListener('mouseenter', () => {
-                (item as HTMLElement).style.backgroundColor = '#f5f7fa';
-            });
-            item.addEventListener('mouseleave', () => {
-                (item as HTMLElement).style.backgroundColor = '';
-            });
-        });
+        } catch (error) {
+            console.error('显示更多菜单失败:', error);
+        }
     }
 
     /**
