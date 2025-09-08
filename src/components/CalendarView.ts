@@ -144,7 +144,8 @@ export class CalendarView {
         const refreshBtn = document.createElement('button');
         refreshBtn.className = 'b3-button b3-button--outline';
         refreshBtn.style.marginLeft = '4px';
-        refreshBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>';
+        refreshBtn.style.padding = '6px';
+        refreshBtn.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconRefresh"></use></svg>';
         refreshBtn.title = t("refresh");
         refreshBtn.addEventListener('click', async () => {
           refreshBtn.disabled = true;
@@ -164,7 +165,8 @@ export class CalendarView {
         const categoryManageBtn = document.createElement('button');
         categoryManageBtn.className = 'b3-button b3-button--outline';
         categoryManageBtn.style.marginLeft = '4px';
-        categoryManageBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconTags"></use></svg>';
+        categoryManageBtn.style.padding = '6px';
+        categoryManageBtn.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconTags"></use></svg>';
         categoryManageBtn.title = t("manageCategories");
         categoryManageBtn.addEventListener('click', () => {
             this.showCategoryManageDialog(categoryFilterSelect);
@@ -175,7 +177,8 @@ export class CalendarView {
         const projectColorManageBtn = document.createElement('button');
         projectColorManageBtn.className = 'b3-button b3-button--outline';
         projectColorManageBtn.style.marginLeft = '4px';
-        projectColorManageBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconProject"></use></svg>';
+        projectColorManageBtn.style.padding = '6px';
+        projectColorManageBtn.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconProject"></use></svg>';
         projectColorManageBtn.title = t("manageProjectColors");
         projectColorManageBtn.addEventListener('click', () => {
             this.showProjectColorDialog();
@@ -186,7 +189,8 @@ export class CalendarView {
         const summaryBtn = document.createElement('button');
         summaryBtn.className = 'b3-button b3-button--outline';
         summaryBtn.style.marginLeft = '4px';
-        summaryBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconList"></use></svg>';
+        summaryBtn.style.padding = '6px';
+        summaryBtn.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconList"></use></svg>';
         summaryBtn.title = t("taskSummary") || "任务摘要";
         summaryBtn.addEventListener('click', () => {
             this.taskSummaryDialog.showTaskSummaryDialog();
