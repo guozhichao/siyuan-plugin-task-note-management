@@ -111,24 +111,6 @@ export class CalendarView {
         const filterGroup = document.createElement('div');
         filterGroup.className = 'reminder-calendar-filter-group';
         toolbar.appendChild(filterGroup);
-        // 刷新按钮
-        const refreshBtn = document.createElement('button');
-        refreshBtn.className = 'b3-button b3-button--outline';
-        refreshBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>';
-        refreshBtn.title = t("refresh");
-        refreshBtn.addEventListener('click', async () => {
-            refreshBtn.disabled = true;
-            try {
-                showMessage(t("refreshing") || "正在刷新...", 500);
-                await this.refreshEvents();
-            } catch (error) {
-                console.error('手动刷新失败:', error);
-                showMessage(t("refreshFailed") || "刷新失败");
-            } finally {
-                refreshBtn.disabled = false;
-            }
-        });
-        filterGroup.appendChild(refreshBtn);
         // 分类过滤下拉框
         const categoryFilterSelect = document.createElement('select');
         categoryFilterSelect.className = 'b3-select';
@@ -158,9 +140,30 @@ export class CalendarView {
         // 渲染分类过滤器
         await this.renderCategoryFilter(categoryFilterSelect);
 
+        // 刷新按钮
+        const refreshBtn = document.createElement('button');
+        refreshBtn.className = 'b3-button b3-button--outline';
+        refreshBtn.style.marginLeft = '4px';
+        refreshBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>';
+        refreshBtn.title = t("refresh");
+        refreshBtn.addEventListener('click', async () => {
+          refreshBtn.disabled = true;
+          try {
+            showMessage(t("refreshing") || "正在刷新...", 500);
+            await this.refreshEvents();
+          } catch (error) {
+            console.error('手动刷新失败:', error);
+            showMessage(t("refreshFailed") || "刷新失败");
+          } finally {
+            refreshBtn.disabled = false;
+          }
+        });
+        filterGroup.appendChild(refreshBtn);
+
         // 分类管理按钮
         const categoryManageBtn = document.createElement('button');
         categoryManageBtn.className = 'b3-button b3-button--outline';
+        categoryManageBtn.style.marginLeft = '4px';
         categoryManageBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconTags"></use></svg>';
         categoryManageBtn.title = t("manageCategories");
         categoryManageBtn.addEventListener('click', () => {
@@ -171,6 +174,7 @@ export class CalendarView {
         // 项目颜色管理按钮
         const projectColorManageBtn = document.createElement('button');
         projectColorManageBtn.className = 'b3-button b3-button--outline';
+        projectColorManageBtn.style.marginLeft = '4px';
         projectColorManageBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconProject"></use></svg>';
         projectColorManageBtn.title = t("manageProjectColors");
         projectColorManageBtn.addEventListener('click', () => {
@@ -181,6 +185,7 @@ export class CalendarView {
         // 摘要按钮
         const summaryBtn = document.createElement('button');
         summaryBtn.className = 'b3-button b3-button--outline';
+        summaryBtn.style.marginLeft = '4px';
         summaryBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconList"></use></svg>';
         summaryBtn.title = t("taskSummary") || "任务摘要";
         summaryBtn.addEventListener('click', () => {

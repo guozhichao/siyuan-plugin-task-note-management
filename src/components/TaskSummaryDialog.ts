@@ -430,7 +430,7 @@ this.calendarView = calendarView;
                         gap: 4px;
                         padding: 6px 6px;
                         font-size: 13px;
-                    ">
+                    " title="${t('more') || '更多'}">
                         <svg class="b3-button__icon"><use xlink:href="#iconMore"></use></svg>
                     </button>
                 </div>
