@@ -185,6 +185,18 @@ export class CalendarView {
         });
         filterGroup.appendChild(projectColorManageBtn);
 
+        // 复制富文本按钮
+        const copyRichTextBtn = document.createElement('button');
+        copyRichTextBtn.className = 'b3-button b3-button--outline';
+        copyRichTextBtn.style.marginLeft = '4px';
+        copyRichTextBtn.style.padding = '6px';
+        copyRichTextBtn.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconCopy"></use></svg>';
+        copyRichTextBtn.title = t("copyRichText") || "复制富文本";
+        copyRichTextBtn.addEventListener('click', () => {
+            this.taskSummaryDialog.copyCurrentViewRichText();
+        });
+        filterGroup.appendChild(copyRichTextBtn);
+
         // 摘要按钮
         const summaryBtn = document.createElement('button');
         summaryBtn.className = 'b3-button b3-button--outline';

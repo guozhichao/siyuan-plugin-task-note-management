@@ -838,4 +838,21 @@ ${'-'.repeat(formattedDate.length)}
         }
     }
 
+    /**
+     * 复制当前视图的富文本任务摘要
+     */
+    public async copyCurrentViewRichText() {
+        try {
+            const events = await this.getEvents();
+            const dateRange = this.getCurrentViewDateRange();
+            const filteredEvents = this.filterEventsByDateRange(events, dateRange);
+            const groupedTasks = this.groupTasksByDateAndProject(filteredEvents, dateRange);
+            
+            this.executeCopy('rich', groupedTasks);
+        } catch (error) {
+            console.error('复制富文本失败:', error);
+            showMessage(t("copyFailed") || "复制失败");
+        }
+    }
+
 }
