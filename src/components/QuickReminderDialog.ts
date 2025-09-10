@@ -606,7 +606,7 @@ export class QuickReminderDialog {
                     if (this.prefillData.categoryId) {
                         const categoryButtons = this.dialog.element.querySelectorAll('.category-option');
                         categoryButtons.forEach(button => {
-                            const categoryId = button.getAttribute('data-category-id');
+                            const categoryId = button.getAttribute('data-category');
                             if (categoryId === this.prefillData.categoryId) {
                                 button.classList.add('selected');
                             } else {
