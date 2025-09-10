@@ -481,7 +481,7 @@ export class QuickReminderDialog {
                                     <div class="priority-dot low"></div>
                                     <span>${t("lowPriority")}</span>
                                 </div>
-                                <div class="priority-option selected" data-priority="none">
+                                <div class="priority-option" data-priority="none">
                                     <div class="priority-dot none"></div>
                                     <span>${t("noPriority")}</span>
                                 </div>
@@ -533,6 +533,7 @@ export class QuickReminderDialog {
         this.bindEvents();
         await this.renderCategorySelector();
         await this.renderProjectSelector();
+        await this.renderPrioritySelector();
 
         // 确保日期和时间输入框正确设置初始值
         setTimeout(() => {
@@ -582,36 +583,37 @@ export class QuickReminderDialog {
                 }
             }
 
-            // 设置优先级和分类 - 需要等待渲染完成
-            setTimeout(() => {
-                if (this.defaultPriority) {
-                    const priorityButtons = this.dialog.element.querySelectorAll('.priority-option');
-                    priorityButtons.forEach(button => {
-                        const priority = button.getAttribute('data-priority');
-                        if (priority === this.defaultPriority) {
-                            button.classList.add('selected');
-                        } else {
-                            button.classList.remove('selected');
-                        }
-                    });
-                }
-
-                if (this.defaultCategoryId) {
-                    const categoryButtons = this.dialog.element.querySelectorAll('.category-option');
-                    categoryButtons.forEach(button => {
-                        const categoryId = button.getAttribute('data-category');
-                        if (categoryId === this.defaultCategoryId) {
-                            button.classList.add('selected');
-                        } else {
-                            button.classList.remove('selected');
-                        }
-                    });
-                }
-            }, 100);
-
             // 自动聚焦标题输入框
             titleInput?.focus();
         }, 50);
+    }
+
+    private async renderPrioritySelector() {
+        const prioritySelector = this.dialog.element.querySelector('#quickPrioritySelector') as HTMLElement;
+        if (!prioritySelector) return;
+
+        const priorityOptions = prioritySelector.querySelectorAll('.priority-option');
+        
+        // 移除所有选中状态
+        priorityOptions.forEach(option => {
+            option.classList.remove('selected');
+        });
+
+        // 设置默认优先级选择
+        if (this.defaultPriority) {
+            priorityOptions.forEach(option => {
+                const priority = option.getAttribute('data-priority');
+                if (priority === this.defaultPriority) {
+                    option.classList.add('selected');
+                }
+            });
+        } else {
+            // 如果没有默认优先级，选中无优先级选项
+            const noPriorityOption = prioritySelector.querySelector('[data-priority="none"]') as HTMLElement;
+            if (noPriorityOption) {
+                noPriorityOption.classList.add('selected');
+            }
+        }
     }
 
     private async renderCategorySelector() {
