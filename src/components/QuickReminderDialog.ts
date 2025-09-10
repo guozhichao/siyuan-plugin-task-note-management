@@ -626,7 +626,7 @@ export class QuickReminderDialog {
 
             // 添加无分类选项
             const noCategoryEl = document.createElement('div');
-            noCategoryEl.className = 'category-option selected';
+            noCategoryEl.className = 'category-option';
             noCategoryEl.setAttribute('data-category', '');
             noCategoryEl.innerHTML = `<span>${t("noCategory")}</span>`;
             categorySelector.appendChild(noCategoryEl);
@@ -640,6 +640,20 @@ export class QuickReminderDialog {
                 categoryEl.innerHTML = `<span>${category.icon ? category.icon + ' ' : ''}${category.name}</span>`;
                 categorySelector.appendChild(categoryEl);
             });
+
+            // 设置默认分类选择
+            if (this.defaultCategoryId) {
+                const categoryButtons = this.dialog.element.querySelectorAll('.category-option');
+                categoryButtons.forEach(button => {
+                    const categoryId = button.getAttribute('data-category');
+                    if (categoryId === this.defaultCategoryId) {
+                        button.classList.add('selected');
+                    }
+                });
+            } else {
+                // 如果没有默认分类，选中无分类选项
+                noCategoryEl.classList.add('selected');
+            }
 
         } catch (error) {
             console.error('渲染分类选择器失败:', error);
