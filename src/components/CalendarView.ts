@@ -622,10 +622,10 @@ export class CalendarView {
             }
         });
 
-        // 添加创建副本（明日）菜单项
+        // 添加创建副本菜单项
         menu.addItem({
             iconHTML: "📅",
-            label: t("createTomorrowCopy"),
+            label: t("createCopy"),
             click: () => {
                 this.createTomorrowCopy(calendarEvent);
             }
@@ -880,12 +880,11 @@ export class CalendarView {
     }
 
     // 添加创建明日副本功能
-    private async createTomorrowCopy(calendarEvent: any) {
+    private async createCopy(calendarEvent: any, targetDate?: Date) {
         try {
-            // 计算明日日期
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            const tomorrowStr = getLocalDateString(tomorrow);
+            // 如果没有指定目标日期，则使用当前日期
+            const copyDate = targetDate || new Date();
+            const dateStr = getLocalDateString(copyDate);
 
             // 获取事件的原始信息
             const originalProps = calendarEvent.extendedProps;
@@ -902,14 +901,14 @@ export class CalendarView {
                 }
             }
 
-            // 创建 QuickReminderDialog，传入明日日期和预填充数据
+            // 创建 QuickReminderDialog，传入目标日期和预填充数据
             const quickDialog = new QuickReminderDialog(
-                tomorrowStr, // 明日日期
+                dateStr, // 目标日期
                 undefined, // 不设置具体时间，默认为全天
                 async () => {
                     // 刷新日历事件
                     await this.refreshEvents();
-                    showMessage(t("tomorrowCopyCreated") || "明日副本已创建");
+                    showMessage(t("copyCreated") || "副本已创建");
                 },
                 undefined, // 时间段选项
                 {
@@ -928,9 +927,16 @@ export class CalendarView {
             quickDialog.show();
 
         } catch (error) {
-            console.error('创建明日副本失败:', error);
+            console.error('创建副本失败:', error);
             showMessage(t("operationFailed"));
         }
+    }
+
+    private async createTomorrowCopy(calendarEvent: any) {
+        // 计算明日日期并调用通用创建副本方法
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        await this.createCopy(calendarEvent, tomorrow);
     }
 
     private async setPriority(calendarEvent: any, priority: string) {
