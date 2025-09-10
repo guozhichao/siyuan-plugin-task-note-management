@@ -6,5 +6,8 @@
     "copiedToClipboard": "Copied to clipboard",
     "copyFailed": "Copy failed",
     "currentView": "Current View",
-    "noProject": "No Project"
+    "noProject": "No Project",
+    "copyEventTitle": "Copy Event Title",
+    "eventTitleCopied": "Event title copied to clipboard",
+    "copyBlockRef": "Copy Block Reference"
 }

@@ -613,6 +613,15 @@ export class CalendarView {
             });
         }
 
+        // 添加复制事件标题菜单项
+        menu.addItem({
+            iconHTML: "📄",
+            label: t("copyEventTitle"),
+            click: () => {
+                this.copyEventTitle(calendarEvent);
+            }
+        });
+      
         menu.addSeparator();
 
         if (calendarEvent.extendedProps.isRepeated) {
@@ -830,6 +839,33 @@ export class CalendarView {
 
         } catch (error) {
             console.error('复制块引失败:', error);
+            showMessage(t("operationFailed"));
+        }
+    }
+
+    // 添加复制事件标题功能
+    private async copyEventTitle(calendarEvent: any) {
+        try {
+            // 获取事件标题（移除可能存在的分类图标前缀）
+            let title = calendarEvent.title || t("unnamedNote");
+
+            // 移除分类图标（如果存在）
+            if (calendarEvent.extendedProps.categoryId) {
+                const category = this.categoryManager.getCategoryById(calendarEvent.extendedProps.categoryId);
+                if (category && category.icon) {
+                    const iconPrefix = `${category.icon} `;
+                    if (title.startsWith(iconPrefix)) {
+                        title = title.substring(iconPrefix.length);
+                    }
+                }
+            }
+
+            // 复制到剪贴板
+            await navigator.clipboard.writeText(title);
+            showMessage(t("eventTitleCopied") || "事件标题已复制到剪贴板");
+
+        } catch (error) {
+            console.error('复制事件标题失败:', error);
             showMessage(t("operationFailed"));
         }
     }
