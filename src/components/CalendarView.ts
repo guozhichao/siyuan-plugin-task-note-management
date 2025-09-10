@@ -912,14 +912,12 @@ export class CalendarView {
                 },
                 undefined, // 时间段选项
                 {
-                    prefillData: {
-                        title: title,
-                        content: originalProps.content || '',
-                        categoryId: originalProps.categoryId,
-                        priority: originalProps.priority || 'none',
-                        projectId: originalProps.projectId,
-                        blockId: originalProps.blockId
-                    }
+                    defaultProjectId: originalProps.projectId,
+                    defaultTitle: title,
+                    defaultContent: originalProps.content || '',
+                    defaultCategoryId: originalProps.categoryId,
+                    defaultPriority: originalProps.priority || 'none',
+                    defaultBlockId: originalProps.blockId
                 }
             );
 

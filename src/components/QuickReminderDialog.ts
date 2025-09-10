@@ -23,14 +23,11 @@ export class QuickReminderDialog {
     private projectManager: ProjectManager;
     private defaultProjectId?: string;
     private defaultQuadrant?: string;
-    private prefillData?: {
-        title?: string;
-        content?: string;
-        categoryId?: string;
-        priority?: string;
-        projectId?: string;
-        blockId?: string;
-    };
+    private defaultTitle?: string;
+    private defaultContent?: string;
+    private defaultCategoryId?: string;
+    private defaultPriority?: string;
+    private defaultBlockId?: string;
 
     constructor(initialDate: string, initialTime?: string, onSaved?: () => void, timeRangeOptions?: {
         endDate?: string;
@@ -39,14 +36,11 @@ export class QuickReminderDialog {
     }, options?: {
         defaultProjectId?: string;
         defaultQuadrant?: string;
-        prefillData?: {
-            title?: string;
-            content?: string;
-            categoryId?: string;
-            priority?: string;
-            projectId?: string;
-            blockId?: string;
-        };
+        defaultTitle?: string;
+        defaultContent?: string;
+        defaultCategoryId?: string;
+        defaultPriority?: string;
+        defaultBlockId?: string;
     }) {
         // 确保日期格式正确 - 只保留 YYYY-MM-DD 部分
         this.initialDate = this.formatDateForInput(initialDate);
@@ -72,7 +66,11 @@ export class QuickReminderDialog {
         if (options) {
             this.defaultProjectId = options.defaultProjectId;
             this.defaultQuadrant = options.defaultQuadrant;
-            this.prefillData = options.prefillData;
+            this.defaultTitle = options.defaultTitle;
+            this.defaultContent = options.defaultContent;
+            this.defaultCategoryId = options.defaultCategoryId;
+            this.defaultPriority = options.defaultPriority;
+            this.defaultBlockId = options.defaultBlockId;
         }
 
         this.categoryManager = CategoryManager.getInstance();
@@ -572,52 +570,51 @@ export class QuickReminderDialog {
                 }
             }
 
-            // 预填充数据
-            if (this.prefillData) {
-                // 设置标题
-                if (this.prefillData.title && titleInput) {
-                    titleInput.value = this.prefillData.title;
-                }
-
-                // 设置备注
-                const noteInput = this.dialog.element.querySelector('#quickReminderNote') as HTMLTextAreaElement;
-                if (this.prefillData.content && noteInput) {
-                    noteInput.value = this.prefillData.content;
-                }
-
-                // 设置项目
-                const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
-                if (this.prefillData.projectId && projectSelector) {
-                    projectSelector.value = this.prefillData.projectId;
-                }
-
-                // 设置优先级和分类 - 需要等待渲染完成
-                setTimeout(() => {
-                    if (this.prefillData.priority) {
-                        const priorityButtons = this.dialog.element.querySelectorAll('.priority-option');
-                        priorityButtons.forEach(button => {
-                            const priority = button.getAttribute('data-priority');
-                            if (priority === this.prefillData.priority) {
-                                button.classList.add('selected');
-                            } else {
-                                button.classList.remove('selected');
-                            }
-                        });
-                    }
-
-                    if (this.prefillData.categoryId) {
-                        const categoryButtons = this.dialog.element.querySelectorAll('.category-option');
-                        categoryButtons.forEach(button => {
-                            const categoryId = button.getAttribute('data-category');
-                            if (categoryId === this.prefillData.categoryId) {
-                                button.classList.add('selected');
-                            } else {
-                                button.classList.remove('selected');
-                            }
-                        });
-                    }
-                }, 100);
+            // 设置默认值
+            if (this.defaultTitle && titleInput) {
+                titleInput.value = this.defaultTitle;
             }
+
+            if (this.defaultContent) {
+                const noteInput = this.dialog.element.querySelector('#quickReminderNote') as HTMLTextAreaElement;
+                if (noteInput) {
+                    noteInput.value = this.defaultContent;
+                }
+            }
+
+            if (this.defaultProjectId) {
+                const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
+                if (projectSelector) {
+                    projectSelector.value = this.defaultProjectId;
+                }
+            }
+
+            // 设置优先级和分类 - 需要等待渲染完成
+            setTimeout(() => {
+                if (this.defaultPriority) {
+                    const priorityButtons = this.dialog.element.querySelectorAll('.priority-option');
+                    priorityButtons.forEach(button => {
+                        const priority = button.getAttribute('data-priority');
+                        if (priority === this.defaultPriority) {
+                            button.classList.add('selected');
+                        } else {
+                            button.classList.remove('selected');
+                        }
+                    });
+                }
+
+                if (this.defaultCategoryId) {
+                    const categoryButtons = this.dialog.element.querySelectorAll('.category-option');
+                    categoryButtons.forEach(button => {
+                        const categoryId = button.getAttribute('data-category');
+                        if (categoryId === this.defaultCategoryId) {
+                            button.classList.add('selected');
+                        } else {
+                            button.classList.remove('selected');
+                        }
+                    });
+                }
+            }, 100);
 
             // 自动聚焦标题输入框
             titleInput?.focus();
@@ -1021,7 +1018,7 @@ export class QuickReminderDialog {
             const reminderId = `quick_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             const reminder: any = {
                 id: reminderId,
-                blockId: this.prefillData?.blockId || null,
+                blockId: this.defaultBlockId || null,
                 docId: null, // 没有绑定文档
                 title: title,
                 date: date,
