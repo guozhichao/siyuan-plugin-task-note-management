@@ -29,6 +29,7 @@ export class QuickReminderDialog {
         categoryId?: string;
         priority?: string;
         projectId?: string;
+        blockId?: string;
     };
 
     constructor(initialDate: string, initialTime?: string, onSaved?: () => void, timeRangeOptions?: {
@@ -44,6 +45,7 @@ export class QuickReminderDialog {
             categoryId?: string;
             priority?: string;
             projectId?: string;
+            blockId?: string;
         };
     }) {
         // 确保日期格式正确 - 只保留 YYYY-MM-DD 部分
@@ -619,7 +621,7 @@ export class QuickReminderDialog {
 
             // 自动聚焦标题输入框
             titleInput?.focus();
-        }, 100);
+        }, 50);
     }
 
     private async renderCategorySelector() {
@@ -1019,7 +1021,7 @@ export class QuickReminderDialog {
             const reminderId = `quick_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             const reminder: any = {
                 id: reminderId,
-                blockId: null, // 没有绑定块
+                blockId: this.prefillData?.blockId || null,
                 docId: null, // 没有绑定文档
                 title: title,
                 date: date,

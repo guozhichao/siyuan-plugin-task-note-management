@@ -918,7 +918,8 @@ export class CalendarView {
                         content: originalProps.content || '',
                         categoryId: originalProps.categoryId,
                         priority: originalProps.priority || 'none',
-                        projectId: originalProps.projectId
+                        projectId: originalProps.projectId,
+                        blockId: originalProps.blockId
                     }
                 }
             );
