@@ -306,6 +306,8 @@
     "copyBlockRef": "复制块引用",
     "copyEventTitle": "复制事件标题",
     "eventTitleCopied": "事件标题已复制到剪贴板",
+    "createTomorrowCopy": "创建副本（明天）",
+    "tomorrowCopyCreated": "明天副本已创建",
     "startPomodoro": "开始番茄钟",
     "startCountUp": "开始正计时",
     "markTodayCompleted": "今日已完成",

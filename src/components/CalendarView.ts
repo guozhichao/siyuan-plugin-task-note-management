@@ -621,6 +621,15 @@ export class CalendarView {
                 this.copyEventTitle(calendarEvent);
             }
         });
+
+        // 添加创建副本（明日）菜单项
+        menu.addItem({
+            iconHTML: "📅",
+            label: t("createTomorrowCopy"),
+            click: () => {
+                this.createTomorrowCopy(calendarEvent);
+            }
+        });
       
         menu.addSeparator();
 
@@ -866,6 +875,59 @@ export class CalendarView {
 
         } catch (error) {
             console.error('复制事件标题失败:', error);
+            showMessage(t("operationFailed"));
+        }
+    }
+
+    // 添加创建明日副本功能
+    private async createTomorrowCopy(calendarEvent: any) {
+        try {
+            // 计算明日日期
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tomorrowStr = getLocalDateString(tomorrow);
+
+            // 获取事件的原始信息
+            const originalProps = calendarEvent.extendedProps;
+            
+            // 获取事件标题（移除可能存在的分类图标前缀）
+            let title = calendarEvent.title || t("unnamedNote");
+            if (originalProps.categoryId) {
+                const category = this.categoryManager.getCategoryById(originalProps.categoryId);
+                if (category && category.icon) {
+                    const iconPrefix = `${category.icon} `;
+                    if (title.startsWith(iconPrefix)) {
+                        title = title.substring(iconPrefix.length);
+                    }
+                }
+            }
+
+            // 创建 QuickReminderDialog，传入明日日期和预填充数据
+            const quickDialog = new QuickReminderDialog(
+                tomorrowStr, // 明日日期
+                undefined, // 不设置具体时间，默认为全天
+                async () => {
+                    // 刷新日历事件
+                    await this.refreshEvents();
+                    showMessage(t("tomorrowCopyCreated") || "明日副本已创建");
+                },
+                undefined, // 时间段选项
+                {
+                    prefillData: {
+                        title: title,
+                        content: originalProps.content || '',
+                        categoryId: originalProps.categoryId,
+                        priority: originalProps.priority || 'none',
+                        projectId: originalProps.projectId
+                    }
+                }
+            );
+
+            // 显示对话框
+            quickDialog.show();
+
+        } catch (error) {
+            console.error('创建明日副本失败:', error);
             showMessage(t("operationFailed"));
         }
     }

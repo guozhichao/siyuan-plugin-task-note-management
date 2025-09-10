@@ -23,6 +23,13 @@ export class QuickReminderDialog {
     private projectManager: ProjectManager;
     private defaultProjectId?: string;
     private defaultQuadrant?: string;
+    private prefillData?: {
+        title?: string;
+        content?: string;
+        categoryId?: string;
+        priority?: string;
+        projectId?: string;
+    };
 
     constructor(initialDate: string, initialTime?: string, onSaved?: () => void, timeRangeOptions?: {
         endDate?: string;
@@ -31,6 +38,13 @@ export class QuickReminderDialog {
     }, options?: {
         defaultProjectId?: string;
         defaultQuadrant?: string;
+        prefillData?: {
+            title?: string;
+            content?: string;
+            categoryId?: string;
+            priority?: string;
+            projectId?: string;
+        };
     }) {
         // 确保日期格式正确 - 只保留 YYYY-MM-DD 部分
         this.initialDate = this.formatDateForInput(initialDate);
@@ -56,6 +70,7 @@ export class QuickReminderDialog {
         if (options) {
             this.defaultProjectId = options.defaultProjectId;
             this.defaultQuadrant = options.defaultQuadrant;
+            this.prefillData = options.prefillData;
         }
 
         this.categoryManager = CategoryManager.getInstance();
@@ -553,6 +568,53 @@ export class QuickReminderDialog {
                     // 确保结束日期输入框也是正确的类型
                     endDateInput.value = this.initialEndDate;
                 }
+            }
+
+            // 预填充数据
+            if (this.prefillData) {
+                // 设置标题
+                if (this.prefillData.title && titleInput) {
+                    titleInput.value = this.prefillData.title;
+                }
+
+                // 设置备注
+                const noteInput = this.dialog.element.querySelector('#quickReminderNote') as HTMLTextAreaElement;
+                if (this.prefillData.content && noteInput) {
+                    noteInput.value = this.prefillData.content;
+                }
+
+                // 设置项目
+                const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
+                if (this.prefillData.projectId && projectSelector) {
+                    projectSelector.value = this.prefillData.projectId;
+                }
+
+                // 设置优先级和分类 - 需要等待渲染完成
+                setTimeout(() => {
+                    if (this.prefillData.priority) {
+                        const priorityButtons = this.dialog.element.querySelectorAll('.priority-option');
+                        priorityButtons.forEach(button => {
+                            const priority = button.getAttribute('data-priority');
+                            if (priority === this.prefillData.priority) {
+                                button.classList.add('selected');
+                            } else {
+                                button.classList.remove('selected');
+                            }
+                        });
+                    }
+
+                    if (this.prefillData.categoryId) {
+                        const categoryButtons = this.dialog.element.querySelectorAll('.category-option');
+                        categoryButtons.forEach(button => {
+                            const categoryId = button.getAttribute('data-category-id');
+                            if (categoryId === this.prefillData.categoryId) {
+                                button.classList.add('selected');
+                            } else {
+                                button.classList.remove('selected');
+                            }
+                        });
+                    }
+                }, 100);
             }
 
             // 自动聚焦标题输入框
