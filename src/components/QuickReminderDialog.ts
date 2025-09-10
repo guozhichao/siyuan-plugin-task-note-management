@@ -24,7 +24,7 @@ export class QuickReminderDialog {
     private defaultProjectId?: string;
     private defaultQuadrant?: string;
     private defaultTitle?: string;
-    private defaultContent?: string;
+    private defaultNote?: string;
     private defaultCategoryId?: string;
     private defaultPriority?: string;
     private defaultBlockId?: string;
@@ -37,7 +37,7 @@ export class QuickReminderDialog {
         defaultProjectId?: string;
         defaultQuadrant?: string;
         defaultTitle?: string;
-        defaultContent?: string;
+        defaultNote?: string;
         defaultCategoryId?: string;
         defaultPriority?: string;
         defaultBlockId?: string;
@@ -67,7 +67,7 @@ export class QuickReminderDialog {
             this.defaultProjectId = options.defaultProjectId;
             this.defaultQuadrant = options.defaultQuadrant;
             this.defaultTitle = options.defaultTitle;
-            this.defaultContent = options.defaultContent;
+            this.defaultNote = options.defaultNote;
             this.defaultCategoryId = options.defaultCategoryId;
             this.defaultPriority = options.defaultPriority;
             this.defaultBlockId = options.defaultBlockId;
@@ -575,17 +575,10 @@ export class QuickReminderDialog {
                 titleInput.value = this.defaultTitle;
             }
 
-            if (this.defaultContent) {
+            if (this.defaultNote) {
                 const noteInput = this.dialog.element.querySelector('#quickReminderNote') as HTMLTextAreaElement;
                 if (noteInput) {
-                    noteInput.value = this.defaultContent;
-                }
-            }
-
-            if (this.defaultProjectId) {
-                const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
-                if (projectSelector) {
-                    projectSelector.value = this.defaultProjectId;
+                    noteInput.value = this.defaultNote;
                 }
             }
 

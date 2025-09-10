@@ -914,7 +914,7 @@ export class CalendarView {
                 {
                     defaultProjectId: originalProps.projectId,
                     defaultTitle: title,
-                    defaultContent: originalProps.content || '',
+                    defaultNote: originalProps.note || '',
                     defaultCategoryId: originalProps.categoryId,
                     defaultPriority: originalProps.priority || 'none',
                     defaultBlockId: originalProps.blockId
