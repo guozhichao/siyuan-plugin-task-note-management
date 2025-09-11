@@ -83,10 +83,7 @@ export class CalendarView {
         this.monthBtn.addEventListener('click', async () => {
             await this.calendarConfigManager.setViewMode('dayGridMonth');
             this.calendar.changeView('dayGridMonth');
-            // 延迟更新按钮状态，确保日历视图切换完成
-            setTimeout(() => {
-                this.updateViewButtonStates();
-            }, 100);
+            this.updateViewButtonStates();
         });
         viewGroup.appendChild(this.monthBtn);
 
@@ -96,10 +93,7 @@ export class CalendarView {
         this.weekBtn.addEventListener('click', async () => {
             await this.calendarConfigManager.setViewMode('timeGridWeek');
             this.calendar.changeView('timeGridWeek');
-            // 延迟更新按钮状态，确保日历视图切换完成
-            setTimeout(() => {
-                this.updateViewButtonStates();
-            }, 100);
+            this.updateViewButtonStates();
         });
         viewGroup.appendChild(this.weekBtn);
 
@@ -109,10 +103,7 @@ export class CalendarView {
         this.dayBtn.addEventListener('click', async () => {
             await this.calendarConfigManager.setViewMode('timeGridDay');
             this.calendar.changeView('timeGridDay');
-            // 延迟更新按钮状态，确保日历视图切换完成
-            setTimeout(() => {
-                this.updateViewButtonStates();
-            }, 100);
+            this.updateViewButtonStates();
         });
         viewGroup.appendChild(this.dayBtn);
 
@@ -3833,18 +3824,6 @@ export class CalendarView {
      */
     private updateViewButtonStates() {
         const currentViewMode = this.calendarConfigManager.getViewMode();
-        console.log('更新视图按钮状态，当前视图模式:', currentViewMode);
-        
-        // 检查按钮元素是否存在
-        if (!this.monthBtn || !this.weekBtn || !this.dayBtn || !this.matrixBtn) {
-            console.error('按钮元素未找到:', {
-                monthBtn: !!this.monthBtn,
-                weekBtn: !!this.weekBtn,
-                dayBtn: !!this.dayBtn,
-                matrixBtn: !!this.matrixBtn
-            });
-            return;
-        }
         
         // 重置所有按钮样式
         this.monthBtn.classList.remove('b3-button--primary');
@@ -3856,15 +3835,12 @@ export class CalendarView {
         switch (currentViewMode) {
             case 'dayGridMonth':
                 this.monthBtn.classList.add('b3-button--primary');
-                console.log('设置月视图按钮为激活状态，当前类名:', this.monthBtn.className);
                 break;
             case 'timeGridWeek':
                 this.weekBtn.classList.add('b3-button--primary');
-                console.log('设置周视图按钮为激活状态，当前类名:', this.weekBtn.className);
                 break;
             case 'timeGridDay':
                 this.dayBtn.classList.add('b3-button--primary');
-                console.log('设置日视图按钮为激活状态，当前类名:', this.dayBtn.className);
                 break;
         }
     }
