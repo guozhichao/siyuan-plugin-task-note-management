@@ -1877,6 +1877,16 @@ export class CalendarView {
                 border-left-color: var(--b3-theme-primary-light) !important;
                 border-right-color: var(--b3-theme-primary-light) !important;
             }
+            
+            /* 已完成任务的样式优化 */
+            .fc-event.completed {
+                opacity: 0.8 !important;
+            }
+            
+            .fc-event.completed .fc-event-title {
+                text-decoration: line-through;
+                font-weight: 500;
+            }
         `;
         document.head.appendChild(style);
     }
@@ -2414,7 +2424,7 @@ export class CalendarView {
             title: reminder.title || t("unnamedNote"),
             backgroundColor: backgroundColor,
             borderColor: borderColor,
-            textColor: isCompleted ? '#999999' : '#ffffff',
+            textColor: isCompleted ? '#666666' : '#ffffff',
             className: classNames,
             extendedProps: {
                 completed: isCompleted,
