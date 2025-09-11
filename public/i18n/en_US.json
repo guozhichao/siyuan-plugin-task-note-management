@@ -505,14 +505,16 @@
     "pleaseEnterProjectName": "Please enter project name",
     "createProject": "Create Project",
     "repeatSeries": "Repeat Series",
+    "copyEventTitle": "Copy Event Title",
+    "eventTitleCopied": "Event title copied to clipboard",
+    "createCopy": "Create Copy",
+    "copyCreated": "Copy created",
     "taskSummary": "Task Summary",
     "showSummaryFailed": "Failed to show summary",
-    "copyAll": "Copy All",
+    "copyAll": "Copy Markdown",
     "copyPlainText": "Copy Plain Text",
+    "copyRichText": "Copy Rich Text",
     "copiedToClipboard": "Copied to clipboard",
     "copyFailed": "Copy failed",
-    "currentView": "Current View",
-    "noProject": "No Project",
-    "copyEventTitle": "Copy Event Title",
-    "eventTitleCopied": "Event title copied to clipboard"
+    "currentView": "Current View"
 }
