@@ -1096,6 +1096,18 @@
     padding: 8px;
 }
 
+// 视图按钮激活状态样式
+.reminder-calendar-view-group .b3-button--primary {
+    background-color: var(--b3-theme-primary) !important;
+    color: white !important;
+    border-color: var(--b3-theme-primary) !important;
+}
+
+.reminder-calendar-view-group .b3-button--primary:hover {
+    background-color: var(--b3-theme-primary-light) !important;
+    border-color: var(--b3-theme-primary-light) !important;
+}
+
 .reminder-calendar-toolbar {
     display: flex;
     justify-content: space-between;

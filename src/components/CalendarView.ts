@@ -34,6 +34,12 @@ export class CalendarView {
     private lastClickTime: number = 0; // 添加双击检测
     private clickTimeout: number | null = null; // 添加单击延迟超时
     private refreshTimeout: number | null = null; // 添加刷新防抖超时
+    
+    // 视图按钮引用
+    private monthBtn: HTMLButtonElement;
+    private weekBtn: HTMLButtonElement;
+    private dayBtn: HTMLButtonElement;
+    private matrixBtn: HTMLButtonElement;
 
     // 添加静态变量来跟踪当前活动的番茄钟
     private static currentPomodoroTimer: PomodoroTimer | null = null;
@@ -71,40 +77,52 @@ export class CalendarView {
         viewGroup.className = 'reminder-calendar-view-group';
         toolbar.appendChild(viewGroup);
 
-        const monthBtn = document.createElement('button');
-        monthBtn.className = 'b3-button b3-button--outline';
-        monthBtn.textContent = t("month");
-        monthBtn.addEventListener('click', async () => {
+        this.monthBtn = document.createElement('button');
+        this.monthBtn.className = 'b3-button b3-button--outline';
+        this.monthBtn.textContent = t("month");
+        this.monthBtn.addEventListener('click', async () => {
             await this.calendarConfigManager.setViewMode('dayGridMonth');
             this.calendar.changeView('dayGridMonth');
+            // 延迟更新按钮状态，确保日历视图切换完成
+            setTimeout(() => {
+                this.updateViewButtonStates();
+            }, 100);
         });
-        viewGroup.appendChild(monthBtn);
+        viewGroup.appendChild(this.monthBtn);
 
-        const weekBtn = document.createElement('button');
-        weekBtn.className = 'b3-button b3-button--outline';
-        weekBtn.textContent = t("week");
-        weekBtn.addEventListener('click', async () => {
+        this.weekBtn = document.createElement('button');
+        this.weekBtn.className = 'b3-button b3-button--outline';
+        this.weekBtn.textContent = t("week");
+        this.weekBtn.addEventListener('click', async () => {
             await this.calendarConfigManager.setViewMode('timeGridWeek');
             this.calendar.changeView('timeGridWeek');
+            // 延迟更新按钮状态，确保日历视图切换完成
+            setTimeout(() => {
+                this.updateViewButtonStates();
+            }, 100);
         });
-        viewGroup.appendChild(weekBtn);
+        viewGroup.appendChild(this.weekBtn);
 
-        const dayBtn = document.createElement('button');
-        dayBtn.className = 'b3-button b3-button--outline';
-        dayBtn.textContent = t("day");
-        dayBtn.addEventListener('click', async () => {
+        this.dayBtn = document.createElement('button');
+        this.dayBtn.className = 'b3-button b3-button--outline';
+        this.dayBtn.textContent = t("day");
+        this.dayBtn.addEventListener('click', async () => {
             await this.calendarConfigManager.setViewMode('timeGridDay');
             this.calendar.changeView('timeGridDay');
+            // 延迟更新按钮状态，确保日历视图切换完成
+            setTimeout(() => {
+                this.updateViewButtonStates();
+            }, 100);
         });
-        viewGroup.appendChild(dayBtn);
+        viewGroup.appendChild(this.dayBtn);
 
-        const matrixBtn = document.createElement('button');
-        matrixBtn.className = 'b3-button b3-button--outline';
-        matrixBtn.textContent = t("eisenhowerMatrix");
-        matrixBtn.addEventListener('click', async () => {
+        this.matrixBtn = document.createElement('button');
+        this.matrixBtn.className = 'b3-button b3-button--outline';
+        this.matrixBtn.textContent = t("eisenhowerMatrix");
+        this.matrixBtn.addEventListener('click', async () => {
             this.openEisenhowerTab();
         });
-        viewGroup.appendChild(matrixBtn);
+        viewGroup.appendChild(this.matrixBtn);
 
 
         // 添加分类过滤器
@@ -279,6 +297,9 @@ export class CalendarView {
         });
 
         this.calendar.render();
+
+        // 更新视图按钮状态
+        this.updateViewButtonStates();
 
         // 初始加载事件 - 延迟执行避免与 datesSet 冲突
         setTimeout(() => {
@@ -3805,6 +3826,47 @@ export class CalendarView {
                 data: {}
             }
         });
+    }
+
+    /**
+     * 更新视图按钮的激活状态
+     */
+    private updateViewButtonStates() {
+        const currentViewMode = this.calendarConfigManager.getViewMode();
+        console.log('更新视图按钮状态，当前视图模式:', currentViewMode);
+        
+        // 检查按钮元素是否存在
+        if (!this.monthBtn || !this.weekBtn || !this.dayBtn || !this.matrixBtn) {
+            console.error('按钮元素未找到:', {
+                monthBtn: !!this.monthBtn,
+                weekBtn: !!this.weekBtn,
+                dayBtn: !!this.dayBtn,
+                matrixBtn: !!this.matrixBtn
+            });
+            return;
+        }
+        
+        // 重置所有按钮样式
+        this.monthBtn.classList.remove('b3-button--primary');
+        this.weekBtn.classList.remove('b3-button--primary');
+        this.dayBtn.classList.remove('b3-button--primary');
+        this.matrixBtn.classList.remove('b3-button--primary');
+        
+        // 根据当前视图模式设置激活按钮
+        switch (currentViewMode) {
+            case 'dayGridMonth':
+                this.monthBtn.classList.add('b3-button--primary');
+                console.log('设置月视图按钮为激活状态，当前类名:', this.monthBtn.className);
+                break;
+            case 'timeGridWeek':
+                this.weekBtn.classList.add('b3-button--primary');
+                console.log('设置周视图按钮为激活状态，当前类名:', this.weekBtn.className);
+                break;
+            case 'timeGridDay':
+                this.dayBtn.classList.add('b3-button--primary');
+                console.log('设置日视图按钮为激活状态，当前类名:', this.dayBtn.className);
+                break;
+        }
     }
 }
 
