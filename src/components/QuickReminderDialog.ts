@@ -23,6 +23,11 @@ export class QuickReminderDialog {
     private projectManager: ProjectManager;
     private defaultProjectId?: string;
     private defaultQuadrant?: string;
+    private defaultTitle?: string;
+    private defaultNote?: string;
+    private defaultCategoryId?: string;
+    private defaultPriority?: string;
+    private defaultBlockId?: string;
 
     constructor(initialDate: string, initialTime?: string, onSaved?: () => void, timeRangeOptions?: {
         endDate?: string;
@@ -31,6 +36,11 @@ export class QuickReminderDialog {
     }, options?: {
         defaultProjectId?: string;
         defaultQuadrant?: string;
+        defaultTitle?: string;
+        defaultNote?: string;
+        defaultCategoryId?: string;
+        defaultPriority?: string;
+        defaultBlockId?: string;
     }) {
         // 确保日期格式正确 - 只保留 YYYY-MM-DD 部分
         this.initialDate = this.formatDateForInput(initialDate);
@@ -56,6 +66,11 @@ export class QuickReminderDialog {
         if (options) {
             this.defaultProjectId = options.defaultProjectId;
             this.defaultQuadrant = options.defaultQuadrant;
+            this.defaultTitle = options.defaultTitle;
+            this.defaultNote = options.defaultNote;
+            this.defaultCategoryId = options.defaultCategoryId;
+            this.defaultPriority = options.defaultPriority;
+            this.defaultBlockId = options.defaultBlockId;
         }
 
         this.categoryManager = CategoryManager.getInstance();
@@ -466,7 +481,7 @@ export class QuickReminderDialog {
                                     <div class="priority-dot low"></div>
                                     <span>${t("lowPriority")}</span>
                                 </div>
-                                <div class="priority-option selected" data-priority="none">
+                                <div class="priority-option" data-priority="none">
                                     <div class="priority-dot none"></div>
                                     <span>${t("noPriority")}</span>
                                 </div>
@@ -518,6 +533,7 @@ export class QuickReminderDialog {
         this.bindEvents();
         await this.renderCategorySelector();
         await this.renderProjectSelector();
+        await this.renderPrioritySelector();
 
         // 确保日期和时间输入框正确设置初始值
         setTimeout(() => {
@@ -555,9 +571,49 @@ export class QuickReminderDialog {
                 }
             }
 
+            // 设置默认值
+            if (this.defaultTitle && titleInput) {
+                titleInput.value = this.defaultTitle;
+            }
+
+            if (this.defaultNote) {
+                const noteInput = this.dialog.element.querySelector('#quickReminderNote') as HTMLTextAreaElement;
+                if (noteInput) {
+                    noteInput.value = this.defaultNote;
+                }
+            }
+
             // 自动聚焦标题输入框
             titleInput?.focus();
-        }, 100);
+        }, 50);
+    }
+
+    private async renderPrioritySelector() {
+        const prioritySelector = this.dialog.element.querySelector('#quickPrioritySelector') as HTMLElement;
+        if (!prioritySelector) return;
+
+        const priorityOptions = prioritySelector.querySelectorAll('.priority-option');
+        
+        // 移除所有选中状态
+        priorityOptions.forEach(option => {
+            option.classList.remove('selected');
+        });
+
+        // 设置默认优先级选择
+        if (this.defaultPriority) {
+            priorityOptions.forEach(option => {
+                const priority = option.getAttribute('data-priority');
+                if (priority === this.defaultPriority) {
+                    option.classList.add('selected');
+                }
+            });
+        } else {
+            // 如果没有默认优先级，选中无优先级选项
+            const noPriorityOption = prioritySelector.querySelector('[data-priority="none"]') as HTMLElement;
+            if (noPriorityOption) {
+                noPriorityOption.classList.add('selected');
+            }
+        }
     }
 
     private async renderCategorySelector() {
@@ -572,7 +628,7 @@ export class QuickReminderDialog {
 
             // 添加无分类选项
             const noCategoryEl = document.createElement('div');
-            noCategoryEl.className = 'category-option selected';
+            noCategoryEl.className = 'category-option';
             noCategoryEl.setAttribute('data-category', '');
             noCategoryEl.innerHTML = `<span>${t("noCategory")}</span>`;
             categorySelector.appendChild(noCategoryEl);
@@ -586,6 +642,20 @@ export class QuickReminderDialog {
                 categoryEl.innerHTML = `<span>${category.icon ? category.icon + ' ' : ''}${category.name}</span>`;
                 categorySelector.appendChild(categoryEl);
             });
+
+            // 设置默认分类选择
+            if (this.defaultCategoryId) {
+                const categoryButtons = this.dialog.element.querySelectorAll('.category-option');
+                categoryButtons.forEach(button => {
+                    const categoryId = button.getAttribute('data-category');
+                    if (categoryId === this.defaultCategoryId) {
+                        button.classList.add('selected');
+                    }
+                });
+            } else {
+                // 如果没有默认分类，选中无分类选项
+                noCategoryEl.classList.add('selected');
+            }
 
         } catch (error) {
             console.error('渲染分类选择器失败:', error);
@@ -957,7 +1027,7 @@ export class QuickReminderDialog {
             const reminderId = `quick_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             const reminder: any = {
                 id: reminderId,
-                blockId: null, // 没有绑定块
+                blockId: this.defaultBlockId || null,
                 docId: null, // 没有绑定文档
                 title: title,
                 date: date,
