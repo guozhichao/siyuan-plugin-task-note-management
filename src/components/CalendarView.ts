@@ -34,7 +34,7 @@ export class CalendarView {
     private lastClickTime: number = 0; // 添加双击检测
     private clickTimeout: number | null = null; // 添加单击延迟超时
     private refreshTimeout: number | null = null; // 添加刷新防抖超时
-    
+
     // 视图按钮引用
     private monthBtn: HTMLButtonElement;
     private weekBtn: HTMLButtonElement;
@@ -157,16 +157,16 @@ export class CalendarView {
         refreshBtn.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconRefresh"></use></svg>';
         refreshBtn.title = t("refresh");
         refreshBtn.addEventListener('click', async () => {
-          refreshBtn.disabled = true;
-          try {
-            showMessage(t("refreshing") || "正在刷新...", 500);
-            await this.refreshEvents();
-          } catch (error) {
-            console.error('手动刷新失败:', error);
-            showMessage(t("refreshFailed") || "刷新失败");
-          } finally {
-            refreshBtn.disabled = false;
-          }
+            refreshBtn.disabled = true;
+            try {
+                showMessage(t("refreshing") || "正在刷新...", 500);
+                await this.refreshEvents();
+            } catch (error) {
+                console.error('手动刷新失败:', error);
+                showMessage(t("refreshFailed") || "刷新失败");
+            } finally {
+                refreshBtn.disabled = false;
+            }
         });
         filterGroup.appendChild(refreshBtn);
 
@@ -305,7 +305,7 @@ export class CalendarView {
 
         // 添加窗口大小变化监听器
         this.addResizeListeners();
-        
+
         // 设置日历实例到任务摘要管理器
         this.taskSummaryDialog.setCalendar(this.calendar);
         this.taskSummaryDialog.setCategoryManager(this);
@@ -642,7 +642,7 @@ export class CalendarView {
                 this.createTomorrowCopy(calendarEvent);
             }
         });
-      
+
         menu.addSeparator();
 
         if (calendarEvent.extendedProps.isRepeated) {
@@ -900,7 +900,7 @@ export class CalendarView {
 
             // 获取事件的原始信息
             const originalProps = calendarEvent.extendedProps;
-            
+
             // 获取事件标题（移除可能存在的分类图标前缀）
             let title = calendarEvent.title || t("unnamedNote");
             if (originalProps.categoryId) {
@@ -3772,14 +3772,14 @@ export class CalendarView {
             // 获取项目数据以获取项目标题
             const { readProjectData } = await import("../api");
             const projectData = await readProjectData();
-            
+
             if (!projectData || !projectData[projectId]) {
                 showMessage("项目不存在");
                 return;
             }
 
             const project = projectData[projectId];
-            
+
             // 使用openTab打开项目看板
             openTab({
                 app: this.plugin.app,
@@ -3820,13 +3820,13 @@ export class CalendarView {
      */
     private updateViewButtonStates() {
         const currentViewMode = this.calendarConfigManager.getViewMode();
-        
+
         // 重置所有按钮样式
         this.monthBtn.classList.remove('b3-button--primary');
         this.weekBtn.classList.remove('b3-button--primary');
         this.dayBtn.classList.remove('b3-button--primary');
         this.matrixBtn.classList.remove('b3-button--primary');
-        
+
         // 根据当前视图模式设置激活按钮
         switch (currentViewMode) {
             case 'dayGridMonth':
@@ -3850,7 +3850,7 @@ export class CalendarView {
     private adjustColorOpacity(color: string, opacity: number): string {
         // 移除可能存在的透明度后缀
         color = color.replace(/[a-f\d]{2}$/i, '');
-        
+
         // 如果是hex颜色，转换为rgba
         if (color.startsWith('#')) {
             const hex = color.slice(1);
@@ -3859,17 +3859,17 @@ export class CalendarView {
             const b = parseInt(hex.slice(4, 6), 16);
             return `rgba(${r}, ${g}, ${b}, ${opacity})`;
         }
-        
+
         // 如果已经是rgba格式，直接调整透明度
         if (color.startsWith('rgba')) {
             return color.replace(/[\d.]+\)$/, `${opacity})`);
         }
-        
+
         // 如果是rgb格式，转换为rgba
         if (color.startsWith('rgb')) {
             return color.replace('rgb', 'rgba').replace(')', `, ${opacity})`);
         }
-        
+
         // 如果都不是，返回原色（这种情况很少）
         return color;
     }
