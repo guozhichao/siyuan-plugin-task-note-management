@@ -1224,6 +1224,14 @@ export class ProjectPanel {
                 label: t("bindToBlock") || "绑定到块",
                 click: () => this.showBindToBlockDialog(project)
             });
+            menu.addSeparator();
+            // 打开项目看板
+            menu.addItem({
+                iconHTML: "📋",
+                label: "打开项目看板",
+                click: () => this.openProjectKanban(project)
+            });
+
         }
 
         // 编辑项目
