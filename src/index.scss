@@ -1169,18 +1169,14 @@
     overflow: hidden;
 }
 
-.fc-event.completed {
-    opacity: 0.3;
-}
+
 
 .fc-event.completed .reminder-calendar-event-content {
     text-decoration: line-through;
-
 }
 
 .fc-event.completed .reminder-calendar-event-content .fc-event-title {
     text-decoration: line-through;
-
 }
 
 .reminder-calendar-event-note {
