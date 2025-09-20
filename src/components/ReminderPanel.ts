@@ -4912,7 +4912,7 @@ export class ReminderPanel {
                     icon: "iconProject",
                     id: this.plugin.name + PROJECT_KANBAN_TAB_TYPE,
                     data: {
-                        projectId: project.blockId,
+                        projectId: project.id,
                         projectTitle: project.title
                     }
                 }
