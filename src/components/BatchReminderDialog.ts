@@ -1,6 +1,6 @@
 import { Dialog, showMessage } from "siyuan";
 import { t } from "../utils/i18n";
-import { ensureReminderDataFile, updateBlockReminderBookmark,getBlockByID, getBlockDOM } from "../api";
+import { ensureReminderDataFile, updateBlockReminderBookmark, getBlockByID, getBlockDOM } from "../api";
 import { getRepeatDescription } from "../utils/repeatUtils";
 import { getLocalDateString, getLocalTimeString } from "../utils/dateUtils";
 import { RepeatConfig, RepeatSettingsDialog } from "./RepeatSettingsDialog";
@@ -979,27 +979,27 @@ class SmartBatchDialog {
 
         try {
             const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
-            
+
             // 清空选择器
             projectSelector.innerHTML = `<option value="">${t("noProject")}</option>`;
-            
+
             // 添加项目选项
             Object.keys(groupedProjects).forEach(statusKey => {
                 // 不显示已归档的项目
                 if (statusKey === 'archived') return;
-                
+
                 const projects = groupedProjects[statusKey];
                 if (projects.length > 0) {
                     const statusGroup = document.createElement('optgroup');
                     statusGroup.label = this.getStatusDisplayName(statusKey);
-                    
+
                     projects.forEach(project => {
                         const option = document.createElement('option');
                         option.value = project.id;
                         option.textContent = project.name;
                         statusGroup.appendChild(option);
                     });
-                    
+
                     projectSelector.appendChild(statusGroup);
                 }
             });
@@ -1063,7 +1063,7 @@ class SmartBatchDialog {
     private batchApplyProject(dialog: Dialog) {
         const projectSelector = dialog.element.querySelector('#batchProjectSelector') as HTMLSelectElement;
         const projectId = projectSelector.value;
-        
+
         const selectedBlocks = this.getSelectedBlockIds(dialog);
         if (selectedBlocks.length === 0) {
             showMessage(t("pleaseSelectBlocks"));
@@ -1240,7 +1240,7 @@ class BlockEditDialog {
         this.onSave = onSave;
         this.categoryManager = CategoryManager.getInstance();
         this.projectManager = ProjectManager.getInstance();
-        
+
         // 初始化chrono解析器，配置中文支持
         this.chronoParser = chrono.zh.casual.clone();
         this.setupChronoParser();
@@ -1412,20 +1412,20 @@ class BlockEditDialog {
 
         try {
             const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
-            
+
             // 清空选择器
             projectSelector.innerHTML = `<option value="">${t("noProject")}</option>`;
-            
+
             // 添加项目选项
             Object.keys(groupedProjects).forEach(statusKey => {
                 // 不显示已归档的项目
                 if (statusKey === 'archived') return;
-                
+
                 const projects = groupedProjects[statusKey];
                 if (projects.length > 0) {
                     const statusGroup = document.createElement('optgroup');
                     statusGroup.label = this.getStatusDisplayName(statusKey);
-                    
+
                     projects.forEach(project => {
                         const option = document.createElement('option');
                         option.value = project.id;
@@ -1433,7 +1433,7 @@ class BlockEditDialog {
                         option.selected = this.setting.projectId === project.id;
                         statusGroup.appendChild(option);
                     });
-                    
+
                     projectSelector.appendChild(statusGroup);
                 }
             });
@@ -1531,32 +1531,32 @@ class BlockEditDialog {
     private parseNaturalDateTime(text: string): { date?: string; time?: string; hasTime?: boolean } {
         try {
             const results = this.chronoParser.parse(text, new Date());
-            
+
             if (results && results.length > 0) {
                 const result = results[0];
                 const parsedDate = result.start.date();
-                
+
                 const year = parsedDate.getFullYear();
                 const month = (parsedDate.getMonth() + 1).toString().padStart(2, '0');
                 const day = parsedDate.getDate().toString().padStart(2, '0');
                 const date = `${year}-${month}-${day}`;
-                
+
                 let time: string | undefined;
                 let hasTime = false;
-                
+
                 if (result.start.get('hour') !== undefined) {
                     const hour = result.start.get('hour').toString().padStart(2, '0');
                     const minute = (result.start.get('minute') || 0).toString().padStart(2, '0');
                     time = `${hour}:${minute}`;
                     hasTime = true;
                 }
-                
+
                 return { date, time, hasTime };
             }
         } catch (error) {
             console.error('解析自然语言日期时间失败:', error);
         }
-        
+
         return {};
     }
 
@@ -1569,7 +1569,7 @@ class BlockEditDialog {
 
         // 设置日期和时间
         dateInput.value = result.date;
-        
+
         if (result.hasTime && result.time) {
             noTimeCheckbox.checked = false;
             this.setting.hasTime = true;
@@ -1589,7 +1589,7 @@ class BlockEditDialog {
     // 切换日期时间输入框类型
     private toggleDateTimeInputs(dialog: Dialog, noSpecificTime: boolean) {
         const dateTimeDesc = dialog.element.querySelector('#editDateTimeDesc') as HTMLElement;
-        
+
         if (dateTimeDesc) {
             dateTimeDesc.textContent = noSpecificTime ? t("dateOnlyDesc") : t("dateTimeDesc");
         }
