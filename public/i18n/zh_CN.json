@@ -412,6 +412,7 @@
     "selectAll": "全选",
     "deselectAll": "取消全选",
     "totalBlocks": "共 ${count} 个块，其中 ${detected} 个已自动识别日期",
+    "batchSetProject": "批量设置项目",
     "batchSetReminders": "批量设置提醒",
     "blockContent": "块内容",
     "saveSettings": "保存设置",

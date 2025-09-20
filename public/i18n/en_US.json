@@ -408,6 +408,7 @@
     "selectAll": "Select All",
     "deselectAll": "Deselect All",
     "totalBlocks": "Total ${count} blocks, ${detected} auto-detected dates",
+    "batchSetProject": "Batch Set Project",
     "batchSetReminders": "Batch Set Reminders",
     "blockContent": "Block Content",
     "saveSettings": "Save Settings",

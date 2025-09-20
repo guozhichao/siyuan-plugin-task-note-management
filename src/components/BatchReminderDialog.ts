@@ -7,6 +7,8 @@ import { RepeatConfig, RepeatSettingsDialog } from "./RepeatSettingsDialog";
 import { NotificationDialog } from "./NotificationDialog";
 import * as chrono from 'chrono-node';
 import { ReminderDialog } from "./ReminderDialog";
+import { CategoryManager } from "../utils/categoryManager";
+import { ProjectManager } from "../utils/projectManager";
 
 export interface BlockDetail {
     blockId: string;
@@ -387,11 +389,15 @@ class SmartBatchDialog {
     private blockIds: string[];
     private autoDetectedData: AutoDetectResult[];
     private blockSettings: Map<string, BlockSetting> = new Map();
+    private categoryManager: CategoryManager;
+    private projectManager: ProjectManager;
 
     constructor(plugin: any, blockIds: string[], autoDetectedData: AutoDetectResult[]) {
         this.plugin = plugin;
         this.blockIds = blockIds;
         this.autoDetectedData = autoDetectedData;
+        this.categoryManager = CategoryManager.getInstance();
+        this.projectManager = ProjectManager.getInstance();
 
         // 初始化每个块的设置
         this.initializeBlockSettings();
@@ -408,6 +414,7 @@ class SmartBatchDialog {
                 hasTime: data.hasTime || false,
                 priority: 'none',
                 categoryId: '',
+                projectId: '',
                 note: '',
                 repeatConfig: {
                     enabled: false,
@@ -419,7 +426,11 @@ class SmartBatchDialog {
         });
     }
 
-    show() {
+    async show() {
+        // 初始化分类管理器和项目管理器
+        await this.categoryManager.initialize();
+        await this.projectManager.initialize();
+
         const dialog = new Dialog({
             title: t("smartBatchTitle", { count: this.blockIds.length.toString() }),
             content: this.buildSmartBatchContent(),
@@ -428,6 +439,7 @@ class SmartBatchDialog {
         });
 
         this.renderBlockList(dialog);
+        await this.renderBatchProjectSelector(dialog);
         this.bindSmartBatchEvents(dialog);
     }
 
@@ -489,7 +501,19 @@ class SmartBatchDialog {
                                 </div>
                             </div>
                             <div class="batch-operation-row">
-                                <div class="batch-operation-item full-width">
+                                <div class="batch-operation-item">
+                                    <label class="b3-form__label">${t("batchSetProject")}</label>
+                                    <div class="batch-project-container">
+                                        <select id="batchProjectSelector" class="b3-select" style="flex: 1;">
+                                            <option value="">${t("noProject")}</option>
+                                            <!-- 项目选择器将在这里渲染 -->
+                                        </select>
+                                        <button type="button" id="batchApplyProjectBtn" class="b3-button b3-button--primary" disabled>
+                                            ${t("applyToAll")}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="batch-operation-item">
                                     <label class="b3-form__label">${t("batchSetDate")}</label>
                                     <div class="batch-date-container">
                                         <input type="date" id="batchDateInput" class="b3-text-field" value="${getLocalDateString()}">
@@ -542,9 +566,10 @@ class SmartBatchDialog {
             const dateDisplay = setting?.date ? new Date(setting.date + 'T00:00:00').toLocaleDateString('zh-CN') : '未设置';
             const timeDisplay = setting?.hasTime && setting.time ? setting.time : '全天';
 
-            // 获取分类和优先级显示
+            // 获取分类、优先级和项目显示
             const categoryDisplay = this.getCategoryDisplay(setting?.categoryId);
             const priorityDisplay = this.getPriorityDisplay(setting?.priority);
+            const projectDisplay = this.getProjectDisplay(setting?.projectId);
 
             return `
                 <div class="block-item" data-block-id="${data.blockId}">
@@ -566,6 +591,7 @@ class SmartBatchDialog {
                                 <div class="block-attributes">
                                     <span class="block-category">${categoryDisplay}</span>
                                     <span class="block-priority">${priorityDisplay}</span>
+                                    <span class="block-project">${projectDisplay}</span>
                                 </div>
                             </div>
                         </div>
@@ -593,7 +619,7 @@ class SmartBatchDialog {
             const categories = this.plugin.categoryManager.getCategories();
             const category = categories.find(c => c.id === categoryId);
             if (category) {
-                return `<span style="background-color: ${category.color}; padding: 2px 6px; border-radius: 3px; font-size: 12px;">${category.icon ? category.icon + ' ' : ''}${category.name}</span>`;
+                return `<span style="background-color: ${category.color}; padding: 2px 6px; border-radius: 3px; font-size: 12px;color:#fff;">${category.icon ? category.icon + ' ' : ''}${category.name}</span>`;
             }
         } catch (error) {
             console.error('获取分类显示失败:', error);
@@ -613,6 +639,21 @@ class SmartBatchDialog {
         return priorityMap[priority as keyof typeof priorityMap] || priorityMap.none;
     }
 
+    private getProjectDisplay(projectId?: string): string {
+        if (!projectId) return `📁 ${t("noProject")}`;
+
+        try {
+            const project = this.projectManager.getProjectById(projectId);
+            if (project) {
+                return `<span class="project-badge" style="background-color: ${project.color || '#E0E0E0'}; padding: 2px 6px; border-radius: 3px; font-size: 12px;">📁 ${project.name}</span>`;
+            }
+        } catch (error) {
+            console.error('获取项目显示失败:', error);
+        }
+
+        return `📁 ${t("noProject")}`;
+    }
+
     private bindSmartBatchEvents(dialog: Dialog) {
         const cancelBtn = dialog.element.querySelector('#smartBatchCancelBtn') as HTMLButtonElement;
         const confirmBtn = dialog.element.querySelector('#smartBatchConfirmBtn') as HTMLButtonElement;
@@ -623,6 +664,7 @@ class SmartBatchDialog {
         const batchOperationsContent = dialog.element.querySelector('#batchOperationsContent') as HTMLElement;
         const batchApplyCategoryBtn = dialog.element.querySelector('#batchApplyCategoryBtn') as HTMLButtonElement;
         const batchApplyPriorityBtn = dialog.element.querySelector('#batchApplyPriorityBtn') as HTMLButtonElement;
+        const batchApplyProjectBtn = dialog.element.querySelector('#batchApplyProjectBtn') as HTMLButtonElement;
         const batchApplyDateBtn = dialog.element.querySelector('#batchApplyDateBtn') as HTMLButtonElement;
         const batchNlDateBtn = dialog.element.querySelector('#batchNlDateBtn') as HTMLButtonElement;
         const selectAllBtn = dialog.element.querySelector('#selectAllBtn') as HTMLButtonElement;
@@ -686,6 +728,17 @@ class SmartBatchDialog {
         // 批量应用优先级
         batchApplyPriorityBtn?.addEventListener('click', () => {
             this.batchApplyPriority(dialog);
+        });
+
+        // 批量项目选择
+        const batchProjectSelector = dialog.element.querySelector('#batchProjectSelector') as HTMLSelectElement;
+        batchProjectSelector?.addEventListener('change', () => {
+            batchApplyProjectBtn.disabled = false;
+        });
+
+        // 批量应用项目
+        batchApplyProjectBtn?.addEventListener('click', () => {
+            this.batchApplyProject(dialog);
         });
 
         // 批量应用日期
@@ -920,6 +973,47 @@ class SmartBatchDialog {
         }
     }
 
+    private async renderBatchProjectSelector(dialog: Dialog) {
+        const projectSelector = dialog.element.querySelector('#batchProjectSelector') as HTMLSelectElement;
+        if (!projectSelector) return;
+
+        try {
+            const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
+            
+            // 清空选择器
+            projectSelector.innerHTML = `<option value="">${t("noProject")}</option>`;
+            
+            // 添加项目选项
+            Object.keys(groupedProjects).forEach(statusKey => {
+                // 不显示已归档的项目
+                if (statusKey === 'archived') return;
+                
+                const projects = groupedProjects[statusKey];
+                if (projects.length > 0) {
+                    const statusGroup = document.createElement('optgroup');
+                    statusGroup.label = this.getStatusDisplayName(statusKey);
+                    
+                    projects.forEach(project => {
+                        const option = document.createElement('option');
+                        option.value = project.id;
+                        option.textContent = project.name;
+                        statusGroup.appendChild(option);
+                    });
+                    
+                    projectSelector.appendChild(statusGroup);
+                }
+            });
+
+        } catch (error) {
+            console.error('渲染批量项目选择器失败:', error);
+        }
+    }
+
+    private getStatusDisplayName(statusKey: string): string {
+        const status = this.projectManager.getStatusManager().getStatusById(statusKey);
+        return status?.name || statusKey;
+    }
+
     private batchApplyCategory(dialog: Dialog) {
         const selectedCategory = dialog.element.querySelector('#batchCategorySelector .category-option-compact.selected') as HTMLElement;
         if (!selectedCategory) return;
@@ -966,6 +1060,31 @@ class SmartBatchDialog {
         showMessage(t("settingsApplied"));
     }
 
+    private batchApplyProject(dialog: Dialog) {
+        const projectSelector = dialog.element.querySelector('#batchProjectSelector') as HTMLSelectElement;
+        const projectId = projectSelector.value;
+        
+        const selectedBlocks = this.getSelectedBlockIds(dialog);
+        if (selectedBlocks.length === 0) {
+            showMessage(t("pleaseSelectBlocks"));
+            return;
+        }
+
+        selectedBlocks.forEach(blockId => {
+            const setting = this.blockSettings.get(blockId);
+            if (setting) {
+                setting.projectId = projectId;
+            }
+        });
+
+        this.updateBlockListDisplay(dialog);
+        showMessage(t("settingsApplied"));
+
+        // 重置按钮状态
+        const batchApplyProjectBtn = dialog.element.querySelector('#batchApplyProjectBtn') as HTMLButtonElement;
+        batchApplyProjectBtn.disabled = true;
+    }
+
     private batchApplyDate(dialog: Dialog) {
         const dateInput = dialog.element.querySelector('#batchDateInput') as HTMLInputElement;
         if (!dateInput.value) {
@@ -1002,9 +1121,15 @@ class SmartBatchDialog {
 
         const blockDate = blockItem.querySelector('.block-date') as HTMLElement;
         const blockTime = blockItem.querySelector('.block-time') as HTMLElement;
+        const blockCategory = blockItem.querySelector('.block-category') as HTMLElement;
+        const blockPriority = blockItem.querySelector('.block-priority') as HTMLElement;
+        const blockProject = blockItem.querySelector('.block-project') as HTMLElement;
 
         if (blockDate) blockDate.textContent = dateDisplay;
         if (blockTime) blockTime.textContent = timeDisplay;
+        if (blockCategory) blockCategory.innerHTML = this.getCategoryDisplay(setting.categoryId);
+        if (blockPriority) blockPriority.innerHTML = this.getPriorityDisplay(setting.priority);
+        if (blockProject) blockProject.innerHTML = this.getProjectDisplay(setting.projectId);
     }
 
     private async saveBatchReminders(dialog: Dialog) {
@@ -1034,6 +1159,7 @@ class SmartBatchDialog {
                         completed: false,
                         priority: setting.priority,
                         categoryId: setting.categoryId || undefined,
+                        projectId: setting.projectId || undefined,
                         pomodoroCount: 0,
                         createdAt: new Date().toISOString(),
                         repeat: setting.repeatConfig?.enabled ? setting.repeatConfig : undefined
@@ -1095,6 +1221,7 @@ interface BlockSetting {
     hasTime: boolean;
     priority: string;
     categoryId: string;
+    projectId?: string;
     note: string;
     repeatConfig: RepeatConfig;
 }
@@ -1103,53 +1230,87 @@ class BlockEditDialog {
     private plugin: any;
     private setting: BlockSetting;
     private onSave: (setting: BlockSetting) => void;
+    private categoryManager: CategoryManager;
+    private projectManager: ProjectManager;
+    private chronoParser: any;
 
     constructor(plugin: any, setting: BlockSetting, onSave: (setting: BlockSetting) => void) {
         this.plugin = plugin;
         this.setting = { ...setting }; // 创建副本
         this.onSave = onSave;
+        this.categoryManager = CategoryManager.getInstance();
+        this.projectManager = ProjectManager.getInstance();
+        
+        // 初始化chrono解析器，配置中文支持
+        this.chronoParser = chrono.zh.casual.clone();
+        this.setupChronoParser();
     }
 
-    show() {
+    // 设置chrono解析器 - 复用父类的逻辑
+    private setupChronoParser() {
+        // 配置chrono选项
+        this.chronoParser.option = {
+            ...this.chronoParser.option,
+            forwardDate: false
+        };
+    }
+
+    async show() {
+        // 初始化分类管理器和项目管理器
+        await this.categoryManager.initialize();
+        await this.projectManager.initialize();
+
         const dialog = new Dialog({
             title: t("settingsDialog", { title: this.setting.cleanTitle }),
             content: this.buildEditContent(),
             width: "500px",
-            height: "650px"
+            height: "80vh"
         });
 
-        this.renderCategorySelector(dialog);
+        await this.renderCategorySelector(dialog);
+        await this.renderProjectSelector(dialog);
         this.updateRepeatDescription(dialog);
         this.bindEditEvents(dialog);
     }
 
     private buildEditContent(): string {
-        const currentTime = getLocalTimeString();
-
         return `
             <div class="block-edit-dialog">
                 <div class="b3-dialog__content">
                     <div class="fn__hr"></div>
-                    <div class="b3-form__group">
-                        <label class="b3-form__label">${t("blockContent")}</label>
-                        <div class="block-content-display">${this.setting.content}</div>
-                    </div>
                     
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("reminderDate")}</label>
+                        <label class="b3-form__label">${t("eventTitle")}</label>
                         <div class="title-input-container" style="display: flex; gap: 8px;">
-                            <input type="date" id="editDate" class="b3-text-field" value="${this.setting.date}" style="flex: 1;">
-                            <button type="button" id="editNlBtn" class="b3-button b3-button--outline" title="${t('smartDateRecognition')}">
+                            <input type="text" id="editReminderTitle" class="b3-text-field" value="${this.setting.cleanTitle}" placeholder="${t("enterReminderTitle")}" style="flex: 1;">
+                            <button type="button" id="editNlBtn" class="b3-button b3-button--outline" title="✨ 智能日期识别">
                                 ✨
                             </button>
                         </div>
                     </div>
                     
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("eventCategory")}</label>
-                        <div class="category-selector" id="editCategorySelector">
+                        <label class="b3-form__label">${t("blockContent")}</label>
+                        <div class="block-content-display" style="padding: 8px; background: var(--b3-theme-surface-lighter); border-radius: 4px; font-size: 14px; color: var(--b3-theme-on-surface-light);">${this.setting.content}</div>
+                    </div>
+                    
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">${t("eventCategory")}
+                            <button type="button" id="editManageCategoriesBtn" class="b3-button b3-button--outline" title="管理分类">
+                                <svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg>
+                            </button>
+                        </label>
+                        <div class="category-selector" id="editCategorySelector" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
                             <!-- 分类选择器将在这里渲染 -->
                         </div>
+                    </div>
+                    
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">${t("projectManagement")}</label>
+                        <select id="editProjectSelector" class="b3-select" style="width: 100%;">
+                            <option value="">${t("noProject")}</option>
+                            <!-- 项目选择器将在这里渲染 -->
+                        </select>
                     </div>
                     
                     <div class="b3-form__group">
@@ -1175,11 +1336,6 @@ class BlockEditDialog {
                     </div>
                     
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("reminderTimeOptional")}</label>
-                        <input type="time" id="editTime" class="b3-text-field" value="${this.setting.time}" ${!this.setting.hasTime ? 'disabled' : ''}>
-                    </div>
-                    
-                    <div class="b3-form__group">
                         <label class="b3-checkbox">
                             <input type="checkbox" id="editNoSpecificTime" ${!this.setting.hasTime ? 'checked' : ''}>
                             <span class="b3-checkbox__graphic"></span>
@@ -1188,10 +1344,20 @@ class BlockEditDialog {
                     </div>
                     
                     <div class="b3-form__group">
+                        <label class="b3-form__label">${t("reminderDate")}</label>
+                        <div class="reminder-date-container">
+                            <input type="date" id="editReminderDate" class="b3-text-field" value="${this.setting.date}">
+                            <span class="reminder-arrow">→</span>
+                            <input type="date" id="editReminderEndDate" class="b3-text-field" placeholder="${t("endDateOptional")}">
+                        </div>
+                        <div class="b3-form__desc" id="editDateTimeDesc">${this.setting.hasTime ? t("dateTimeDesc") : t("dateOnlyDesc")}</div>
+                    </div>
+                    
+                    <div class="b3-form__group">
                         <label class="b3-form__label">${t("repeatSettings")}</label>
                         <div class="repeat-setting-container">
                             <button type="button" id="editRepeatSettingsBtn" class="b3-button b3-button--outline" style="width: 100%;">
-                                <span id="editRepeatDescription">${t("noRepeat")}</span>
+                                <span id="editRepeatDescription">${this.setting.repeatConfig?.enabled ? getRepeatDescription(this.setting.repeatConfig) : t("noRepeat")}</span>
                                 <svg class="b3-button__icon" style="margin-left: auto;"><use xlink:href="#iconRight"></use></svg>
                             </button>
                         </div>
@@ -1199,7 +1365,7 @@ class BlockEditDialog {
                     
                     <div class="b3-form__group">
                         <label class="b3-form__label">${t("reminderNoteOptional")}</label>
-                        <textarea id="editReminderNote" class="b3-text-field" placeholder="${t("enterReminderNote")}" rows="3" style="resize: vertical; min-height: 60px;width: 100%;">${this.setting.note}</textarea>
+                        <textarea id="editReminderNote" class="b3-text-field" placeholder="${t("enterReminderNote")}" rows="2" style="width: 100%;resize: vertical; min-height: 60px;">${this.setting.note}</textarea>
                     </div>
                 </div>
                 <div class="b3-dialog__action">
@@ -1240,6 +1406,200 @@ class BlockEditDialog {
         }
     }
 
+    private async renderProjectSelector(dialog: Dialog) {
+        const projectSelector = dialog.element.querySelector('#editProjectSelector') as HTMLSelectElement;
+        if (!projectSelector) return;
+
+        try {
+            const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
+            
+            // 清空选择器
+            projectSelector.innerHTML = `<option value="">${t("noProject")}</option>`;
+            
+            // 添加项目选项
+            Object.keys(groupedProjects).forEach(statusKey => {
+                // 不显示已归档的项目
+                if (statusKey === 'archived') return;
+                
+                const projects = groupedProjects[statusKey];
+                if (projects.length > 0) {
+                    const statusGroup = document.createElement('optgroup');
+                    statusGroup.label = this.getStatusDisplayName(statusKey);
+                    
+                    projects.forEach(project => {
+                        const option = document.createElement('option');
+                        option.value = project.id;
+                        option.textContent = project.name;
+                        option.selected = this.setting.projectId === project.id;
+                        statusGroup.appendChild(option);
+                    });
+                    
+                    projectSelector.appendChild(statusGroup);
+                }
+            });
+
+        } catch (error) {
+            console.error('渲染项目选择器失败:', error);
+        }
+    }
+
+    // 显示自然语言输入对话框
+    private showNaturalLanguageDialog(parentDialog: Dialog) {
+        const nlDialog = new Dialog({
+            title: "✨ 智能日期识别",
+            content: `
+                <div class="nl-dialog">
+                    <div class="b3-dialog__content">
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">输入自然语言描述</label>
+                            <input type="text" id="editNlInput" class="b3-text-field" placeholder="例如：明天下午3点、下周五、3天后等" style="width: 100%;" autofocus>
+                            <div class="b3-form__desc">支持中文自然语言，如：今天、明天、下周一、3月15日、下午2点等</div>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">识别结果预览</label>
+                            <div id="editNlPreview" class="nl-preview">请输入日期时间描述</div>
+                        </div>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="editNlCancelBtn">取消</button>
+                        <button class="b3-button b3-button--primary" id="editNlConfirmBtn" disabled>应用</button>
+                    </div>
+                </div>
+            `,
+            width: "400px",
+            height: "25%"
+        });
+
+        this.bindNaturalLanguageEvents(nlDialog, parentDialog);
+    }
+
+    private bindNaturalLanguageEvents(nlDialog: Dialog, parentDialog: Dialog) {
+        const nlInput = nlDialog.element.querySelector('#editNlInput') as HTMLInputElement;
+        const nlPreview = nlDialog.element.querySelector('#editNlPreview') as HTMLElement;
+        const nlCancelBtn = nlDialog.element.querySelector('#editNlCancelBtn') as HTMLButtonElement;
+        const nlConfirmBtn = nlDialog.element.querySelector('#editNlConfirmBtn') as HTMLButtonElement;
+
+        let currentParseResult: { date?: string; time?: string; hasTime?: boolean } = {};
+
+        // 实时解析输入
+        const updatePreview = () => {
+            const input = nlInput.value.trim();
+            if (!input) {
+                nlPreview.textContent = '请输入日期时间描述';
+                nlConfirmBtn.disabled = true;
+                return;
+            }
+
+            const result = this.parseNaturalDateTime(input);
+            currentParseResult = result;
+
+            if (result.date) {
+                const dateStr = new Date(result.date + 'T00:00:00').toLocaleDateString('zh-CN');
+                const timeStr = result.time ? ` ${result.time}` : '';
+                nlPreview.innerHTML = `<span style="color: var(--b3-theme-primary);">✅ ${dateStr}${timeStr}</span>`;
+                nlConfirmBtn.disabled = false;
+            } else {
+                nlPreview.innerHTML = '<span style="color: var(--b3-theme-error);">❌ 无法识别，请尝试其他表达方式</span>';
+                nlConfirmBtn.disabled = true;
+            }
+        };
+
+        // 绑定事件
+        nlInput.addEventListener('input', updatePreview);
+        nlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !nlConfirmBtn.disabled) {
+                nlConfirmBtn.click();
+            }
+        });
+
+        nlCancelBtn.addEventListener('click', () => {
+            nlDialog.destroy();
+        });
+
+        nlConfirmBtn.addEventListener('click', () => {
+            this.applyNaturalLanguageResult(parentDialog, currentParseResult);
+            nlDialog.destroy();
+        });
+
+        // 自动聚焦输入框
+        setTimeout(() => {
+            nlInput.focus();
+        }, 100);
+    }
+
+    // 解析自然语言日期时间 - 复用父类的逻辑
+    private parseNaturalDateTime(text: string): { date?: string; time?: string; hasTime?: boolean } {
+        try {
+            const results = this.chronoParser.parse(text, new Date());
+            
+            if (results && results.length > 0) {
+                const result = results[0];
+                const parsedDate = result.start.date();
+                
+                const year = parsedDate.getFullYear();
+                const month = (parsedDate.getMonth() + 1).toString().padStart(2, '0');
+                const day = parsedDate.getDate().toString().padStart(2, '0');
+                const date = `${year}-${month}-${day}`;
+                
+                let time: string | undefined;
+                let hasTime = false;
+                
+                if (result.start.get('hour') !== undefined) {
+                    const hour = result.start.get('hour').toString().padStart(2, '0');
+                    const minute = (result.start.get('minute') || 0).toString().padStart(2, '0');
+                    time = `${hour}:${minute}`;
+                    hasTime = true;
+                }
+                
+                return { date, time, hasTime };
+            }
+        } catch (error) {
+            console.error('解析自然语言日期时间失败:', error);
+        }
+        
+        return {};
+    }
+
+    // 应用自然语言识别结果
+    private applyNaturalLanguageResult(dialog: Dialog, result: { date?: string; time?: string; hasTime?: boolean }) {
+        if (!result.date) return;
+
+        const dateInput = dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
+        const noTimeCheckbox = dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
+
+        // 设置日期和时间
+        dateInput.value = result.date;
+        
+        if (result.hasTime && result.time) {
+            noTimeCheckbox.checked = false;
+            this.setting.hasTime = true;
+            this.setting.time = result.time;
+        } else {
+            noTimeCheckbox.checked = true;
+            this.setting.hasTime = false;
+            this.setting.time = '';
+        }
+
+        // 更新显示
+        this.toggleDateTimeInputs(dialog, !result.hasTime);
+
+        showMessage(`✨ 已识别并设置：${new Date(result.date + 'T00:00:00').toLocaleDateString('zh-CN')}${result.time ? ` ${result.time}` : ''}`);
+    }
+
+    // 切换日期时间输入框类型
+    private toggleDateTimeInputs(dialog: Dialog, noSpecificTime: boolean) {
+        const dateTimeDesc = dialog.element.querySelector('#editDateTimeDesc') as HTMLElement;
+        
+        if (dateTimeDesc) {
+            dateTimeDesc.textContent = noSpecificTime ? t("dateOnlyDesc") : t("dateTimeDesc");
+        }
+    }
+
+    private getStatusDisplayName(statusKey: string): string {
+        const status = this.projectManager.getStatusManager().getStatusById(statusKey);
+        return status?.name || statusKey;
+    }
+
     private updateRepeatDescription(dialog: Dialog) {
         const repeatDescription = dialog.element.querySelector('#editRepeatDescription') as HTMLElement;
         if (repeatDescription) {
@@ -1251,8 +1611,6 @@ class BlockEditDialog {
     private bindEditEvents(dialog: Dialog) {
         const cancelBtn = dialog.element.querySelector('#editCancelBtn') as HTMLButtonElement;
         const saveBtn = dialog.element.querySelector('#editSaveBtn') as HTMLButtonElement;
-        const dateInput = dialog.element.querySelector('#editDate') as HTMLInputElement;
-        const timeInput = dialog.element.querySelector('#editTime') as HTMLInputElement;
         const noTimeCheckbox = dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
         const noteInput = dialog.element.querySelector('#editReminderNote') as HTMLTextAreaElement;
         const prioritySelector = dialog.element.querySelector('#editPrioritySelector') as HTMLElement;
@@ -1282,10 +1640,7 @@ class BlockEditDialog {
 
         // 无时间复选框
         noTimeCheckbox?.addEventListener('change', () => {
-            timeInput.disabled = noTimeCheckbox.checked;
-            if (noTimeCheckbox.checked) {
-                timeInput.value = '';
-            }
+            // 可以在这里处理时间输入框的状态，但这个对话框中没有时间输入框
         });
 
         // 重复设置按钮
@@ -1312,138 +1667,14 @@ class BlockEditDialog {
             this.saveBlockSetting(dialog);
         });
     }
-
-    private showNaturalLanguageDialog(parentDialog: Dialog) {
-        const nlDialog = new Dialog({
-            title: t("smartDateRecognitionDialog"),
-            content: `
-                <div class="nl-dialog">
-                    <div class="b3-dialog__content">
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">${t("inputNaturalLanguage")}</label>
-                            <input type="text" id="blockNlInput" class="b3-text-field" placeholder="${t('exampleInputs')}" style="width: 100%;" autofocus>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">${t("recognitionPreview")}</label>
-                            <div id="blockNlPreview" class="nl-preview">${t("pleaseInputDescription")}</div>
-                        </div>
-                    </div>
-                    <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="blockNlCancelBtn">${t("cancel")}</button>
-                        <button class="b3-button b3-button--primary" id="blockNlConfirmBtn" disabled>${t("save")}</button>
-                    </div>
-                </div>
-            `,
-            width: "400px",
-            height: "300px"
-        });
-
-        this.bindNaturalLanguageEvents(nlDialog, parentDialog);
-    }
-
-    private bindNaturalLanguageEvents(nlDialog: Dialog, parentDialog: Dialog) {
-        const nlInput = nlDialog.element.querySelector('#blockNlInput') as HTMLInputElement;
-        const nlPreview = nlDialog.element.querySelector('#blockNlPreview') as HTMLElement;
-        const nlCancelBtn = nlDialog.element.querySelector('#blockNlCancelBtn') as HTMLButtonElement;
-        const nlConfirmBtn = nlDialog.element.querySelector('#blockNlConfirmBtn') as HTMLButtonElement;
-
-        let currentParseResult: { date?: string; time?: string; hasTime?: boolean } = {};
-
-        // 实时解析输入
-        const updatePreview = () => {
-            const text = nlInput.value.trim();
-            if (!text) {
-                nlPreview.textContent = t("pleaseInputDescription");
-                nlPreview.className = 'nl-preview';
-                nlConfirmBtn.disabled = true;
-                return;
-            }
-
-            // 使用BatchReminderDialog的解析方法
-            const batchDialog = new BatchReminderDialog(this.plugin);
-            currentParseResult = (batchDialog as any).parseNaturalDateTime(text);
-
-            if (currentParseResult.date) {
-                const dateStr = new Date(currentParseResult.date + 'T00:00:00').toLocaleDateString('zh-CN', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    weekday: 'long'
-                });
-
-                let previewText = `📅 ${dateStr}`;
-                if (currentParseResult.time) {
-                    previewText += ` ⏰ ${currentParseResult.time}`;
-                }
-
-                nlPreview.textContent = previewText;
-                nlPreview.className = 'nl-preview nl-preview--success';
-                nlConfirmBtn.disabled = false;
-            } else {
-                nlPreview.textContent = t("cannotRecognize");
-                nlPreview.className = 'nl-preview nl-preview--error';
-                nlConfirmBtn.disabled = true;
-            }
-        };
-
-        // 绑定事件
-        nlInput.addEventListener('input', updatePreview);
-        nlInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !nlConfirmBtn.disabled) {
-                this.applyNaturalLanguageResult(parentDialog, currentParseResult);
-                nlDialog.destroy();
-            }
-        });
-
-        nlCancelBtn.addEventListener('click', () => {
-            nlDialog.destroy();
-        });
-
-        nlConfirmBtn.addEventListener('click', () => {
-            this.applyNaturalLanguageResult(parentDialog, currentParseResult);
-            nlDialog.destroy();
-        });
-
-        // 自动聚焦输入框
-        setTimeout(() => {
-            nlInput.focus();
-        }, 100);
-    }
-
-    private applyNaturalLanguageResult(dialog: Dialog, result: { date?: string; time?: string; hasTime?: boolean }) {
-        if (!result.date) return;
-
-        const dateInput = dialog.element.querySelector('#editDate') as HTMLInputElement;
-        const timeInput = dialog.element.querySelector('#editTime') as HTMLInputElement;
-        const noTimeCheckbox = dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
-
-        // 设置日期
-        dateInput.value = result.date;
-
-        // 设置时间
-        if (result.hasTime && result.time) {
-            timeInput.value = result.time;
-            noTimeCheckbox.checked = false;
-            timeInput.disabled = false;
-        } else {
-            noTimeCheckbox.checked = true;
-            timeInput.disabled = true;
-            timeInput.value = '';
-        }
-
-        showMessage(t("dateTimeSet", {
-            date: new Date(result.date + 'T00:00:00').toLocaleDateString('zh-CN'),
-            time: result.time ? ` ${result.time}` : ''
-        }));
-    }
-
     private saveBlockSetting(dialog: Dialog) {
-        const dateInput = dialog.element.querySelector('#editDate') as HTMLInputElement;
-        const timeInput = dialog.element.querySelector('#editTime') as HTMLInputElement;
+        const titleInput = dialog.element.querySelector('#editReminderTitle') as HTMLInputElement;
+        const dateInput = dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
         const noTimeCheckbox = dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
         const noteInput = dialog.element.querySelector('#editReminderNote') as HTMLTextAreaElement;
         const selectedPriority = dialog.element.querySelector('#editPrioritySelector .priority-option.selected') as HTMLElement;
         const selectedCategory = dialog.element.querySelector('#editCategorySelector .category-option.selected') as HTMLElement;
+        const projectSelector = dialog.element.querySelector('#editProjectSelector') as HTMLSelectElement;
 
         if (!dateInput.value) {
             showMessage(t("pleaseSelectDate"));
@@ -1451,12 +1682,13 @@ class BlockEditDialog {
         }
 
         // 更新设置
+        this.setting.cleanTitle = titleInput.value.trim() || this.setting.content;
         this.setting.date = dateInput.value;
-        this.setting.time = noTimeCheckbox.checked ? '' : timeInput.value;
-        this.setting.hasTime = !noTimeCheckbox.checked && !!timeInput.value;
+        this.setting.hasTime = !noTimeCheckbox.checked;
         this.setting.note = noteInput.value.trim();
         this.setting.priority = selectedPriority?.getAttribute('data-priority') || 'none';
         this.setting.categoryId = selectedCategory?.getAttribute('data-category') || '';
+        this.setting.projectId = projectSelector.value || '';
 
         // 调用保存回调
         this.onSave(this.setting);
@@ -1464,4 +1696,7 @@ class BlockEditDialog {
         showMessage(t("settingsApplied"));
         dialog.destroy();
     }
+
+
+
 }
