@@ -2133,7 +2133,47 @@ export class ReminderPanel {
             timeContainer.appendChild(pomodoroDisplay);
         }
 
-        // ... 优先级标签、完成时间、分类、番茄钟等 ...
+        // 添加分类标签显示
+        if (reminder.categoryId) {
+            const category = this.categoryManager.getCategoryById(reminder.categoryId);
+            if (category) {
+                const categoryTag = document.createElement('div');
+                categoryTag.className = 'reminder-item__category';
+                categoryTag.style.cssText = `
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 2px;
+                    font-size: 11px;
+                    background-color: ${category.color}20;
+                    color: ${category.color};
+                    border: 1px solid ${category.color}40;
+                    border-radius: 12px;
+                    padding: 2px 8px;
+                    margin-top: 4px;
+                    font-weight: 500;
+                `;
+
+                // 添加分类图标（如果有）
+                if (category.icon) {
+                    const iconSpan = document.createElement('span');
+                    iconSpan.textContent = category.icon;
+                    iconSpan.style.cssText = 'font-size: 10px;';
+                    categoryTag.appendChild(iconSpan);
+                }
+
+                // 添加分类名称
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = category.name;
+                categoryTag.appendChild(nameSpan);
+
+                // 设置标题提示
+                categoryTag.title = `分类: ${category.name}`;
+
+                timeContainer.appendChild(categoryTag);
+            }
+        }
+
+        // ... 优先级标签、完成时间等 ...
         // (The rest of the element creation logic remains the same)
         infoEl.appendChild(titleContainer);
         infoEl.appendChild(timeContainer);
