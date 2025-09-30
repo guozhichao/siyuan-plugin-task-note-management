@@ -2666,11 +2666,11 @@ export class ReminderPanel {
             if (draggedIndex !== -1 && targetIndex !== -1) {
                 // 从缓存中移除被拖拽的项
                 const [removed] = this.currentRemindersCache.splice(draggedIndex, 1);
-                
+
                 // 重新计算插入位置（因为移除操作可能改变了索引）
                 const newTargetIndex = this.currentRemindersCache.findIndex(r => r.id === targetReminder.id);
                 const insertIndex = insertBefore ? newTargetIndex : newTargetIndex + 1;
-                
+
                 // 插入到新位置
                 this.currentRemindersCache.splice(insertIndex, 0, removed);
             }
