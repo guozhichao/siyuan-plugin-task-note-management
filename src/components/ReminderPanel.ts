@@ -2192,7 +2192,7 @@ export class ReminderPanel {
                 this.openBlockTab(reminder.blockId);
             });
         } else {
-            titleEl.style.cssText = `font-weight: 500; color: var(--b3-theme-on-surface);`;
+            titleEl.style.cssText = `font-weight: 500; color: var(--b3-theme-on-surface); cursor: default; text-decoration: none;`;
         }
 
         titleEl.textContent = reminder.title || t("unnamedNote");
