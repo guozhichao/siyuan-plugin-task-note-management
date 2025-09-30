@@ -20,11 +20,13 @@ export class ProjectPanel {
     private filterSelect: HTMLSelectElement;
     private categoryFilterSelect: HTMLSelectElement;
     private sortButton: HTMLButtonElement;
+    private searchInput: HTMLInputElement;
     private plugin: any;
     private currentTab: string = 'active';
     private currentCategoryFilter: string = 'all';
     private currentSort: string = 'priority';
     private currentSortOrder: 'asc' | 'desc' = 'desc';
+    private currentSearchQuery: string = '';
     private categoryManager: CategoryManager;
     private statusManager: StatusManager;
     private projectUpdatedHandler: () => void;
@@ -236,6 +238,31 @@ export class ProjectPanel {
         controls.appendChild(this.categoryFilterSelect);
 
         header.appendChild(controls);
+
+        // 搜索框
+        const searchContainer = document.createElement('div');
+        searchContainer.className = 'project-search';
+        searchContainer.style.cssText = `
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        `;
+
+        this.searchInput = document.createElement('input');
+        this.searchInput.className = 'b3-text-field';
+        this.searchInput.type = 'text';
+        this.searchInput.placeholder = t("searchProjects") || "搜索项目...";
+        this.searchInput.style.cssText = `
+            flex: 1;
+        `;
+        this.searchInput.addEventListener('input', () => {
+            this.currentSearchQuery = this.searchInput.value.trim().toLowerCase();
+            this.loadProjects();
+        });
+
+        searchContainer.appendChild(this.searchInput);
+        header.appendChild(searchContainer);
+
         this.container.appendChild(header);
 
         // 项目列表容器
@@ -405,7 +432,12 @@ export class ProjectPanel {
             }
 
             // 应用分类过滤
-            const filteredProjects = this.applyCategoryFilter(projects);
+            let filteredProjects = this.applyCategoryFilter(projects);
+
+            // 应用搜索过滤
+            if (this.currentSearchQuery) {
+                filteredProjects = this.applySearchFilter(filteredProjects);
+            }
 
             // 分类项目
             let displayProjects = [];
@@ -445,6 +477,17 @@ export class ProjectPanel {
                 return !project.categoryId;
             }
             return project.categoryId === this.currentCategoryFilter;
+        });
+    }
+
+    private applySearchFilter(projects: any[]): any[] {
+        if (!this.currentSearchQuery) {
+            return projects;
+        }
+
+        return projects.filter(project => {
+            const title = (project.title || '').toLowerCase();
+            return title.includes(this.currentSearchQuery);
         });
     }
 
