@@ -3845,6 +3845,9 @@ export class ReminderPanel {
                     el.dataset.priority = priority;
                 }
 
+                window.dispatchEvent(new CustomEvent('reminderUpdated', {
+                    detail: { skipPanelRefresh: true }
+                }));
             } else {
                 showMessage(t("reminderNotExist"));
             }
@@ -3921,7 +3924,9 @@ export class ReminderPanel {
                     }
                 }
 
-
+                window.dispatchEvent(new CustomEvent('reminderUpdated', {
+                    detail: { skipPanelRefresh: true }
+                }));
             } else {
                 showMessage(t("reminderNotExist"));
             }
