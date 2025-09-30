@@ -1605,15 +1605,15 @@ export default class ReminderPlugin extends Plugin {
                     showMessage(t("selectBlockFirst"), 3000, "info");
                     return;
                 }
-                
+
                 const selectedBlocks = protyle.element.querySelectorAll('.protyle-wysiwyg--select');
-                
+
                 if (selectedBlocks && selectedBlocks.length > 0) {
                     // 获取所有选中块的 ID
                     const blockIds = Array.from(selectedBlocks)
                         .map((el: Element) => el.getAttribute('data-node-id'))
                         .filter((id: string | null): id is string => id !== null);
-                    
+
                     if (blockIds.length > 0) {
                         await this.handleMultipleBlocks(blockIds);
                     } else {
