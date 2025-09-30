@@ -494,7 +494,7 @@ export default class ReminderPlugin extends Plugin {
                 } else {
                     // 处理重复事件：生成今日的所有重复实例
                     const instances = generateRepeatInstances(reminder, today, today);
-                    
+
                     // 统计未完成的实例数量
                     instances.forEach(instance => {
                         if (!instance.completed) {
