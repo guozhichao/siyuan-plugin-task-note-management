@@ -393,7 +393,6 @@
     "totalRemindersCount": "共",
     "displaying": "显示",
     "setAsProjectNote": "项目管理",
-    "projectManagement": "项目管理",
     "projectNoteManagement": "项目笔记管理",
     "viewAllSelectedDocumentReminders": "查看文档提醒",
     "editingInstanceDescription": "正在编辑重复事件的首个实例，这将分割重复系列。新的系列将从下一个周期开始。",
@@ -549,7 +548,6 @@
     "todo": "待办",
     "doing": "进行中",
     "done": "已完成",
-    "archived": "已归档",
     "openProjectKanban": "打开所属项目看板",
     "removeFromProject": "从项目中移除",
     "pleaseEnterProjectName": "请输入项目名称",
@@ -566,5 +564,9 @@
     "copyRichText": "复制富文本",
     "copiedToClipboard": "已复制到剪贴板",
     "copyFailed": "复制失败",
-    "currentView": "当前视图"
+    "currentView": "当前视图",
+    "shortcutSetDocumentAsTask": "设置当前文档为任务",
+    "shortcutSetBlockAsTask": "设置当前块为任务",
+    "shortcutProjectManagement": "设置项目管理",
+    "shortcutBatchSetReminder": "批量设置时间提醒"
 }

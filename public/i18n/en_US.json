@@ -517,5 +517,9 @@
     "copyRichText": "Copy Rich Text",
     "copiedToClipboard": "Copied to clipboard",
     "copyFailed": "Copy failed",
-    "currentView": "Current View"
+    "currentView": "Current View",
+    "shortcutSetDocumentAsTask": "Set Current Document as Task",
+    "shortcutSetBlockAsTask": "Set Current Block as Task",
+    "shortcutProjectManagement": "Project Management",
+    "shortcutBatchSetReminder": "Batch Set Time Reminder"
 }

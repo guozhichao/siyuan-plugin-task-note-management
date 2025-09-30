@@ -407,6 +407,9 @@ export default class ReminderPlugin extends Plugin {
         // 添加dock栏和顶栏按钮
         this.initializeUI();
 
+        // 注册快捷键
+        this.registerCommands();
+
         // 在布局准备就绪后监听protyle切换事件
         this.eventBus.on('switch-protyle', (e) => {
             // 延迟添加按钮，确保protyle完全切换完成
@@ -1561,6 +1564,117 @@ export default class ReminderPlugin extends Plugin {
         }
     }
 
+
+    /**
+     * 注册快捷键命令
+     */
+    private registerCommands() {
+        // 快捷键：设置当前文档为任务
+        this.addCommand({
+            langKey: "shortcutSetDocumentAsTask",
+            hotkey: "",
+            editorCallback: async (protyle: any) => {
+                // 获取当前文档ID
+                const documentId = protyle?.block?.rootID;
+                if (documentId) {
+                    const autoDetect = await this.getAutoDetectDateTimeEnabled();
+                    try {
+                        const { readProjectData } = await import("./api");
+                        const projectData = await readProjectData();
+                        const projectId = projectData && projectData[documentId] ? projectData[documentId].blockId || projectData[documentId].id : undefined;
+                        const dialog = new ReminderDialog(documentId, autoDetect, projectId);
+                        dialog.show();
+                    } catch (err) {
+                        const dialog = new ReminderDialog(documentId, autoDetect);
+                        dialog.show();
+                    }
+                }
+            },
+            callback: () => {
+                showMessage(t("selectBlockFirst"), 3000, "info");
+            }
+        });
+
+        // 快捷键：设置当前块为任务
+        this.addCommand({
+            langKey: "shortcutSetBlockAsTask",
+            hotkey: "",
+            editorCallback: async (protyle: any) => {
+                // 通过 protyle.element 获取编辑器元素，然后查找选中的块
+                if (!protyle || !protyle.element) {
+                    showMessage(t("selectBlockFirst"), 3000, "info");
+                    return;
+                }
+                
+                const selectedBlocks = protyle.element.querySelectorAll('.protyle-wysiwyg--select');
+                
+                if (selectedBlocks && selectedBlocks.length > 0) {
+                    // 获取所有选中块的 ID
+                    const blockIds = Array.from(selectedBlocks)
+                        .map((el: Element) => el.getAttribute('data-node-id'))
+                        .filter((id: string | null): id is string => id !== null);
+                    
+                    if (blockIds.length > 0) {
+                        await this.handleMultipleBlocks(blockIds);
+                    } else {
+                        showMessage(t("selectBlockFirst"), 3000, "info");
+                    }
+                } else {
+                    // 如果没有选中块，获取当前光标所在的块
+                    const currentBlock = protyle.element.querySelector('.protyle-wysiwyg [data-node-id].protyle-wysiwyg--hl');
+                    if (currentBlock) {
+                        const blockId = currentBlock.getAttribute('data-node-id');
+                        if (blockId) {
+                            await this.handleMultipleBlocks([blockId]);
+                            return;
+                        }
+                    }
+                    showMessage(t("selectBlockFirst"), 3000, "info");
+                }
+            },
+            callback: () => {
+                showMessage(t("selectBlockFirst"), 3000, "info");
+            }
+        });
+
+        // 快捷键：设置项目管理
+        this.addCommand({
+            langKey: "shortcutProjectManagement",
+            hotkey: "",
+            editorCallback: async (protyle: any) => {
+                const documentId = protyle?.block?.rootID;
+                if (documentId) {
+                    const { readProjectData } = await import("./api");
+                    const projectData = await readProjectData();
+                    const isProject = projectData && projectData.hasOwnProperty(documentId);
+
+                    if (isProject) {
+                        // 打开项目看板
+                        openTab({
+                            app: this.app,
+                            custom: {
+                                title: projectData[documentId].title,
+                                icon: "iconProject",
+                                id: this.name + PROJECT_KANBAN_TAB_TYPE,
+                                data: {
+                                    projectId: projectData[documentId].blockId,
+                                    projectTitle: projectData[documentId].title
+                                }
+                            }
+                        });
+                    } else {
+                        const dialog = new ProjectDialog(documentId);
+                        dialog.show();
+                    }
+                }
+            },
+            callback: () => {
+                showMessage(t("selectBlockFirst"), 3000, "info");
+            }
+        });
+
+
+    }
 
     onunload() {
         console.log("Reminder Plugin unloaded");
