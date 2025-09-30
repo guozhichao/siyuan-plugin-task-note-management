@@ -159,6 +159,16 @@ export class ProjectPanel {
                 this.showPomodoroStatsView();
             });
             actionContainer.appendChild(pomodoroStatsBtn);
+
+            // 添加刷新按钮
+            const refreshBtn = document.createElement('button');
+            refreshBtn.className = 'b3-button b3-button--outline';
+            refreshBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>';
+            refreshBtn.title = t("refresh") || "刷新";
+            refreshBtn.addEventListener('click', () => {
+                this.loadProjects();
+            });
+            actionContainer.appendChild(refreshBtn);
         }
 
         // 添加更多按钮（放在最右边）
@@ -1623,13 +1633,6 @@ export class ProjectPanel {
     private showMoreMenu(event: MouseEvent) {
         try {
             const menu = new Menu("projectMoreMenu");
-
-            // 添加刷新
-            menu.addItem({
-                icon: 'iconRefresh',
-                label: t("refresh") || "刷新",
-                click: () => this.loadProjects()
-            });
 
             // 添加分类管理
             menu.addItem({

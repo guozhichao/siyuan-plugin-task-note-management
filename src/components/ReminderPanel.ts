@@ -216,6 +216,16 @@ export class ReminderPanel {
                 this.showPomodoroStatsView();
             });
             actionContainer.appendChild(pomodoroStatsBtn);
+
+            // 添加刷新按钮
+            const refreshBtn = document.createElement('button');
+            refreshBtn.className = 'b3-button b3-button--outline';
+            refreshBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>';
+            refreshBtn.title = t("refresh") || "刷新";
+            refreshBtn.addEventListener('click', () => {
+                this.loadReminders();
+            });
+            actionContainer.appendChild(refreshBtn);
         }
 
         // 添加更多按钮（放在最右边）
@@ -451,10 +461,8 @@ export class ReminderPanel {
 
     private showCategoryManageDialog() {
         const categoryDialog = new CategoryManageDialog(() => {
-            // 分类更新后重新渲染过滤器和提醒列表
+            // 分类更新后重新渲染过滤器
             this.renderCategoryFilter();
-            this.loadReminders();
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
         });
         categoryDialog.show();
     }
@@ -1972,9 +1980,18 @@ export class ReminderPanel {
                 // 更新块的书签状态（应该会移除书签，因为没有提醒了）
                 await updateBlockReminderBookmark(blockId);
 
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                // 手动移除DOM中的相关元素，避免刷新整个面板
+                const displayedReminders = this.getDisplayedReminders();
+                displayedReminders.forEach(reminder => {
+                    if (reminder.blockId === blockId || reminder.id === blockId) {
+                        const el = this.remindersContainer.querySelector(`[data-reminder-id="${reminder.id}"]`) as HTMLElement | null;
+                        if (el) {
+                            el.remove();
+                        }
+                    }
+                });
+
                 showMessage(t("deletedRelatedReminders", { count: deletedCount.toString() }));
-                this.loadReminders();
             } else {
                 showMessage(t("noRelatedReminders"));
             }
@@ -3687,8 +3704,46 @@ export class ReminderPanel {
             if (reminderData[reminderId]) {
                 reminderData[reminderId].priority = priority;
                 await writeReminderData(reminderData);
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                this.loadReminders();
+
+                // 更新缓存中的数据，确保右键菜单显示正确
+                const cacheIndex = this.currentRemindersCache.findIndex(r => r.id === reminderId);
+                if (cacheIndex > -1) {
+                    this.currentRemindersCache[cacheIndex].priority = priority;
+                }
+
+                // 手动更新当前任务DOM的优先级样式
+                const el = this.remindersContainer.querySelector(`[data-reminder-id="${reminderId}"]`) as HTMLElement | null;
+                if (el) {
+                    // 移除旧的优先级类名
+                    el.classList.remove('reminder-priority-high', 'reminder-priority-medium', 'reminder-priority-low', 'reminder-priority-none');
+                    // 添加新的优先级类名
+                    el.classList.add(`reminder-priority-${priority}`);
+
+                    // 更新优先级背景色和边框
+                    let backgroundColor = '';
+                    let borderColor = '';
+                    switch (priority) {
+                        case 'high':
+                            backgroundColor = 'var(--b3-card-error-background)';
+                            borderColor = 'var(--b3-card-error-color)';
+                            break;
+                        case 'medium':
+                            backgroundColor = 'var(--b3-card-warning-background)';
+                            borderColor = 'var(--b3-card-warning-color)';
+                            break;
+                        case 'low':
+                            backgroundColor = 'var(--b3-card-info-background)';
+                            borderColor = 'var(--b3-card-info-color)';
+                            break;
+                        default:
+                            backgroundColor = 'var(--b3-theme-surface-lighter)';
+                            borderColor = 'var(--b3-theme-surface-lighter)';
+                    }
+                    el.style.backgroundColor = backgroundColor;
+                    el.style.border = `2px solid ${borderColor}`;
+                    el.dataset.priority = priority;
+                }
+
                 showMessage(t("priorityUpdated"));
             } else {
                 showMessage(t("reminderNotExist"));
@@ -3705,8 +3760,66 @@ export class ReminderPanel {
             if (reminderData[reminderId]) {
                 reminderData[reminderId].categoryId = categoryId;
                 await writeReminderData(reminderData);
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                this.loadReminders();
+
+                // 更新缓存中的数据，确保右键菜单显示正确
+                const cacheIndex = this.currentRemindersCache.findIndex(r => r.id === reminderId);
+                if (cacheIndex > -1) {
+                    this.currentRemindersCache[cacheIndex].categoryId = categoryId;
+                }
+
+                // 手动更新当前任务DOM的分类标签
+                const el = this.remindersContainer.querySelector(`[data-reminder-id="${reminderId}"]`) as HTMLElement | null;
+                if (el) {
+                    const infoEl = el.querySelector('.reminder-item__info') as HTMLElement | null;
+                    if (infoEl) {
+                        // 移除现有的分类标签
+                        const existingCategoryTag = infoEl.querySelector('.reminder-item__category');
+                        if (existingCategoryTag) {
+                            existingCategoryTag.remove();
+                        }
+
+                        // 如果有新的分类ID，添加新的分类标签
+                        if (categoryId) {
+                            const category = this.categoryManager.getCategoryById(categoryId);
+                            if (category) {
+                                const categoryTag = document.createElement('div');
+                                categoryTag.className = 'reminder-item__category';
+                                categoryTag.style.cssText = `
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 2px;
+                                    font-size: 11px;
+                                    background-color: ${category.color}20;
+                                    color: ${category.color};
+                                    border: 1px solid ${category.color}40;
+                                    border-radius: 12px;
+                                    padding: 2px 8px;
+                                    margin-top: 4px;
+                                    font-weight: 500;
+                                `;
+
+                                // 添加分类图标（如果有）
+                                if (category.icon) {
+                                    const iconSpan = document.createElement('span');
+                                    iconSpan.textContent = category.icon;
+                                    iconSpan.style.cssText = 'font-size: 10px;';
+                                    categoryTag.appendChild(iconSpan);
+                                }
+
+                                // 添加分类名称
+                                const nameSpan = document.createElement('span');
+                                nameSpan.textContent = category.name;
+                                categoryTag.appendChild(nameSpan);
+
+                                // 设置标题提示
+                                categoryTag.title = `分类: ${category.name}`;
+
+                                // 将分类标签添加到信息容器底部
+                                infoEl.appendChild(categoryTag);
+                            }
+                        }
+                    }
+                }
 
                 // 获取分类名称用于提示
                 const categoryName = categoryId ?
@@ -5134,13 +5247,6 @@ export class ReminderPanel {
     private showMoreMenu(event: MouseEvent) {
         try {
             const menu = new Menu("reminderMoreMenu");
-
-            // 添加刷新
-            menu.addItem({
-                icon: 'iconRefresh',
-                label: t("refresh") || "刷新",
-                click: () => this.loadReminders()
-            });
 
             // 添加分类管理
             menu.addItem({
