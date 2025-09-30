@@ -4514,7 +4514,8 @@ export class ReminderPanel {
                     await this.bindReminderToBlock(reminder, blockId);
                     showMessage(t("reminderBoundToBlock"));
                     dialog.destroy();
-                    this.loadReminders();
+                    // 局部更新当前任务DOM，而不是全局刷新
+                    await this.updateReminderElementAfterBind(reminder.id);
                 } catch (error) {
                     console.error('绑定提醒到块失败:', error);
                     showMessage(t("bindToBlockFailed"));
@@ -4531,9 +4532,9 @@ export class ReminderPanel {
 
                 try {
                     await this.createDocumentAndBind(reminder, title, content);
-                    showMessage(t("documentCreatedAndBound"));
                     dialog.destroy();
-                    this.loadReminders();
+                    // 局部更新当前任务DOM，而不是全局刷新
+                    await this.updateReminderElementAfterBind(reminder.id);
                 } catch (error) {
                     console.error('创建文档并绑定失败:', error);
                     showMessage(t("createDocumentFailed"));
@@ -5602,6 +5603,62 @@ export class ReminderPanel {
         } catch (error) {
             console.error('绑定提醒到块失败:', error);
             throw error;
+        }
+    }
+
+    /**
+     * 绑定块后局部更新任务DOM元素
+     * @param reminderId 任务ID
+     */
+    private async updateReminderElementAfterBind(reminderId: string) {
+        try {
+            // 从当前缓存中找到该任务
+            const reminderInCache = this.currentRemindersCache.find(r => r.id === reminderId);
+            if (!reminderInCache) {
+                // 如果缓存中没有，说明该任务当前不在显示列表中，无需更新
+                return;
+            }
+
+            // 重新读取最新的任务数据
+            const reminderData = await readReminderData();
+            const updatedReminder = reminderData[reminderId];
+            if (!updatedReminder) {
+                console.warn('任务不存在:', reminderId);
+                return;
+            }
+
+            // 更新缓存中的数据
+            const cacheIndex = this.currentRemindersCache.findIndex(r => r.id === reminderId);
+            if (cacheIndex > -1) {
+                this.currentRemindersCache[cacheIndex] = { ...this.currentRemindersCache[cacheIndex], ...updatedReminder };
+            }
+
+            // 找到当前任务的DOM元素
+            const oldElement = this.remindersContainer.querySelector(`[data-reminder-id="${reminderId}"]`) as HTMLElement | null;
+            if (!oldElement) {
+                // DOM中没有该元素，无需更新
+                return;
+            }
+
+            // 获取任务的层级（从DOM属性中读取）
+            const level = parseInt(oldElement.getAttribute('data-level') || '0', 10);
+
+            // 重新创建任务元素
+            const today = getLocalDateString();
+            const newElement = await this.createReminderElement(updatedReminder, today, level, this.currentRemindersCache);
+
+            // 替换旧元素
+            oldElement.replaceWith(newElement);
+
+            // 更新插件徽章
+            if (this.plugin && typeof this.plugin.updateBadges === 'function') {
+                this.plugin.updateBadges();
+            }
+
+        } catch (error) {
+            console.error('局部更新任务DOM失败:', error);
+            // 如果局部更新失败，可以考虑回退到全局刷新
+            // this.loadReminders();
         }
     }
 
