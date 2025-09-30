@@ -4455,15 +4455,15 @@ export class ReminderPanel {
         // 监听块ID输入变化
         blockIdInput.addEventListener('input', async () => {
             const inputValue = blockIdInput.value.trim();
-            
+
             // 尝试从输入内容中提取块ID（支持块引用格式）
             let blockId = this.extractBlockIdFromText(inputValue);
-            
+
             // 如果没有匹配到块引用格式，则将输入作为纯块ID使用
             if (!blockId) {
                 blockId = inputValue;
             }
-            
+
             if (blockId && blockId.length >= 20) { // 块ID通常是20位字符
                 try {
                     const block = await getBlockByID(blockId);
@@ -4499,7 +4499,7 @@ export class ReminderPanel {
 
                 // 尝试从输入内容中提取块ID（支持块引用格式）
                 let blockId = this.extractBlockIdFromText(inputValue);
-                
+
                 // 如果没有匹配到块引用格式，则将输入作为纯块ID使用
                 if (!blockId) {
                     blockId = inputValue;
