@@ -8,7 +8,7 @@ export class PomodoroManager {
     private static instance: PomodoroManager | null = null;
     private currentPomodoroTimer: PomodoroTimer | null = null;
 
-    private constructor() {}
+    private constructor() { }
 
     /**
      * 获取全局单例实例
