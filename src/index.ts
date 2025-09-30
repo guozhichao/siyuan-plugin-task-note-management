@@ -492,28 +492,19 @@ export default class ReminderPlugin extends Plugin {
                         uncompletedCount++;
                     }
                 } else {
-                    // 处理重复事件
+                    // 处理重复事件：生成今日的所有重复实例
                     const instances = generateRepeatInstances(reminder, today, today);
+                    
+                    // 统计未完成的实例数量
                     instances.forEach(instance => {
                         if (!instance.completed) {
-                            // 检查重复事件实例是否已标记"今日已完成"
-                            if (reminder.dailyCompletions && reminder.dailyCompletions[today]) {
-                                return; // 跳过已标记今日已完成的跨天重复事件
+                            // 检查重复事件实例是否已标记"今日已完成"（用于跨天重复事件）
+                            if (reminder.dailyCompletions && reminder.dailyCompletions[instance.date]) {
+                                return; // 跳过已标记今日已完成的跨天重复事件实例
                             }
                             uncompletedCount++;
                         }
                     });
-
-                    // if (reminder.date === today && !reminder.completed) {
-                    //     const completedInstances = reminder.repeat.completedInstances || [];
-                    //     if (!completedInstances.includes(today)) {
-                    //         // 检查原始重复事件是否已标记"今日已完成"
-                    //         if (reminder.dailyCompletions && reminder.dailyCompletions[today]) {
-                    //             return; // 跳过已标记今日已完成的跨天重复事件
-                    //         }
-                    //         uncompletedCount++;
-                    //     }
-                    // }
                 }
             });
 
