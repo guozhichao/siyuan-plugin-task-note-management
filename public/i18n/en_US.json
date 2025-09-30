@@ -466,6 +466,7 @@
     "autoDetectDateTime": "Auto Detect Date Time",
     "autoDetectDateTimeDesc": "Automatically detect date and time information in block content when creating reminders, supports natural language expressions like 'tomorrow 3pm', 'next Friday', etc.",
     "addToProject": "Add to Project",
+    "searchProjects": "Search projects...",
     "searchProjectPlaceholder": "Search projects...",
     "recentProjects": "Recent Projects",
     "addedToProjectSuccess": "Successfully added ${count} blocks to the project",
