@@ -5188,7 +5188,7 @@ export class ReminderPanel {
             }
 
             const today = getLocalDateString();
-            
+
             // 查找父任务的DOM元素
             const parentEl = this.remindersContainer.querySelector(`[data-reminder-id="${parentReminder.id}"]`) as HTMLElement | null;
             if (!parentEl) {
@@ -5199,39 +5199,39 @@ export class ReminderPanel {
 
             // 计算父任务的层级
             const parentLevel = parseInt(parentEl.getAttribute('data-level') || '0');
-            
+
             // 构建任务的父子关系映射
             const taskMap = new Map<string, any>();
             newReminders.forEach(task => taskMap.set(task.id, task));
-            
+
             // 找到所有顶层任务（直接子任务）
             const topLevelTasks = newReminders.filter(task => task.parentId === parentReminder.id);
-            
+
             // 使用 DocumentFragment 提升性能
             const fragment = document.createDocumentFragment();
-            
+
             // 递归创建DOM元素并添加到fragment
             const createTaskElementsRecursively = async (task: any, level: number) => {
                 const taskEl = await this.createReminderElement(task, today, level, [...this.currentRemindersCache, ...newReminders]);
                 fragment.appendChild(taskEl);
-                
+
                 // 递归创建子任务
                 const children = newReminders.filter(r => r.parentId === task.id);
                 for (const child of children) {
                     await createTaskElementsRecursively(child, level + 1);
                 }
             };
-            
+
             // 创建所有顶层任务及其子任务的DOM
             for (const task of topLevelTasks) {
                 await createTaskElementsRecursively(task, parentLevel + 1);
             }
-            
+
             // 找到插入位置：父任务的最后一个后代之后
             const allChildren = this.remindersContainer.querySelectorAll(`[data-reminder-id]`);
             let insertAfter: HTMLElement = parentEl;
             let foundParent = false;
-            
+
             for (let i = 0; i < allChildren.length; i++) {
                 const el = allChildren[i] as HTMLElement;
                 if (el === parentEl) {
@@ -5247,20 +5247,20 @@ export class ReminderPanel {
                     insertAfter = el;
                 }
             }
-            
+
             // 一次性插入所有DOM元素
             if (insertAfter.nextSibling) {
                 this.remindersContainer.insertBefore(fragment, insertAfter.nextSibling);
             } else {
                 this.remindersContainer.appendChild(fragment);
             }
-            
+
             // 更新缓存
             this.currentRemindersCache.push(...newReminders);
-            
+
             // 更新父任务的进度条
             this.updateParentProgress(parentReminder.id);
-            
+
             // 确保父任务是展开状态
             if (this.collapsedTasks.has(parentReminder.id)) {
                 this.collapsedTasks.delete(parentReminder.id);
@@ -5272,16 +5272,16 @@ export class ReminderPanel {
                     collapseBtn.title = t("collapse");
                 }
             }
-            
+
             // 更新任务总数
             this.totalItems += newReminders.length;
-            
+
             // 更新分页信息（如果启用了分页）
             if (this.isPaginationEnabled && this.totalPages > 0) {
                 this.totalPages = Math.ceil(this.totalItems / this.itemsPerPage);
                 this.renderPaginationControls(0);
             }
-            
+
         } catch (error) {
             console.error('批量插入子任务DOM失败:', error);
             throw error; // 向上抛出错误，让调用方决定是否回退到全局刷新
