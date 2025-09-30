@@ -2622,14 +2622,61 @@ export class ReminderPanel {
             const midpoint = rect.top + rect.height / 2;
             const insertBefore = event.clientY < midpoint;
 
+            // 更新数据中的排序
             await this.reorderReminders(draggedReminder, targetReminder, insertBefore);
 
-            showMessage("排序已更新");
-            this.loadReminders(); // 重新加载以应用新排序
+            // 只更新DOM，不刷新整个列表
+            this.updateDOMOrder(draggedReminder, targetReminder, insertBefore);
+
 
         } catch (error) {
             console.error('处理拖放失败:', error);
             showMessage("排序更新失败");
+        }
+    }
+
+    // 新增：只更新DOM顺序，不刷新整个列表
+    private updateDOMOrder(draggedReminder: any, targetReminder: any, insertBefore: boolean) {
+        try {
+            // 获取被拖拽元素和目标元素
+            const draggedElement = this.remindersContainer.querySelector(`[data-reminder-id="${draggedReminder.id}"]`) as HTMLElement;
+            const targetElement = this.remindersContainer.querySelector(`[data-reminder-id="${targetReminder.id}"]`) as HTMLElement;
+
+            if (!draggedElement || !targetElement) {
+                console.error('找不到拖拽或目标元素');
+                return;
+            }
+
+            // 移动DOM元素
+            if (insertBefore) {
+                this.remindersContainer.insertBefore(draggedElement, targetElement);
+            } else {
+                // 插入到目标元素之后
+                if (targetElement.nextSibling) {
+                    this.remindersContainer.insertBefore(draggedElement, targetElement.nextSibling);
+                } else {
+                    this.remindersContainer.appendChild(draggedElement);
+                }
+            }
+
+            // 更新缓存中的顺序
+            const draggedIndex = this.currentRemindersCache.findIndex(r => r.id === draggedReminder.id);
+            const targetIndex = this.currentRemindersCache.findIndex(r => r.id === targetReminder.id);
+
+            if (draggedIndex !== -1 && targetIndex !== -1) {
+                // 从缓存中移除被拖拽的项
+                const [removed] = this.currentRemindersCache.splice(draggedIndex, 1);
+                
+                // 重新计算插入位置（因为移除操作可能改变了索引）
+                const newTargetIndex = this.currentRemindersCache.findIndex(r => r.id === targetReminder.id);
+                const insertIndex = insertBefore ? newTargetIndex : newTargetIndex + 1;
+                
+                // 插入到新位置
+                this.currentRemindersCache.splice(insertIndex, 0, removed);
+            }
+
+        } catch (error) {
+            console.error('更新DOM顺序失败:', error);
         }
     }
 
@@ -2661,7 +2708,8 @@ export class ReminderPanel {
             });
 
             await writeReminderData(reminderData);
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            // 注意：不触发 reminderUpdated 事件，因为我们会手动更新DOM
+            // window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
         } catch (error) {
             console.error('重新排序提醒失败:', error);
