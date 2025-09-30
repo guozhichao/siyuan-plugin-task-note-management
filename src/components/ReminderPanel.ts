@@ -50,6 +50,7 @@ export class ReminderPanel {
     private isPaginationEnabled: boolean = true; // 是否启用分页
     private totalPages: number = 1;
     private totalItems: number = 0;
+    private lastTruncatedTotal: number = 0;
 
     constructor(container: HTMLElement, plugin?: any, closeCallback?: () => void) {
         this.container = container;
@@ -823,28 +824,25 @@ export class ReminderPanel {
             const el = this.remindersContainer.querySelector(`[data-reminder-id="${latest.id}"]`) as HTMLElement | null;
             if (!el) return;
 
+            const effectivelyCompleted = this.isReminderEffectivelyCompleted(latest, instanceDate, updatedReminder);
+
+            if (this.shouldRemoveReminderElement(latest, effectivelyCompleted)) {
+                const removedCount = this.removeReminderElementFromDOM(latest);
+                if (removedCount > 0) {
+                    this.updateCountsAfterRemoval(removedCount);
+                    this.ensureEmptyStateAfterRemoval();
+                }
+                return;
+            }
+
             // 更新复选框状态
             const checkbox = el.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
             if (checkbox) {
-                let completedVal = false;
-                if (updatedReminder && typeof updatedReminder.completed !== 'undefined') {
-                    completedVal = !!updatedReminder.completed;
-                } else if (updatedReminder && updatedReminder.repeat && updatedReminder.repeat.completedInstances && instanceDate) {
-                    completedVal = updatedReminder.repeat.completedInstances.includes(instanceDate);
-                } else {
-                    completedVal = !!latest.completed;
-                }
-                checkbox.checked = completedVal;
+                checkbox.checked = effectivelyCompleted;
             }
 
             // 更新透明度与完成时间显示
-            let isCompleted = false;
-            if (updatedReminder && typeof updatedReminder.completed !== 'undefined') {
-                isCompleted = !!updatedReminder.completed;
-            } else {
-                isCompleted = !!latest.completed;
-            }
-            if (isCompleted) {
+            if (effectivelyCompleted) {
                 el.style.opacity = '0.5';
                 // 更新/添加完成时间元素
                 const infoEl = el.querySelector('.reminder-item__info') as HTMLElement | null;
@@ -881,6 +879,116 @@ export class ReminderPanel {
 
         } catch (error) {
             console.error('局部更新提醒元素失败:', error);
+        }
+    }
+
+    private isReminderEffectivelyCompleted(reminder: any, instanceDate?: string, updatedReminder?: any): boolean {
+        if (!reminder) return false;
+
+        // 优先使用最新的 completed 标记
+        if (updatedReminder && typeof updatedReminder.completed === 'boolean') {
+            if (updatedReminder.completed) return true;
+        }
+
+        if (typeof reminder.completed === 'boolean' && reminder.completed) {
+            return true;
+        }
+
+        // 处理重复实例的完成状态
+        const repeatData = (updatedReminder && updatedReminder.repeat) || reminder.repeat;
+        const dateKey = instanceDate || reminder.date;
+        if (repeatData && dateKey) {
+            if (Array.isArray(repeatData.completedInstances) && repeatData.completedInstances.includes(dateKey)) {
+                return true;
+            }
+            if (repeatData.completedTimes && repeatData.completedTimes[dateKey]) {
+                return true;
+            }
+        }
+
+        // 处理跨天事件的“今日已完成”状态
+        if (reminder.endDate && this.isSpanningEventTodayCompleted(reminder)) {
+            return true;
+        }
+        if (updatedReminder && updatedReminder.endDate && this.isSpanningEventTodayCompleted(updatedReminder)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private shouldRemoveReminderElement(reminder: any, isCompleted: boolean): boolean {
+        if (!reminder) return false;
+
+        if (this.currentTab === 'completed' || this.currentTab === 'todayCompleted') {
+            // 在已完成视图中，只展示已完成的任务
+            return !isCompleted;
+        }
+
+        // 在其他视图中，完成后直接隐藏
+        return isCompleted;
+    }
+
+    private removeReminderElementFromDOM(reminder: any): number {
+        if (!reminder) return 0;
+
+        const idsToRemove = [reminder.id, ...this.getDescendantIdsFromCache(reminder.id)];
+        let removed = 0;
+
+        idsToRemove.forEach(id => {
+            const node = this.remindersContainer.querySelector(`[data-reminder-id="${id}"]`) as HTMLElement | null;
+            if (node) {
+                node.remove();
+                removed++;
+            }
+        });
+
+        return removed;
+    }
+
+    private updateCountsAfterRemoval(removedCount: number) {
+        if (!removedCount || removedCount <= 0) {
+            return;
+        }
+
+        if (this.totalItems > 0) {
+            this.totalItems = Math.max(0, this.totalItems - removedCount);
+
+            if (this.totalItems === 0) {
+                this.totalPages = 0;
+                this.currentPage = 1;
+            } else if (this.isPaginationEnabled) {
+                this.totalPages = Math.max(1, Math.ceil(this.totalItems / this.itemsPerPage));
+                if (this.currentPage > this.totalPages) {
+                    this.currentPage = this.totalPages;
+                }
+            }
+        }
+
+        if (this.lastTruncatedTotal > 0) {
+            this.lastTruncatedTotal = Math.max(0, this.lastTruncatedTotal - removedCount);
+        }
+
+        // 重新渲染分页控件以反映最新的统计信息
+        this.renderPaginationControls(this.lastTruncatedTotal);
+    }
+
+    private ensureEmptyStateAfterRemoval() {
+        const hasItems = this.remindersContainer.querySelector('.reminder-item');
+        if (!hasItems) {
+            if (this.totalItems === 0) {
+                this.renderReminders([]);
+                const pagination = this.container.querySelector('.reminder-pagination-controls');
+                if (pagination) {
+                    pagination.remove();
+                }
+            } else if (this.isPaginationEnabled && this.totalPages > 0) {
+                const validPage = Math.min(this.currentPage, Math.max(1, this.totalPages));
+                if (this.currentPage !== validPage) {
+                    this.currentPage = validPage;
+                }
+                this.loadReminders(true);
+            }
         }
     }
 
@@ -5068,6 +5176,8 @@ export class ReminderPanel {
         if (existingControls) {
             existingControls.remove();
         }
+
+        this.lastTruncatedTotal = truncatedTotal;
 
         // 如果没有分页需求，直接返回
         if (this.totalPages <= 1 && truncatedTotal === 0) {
