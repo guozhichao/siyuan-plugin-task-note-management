@@ -29,6 +29,7 @@ import { ProjectDialog } from "./components/ProjectDialog";
 import { ProjectPanel } from "./components/ProjectPanel";
 import { ProjectKanbanView } from "./components/ProjectKanbanView";
 import { AddToProjectDialog } from "./components/AddToProjectDialog";
+import { PomodoroManager } from "./utils/pomodoroManager";
 import SettingPanelComponent from "./SettingPanel.svelte";
 
 export const SETTINGS_FILE = "reminder-settings.json";
@@ -1578,6 +1579,10 @@ export default class ReminderPlugin extends Plugin {
             this.preloadedAudio.pause();
             this.preloadedAudio = null;
         }
+
+        // 清理全局番茄钟管理器
+        const pomodoroManager = PomodoroManager.getInstance();
+        pomodoroManager.cleanup();
 
         // 清理所有日历视图实例
         this.calendarViews.forEach((calendarView) => {

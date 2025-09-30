@@ -12,6 +12,7 @@ import { PomodoroStatsView } from "./PomodoroStatsView";
 import { EisenhowerMatrixView } from "./EisenhowerMatrixView";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { PROJECT_KANBAN_TAB_TYPE } from "../index";
+import { PomodoroManager } from "../utils/pomodoroManager";
 
 // 添加四象限面板常量
 const EISENHOWER_TAB_TYPE = "reminder_eisenhower_tab";
@@ -38,8 +39,8 @@ export class ReminderPanel {
     // 记录用户手动展开的任务（优先于默认折叠）
     private userExpandedTasks: Set<string> = new Set();
 
-    // 添加静态变量来跟踪当前活动的番茄钟
-    private static currentPomodoroTimer: PomodoroTimer | null = null;
+    // 使用全局番茄钟管理器
+    private pomodoroManager: PomodoroManager = PomodoroManager.getInstance();
     private currentRemindersCache: any[] = [];
     private isLoading: boolean = false;
     private loadTimeoutId: number | null = null;
@@ -118,7 +119,7 @@ export class ReminderPanel {
         }
 
         // 清理当前番茄钟实例
-        ReminderPanel.clearCurrentPomodoroTimer();
+        this.pomodoroManager.cleanupInactiveTimer();
     }
 
     // 加载排序配置
@@ -3050,9 +3051,9 @@ export class ReminderPanel {
         }
 
         // 检查是否已经有活动的番茄钟并且窗口仍然存在
-        if (ReminderPanel.currentPomodoroTimer && ReminderPanel.currentPomodoroTimer.isWindowActive()) {
+        if (this.pomodoroManager.hasActivePomodoroTimer()) {
             // 获取当前番茄钟的状态
-            const currentState = ReminderPanel.currentPomodoroTimer.getCurrentState();
+            const currentState = this.pomodoroManager.getCurrentState();
             const currentTitle = currentState.reminderTitle || '当前任务';
             const newTitle = reminder.title || '新任务';
 
@@ -3061,10 +3062,8 @@ export class ReminderPanel {
             // 如果当前番茄钟正在运行，先暂停并询问是否继承时间
             if (currentState.isRunning && !currentState.isPaused) {
                 // 先暂停当前番茄钟
-                try {
-                    ReminderPanel.currentPomodoroTimer.pauseFromExternal();
-                } catch (error) {
-                    console.error('暂停当前番茄钟失败:', error);
+                if (!this.pomodoroManager.pauseCurrentTimer()) {
+                    console.error('暂停当前番茄钟失败');
                 }
 
                 const timeDisplay = currentState.isWorkPhase ?
@@ -3085,19 +3084,15 @@ export class ReminderPanel {
                 () => {
                     // 用户取消，尝试恢复原番茄钟的运行状态
                     if (currentState.isRunning && !currentState.isPaused) {
-                        try {
-                            ReminderPanel.currentPomodoroTimer.resumeFromExternal();
-                        } catch (error) {
-                            console.error('恢复番茄钟运行失败:', error);
+                        if (!this.pomodoroManager.resumeCurrentTimer()) {
+                            console.error('恢复番茄钟运行失败');
                         }
                     }
                 }
             );
         } else {
             // 没有活动番茄钟或窗口已关闭，清理引用并直接启动
-            if (ReminderPanel.currentPomodoroTimer && !ReminderPanel.currentPomodoroTimer.isWindowActive()) {
-                ReminderPanel.currentPomodoroTimer = null;
-            }
+            this.pomodoroManager.cleanupInactiveTimer();
             this.performStartPomodoro(reminder);
         }
     }
@@ -3200,20 +3195,13 @@ export class ReminderPanel {
 
     private async performStartPomodoro(reminder: any, inheritState?: any) {
         // 如果已经有活动的番茄钟，先关闭它
-        if (ReminderPanel.currentPomodoroTimer) {
-            try {
-                ReminderPanel.currentPomodoroTimer.close();
-                ReminderPanel.currentPomodoroTimer = null;
-            } catch (error) {
-                console.error('关闭之前的番茄钟失败:', error);
-            }
-        }
+        this.pomodoroManager.closeCurrentTimer();
 
         const settings = await this.plugin.getPomodoroSettings();
         const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState);
 
         // 设置当前活动的番茄钟实例
-        ReminderPanel.currentPomodoroTimer = pomodoroTimer;
+        this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
 
         pomodoroTimer.show();
 
@@ -3231,9 +3219,9 @@ export class ReminderPanel {
         }
 
         // 检查是否已经有活动的番茄钟并且窗口仍然存在
-        if (ReminderPanel.currentPomodoroTimer && ReminderPanel.currentPomodoroTimer.isWindowActive()) {
+        if (this.pomodoroManager.hasActivePomodoroTimer()) {
             // 获取当前番茄钟的状态
-            const currentState = ReminderPanel.currentPomodoroTimer.getCurrentState();
+            const currentState = this.pomodoroManager.getCurrentState();
             const currentTitle = currentState.reminderTitle || '当前任务';
             const newTitle = reminder.title || '新任务';
 
@@ -3242,20 +3230,12 @@ export class ReminderPanel {
             // 如果当前番茄钟正在运行，先暂停并询问是否继承时间
             if (currentState.isRunning && !currentState.isPaused) {
                 // 先暂停当前番茄钟
-                try {
-                    ReminderPanel.currentPomodoroTimer.pauseFromExternal();
-                } catch (error) {
-                    console.error('暂停当前番茄钟失败:', error);
+                if (!this.pomodoroManager.pauseCurrentTimer()) {
+                    console.error('暂停当前番茄钟失败');
                 }
-
-                const timeDisplay = currentState.isWorkPhase ?
-                    `工作时间 ${Math.floor(currentState.timeElapsed / 60)}:${(currentState.timeElapsed % 60).toString().padStart(2, '0')}` :
-                    `休息时间 ${Math.floor(currentState.timeLeft / 60)}:${(currentState.timeLeft % 60).toString().padStart(2, '0')}`;
 
                 confirmMessage += `\n\n\n选择"确定"将继承当前进度继续计时。`;
             }
-
-
 
             // 显示确认对话框
             confirm(
@@ -3268,39 +3248,28 @@ export class ReminderPanel {
                 () => {
                     // 用户取消，尝试恢复番茄钟的运行状态
                     if (currentState.isRunning && !currentState.isPaused) {
-                        try {
-                            ReminderPanel.currentPomodoroTimer.resumeFromExternal();
-                        } catch (error) {
-                            console.error('恢复番茄钟运行失败:', error);
+                        if (!this.pomodoroManager.resumeCurrentTimer()) {
+                            console.error('恢复番茄钟运行失败');
                         }
                     }
                 }
             );
         } else {
             // 没有活动番茄钟或窗口已关闭，清理引用并直接启动
-            if (ReminderPanel.currentPomodoroTimer && !ReminderPanel.currentPomodoroTimer.isWindowActive()) {
-                ReminderPanel.currentPomodoroTimer = null;
-            }
+            this.pomodoroManager.cleanupInactiveTimer();
             this.performStartPomodoroCountUp(reminder);
         }
     }
 
     private async performStartPomodoroCountUp(reminder: any, inheritState?: any) {
         // 如果已经有活动的番茄钟，先关闭它
-        if (ReminderPanel.currentPomodoroTimer) {
-            try {
-                ReminderPanel.currentPomodoroTimer.close();
-                ReminderPanel.currentPomodoroTimer = null;
-            } catch (error) {
-                console.error('关闭之前的番茄钟失败:', error);
-            }
-        }
+        this.pomodoroManager.closeCurrentTimer();
 
         const settings = await this.plugin.getPomodoroSettings();
         const pomodoroTimer = new PomodoroTimer(reminder, settings, true, inheritState);
 
         // 设置当前活动的番茄钟实例并直接切换到正计时模式
-        ReminderPanel.currentPomodoroTimer = pomodoroTimer;
+        this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
 
         pomodoroTimer.show();
 
@@ -3314,29 +3283,7 @@ export class ReminderPanel {
     }
 
 
-    // 添加静态方法获取当前番茄钟实例
-    public static getCurrentPomodoroTimer(): PomodoroTimer | null {
-        return ReminderPanel.currentPomodoroTimer;
-    }
 
-    // 添加静态方法清理当前番茄钟实例
-
-    // 添加静态方法清理当前番茄钟实例
-    public static clearCurrentPomodoroTimer(): void {
-        if (ReminderPanel.currentPomodoroTimer) {
-            try {
-                // 检查窗口是否仍然活动，如果不活动则直接清理引用
-                if (!ReminderPanel.currentPomodoroTimer.isWindowActive()) {
-                    ReminderPanel.currentPomodoroTimer = null;
-                    return;
-                }
-                ReminderPanel.currentPomodoroTimer.destroy();
-            } catch (error) {
-                console.error('清理番茄钟实例失败:', error);
-            }
-            ReminderPanel.currentPomodoroTimer = null;
-        }
-    }
 
     /**
      * [NEW] Calculates the next occurrence date based on the repeat settings.
@@ -3744,7 +3691,6 @@ export class ReminderPanel {
                     el.dataset.priority = priority;
                 }
 
-                showMessage(t("priorityUpdated"));
             } else {
                 showMessage(t("reminderNotExist"));
             }
@@ -3821,11 +3767,7 @@ export class ReminderPanel {
                     }
                 }
 
-                // 获取分类名称用于提示
-                const categoryName = categoryId ?
-                    this.categoryManager.getCategoryById(categoryId)?.name || "未知分类" :
-                    "无分类";
-                showMessage(`已设置分类为：${categoryName}`);
+
             } else {
                 showMessage(t("reminderNotExist"));
             }

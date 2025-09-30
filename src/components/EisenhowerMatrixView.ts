@@ -4,6 +4,7 @@ import { CategoryManager } from "../utils/categoryManager";
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
+import { PomodoroManager } from "../utils/pomodoroManager";
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
 import { t } from "../utils/i18n";
 import { getLocalDateTimeString } from "../utils/dateUtils";
@@ -57,8 +58,8 @@ export class EisenhowerMatrixView {
     private draggedTaskId: string | null = null;
     private collapsedTasks: Set<string> = new Set();
 
-    // 添加静态变量来跟踪当前活动的番茄钟
-    private static currentPomodoroTimer: PomodoroTimer | null = null;
+    // 全局番茄钟管理器
+    private pomodoroManager = PomodoroManager.getInstance();
 
     constructor(container: HTMLElement, plugin: any) {
         this.container = container;
@@ -2979,13 +2980,14 @@ export class EisenhowerMatrixView {
         }
 
         // 检查是否已经有活动的番茄钟
-        if (EisenhowerMatrixView.currentPomodoroTimer && EisenhowerMatrixView.currentPomodoroTimer.isWindowActive()) {
+        const currentTimer = this.pomodoroManager.getCurrentPomodoroTimer();
+        if (currentTimer && currentTimer.isWindowActive()) {
             confirm(
                 '已有番茄钟运行',
                 '已经有一个番茄钟正在运行。是否要停止当前番茄钟并启动新的？',
                 () => {
-                    const currentState = EisenhowerMatrixView.currentPomodoroTimer!.getCurrentState();
-                    EisenhowerMatrixView.currentPomodoroTimer!.destroy();
+                    const currentState = currentTimer.getCurrentState();
+                    this.pomodoroManager.closeCurrentTimer();
                     this.performStartPomodoro(task, currentState);
                 }
             );
@@ -3001,13 +3003,14 @@ export class EisenhowerMatrixView {
         }
 
         // 检查是否已经有活动的番茄钟
-        if (EisenhowerMatrixView.currentPomodoroTimer && EisenhowerMatrixView.currentPomodoroTimer.isWindowActive()) {
+        const currentTimer = this.pomodoroManager.getCurrentPomodoroTimer();
+        if (currentTimer && currentTimer.isWindowActive()) {
             confirm(
                 '已有番茄钟运行',
                 '已经有一个番茄钟正在运行。是否要停止当前番茄钟并启动新的？',
                 () => {
-                    const currentState = EisenhowerMatrixView.currentPomodoroTimer!.getCurrentState();
-                    EisenhowerMatrixView.currentPomodoroTimer!.destroy();
+                    const currentState = currentTimer.getCurrentState();
+                    this.pomodoroManager.closeCurrentTimer();
                     this.performStartPomodoroCountUp(task, currentState);
                 }
             );
@@ -3017,10 +3020,7 @@ export class EisenhowerMatrixView {
     }
 
     private async performStartPomodoro(task: QuadrantTask, inheritState?: any) {
-        if (EisenhowerMatrixView.currentPomodoroTimer) {
-            EisenhowerMatrixView.currentPomodoroTimer.destroy();
-            EisenhowerMatrixView.currentPomodoroTimer = null;
-        }
+        this.pomodoroManager.closeCurrentTimer();
 
         const settings = await this.plugin.getPomodoroSettings();
 
@@ -3033,7 +3033,7 @@ export class EisenhowerMatrixView {
         };
 
         const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState);
-        EisenhowerMatrixView.currentPomodoroTimer = pomodoroTimer;
+        this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
         pomodoroTimer.show();
 
         // 如果有继承状态且正在运行，则恢复运行状态
@@ -3043,10 +3043,7 @@ export class EisenhowerMatrixView {
     }
 
     private async performStartPomodoroCountUp(task: QuadrantTask, inheritState?: any) {
-        if (EisenhowerMatrixView.currentPomodoroTimer) {
-            EisenhowerMatrixView.currentPomodoroTimer.destroy();
-            EisenhowerMatrixView.currentPomodoroTimer = null;
-        }
+        this.pomodoroManager.closeCurrentTimer();
 
         const settings = await this.plugin.getPomodoroSettings();
 
@@ -3059,7 +3056,7 @@ export class EisenhowerMatrixView {
         };
 
         const pomodoroTimer = new PomodoroTimer(reminder, settings, true, inheritState);
-        EisenhowerMatrixView.currentPomodoroTimer = pomodoroTimer;
+        this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
         pomodoroTimer.show();
 
         // PomodoroTimer 会根据构造参数自动处理正计时模式

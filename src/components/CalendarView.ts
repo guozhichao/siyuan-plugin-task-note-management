@@ -16,6 +16,7 @@ import { t } from "../utils/i18n";
 import { generateRepeatInstances, RepeatInstance } from "../utils/repeatUtils";
 import { CalendarConfigManager } from "../utils/calendarConfigManager";
 import { TaskSummaryDialog } from "@/components/TaskSummaryDialog";
+import { PomodoroManager } from "../utils/pomodoroManager";
 export class CalendarView {
     private container: HTMLElement;
     private calendar: Calendar;
@@ -41,8 +42,8 @@ export class CalendarView {
     private dayBtn: HTMLButtonElement;
     private matrixBtn: HTMLButtonElement;
 
-    // 添加静态变量来跟踪当前活动的番茄钟
-    private static currentPomodoroTimer: PomodoroTimer | null = null;
+    // 使用全局番茄钟管理器
+    private pomodoroManager: PomodoroManager = PomodoroManager.getInstance();
 
     constructor(container: HTMLElement, plugin: any) {
         this.container = container;
@@ -3555,9 +3556,9 @@ export class CalendarView {
         }
 
         // 检查是否已经有活动的番茄钟并且窗口仍然存在
-        if (CalendarView.currentPomodoroTimer && CalendarView.currentPomodoroTimer.isWindowActive()) {
+        if (this.pomodoroManager.hasActivePomodoroTimer()) {
             // 获取当前番茄钟的状态
-            const currentState = CalendarView.currentPomodoroTimer.getCurrentState();
+            const currentState = this.pomodoroManager.getCurrentState();
             const currentTitle = currentState.reminderTitle || '当前任务';
             const newTitle = calendarEvent.title || '新任务';
 
@@ -3566,10 +3567,8 @@ export class CalendarView {
             // 如果当前番茄钟正在运行，先暂停并询问是否继承时间
             if (currentState.isRunning && !currentState.isPaused) {
                 // 先暂停当前番茄钟
-                try {
-                    CalendarView.currentPomodoroTimer.pauseFromExternal();
-                } catch (error) {
-                    console.error('暂停当前番茄钟失败:', error);
+                if (!this.pomodoroManager.pauseCurrentTimer()) {
+                    console.error('暂停当前番茄钟失败');
                 }
 
                 const timeDisplay = currentState.isWorkPhase ?
@@ -3590,19 +3589,15 @@ export class CalendarView {
                 () => {
                     // 用户取消，尝试恢复原番茄钟的运行状态
                     if (currentState.isRunning && !currentState.isPaused) {
-                        try {
-                            CalendarView.currentPomodoroTimer.resumeFromExternal();
-                        } catch (error) {
-                            console.error('恢复番茄钟运行失败:', error);
+                        if (!this.pomodoroManager.resumeCurrentTimer()) {
+                            console.error('恢复番茄钟运行失败');
                         }
                     }
                 }
             );
         } else {
             // 没有活动番茄钟或窗口已关闭，清理引用并直接启动
-            if (CalendarView.currentPomodoroTimer && !CalendarView.currentPomodoroTimer.isWindowActive()) {
-                CalendarView.currentPomodoroTimer = null;
-            }
+            this.pomodoroManager.cleanupInactiveTimer();
             this.performStartPomodoro(calendarEvent);
         }
     }
@@ -3614,9 +3609,9 @@ export class CalendarView {
         }
 
         // 检查是否已经有活动的番茄钟并且窗口仍然存在
-        if (CalendarView.currentPomodoroTimer && CalendarView.currentPomodoroTimer.isWindowActive()) {
+        if (this.pomodoroManager.hasActivePomodoroTimer()) {
             // 获取当前番茄钟的状态
-            const currentState = CalendarView.currentPomodoroTimer.getCurrentState();
+            const currentState = this.pomodoroManager.getCurrentState();
             const currentTitle = currentState.reminderTitle || '当前任务';
             const newTitle = calendarEvent.title || '新任务';
 
@@ -3625,15 +3620,9 @@ export class CalendarView {
             // 如果当前番茄钟正在运行，先暂停并询问是否继承时间
             if (currentState.isRunning && !currentState.isPaused) {
                 // 先暂停当前番茄钟
-                try {
-                    CalendarView.currentPomodoroTimer.pauseFromExternal();
-                } catch (error) {
-                    console.error('暂停当前番茄钟失败:', error);
+                if (!this.pomodoroManager.pauseCurrentTimer()) {
+                    console.error('暂停当前番茄钟失败');
                 }
-
-                const timeDisplay = currentState.isWorkPhase ?
-                    `工作时间 ${Math.floor(currentState.timeElapsed / 60)}:${(currentState.timeElapsed % 60).toString().padStart(2, '0')}` :
-                    `休息时间 ${Math.floor(currentState.timeLeft / 60)}:${(currentState.timeLeft % 60).toString().padStart(2, '0')}`;
 
                 confirmMessage += `\n\n选择"确定"将继承当前进度继续计时。`;
             }
@@ -3649,33 +3638,22 @@ export class CalendarView {
                 () => {
                     // 用户取消，尝试恢复番茄钟的运行状态
                     if (currentState.isRunning && !currentState.isPaused) {
-                        try {
-                            CalendarView.currentPomodoroTimer.resumeFromExternal();
-                        } catch (error) {
-                            console.error('恢复番茄钟运行失败:', error);
+                        if (!this.pomodoroManager.resumeCurrentTimer()) {
+                            console.error('恢复番茄钟运行失败');
                         }
                     }
                 }
             );
         } else {
             // 没有活动番茄钟或窗口已关闭，清理引用并直接启动
-            if (CalendarView.currentPomodoroTimer && !CalendarView.currentPomodoroTimer.isWindowActive()) {
-                CalendarView.currentPomodoroTimer = null;
-            }
+            this.pomodoroManager.cleanupInactiveTimer();
             this.performStartPomodoroCountUp(calendarEvent);
         }
     }
 
     private async performStartPomodoro(calendarEvent: any, inheritState?: any) {
         // 如果已经有活动的番茄钟，先关闭它
-        if (CalendarView.currentPomodoroTimer) {
-            try {
-                CalendarView.currentPomodoroTimer.close();
-                CalendarView.currentPomodoroTimer = null;
-            } catch (error) {
-                console.error('关闭之前的番茄钟失败:', error);
-            }
-        }
+        this.pomodoroManager.closeCurrentTimer();
 
         const settings = await this.plugin.getPomodoroSettings();
         console.log('结果', settings);
@@ -3692,7 +3670,7 @@ export class CalendarView {
         const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState);
 
         // 设置当前活动的番茄钟实例
-        CalendarView.currentPomodoroTimer = pomodoroTimer;
+        this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
 
         pomodoroTimer.show();
 
@@ -3705,14 +3683,7 @@ export class CalendarView {
 
     private async performStartPomodoroCountUp(calendarEvent: any, inheritState?: any) {
         // 如果已经有活动的番茄钟，先关闭它
-        if (CalendarView.currentPomodoroTimer) {
-            try {
-                CalendarView.currentPomodoroTimer.close();
-                CalendarView.currentPomodoroTimer = null;
-            } catch (error) {
-                console.error('关闭之前的番茄钟失败:', error);
-            }
-        }
+        this.pomodoroManager.closeCurrentTimer();
 
         const settings = await this.plugin.getPomodoroSettings();
 
@@ -3728,7 +3699,7 @@ export class CalendarView {
         const pomodoroTimer = new PomodoroTimer(reminder, settings, true, inheritState);
 
         // 设置当前活动的番茄钟实例并直接切换到正计时模式
-        CalendarView.currentPomodoroTimer = pomodoroTimer;
+        this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
 
         pomodoroTimer.show();
 
@@ -3741,27 +3712,7 @@ export class CalendarView {
         }
     }
 
-    // 添加静态方法获取当前番茄钟实例
-    public static getCurrentPomodoroTimer(): PomodoroTimer | null {
-        return CalendarView.currentPomodoroTimer;
-    }
 
-    // 添加静态方法清理当前番茄钟实例
-    public static clearCurrentPomodoroTimer(): void {
-        if (CalendarView.currentPomodoroTimer) {
-            try {
-                // 检查窗口是否仍然活动，如果不活动则直接清理引用
-                if (!CalendarView.currentPomodoroTimer.isWindowActive()) {
-                    CalendarView.currentPomodoroTimer = null;
-                    return;
-                }
-                CalendarView.currentPomodoroTimer.destroy();
-            } catch (error) {
-                console.error('清理番茄钟实例失败:', error);
-            }
-            CalendarView.currentPomodoroTimer = null;
-        }
-    }
 
     /**
      * 打开项目看板

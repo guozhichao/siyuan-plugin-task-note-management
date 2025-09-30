@@ -6,6 +6,7 @@ import { getLocalDateString, getLocalDateTimeString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
+import { PomodoroManager } from "../utils/pomodoroManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 
 // 层级化任务接口
@@ -49,8 +50,8 @@ export class ProjectKanbanView {
     private currentIndicatorTarget: HTMLElement | null = null;
     private currentIndicatorPosition: 'top' | 'bottom' | 'middle' | null = null;
 
-    // 添加静态变量来跟踪当前活动的番茄钟
-    private static currentPomodoroTimer: PomodoroTimer | null = null;
+    // 全局番茄钟管理器
+    private pomodoroManager = PomodoroManager.getInstance();
 
     constructor(container: HTMLElement, plugin: any, projectId: string) {
         this.container = container;
@@ -2490,8 +2491,9 @@ export class ProjectKanbanView {
         }
 
         // 检查是否已经有活动的番茄钟
-        if (ProjectKanbanView.currentPomodoroTimer && ProjectKanbanView.currentPomodoroTimer.isWindowActive()) {
-            const currentState = ProjectKanbanView.currentPomodoroTimer.getCurrentState();
+        const currentTimer = this.pomodoroManager.getCurrentPomodoroTimer();
+        if (currentTimer && currentTimer.isWindowActive()) {
+            const currentState = currentTimer.getCurrentState();
             const currentTitle = currentState.reminderTitle || '当前任务';
             const newTitle = task.title || '新任务';
 
@@ -2499,7 +2501,7 @@ export class ProjectKanbanView {
 
             if (currentState.isRunning && !currentState.isPaused) {
                 try {
-                    ProjectKanbanView.currentPomodoroTimer.pauseFromExternal();
+                    this.pomodoroManager.pauseCurrentTimer();
                 } catch (error) {
                     console.error('暂停当前番茄钟失败:', error);
                 }
@@ -2516,7 +2518,7 @@ export class ProjectKanbanView {
                 () => {
                     if (currentState.isRunning && !currentState.isPaused) {
                         try {
-                            ProjectKanbanView.currentPomodoroTimer.resumeFromExternal();
+                            this.pomodoroManager.resumeCurrentTimer();
                         } catch (error) {
                             console.error('恢复番茄钟运行失败:', error);
                         }
@@ -2524,9 +2526,6 @@ export class ProjectKanbanView {
                 }
             );
         } else {
-            if (ProjectKanbanView.currentPomodoroTimer && !ProjectKanbanView.currentPomodoroTimer.isWindowActive()) {
-                ProjectKanbanView.currentPomodoroTimer = null;
-            }
             this.performStartPomodoro(task);
         }
     }
@@ -2538,8 +2537,9 @@ export class ProjectKanbanView {
         }
 
         // 检查是否已经有活动的番茄钟
-        if (ProjectKanbanView.currentPomodoroTimer && ProjectKanbanView.currentPomodoroTimer.isWindowActive()) {
-            const currentState = ProjectKanbanView.currentPomodoroTimer.getCurrentState();
+        const currentTimer = this.pomodoroManager.getCurrentPomodoroTimer();
+        if (currentTimer && currentTimer.isWindowActive()) {
+            const currentState = currentTimer.getCurrentState();
             const currentTitle = currentState.reminderTitle || '当前任务';
             const newTitle = task.title || '新任务';
 
@@ -2547,7 +2547,7 @@ export class ProjectKanbanView {
 
             if (currentState.isRunning && !currentState.isPaused) {
                 try {
-                    ProjectKanbanView.currentPomodoroTimer.pauseFromExternal();
+                    this.pomodoroManager.pauseCurrentTimer();
                 } catch (error) {
                     console.error('暂停当前番茄钟失败:', error);
                 }
@@ -2564,7 +2564,7 @@ export class ProjectKanbanView {
                 () => {
                     if (currentState.isRunning && !currentState.isPaused) {
                         try {
-                            ProjectKanbanView.currentPomodoroTimer.resumeFromExternal();
+                            this.pomodoroManager.resumeCurrentTimer();
                         } catch (error) {
                             console.error('恢复番茄钟运行失败:', error);
                         }
@@ -2572,22 +2572,12 @@ export class ProjectKanbanView {
                 }
             );
         } else {
-            if (ProjectKanbanView.currentPomodoroTimer && !ProjectKanbanView.currentPomodoroTimer.isWindowActive()) {
-                ProjectKanbanView.currentPomodoroTimer = null;
-            }
             this.performStartPomodoroCountUp(task);
         }
     }
 
     private async performStartPomodoro(task: any, inheritState?: any) {
-        if (ProjectKanbanView.currentPomodoroTimer) {
-            try {
-                ProjectKanbanView.currentPomodoroTimer.close();
-                ProjectKanbanView.currentPomodoroTimer = null;
-            } catch (error) {
-                console.error('关闭之前的番茄钟失败:', error);
-            }
-        }
+        this.pomodoroManager.closeCurrentTimer();
 
         const settings = await this.plugin.getPomodoroSettings();
 
@@ -2600,7 +2590,7 @@ export class ProjectKanbanView {
         };
 
         const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState);
-        ProjectKanbanView.currentPomodoroTimer = pomodoroTimer;
+        this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
         pomodoroTimer.show();
 
         if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
@@ -2610,14 +2600,7 @@ export class ProjectKanbanView {
     }
 
     private async performStartPomodoroCountUp(task: any, inheritState?: any) {
-        if (ProjectKanbanView.currentPomodoroTimer) {
-            try {
-                ProjectKanbanView.currentPomodoroTimer.close();
-                ProjectKanbanView.currentPomodoroTimer = null;
-            } catch (error) {
-                console.error('关闭之前的番茄钟失败:', error);
-            }
-        }
+        this.pomodoroManager.closeCurrentTimer();
 
         const settings = await this.plugin.getPomodoroSettings();
 
@@ -2630,7 +2613,7 @@ export class ProjectKanbanView {
         };
 
         const pomodoroTimer = new PomodoroTimer(reminder, settings, true, inheritState);
-        ProjectKanbanView.currentPomodoroTimer = pomodoroTimer;
+        this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
         pomodoroTimer.show();
 
         if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
