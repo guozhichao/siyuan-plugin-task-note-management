@@ -3295,8 +3295,8 @@ export class CalendarView {
                         <div id="bindExistingPanel" style="display: none;">
                             <div class="b3-form__group">
                                 <label class="b3-form__label">输入块ID</label>
-                                <div class="b3-form__desc">请输入要绑定的块ID</div>
-                                <input type="text" id="blockIdInput" class="b3-text-field" placeholder="请输入块ID" style="width: 100%; margin-top: 8px;">
+                                <div class="b3-form__desc">支持块ID或块引用格式，如：((blockId '标题'))</div>
+                                <input type="text" id="blockIdInput" class="b3-text-field" placeholder="请输入块ID或粘贴块引用" style="width: 100%; margin-top: 8px;">
                             </div>
                             <div class="b3-form__group" id="selectedBlockInfo" style="display: none;">
                                 <label class="b3-form__label">块信息预览</label>
@@ -3383,8 +3383,17 @@ export class CalendarView {
 
         // 监听块ID输入变化
         blockIdInput.addEventListener('input', async () => {
-            const blockId = blockIdInput.value.trim();
-            if (blockId.length >= 20) { // 块ID通常是20位字符
+            const inputValue = blockIdInput.value.trim();
+            
+            // 尝试从输入内容中提取块ID（支持块引用格式）
+            let blockId = this.extractBlockIdFromText(inputValue);
+            
+            // 如果没有匹配到块引用格式，则将输入作为纯块ID使用
+            if (!blockId) {
+                blockId = inputValue;
+            }
+            
+            if (blockId && blockId.length >= 20) { // 块ID通常是20位字符
                 try {
                     const block = await getBlockByID(blockId);
                     if (block) {
@@ -3409,9 +3418,22 @@ export class CalendarView {
 
         // 确认绑定现有块
         confirmBtn.addEventListener('click', async () => {
-            const blockId = blockIdInput.value.trim();
-            if (!blockId) {
+            const inputValue = blockIdInput.value.trim();
+            if (!inputValue) {
                 showMessage('请输入块ID');
+                return;
+            }
+
+            // 尝试从输入内容中提取块ID（支持块引用格式）
+            let blockId = this.extractBlockIdFromText(inputValue);
+            
+            // 如果没有匹配到块引用格式，则将输入作为纯块ID使用
+            if (!blockId) {
+                blockId = inputValue;
+            }
+
+            if (!blockId || blockId.length < 20) {
+                showMessage('请输入有效的块ID或块引用');
                 return;
             }
 
@@ -3823,6 +3845,44 @@ export class CalendarView {
 
         // 如果都不是，返回原色（这种情况很少）
         return color;
+    }
+
+    /**
+     * 从文本中提取思源块ID
+     * 支持以下格式：
+     * 1. Markdown链接：[标题](siyuan://blocks/blockId)
+     * 2. 块引用：((blockId '标题')) 或 ((blockId "标题"))
+     * 3. 简单块引用：((blockId))
+     */
+    private extractBlockIdFromText(text: string): string | undefined {
+        // 匹配 Markdown 链接格式：[标题](siyuan://blocks/blockId)
+        const markdownLinkMatch = text.match(/\[([^\]]+)\]\(siyuan:\/\/blocks\/([^)]+)\)/);
+        if (markdownLinkMatch) {
+            const blockId = markdownLinkMatch[2];
+            if (blockId && blockId.length >= 20) {
+                return blockId;
+            }
+        }
+
+        // 匹配块引用格式：((blockId '标题')) 或 ((blockId "标题"))
+        const blockRefWithTitleMatch = text.match(/\(\(([^)\s]+)\s+['"]([^'"]+)['"]\)\)/);
+        if (blockRefWithTitleMatch) {
+            const blockId = blockRefWithTitleMatch[1];
+            if (blockId && blockId.length >= 20) {
+                return blockId;
+            }
+        }
+
+        // 匹配简单块引用格式：((blockId))
+        const simpleBlockRefMatch = text.match(/\(\(([^)]+)\)\)/);
+        if (simpleBlockRefMatch) {
+            const blockId = simpleBlockRefMatch[1].trim();
+            if (blockId && blockId.length >= 20) {
+                return blockId;
+            }
+        }
+
+        return undefined;
     }
 }
 
