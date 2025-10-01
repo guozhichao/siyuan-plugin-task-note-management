@@ -5770,6 +5770,10 @@ export class ReminderPanel {
                         console.error('添加新任务DOM失败，使用全局刷新:', error);
                         this.loadReminders();
                     }
+                },
+                undefined, // timeRangeOptions
+                {
+                    plugin: this.plugin // 传入plugin实例
                 }
             );
             quickDialog.show();

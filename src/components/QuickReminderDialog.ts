@@ -28,6 +28,7 @@ export class QuickReminderDialog {
     private defaultCategoryId?: string;
     private defaultPriority?: string;
     private defaultBlockId?: string;
+    private plugin: any; // 添加plugin引用以访问设置
 
     constructor(initialDate: string, initialTime?: string, onSaved?: () => void, timeRangeOptions?: {
         endDate?: string;
@@ -41,6 +42,7 @@ export class QuickReminderDialog {
         defaultCategoryId?: string;
         defaultPriority?: string;
         defaultBlockId?: string;
+        plugin?: any; // 添加plugin选项
     }) {
         // 确保日期格式正确 - 只保留 YYYY-MM-DD 部分
         this.initialDate = this.formatDateForInput(initialDate);
@@ -71,6 +73,7 @@ export class QuickReminderDialog {
             this.defaultCategoryId = options.defaultCategoryId;
             this.defaultPriority = options.defaultPriority;
             this.defaultBlockId = options.defaultBlockId;
+            this.plugin = options.plugin; // 保存plugin引用
         }
 
         this.categoryManager = CategoryManager.getInstance();
@@ -452,7 +455,12 @@ export class QuickReminderDialog {
                         <!-- 绑定块/文档输入，允许手动输入块 ID 或文档 ID -->
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("bindToBlock") || '块或文档 ID'}</label>
-                            <input type="text" id="quickBlockInput" class="b3-text-field" value="${this.defaultBlockId || ''}" placeholder="${t("enterBlockId") || '请输入块或文档 ID'}" style="width: 100%;">
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="quickBlockInput" class="b3-text-field" value="${this.defaultBlockId || ''}" placeholder="${t("enterBlockId") || '请输入块或文档 ID'}" style="flex: 1;">
+                                <button type="button" id="quickCreateDocBtn" class="b3-button b3-button--outline" title="${t("createNewDocument") || '新建文档'}">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
+                                </button>
+                            </div>
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("eventCategory")}
@@ -760,6 +768,7 @@ export class QuickReminderDialog {
         const repeatSettingsBtn = this.dialog.element.querySelector('#quickRepeatSettingsBtn') as HTMLButtonElement;
         const manageCategoriesBtn = this.dialog.element.querySelector('#quickManageCategoriesBtn') as HTMLButtonElement;
         const nlBtn = this.dialog.element.querySelector('#quickNlBtn') as HTMLButtonElement;
+        const createDocBtn = this.dialog.element.querySelector('#quickCreateDocBtn') as HTMLButtonElement;
         const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
         const dateTimeDesc = this.dialog.element.querySelector('#quickDateTimeDesc') as HTMLElement;
 
@@ -876,6 +885,11 @@ export class QuickReminderDialog {
         nlBtn?.addEventListener('click', () => {
             this.showNaturalLanguageDialog();
         });
+
+        // 新建文档按钮
+        createDocBtn?.addEventListener('click', () => {
+            this.showCreateDocumentDialog();
+        });
     }
 
     private showRepeatSettingsDialog() {
@@ -957,6 +971,138 @@ export class QuickReminderDialog {
     private getStatusDisplayName(statusKey: string): string {
         const status = this.projectManager.getStatusManager().getStatusById(statusKey);
         return status?.name || statusKey;
+    }
+
+    /**
+     * 显示创建文档对话框
+     */
+    private showCreateDocumentDialog() {
+        // 检查plugin是否已初始化
+        if (!this.plugin) {
+            showMessage('⚠️ 无法创建文档：插件实例未初始化。请确保在创建QuickReminderDialog时传入plugin参数。');
+            console.error('QuickReminderDialog: plugin未初始化。请在构造函数的options参数中传入plugin实例。');
+            return;
+        }
+
+        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+        const defaultTitle = titleInput?.value?.trim() || '';
+
+        const createDocDialog = new Dialog({
+            title: t("createNewDocument") || '新建文档',
+            content: `
+                <div class="create-doc-dialog">
+                    <div class="b3-dialog__content">
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">文档标题</label>
+                            <input type="text" id="quickDocTitleInput" class="b3-text-field" value="${defaultTitle}" placeholder="请输入文档标题" style="width: 100%; margin-top: 8px;">
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">文档内容（可选）</label>
+                            <textarea id="quickDocContentInput" class="b3-text-field" placeholder="请输入文档内容" style="width: 100%; margin-top: 8px; min-height: 80px; resize: vertical;"></textarea>
+                        </div>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="quickCreateDocCancelBtn">${t("cancel")}</button>
+                        <button class="b3-button b3-button--primary" id="quickCreateDocConfirmBtn">${t("confirm") || '确定'}</button>
+                    </div>
+                </div>
+            `,
+            width: "500px",
+            height: "300px"
+        });
+
+        const docTitleInput = createDocDialog.element.querySelector('#quickDocTitleInput') as HTMLInputElement;
+        const docContentInput = createDocDialog.element.querySelector('#quickDocContentInput') as HTMLTextAreaElement;
+        const cancelBtn = createDocDialog.element.querySelector('#quickCreateDocCancelBtn') as HTMLButtonElement;
+        const confirmBtn = createDocDialog.element.querySelector('#quickCreateDocConfirmBtn') as HTMLButtonElement;
+
+        // 取消按钮
+        cancelBtn?.addEventListener('click', () => {
+            createDocDialog.destroy();
+        });
+
+        // 确认按钮
+        confirmBtn?.addEventListener('click', async () => {
+            const title = docTitleInput.value.trim();
+            const content = docContentInput.value.trim();
+
+            if (!title) {
+                showMessage(t("pleaseEnterTitle"));
+                return;
+            }
+
+            try {
+                const docId = await this.createDocument(title, content);
+                if (docId) {
+                    // 自动填入文档ID到绑定块输入框
+                    const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
+                    if (blockInput) {
+                        blockInput.value = docId;
+                    }
+                    showMessage('✓ 文档创建成功，已自动填入ID');
+                    createDocDialog.destroy();
+                }
+            } catch (error) {
+                console.error('创建文档失败:', error);
+                showMessage(t("createDocumentFailed") || '创建文档失败');
+            }
+        });
+
+        // 自动聚焦标题输入框
+        setTimeout(() => {
+            docTitleInput?.focus();
+        }, 100);
+    }
+
+    /**
+     * 创建文档
+     */
+    private async createDocument(title: string, content: string): Promise<string> {
+        try {
+            if (!this.plugin) {
+                const errorMsg = 'QuickReminderDialog: plugin未初始化。请在构造函数的options中传入plugin实例，例如：new QuickReminderDialog(date, time, callback, timeRangeOptions, { plugin: this.plugin })';
+                console.error(errorMsg);
+                throw new Error('插件实例未初始化');
+            }
+
+            // 获取插件设置
+            const settings = await this.plugin.loadSettings();
+            const notebook = settings.newDocNotebook;
+            const pathTemplate = settings.newDocPath || '/{{now | date "2006/200601"}}/'; 
+
+            if (!notebook) {
+                throw new Error(t("pleaseConfigureNotebook") || '请在设置中配置新建文档的笔记本');
+            }
+
+            // 导入API函数
+            const { renderSprig, createDocWithMd } = await import("../api");
+
+            // 渲染路径模板
+            let renderedPath: string;
+            try {
+                // 检测pathTemplate是否以/结尾，如果不是，则添加/
+                if (!pathTemplate.endsWith('/')) {
+                    renderedPath = pathTemplate + '/';
+                } else {
+                    renderedPath = pathTemplate;
+                }
+                renderedPath = await renderSprig(renderedPath + title);
+            } catch (error) {
+                console.error('渲染路径模板失败:', error);
+                throw new Error(t("renderPathFailed") || '渲染路径模板失败');
+            }
+
+            // 准备文档内容
+            const docContent = content;
+
+            // 创建文档
+            const docId = await createDocWithMd(notebook, renderedPath, docContent);
+
+            return docId;
+        } catch (error) {
+            console.error('创建文档失败:', error);
+            throw error;
+        }
     }
 
     private async saveReminder() {

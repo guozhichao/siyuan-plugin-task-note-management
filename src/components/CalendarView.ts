@@ -949,7 +949,8 @@ export class CalendarView {
                     defaultNote: originalProps.note || '',
                     defaultCategoryId: originalProps.categoryId,
                     defaultPriority: originalProps.priority || 'none',
-                    defaultBlockId: originalProps.blockId
+                    defaultBlockId: originalProps.blockId,
+                    plugin: this.plugin // 传入plugin实例
                 }
             );
 
@@ -2094,6 +2095,8 @@ export class CalendarView {
         const quickDialog = new QuickReminderDialog(clickedDate, clickedTime, async () => {
             // 刷新日历事件
             await this.refreshEvents();
+        }, undefined, {
+            plugin: this.plugin // 传入plugin实例
         });
 
         quickDialog.show();
@@ -2203,6 +2206,9 @@ export class CalendarView {
                 endDate: endDateStr,
                 endTime: finalEndTime,
                 isTimeRange: true
+            },
+            {
+                plugin: this.plugin // 传入plugin实例
             }
         );
 
