@@ -1499,12 +1499,34 @@ export class ProjectKanbanView {
 
         const childTasks = this.tasks.filter(t => t.parentId === task.id);
 
-        // 编辑任务
-        menu.addItem({
-            iconHTML: "📝",
-            label: "编辑任务",
-            click: () => this.editTask(task)
-        });
+        // 编辑任务 - 针对周期任务显示不同选项
+        if (task.isRepeatInstance) {
+            // 周期事件实例 - 显示修改此实例和修改所有实例
+            menu.addItem({
+                iconHTML: "📝",
+                label: "修改此实例",
+                click: () => this.editInstanceReminder(task)
+            });
+            menu.addItem({
+                iconHTML: "🔄",
+                label: "修改所有实例",
+                click: () => this.editTask(task)
+            });
+        } else if (task.repeat?.enabled) {
+            // 原始周期事件 - 只显示编辑选项
+            menu.addItem({
+                iconHTML: "📝",
+                label: "编辑任务",
+                click: () => this.editTask(task)
+            });
+        } else {
+            // 普通任务
+            menu.addItem({
+                iconHTML: "📝",
+                label: "编辑任务",
+                click: () => this.editTask(task)
+            });
+        }
 
         menu.addItem({
             iconHTML: "➕",
@@ -1620,12 +1642,27 @@ export class ProjectKanbanView {
 
         menu.addSeparator();
 
-        // 删除任务
-        menu.addItem({
-            iconHTML: "🗑️",
-            label: "删除任务",
-            click: () => this.deleteTask(task)
-        });
+        // 删除任务 - 针对周期任务显示不同选项
+        if (task.isRepeatInstance) {
+            // 周期事件实例 - 显示删除此实例和删除所有实例
+            menu.addItem({
+                iconHTML: "🗑️",
+                label: "删除此实例",
+                click: () => this.deleteInstanceOnly(task)
+            });
+            menu.addItem({
+                iconHTML: "🗑️",
+                label: "删除所有实例",
+                click: () => this.deleteTask(task)
+            });
+        } else {
+            // 普通任务或原始周期事件
+            menu.addItem({
+                iconHTML: "🗑️",
+                label: "删除任务",
+                click: () => this.deleteTask(task)
+            });
+        }
 
         // 复制子任务为多级 Markdown 列表
         if (childTasks.length > 0) {
@@ -2166,11 +2203,32 @@ export class ProjectKanbanView {
     }
 
     private async editTask(task: any) {
-        const editDialog = new ReminderEditDialog(task, async () => {
-            await this.loadTasks();
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
-        });
-        editDialog.show();
+        try {
+            // 对于周期实例，编辑原始周期事件
+            if (task.isRepeatInstance) {
+                const reminderData = await readReminderData();
+                const originalReminder = reminderData[task.originalId];
+                if (!originalReminder) {
+                    showMessage("原始周期事件不存在");
+                    return;
+                }
+                const editDialog = new ReminderEditDialog(originalReminder, async () => {
+                    await this.loadTasks();
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                });
+                editDialog.show();
+            } else {
+                // 普通任务或原始周期事件
+                const editDialog = new ReminderEditDialog(task, async () => {
+                    await this.loadTasks();
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                });
+                editDialog.show();
+            }
+        } catch (error) {
+            console.error('打开编辑对话框失败:', error);
+            showMessage("打开编辑对话框失败");
+        }
     }
 
     private showPasteTaskDialog(parentTask?: any) {
@@ -2561,11 +2619,17 @@ export class ProjectKanbanView {
     }
 
     private async deleteTask(task: any) {
+        // 对于周期实例，删除原始周期事件（所有实例）
+        const taskToDelete = task.isRepeatInstance ? 
+            { ...task, id: task.originalId, isRepeatInstance: false } : task;
+        
         // 先尝试读取数据以计算所有后代任务数量，用于更准确的确认提示
-        let confirmMessage = `确定要删除任务 "${task.title}" 吗？此操作不可撤销。`;
+        let confirmMessage = task.isRepeatInstance ? 
+            `确定要删除周期任务 "${task.title}" 的所有实例吗？此操作不可撤销。` :
+            `确定要删除任务 "${task.title}" 吗？此操作不可撤销。`;
         try {
             const reminderDataForPreview = await readReminderData();
-            const descendantIdsPreview = this.getAllDescendantIds(task.id, reminderDataForPreview);
+            const descendantIdsPreview = this.getAllDescendantIds(taskToDelete.id, reminderDataForPreview);
             if (descendantIdsPreview.length > 0) {
                 confirmMessage += `\n\n此任务包含 ${descendantIdsPreview.length} 个子任务（包括多级子任务），它们也将被一并删除。`;
             }
@@ -2582,9 +2646,9 @@ export class ProjectKanbanView {
                     const reminderData = await readReminderData();
 
                     // 获取所有后代任务ID（递归）
-                    const descendantIds = this.getAllDescendantIds(task.id, reminderData);
+                    const descendantIds = this.getAllDescendantIds(taskToDelete.id, reminderData);
 
-                    const tasksToDelete = [task.id, ...descendantIds];
+                    const tasksToDelete = [taskToDelete.id, ...descendantIds];
 
                     // 删除并为绑定块更新书签状态
                     for (const taskId of tasksToDelete) {
@@ -4318,6 +4382,105 @@ export class ProjectKanbanView {
 
         walk(children, 0);
         return result;
+    }
+
+    /**
+     * 编辑周期任务的单个实例
+     */
+    private async editInstanceReminder(task: any) {
+        try {
+            const reminderData = await readReminderData();
+            const originalReminder = reminderData[task.originalId];
+
+            if (!originalReminder) {
+                showMessage("原始周期事件不存在");
+                return;
+            }
+
+            // 检查实例级别的修改（包括备注）
+            const instanceModifications = originalReminder.repeat?.instanceModifications || {};
+            const instanceMod = instanceModifications[task.date];
+
+            // 创建实例数据，包含当前实例的特定信息
+            const instanceData = {
+                ...originalReminder,
+                id: task.id,
+                date: task.date,
+                endDate: task.endDate,
+                time: task.time,
+                endTime: task.endTime,
+                note: instanceMod?.note || '',  // 每个实例的备注都是独立的，默认为空
+                isInstance: true,
+                originalId: task.originalId,
+                instanceDate: task.date
+            };
+
+            const editDialog = new ReminderEditDialog(instanceData, async () => {
+                await this.loadTasks();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            });
+            editDialog.show();
+        } catch (error) {
+            console.error('打开实例编辑对话框失败:', error);
+            showMessage("打开编辑对话框失败");
+        }
+    }
+
+    /**
+     * 删除周期任务的单个实例
+     */
+    private async deleteInstanceOnly(task: any) {
+        await confirm(
+            "删除此实例",
+            `确定要删除周期任务 "${task.title}" 在 ${task.date} 的实例吗？`,
+            async () => {
+                try {
+                    const originalId = task.originalId;
+                    const instanceDate = task.date;
+
+                    await this.addExcludedDate(originalId, instanceDate);
+
+                    showMessage("实例已删除");
+                    await this.loadTasks();
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                } catch (error) {
+                    console.error('删除周期实例失败:', error);
+                    showMessage("删除实例失败");
+                }
+            }
+        );
+    }
+
+    /**
+     * 为原始周期事件添加排除日期
+     */
+    private async addExcludedDate(originalId: string, excludeDate: string) {
+        try {
+            const reminderData = await readReminderData();
+
+            if (reminderData[originalId]) {
+                if (!reminderData[originalId].repeat) {
+                    throw new Error('不是重复事件');
+                }
+
+                // 初始化排除日期列表
+                if (!reminderData[originalId].repeat.excludeDates) {
+                    reminderData[originalId].repeat.excludeDates = [];
+                }
+
+                // 添加排除日期（如果还没有的话）
+                if (!reminderData[originalId].repeat.excludeDates.includes(excludeDate)) {
+                    reminderData[originalId].repeat.excludeDates.push(excludeDate);
+                }
+
+                await writeReminderData(reminderData);
+            } else {
+                throw new Error('原始事件不存在');
+            }
+        } catch (error) {
+            console.error('添加排除日期失败:', error);
+            throw error;
+        }
     }
 
     /**
