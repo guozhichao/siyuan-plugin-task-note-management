@@ -376,11 +376,11 @@ export class ProjectKanbanView {
             // 处理周期事件：生成实例并筛选
             const today = getLocalDateString();
             const allTasksWithInstances: any[] = [];
-            
+
             projectTasks.forEach((reminder: any) => {
                 // 添加原始任务
                 allTasksWithInstances.push(reminder);
-                
+
                 // 如果是周期事件，生成实例
                 if (reminder.repeat?.enabled) {
                     const monthStart = new Date();
@@ -389,35 +389,35 @@ export class ProjectKanbanView {
                     const monthEnd = new Date();
                     monthEnd.setMonth(monthEnd.getMonth() + 2);
                     monthEnd.setDate(0);
-                    
+
                     const startDate = getLocalDateString(monthStart);
                     const endDate = getLocalDateString(monthEnd);
-                    
+
                     const repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
-                    
+
                     // 过滤实例：保留过去未完成、今天的、未来最近一个未完成，以及已完成的实例
                     const completedInstances = reminder.repeat?.completedInstances || [];
                     const instanceModifications = reminder.repeat?.instanceModifications || {};
-                    
+
                     let pastIncomplete: any[] = [];
                     let todayIncomplete: any | null = null;
                     let futureIncomplete: any | null = null;
                     let completedList: any[] = [];
-                    
+
                     // 检查原始任务的日期是否是今天且未完成
                     const isOriginalTaskToday = reminder.date && compareDateStrings(reminder.date, today) === 0;
                     const isOriginalTaskCompleted = reminder.completed;
                     const hasTodayTask = isOriginalTaskToday && !isOriginalTaskCompleted;
-                    
+
                     repeatInstances.forEach(instance => {
                         // 跳过原始日期的实例（已经包含在原始任务中）
                         if (instance.date === reminder.date) {
                             return;
                         }
-                        
+
                         const isInstanceCompleted = completedInstances.includes(instance.date);
                         const instanceMod = instanceModifications[instance.date];
-                        
+
                         const instanceTask = {
                             ...reminder,
                             id: instance.instanceId,
@@ -432,7 +432,7 @@ export class ProjectKanbanView {
                             // 为已完成的实例添加完成时间（用于排序）
                             completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined
                         };
-                        
+
                         if (isInstanceCompleted) {
                             // 已完成的实例都添加到列表中
                             completedList.push(instanceTask);
@@ -454,20 +454,20 @@ export class ProjectKanbanView {
                             }
                         }
                     });
-                    
+
                     // 添加过去的未完成实例
                     allTasksWithInstances.push(...pastIncomplete);
-                    
+
                     // 添加今天的未完成实例（如果不是原始任务的日期）
                     if (todayIncomplete) {
                         allTasksWithInstances.push(todayIncomplete);
                     }
-                    
+
                     // 只有在今天没有任何未完成任务时（包括原始任务和实例），才添加未来最近一个未完成实例
                     if (!hasTodayTask && !todayIncomplete && futureIncomplete) {
                         allTasksWithInstances.push(futureIncomplete);
                     }
-                    
+
                     // 添加所有已完成的实例
                     allTasksWithInstances.push(...completedList);
                 }
@@ -1665,10 +1665,10 @@ export class ProjectKanbanView {
     private async changeTaskStatus(task: any, newStatus: string) {
         try {
             const reminderData = await readReminderData();
-            
+
             // 对于周期实例，使用 originalId；否则使用 task.id
             const actualTaskId = task.isRepeatInstance ? task.originalId : task.id;
-            
+
             if (reminderData[actualTaskId]) {
                 // 如果是周期实例，需要更新实例的完成状态
                 if (task.isRepeatInstance && newStatus === 'done') {
