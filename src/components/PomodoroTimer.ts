@@ -2388,9 +2388,10 @@ export class PomodoroTimer {
                     `「${eventTitle}」的工作时间已结束，是时候休息一下了！`,
                     'work'
                 );
+            } else {
+                // 只有在系统弹窗关闭时才显示思源笔记弹窗
+                showMessage('🍅 工作番茄完成！开始休息吧～', 3000);
             }
-
-            showMessage('🍅 工作番茄完成！开始休息吧～', 3000);
 
             // 切换到休息阶段
             this.isWorkPhase = false;
@@ -2474,14 +2475,20 @@ export class PomodoroTimer {
 
         // 检查是否启用自动模式并进入下一阶段
         if (this.autoMode) {
-            showMessage(`☕ ${breakType}结束！自动开始下一个工作阶段`, 3000);
+            // 只有在系统弹窗关闭时才显示思源笔记弹窗
+            if (!this.systemNotificationEnabled) {
+                showMessage(`☕ ${breakType}结束！自动开始下一个工作阶段`, 3000);
+            }
 
             // 自动切换到工作阶段
             setTimeout(() => {
                 this.autoSwitchToWork();
             }, 1000); // 延迟1秒切换
         } else {
-            showMessage(`☕ ${breakType}结束！可以开始下一个工作阶段`, 3000);
+            // 只有在系统弹窗关闭时才显示思源笔记弹窗
+            if (!this.systemNotificationEnabled) {
+                showMessage(`☕ ${breakType}结束！可以开始下一个工作阶段`, 3000);
+            }
 
             // 切换到工作阶段
             this.isWorkPhase = true;
@@ -2546,7 +2553,10 @@ export class PomodoroTimer {
 
             // 检查是否启用自动模式
             if (this.autoMode) {
-                showMessage('🍅 工作时间结束！自动开始休息', 3000);
+                // 只有在系统弹窗关闭时才显示思源笔记弹窗
+                if (!this.systemNotificationEnabled) {
+                    showMessage('🍅 工作时间结束！自动开始休息', 3000);
+                }
 
                 // 自动切换到休息阶段
                 setTimeout(() => {
@@ -2554,7 +2564,10 @@ export class PomodoroTimer {
                 }, 1000);
             } else {                // 非自动模式下，也要根据番茄钟数量判断休息类型
                 if (shouldTakeLongBreak) {
-                    showMessage(`🍅 工作时间结束！已完成${this.completedPomodoros}个番茄，开始长时休息`, 3000);
+                    // 只有在系统弹窗关闭时才显示思源笔记弹窗
+                    if (!this.systemNotificationEnabled) {
+                        showMessage(`🍅 工作时间结束！已完成${this.completedPomodoros}个番茄，开始长时休息`, 3000);
+                    }
                     this.isWorkPhase = false;
                     this.isLongBreak = true;
                     this.statusDisplay.textContent = '长时休息';
@@ -2563,7 +2576,10 @@ export class PomodoroTimer {
                     // 设置当前阶段的原始时长
                     this.currentPhaseOriginalDuration = this.settings.longBreakDuration;
                 } else {
-                    showMessage('🍅 工作时间结束！开始短时休息', 3000);
+                    // 只有在系统弹窗关闭时才显示思源笔记弹窗
+                    if (!this.systemNotificationEnabled) {
+                        showMessage('🍅 工作时间结束！开始短时休息', 3000);
+                    }
                     this.isWorkPhase = false;
                     this.isLongBreak = false;
                     this.statusDisplay.textContent = '短时休息';
@@ -2609,14 +2625,20 @@ export class PomodoroTimer {
 
             // 检查是否启用自动模式
             if (this.autoMode) {
-                showMessage(`☕ ${breakType}结束！自动开始下一个番茄钟`, 3000);
+                // 只有在系统弹窗关闭时才显示思源笔记弹窗
+                if (!this.systemNotificationEnabled) {
+                    showMessage(`☕ ${breakType}结束！自动开始下一个番茄钟`, 3000);
+                }
 
                 // 自动切换到工作阶段
                 setTimeout(() => {
                     this.autoSwitchToWork();
                 }, 1000);
             } else {
-                showMessage(`☕ ${breakType}结束！准备开始下一个番茄钟`, 3000);
+                // 只有在系统弹窗关闭时才显示思源笔记弹窗
+                if (!this.systemNotificationEnabled) {
+                    showMessage(`☕ ${breakType}结束！准备开始下一个番茄钟`, 3000);
+                }
                 this.isWorkPhase = true;
                 this.isLongBreak = false;
                 this.statusDisplay.textContent = '工作时间';
