@@ -2620,11 +2620,11 @@ export class ProjectKanbanView {
 
     private async deleteTask(task: any) {
         // 对于周期实例，删除原始周期事件（所有实例）
-        const taskToDelete = task.isRepeatInstance ? 
+        const taskToDelete = task.isRepeatInstance ?
             { ...task, id: task.originalId, isRepeatInstance: false } : task;
-        
+
         // 先尝试读取数据以计算所有后代任务数量，用于更准确的确认提示
-        let confirmMessage = task.isRepeatInstance ? 
+        let confirmMessage = task.isRepeatInstance ?
             `确定要删除周期任务 "${task.title}" 的所有实例吗？此操作不可撤销。` :
             `确定要删除任务 "${task.title}" 吗？此操作不可撤销。`;
         try {
