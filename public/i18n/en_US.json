@@ -522,5 +522,11 @@
     "shortcutSetDocumentAsTask": "Set Current Document as Task",
     "shortcutSetBlockAsTask": "Set Current Block as Task",
     "shortcutProjectManagement": "Project Management",
-    "shortcutBatchSetReminder": "Batch Set Time Reminder"
+    "shortcutBatchSetReminder": "Batch Set Time Reminder",
+    "dataStorageLocation": "Data Storage Location",
+    "dataStorageLocationTitle": "Data Storage Information",
+    "dataStorageLocationDesc": "All plugin data (task reminders, project management, pomodoro records, etc.) is stored in:<br><code>data/storage/petal/siyuan-plugin-task-note-management</code><br>",
+    "openDataFolder": "Open Data Folder",
+    "openDataFolderDesc": "Click the button to open the data storage folder in file manager",
+    "openFolder": "Open Folder"
 }

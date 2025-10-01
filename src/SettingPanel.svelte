@@ -238,6 +238,18 @@
                 },
             ],
         },
+        {
+            name: '📁'+t('dataStorageLocation'),
+            items: [
+                {
+                    key: 'dataStorageInfo',
+                    value: 'data/storage/petal/siyuan-plugin-task-note-management',
+                    type: 'hint',
+                    title: t('dataStorageLocationTitle'),
+                    description: t('dataStorageLocationDesc'),
+                },
+            ],
+        },
     ];
 
     let focusGroup = groups[0].name;
