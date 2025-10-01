@@ -316,7 +316,7 @@ export class QuickReminderDialog {
         // 获取标题输入框的内容作为默认值
         const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
         const defaultValue = titleInput?.value?.trim() || '';
-        
+
         const nlDialog = new Dialog({
             title: "✨ 智能日期识别",
             content: `
