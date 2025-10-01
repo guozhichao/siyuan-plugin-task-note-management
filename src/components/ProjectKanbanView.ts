@@ -940,10 +940,11 @@ export class ProjectKanbanView {
         const titleEl = document.createElement('div');
         titleEl.className = 'kanban-task-title';
 
-        if (task.blockId) {
+        if (task.blockId || task.docId) {
             // 如果有绑定块，标题显示为可点击的超链接
+            const targetId = task.blockId || task.docId;
             titleEl.setAttribute('data-type', 'a');
-            titleEl.setAttribute('data-href', `siyuan://blocks/${task.blockId}`);
+            titleEl.setAttribute('data-href', `siyuan://blocks/${targetId}`);
             titleEl.style.cssText = `
                 font-weight: 500;
                 margin-bottom: 8px;
@@ -960,7 +961,7 @@ export class ProjectKanbanView {
             titleEl.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                this.openBlockTab(task.blockId);
+                this.openBlockTab(targetId);
             });
 
             // 鼠标悬停效果
@@ -982,7 +983,7 @@ export class ProjectKanbanView {
         }
 
         titleEl.textContent = task.title || '未命名任务';
-        titleEl.title = task.blockId ? `点击打开绑定块: ${task.title || '未命名任务'}` : (task.title || '未命名任务');
+        titleEl.title = (task.blockId || task.docId) ? `点击打开绑定块: ${task.title || '未命名任务'}` : (task.title || '未命名任务');
 
         // 如果有子任务，添加数量指示器
         if (childTasks.length > 0) {
@@ -1559,7 +1560,7 @@ export class ProjectKanbanView {
         });
 
         // 绑定块功能
-        if (task.blockId) {
+        if (task.blockId || task.docId) {
             menu.addItem({
                 iconHTML: "📋",
                 label: "复制块引用",
@@ -1709,8 +1710,8 @@ export class ProjectKanbanView {
                 await writeReminderData(reminderData);
 
                 // 更新块的书签状态
-                if (task.blockId) {
-                    await updateBlockReminderBookmark(task.blockId);
+                if (task.blockId || task.docId) {
+                    await updateBlockReminderBookmark(task.blockId || task.docId);
                 }
 
                 // 触发更新事件
@@ -1751,9 +1752,9 @@ export class ProjectKanbanView {
                     completedCount++;
 
                     // 如果子任务有绑定块，也需要处理书签更新
-                    if (childTask.blockId) {
+                    if (childTask.blockId || childTask.docId) {
                         try {
-                            await updateBlockReminderBookmark(childTask.blockId);
+                            await updateBlockReminderBookmark(childTask.blockId || childTask.docId);
                         } catch (error) {
                             console.warn(`更新子任务 ${childId} 的块书签失败:`, error);
                         }
@@ -2593,9 +2594,9 @@ export class ProjectKanbanView {
                             delete reminderData[taskId];
 
                             // 如果绑定了块，更新块的书签（忽略错误）
-                            if (t.blockId) {
+                            if (t.blockId || t.docId) {
                                 try {
-                                    await updateBlockReminderBookmark(t.blockId);
+                                    await updateBlockReminderBookmark(t.blockId || t.docId);
                                 } catch (err) {
                                     console.warn(`更新已删除任务 ${taskId} 的块书签失败:`, err);
                                 }
@@ -4332,9 +4333,10 @@ export class ProjectKanbanView {
             const indent = '  '.repeat(node.level);
             const t = node.task;
             let title = t.title || '未命名任务';
-            if (t.blockId) {
+            if (t.blockId || t.docId) {
                 // 使用思源块链接
-                title = `[${title}](siyuan://blocks/${t.blockId})`;
+                const targetId = t.blockId || t.docId;
+                title = `[${title}](siyuan://blocks/${targetId})`;
             }
             lines.push(`${indent}- ${title}`);
         }
