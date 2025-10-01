@@ -64,6 +64,8 @@ export class PomodoroTimer {
     private breakEndAudio: HTMLAudioElement = null; // 休息结束提示音
     private recordManager: PomodoroRecordManager;
     private audioInitialized: boolean = false;
+    private audioInitPromise: Promise<void> | null = null;
+    private audioUnlockHandler: ((event: Event) => void) | null = null;
 
     private isWindowClosed: boolean = false; // 新增：窗口关闭状态标记
 
