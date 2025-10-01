@@ -1106,6 +1106,15 @@ export class CalendarView {
             eventEl.appendChild(noteEl);
         }
 
+        // 添加链接图标（如果有绑定块且不是快速提醒）
+        if (eventInfo.event.extendedProps.blockId && !eventInfo.event.extendedProps.isQuickReminder) {
+            const linkIcon = document.createElement('div');
+            linkIcon.className = 'reminder-link-indicator';
+            linkIcon.innerHTML = '🔗';
+            linkIcon.title = '已绑定块';
+            wrapper.appendChild(linkIcon);
+        }
+
         // 添加重复图标（如果是重复事件）
         if (eventInfo.event.extendedProps.isRepeated || eventInfo.event.extendedProps.repeat?.enabled) {
             const repeatIcon = document.createElement('div');
@@ -2417,12 +2426,6 @@ export class CalendarView {
             }
         }
 
-        // 如果是快速创建的提醒（没有绑定块），使用特殊的样式
-        if (reminder.isQuickReminder || !reminder.blockId) {
-            backgroundColor = backgroundColor + 'aa'; // 添加透明度
-            borderColor = borderColor + 'aa';
-        }
-
         // 检查完成状态
         let isCompleted = false;
         if (isRepeated && originalId) {
@@ -2431,19 +2434,13 @@ export class CalendarView {
             isCompleted = reminder.completed || false;
         }
 
-        // // 重复事件使用稍微不同的样式
-        // if (isRepeated) {
-        //     backgroundColor = backgroundColor + 'dd';
-        //     borderColor = borderColor + 'dd';
-        // }
-
-
-
-        // 构建 className，包含已完成状态
+        // 构建 className，包含已完成状态和绑定状态
         const classNames = [
             `reminder-priority-${priority}`,
             isRepeated ? 'reminder-repeated' : '',
-            isCompleted ? 'completed' : '' // 将 completed 类添加到 FullCalendar 事件元素上
+            isCompleted ? 'completed' : '', // 将 completed 类添加到 FullCalendar 事件元素上
+            // 添加绑定状态类名，用于设置透明度
+            (!reminder.blockId || reminder.isQuickReminder) ? 'no-block-binding' : 'has-block-binding'
         ].filter(Boolean).join(' ');
 
         let eventObj: any = {
