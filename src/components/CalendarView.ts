@@ -3782,19 +3782,8 @@ export class CalendarView {
 
             const project = projectData[projectId];
 
-            // 使用openTab打开项目看板
-            openTab({
-                app: this.plugin.app,
-                custom: {
-                    title: project.title,
-                    icon: "iconProject",
-                    id: this.plugin.name + "project_kanban_tab",
-                    data: {
-                        projectId: project.blockId,
-                        projectTitle: project.title
-                    }
-                }
-            });
+            // 使用openProjectKanbanTab打开项目看板
+            this.plugin.openProjectKanbanTab(project.blockId, project.title);
         } catch (error) {
             console.error('打开项目看板失败:', error);
             showMessage("打开项目看板失败");
@@ -3841,39 +3830,6 @@ export class CalendarView {
                 this.dayBtn.classList.add('b3-button--primary');
                 break;
         }
-    }
-
-    /**
-     * 调整颜色透明度
-     * @param color 原始颜色（支持 hex 格式）
-     * @param opacity 透明度（0-1）
-     * @returns 调整后的颜色
-     */
-    private adjustColorOpacity(color: string, opacity: number): string {
-        // 移除可能存在的透明度后缀
-        color = color.replace(/[a-f\d]{2}$/i, '');
-
-        // 如果是hex颜色，转换为rgba
-        if (color.startsWith('#')) {
-            const hex = color.slice(1);
-            const r = parseInt(hex.slice(0, 2), 16);
-            const g = parseInt(hex.slice(2, 4), 16);
-            const b = parseInt(hex.slice(4, 6), 16);
-            return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-        }
-
-        // 如果已经是rgba格式，直接调整透明度
-        if (color.startsWith('rgba')) {
-            return color.replace(/[\d.]+\)$/, `${opacity})`);
-        }
-
-        // 如果是rgb格式，转换为rgba
-        if (color.startsWith('rgb')) {
-            return color.replace('rgb', 'rgba').replace(')', `, ${opacity})`);
-        }
-
-        // 如果都不是，返回原色（这种情况很少）
-        return color;
     }
 
     /**

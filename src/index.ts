@@ -858,18 +858,10 @@ export default class ReminderPlugin extends Plugin {
                 const isProject = projectData && projectData.hasOwnProperty(firstDocumentId);
                 if (isProject) {
                     // 打开项目看板
-                    openTab({
-                        app: this.app,
-                        custom: {
-                            title: projectData[firstDocumentId].title,
-                            icon: "iconProject",
-                            id: this.name + PROJECT_KANBAN_TAB_TYPE,
-                            data: {
-                                projectId: projectData[firstDocumentId].blockId,
-                                projectTitle: projectData[firstDocumentId].title
-                            }
-                        }
-                    });
+                    this.openProjectKanbanTab(
+                        projectData[firstDocumentId].blockId,
+                        projectData[firstDocumentId].title
+                    );
                 } else {
                     // 循环传递所有id
                     for (const docId of documentIds) {
@@ -927,18 +919,10 @@ export default class ReminderPlugin extends Plugin {
 
                     if (isProject) {
                         // 打开项目看板
-                        openTab({
-                            app: this.app,
-                            custom: {
-                                title: projectData[documentId].title,
-                                icon: "iconProject",
-                                id: this.name + PROJECT_KANBAN_TAB_TYPE,
-                                data: {
-                                    projectId: projectData[documentId].blockId,
-                                    projectTitle: projectData[documentId].title
-                                }
-                            }
-                        });
+                        this.openProjectKanbanTab(
+                            projectData[documentId].blockId,
+                            projectData[documentId].title
+                        );
                     } else {
                         const dialog = new ProjectDialog(documentId);
                         dialog.show();
@@ -1503,6 +1487,53 @@ export default class ReminderPlugin extends Plugin {
         }
     }
 
+    // 打开项目看板标签页
+    openProjectKanbanTab(projectId: string, projectTitle: string) {
+        const isMobile = getFrontend().endsWith('mobile');
+
+        if (isMobile) {
+            // 手机端：使用Dialog打开项目看板
+            const dialog = new Dialog({
+                title: projectTitle,
+                content: '<div id="mobileProjectKanbanContainer" style="height: 100%; width: 100%;"></div>',
+                width: "95vw",
+                height: "90vh",
+                destroyCallback: () => {
+                    // 清理项目看板实例
+                    const kanbanContainer = dialog.element.querySelector('#mobileProjectKanbanContainer') as HTMLElement;
+                    if (kanbanContainer && (kanbanContainer as any)._projectKanbanView) {
+                        const projectKanbanView = (kanbanContainer as any)._projectKanbanView;
+                        if (typeof projectKanbanView.destroy === 'function') {
+                            projectKanbanView.destroy();
+                        }
+                    }
+                }
+            });
+
+            // 在Dialog中创建项目看板
+            const kanbanContainer = dialog.element.querySelector('#mobileProjectKanbanContainer') as HTMLElement;
+            if (kanbanContainer) {
+                const projectKanbanView = new ProjectKanbanView(kanbanContainer, this, projectId);
+                // 保存实例引用用于清理
+                (kanbanContainer as any)._projectKanbanView = projectKanbanView;
+            }
+        } else {
+            // 桌面端：使用Tab打开项目看板
+            openTab({
+                app: this.app,
+                custom: {
+                    title: projectTitle,
+                    icon: "iconProject",
+                    id: this.name + PROJECT_KANBAN_TAB_TYPE,
+                    data: {
+                        projectId: projectId,
+                        projectTitle: projectTitle
+                    }
+                }
+            });
+        }
+    }
+
     private async addBreadcrumbReminderButton(protyle: any) {
         if (!protyle || !protyle.element) return;
 
@@ -1549,18 +1580,10 @@ export default class ReminderPlugin extends Plugin {
                 projectBtn.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    openTab({
-                        app: this.app,
-                        custom: {
-                            title: projectData[documentId].title,
-                            icon: "iconProject",
-                            id: this.name + PROJECT_KANBAN_TAB_TYPE,
-                            data: {
-                                projectId: projectData[documentId].blockId,
-                                projectTitle: projectData[documentId].title
-                            }
-                        }
-                    });
+                    this.openProjectKanbanTab(
+                        projectData[documentId].blockId,
+                        projectData[documentId].title
+                    );
                 });
                 breadcrumb.insertBefore(projectBtn, docButton);
             }
@@ -1657,18 +1680,10 @@ export default class ReminderPlugin extends Plugin {
 
                     if (isProject) {
                         // 打开项目看板
-                        openTab({
-                            app: this.app,
-                            custom: {
-                                title: projectData[documentId].title,
-                                icon: "iconProject",
-                                id: this.name + PROJECT_KANBAN_TAB_TYPE,
-                                data: {
-                                    projectId: projectData[documentId].blockId,
-                                    projectTitle: projectData[documentId].title
-                                }
-                            }
-                        });
+                        this.openProjectKanbanTab(
+                            projectData[documentId].blockId,
+                            projectData[documentId].title
+                        );
                     } else {
                         const dialog = new ProjectDialog(documentId);
                         dialog.show();

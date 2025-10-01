@@ -5,7 +5,7 @@ import { ReminderEditDialog } from "./ReminderEditDialog";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroManager } from "../utils/pomodoroManager";
-import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
+import { showMessage, confirm, Menu, Dialog } from "siyuan";
 import { t } from "../utils/i18n";
 import { getLocalDateTimeString } from "../utils/dateUtils";
 interface QuadrantTask {
@@ -1388,25 +1388,14 @@ export class EisenhowerMatrixView {
 
     private openProjectKanban(projectId: string) {
         try {
-            // 使用openTab打开项目看板
+            // 使用openProjectKanbanTab打开项目看板
             const project = this.projectManager.getProjectById(projectId);
             if (!project) {
                 showMessage("项目不存在");
                 return;
             }
 
-            openTab({
-                app: this.plugin.app,
-                custom: {
-                    title: project.name,
-                    icon: "iconProject",
-                    id: this.plugin.name + "project_kanban_tab",
-                    data: {
-                        projectId: project.id,
-                        projectTitle: project.name
-                    }
-                }
-            });
+            this.plugin.openProjectKanbanTab(project.id, project.name);
         } catch (error) {
             console.error('打开项目看板失败:', error);
             showMessage("打开项目看板失败");

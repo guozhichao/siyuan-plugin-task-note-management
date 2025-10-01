@@ -11,7 +11,6 @@ import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroStatsView } from "./PomodoroStatsView";
 import { EisenhowerMatrixView } from "./EisenhowerMatrixView";
 import { QuickReminderDialog } from "./QuickReminderDialog";
-import { PROJECT_KANBAN_TAB_TYPE } from "../index";
 import { PomodoroManager } from "../utils/pomodoroManager";
 
 // 添加四象限面板常量
@@ -5683,19 +5682,8 @@ export class ReminderPanel {
 
             const project = projectData[projectId];
 
-            // 使用openTab打开项目看板
-            openTab({
-                app: this.plugin.app,
-                custom: {
-                    title: project.title,
-                    icon: "iconProject",
-                    id: this.plugin.name + PROJECT_KANBAN_TAB_TYPE,
-                    data: {
-                        projectId: project.id,
-                        projectTitle: project.title
-                    }
-                }
-            });
+            // 使用openProjectKanbanTab打开项目看板
+            this.plugin.openProjectKanbanTab(project.id, project.title);
         } catch (error) {
             console.error('打开项目看板失败:', error);
             showMessage("打开项目看板失败");
