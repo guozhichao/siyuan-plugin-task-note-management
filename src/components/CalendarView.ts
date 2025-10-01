@@ -280,6 +280,25 @@ export class CalendarView {
                         this.updateTooltipPosition(e);
                     }
                 });
+
+                if (info.view.type === 'dayGridMonth' && !info.event.allDay) {
+                    const targetEl = info.el.querySelector('.fc-daygrid-event') as HTMLElement || info.el as HTMLElement;
+                    targetEl.classList.remove('fc-daygrid-dot-event');
+                    targetEl.classList.add('fc-daygrid-block-event');
+                    if (info.event.backgroundColor) {
+                        targetEl.style.backgroundColor = info.event.backgroundColor;
+                    }
+                    if (info.event.borderColor) {
+                        targetEl.style.borderColor = 'transparent';
+                    }
+                    if (info.event.textColor) {
+                        targetEl.style.color = info.event.textColor;
+                    }
+                }
+                if (info.view.type == 'dayGridMonth' && info.event.allDay) {
+                    const targetEl = info.el.querySelector('.fc-daygrid-event') as HTMLElement || info.el as HTMLElement;
+                    targetEl.style.borderWidth = '2px';
+                }
             },
             // 添加视图切换和日期变化的监听
             datesSet: (info) => {
@@ -2068,7 +2087,6 @@ export class CalendarView {
         if (!jsEvent || !jsEvent.target) {
             return false;
         }
-
         const target = jsEvent.target as HTMLElement;
 
         // 检查点击的元素或其父元素是否包含all day相关的类名
@@ -2498,6 +2516,10 @@ export class CalendarView {
                 eventObj.allDay = true;
                 eventObj.display = 'block';
             }
+        }
+
+        if (!eventObj.allDay) {
+            eventObj.display = 'block';
         }
 
         // 添加分类信息到标题
