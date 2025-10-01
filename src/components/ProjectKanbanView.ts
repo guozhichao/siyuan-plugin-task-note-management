@@ -2,12 +2,13 @@ import { showMessage, confirm, Menu, Dialog } from "siyuan";
 
 import { readReminderData, writeReminderData, readProjectData, getBlockByID, updateBlockReminderBookmark, openBlock } from "../api";
 import { t } from "../utils/i18n";
-import { getLocalDateString, getLocalDateTimeString } from "../utils/dateUtils";
+import { getLocalDateString, getLocalDateTimeString, compareDateStrings } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroManager } from "../utils/pomodoroManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
+import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
 
 // 层级化任务接口
 interface HierarchicalTask {
@@ -372,7 +373,107 @@ export class ProjectKanbanView {
                 return this.getTaskStatus(current);
             };
 
-            this.tasks = projectTasks.map((reminder: any) => {
+            // 处理周期事件：生成实例并筛选
+            const today = getLocalDateString();
+            const allTasksWithInstances: any[] = [];
+            
+            projectTasks.forEach((reminder: any) => {
+                // 添加原始任务
+                allTasksWithInstances.push(reminder);
+                
+                // 如果是周期事件，生成实例
+                if (reminder.repeat?.enabled) {
+                    const monthStart = new Date();
+                    monthStart.setDate(1);
+                    monthStart.setMonth(monthStart.getMonth() - 1);
+                    const monthEnd = new Date();
+                    monthEnd.setMonth(monthEnd.getMonth() + 2);
+                    monthEnd.setDate(0);
+                    
+                    const startDate = getLocalDateString(monthStart);
+                    const endDate = getLocalDateString(monthEnd);
+                    
+                    const repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
+                    
+                    // 过滤实例：保留过去未完成、今天的、未来最近一个未完成，以及已完成的实例
+                    const completedInstances = reminder.repeat?.completedInstances || [];
+                    const instanceModifications = reminder.repeat?.instanceModifications || {};
+                    
+                    let pastIncomplete: any[] = [];
+                    let todayIncomplete: any | null = null;
+                    let futureIncomplete: any | null = null;
+                    let completedList: any[] = [];
+                    
+                    // 检查原始任务的日期是否是今天且未完成
+                    const isOriginalTaskToday = reminder.date && compareDateStrings(reminder.date, today) === 0;
+                    const isOriginalTaskCompleted = reminder.completed;
+                    const hasTodayTask = isOriginalTaskToday && !isOriginalTaskCompleted;
+                    
+                    repeatInstances.forEach(instance => {
+                        // 跳过原始日期的实例（已经包含在原始任务中）
+                        if (instance.date === reminder.date) {
+                            return;
+                        }
+                        
+                        const isInstanceCompleted = completedInstances.includes(instance.date);
+                        const instanceMod = instanceModifications[instance.date];
+                        
+                        const instanceTask = {
+                            ...reminder,
+                            id: instance.instanceId,
+                            date: instance.date,
+                            endDate: instance.endDate,
+                            time: instance.time,
+                            endTime: instance.endTime,
+                            isRepeatInstance: true,
+                            originalId: instance.originalId,
+                            completed: isInstanceCompleted,
+                            note: instanceMod?.note || reminder.note,
+                            // 为已完成的实例添加完成时间（用于排序）
+                            completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined
+                        };
+                        
+                        if (isInstanceCompleted) {
+                            // 已完成的实例都添加到列表中
+                            completedList.push(instanceTask);
+                        } else {
+                            // 未完成的实例按原有逻辑分类
+                            if (compareDateStrings(instance.date, today) < 0) {
+                                // 过去的日期
+                                pastIncomplete.push(instanceTask);
+                            } else if (compareDateStrings(instance.date, today) === 0) {
+                                // 今天的日期
+                                if (!todayIncomplete) {
+                                    todayIncomplete = instanceTask;
+                                }
+                            } else if (compareDateStrings(instance.date, today) > 0) {
+                                // 未来的日期
+                                if (!futureIncomplete) {
+                                    futureIncomplete = instanceTask;
+                                }
+                            }
+                        }
+                    });
+                    
+                    // 添加过去的未完成实例
+                    allTasksWithInstances.push(...pastIncomplete);
+                    
+                    // 添加今天的未完成实例（如果不是原始任务的日期）
+                    if (todayIncomplete) {
+                        allTasksWithInstances.push(todayIncomplete);
+                    }
+                    
+                    // 只有在今天没有任何未完成任务时（包括原始任务和实例），才添加未来最近一个未完成实例
+                    if (!hasTodayTask && !todayIncomplete && futureIncomplete) {
+                        allTasksWithInstances.push(futureIncomplete);
+                    }
+                    
+                    // 添加所有已完成的实例
+                    allTasksWithInstances.push(...completedList);
+                }
+            });
+
+            this.tasks = allTasksWithInstances.map((reminder: any) => {
                 let status;
                 if (reminder.parentId && taskMap.has(reminder.parentId)) {
                     // For ALL subtasks, their column is determined by their root parent's status
@@ -938,6 +1039,15 @@ export class ProjectKanbanView {
                 flex-wrap: wrap;
             `;
 
+            // 添加周期图标（如果是周期事件或周期实例）
+            if (task.repeat?.enabled || task.isRepeatInstance) {
+                const repeatIcon = document.createElement('span');
+                repeatIcon.textContent = '🔄';
+                repeatIcon.title = task.repeat?.enabled ? getRepeatDescription(task.repeat) : '周期事件实例';
+                repeatIcon.style.cssText = 'cursor: help;';
+                dateEl.appendChild(repeatIcon);
+            }
+
             const dateText = this.formatTaskDate(task);
             let dateHtml = `<span>📅</span><span>${dateText}</span>`;
 
@@ -957,7 +1067,7 @@ export class ProjectKanbanView {
                 }
             }
 
-            dateEl.innerHTML = dateHtml;
+            dateEl.innerHTML += dateHtml;
             infoEl.appendChild(dateEl);
         }
 
@@ -1555,19 +1665,45 @@ export class ProjectKanbanView {
     private async changeTaskStatus(task: any, newStatus: string) {
         try {
             const reminderData = await readReminderData();
-
-            if (reminderData[task.id]) {
-                // 更新任务状态
-                if (newStatus === 'done') {
-                    reminderData[task.id].completed = true;
-                    reminderData[task.id].completedTime = getLocalDateTimeString(new Date());
-
-                    // 父任务完成时，自动完成所有子任务
-                    await this.completeAllChildTasks(task.id, reminderData);
+            
+            // 对于周期实例，使用 originalId；否则使用 task.id
+            const actualTaskId = task.isRepeatInstance ? task.originalId : task.id;
+            
+            if (reminderData[actualTaskId]) {
+                // 如果是周期实例，需要更新实例的完成状态
+                if (task.isRepeatInstance && newStatus === 'done') {
+                    // 标记这个特定日期的实例为已完成
+                    if (!reminderData[actualTaskId].repeat) {
+                        reminderData[actualTaskId].repeat = {};
+                    }
+                    if (!reminderData[actualTaskId].repeat.completedInstances) {
+                        reminderData[actualTaskId].repeat.completedInstances = [];
+                    }
+                    // 添加到已完成实例列表（如果还没有）
+                    if (!reminderData[actualTaskId].repeat.completedInstances.includes(task.date)) {
+                        reminderData[actualTaskId].repeat.completedInstances.push(task.date);
+                    }
+                } else if (task.isRepeatInstance && newStatus !== 'done') {
+                    // 取消完成周期实例
+                    if (reminderData[actualTaskId].repeat?.completedInstances) {
+                        const index = reminderData[actualTaskId].repeat.completedInstances.indexOf(task.date);
+                        if (index > -1) {
+                            reminderData[actualTaskId].repeat.completedInstances.splice(index, 1);
+                        }
+                    }
                 } else {
-                    reminderData[task.id].completed = false;
-                    delete reminderData[task.id].completedTime;
-                    reminderData[task.id].kanbanStatus = newStatus;
+                    // 非周期实例的正常处理
+                    if (newStatus === 'done') {
+                        reminderData[actualTaskId].completed = true;
+                        reminderData[actualTaskId].completedTime = getLocalDateTimeString(new Date());
+
+                        // 父任务完成时，自动完成所有子任务
+                        await this.completeAllChildTasks(actualTaskId, reminderData);
+                    } else {
+                        reminderData[actualTaskId].completed = false;
+                        delete reminderData[actualTaskId].completedTime;
+                        reminderData[actualTaskId].kanbanStatus = newStatus;
+                    }
                 }
 
                 await writeReminderData(reminderData);
