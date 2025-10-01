@@ -896,11 +896,11 @@ export class ReminderEditDialog {
                     reminderData[this.reminder.id].note = note;
                     reminderData[this.reminder.id].priority = priority;
                     reminderData[this.reminder.id].categoryId = categoryId; // 添加分类ID
-                    
+
                     // 检查项目ID是否发生变化
                     const oldProjectId = reminderData[this.reminder.id].projectId;
                     const projectIdChanged = oldProjectId !== projectId;
-                    
+
                     reminderData[this.reminder.id].projectId = projectId;
                     reminderData[this.reminder.id].repeat = this.repeatConfig.enabled ? this.repeatConfig : undefined;
 
@@ -1143,7 +1143,7 @@ export class ReminderEditDialog {
      */
     private updateChildrenProjectId(reminderData: any, parentId: string, projectId: string | undefined): void {
         // 查找所有直接子任务
-        const children = Object.values(reminderData).filter((reminder: any) => 
+        const children = Object.values(reminderData).filter((reminder: any) =>
             reminder && reminder.parentId === parentId
         );
 
