@@ -121,7 +121,7 @@ export class PomodoroTimer {
      */
     private applyInheritedState(inheritState: any) {
         console.log('开始应用继承状态:', inheritState);
-        
+
         // 继承基本状态
         this.isWorkPhase = inheritState.isWorkPhase;
         this.isLongBreak = inheritState.isLongBreak;
@@ -136,7 +136,7 @@ export class PomodoroTimer {
             } else {
                 // 休息阶段：继承剩余休息时间和已用工作时间
                 this.timeElapsed = inheritState.timeElapsed || 0;
-                this.breakTimeLeft = inheritState.breakTimeLeft || (this.isLongBreak ? 
+                this.breakTimeLeft = inheritState.breakTimeLeft || (this.isLongBreak ?
                     this.settings.longBreakDuration * 60 : this.settings.breakDuration * 60);
             }
         } else {
@@ -144,7 +144,7 @@ export class PomodoroTimer {
             this.timeLeft = inheritState.timeLeft || this.settings.workDuration * 60;
             this.timeElapsed = inheritState.timeElapsed || 0;
             this.breakTimeLeft = inheritState.breakTimeLeft || 0;
-            
+
             // 重新计算totalTime
             if (this.isWorkPhase) {
                 this.totalTime = this.settings.workDuration * 60;
@@ -158,7 +158,7 @@ export class PomodoroTimer {
         // 继承运行状态，但新番茄钟开始时不暂停
         this.isRunning = inheritState.isRunning && !inheritState.isPaused;
         this.isPaused = false;
-        
+
         // 重置时间追踪变量
         this.pausedTime = 0;
         this.startTime = 0;
@@ -2475,20 +2475,17 @@ export class PomodoroTimer {
 
         // 检查是否启用自动模式并进入下一阶段
         if (this.autoMode) {
-            // 只有在系统弹窗关闭时才显示思源笔记弹窗
-            if (!this.systemNotificationEnabled) {
-                showMessage(`☕ ${breakType}结束！自动开始下一个工作阶段`, 3000);
-            }
+
+            showMessage(`☕ ${breakType}结束！自动开始下一个工作阶段`, 3000);
+
 
             // 自动切换到工作阶段
             setTimeout(() => {
                 this.autoSwitchToWork();
             }, 1000); // 延迟1秒切换
         } else {
-            // 只有在系统弹窗关闭时才显示思源笔记弹窗
-            if (!this.systemNotificationEnabled) {
-                showMessage(`☕ ${breakType}结束！可以开始下一个工作阶段`, 3000);
-            }
+            showMessage(`☕ ${breakType}结束！自动开始下一个工作阶段`, 3000);
+
 
             // 切换到工作阶段
             this.isWorkPhase = true;
@@ -2626,9 +2623,7 @@ export class PomodoroTimer {
             // 检查是否启用自动模式
             if (this.autoMode) {
                 // 只有在系统弹窗关闭时才显示思源笔记弹窗
-                if (!this.systemNotificationEnabled) {
-                    showMessage(`☕ ${breakType}结束！自动开始下一个番茄钟`, 3000);
-                }
+                showMessage(`☕ ${breakType}结束！自动开始下一个番茄钟`, 3000);
 
                 // 自动切换到工作阶段
                 setTimeout(() => {
