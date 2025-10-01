@@ -2448,7 +2448,7 @@ export class CalendarView {
             title: reminder.title || t("unnamedNote"),
             backgroundColor: backgroundColor,
             borderColor: borderColor,
-            textColor: isCompleted ? '#666666' : '#ffffff',
+            textColor: isCompleted ? '#ffffffcc' : '#ffffff',
             className: classNames,
             extendedProps: {
                 completed: isCompleted,
