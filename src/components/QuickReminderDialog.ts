@@ -449,6 +449,11 @@ export class QuickReminderDialog {
                                 </button>
                             </div>
                         </div>
+                        <!-- 绑定块/文档输入，允许手动输入块 ID 或文档 ID -->
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${t("bindToBlock") || '块或文档 ID'}</label>
+                            <input type="text" id="quickBlockInput" class="b3-text-field" value="${this.defaultBlockId || ''}" placeholder="${t("enterBlockId") || '请输入块或文档 ID'}" style="width: 100%;">
+                        </div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("eventCategory")}
                                 <button type="button" id="quickManageCategoriesBtn" class="b3-button b3-button--outline" title="管理分类">
@@ -956,6 +961,7 @@ export class QuickReminderDialog {
 
     private async saveReminder() {
         const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+        const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
         const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
         const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
         const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
@@ -965,6 +971,7 @@ export class QuickReminderDialog {
         const selectedCategory = this.dialog.element.querySelector('#quickCategorySelector .category-option.selected') as HTMLElement;
 
         const title = titleInput.value.trim();
+        const inputId = blockInput?.value?.trim() || undefined;
         const note = noteInput.value.trim() || undefined;
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
         const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
@@ -1027,7 +1034,7 @@ export class QuickReminderDialog {
             const reminderId = `quick_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             const reminder: any = {
                 id: reminderId,
-                blockId: this.defaultBlockId || null,
+                blockId: inputId || this.defaultBlockId || null,
                 docId: null, // 没有绑定文档
                 title: title,
                 date: date,
