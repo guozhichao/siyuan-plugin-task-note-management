@@ -1068,7 +1068,7 @@ export class QuickReminderDialog {
             // 获取插件设置
             const settings = await this.plugin.loadSettings();
             const notebook = settings.newDocNotebook;
-            const pathTemplate = settings.newDocPath || '/{{now | date "2006/200601"}}/'; 
+            const pathTemplate = settings.newDocPath || '/{{now | date "2006/200601"}}/';
 
             if (!notebook) {
                 throw new Error(t("pleaseConfigureNotebook") || '请在设置中配置新建文档的笔记本');
