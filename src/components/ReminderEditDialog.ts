@@ -923,9 +923,10 @@ export class ReminderEditDialog {
                                 reminderData[this.reminder.id].blockId = inputId;
                                 reminderData[this.reminder.id].docId = blockInfo.root_id || inputId;
                             } else {
-                                // 否则视为文档 ID，保存 docId 并删除 blockId
+                                // 否则视为文档 ID，保存 docId 和 blockId
                                 reminderData[this.reminder.id].docId = inputId;
-                                delete reminderData[this.reminder.id].blockId;
+                                reminderData[this.reminder.id].blockId = inputId;
+                                
                             }
                         } catch (err) {
                             // 如果 getBlockByID 抛错或不存在，保守地当作 blockId 保存
