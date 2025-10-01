@@ -896,8 +896,18 @@ export class ReminderEditDialog {
                     reminderData[this.reminder.id].note = note;
                     reminderData[this.reminder.id].priority = priority;
                     reminderData[this.reminder.id].categoryId = categoryId; // 添加分类ID
+                    
+                    // 检查项目ID是否发生变化
+                    const oldProjectId = reminderData[this.reminder.id].projectId;
+                    const projectIdChanged = oldProjectId !== projectId;
+                    
                     reminderData[this.reminder.id].projectId = projectId;
                     reminderData[this.reminder.id].repeat = this.repeatConfig.enabled ? this.repeatConfig : undefined;
+
+                    // 如果项目ID发生变化，更新所有子任务的项目ID
+                    if (projectIdChanged) {
+                        this.updateChildrenProjectId(reminderData, this.reminder.id, projectId);
+                    }
 
                     // 重置通知状态
                     if (shouldResetNotified) {
@@ -1123,6 +1133,28 @@ export class ReminderEditDialog {
             console.error('渲染项目选择器失败:', error);
             projectSelector.innerHTML = '<option value="">加载项目失败</option>';
         }
+    }
+
+    /**
+     * 递归更新所有子任务的项目ID
+     * @param reminderData 所有提醒数据
+     * @param parentId 父任务ID
+     * @param projectId 新的项目ID
+     */
+    private updateChildrenProjectId(reminderData: any, parentId: string, projectId: string | undefined): void {
+        // 查找所有直接子任务
+        const children = Object.values(reminderData).filter((reminder: any) => 
+            reminder && reminder.parentId === parentId
+        );
+
+        // 递归更新每个子任务及其子任务
+        children.forEach((child: any) => {
+            if (child && child.id) {
+                child.projectId = projectId;
+                // 递归更新子任务的子任务
+                this.updateChildrenProjectId(reminderData, child.id, projectId);
+            }
+        });
     }
 
     private getStatusDisplayName(statusKey: string): string {
