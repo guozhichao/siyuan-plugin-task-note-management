@@ -317,18 +317,28 @@ export class PomodoroTimer {
                 .filter(path => path.length > 0);
 
             this.randomNotificationSounds = [];
-            soundPaths.forEach(path => {
+            soundPaths.forEach((path, index) => {
                 try {
                     const audio = new Audio(path);
-                    audio.volume = 1; // 稍微降低随机提示音音量
+                    audio.volume = 1; // 随机提示音固定音量，不受背景音静音影响
                     audio.preload = 'auto';
+                    
+                    // 监听加载事件
+                    audio.addEventListener('canplaythrough', () => {
+                        console.log(`随机提示音 ${index + 1} 加载完成: ${path}`);
+                    });
+                    
+                    audio.addEventListener('error', (e) => {
+                        console.error(`随机提示音 ${index + 1} 加载失败: ${path}`, e);
+                    });
+                    
                     this.randomNotificationSounds.push(audio);
                 } catch (error) {
-                    console.warn(`无法加载随机提示音: ${path}`, error);
+                    console.warn(`无法创建随机提示音 ${index + 1}: ${path}`, error);
                 }
             });
 
-            console.log(`已加载 ${this.randomNotificationSounds.length} 个随机提示音文件`);
+            console.log(`已初始化 ${this.randomNotificationSounds.length} 个随机提示音文件`);
         } catch (error) {
             console.warn('初始化随机提示音失败:', error);
         }
@@ -338,33 +348,61 @@ export class PomodoroTimer {
         try {
             if (this.settings.randomNotificationEndSound) {
                 this.randomNotificationEndSound = new Audio(this.settings.randomNotificationEndSound);
-                this.randomNotificationEndSound.volume = 1;
+                this.randomNotificationEndSound.volume = 1; // 固定音量，不受背景音静音影响
                 this.randomNotificationEndSound.preload = 'auto';
-                console.log('已加载随机提示音结束声音');
+                
+                // 监听加载事件
+                this.randomNotificationEndSound.addEventListener('canplaythrough', () => {
+                    console.log('随机提示音结束声音加载完成');
+                });
+                
+                this.randomNotificationEndSound.addEventListener('error', (e) => {
+                    console.error('随机提示音结束声音加载失败:', e);
+                });
+                
+                console.log('已初始化随机提示音结束声音');
             }
         } catch (error) {
-            console.warn('无法加载随机提示音结束声音:', error);
+            console.warn('无法创建随机提示音结束声音:', error);
         }
     }
 
     private async playRandomNotificationSound() {
         if (!this.randomNotificationEnabled || this.randomNotificationSounds.length === 0) {
+            console.warn('随机提示音未启用或无可用音频文件');
             return;
         }
 
         try {
             if (!this.audioInitialized) {
+                console.log('音频未初始化，开始初始化...');
                 await this.initializeAudioPlayback();
             }
 
             // 随机选择一个提示音
             const randomIndex = Math.floor(Math.random() * this.randomNotificationSounds.length);
             const selectedAudio = this.randomNotificationSounds[randomIndex];
+            
+            console.log(`准备播放随机提示音 ${randomIndex + 1}/${this.randomNotificationSounds.length}`);
 
+            // 等待音频加载完成
+            if (selectedAudio.readyState < 3) {
+                console.log('音频未完全加载，等待加载...');
+                await this.waitForAudioLoad(selectedAudio);
+            }
+
+            // 重置播放位置
             selectedAudio.currentTime = 0;
-            await selectedAudio.play();
+            
+            // 确保音量设置正确（不受背景音静音影响）
+            selectedAudio.volume = 1;
+            
+            // 使用 safePlayAudio 确保播放成功
+            await this.safePlayAudio(selectedAudio);
+            
+            console.log('随机提示音播放成功');
 
-            // 新增：显示系统通知
+            // 显示系统通知
             if (this.randomNotificationSystemNotificationEnabled) {
                 this.showSystemNotification(
                     t('randomNotificationSettings'),
@@ -372,25 +410,39 @@ export class PomodoroTimer {
                 );
             }
 
-            // 预加载并准备结束声音，在用户手势上下文中
+            // 预加载并准备结束声音
             if (this.randomNotificationEndSound) {
                 try {
+                    // 等待结束声音加载完成
+                    if (this.randomNotificationEndSound.readyState < 3) {
+                        console.log('结束声音未完全加载，等待加载...');
+                        await this.waitForAudioLoad(this.randomNotificationEndSound);
+                    }
+                    
                     // 在当前用户手势上下文中预先准备结束声音
                     this.randomNotificationEndSound.currentTime = 0;
-                    // 立即暂停，这样可以在稍后没有用户手势的情况下播放
+                    this.randomNotificationEndSound.volume = 1;
+                    
+                    // 立即播放并暂停，这样可以在稍后没有用户手势的情况下播放
                     const playPromise = this.randomNotificationEndSound.play();
                     await playPromise;
                     this.randomNotificationEndSound.pause();
                     this.randomNotificationEndSound.currentTime = 0;
+                    
+                    console.log('结束声音预加载成功');
 
                     // 使用设置中的微休息时间播放结束声音
                     const breakDuration = this.settings.randomNotificationBreakDuration * 1000; // 转换为毫秒
                     setTimeout(async () => {
                         try {
+                            console.log('准备播放随机提示音结束声音...');
+                            // 确保音量正确
+                            this.randomNotificationEndSound.volume = 1;
                             // 现在可以播放，因为已经在用户手势上下文中初始化过了
                             await this.randomNotificationEndSound.play();
+                            console.log('随机提示音结束声音播放成功');
 
-                            // 新增：播放结束声音后显示系统通知
+                            // 播放结束声音后显示系统通知
                             if (this.randomNotificationSystemNotificationEnabled) {
                                 this.showSystemNotification(
                                     t('randomNotificationSettings'),
@@ -407,10 +459,13 @@ export class PomodoroTimer {
                     const breakDuration = this.settings.randomNotificationBreakDuration * 1000;
                     setTimeout(async () => {
                         try {
+                            console.log('尝试延迟播放结束声音...');
                             this.randomNotificationEndSound.currentTime = 0;
+                            this.randomNotificationEndSound.volume = 1;
                             await this.randomNotificationEndSound.play();
+                            console.log('延迟播放结束声音成功');
 
-                            // 新增：在延迟播放时也显示系统通知
+                            // 在延迟播放时也显示系统通知
                             if (this.randomNotificationSystemNotificationEnabled) {
                                 this.showSystemNotification(
                                     t('randomNotificationSettings'),
@@ -434,7 +489,7 @@ export class PomodoroTimer {
             }
 
         } catch (error) {
-            console.warn('播放随机提示音失败:', error);
+            console.error('播放随机提示音失败:', error);
         }
     }
 
