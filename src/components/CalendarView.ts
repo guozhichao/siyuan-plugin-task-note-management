@@ -1106,6 +1106,18 @@ export class CalendarView {
             eventEl.appendChild(noteEl);
         }
 
+        // 添加分类emoji图标（如果有分类）
+        if (eventInfo.event.extendedProps.categoryId) {
+            const category = this.categoryManager.getCategoryById(eventInfo.event.extendedProps.categoryId);
+            if (category && category.icon) {
+                const categoryIcon = document.createElement('div');
+                categoryIcon.className = 'reminder-category-indicator';
+                categoryIcon.innerHTML = category.icon;
+                categoryIcon.title = category.name;
+                wrapper.appendChild(categoryIcon);
+            }
+        }
+
         // 添加链接图标（如果有绑定块且不是快速提醒）
         if (eventInfo.event.extendedProps.blockId && !eventInfo.event.extendedProps.isQuickReminder) {
             const linkIcon = document.createElement('div');
@@ -2517,14 +2529,6 @@ export class CalendarView {
 
         if (!eventObj.allDay) {
             eventObj.display = 'block';
-        }
-
-        // 添加分类信息到标题
-        if (reminder.categoryId) {
-            const category = this.categoryManager.getCategoryById(reminder.categoryId);
-            if (category && category.icon) {
-                eventObj.title = `${category.icon} ${eventObj.title}`;
-            }
         }
 
         events.push(eventObj);

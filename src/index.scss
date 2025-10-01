@@ -1187,7 +1187,25 @@
     text-overflow: ellipsis;
 }
 
-// 链接图标样式（右上角）
+// 周期重复图标样式（右上角最右侧）
+.reminder-repeat-indicator {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 12px;
+    height: 12px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    z-index: 4;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+// 链接图标样式（右上角中间）
 .reminder-link-indicator {
     position: absolute;
     top: 2px;
@@ -1212,27 +1230,49 @@
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-// 周期重复图标样式（右上角）
-.reminder-repeat-indicator {
+// 当存在重复图标时，链接图标往左偏移
+.reminder-calendar-event-wrapper:has(.reminder-repeat-indicator) .reminder-link-indicator {
+    right: 16px; // 重复图标宽度12px + 4px间距
+}
+
+// 分类图标样式（右上角最左侧）
+.reminder-category-indicator {
     position: absolute;
     top: 2px;
     right: 2px;
-    width: 12px;
-    height: 12px;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 3px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 8px;
+    font-size: 10px;
     z-index: 2;
     border: 1px solid rgba(0, 0, 0, 0.1);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    cursor: help;
 }
 
-// 当同时存在链接图标和重复图标时，让重复图标往左偏移
-.reminder-calendar-event-wrapper:has(.reminder-link-indicator) .reminder-repeat-indicator {
+// 深色主题下的分类图标
+.b3-theme-dark .reminder-category-indicator {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+// 当存在链接图标时，分类图标往左偏移
+.reminder-calendar-event-wrapper:has(.reminder-link-indicator) .reminder-category-indicator {
     right: 18px; // 链接图标宽度14px + 4px间距
+}
+
+// 当同时存在重复图标和链接图标时，分类图标需要再往左偏移
+.reminder-calendar-event-wrapper:has(.reminder-repeat-indicator):has(.reminder-link-indicator) .reminder-category-indicator {
+    right: 32px; // 重复12px + 链接14px + 两个间距8px
+}
+
+// 当只有重复图标和分类图标时，分类图标往左偏移
+.reminder-calendar-event-wrapper:has(.reminder-repeat-indicator):not(:has(.reminder-link-indicator)) .reminder-category-indicator {
+    right: 16px; // 重复图标宽度12px + 4px间距
 }
 
 .reminder-repeat-indicator.recurring {
