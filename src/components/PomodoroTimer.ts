@@ -110,6 +110,9 @@ export class PomodoroTimer {
         // 初始化系统弹窗功能
         this.initSystemNotification();
 
+        // 在用户首次交互时解锁音频播放
+        this.attachAudioUnlockListeners();
+
         // 如果有继承状态，应用继承的状态
         if (inheritState && inheritState.isRunning) {
             this.applyInheritedState(inheritState);
@@ -311,6 +314,35 @@ export class PomodoroTimer {
         }
     }
 
+    private attachAudioUnlockListeners() {
+        if (this.audioInitialized || this.audioUnlockHandler) {
+            return;
+        }
+
+        const handler = () => {
+            this.detachAudioUnlockListeners();
+            this.initializeAudioPlayback();
+        };
+
+        this.audioUnlockHandler = handler;
+
+        ['pointerdown', 'keydown', 'touchstart'].forEach((eventName) => {
+            document.addEventListener(eventName, handler, { capture: true });
+        });
+    }
+
+    private detachAudioUnlockListeners() {
+        if (!this.audioUnlockHandler) {
+            return;
+        }
+
+        ['pointerdown', 'keydown', 'touchstart'].forEach((eventName) => {
+            document.removeEventListener(eventName, this.audioUnlockHandler!);
+        });
+
+        this.audioUnlockHandler = null;
+    }
+
     private initRandomNotificationSounds() {
         try {
             const soundPaths = this.settings.randomNotificationSounds
@@ -324,16 +356,16 @@ export class PomodoroTimer {
                     const audio = new Audio(path);
                     audio.volume = 1; // 随机提示音固定音量，不受背景音静音影响
                     audio.preload = 'auto';
-                    
+
                     // 监听加载事件
                     audio.addEventListener('canplaythrough', () => {
                         console.log(`随机提示音 ${index + 1} 加载完成: ${path}`);
                     });
-                    
+
                     audio.addEventListener('error', (e) => {
                         console.error(`随机提示音 ${index + 1} 加载失败: ${path}`, e);
                     });
-                    
+
                     this.randomNotificationSounds.push(audio);
                 } catch (error) {
                     console.warn(`无法创建随机提示音 ${index + 1}: ${path}`, error);
@@ -352,16 +384,16 @@ export class PomodoroTimer {
                 this.randomNotificationEndSound = new Audio(this.settings.randomNotificationEndSound);
                 this.randomNotificationEndSound.volume = 1; // 固定音量，不受背景音静音影响
                 this.randomNotificationEndSound.preload = 'auto';
-                
+
                 // 监听加载事件
                 this.randomNotificationEndSound.addEventListener('canplaythrough', () => {
                     console.log('随机提示音结束声音加载完成');
                 });
-                
+
                 this.randomNotificationEndSound.addEventListener('error', (e) => {
                     console.error('随机提示音结束声音加载失败:', e);
                 });
-                
+
                 console.log('已初始化随机提示音结束声音');
             }
         } catch (error) {
@@ -384,7 +416,7 @@ export class PomodoroTimer {
             // 随机选择一个提示音
             const randomIndex = Math.floor(Math.random() * this.randomNotificationSounds.length);
             const selectedAudio = this.randomNotificationSounds[randomIndex];
-            
+
             console.log(`准备播放随机提示音 ${randomIndex + 1}/${this.randomNotificationSounds.length}`);
 
             // 等待音频加载完成
@@ -393,16 +425,25 @@ export class PomodoroTimer {
                 await this.waitForAudioLoad(selectedAudio);
             }
 
-            // 重置播放位置
-            selectedAudio.currentTime = 0;
-            
             // 确保音量设置正确（不受背景音静音影响）
             selectedAudio.volume = 1;
-            
-            // 使用 safePlayAudio 确保播放成功
-            await this.safePlayAudio(selectedAudio);
-            
-            console.log('随机提示音播放成功');
+
+            let notificationPlayed = await this.playOneShotAudio(selectedAudio);
+
+            if (!notificationPlayed) {
+                console.warn('一次性播放随机提示音失败，尝试直接播放原音频元素');
+                try {
+                    selectedAudio.currentTime = 0;
+                    await this.safePlayAudio(selectedAudio);
+                    notificationPlayed = true;
+                } catch (fallbackError) {
+                    console.warn('随机提示音回退播放仍然失败:', fallbackError);
+                }
+            }
+
+            if (notificationPlayed) {
+                console.log('随机提示音播放成功');
+            }
 
             // 显示系统通知
             if (this.randomNotificationSystemNotificationEnabled) {
@@ -412,82 +453,50 @@ export class PomodoroTimer {
                 );
             }
 
-            // 预加载并准备结束声音
+            // 使用设置中的微休息时间播放结束声音
             if (this.randomNotificationEndSound) {
-                try {
-                    // 等待结束声音加载完成
-                    if (this.randomNotificationEndSound.readyState < 3) {
-                        console.log('结束声音未完全加载，等待加载...');
-                        await this.waitForAudioLoad(this.randomNotificationEndSound);
-                    }
-                    
-                    // 在当前用户手势上下文中预先准备结束声音
-                    this.randomNotificationEndSound.currentTime = 0;
-                    this.randomNotificationEndSound.volume = 1;
-                    
-                    // 立即播放并暂停，这样可以在稍后没有用户手势的情况下播放
-                    const playPromise = this.randomNotificationEndSound.play();
-                    await playPromise;
-                    this.randomNotificationEndSound.pause();
-                    this.randomNotificationEndSound.currentTime = 0;
-                    
-                    console.log('结束声音预加载成功');
+                const breakDurationSeconds = Number(this.settings.randomNotificationBreakDuration) || 0;
+                const breakDuration = Math.max(0, breakDurationSeconds * 1000);
 
-                    // 使用设置中的微休息时间播放结束声音
-                    const breakDuration = this.settings.randomNotificationBreakDuration * 1000; // 转换为毫秒
-                    setTimeout(async () => {
-                        try {
-                            console.log('准备播放随机提示音结束声音...');
-                            // 确保音量正确
-                            this.randomNotificationEndSound.volume = 1;
-                            // 现在可以播放，因为已经在用户手势上下文中初始化过了
-                            await this.randomNotificationEndSound.play();
+                window.setTimeout(async () => {
+                    try {
+                        let endPlayed = await this.playOneShotAudio(this.randomNotificationEndSound);
+
+                        if (!endPlayed) {
+                            console.warn('一次性播放随机提示音结束声音失败，尝试回退播放');
+                            try {
+                                this.randomNotificationEndSound.currentTime = 0;
+                                await this.safePlayAudio(this.randomNotificationEndSound);
+                                endPlayed = true;
+                            } catch (endFallbackError) {
+                                console.warn('随机提示音结束声音回退仍然失败:', endFallbackError);
+                            }
+                        }
+
+                        if (endPlayed) {
                             console.log('随机提示音结束声音播放成功');
-
-                            // 播放结束声音后显示系统通知
-                            if (this.randomNotificationSystemNotificationEnabled) {
-                                this.showSystemNotification(
-                                    t('randomNotificationSettings'),
-                                    t('randomRestComplete') || '微休息时间结束，可以继续专注工作了！'
-                                );
-                            }
-                        } catch (error) {
-                            console.warn('播放随机提示音结束声音失败:', error);
                         }
-                    }, breakDuration);
-                } catch (error) {
-                    console.warn('预加载随机提示音结束声音失败:', error);
-                    // 如果预加载失败，尝试直接在延迟后播放
-                    const breakDuration = this.settings.randomNotificationBreakDuration * 1000;
-                    setTimeout(async () => {
-                        try {
-                            console.log('尝试延迟播放结束声音...');
-                            this.randomNotificationEndSound.currentTime = 0;
-                            this.randomNotificationEndSound.volume = 1;
-                            await this.randomNotificationEndSound.play();
-                            console.log('延迟播放结束声音成功');
-
-                            // 在延迟播放时也显示系统通知
-                            if (this.randomNotificationSystemNotificationEnabled) {
-                                this.showSystemNotification(
-                                    t('randomNotificationSettings'),
-                                    t('randomRestComplete') || '微休息时间结束，可以继续专注工作了！'
-                                );
-                            }
-                        } catch (error) {
-                            // 静默处理延迟播放失败，避免控制台错误
-                            console.debug('延迟播放随机提示音结束声音失败，这是预期的浏览器安全限制');
-
-                            // 即使音频播放失败，也要显示系统通知
-                            if (this.randomNotificationSystemNotificationEnabled) {
-                                this.showSystemNotification(
-                                    t('randomNotificationSettings'),
-                                    t('randomRestComplete') || '微休息时间结束，可以继续专注工作了！'
-                                );
-                            }
+                    } catch (error) {
+                        console.warn('播放随机提示音结束声音失败:', error);
+                    } finally {
+                        if (this.randomNotificationSystemNotificationEnabled) {
+                            this.showSystemNotification(
+                                t('randomNotificationSettings'),
+                                t('randomRestComplete') || '微休息时间结束，可以继续专注工作了！'
+                            );
                         }
-                    }, breakDuration);
-                }
+                    }
+                }, breakDuration);
+            } else if (this.randomNotificationSystemNotificationEnabled) {
+                const breakDurationSeconds = Number(this.settings.randomNotificationBreakDuration) || 0;
+                const breakDuration = Math.max(0, breakDurationSeconds * 1000);
+
+                window.setTimeout(() => {
+                    this.showSystemNotification(
+                        t('randomNotificationSettings'),
+                        t('randomRestComplete') || '微休息时间结束，可以继续专注工作了！'
+                    );
+                }, breakDuration);
             }
 
         } catch (error) {
@@ -526,53 +535,75 @@ export class PomodoroTimer {
         }
     }
 
-    private async initializeAudioPlayback() {
-        if (this.audioInitialized) return;
+    private async initializeAudioPlayback(force: boolean = false) {
+        if (this.audioInitialized && !force) {
+            return;
+        }
+
+        if (this.audioInitPromise && !force) {
+            try {
+                await this.audioInitPromise;
+            } catch {
+                // 已有的初始化失败被忽略，等待后续用户手势重试
+            }
+            return;
+        }
+
+        this.audioInitPromise = (async () => {
+            try {
+                // 创建一个静默音频来获取播放权限
+                const silentAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
+                silentAudio.volume = 0;
+                await silentAudio.play();
+                silentAudio.pause();
+
+                const audioLoadPromises: Array<Promise<void>> = [];
+
+                if (this.workAudio) {
+                    audioLoadPromises.push(this.waitForAudioLoad(this.workAudio));
+                }
+                if (this.breakAudio) {
+                    audioLoadPromises.push(this.waitForAudioLoad(this.breakAudio));
+                }
+                if (this.longBreakAudio) {
+                    audioLoadPromises.push(this.waitForAudioLoad(this.longBreakAudio));
+                }
+                if (this.workEndAudio) {
+                    audioLoadPromises.push(this.waitForAudioLoad(this.workEndAudio));
+                }
+                if (this.breakEndAudio) {
+                    audioLoadPromises.push(this.waitForAudioLoad(this.breakEndAudio));
+                }
+
+                if (this.randomNotificationSounds.length > 0) {
+                    this.randomNotificationSounds.forEach((audio) => {
+                        audioLoadPromises.push(this.waitForAudioLoad(audio));
+                    });
+                }
+
+                if (this.randomNotificationEndSound) {
+                    audioLoadPromises.push(this.waitForAudioLoad(this.randomNotificationEndSound));
+                }
+
+                await Promise.allSettled(audioLoadPromises);
+
+                this.audioInitialized = true;
+                this.detachAudioUnlockListeners();
+                console.log('音频播放权限已获取，所有音频文件已加载');
+            } catch (error) {
+                this.audioInitialized = false;
+                console.warn('无法获取音频播放权限:', error);
+                this.attachAudioUnlockListeners();
+                throw error;
+            } finally {
+                this.audioInitPromise = null;
+            }
+        })();
 
         try {
-            // 创建一个静默音频来获取播放权限
-            const silentAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
-            await silentAudio.play();
-            silentAudio.pause();
-
-            // 等待所有音频文件加载完成
-            const audioLoadPromises = [];
-
-            if (this.workAudio) {
-                audioLoadPromises.push(this.waitForAudioLoad(this.workAudio));
-            }
-            if (this.breakAudio) {
-                audioLoadPromises.push(this.waitForAudioLoad(this.breakAudio));
-            }
-            if (this.longBreakAudio) {
-                audioLoadPromises.push(this.waitForAudioLoad(this.longBreakAudio));
-            }
-            if (this.workEndAudio) {
-                audioLoadPromises.push(this.waitForAudioLoad(this.workEndAudio));
-            }
-            if (this.breakEndAudio) {
-                audioLoadPromises.push(this.waitForAudioLoad(this.breakEndAudio));
-            }
-
-            // 等待随机提示音加载
-            if (this.randomNotificationSounds.length > 0) {
-                this.randomNotificationSounds.forEach(audio => {
-                    audioLoadPromises.push(this.waitForAudioLoad(audio));
-                });
-            }
-
-            // 等待随机提示音结束声音加载
-            if (this.randomNotificationEndSound) {
-                audioLoadPromises.push(this.waitForAudioLoad(this.randomNotificationEndSound));
-            }
-
-            // 等待所有音频加载完成
-            await Promise.allSettled(audioLoadPromises);
-
-            this.audioInitialized = true;
-            console.log('音频播放权限已获取，所有音频文件已加载');
-        } catch (error) {
-            console.warn('无法获取音频播放权限:', error);
+            await this.audioInitPromise;
+        } catch {
+            // 忽略异常，等待下一次用户交互重新尝试
         }
     }
 
@@ -616,6 +647,114 @@ export class PomodoroTimer {
 
             // 触发加载
             audio.load();
+        });
+    }
+
+    private async playOneShotAudio(audio: HTMLAudioElement | null): Promise<boolean> {
+        if (!audio) {
+            return false;
+        }
+
+        try {
+            await this.initializeAudioPlayback();
+
+            if (audio.readyState < 2) {
+                await this.waitForAudioLoad(audio);
+            }
+
+            const source = audio.currentSrc || audio.src;
+            if (!source) {
+                return false;
+            }
+
+            const playbackAudio = new Audio(source);
+            playbackAudio.preload = 'auto';
+            playbackAudio.volume = audio.volume;
+            playbackAudio.muted = audio.muted;
+            playbackAudio.playbackRate = audio.playbackRate;
+            playbackAudio.crossOrigin = audio.crossOrigin || playbackAudio.crossOrigin;
+            playbackAudio.setAttribute('playsinline', 'true');
+            playbackAudio.currentTime = 0;
+
+            const cleanup = () => {
+                playbackAudio.pause();
+                playbackAudio.src = '';
+            };
+
+            playbackAudio.addEventListener('ended', cleanup, { once: true });
+            playbackAudio.addEventListener('error', cleanup, { once: true });
+
+            const playPromise = playbackAudio.play();
+            if (playPromise) {
+                await playPromise;
+            }
+
+            const started = await this.waitForPlaybackStart(playbackAudio);
+            if (!started) {
+                cleanup();
+                return false;
+            }
+
+            const durationMs = (playbackAudio.duration > 0 && isFinite(playbackAudio.duration))
+                ? playbackAudio.duration * 1000 + 500
+                : 5000;
+
+            window.setTimeout(() => cleanup(), durationMs);
+
+            return true;
+        } catch (error) {
+            console.warn('一次性音频播放失败:', error);
+            this.attachAudioUnlockListeners();
+            return false;
+        }
+    }
+
+    private waitForPlaybackStart(audio: HTMLAudioElement): Promise<boolean> {
+        return new Promise((resolve) => {
+            if (!audio.paused && audio.currentTime > 0) {
+                resolve(true);
+                return;
+            }
+
+            const cleanup = () => {
+                audio.removeEventListener('playing', onPlaying);
+                audio.removeEventListener('timeupdate', onTimeUpdate);
+                audio.removeEventListener('ended', onEnded);
+                audio.removeEventListener('error', onError);
+                clearTimeout(timeoutId);
+            };
+
+            const onPlaying = () => {
+                cleanup();
+                resolve(true);
+            };
+
+            const onTimeUpdate = () => {
+                if (audio.currentTime > 0) {
+                    cleanup();
+                    resolve(true);
+                }
+            };
+
+            const onEnded = () => {
+                cleanup();
+                resolve(audio.currentTime > 0);
+            };
+
+            const onError = () => {
+                cleanup();
+                resolve(false);
+            };
+
+            audio.addEventListener('playing', onPlaying);
+            audio.addEventListener('timeupdate', onTimeUpdate);
+            audio.addEventListener('ended', onEnded);
+            audio.addEventListener('error', onError);
+
+            const timeoutId = window.setTimeout(() => {
+                cleanup();
+                resolve(!audio.paused && audio.currentTime > 0);
+            }, 1000);
         });
     }
 
@@ -3139,6 +3278,7 @@ export class PomodoroTimer {
 
         this.stopAllAudio();
         this.stopRandomNotificationTimer(); // 停止随机提示音
+        this.detachAudioUnlockListeners();
 
         if (this.isFullscreen) {
             this.exitFullscreen();
