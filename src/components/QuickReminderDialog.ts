@@ -313,6 +313,10 @@ export class QuickReminderDialog {
 
     // 显示自然语言输入对话框
     private showNaturalLanguageDialog() {
+        // 获取标题输入框的内容作为默认值
+        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+        const defaultValue = titleInput?.value?.trim() || '';
+        
         const nlDialog = new Dialog({
             title: "✨ 智能日期识别",
             content: `
@@ -320,7 +324,7 @@ export class QuickReminderDialog {
                     <div class="b3-dialog__content">
                         <div class="b3-form__group">
                             <label class="b3-form__label">输入自然语言描述</label>
-                            <input type="text" id="quickNlInput" class="b3-text-field" placeholder="例如：明天下午3点、下周五、3天后等" style="width: 100%;" autofocus>
+                            <input type="text" id="quickNlInput" class="b3-text-field" value="${defaultValue}" placeholder="例如：明天下午3点、下周五、3天后等" style="width: 100%;" autofocus>
                             <div class="b3-form__desc">支持中文自然语言，如：今天、明天、下周一、3月15日、下午2点等</div>
                         </div>
                         <div class="b3-form__group">
@@ -335,7 +339,7 @@ export class QuickReminderDialog {
                 </div>
             `,
             width: "400px",
-            height: "25%"
+            height: "32%"
         });
 
         const nlInput = nlDialog.element.querySelector('#quickNlInput') as HTMLInputElement;
@@ -398,9 +402,13 @@ export class QuickReminderDialog {
             nlDialog.destroy();
         });
 
-        // 自动聚焦输入框
+        // 自动聚焦输入框并触发预览更新
         setTimeout(() => {
             nlInput.focus();
+            // 如果有默认值，立即触发预览更新
+            if (defaultValue) {
+                updatePreview();
+            }
         }, 100);
     }
 
