@@ -548,7 +548,7 @@ export class QuickReminderDialog {
                 </div>
             `,
             width: "500px",
-            height: "80vh"
+            height: "81vh"
         });
 
         this.bindEvents();
