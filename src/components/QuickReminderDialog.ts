@@ -598,7 +598,7 @@ export class QuickReminderDialog {
         if (!prioritySelector) return;
 
         const priorityOptions = prioritySelector.querySelectorAll('.priority-option');
-        
+
         // 移除所有选中状态
         priorityOptions.forEach(option => {
             option.classList.remove('selected');
