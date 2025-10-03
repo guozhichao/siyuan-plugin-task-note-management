@@ -1108,7 +1108,7 @@ export class PomodoroTimer {
             align-items: center;
             justify-content: center;
         `;
-        this.fullscreenBtn.innerHTML = '🔳';
+        this.fullscreenBtn.innerHTML = '↕️';
         this.fullscreenBtn.title = t('fullscreenMode') || '全屏模式';
         this.fullscreenBtn.addEventListener('click', (e) => {
             e.preventDefault();
