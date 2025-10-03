@@ -5,6 +5,7 @@ import {
     Dialog,
     Menu,
     openTab,
+    openWindow,
     adaptHotkey,
     getFrontend,
     getBackend,
@@ -36,6 +37,7 @@ export const SETTINGS_FILE = "reminder-settings.json";
 const TAB_TYPE = "reminder_calendar_tab";
 const EISENHOWER_TAB_TYPE = "reminder_eisenhower_tab";
 export const PROJECT_KANBAN_TAB_TYPE = "project_kanban_tab";
+const POMODORO_TAB_TYPE = "pomodoro_timer_tab";
 export const STORAGE_NAME = "siyuan-plugin-task-note-management";
 
 
@@ -74,7 +76,7 @@ export default class ReminderPlugin extends Plugin {
     private reminderPanel: ReminderPanel;
     private topBarElement: HTMLElement;
     private dockElement: HTMLElement;
-    private calendarViews: Map<string, any> = new Map();
+    private tabViews: Map<string, any> = new Map(); // 存储所有Tab视图实例（日历、四象限、项目看板、番茄钟等）
     private categoryManager: CategoryManager;
     private settingUtils: SettingUtils;
     private chronoParser: any;
@@ -336,7 +338,7 @@ export default class ReminderPlugin extends Plugin {
             init: ((tab) => {
                 const calendarView = new CalendarView(tab.element, this);
                 // 保存实例引用用于清理
-                this.calendarViews.set(tab.id, calendarView);
+                this.tabViews.set(tab.id, calendarView);
             }) as any
         });
 
@@ -346,7 +348,7 @@ export default class ReminderPlugin extends Plugin {
             init: ((tab) => {
                 const eisenhowerView = new EisenhowerMatrixView(tab.element, this);
                 // 保存实例引用用于清理
-                this.calendarViews.set(tab.id, eisenhowerView);
+                this.tabViews.set(tab.id, eisenhowerView);
                 // 初始化视图
                 eisenhowerView.initialize();
             }) as any
@@ -366,7 +368,31 @@ export default class ReminderPlugin extends Plugin {
 
                 const projectKanbanView = new ProjectKanbanView(tab.element, this, projectId);
                 // 保存实例引用用于清理
-                this.calendarViews.set(tab.id, projectKanbanView);
+                this.tabViews.set(tab.id, projectKanbanView);
+            }) as any
+        });
+
+        // 注册番茄钟标签页
+        this.addTab({
+            type: POMODORO_TAB_TYPE,
+            init: ((tab) => {
+                const reminder = tab.data?.reminder;
+                const settings = tab.data?.settings;
+                const isCountUp = tab.data?.isCountUp || false;
+                const inheritState = tab.data?.inheritState;
+
+                if (!reminder || !settings) {
+                    console.error('番茄钟Tab缺少必要数据');
+                    tab.element.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--b3-theme-error);">错误：缺少番茄钟数据</div>';
+                    return;
+                }
+
+                // 动态导入PomodoroTimer避免循环依赖
+                import("./components/PomodoroTimer").then(({ PomodoroTimer }) => {
+                    const pomodoroTimer = new PomodoroTimer(reminder, settings, isCountUp, inheritState, this, tab.element);
+                    // 保存番茄钟实例引用用于清理
+                    this.tabViews.set(tab.id, pomodoroTimer);
+                });
             }) as any
         });
 
@@ -1711,13 +1737,13 @@ export default class ReminderPlugin extends Plugin {
         const pomodoroManager = PomodoroManager.getInstance();
         pomodoroManager.cleanup();
 
-        // 清理所有日历视图实例
-        this.calendarViews.forEach((calendarView) => {
-            if (calendarView && typeof calendarView.destroy === 'function') {
-                calendarView.destroy();
+        // 清理所有Tab视图实例
+        this.tabViews.forEach((view) => {
+            if (view && typeof view.destroy === 'function') {
+                view.destroy();
             }
         });
-        this.calendarViews.clear();
+        this.tabViews.clear();
 
         // 清理项目面板实例
         if (this.projectPanel && typeof this.projectPanel.destroy === 'function') {
@@ -1773,6 +1799,48 @@ export default class ReminderPlugin extends Plugin {
     async getAutoDetectDateTimeEnabled(): Promise<boolean> {
         const settings = await this.loadSettings();
         return settings.autoDetectDateTime !== false;
+    }
+
+    /**
+     * 打开番茄钟独立窗口
+     * @param reminder 提醒对象
+     * @param settings 番茄钟设置
+     * @param isCountUp 是否正计时模式
+     * @param inheritState 继承的状态
+     */
+    async openPomodoroWindow(reminder: any, settings: any, isCountUp: boolean, inheritState?: any) {
+        try {
+            // 创建tab ID，每个番茄钟实例使用唯一ID
+            const tabId = this.name + POMODORO_TAB_TYPE;
+
+            // 创建tab
+            const tab = openTab({
+                app: this.app,
+                custom: {
+                    icon: 'iconClock',
+                    title: reminder?.title || t('pomodoroTimer') || '番茄钟',
+                    id: tabId,
+                    data: {
+                        reminder: reminder,
+                        settings: settings,
+                        isCountUp: isCountUp,
+                        inheritState: inheritState
+                    }
+                },
+            });
+
+            // 在新窗口中打开tab
+            openWindow({
+                height: 230,
+                width: 240,
+                tab: await tab,
+            });
+
+            showMessage(t('openedInNewWindow') || '已在新窗口中打开', 2000);
+        } catch (error) {
+            console.error('打开独立窗口失败:', error);
+            showMessage(t('openWindowFailed') || '打开窗口失败', 2000);
+        }
     }
 
 }

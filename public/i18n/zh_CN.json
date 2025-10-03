@@ -453,6 +453,10 @@
     "pomodoroHintTitle": "番茄钟的使用介绍",
     "pomodoroHintDesc": "见我的文章<a href=\"https://mp.weixin.qq.com/s/SoZ0ccPc7kJTYfwBnB5IGw\" target=\"_blank\">《深入讲解番茄钟工作法》</a>",
     "fullscreenMode": "全屏模式",
+    "openInNewWindow": "在新窗口中打开",
+    "pomodoroTimer": "番茄钟",
+    "openedInNewWindow": "已在新窗口中打开",
+    "openWindowFailed": "打开窗口失败",
     "daysRemaining": "还剩${days}天",
     "overdueDays": "已过期${days}天",
     "dueToday": "今天截止",
@@ -575,5 +579,6 @@
     "dataStorageLocationDesc": "插件的所有数据（任务提醒、项目管理、番茄钟记录等）存放在：<br><code>data/storage/petal/siyuan-plugin-task-note-management</code><br>",
     "openDataFolder": "打开数据文件夹",
     "openDataFolderDesc": "点击按钮在文件管理器中打开数据存储文件夹",
-    "openFolder": "打开文件夹"
+    "openFolder": "打开文件夹",
+    "switcherMenu":"功能切换"
 }

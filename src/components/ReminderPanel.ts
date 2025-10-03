@@ -3276,7 +3276,7 @@ export class ReminderPanel {
         this.pomodoroManager.closeCurrentTimer();
 
         const settings = await this.plugin.getPomodoroSettings();
-        const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState);
+        const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState,this.plugin);
 
         // 设置当前活动的番茄钟实例
         this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);

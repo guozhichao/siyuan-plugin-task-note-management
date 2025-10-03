@@ -450,6 +450,10 @@
     "pomodoroHintTitle": "Pomodoro Usage Introduction",
     "pomodoroHintDesc": "See my article <a href=\"https://mp.weixin.qq.com/s/SoZ0ccPc7kJTYfwBnB5IGw\" target=\"_blank\">\"In-depth Guide to Pomodoro Technique\"</a>",
     "fullscreenMode": "Fullscreen Mode",
+    "openInNewWindow": "Open in New Window",
+    "pomodoroTimer": "Pomodoro Timer",
+    "openedInNewWindow": "Opened in new window",
+    "openWindowFailed": "Failed to open window",
     "daysRemaining": "${days} days remaining",
     "overdueDays": "Overdue by ${days} days",
     "dueToday": "Due today",
@@ -528,5 +532,6 @@
     "dataStorageLocationDesc": "All plugin data (task reminders, project management, pomodoro records, etc.) is stored in:<br><code>data/storage/petal/siyuan-plugin-task-note-management</code><br>",
     "openDataFolder": "Open Data Folder",
     "openDataFolderDesc": "Click the button to open the data storage folder in file manager",
-    "openFolder": "Open Folder"
+    "openFolder": "Open Folder",
+    "switcherMenu": "Switcher Menu"
 }
