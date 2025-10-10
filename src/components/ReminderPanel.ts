@@ -3186,6 +3186,8 @@ export class ReminderPanel {
             const today = getLocalDateString();
             const reminderData = await readReminderData();
 
+            let updatedReminder: any = null;
+
             if (reminder.isRepeatInstance) {
                 // 重复事件实例：更新原始事件的每日完成记录
                 const originalId = reminder.originalId;
@@ -3194,6 +3196,7 @@ export class ReminderPanel {
                         reminderData[originalId].dailyCompletions = {};
                     }
                     reminderData[originalId].dailyCompletions[today] = true;
+                    updatedReminder = reminderData[originalId];
                 }
             } else {
                 // 普通事件：更新事件的每日完成记录
@@ -3202,18 +3205,19 @@ export class ReminderPanel {
                         reminderData[reminder.id].dailyCompletions = {};
                     }
                     reminderData[reminder.id].dailyCompletions[today] = true;
+                    updatedReminder = reminderData[reminder.id];
                 }
             }
 
             await writeReminderData(reminderData);
-            showMessage(t("markedTodayCompleted"));
 
             // 局部更新：更新该提醒显示及其父项进度（如果显示）
+            // 传入更新后的数据以便正确判断完成状态
             if (reminder.isRepeatInstance) {
-                this.updateReminderElement(reminder.originalId, reminder, getLocalDateString());
+                this.updateReminderElement(reminder.originalId, updatedReminder, getLocalDateString());
                 if (reminder.parentId) this.updateParentProgress(reminder.parentId);
             } else {
-                this.updateReminderElement(reminder.id, reminder);
+                this.updateReminderElement(reminder.id, updatedReminder);
                 if (reminder.parentId) this.updateParentProgress(reminder.parentId);
             }
 
@@ -3236,16 +3240,20 @@ export class ReminderPanel {
             const today = getLocalDateString();
             const reminderData = await readReminderData();
 
+            let updatedReminder: any = null;
+
             if (reminder.isRepeatInstance) {
                 // 重复事件实例：更新原始事件的每日完成记录
                 const originalId = reminder.originalId;
                 if (reminderData[originalId] && reminderData[originalId].dailyCompletions) {
                     delete reminderData[originalId].dailyCompletions[today];
+                    updatedReminder = reminderData[originalId];
                 }
             } else {
                 // 普通事件：更新事件的每日完成记录
                 if (reminderData[reminder.id] && reminderData[reminder.id].dailyCompletions) {
                     delete reminderData[reminder.id].dailyCompletions[today];
+                    updatedReminder = reminderData[reminder.id];
                 }
             }
 
@@ -3253,11 +3261,12 @@ export class ReminderPanel {
             showMessage(t("unmarkedTodayCompleted"));
 
             // 局部更新：更新该提醒显示及其父项进度（如果显示）
+            // 传入更新后的数据以便正确判断完成状态
             if (reminder.isRepeatInstance) {
-                this.updateReminderElement(reminder.originalId, reminder, getLocalDateString());
+                this.updateReminderElement(reminder.originalId, updatedReminder, getLocalDateString());
                 if (reminder.parentId) this.updateParentProgress(reminder.parentId);
             } else {
-                this.updateReminderElement(reminder.id, reminder);
+                this.updateReminderElement(reminder.id, updatedReminder);
                 if (reminder.parentId) this.updateParentProgress(reminder.parentId);
             }
 
@@ -3276,7 +3285,7 @@ export class ReminderPanel {
         this.pomodoroManager.closeCurrentTimer();
 
         const settings = await this.plugin.getPomodoroSettings();
-        const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState,this.plugin);
+        const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState, this.plugin);
 
         // 设置当前活动的番茄钟实例
         this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
