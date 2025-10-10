@@ -337,7 +337,7 @@
                 }}
                 on:keydown={() => {}}
             >
-                <span class="b3-list-item__text">{group.name}</span>
+                <span>{group.name}</span>
             </li>
         {/each}
     </ul>
