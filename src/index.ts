@@ -1560,6 +1560,52 @@ export default class ReminderPlugin extends Plugin {
         }
     }
 
+    // 打开四象限矩阵标签页
+    openEisenhowerMatrixTab() {
+        const isMobile = getFrontend().endsWith('mobile');
+
+        if (isMobile) {
+            // 手机端：使用Dialog打开四象限矩阵
+            const dialog = new Dialog({
+                title: t("eisenhowerMatrix"),
+                content: '<div id="mobileEisenhowerContainer" style="height: 100%; width: 100%;"></div>',
+                width: "95vw",
+                height: "90vh",
+                destroyCallback: () => {
+                    // 清理四象限矩阵实例
+                    const eisenhowerContainer = dialog.element.querySelector('#mobileEisenhowerContainer') as HTMLElement;
+                    if (eisenhowerContainer && (eisenhowerContainer as any)._eisenhowerView) {
+                        const eisenhowerView = (eisenhowerContainer as any)._eisenhowerView;
+                        if (typeof eisenhowerView.destroy === 'function') {
+                            eisenhowerView.destroy();
+                        }
+                    }
+                }
+            });
+
+            // 在Dialog中创建四象限矩阵视图
+            const eisenhowerContainer = dialog.element.querySelector('#mobileEisenhowerContainer') as HTMLElement;
+            if (eisenhowerContainer) {
+                const eisenhowerView = new EisenhowerMatrixView(eisenhowerContainer, this);
+                // 保存实例引用用于清理
+                (eisenhowerContainer as any)._eisenhowerView = eisenhowerView;
+                // 初始化视图
+                eisenhowerView.initialize();
+            }
+        } else {
+            // 桌面端：使用Tab打开四象限矩阵
+            openTab({
+                app: this.app,
+                custom: {
+                    title: t("eisenhowerMatrix"),
+                    icon: "iconGrid",
+                    id: this.name + EISENHOWER_TAB_TYPE,
+                    data: {}
+                }
+            });
+        }
+    }
+
     private async addBreadcrumbReminderButton(protyle: any) {
         if (!protyle || !protyle.element) return;
 

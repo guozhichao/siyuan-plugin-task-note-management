@@ -3794,16 +3794,12 @@ export class CalendarView {
      * 打开四象限视图Tab
      */
     private openEisenhowerTab() {
-        // 使用openTab打开四象限视图
-        openTab({
-            app: this.plugin.app,
-            custom: {
-                title: t("eisenhowerMatrix"),
-                icon: "iconProject",
-                id: this.plugin.name + "reminder_eisenhower_tab",
-                data: {}
-            }
-        });
+        try {
+            this.plugin.openEisenhowerMatrixTab();
+        } catch (error) {
+            console.error('打开四象限面板失败:', error);
+            showMessage("打开四象限面板失败");
+        }
     }
 
     /**

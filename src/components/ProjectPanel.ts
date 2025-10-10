@@ -1641,15 +1641,7 @@ export class ProjectPanel {
     private openEisenhowerMatrix() {
         try {
             if (this.plugin) {
-                openTab({
-                    app: this.plugin.app,
-                    custom: {
-                        title: t("eisenhowerMatrix") || "四象限面板",
-                        icon: "iconGrid",
-                        id: this.plugin.name + EISENHOWER_TAB_TYPE,
-                        data: {}
-                    }
-                });
+                this.plugin.openEisenhowerMatrixTab();
             } else {
                 showMessage("插件实例不可用");
             }

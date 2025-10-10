@@ -5717,15 +5717,8 @@ export class ReminderPanel {
      */
     private openEisenhowerMatrix() {
         try {
-            // 使用openTab打开四象限面板
-            openTab({
-                app: this.plugin.app,
-                custom: {
-                    title: t("eisenhowerMatrix") || "四象限面板",
-                    icon: "iconGrid",
-                    id: this.plugin.name + EISENHOWER_TAB_TYPE
-                }
-            });
+            // 使用插件的openEisenhowerMatrixTab方法打开四象限面板
+            this.plugin.openEisenhowerMatrixTab();
         } catch (error) {
             console.error('打开四象限面板失败:', error);
             showMessage("打开四象限面板失败");
