@@ -43,8 +43,8 @@ export class ProjectKanbanView {
 
     // 分页：每页最多显示的顶层任务数量
     private pageSize: number = 30;
-    // 存储每列当前页，key 为 status ('todo'|'doing'|'done')
-    private pageIndexMap: { [status: string]: number } = { todo: 1, doing: 1, done: 1 };
+    // 存储每列当前页，key 为 status ('long_term'|'short_term'|'doing'|'done')
+    private pageIndexMap: { [status: string]: number } = { long_term: 1, short_term: 1, doing: 1, done: 1 };
 
     // 指示器状态跟踪
     private currentIndicatorType: 'none' | 'sort' | 'parentChild' = 'none';
@@ -202,10 +202,11 @@ export class ProjectKanbanView {
         kanbanContainer.className = 'project-kanban-container';
         this.container.appendChild(kanbanContainer);
 
-        // 创建三个列
-        this.createKanbanColumn(kanbanContainer, 'todo', '待办', '#6c757d');
-        this.createKanbanColumn(kanbanContainer, 'doing', '进行中', '#007bff');
-        this.createKanbanColumn(kanbanContainer, 'done', '已完成', '#28a745');
+        // 创建四个列：进行中、短期、长期、已完成
+        this.createKanbanColumn(kanbanContainer, 'doing', '进行中', '#f39c12');
+        this.createKanbanColumn(kanbanContainer, 'short_term', '短期', '#3498db');
+        this.createKanbanColumn(kanbanContainer, 'long_term', '长期', '#9b59b6');
+        this.createKanbanColumn(kanbanContainer, 'done', '已完成', '#27ae60');
 
         // 添加自定义样式
         this.addCustomStyles();
@@ -533,11 +534,12 @@ export class ProjectKanbanView {
             // 重置分页索引，防止页码超出范围
             try {
                 const counts = {
-                    todo: this.tasks.filter(t => t.status === 'todo').filter(t => !t.parentId || !this.tasks.find(tt => tt.id === t.parentId)).length,
                     doing: this.tasks.filter(t => t.status === 'doing').filter(t => !t.parentId || !this.tasks.find(tt => tt.id === t.parentId)).length,
+                    short_term: this.tasks.filter(t => t.status === 'short_term').filter(t => !t.parentId || !this.tasks.find(tt => tt.id === t.parentId)).length,
+                    long_term: this.tasks.filter(t => t.status === 'long_term').filter(t => !t.parentId || !this.tasks.find(tt => tt.id === t.parentId)).length,
                     done: this.tasks.filter(t => t.status === 'done').filter(t => !t.parentId || !this.tasks.find(tt => tt.id === t.parentId)).length,
                 };
-                for (const status of ['todo', 'doing', 'done']) {
+                for (const status of ['doing', 'short_term', 'long_term', 'done']) {
                     const totalTop = counts[status as keyof typeof counts] || 0;
                     const totalPages = Math.max(1, Math.ceil(totalTop / this.pageSize));
                     const current = this.pageIndexMap[status] || 1;
@@ -559,7 +561,9 @@ export class ProjectKanbanView {
     private getTaskStatus(task: any): string {
         if (task.completed) return 'done';
         if (task.kanbanStatus === 'doing') return 'doing';
-        return 'todo';
+        // 根据termType确定是长期还是短期
+        if (task.termType === 'long_term') return 'long_term';
+        return 'short_term'; // 默认为短期
     }
 
     private updateSortButtonTitle() {
@@ -709,12 +713,14 @@ export class ProjectKanbanView {
     }
 
     private renderKanban() {
-        const todoTasks = this.tasks.filter(task => task.status === 'todo');
         const doingTasks = this.tasks.filter(task => task.status === 'doing');
+        const shortTermTasks = this.tasks.filter(task => task.status === 'short_term');
+        const longTermTasks = this.tasks.filter(task => task.status === 'long_term');
         const doneTasks = this.tasks.filter(task => task.status === 'done');
 
-        this.renderColumn('todo', todoTasks);
         this.renderColumn('doing', doingTasks);
+        this.renderColumn('short_term', shortTermTasks);
+        this.renderColumn('long_term', longTermTasks);
 
         if (this.showDone) {
             const sortedDoneTasks = this.sortDoneTasks(doneTasks);
@@ -1598,16 +1604,29 @@ export class ProjectKanbanView {
 
         menu.addSeparator();
 
-        // 状态切换
-        const currentStatus = this.getTaskStatus(task);
+        // 任务类型切换
+        const currentTermType = task.termType || 'short_term';
 
-        if (currentStatus !== 'todo') {
+        if (currentTermType !== 'short_term') {
             menu.addItem({
-                iconHTML: "📋",
-                label: "移动到待办",
-                click: () => this.changeTaskStatus(task, 'todo')
+                iconHTML: "📝",
+                label: "设为短期任务",
+                click: () => this.changeTaskStatus(task, 'short_term')
             });
         }
+
+        if (currentTermType !== 'long_term') {
+            menu.addItem({
+                iconHTML: "🎯",
+                label: "设为长期任务",
+                click: () => this.changeTaskStatus(task, 'long_term')
+            });
+        }
+
+        menu.addSeparator();
+
+        // 状态切换
+        const currentStatus = this.getTaskStatus(task);
 
         if (currentStatus !== 'doing') {
             menu.addItem({
@@ -1740,7 +1759,14 @@ export class ProjectKanbanView {
                     } else {
                         reminderData[actualTaskId].completed = false;
                         delete reminderData[actualTaskId].completedTime;
-                        reminderData[actualTaskId].kanbanStatus = newStatus;
+
+                        // 根据新状态设置kanbanStatus和termType
+                        if (newStatus === 'long_term' || newStatus === 'short_term') {
+                            reminderData[actualTaskId].termType = newStatus;
+                            reminderData[actualTaskId].kanbanStatus = 'todo';
+                        } else if (newStatus === 'doing') {
+                            reminderData[actualTaskId].kanbanStatus = 'doing';
+                        }
                     }
                 }
 
@@ -1975,6 +2001,17 @@ export class ProjectKanbanView {
                                 <div class="priority-option selected" data-priority="none"><div class="priority-dot none"></div><span>无</span></div>
                             </div>
                         </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">任务类型</label>
+                            <div class="term-type-selector" id="termTypeSelector">
+                                <div class="term-type-option selected" data-term-type="short_term">
+                                    <span>📝</span><span>短期任务</span>
+                                </div>
+                                <div class="term-type-option" data-term-type="long_term">
+                                    <span>🎯</span><span>长期任务</span>
+                                </div>
+                            </div>
+                        </div>
                          <div class="b3-form__group">
                             <label class="b3-form__label">任务日期</label>
                             <div class="reminder-date-container">
@@ -2019,6 +2056,7 @@ export class ProjectKanbanView {
         const startDateInput = dialog.element.querySelector('#taskStartDate') as HTMLInputElement;
         const endDateInput = dialog.element.querySelector('#taskEndDate') as HTMLInputElement;
         const prioritySelector = dialog.element.querySelector('#prioritySelector') as HTMLElement;
+        const termTypeSelector = dialog.element.querySelector('#termTypeSelector') as HTMLElement;
         const categorySelector = dialog.element.querySelector('#categorySelector') as HTMLElement;
         const manageCategoriesBtn = dialog.element.querySelector('#manageCategoriesBtn') as HTMLButtonElement;
         const blockIdInput = dialog.element.querySelector('#taskBlockId') as HTMLInputElement;
@@ -2035,6 +2073,16 @@ export class ProjectKanbanView {
             const option = target.closest('.priority-option') as HTMLElement;
             if (option) {
                 prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+            }
+        });
+
+        // 绑定任务类型选择事件
+        termTypeSelector.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            const option = target.closest('.term-type-option') as HTMLElement;
+            if (option) {
+                termTypeSelector.querySelectorAll('.term-type-option').forEach(opt => opt.classList.remove('selected'));
                 option.classList.add('selected');
             }
         });
@@ -2096,6 +2144,9 @@ export class ProjectKanbanView {
             const selectedPriority = prioritySelector.querySelector('.priority-option.selected') as HTMLElement;
             const priority = selectedPriority?.getAttribute('data-priority') || 'none';
 
+            const selectedTermType = termTypeSelector.querySelector('.term-type-option.selected') as HTMLElement;
+            const termType = selectedTermType?.getAttribute('data-term-type') || 'short_term';
+
             const selectedCategory = categorySelector.querySelector('.category-option.selected') as HTMLElement;
             const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
 
@@ -2107,6 +2158,7 @@ export class ProjectKanbanView {
                 date: startDateInput.value,
                 endDate: endDateInput.value,
                 priority: priority,
+                termType: termType,
                 categoryId: categoryId,
                 blockId: blockId
             }, parentTask);
@@ -2131,6 +2183,7 @@ export class ProjectKanbanView {
             projectId: this.projectId,
             completed: false,
             kanbanStatus: 'todo',
+            termType: taskData.termType || 'short_term', // 默认为短期任务
             createdTime: new Date().toISOString(),
         };
 
@@ -2423,6 +2476,7 @@ export class ProjectKanbanView {
                 projectId: this.projectId,
                 completed: false,
                 kanbanStatus: 'todo',
+                termType: 'short_term', // 默认为短期任务
                 createdTime: new Date().toISOString(),
                 date: task.startDate,
                 endDate: task.endDate,
@@ -2917,24 +2971,37 @@ export class ProjectKanbanView {
 
             .project-kanban-container {
                 flex: 1;
-                display: flex;
-                flex-wrap: wrap;
+                display: grid;
                 gap: 16px;
                 padding: 16px;
                 overflow-y: auto;
                 min-height: 0;
+                /* 默认使用四宫格布局 */
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            /* 宽屏：四列横向布局 */
+            @media (min-width: 1290px) {
+                .project-kanban-container {
+                    grid-template-columns: repeat(4, 1fr);
+                }
+            }
+
+            /* 窄屏：单列布局 */
+            @media (max-width: 640px) {
+                .project-kanban-container {
+                    grid-template-columns: 1fr;
+                }
             }
 
             .kanban-column {
-                flex: 1 1 300px;
-                min-width: 280px;
                 background: var(--b3-theme-surface);
                 border-radius: 8px;
                 border: 1px solid var(--b3-theme-border);
                 display: flex;
                 flex-direction: column;
+                min-width: 0; /* 允许网格收缩 */
                 max-height: 100%;
-                max-width: 100%;
             }
 
             .kanban-column-header {
@@ -3211,6 +3278,35 @@ export class ProjectKanbanView {
             .priority-option .priority-dot.medium { background-color: #f39c12; }
             .priority-option .priority-dot.low { background-color: #3498db; }
             .priority-option .priority-dot.none { background-color: #95a5a6; }
+            
+            .term-type-selector {
+                display: flex;
+                gap: 12px;
+            }
+            .term-type-option {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 16px;
+                border-radius: 20px;
+                cursor: pointer;
+                border: 2px solid var(--b3-theme-border);
+                transition: all 0.2s ease;
+                background-color: var(--b3-theme-surface);
+            }
+            .term-type-option:hover {
+                background-color: var(--b3-theme-surface-lighter);
+                border-color: var(--b3-theme-primary-lighter);
+            }
+            .term-type-option.selected {
+                font-weight: 600;
+                border-color: var(--b3-theme-primary);
+                background-color: var(--b3-theme-primary-lightest);
+                color: var(--b3-theme-primary);
+            }
+            .term-type-option span:first-child {
+                font-size: 18px;
+            }
             
             .category-selector .category-option {
                 padding: 4px 10px;

@@ -7,6 +7,7 @@ export interface ReminderItem {
     completed: boolean;  // 是否已完成
     createdAt: string;   // 创建时间
     notified?: boolean;
+    termType?: 'long_term' | 'short_term';  // 任务类型：长期或短期
 }
 
 export interface ReminderData {
