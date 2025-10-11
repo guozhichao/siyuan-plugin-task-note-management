@@ -172,9 +172,28 @@ export class PomodoroTimer {
         this.isRunning = inheritState.isRunning && !inheritState.isPaused;
         this.isPaused = false;
 
-        // 重置时间追踪变量
-        this.pausedTime = 0;
-        this.startTime = 0;
+        // 设置时间追踪变量以支持继续计时
+        // pausedTime 存储已经过的总秒数
+        // startTime 设置为"如果从0开始，应该在什么时候开始才能达到当前的已用时间"
+        // 即：startTime = 现在 - (已用秒数 * 1000)
+        if (this.isCountUp) {
+            // 正计时模式
+            this.pausedTime = this.timeElapsed;
+            this.startTime = Date.now() - (this.timeElapsed * 1000);
+        } else {
+            // 倒计时模式
+            this.pausedTime = this.timeElapsed;
+            this.startTime = Date.now() - (this.timeElapsed * 1000);
+        }
+        
+        console.log('时间追踪变量已设置:', {
+            pausedTime: this.pausedTime,
+            startTime: this.startTime,
+            currentTime: Date.now(),
+            timeElapsed: this.timeElapsed,
+            timeLeft: this.timeLeft,
+            计算验证: Math.floor((Date.now() - this.startTime) / 1000)
+        });
 
         // 设置当前阶段的原始时长
         if (this.isWorkPhase) {
@@ -2816,7 +2835,8 @@ export class PomodoroTimer {
 
             if (this.isCountUp) {
                 if (this.isWorkPhase) {
-                    // 正计时工作时间：直接使用经过的时间
+                    // 正计时工作时间：elapsedSinceStart 已经包含了继承的时间
+                    // 因为 startTime = Date.now() - (继承的秒数 * 1000)
                     this.timeElapsed = elapsedSinceStart;
 
                     // 检查是否完成一个番茄
@@ -2840,7 +2860,7 @@ export class PomodoroTimer {
                     }
                 }
             } else {
-                // 倒计时模式：从总时间减去经过的时间
+                // 倒计时模式：elapsedSinceStart 已经包含了继承的时间
                 this.timeLeft = this.totalTime - elapsedSinceStart;
 
                 if (this.timeLeft <= 0) {
@@ -2893,7 +2913,15 @@ export class PomodoroTimer {
         this.isPaused = false;
 
         // 重新计算开始时间，保持已暂停的时间
-        this.startTime = Date.now() - this.pausedTime;
+        // 注意：startTime 应该是"如果从0开始计时应该在什么时候开始"
+        // 所以是 现在 - pausedTime（已经过的秒数）
+        this.startTime = Date.now() - (this.pausedTime * 1000);
+
+        console.log('resumeTimer: 恢复计时', {
+            pausedTime: this.pausedTime,
+            startTime: this.startTime,
+            timeElapsed: this.timeElapsed
+        });
 
         // 恢复对应的背景音
         if (this.isWorkPhase && this.workAudio) {
@@ -2913,11 +2941,11 @@ export class PomodoroTimer {
 
         this.timer = window.setInterval(() => {
             const currentTime = Date.now();
-
             const elapsedSinceStart = Math.floor((currentTime - this.startTime) / 1000);
 
             if (this.isCountUp) {
                 if (this.isWorkPhase) {
+                    // 正计时：直接使用从开始到现在的总时间
                     this.timeElapsed = elapsedSinceStart;
 
                     const pomodoroLength = this.settings.workDuration * 60;
@@ -2939,6 +2967,7 @@ export class PomodoroTimer {
                     }
                 }
             } else {
+                // 倒计时：从总时间减去已经过的时间
                 this.timeLeft = this.totalTime - elapsedSinceStart;
 
                 if (this.timeLeft <= 0) {
@@ -3943,6 +3972,89 @@ export class PomodoroTimer {
         if (this.isRunning && this.isPaused) {
             this.resumeTimer();
         }
+    }
+
+    /**
+     * 更新番茄钟状态（用于跨窗口同步）
+     * @param reminder 新的提醒对象
+     * @param settings 新的设置
+     * @param isCountUp 是否正计时
+     * @param inheritState 要继承的状态
+     */
+    public async updateState(reminder: any, settings: any, isCountUp: boolean, inheritState?: any) {
+        console.log('PomodoroTimer: 开始更新状态', {
+            oldReminder: this.reminder.title,
+            newReminder: reminder.title,
+            hasInheritState: !!inheritState,
+            inheritState: inheritState ? {
+                isRunning: inheritState.isRunning,
+                isWorkPhase: inheritState.isWorkPhase,
+                timeElapsed: inheritState.timeElapsed,
+                timeLeft: inheritState.timeLeft,
+                completedPomodoros: inheritState.completedPomodoros
+            } : null
+        });
+
+        // 停止当前计时器
+        if (this.isRunning) {
+            this.pauseTimer();
+        }
+
+        // 停止所有音频
+        this.stopAllAudio();
+
+        // 更新基本信息
+        this.reminder = reminder;
+        this.settings = settings;
+        this.isCountUp = isCountUp;
+
+        // 重新初始化音频（如果设置改变）
+        this.initAudio();
+
+        // 如果有继承状态，应用它
+        if (inheritState) {
+            console.log('PomodoroTimer: 应用继承状态');
+            this.applyInheritedState(inheritState);
+        } else {
+            // 否则重置为初始状态
+            console.log('PomodoroTimer: 重置为初始状态（没有继承状态）');
+            this.isRunning = false;
+            this.isPaused = false;
+            this.isWorkPhase = true;
+            this.isLongBreak = false;
+            this.timeLeft = settings.workDuration * 60;
+            this.timeElapsed = 0;
+            this.breakTimeLeft = 0;
+            this.totalTime = this.timeLeft;
+            this.currentPhaseOriginalDuration = settings.workDuration;
+        }
+
+        // 更新事件标题显示（在更新其他显示之前）
+        const eventTitle = this.container.querySelector('.pomodoro-event-title') as HTMLElement;
+        if (eventTitle) {
+            console.log('PomodoroTimer: 更新标题', {
+                old: eventTitle.textContent,
+                new: reminder.title || "未命名笔记"
+            });
+            eventTitle.textContent = reminder.title || "未命名笔记";
+            eventTitle.title = "打开笔记: " + (reminder.title || "未命名笔记");
+        } else {
+            console.warn('PomodoroTimer: 未找到标题元素');
+        }
+
+        // 更新显示
+        console.log('PomodoroTimer: 更新时间显示');
+        this.updateDisplay();
+        this.updateStatsDisplay();
+
+        // 如果之前在运行，现在继续运行
+        if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
+            console.log('PomodoroTimer: 继续运行番茄钟');
+            await this.resumeTimer();
+        }
+
+        console.log('PomodoroTimer: 状态更新完成');
+        showMessage('番茄钟已更新', 1500);
     }
 
     /**

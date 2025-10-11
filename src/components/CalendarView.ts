@@ -3703,63 +3703,124 @@ export class CalendarView {
     }
 
     private async performStartPomodoro(calendarEvent: any, inheritState?: any) {
-        // 如果已经有活动的番茄钟，先关闭它
-        this.pomodoroManager.closeCurrentTimer();
-
         const settings = await this.plugin.getPomodoroSettings();
-        console.log('结果', settings);
+        
+        // 检查是否已有独立窗口存在
+        const hasStandaloneWindow = this.plugin && this.plugin.pomodoroWindowId;
+        
+        if (hasStandaloneWindow) {
+            // 如果存在独立窗口，更新独立窗口中的番茄钟
+            console.log('检测到独立窗口，更新独立窗口中的番茄钟');
+            
+            // 构建提醒对象
+            const reminder = {
+                id: calendarEvent.id,
+                title: calendarEvent.title,
+                blockId: calendarEvent.extendedProps.blockId,
+                isRepeatInstance: calendarEvent.extendedProps.isRepeated,
+                originalId: calendarEvent.extendedProps.originalId
+            };
+            
+            if (typeof this.plugin.openPomodoroWindow === 'function') {
+                await this.plugin.openPomodoroWindow(reminder, settings, false, inheritState);
+                
+                // 如果继承了状态且原来正在运行，显示继承信息
+                if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
+                    const phaseText = inheritState.isWorkPhase ? '工作时间' : '休息时间';
+                    showMessage(`已切换任务并继承${phaseText}进度`, 2000);
+                }
+            }
+        } else {
+            // 没有独立窗口，在当前窗口显示番茄钟 Dialog（默认行为）
+            console.log('没有独立窗口，在当前窗口显示番茄钟 Dialog');
+            
+            // 如果已经有活动的番茄钟，先关闭它
+            this.pomodoroManager.closeCurrentTimer();
 
-        // 构建提醒对象
-        const reminder = {
-            id: calendarEvent.id,
-            title: calendarEvent.title,
-            blockId: calendarEvent.extendedProps.blockId,
-            isRepeatInstance: calendarEvent.extendedProps.isRepeated,
-            originalId: calendarEvent.extendedProps.originalId
-        };
+            // 构建提醒对象
+            const reminder = {
+                id: calendarEvent.id,
+                title: calendarEvent.title,
+                blockId: calendarEvent.extendedProps.blockId,
+                isRepeatInstance: calendarEvent.extendedProps.isRepeated,
+                originalId: calendarEvent.extendedProps.originalId
+            };
 
-        const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState);
+            const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState);
 
-        // 设置当前活动的番茄钟实例
-        this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
+            // 设置当前活动的番茄钟实例
+            this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
 
-        pomodoroTimer.show();
+            pomodoroTimer.show();
 
-        // 如果继承了状态且原来正在运行，显示继承信息
-        if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
-            const phaseText = inheritState.isWorkPhase ? '工作时间' : '休息时间';
-            showMessage(`已切换任务并继承${phaseText}进度`, 2000);
+            // 如果继承了状态且原来正在运行，显示继承信息
+            if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
+                const phaseText = inheritState.isWorkPhase ? '工作时间' : '休息时间';
+                showMessage(`已切换任务并继承${phaseText}进度`, 2000);
+            }
         }
     }
 
     private async performStartPomodoroCountUp(calendarEvent: any, inheritState?: any) {
-        // 如果已经有活动的番茄钟，先关闭它
-        this.pomodoroManager.closeCurrentTimer();
-
         const settings = await this.plugin.getPomodoroSettings();
-
-        // 构建提醒对象
-        const reminder = {
-            id: calendarEvent.id,
-            title: calendarEvent.title,
-            blockId: calendarEvent.extendedProps.blockId,
-            isRepeatInstance: calendarEvent.extendedProps.isRepeated,
-            originalId: calendarEvent.extendedProps.originalId
-        };
-
-        const pomodoroTimer = new PomodoroTimer(reminder, settings, true, inheritState);
-
-        // 设置当前活动的番茄钟实例并直接切换到正计时模式
-        this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
-
-        pomodoroTimer.show();
-
-        // 如果继承了状态且原来正在运行，显示继承信息
-        if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
-            const phaseText = inheritState.isWorkPhase ? '工作时间' : '休息时间';
-            showMessage(`已切换到正计时模式并继承${phaseText}进度`, 2000);
+        
+        // 检查是否已有独立窗口存在
+        const hasStandaloneWindow = this.plugin && this.plugin.pomodoroWindowId;
+        
+        if (hasStandaloneWindow) {
+            // 如果存在独立窗口，更新独立窗口中的番茄钟
+            console.log('检测到独立窗口，更新独立窗口中的番茄钟（正计时模式）');
+            
+            // 构建提醒对象
+            const reminder = {
+                id: calendarEvent.id,
+                title: calendarEvent.title,
+                blockId: calendarEvent.extendedProps.blockId,
+                isRepeatInstance: calendarEvent.extendedProps.isRepeated,
+                originalId: calendarEvent.extendedProps.originalId
+            };
+            
+            if (typeof this.plugin.openPomodoroWindow === 'function') {
+                await this.plugin.openPomodoroWindow(reminder, settings, true, inheritState);
+                
+                // 如果继承了状态且原来正在运行，显示继承信息
+                if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
+                    const phaseText = inheritState.isWorkPhase ? '工作时间' : '休息时间';
+                    showMessage(`已切换到正计时模式并继承${phaseText}进度`, 2000);
+                } else {
+                    showMessage("已启动正计时番茄钟", 2000);
+                }
+            }
         } else {
-            showMessage("已启动正计时番茄钟", 2000);
+            // 没有独立窗口，在当前窗口显示番茄钟 Dialog（默认行为）
+            console.log('没有独立窗口，在当前窗口显示番茄钟 Dialog（正计时模式）');
+            
+            // 如果已经有活动的番茄钟，先关闭它
+            this.pomodoroManager.closeCurrentTimer();
+
+            // 构建提醒对象
+            const reminder = {
+                id: calendarEvent.id,
+                title: calendarEvent.title,
+                blockId: calendarEvent.extendedProps.blockId,
+                isRepeatInstance: calendarEvent.extendedProps.isRepeated,
+                originalId: calendarEvent.extendedProps.originalId
+            };
+
+            const pomodoroTimer = new PomodoroTimer(reminder, settings, true, inheritState);
+
+            // 设置当前活动的番茄钟实例并直接切换到正计时模式
+            this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
+
+            pomodoroTimer.show();
+
+            // 如果继承了状态且原来正在运行，显示继承信息
+            if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
+                const phaseText = inheritState.isWorkPhase ? '工作时间' : '休息时间';
+                showMessage(`已切换到正计时模式并继承${phaseText}进度`, 2000);
+            } else {
+                showMessage("已启动正计时番茄钟", 2000);
+            }
         }
     }
 

@@ -457,6 +457,8 @@
     "pomodoroTimer": "番茄钟",
     "openedInNewWindow": "已在新窗口中打开",
     "openWindowFailed": "打开窗口失败",
+    "pomodoroWindowUpdated": "已更新独立窗口中的番茄钟",
+    "openPomodoroWindowFailed": "打开番茄钟窗口失败",
     "daysRemaining": "还剩${days}天",
     "overdueDays": "已过期${days}天",
     "dueToday": "今天截止",
