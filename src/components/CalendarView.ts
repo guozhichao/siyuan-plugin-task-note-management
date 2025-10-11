@@ -3746,7 +3746,7 @@ export class CalendarView {
                 originalId: calendarEvent.extendedProps.originalId
             };
 
-            const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState);
+            const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState, this.plugin);
 
             // 设置当前活动的番茄钟实例
             this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
@@ -3807,7 +3807,7 @@ export class CalendarView {
                 originalId: calendarEvent.extendedProps.originalId
             };
 
-            const pomodoroTimer = new PomodoroTimer(reminder, settings, true, inheritState);
+            const pomodoroTimer = new PomodoroTimer(reminder, settings, true, inheritState, this.plugin);
 
             // 设置当前活动的番茄钟实例并直接切换到正计时模式
             this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);

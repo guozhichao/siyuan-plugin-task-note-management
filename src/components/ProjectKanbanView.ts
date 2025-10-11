@@ -2874,7 +2874,7 @@ export class ProjectKanbanView {
                 originalId: task.id
             };
 
-            const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState);
+            const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState, this.plugin);
             this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
             pomodoroTimer.show();
 
@@ -2930,7 +2930,7 @@ export class ProjectKanbanView {
                 originalId: task.id
             };
 
-            const pomodoroTimer = new PomodoroTimer(reminder, settings, true, inheritState);
+            const pomodoroTimer = new PomodoroTimer(reminder, settings, true, inheritState, this.plugin);
             this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
             pomodoroTimer.show();
 

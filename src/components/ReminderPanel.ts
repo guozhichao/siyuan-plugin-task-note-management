@@ -3396,7 +3396,7 @@ export class ReminderPanel {
             // 如果已经有活动的番茄钟，先关闭它
             this.pomodoroManager.closeCurrentTimer();
 
-            const pomodoroTimer = new PomodoroTimer(reminder, settings, true, inheritState);
+            const pomodoroTimer = new PomodoroTimer(reminder, settings, true, inheritState, this.plugin);
 
             // 设置当前活动的番茄钟实例并直接切换到正计时模式
             this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
