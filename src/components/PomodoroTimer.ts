@@ -1083,7 +1083,7 @@ export class PomodoroTimer {
             }
         });
 
-        // 展开/折叠按钮
+        // 展开/折叠按钮（仅在Tab模式下显示）
         this.expandToggleBtn = document.createElement('button');
         this.expandToggleBtn.className = 'pomodoro-expand-toggle';
         this.expandToggleBtn.style.cssText = `
@@ -1097,7 +1097,7 @@ export class PomodoroTimer {
             line-height: 1;
             opacity: 0.7;
             transition: all 0.2s;
-            display: flex;
+            display: none;
             align-items: center;
             justify-content: center;
         `;
@@ -1399,11 +1399,18 @@ export class PomodoroTimer {
                 this.stopBtn.style.display = 'none';
             } else if (this.isPaused) {
                 // 暂停状态：显示继续按钮和停止按钮
+                // 根据按钮大小自适应计算间距
+                const startBtnWidth = parseFloat(getComputedStyle(this.startPauseBtn).width) || 32;
+                const stopBtnWidth = parseFloat(getComputedStyle(this.stopBtn).width) || 28;
+                const gap = Math.max(4, startBtnWidth * 0.15); // 按钮之间的间距，至少4px
+                const startOffset = -(stopBtnWidth / 2 + gap / 2);
+                const stopOffset = startBtnWidth / 2 + gap / 2;
+                
                 this.startPauseBtn.style.opacity = '1';
                 this.stopBtn.style.opacity = '1';
                 this.stopBtn.style.display = 'flex';
-                this.startPauseBtn.style.transform = 'translate(-50%, -50%) translateX(-12px)';
-                this.stopBtn.style.transform = 'translate(-50%, -50%) translateX(12px)';
+                this.startPauseBtn.style.transform = `translate(-50%, -50%) translateX(${startOffset}px)`;
+                this.stopBtn.style.transform = `translate(-50%, -50%) translateX(${stopOffset}px)`;
             } else {
                 // 运行状态：显示暂停按钮
                 this.startPauseBtn.style.opacity = '1';
@@ -2748,7 +2755,14 @@ export class PomodoroTimer {
         } else if (this.isPaused) {
             this.startPauseBtn.innerHTML = '▶️';
             this.stopBtn.style.display = 'flex';
-            // 暂停状态下不自动设置位置，让mouseenter事件处理
+            // 暂停状态下自动设置按钮位置，避免重叠
+            const startBtnWidth = parseFloat(getComputedStyle(this.startPauseBtn).width) || 32;
+            const stopBtnWidth = parseFloat(getComputedStyle(this.stopBtn).width) || 28;
+            const gap = Math.max(4, startBtnWidth * 0.15);
+            const startOffset = -(stopBtnWidth / 2 + gap / 2);
+            const stopOffset = startBtnWidth / 2 + gap / 2;
+            this.startPauseBtn.style.transform = `translate(-50%, -50%) translateX(${startOffset}px)`;
+            this.stopBtn.style.transform = `translate(-50%, -50%) translateX(${stopOffset}px)`;
         } else {
             this.startPauseBtn.innerHTML = '⏸';
             // 重置按钮位置
@@ -2776,16 +2790,24 @@ export class PomodoroTimer {
                 this.resumeTimer();
             } else {
                 this.pauseTimer();
-                // 暂停后立即显示继续和停止按钮
+                // 暂停后立即显示继续和停止按钮，使用自适应间距
                 const statusIcon = this.container.querySelector('.pomodoro-status-icon') as HTMLElement;
                 if (statusIcon) {
                     statusIcon.style.opacity = '0.3';
                 }
+                
+                // 根据按钮大小自适应计算间距
+                const startBtnWidth = parseFloat(getComputedStyle(this.startPauseBtn).width) || 32;
+                const stopBtnWidth = parseFloat(getComputedStyle(this.stopBtn).width) || 28;
+                const gap = Math.max(4, startBtnWidth * 0.15); // 按钮之间的间距，至少4px
+                const startOffset = -(stopBtnWidth / 2 + gap / 2);
+                const stopOffset = startBtnWidth / 2 + gap / 2;
+                
                 this.startPauseBtn.style.opacity = '1';
                 this.stopBtn.style.opacity = '1';
                 this.stopBtn.style.display = 'flex';
-                this.startPauseBtn.style.transform = 'translate(-50%, -50%) translateX(-12px)';
-                this.stopBtn.style.transform = 'translate(-50%, -50%) translateX(12px)';
+                this.startPauseBtn.style.transform = `translate(-50%, -50%) translateX(${startOffset}px)`;
+                this.stopBtn.style.transform = `translate(-50%, -50%) translateX(${stopOffset}px)`;
             }
         }
 
@@ -2905,9 +2927,9 @@ export class PomodoroTimer {
             this.timer = null;
         }
 
-        // 记录暂停时已经经过的时间
+        // 记录暂停时已经经过的时间（单位：秒）
         const currentTime = Date.now();
-        this.pausedTime = currentTime - this.startTime;
+        this.pausedTime = Math.floor((currentTime - this.startTime) / 1000);
 
         // 停止随机提示音定时器
         this.stopRandomNotificationTimer();
