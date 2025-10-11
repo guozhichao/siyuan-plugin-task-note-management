@@ -2480,9 +2480,12 @@ export class PomodoroTimer {
             // 根据容器大小计算元素尺寸，考虑宽度和可用高度
             const minDimension = Math.min(containerWidth * 0.9, availableHeight * 0.6);
 
-            // 圆环大小：动态计算，最小100px，最大400px
-            let circleSize = Math.max(100, Math.min(400, minDimension));
+            // 圆环大小：动态计算，最小100px，最大450px
+            let circleSize = Math.max(100, Math.min(500, minDimension));
             let radius = circleSize / 2.2;
+
+            // 根据圆环大小动态计算描边宽度
+            const strokeWidth = Math.max(4, Math.min(12, circleSize * 0.04));
 
             // 更新圆环尺寸
             progressContainer.style.width = `${circleSize}px`;
@@ -2495,9 +2498,11 @@ export class PomodoroTimer {
             bgCircle.setAttribute('cx', center.toString());
             bgCircle.setAttribute('cy', center.toString());
             bgCircle.setAttribute('r', radius.toString());
+            bgCircle.setAttribute('stroke-width', strokeWidth.toString());
             this.circularProgress.setAttribute('cx', center.toString());
             this.circularProgress.setAttribute('cy', center.toString());
             this.circularProgress.setAttribute('r', radius.toString());
+            this.circularProgress.setAttribute('stroke-width', strokeWidth.toString());
 
             // 更新进度条周长
             const circumference = 2 * Math.PI * radius;
@@ -2536,7 +2541,7 @@ export class PomodoroTimer {
             // 更新事件标题大小
             const eventTitle = this.container.querySelector('.pomodoro-event-title') as HTMLElement;
             if (eventTitle) {
-                const titleSize = Math.max(12, Math.min(32, availableHeight * 0.05));
+                const titleSize = Math.max(12, Math.min(50, availableHeight * 0.05));
                 eventTitle.style.fontSize = `${titleSize}px`;
                 eventTitle.style.padding = `${Math.max(4, titleSize * 0.3)}px ${Math.max(8, titleSize * 0.6)}px`;
                 // 确保标题在小窗口下也能正常显示省略号
@@ -2550,8 +2555,8 @@ export class PomodoroTimer {
                 this.statsContainer.style.display = statsVisible ? 'flex' : 'none';
 
                 if (statsVisible) {
-                    const statsSize = Math.max(10, Math.min(16, availableHeight * 0.04));
-                    const statsValueSize = Math.max(14, Math.min(28, availableHeight * 0.07));
+                    const statsSize = Math.max(15, Math.min(16, availableHeight * 0.04));
+                    const statsValueSize = Math.max(20, Math.min(28, availableHeight * 0.07));
 
                     const statLabels = this.statsContainer.querySelectorAll('div[style*="font-size: 11px"], div[style*="font-size: 16px"]');
                     statLabels.forEach((label: HTMLElement) => {
@@ -2569,6 +2574,19 @@ export class PomodoroTimer {
                     this.statsContainer.style.width = '100%';
                     this.statsContainer.style.maxWidth = '100%';
                 }
+            }
+
+            // 更新番茄计数和音量控制按钮的字体大小
+            const pomodoroCount = this.container.querySelector('.pomodoro-count') as HTMLElement;
+            if (pomodoroCount) {
+                const countSize = Math.max(12, Math.min(24, availableHeight * 0.035));
+                pomodoroCount.style.fontSize = `${countSize}px`;
+            }
+
+            const soundControlBtn = this.container.querySelector('.pomodoro-sound-control') as HTMLElement;
+            if (soundControlBtn) {
+                const soundControlSize = Math.max(12, Math.min(24, availableHeight * 0.035));
+                soundControlBtn.style.fontSize = `${soundControlSize}px`;
             }
 
             // 强制重新渲染进度
