@@ -2480,12 +2480,12 @@ export class PomodoroTimer {
             // 根据容器大小计算元素尺寸，考虑宽度和可用高度
             const minDimension = Math.min(containerWidth * 0.9, availableHeight * 0.6);
 
-            // 圆环大小：动态计算，最小100px，最大450px
+            // 圆环大小：动态计算，最小100px，最大500px
             let circleSize = Math.max(100, Math.min(500, minDimension));
             let radius = circleSize / 2.2;
 
             // 根据圆环大小动态计算描边宽度
-            const strokeWidth = Math.max(4, Math.min(12, circleSize * 0.04));
+            const strokeWidth = Math.max(4, Math.min(15, circleSize * 0.08));
 
             // 更新圆环尺寸
             progressContainer.style.width = `${circleSize}px`;
@@ -2531,7 +2531,7 @@ export class PomodoroTimer {
             this.stopBtn.style.fontSize = `${stopBtnSize * 0.5}px`;
 
             // 更新时间显示大小 - 使用circleSize作为基准更合理
-            const timeSize = Math.max(24, Math.min(80, circleSize * 0.25));
+            const timeSize = Math.max(24, Math.min(100, circleSize * 0.25));
             this.timeDisplay.style.fontSize = `${timeSize}px`;
 
             // 更新状态文字大小
@@ -2545,7 +2545,7 @@ export class PomodoroTimer {
                 eventTitle.style.fontSize = `${titleSize}px`;
                 eventTitle.style.padding = `${Math.max(4, titleSize * 0.3)}px ${Math.max(8, titleSize * 0.6)}px`;
                 // 确保标题在小窗口下也能正常显示省略号
-                eventTitle.style.maxWidth = `${Math.max(100, containerWidth - 40)}px`;
+                eventTitle.style.maxWidth = `${Math.max(110, containerWidth - 40)}px`;
                 eventTitle.style.minWidth = '0'; // 允许缩小
             }
 
@@ -2579,13 +2579,13 @@ export class PomodoroTimer {
             // 更新番茄计数和音量控制按钮的字体大小
             const pomodoroCount = this.container.querySelector('.pomodoro-count') as HTMLElement;
             if (pomodoroCount) {
-                const countSize = Math.max(12, Math.min(24, availableHeight * 0.035));
+                const countSize = Math.max(12, Math.min(50, availableHeight * 0.035));
                 pomodoroCount.style.fontSize = `${countSize}px`;
             }
 
             const soundControlBtn = this.container.querySelector('.pomodoro-sound-control') as HTMLElement;
             if (soundControlBtn) {
-                const soundControlSize = Math.max(12, Math.min(24, availableHeight * 0.035));
+                const soundControlSize = Math.max(12, Math.min(50, availableHeight * 0.035));
                 soundControlBtn.style.fontSize = `${soundControlSize}px`;
             }
 
