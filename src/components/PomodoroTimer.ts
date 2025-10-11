@@ -3068,7 +3068,7 @@ export class PomodoroTimer {
         if (this.isCountUp && this.isWorkPhase && this.timeElapsed > 0) {
             const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
             const eventTitle = this.reminder.title || '番茄专注';
-            
+
             // 正计时模式：记录总的实际专注时间（不按番茄单位划分）
             await this.recordManager.recordWorkSession(
                 Math.floor(this.timeElapsed / 60), // 记录总的专注分钟数
@@ -3218,7 +3218,7 @@ export class PomodoroTimer {
             setTimeout(() => {
                 this.updateStatsDisplay();
             }, 100);
-            
+
             // 倒计时模式：记录完成的工作番茄
             const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
             const eventTitle = this.reminder.title || '番茄专注';
@@ -3233,7 +3233,7 @@ export class PomodoroTimer {
             // 正计时模式完成番茄后也要停止随机提示音
             this.stopRandomNotificationTimer();
         }
-        
+
         // 更新番茄数量（正计时和倒计时都需要）
         this.completedPomodoros++;
         await this.updateReminderPomodoroCount();
