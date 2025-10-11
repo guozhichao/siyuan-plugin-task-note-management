@@ -1982,7 +1982,7 @@ export class ProjectKanbanView {
                 <div class="b3-dialog__content">
                     <div class="b3-form__group">
                         <label class="b3-form__label">任务标题</label>
-                        <input type="text" id="taskTitle" class="b3-text-field" placeholder="请输入任务标题" required>
+                        <input type="text" id="taskTitle" class="b3-text-field" placeholder="请输入任务标题" required style="width: 100%;">
                     </div>
                     <div class="b3-form__group">
                         <label class="b3-form__label">分类
