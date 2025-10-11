@@ -1,3 +1,13 @@
+## v1.4 / 20251011
+
+- ✨ 番茄钟实现多窗口通信
+- ✨ 任务管理面板：「今日已完成」刷新优化  [#53](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/53)
+- ✨ 项目看板：把todo拆解为long term和short term [#56](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/56)
+- 💄 style(任务标题输入框): 优化项目看板新增任务和任务面板新增子任务标题输入框样式，将任务标题输入框宽度设置为100%
+- 💄 移动端支持打开四象限 #55
+- 💄 移动端设置面板左边栏无显示 [#55](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/55)
+- 🐛 番茄计时最小化异常 [#59](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/59)
+
 ## v1.3 / 20251003
 
 - ✨番茄钟支持新窗口打开
