@@ -1798,16 +1798,10 @@ export class PomodoroTimer {
             }, 0);
         }
 
-        // 添加元素到容器
-        if (this.isTabMode) {
-            this.container.appendChild(header);
-            this.container.appendChild(content);
-        } else {
-            // 悬浮窗口模式：直接添加header和content
-            this.container.appendChild(this.minimizedView);
-            this.container.appendChild(header);
-            this.container.appendChild(content);
-        }
+        // 添加最小化视图到容器（所有模式都需要）
+        this.container.appendChild(this.minimizedView);
+        this.container.appendChild(header);
+        this.container.appendChild(content);
 
         // 根据模式添加到不同位置
         if (this.isTabMode && targetContainer) {
@@ -1819,8 +1813,6 @@ export class PomodoroTimer {
             // 悬浮窗口模式：添加到body并启用拖拽
             this.makeDraggable(header);
             document.body.appendChild(this.container);
-            // 悬浮窗口模式需要添加最小化视图
-            document.body.appendChild(this.minimizedView);
         }
 
         // 更新显示
@@ -2034,24 +2026,83 @@ export class PomodoroTimer {
     private createMinimizedView() {
         this.minimizedView = document.createElement('div');
         this.minimizedView.className = 'pomodoro-minimized-view';
-        this.minimizedView.style.display = 'none';
+        this.minimizedView.style.cssText = `
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            align-items: center;
+            justify-content: center;
+        `;
 
         // 进度背景
         this.minimizedBg = document.createElement('div');
         this.minimizedBg.className = 'pomodoro-minimized-bg';
+        this.minimizedBg.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: conic-gradient(from -90deg,
+                var(--progress-color, #FF6B6B) var(--progress-angle, 0deg),
+                rgba(255, 255, 255, 0.1) var(--progress-angle, 0deg));
+            transition: all 0.3s ease;
+        `;
 
-        // 白色覆盖层
+        // 覆盖层（自动适配主题）
         this.minimizedOverlay = document.createElement('div');
         this.minimizedOverlay.className = 'pomodoro-minimized-overlay';
+        this.minimizedOverlay.style.cssText = `
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            right: 2px;
+            bottom: 2px;
+            background: var(--b3-theme-background);
+            opacity: 0.9;
+            border-radius: 50%;
+            z-index: 1;
+        `;
 
         // 中心图标
         this.minimizedIcon = document.createElement('div');
         this.minimizedIcon.className = 'pomodoro-minimized-icon';
+        this.minimizedIcon.style.cssText = `
+            position: relative;
+            z-index: 2;
+            font-size: 24px;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            user-select: none;
+            cursor: pointer;
+        `;
         this.minimizedIcon.innerHTML = '🍅';
 
         // 恢复按钮
         this.restoreBtn = document.createElement('button');
         this.restoreBtn.className = 'pomodoro-restore-btn';
+        this.restoreBtn.style.cssText = `
+            position: absolute;
+            top: 25px;
+            right: 21px;
+            width: 15px;
+            height: 15px;
+            background: var(--b3-theme-primary);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 10px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            transition: all 0.2s ease;
+            z-index: 10;
+        `;
         this.restoreBtn.innerHTML = '↗';
         this.restoreBtn.title = '恢复窗口';
         this.restoreBtn.addEventListener('click', (e) => {
@@ -2060,13 +2111,42 @@ export class PomodoroTimer {
             this.restore();
         });
 
+        // 添加按钮悬停效果
+        this.restoreBtn.addEventListener('mouseenter', () => {
+            this.restoreBtn.style.background = 'var(--b3-theme-primary-light)';
+            this.restoreBtn.style.transform = 'scale(1.1)';
+        });
+        this.restoreBtn.addEventListener('mouseleave', () => {
+            this.restoreBtn.style.background = 'var(--b3-theme-primary)';
+            this.restoreBtn.style.transform = 'scale(1)';
+        });
+
         this.minimizedView.appendChild(this.minimizedBg);
         this.minimizedView.appendChild(this.minimizedOverlay);
         this.minimizedView.appendChild(this.minimizedIcon);
         this.minimizedView.appendChild(this.restoreBtn);
 
-        // 添加拖拽功能到最小化视图（但排除恢复按钮）
-        this.makeDraggable(this.minimizedView);
+        // 最小化视图悬停时显示恢复按钮
+        this.minimizedView.addEventListener('mouseenter', () => {
+            this.restoreBtn.style.display = 'flex';
+        });
+        this.minimizedView.addEventListener('mouseleave', () => {
+            this.restoreBtn.style.display = 'none';
+        });
+
+        // 为最小化视图添加拖拽支持
+        this.minimizedView.addEventListener('mousedown', (e) => {
+            if (e.target !== this.restoreBtn && !this.restoreBtn.contains(e.target as Node)) {
+                // 触发容器的拖拽，因为最小化视图在容器内部
+                const mousedownEvent = new MouseEvent('mousedown', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: e.clientX,
+                    clientY: e.clientY
+                });
+                this.container.dispatchEvent(mousedownEvent);
+            }
+        });
     }
 
     private toggleMinimize() {
@@ -2163,13 +2243,13 @@ export class PomodoroTimer {
         let initialX = 0;
         let initialY = 0;
 
-        handle.addEventListener('mousedown', (e) => {
+        const startDrag = (e: MouseEvent) => {
             // 如果点击的是恢复按钮，不触发拖拽
-            if (e.target === this.restoreBtn) {
+            if (e.target === this.restoreBtn || this.restoreBtn.contains(e.target as Node)) {
                 return;
             }
 
-            // 如果是最小化视图，允许拖拽
+            // 如果是最小化视图或非按钮区域，允许拖拽
             if (this.isMinimized || !(e.target as Element).closest('button')) {
                 e.preventDefault();
                 isDragging = true;
@@ -2189,16 +2269,24 @@ export class PomodoroTimer {
                 } else {
                     const buttons = this.container.querySelectorAll('button');
                     buttons.forEach(btn => {
-                        btn.style.pointerEvents = 'auto';
+                        (btn as HTMLElement).style.pointerEvents = 'auto';
                     });
                 }
 
                 document.addEventListener('mousemove', drag);
                 document.addEventListener('mouseup', stopDrag);
             }
+        };
+
+        // 为头部和容器都添加拖拽监听
+        handle.addEventListener('mousedown', startDrag);
+        this.container.addEventListener('mousedown', (e) => {
+            if (this.isMinimized) {
+                startDrag(e);
+            }
         });
 
-        const drag = (e) => {
+        const drag = (e: MouseEvent) => {
             if (!isDragging) return;
 
             e.preventDefault();
