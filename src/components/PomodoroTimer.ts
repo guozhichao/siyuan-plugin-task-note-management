@@ -3064,13 +3064,14 @@ export class PomodoroTimer {
     }
 
     private async resetTimer() {
-        // 如果是正计时工作模式下手动停止，并且有专注时间，则记录
+        // 如果是正计时工作模式下手动停止，并且有专注时间，则记录总的专注时间
         if (this.isCountUp && this.isWorkPhase && this.timeElapsed > 0) {
             const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
             const eventTitle = this.reminder.title || '番茄专注';
-            // 记录实际花费的时间
+            
+            // 正计时模式：记录总的实际专注时间（不按番茄单位划分）
             await this.recordManager.recordWorkSession(
-                Math.floor(this.timeElapsed / 60),
+                Math.floor(this.timeElapsed / 60), // 记录总的专注分钟数
                 eventId,
                 eventTitle,
                 this.currentPhaseOriginalDuration,
@@ -3217,27 +3218,27 @@ export class PomodoroTimer {
             setTimeout(() => {
                 this.updateStatsDisplay();
             }, 100);
+            
+            // 倒计时模式：记录完成的工作番茄
+            const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
+            const eventTitle = this.reminder.title || '番茄专注';
+            await this.recordManager.recordWorkSession(
+                this.currentPhaseOriginalDuration,
+                eventId,
+                eventTitle,
+                this.currentPhaseOriginalDuration,
+                true
+            );
         } else {
             // 正计时模式完成番茄后也要停止随机提示音
             this.stopRandomNotificationTimer();
-        }        // 无论哪种模式都记录完成的工作番茄
-        const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
-        const eventTitle = this.reminder.title || '番茄专注';
-
-        // 使用当前阶段的实际设定时长进行记录
-        await this.recordManager.recordWorkSession(
-            this.currentPhaseOriginalDuration,
-            eventId,
-            eventTitle,
-            this.currentPhaseOriginalDuration,
-            true
-        );
-
-        // 更新番茄数量
+        }
+        
+        // 更新番茄数量（正计时和倒计时都需要）
         this.completedPomodoros++;
         await this.updateReminderPomodoroCount();
 
-        // 正计时模式下静默更新统计，不发送消息
+        // 正计时模式下静默更新显示，不记录时间（时间在手动停止时统一记录）
         if (this.isCountUp) {
             setTimeout(() => {
                 this.updateStatsDisplay();
