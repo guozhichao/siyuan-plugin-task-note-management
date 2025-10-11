@@ -409,17 +409,17 @@ export default class ReminderPlugin extends Plugin {
                 // 动态导入PomodoroTimer避免循环依赖
                 import("./components/PomodoroTimer").then(({ PomodoroTimer }) => {
                     const pomodoroTimer = new PomodoroTimer(reminder, settings, isCountUp, inheritState, this, tab.element);
-                    
+
                     // 使用统一的tabId格式保存番茄钟实例引用
                     const standardTabId = this.name + POMODORO_TAB_TYPE;
                     this.tabViews.set(standardTabId, pomodoroTimer);
-                    
+
                     console.log('番茄钟实例已保存到tabViews, key:', standardTabId);
-                    
+
                     // 如果这是一个独立窗口，延迟通知其他窗口（确保广播通道已建立）
                     if (isStandaloneWindow) {
                         console.log('番茄钟在独立窗口中打开，延迟通知其他窗口...');
-                        
+
                         // 延迟发送，确保广播通道已建立
                         setTimeout(() => {
                             console.log('发送番茄钟窗口打开通知', this.windowId);
@@ -433,14 +433,14 @@ export default class ReminderPlugin extends Plugin {
             destroy: (() => {
                 // 当番茄钟Tab关闭时，清除标记并通知其他窗口
                 console.log('番茄钟Tab销毁');
-                
+
                 // 清理tabViews中的引用
                 const standardTabId = this.name + POMODORO_TAB_TYPE;
                 if (this.tabViews.has(standardTabId)) {
                     console.log('清理tabViews中的番茄钟实例, key:', standardTabId);
                     this.tabViews.delete(standardTabId);
                 }
-                
+
                 if (this.pomodoroWindowId === this.windowId) {
                     console.log('清除番茄钟窗口标记');
                     this.pomodoroWindowId = null;
@@ -1918,7 +1918,7 @@ export default class ReminderPlugin extends Plugin {
             // 先检查是否已有独立窗口
             if (this.pomodoroWindowId) {
                 console.log('检测到已存在番茄钟独立窗口，尝试更新状态...', this.pomodoroWindowId);
-                
+
                 // 通过广播更新已有窗口的番茄钟状态
                 // 如果没有提供inheritState，设置标志让独立窗口继承自己当前的状态
                 this.broadcastMessage("pomodoro_update", {
@@ -1928,7 +1928,7 @@ export default class ReminderPlugin extends Plugin {
                     inheritState,
                     shouldInheritCurrentState: !inheritState  // 如果没有提供inheritState，则应该继承当前状态
                 });
-                
+
                 showMessage(t('pomodoroWindowUpdated') || '已更新独立窗口中的番茄钟', 2000);
                 return;
             }
@@ -1982,7 +1982,7 @@ export default class ReminderPlugin extends Plugin {
         await this.subscribeToBroadcastChannel();
 
         console.log('Broadcast Channel has been initialized, Window ID:', this.windowId);
-        
+
         // 发送初始化消息到其他窗口（用于发现其他窗口）
         this.broadcastMessage("window_online", {
             windowId: this.windowId,
@@ -1991,7 +1991,7 @@ export default class ReminderPlugin extends Plugin {
 
         // 等待一小段时间，让其他窗口响应
         await new Promise(resolve => setTimeout(resolve, 100));
-        
+
         console.log('广播通道初始化完成，已发现窗口数:', this.otherWindowIds.size);
 
         // 监听页面卸载事件，确保窗口关闭时发送下线通知
@@ -2080,13 +2080,13 @@ export default class ReminderPlugin extends Plugin {
     private handleWindowOffline(windowId: string) {
         console.log("收到窗口下线通知:", windowId);
         this.otherWindowIds.delete(windowId);
-        
+
         // 如果是番茄钟窗口下线，清除标记
         if (this.pomodoroWindowId === windowId) {
             console.log("番茄钟窗口下线，清除标记:", windowId);
             this.pomodoroWindowId = null;
         }
-        
+
         console.log("窗口下线处理完成，当前其他窗口数:", this.otherWindowIds.size, "番茄钟窗口ID:", this.pomodoroWindowId);
     }
 
@@ -2128,7 +2128,7 @@ export default class ReminderPlugin extends Plugin {
      */
     private async handleBroadcastMessage(data: any) {
         console.log("Received broadcast message:", data);
-        
+
         // 忽略来自当前窗口的消息
         if (data.windowId === this.windowId) {
             console.log("Ignoring message from current window:", data.windowId);
@@ -2189,24 +2189,24 @@ export default class ReminderPlugin extends Plugin {
     private async updatePomodoroState(data: any) {
         try {
             const { reminder, settings, isCountUp, inheritState, shouldInheritCurrentState } = data;
-            
+
             console.log('尝试更新番茄钟状态:', {
                 reminder: reminder?.title,
                 isCountUp,
                 hasInheritState: !!inheritState,
                 shouldInheritCurrentState: !!shouldInheritCurrentState
             });
-            
+
             // 查找当前窗口的番茄钟Tab
             const tabId = this.name + POMODORO_TAB_TYPE;
             console.log('查找番茄钟Tab, ID:', tabId);
             console.log('当前tabViews:', Array.from(this.tabViews.keys()));
-            
+
             const pomodoroView = this.tabViews.get(tabId);
-            
+
             if (pomodoroView) {
                 console.log('找到番茄钟视图，类型:', pomodoroView.constructor.name);
-                
+
                 // 如果需要继承当前状态，先获取当前状态
                 let finalInheritState = inheritState;
                 if (shouldInheritCurrentState && typeof pomodoroView.getCurrentState === 'function') {
@@ -2224,7 +2224,7 @@ export default class ReminderPlugin extends Plugin {
                 } else {
                     console.log('没有继承状态，将重置番茄钟');
                 }
-                
+
                 if (typeof pomodoroView.updateState === 'function') {
                     // 如果番茄钟视图有更新状态的方法，调用它
                     console.log('调用updateState方法，finalInheritState:', !!finalInheritState);
@@ -2237,7 +2237,7 @@ export default class ReminderPlugin extends Plugin {
                         pomodoroView.destroy();
                     }
                     this.tabViews.delete(tabId);
-                    
+
                     // 重新创建番茄钟
                     await this.recreatePomodoroTimer(tabId, reminder, settings, isCountUp, finalInheritState);
                 }
@@ -2264,10 +2264,10 @@ export default class ReminderPlugin extends Plugin {
     ) {
         try {
             console.log('开始重新创建番茄钟');
-            
+
             // 动态导入PomodoroTimer
             const { PomodoroTimer } = await import("./components/PomodoroTimer");
-            
+
             // 查找番茄钟容器
             const container = document.querySelector(`[data-id="${tabId}"]`) as HTMLElement;
             if (!container) {
@@ -2275,14 +2275,14 @@ export default class ReminderPlugin extends Plugin {
                 // 尝试其他方式查找容器
                 const allContainers = document.querySelectorAll('[data-type="' + POMODORO_TAB_TYPE + '"]');
                 console.log('找到的所有番茄钟类型容器:', allContainers.length);
-                
+
                 if (allContainers.length > 0) {
                     const targetContainer = allContainers[0] as HTMLElement;
                     console.log('使用第一个找到的容器');
-                    
+
                     // 清空容器
                     targetContainer.innerHTML = '';
-                    
+
                     // 创建新的番茄钟实例
                     const pomodoroTimer = new PomodoroTimer(
                         reminder,
@@ -2292,7 +2292,7 @@ export default class ReminderPlugin extends Plugin {
                         this,
                         targetContainer
                     );
-                    
+
                     this.tabViews.set(tabId, pomodoroTimer);
                     console.log('✓ 番茄钟已成功重新创建（使用备用容器）');
                 } else {
@@ -2300,12 +2300,12 @@ export default class ReminderPlugin extends Plugin {
                 }
                 return;
             }
-            
+
             console.log('找到番茄钟容器');
-            
+
             // 清空容器
             container.innerHTML = '';
-            
+
             // 创建新的番茄钟实例
             const pomodoroTimer = new PomodoroTimer(
                 reminder,
@@ -2315,7 +2315,7 @@ export default class ReminderPlugin extends Plugin {
                 this,
                 container
             );
-            
+
             this.tabViews.set(tabId, pomodoroTimer);
             console.log('✓ 番茄钟已成功重新创建');
         } catch (error) {

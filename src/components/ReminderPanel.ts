@@ -3282,16 +3282,16 @@ export class ReminderPanel {
 
     private async performStartPomodoro(reminder: any, inheritState?: any) {
         const settings = await this.plugin.getPomodoroSettings();
-        
+
         // 检查是否已有独立窗口存在
         const hasStandaloneWindow = this.plugin && this.plugin.pomodoroWindowId;
-        
+
         if (hasStandaloneWindow) {
             // 如果存在独立窗口，更新独立窗口中的番茄钟
             console.log('检测到独立窗口，更新独立窗口中的番茄钟');
             if (typeof this.plugin.openPomodoroWindow === 'function') {
                 await this.plugin.openPomodoroWindow(reminder, settings, false, inheritState);
-                
+
                 // 如果继承了状态且原来正在运行，显示继承信息
                 if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
                     const phaseText = inheritState.isWorkPhase ? '工作时间' : '休息时间';
@@ -3301,7 +3301,7 @@ export class ReminderPanel {
         } else {
             // 没有独立窗口，在当前窗口显示番茄钟 Dialog（默认行为）
             console.log('没有独立窗口，在当前窗口显示番茄钟 Dialog');
-            
+
             // 如果已经有活动的番茄钟，先关闭它
             this.pomodoroManager.closeCurrentTimer();
 
@@ -3371,16 +3371,16 @@ export class ReminderPanel {
 
     private async performStartPomodoroCountUp(reminder: any, inheritState?: any) {
         const settings = await this.plugin.getPomodoroSettings();
-        
+
         // 检查是否已有独立窗口存在
         const hasStandaloneWindow = this.plugin && this.plugin.pomodoroWindowId;
-        
+
         if (hasStandaloneWindow) {
             // 如果存在独立窗口，更新独立窗口中的番茄钟
             console.log('检测到独立窗口，更新独立窗口中的番茄钟（正计时模式）');
             if (typeof this.plugin.openPomodoroWindow === 'function') {
                 await this.plugin.openPomodoroWindow(reminder, settings, true, inheritState);
-                
+
                 // 如果继承了状态且原来正在运行，显示继承信息
                 if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
                     const phaseText = inheritState.isWorkPhase ? '工作时间' : '休息时间';
@@ -3392,7 +3392,7 @@ export class ReminderPanel {
         } else {
             // 没有独立窗口，在当前窗口显示番茄钟 Dialog（默认行为）
             console.log('没有独立窗口，在当前窗口显示番茄钟 Dialog（正计时模式）');
-            
+
             // 如果已经有活动的番茄钟，先关闭它
             this.pomodoroManager.closeCurrentTimer();
 

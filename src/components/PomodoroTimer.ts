@@ -185,7 +185,7 @@ export class PomodoroTimer {
             this.pausedTime = this.timeElapsed;
             this.startTime = Date.now() - (this.timeElapsed * 1000);
         }
-        
+
         console.log('时间追踪变量已设置:', {
             pausedTime: this.pausedTime,
             startTime: this.startTime,
