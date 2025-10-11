@@ -1978,77 +1978,78 @@ export class ProjectKanbanView {
         const dialog = new Dialog({
             title: parentTask ? `为 "${parentTask.title}" 创建子任务` : "新建任务",
             content: `
-                <div class="reminder-dialog" style="padding-bottom: 0;">
-                    <div class="b3-dialog__content" style="padding-bottom: 0;">
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">任务标题</label>
-                            <input type="text" id="taskTitle" class="b3-text-field" placeholder="请输入任务标题" required>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">分类
-                                <button type="button" id="manageCategoriesBtn" class="b3-button b3-button--outline" title="管理分类" style="margin-left: 8px; vertical-align: middle;">
-                                    <svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg>
-                                </button>
-                            </label>
-                            <div class="category-selector" id="categorySelector" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;"></div>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">优先级</label>
-                            <div class="priority-selector" id="prioritySelector">
-                                <div class="priority-option" data-priority="high"><div class="priority-dot high"></div><span>高</span></div>
-                                <div class="priority-option" data-priority="medium"><div class="priority-dot medium"></div><span>中</span></div>
-                                <div class="priority-option" data-priority="low"><div class="priority-dot low"></div><span>低</span></div>
-                                <div class="priority-option selected" data-priority="none"><div class="priority-dot none"></div><span>无</span></div>
-                            </div>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">任务类型</label>
-                            <div class="term-type-selector" id="termTypeSelector">
-                                <div class="term-type-option selected" data-term-type="short_term">
-                                    <span>📝</span><span>短期任务</span>
-                                </div>
-                                <div class="term-type-option" data-term-type="long_term">
-                                    <span>🎯</span><span>长期任务</span>
-                                </div>
-                            </div>
-                        </div>
-                         <div class="b3-form__group">
-                            <label class="b3-form__label">任务日期</label>
-                            <div class="reminder-date-container">
-                                <input type="date" id="taskStartDate" class="b3-text-field" title="开始日期">
-                                <span class="reminder-arrow">→</span>
-                                <input type="date" id="taskEndDate" class="b3-text-field" title="结束日期">
-                            </div>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">绑定块 (可选)</label>
-                            <div class="b3-form__desc">输入块ID将任务绑定到指定块</div>
-                            <input type="text" id="taskBlockId" class="b3-text-field" placeholder="请输入块ID (可选)" style="width: 100%; margin-top: 8px;">
-                            <div id="blockPreview" class="block-content-preview" style="
-                                display: none;
-                                padding: 8px;
-                                background-color: var(--b3-theme-surface-lighter);
-                                border-radius: 4px;
-                                border: 1px solid var(--b3-theme-border);
-                                max-height: 60px;
-                                overflow-y: auto;
-                                font-size: 12px;
-                                color: var(--b3-theme-on-surface);
-                                margin-top: 8px;
-                            "></div>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">备注</label>
-                            <textarea id="taskNote" class="b3-text-field" placeholder="请输入任务备注" rows="2" style="width: 100%;resize: vertical; min-height: 60px;"></textarea>
+                <div class="reminder-dialog">
+                <div class="b3-dialog__content">
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">任务标题</label>
+                        <input type="text" id="taskTitle" class="b3-text-field" placeholder="请输入任务标题" required>
+                    </div>
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">分类
+                            <button type="button" id="manageCategoriesBtn" class="b3-button b3-button--outline" title="管理分类" style="margin-left: 8px; vertical-align: middle;">
+                                <svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg>
+                            </button>
+                        </label>
+                        <div class="category-selector" id="categorySelector" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;"></div>
+                    </div>
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">优先级</label>
+                        <div class="priority-selector" id="prioritySelector">
+                            <div class="priority-option" data-priority="high"><div class="priority-dot high"></div><span>高</span></div>
+                            <div class="priority-option" data-priority="medium"><div class="priority-dot medium"></div><span>中</span></div>
+                            <div class="priority-option" data-priority="low"><div class="priority-dot low"></div><span>低</span></div>
+                            <div class="priority-option selected" data-priority="none"><div class="priority-dot none"></div><span>无</span></div>
                         </div>
                     </div>
-                    <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="cancelBtn">取消</button>
-                        <button class="b3-button b3-button--primary" id="createBtn">创建</button>
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">任务类型</label>
+                        <div class="term-type-selector" id="termTypeSelector">
+                            <div class="term-type-option selected" data-term-type="short_term">
+                                <span>📝</span><span>短期任务</span>
+                            </div>
+                            <div class="term-type-option" data-term-type="long_term">
+                                <span>🎯</span><span>长期任务</span>
+                            </div>
+                        </div>
                     </div>
-                </div>`,
+                     <div class="b3-form__group">
+                        <label class="b3-form__label">任务日期</label>
+                        <div class="reminder-date-container">
+                            <input type="date" id="taskStartDate" class="b3-text-field" title="开始日期">
+                            <span class="reminder-arrow">→</span>
+                            <input type="date" id="taskEndDate" class="b3-text-field" title="结束日期">
+                        </div>
+                    </div>
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">绑定块 (可选)</label>
+                        <div class="b3-form__desc">输入块ID将任务绑定到指定块</div>
+                        <input type="text" id="taskBlockId" class="b3-text-field" placeholder="请输入块ID (可选)" style="width: 100%; margin-top: 8px;">
+                        <div id="blockPreview" class="block-content-preview" style="
+                            display: none;
+                            padding: 8px;
+                            background-color: var(--b3-theme-surface-lighter);
+                            border-radius: 4px;
+                            border: 1px solid var(--b3-theme-border);
+                            max-height: 60px;
+                            overflow-y: auto;
+                            font-size: 12px;
+                            color: var(--b3-theme-on-surface);
+                            margin-top: 8px;
+                        "></div>
+                    </div>
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">备注</label>
+                        <textarea id="taskNote" class="b3-text-field" placeholder="请输入任务备注" rows="2" style="width: 100%;resize: vertical; min-height: 60px;"></textarea>
+                    </div>
+                </div>
+                <div class="b3-dialog__action">
+                    <button class="b3-button b3-button--cancel" id="cancelBtn">取消</button>
+                    <button class="b3-button b3-button--primary" id="createBtn">创建</button>
+                </div>
+                </div>
+            `,
             width: "500px",
-            height: "650px"
+            height: "720px"
         });
 
         const titleInput = dialog.element.querySelector('#taskTitle') as HTMLInputElement;
