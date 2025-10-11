@@ -2977,21 +2977,16 @@ export class ProjectKanbanView {
                 padding: 16px;
                 overflow-y: auto;
                 min-height: 0;
-                /* 默认使用四宫格布局 */
-                grid-template-columns: repeat(2, 1fr);
+                /* 自适应列布局：每列最小280px，最大1fr，自动填充 */
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             }
 
-            /* 宽屏：四列横向布局 */
-            @media (min-width: 1290px) {
-                .project-kanban-container {
-                    grid-template-columns: repeat(4, 1fr);
-                }
-            }
-
-            /* 窄屏：单列布局 */
-            @media (max-width: 640px) {
+            /* 确保在极窄屏幕上也能正常显示 */
+            @media (max-width: 320px) {
                 .project-kanban-container {
                     grid-template-columns: 1fr;
+                    padding: 8px;
+                    gap: 8px;
                 }
             }
 
