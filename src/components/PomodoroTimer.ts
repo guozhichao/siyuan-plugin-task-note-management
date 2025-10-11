@@ -1405,7 +1405,7 @@ export class PomodoroTimer {
                 const gap = Math.max(4, startBtnWidth * 0.15); // 按钮之间的间距，至少4px
                 const startOffset = -(stopBtnWidth / 2 + gap / 2);
                 const stopOffset = startBtnWidth / 2 + gap / 2;
-                
+
                 this.startPauseBtn.style.opacity = '1';
                 this.stopBtn.style.opacity = '1';
                 this.stopBtn.style.display = 'flex';
@@ -2795,14 +2795,14 @@ export class PomodoroTimer {
                 if (statusIcon) {
                     statusIcon.style.opacity = '0.3';
                 }
-                
+
                 // 根据按钮大小自适应计算间距
                 const startBtnWidth = parseFloat(getComputedStyle(this.startPauseBtn).width) || 32;
                 const stopBtnWidth = parseFloat(getComputedStyle(this.stopBtn).width) || 28;
                 const gap = Math.max(4, startBtnWidth * 0.15); // 按钮之间的间距，至少4px
                 const startOffset = -(stopBtnWidth / 2 + gap / 2);
                 const stopOffset = startBtnWidth / 2 + gap / 2;
-                
+
                 this.startPauseBtn.style.opacity = '1';
                 this.stopBtn.style.opacity = '1';
                 this.stopBtn.style.display = 'flex';
