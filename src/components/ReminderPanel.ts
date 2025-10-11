@@ -4763,7 +4763,7 @@ export class ReminderPanel {
             title: "粘贴列表新建子任务",
             content: `
                 <div class="b3-dialog__content">
-                    <p class="b3-typography">粘贴Markdown列表或多行文本，每行将创建一个子任务。支持多层级列表自动创建父子任务。</p>
+                    <p>粘贴Markdown列表或多行文本，每行将创建一个子任务。支持多层级列表自动创建父子任务。</p>
                     <textarea id="taskList" class="b3-text-field" placeholder="示例：\n- 需求文档\n  - 功能列表\n  - 接口设计\n- 测试用例" style="width:100%; height:220px; resize:vertical;"></textarea>
                 </div>
                 <div class="b3-dialog__action">
