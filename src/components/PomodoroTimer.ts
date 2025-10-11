@@ -2912,9 +2912,6 @@ export class PomodoroTimer {
             this.updateDisplay();
         }, 500);
 
-        const phaseText = this.isWorkPhase ? '工作时间' : (this.isLongBreak ? '长时休息' : '短时休息');
-        const modeText = (this.isCountUp && this.isWorkPhase) ? '正计时' : '倒计时';
-        showMessage(`${phaseText}${modeText}继续进行中`);
 
         // 更新显示
         this.updateDisplay();
