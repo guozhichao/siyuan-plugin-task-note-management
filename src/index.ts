@@ -1882,7 +1882,6 @@ export default class ReminderPlugin extends Plugin {
                 tab: await tab,
             });
 
-            showMessage(t('openedInNewWindow') || '已在新窗口中打开', 2000);
         } catch (error) {
             console.error('打开独立窗口失败:', error);
             showMessage(t('openWindowFailed') || '打开窗口失败', 2000);

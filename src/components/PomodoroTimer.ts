@@ -4061,6 +4061,9 @@ export class PomodoroTimer {
                 this.isCountUp,
                 currentState
             );
+
+            // 成功打开新窗口后，关闭当前番茄钟窗口
+            this.close();
         } catch (error) {
             console.error('打开独立窗口失败:', error);
             showMessage(t('openWindowFailed') || '打开窗口失败', 2000);
