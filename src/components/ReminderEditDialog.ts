@@ -963,12 +963,12 @@ export class ReminderEditDialog {
                         const { generateRepeatInstances } = await import("../utils/repeatUtils");
                         const { getLocalDateString } = await import("../utils/dateUtils");
                         const today = getLocalDateString();
-                        
+
                         // 计算从开始日期到今天的天数，用于设置 maxInstances
                         const startDateObj = new Date(date);
                         const todayObj = new Date(today);
                         const daysDiff = Math.ceil((todayObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24));
-                        
+
                         // 根据重复类型估算可能的最大实例数
                         let maxInstances = 1000; // 默认值
                         if (this.repeatConfig.type === 'daily') {
@@ -980,13 +980,13 @@ export class ReminderEditDialog {
                         } else if (this.repeatConfig.type === 'yearly' || this.repeatConfig.type === 'lunar-yearly') {
                             maxInstances = Math.max(Math.ceil(daysDiff / 365) + 10, 50);
                         }
-                        
+
                         // 重新生成从任务开始日期到今天的所有实例
                         const instances = generateRepeatInstances(reminderData[this.reminder.id], date, today, maxInstances);
-                        
+
                         // 获取已有的已完成实例列表
                         const existingCompletedInstances = reminderData[this.reminder.id].repeat?.completedInstances || [];
-                        
+
                         // 将所有早于今天且尚未标记为完成的实例标记为已完成
                         const pastInstances: string[] = [];
                         instances.forEach(instance => {
@@ -994,7 +994,7 @@ export class ReminderEditDialog {
                                 pastInstances.push(instance.date);
                             }
                         });
-                        
+
                         // 如果有新的过去实例，添加到completedInstances
                         if (pastInstances.length > 0) {
                             if (!reminderData[this.reminder.id].repeat.completedInstances) {

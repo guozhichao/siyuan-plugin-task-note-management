@@ -1194,12 +1194,12 @@ class SmartBatchDialog {
                         const { generateRepeatInstances } = await import("../utils/repeatUtils");
                         const { getLocalDateString } = await import("../utils/dateUtils");
                         const today = getLocalDateString();
-                        
+
                         // 计算从开始日期到今天的天数，用于设置 maxInstances
                         const startDateObj = new Date(setting.date);
                         const todayObj = new Date(today);
                         const daysDiff = Math.ceil((todayObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24));
-                        
+
                         // 根据重复类型估算可能的最大实例数
                         let maxInstances = 1000; // 默认值
                         if (setting.repeatConfig.type === 'daily') {
@@ -1211,10 +1211,10 @@ class SmartBatchDialog {
                         } else if (setting.repeatConfig.type === 'yearly' || setting.repeatConfig.type === 'lunar-yearly') {
                             maxInstances = Math.max(Math.ceil(daysDiff / 365) + 10, 50);
                         }
-                        
+
                         // 生成从任务开始日期到今天的所有实例
                         const instances = generateRepeatInstances(reminder, setting.date, today, maxInstances);
-                        
+
                         // 将所有早于今天的实例标记为已完成
                         const pastInstances: string[] = [];
                         instances.forEach(instance => {
@@ -1222,7 +1222,7 @@ class SmartBatchDialog {
                                 pastInstances.push(instance.date);
                             }
                         });
-                        
+
                         // 如果有过去的实例，添加到completedInstances
                         if (pastInstances.length > 0) {
                             if (!reminder.repeat.completedInstances) {

@@ -446,7 +446,7 @@ export class ProjectKanbanView {
 
                             // 按日期和完成状态分类
                             const dateComparison = compareDateStrings(instance.date, today);
-                            
+
                             if (dateComparison < 0) {
                                 // 过去的日期
                                 if (isInstanceCompleted) {
@@ -482,7 +482,7 @@ export class ProjectKanbanView {
                     // 这样即使有多个已完成的未来实例，也能显示下一个未完成的实例
                     if (futureIncompleteList.length > 0) {
                         const hasTodayIncomplete = todayIncompleteList.length > 0;
-                        
+
                         if (isLunarRepeat) {
                             // 农历重复：如果今天没有实例，就添加未来第一个未完成的
                             if (!hasTodayIncomplete) {
@@ -1782,7 +1782,7 @@ export class ProjectKanbanView {
                         if (!reminderData[actualTaskId].repeat.completedInstances.includes(task.date)) {
                             reminderData[actualTaskId].repeat.completedInstances.push(task.date);
                         }
-                        
+
                         // 周期实例完成时，不自动完成子任务（因为每个实例都是独立的）
                         // 如果需要完成子任务，用户应该在右键菜单中选择"完成任务及所有子任务"
                     } else {
@@ -4477,7 +4477,7 @@ export class ProjectKanbanView {
     private generateInstancesWithFutureGuarantee(reminder: any, today: string, isLunarRepeat: boolean): any[] {
         // 根据重复类型确定初始范围
         let monthsToAdd = 2; // 默认范围
-        
+
         if (isLunarRepeat) {
             monthsToAdd = 14; // 农历重复需要更长范围
         } else if (reminder.repeat.type === 'yearly') {
@@ -4498,7 +4498,7 @@ export class ProjectKanbanView {
             const monthStart = new Date();
             monthStart.setDate(1);
             monthStart.setMonth(monthStart.getMonth() - 1);
-            
+
             const monthEnd = new Date();
             monthEnd.setMonth(monthEnd.getMonth() + monthsToAdd);
             monthEnd.setDate(0);
@@ -4511,8 +4511,8 @@ export class ProjectKanbanView {
             repeatInstances = generateRepeatInstances(reminder, startDate, endDate, maxInstances);
 
             // 检查是否有未完成的未来实例（关键修复：不仅要是未来的，还要是未完成的）
-            hasUncompletedFutureInstance = repeatInstances.some(instance => 
-                compareDateStrings(instance.date, today) > 0 && 
+            hasUncompletedFutureInstance = repeatInstances.some(instance =>
+                compareDateStrings(instance.date, today) > 0 &&
                 !completedInstances.includes(instance.date)
             );
 

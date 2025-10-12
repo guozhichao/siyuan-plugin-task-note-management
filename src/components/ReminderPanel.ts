@@ -6015,7 +6015,7 @@ export class ReminderPanel {
     private generateInstancesWithFutureGuarantee(reminder: any, today: string, isLunarRepeat: boolean): any[] {
         // 根据重复类型确定初始范围
         let monthsToAdd = 2; // 默认范围
-        
+
         if (isLunarRepeat) {
             monthsToAdd = 14; // 农历重复需要更长范围
         } else if (reminder.repeat.type === 'yearly') {
@@ -6036,7 +6036,7 @@ export class ReminderPanel {
             const monthStart = new Date();
             monthStart.setDate(1);
             monthStart.setMonth(monthStart.getMonth() - 1);
-            
+
             const monthEnd = new Date();
             monthEnd.setMonth(monthEnd.getMonth() + monthsToAdd);
             monthEnd.setDate(0);
@@ -6049,8 +6049,8 @@ export class ReminderPanel {
             repeatInstances = generateRepeatInstances(reminder, startDate, endDate, maxInstances);
 
             // 检查是否有未完成的未来实例（关键修复：不仅要是未来的，还要是未完成的）
-            hasUncompletedFutureInstance = repeatInstances.some(instance => 
-                compareDateStrings(instance.date, today) > 0 && 
+            hasUncompletedFutureInstance = repeatInstances.some(instance =>
+                compareDateStrings(instance.date, today) > 0 &&
                 !completedInstances.includes(instance.date)
             );
 
