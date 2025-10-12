@@ -2018,10 +2018,8 @@ export class ProjectKanbanView {
 
     // 使用 QuickReminderDialog 创建任务
     private showCreateTaskDialog(parentTask?: any) {
-        const today = getLocalDateString();
-
         const quickDialog = new QuickReminderDialog(
-            today,
+            undefined, // 项目看板创建任务默认不设置日期
             undefined, // 无初始时间
             () => {
                 // 保存成功后刷新看板

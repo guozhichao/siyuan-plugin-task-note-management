@@ -34,7 +34,7 @@ export class QuickReminderDialog {
     private showTermTypeSelector?: boolean; // 是否显示任务类型选择器
     private defaultTermType?: 'short_term' | 'long_term'; // 默认任务类型
 
-    constructor(initialDate: string, initialTime?: string, onSaved?: () => void, timeRangeOptions?: {
+    constructor(initialDate?: string, initialTime?: string, onSaved?: () => void, timeRangeOptions?: {
         endDate?: string;
         endTime?: string;
         isTimeRange?: boolean;
@@ -52,7 +52,7 @@ export class QuickReminderDialog {
         defaultTermType?: 'short_term' | 'long_term'; // 默认任务类型
     }) {
         // 确保日期格式正确 - 只保留 YYYY-MM-DD 部分
-        this.initialDate = this.formatDateForInput(initialDate);
+        this.initialDate = initialDate ? this.formatDateForInput(initialDate) : '';
 
         // 如果第二个参数是函数，说明没有传入时间参数，第二个参数是回调函数
         if (typeof initialTime === 'function') {
@@ -553,13 +553,13 @@ export class QuickReminderDialog {
                             </label>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t("reminderDate")}</label>
+                            <label class="b3-form__label">${t("reminderDate")}${this.defaultProjectId ? ' (可选)' : ''}</label>
                             <div class="reminder-date-container">
-                                <input type="date" id="quickReminderDate" class="b3-text-field" value="${this.initialDate}" required>
+                                <input type="date" id="quickReminderDate" class="b3-text-field" value="${this.initialDate}">
                                 <span class="reminder-arrow">→</span>
                                 <input type="date" id="quickReminderEndDate" class="b3-text-field reminder-end-date" placeholder="${t("endDateOptional")}" title="${t("spanningEventDesc")}">
                             </div>
-                            <div class="b3-form__desc" id="quickDateTimeDesc">${this.initialTime ? t("dateTimeDesc") : t("dateOnlyDesc")}</div>
+                            <div class="b3-form__desc" id="quickDateTimeDesc">${this.initialTime ? t("dateTimeDesc") : (this.defaultProjectId ? '项目任务可以不设置日期' : t("dateOnlyDesc"))}</div>
                         </div>
                         
                         <!-- 添加重复设置 -->
@@ -620,7 +620,10 @@ export class QuickReminderDialog {
                 noTimeCheckbox.checked = true;
                 this.toggleDateTimeInputs(true);
                 // 确保在切换类型后设置正确格式的值
-                dateInput.value = this.initialDate;
+                // 如果没有初始日期（空字符串），则保持输入框为空
+                if (this.initialDate) {
+                    dateInput.value = this.initialDate;
+                }
 
                 // 如果是时间段选择，设置结束日期
                 if (this.isTimeRange && this.initialEndDate) {
@@ -1225,12 +1228,13 @@ export class QuickReminderDialog {
             return;
         }
 
-        if (!date) {
+        // 对于项目任务，允许不设置日期；对于非项目任务，日期是必需的
+        if (!date && !projectId) {
             showMessage(t("pleaseSelectDate"));
             return;
         }
 
-        if (endDate && endDate < date) {
+        if (endDate && date && endDate < date) {
             showMessage(t("endDateCannotBeEarlier"));
             return;
         }
@@ -1245,7 +1249,7 @@ export class QuickReminderDialog {
                 blockId: inputId || this.defaultBlockId || null,
                 docId: null, // 没有绑定文档
                 title: title,
-                date: date,
+                date: date || undefined, // 允许日期为空
                 completed: false,
                 priority: priority,
                 categoryId: categoryId,
@@ -1257,14 +1261,16 @@ export class QuickReminderDialog {
                 termType: termType // 添加任务类型（短期/长期）
             };
 
-            // 如果任务时间早于当前时间，则标记为已通知
-            const reminderDateTime = new Date(time ? `${date}T${time}` : date);
-            if (!time) {
-                // 对于全天任务，我们比较当天的结束时间
-                reminderDateTime.setHours(23, 59, 59, 999);
-            }
-            if (reminderDateTime < new Date()) {
-                reminder.notified = true;
+            // 如果任务时间早于当前时间，则标记为已通知（仅当有日期时）
+            if (date) {
+                const reminderDateTime = new Date(time ? `${date}T${time}` : date);
+                if (!time) {
+                    // 对于全天任务，我们比较当天的结束时间
+                    reminderDateTime.setHours(23, 59, 59, 999);
+                }
+                if (reminderDateTime < new Date()) {
+                    reminder.notified = true;
+                }
             }
 
             if (endDate && endDate !== date) {
@@ -1288,17 +1294,20 @@ export class QuickReminderDialog {
 
             // 显示保存成功消息
             let successMessage = t("reminderSaved");
-            if (endDate && endDate !== date) {
-                // 跨天事件
-                const startTimeStr = time ? ` ${time}` : '';
-                const endTimeStr = endTime ? ` ${endTime}` : '';
-                successMessage += `：${date}${startTimeStr} → ${endDate}${endTimeStr}`;
-            } else if (endTime && time) {
-                // 同一天的时间段事件
-                successMessage += `：${date} ${time} - ${endTime}`;
-            } else {
-                // 普通事件
-                successMessage += `：${date}${time ? ` ${time}` : ''}`;
+            if (date) {
+                // 只有在有日期时才显示日期信息
+                if (endDate && endDate !== date) {
+                    // 跨天事件
+                    const startTimeStr = time ? ` ${time}` : '';
+                    const endTimeStr = endTime ? ` ${endTime}` : '';
+                    successMessage += `：${date}${startTimeStr} → ${endDate}${endTimeStr}`;
+                } else if (endTime && time) {
+                    // 同一天的时间段事件
+                    successMessage += `：${date} ${time} - ${endTime}`;
+                } else {
+                    // 普通事件
+                    successMessage += `：${date}${time ? ` ${time}` : ''}`;
+                }
             }
 
             if (this.repeatConfig.enabled) {
