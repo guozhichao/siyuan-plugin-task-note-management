@@ -751,15 +751,17 @@ export class ProjectPanel {
         countsContainer.className = 'project-item__counts';
         countsContainer.style.cssText = `display:flex; gap:8px; margin-top:6px; align-items:center;`;
 
-        const todoCountEl = document.createElement('span');
-        todoCountEl.className = 'project-count project-count--todo';
-        todoCountEl.textContent = '待办: ...';
-        countsContainer.appendChild(todoCountEl);
 
         const doingCountEl = document.createElement('span');
         doingCountEl.className = 'project-count project-count--doing';
         doingCountEl.textContent = '进行中: ...';
         countsContainer.appendChild(doingCountEl);
+        
+        const todoCountEl = document.createElement('span');
+        todoCountEl.className = 'project-count project-count--todo';
+        todoCountEl.textContent = '待办: ...';
+        countsContainer.appendChild(todoCountEl);
+
 
         const doneCountEl = document.createElement('span');
         doneCountEl.className = 'project-count project-count--done';
