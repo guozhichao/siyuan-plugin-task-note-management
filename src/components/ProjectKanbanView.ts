@@ -1645,7 +1645,7 @@ export class ProjectKanbanView {
         menu.addSeparator();
 
         // 任务类型切换
-        const currentTermType = task.termType || 'short_term';
+        const currentTermType = task.termType; // 不设默认值，允许为 undefined
 
         if (currentTermType !== 'short_term') {
             menu.addItem({
@@ -1663,7 +1663,6 @@ export class ProjectKanbanView {
             });
         }
 
-        menu.addSeparator();
 
         // 状态切换
         const currentStatus = this.getTaskStatus(task);
@@ -1812,6 +1811,8 @@ export class ProjectKanbanView {
                             reminderData[actualTaskId].kanbanStatus = 'todo';
                         } else if (newStatus === 'doing') {
                             reminderData[actualTaskId].kanbanStatus = 'doing';
+                            // 设置为进行中时，清空termType
+                            delete reminderData[actualTaskId].termType;
                         }
                     }
                 }
