@@ -359,12 +359,13 @@ export class BatchReminderDialog {
                 }
             }
 
-            // 处理农历日期格式（例如：八月廿一、正月初一）
+            // 处理农历日期格式（例如：八月廿一、正月初一、农历七月十三）
             const lunarDate = parseLunarDateText(processedText);
             if (lunarDate && lunarDate.month > 0) {
                 // 有完整的农历月日
                 const solarDate = getCurrentYearLunarToSolar(lunarDate.month, lunarDate.day);
                 if (solarDate) {
+                    console.log(`农历日期识别成功: 农历${lunarDate.month}月${lunarDate.day}日 -> 公历${solarDate}`);
                     return {
                         date: solarDate,
                         hasTime: false
@@ -1545,11 +1546,12 @@ class BlockEditDialog {
     // 解析自然语言日期时间 - 复用父类的逻辑
     private parseNaturalDateTime(text: string): { date?: string; time?: string; hasTime?: boolean } {
         try {
-            // 先尝试解析农历日期
+            // 先尝试解析农历日期（例如：八月廿一、正月初一、农历七月十三）
             const lunarDate = parseLunarDateText(text);
             if (lunarDate && lunarDate.month > 0) {
                 const solarDate = getCurrentYearLunarToSolar(lunarDate.month, lunarDate.day);
                 if (solarDate) {
+                    console.log(`农历日期识别成功: 农历${lunarDate.month}月${lunarDate.day}日 -> 公历${solarDate}`);
                     return {
                         date: solarDate,
                         hasTime: false

@@ -245,12 +245,13 @@ export class QuickReminderDialog {
                 }
             }
 
-            // 处理农历日期格式（例如：八月廿一、正月初一）
+            // 处理农历日期格式（例如：八月廿一、正月初一、农历七月十三）
             const lunarDate = parseLunarDateText(processedText);
             if (lunarDate && lunarDate.month > 0) {
                 // 有完整的农历月日
                 const solarDate = getCurrentYearLunarToSolar(lunarDate.month, lunarDate.day);
                 if (solarDate) {
+                    console.log(`农历日期识别成功: 农历${lunarDate.month}月${lunarDate.day}日 -> 公历${solarDate}`);
                     return {
                         date: solarDate,
                         hasTime: false

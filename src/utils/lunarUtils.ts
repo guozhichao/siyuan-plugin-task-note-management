@@ -106,11 +106,14 @@ export function getNextLunarYearlyDate(currentDate: string, lunarMonth: number, 
 }
 
 /**
- * 解析农历日期文本，例如 "八月廿一"、"正月初一"
+ * 解析农历日期文本，例如 "八月廿一"、"正月初一"、"农历七月十三"
  * @param text 农历日期文本
  * @returns {month: number, day: number} 或 null
  */
 export function parseLunarDateText(text: string): { month: number; day: number } | null {
+    // 预处理：移除"农历"关键字
+    let processedText = text.replace(/^农历/, '').trim();
+    
     // 农历月份映射
     const lunarMonthMap: { [key: string]: number } = {
         '正月': 1, '一月': 1,
@@ -139,7 +142,7 @@ export function parseLunarDateText(text: string): { month: number; day: number }
     
     // 匹配 "八月廿一" 格式
     const monthDayPattern = /^(.+月)(.+)$/;
-    const match = text.match(monthDayPattern);
+    const match = processedText.match(monthDayPattern);
     
     if (match) {
         const monthText = match[1];
@@ -154,7 +157,7 @@ export function parseLunarDateText(text: string): { month: number; day: number }
     }
     
     // 只匹配日期 "廿一"、"初一" 等
-    const day = lunarDayMap[text];
+    const day = lunarDayMap[processedText];
     if (day) {
         return { month: 0, day }; // month 为 0 表示只有日期
     }
