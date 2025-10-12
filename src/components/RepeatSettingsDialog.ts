@@ -47,7 +47,7 @@ export class RepeatSettingsDialog {
         };
         this.onSaved = onSaved;
         this.startDate = startDate;
-        
+
         // 如果是农历重复类型且没有设置农历日期，从开始日期（或今天）计算
         if (this.repeatConfig.type === 'lunar-monthly' || this.repeatConfig.type === 'lunar-yearly') {
             if (!this.repeatConfig.lunarDay || !this.repeatConfig.lunarMonth) {
@@ -55,20 +55,20 @@ export class RepeatSettingsDialog {
             }
         }
     }
-    
+
     private initLunarDateFromStartDate() {
         try {
             // 如果没有设置 startDate，使用今天的日期
             const dateToUse = this.startDate || getLocalDateString();
             console.log('[RepeatSettings] Initializing lunar date from:', dateToUse);
-            
+
             const lunar = solarToLunar(dateToUse);
             console.log('[RepeatSettings] Calculated lunar date:', lunar);
-            
+
             this.repeatConfig.lunarDay = lunar.day;
             // 农历月份总是需要设置（即使是 lunar-monthly 类型也需要知道月份）
             this.repeatConfig.lunarMonth = lunar.month;
-            
+
             console.log('[RepeatSettings] Set lunarDay:', this.repeatConfig.lunarDay, 'lunarMonth:', this.repeatConfig.lunarMonth);
         } catch (error) {
             console.error('Failed to initialize lunar date from start date:', error);
@@ -307,22 +307,22 @@ export class RepeatSettingsDialog {
             const newType = repeatType.value as any;
             const oldType = this.repeatConfig.type;
             this.repeatConfig.type = newType;
-            
+
             console.log('[RepeatSettings] Type changed from', oldType, 'to', newType);
-            
+
             // 当从非农历类型切换到农历类型时，重新初始化农历日期
-            if ((newType === 'lunar-monthly' || newType === 'lunar-yearly') && 
+            if ((newType === 'lunar-monthly' || newType === 'lunar-yearly') &&
                 (oldType !== 'lunar-monthly' && oldType !== 'lunar-yearly')) {
                 console.log('[RepeatSettings] Switching to lunar type, initializing lunar date...');
                 // 重新计算农历日期（基于 startDate 或今天）
                 this.initLunarDateFromStartDate();
-                
+
                 // 更新UI中的输入框值
                 setTimeout(() => {
                     const lunarDayInput = this.dialog.element.querySelector('#lunarDay') as HTMLInputElement;
                     const lunarDayYearlyInput = this.dialog.element.querySelector('#lunarDayYearly') as HTMLInputElement;
                     const lunarMonthInput = this.dialog.element.querySelector('#lunarMonth') as HTMLSelectElement;
-                    
+
                     console.log('[RepeatSettings] Updating input elements:', {
                         lunarDayInput: !!lunarDayInput,
                         lunarDayYearlyInput: !!lunarDayYearlyInput,
@@ -330,7 +330,7 @@ export class RepeatSettingsDialog {
                         lunarDay: this.repeatConfig.lunarDay,
                         lunarMonth: this.repeatConfig.lunarMonth
                     });
-                    
+
                     if (lunarDayInput && this.repeatConfig.lunarDay) {
                         lunarDayInput.value = this.repeatConfig.lunarDay.toString();
                         console.log('[RepeatSettings] Set lunarDayInput.value to', lunarDayInput.value);
@@ -345,7 +345,7 @@ export class RepeatSettingsDialog {
                     }
                 }, 0);
             }
-            
+
             this.updateUI();
         });
 
@@ -389,8 +389,8 @@ export class RepeatSettingsDialog {
             intervalUnit.textContent = this.getIntervalUnit();
 
             // 显示/隐藏相关选项
-            const showInterval = this.repeatConfig.type !== 'ebbinghaus' && this.repeatConfig.type !== 'custom' && 
-                                 this.repeatConfig.type !== 'lunar-monthly' && this.repeatConfig.type !== 'lunar-yearly';
+            const showInterval = this.repeatConfig.type !== 'ebbinghaus' && this.repeatConfig.type !== 'custom' &&
+                this.repeatConfig.type !== 'lunar-monthly' && this.repeatConfig.type !== 'lunar-yearly';
             intervalGroup.style.display = showInterval ? 'block' : 'none';
 
             const showCustom = this.repeatConfig.type === 'custom';
@@ -411,7 +411,7 @@ export class RepeatSettingsDialog {
             // 显示/隐藏农历选项
             const showLunar = this.repeatConfig.type === 'lunar-monthly' || this.repeatConfig.type === 'lunar-yearly';
             lunarOptions.style.display = showLunar ? 'block' : 'none';
-            
+
             if (showLunar) {
                 lunarMonthlyGroup.style.display = this.repeatConfig.type === 'lunar-monthly' ? 'inline' : 'none';
                 lunarYearlyGroup.style.display = this.repeatConfig.type === 'lunar-yearly' ? 'inline' : 'none';

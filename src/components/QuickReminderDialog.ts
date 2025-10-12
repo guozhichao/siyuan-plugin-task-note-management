@@ -918,7 +918,7 @@ export class QuickReminderDialog {
         // 获取当前设置的开始日期
         const startDateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
         const startDate = startDateInput?.value;
-        
+
         const repeatDialog = new RepeatSettingsDialog(this.repeatConfig, (config: RepeatConfig) => {
             this.repeatConfig = config;
             this.updateRepeatDescription();

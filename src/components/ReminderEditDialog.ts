@@ -760,7 +760,7 @@ export class ReminderEditDialog {
         // 获取当前设置的开始日期
         const startDateInput = this.dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
         const startDate = startDateInput?.value;
-        
+
         const repeatDialog = new RepeatSettingsDialog(this.repeatConfig, (config: RepeatConfig) => {
             this.repeatConfig = config;
             this.updateRepeatDescription();
@@ -930,7 +930,7 @@ export class ReminderEditDialog {
                                 // 否则视为文档 ID，保存 docId 和 blockId
                                 reminderData[this.reminder.id].docId = inputId;
                                 reminderData[this.reminder.id].blockId = inputId;
-                                
+
                             }
                         } catch (err) {
                             // 如果 getBlockByID 抛错或不存在，保守地当作 blockId 保存

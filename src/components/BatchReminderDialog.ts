@@ -1675,7 +1675,7 @@ class BlockEditDialog {
             // 获取当前设置的开始日期
             const startDateInput = dialog.element.querySelector('#batchReminderDate') as HTMLInputElement;
             const startDate = startDateInput?.value;
-            
+
             const repeatDialog = new RepeatSettingsDialog(this.setting.repeatConfig, (config: RepeatConfig) => {
                 this.setting.repeatConfig = config;
                 this.updateRepeatDescription(dialog);
