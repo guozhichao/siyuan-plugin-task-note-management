@@ -1,5 +1,7 @@
 import { Dialog, showMessage } from "siyuan";
 import { t } from "../utils/i18n";
+import { solarToLunar } from "../utils/lunarUtils";
+import { getLocalDateString } from "../utils/dateUtils";
 
 export interface RepeatConfig {
     enabled: boolean;
@@ -34,8 +36,9 @@ export class RepeatSettingsDialog {
     private dialog: Dialog;
     private repeatConfig: RepeatConfig;
     private onSaved?: (config: RepeatConfig) => void;
+    private startDate?: string; // 任务开始日期
 
-    constructor(initialConfig?: RepeatConfig, onSaved?: (config: RepeatConfig) => void) {
+    constructor(initialConfig?: RepeatConfig, onSaved?: (config: RepeatConfig) => void, startDate?: string) {
         this.repeatConfig = initialConfig || {
             enabled: false,
             type: 'daily',
@@ -43,6 +46,33 @@ export class RepeatSettingsDialog {
             endType: 'never'
         };
         this.onSaved = onSaved;
+        this.startDate = startDate;
+        
+        // 如果是农历重复类型且没有设置农历日期，从开始日期（或今天）计算
+        if (this.repeatConfig.type === 'lunar-monthly' || this.repeatConfig.type === 'lunar-yearly') {
+            if (!this.repeatConfig.lunarDay || !this.repeatConfig.lunarMonth) {
+                this.initLunarDateFromStartDate();
+            }
+        }
+    }
+    
+    private initLunarDateFromStartDate() {
+        try {
+            // 如果没有设置 startDate，使用今天的日期
+            const dateToUse = this.startDate || getLocalDateString();
+            console.log('[RepeatSettings] Initializing lunar date from:', dateToUse);
+            
+            const lunar = solarToLunar(dateToUse);
+            console.log('[RepeatSettings] Calculated lunar date:', lunar);
+            
+            this.repeatConfig.lunarDay = lunar.day;
+            // 农历月份总是需要设置（即使是 lunar-monthly 类型也需要知道月份）
+            this.repeatConfig.lunarMonth = lunar.month;
+            
+            console.log('[RepeatSettings] Set lunarDay:', this.repeatConfig.lunarDay, 'lunarMonth:', this.repeatConfig.lunarMonth);
+        } catch (error) {
+            console.error('Failed to initialize lunar date from start date:', error);
+        }
     }
 
     public show() {
@@ -274,7 +304,48 @@ export class RepeatSettingsDialog {
         });
 
         repeatType.addEventListener('change', () => {
-            this.repeatConfig.type = repeatType.value as any;
+            const newType = repeatType.value as any;
+            const oldType = this.repeatConfig.type;
+            this.repeatConfig.type = newType;
+            
+            console.log('[RepeatSettings] Type changed from', oldType, 'to', newType);
+            
+            // 当从非农历类型切换到农历类型时，重新初始化农历日期
+            if ((newType === 'lunar-monthly' || newType === 'lunar-yearly') && 
+                (oldType !== 'lunar-monthly' && oldType !== 'lunar-yearly')) {
+                console.log('[RepeatSettings] Switching to lunar type, initializing lunar date...');
+                // 重新计算农历日期（基于 startDate 或今天）
+                this.initLunarDateFromStartDate();
+                
+                // 更新UI中的输入框值
+                setTimeout(() => {
+                    const lunarDayInput = this.dialog.element.querySelector('#lunarDay') as HTMLInputElement;
+                    const lunarDayYearlyInput = this.dialog.element.querySelector('#lunarDayYearly') as HTMLInputElement;
+                    const lunarMonthInput = this.dialog.element.querySelector('#lunarMonth') as HTMLSelectElement;
+                    
+                    console.log('[RepeatSettings] Updating input elements:', {
+                        lunarDayInput: !!lunarDayInput,
+                        lunarDayYearlyInput: !!lunarDayYearlyInput,
+                        lunarMonthInput: !!lunarMonthInput,
+                        lunarDay: this.repeatConfig.lunarDay,
+                        lunarMonth: this.repeatConfig.lunarMonth
+                    });
+                    
+                    if (lunarDayInput && this.repeatConfig.lunarDay) {
+                        lunarDayInput.value = this.repeatConfig.lunarDay.toString();
+                        console.log('[RepeatSettings] Set lunarDayInput.value to', lunarDayInput.value);
+                    }
+                    if (lunarDayYearlyInput && this.repeatConfig.lunarDay) {
+                        lunarDayYearlyInput.value = this.repeatConfig.lunarDay.toString();
+                        console.log('[RepeatSettings] Set lunarDayYearlyInput.value to', lunarDayYearlyInput.value);
+                    }
+                    if (lunarMonthInput && this.repeatConfig.lunarMonth) {
+                        lunarMonthInput.value = this.repeatConfig.lunarMonth.toString();
+                        console.log('[RepeatSettings] Set lunarMonthInput.value to', lunarMonthInput.value);
+                    }
+                }, 0);
+            }
+            
             this.updateUI();
         });
 
