@@ -1339,32 +1339,55 @@ export class ReminderPanel {
 
         // console.log(`生成的所有任务数量: ${reminders.length}`);
         const allReminders = [];
-        const repeatInstancesMap = new Map();
 
         reminders.forEach((reminder: any) => {
             // 对于农历重复任务，只添加符合农历日期的实例，不添加原始日期
             const isLunarRepeat = reminder.repeat?.enabled &&
                 (reminder.repeat.type === 'lunar-monthly' || reminder.repeat.type === 'lunar-yearly');
 
-            if (!isLunarRepeat) {
-                // 非农历重复任务，正常添加原始任务
+            // 对于周期任务的处理：
+            // 1. 农历重复：不添加原始任务，只添加实例
+            // 2. 非农历重复且原始日期早于今天：不添加原始任务，只添加实例
+            // 3. 非农历重复且原始日期是今天或未来：添加原始任务
+            // 4. 非周期任务：正常添加
+            if (!reminder.repeat?.enabled) {
+                // 非周期任务，正常添加
                 allReminders.push(reminder);
+            } else if (!isLunarRepeat) {
+                // 非农历周期任务，只有当原始日期是今天或未来时才添加原始任务
+                if (reminder.date && compareDateStrings(reminder.date, today) >= 0) {
+                    allReminders.push(reminder);
+                }
             }
+            // 农历重复任务不添加原始任务，只添加实例
 
             if (reminder.repeat?.enabled) {
-                const today = getLocalDateString();
                 const repeatInstances = this.generateInstancesWithFutureGuarantee(reminder, today, isLunarRepeat);
+
+                // 过滤实例：保留过去未完成、今天的、未来第一个未完成，以及所有已完成的实例
+                const completedInstances = reminder.repeat?.completedInstances || [];
+                const instanceModifications = reminder.repeat?.instanceModifications || {};
+
+                // 检查原始任务的日期是否是今天且未完成
+                const isOriginalTaskToday = reminder.date && compareDateStrings(reminder.date, today) === 0;
+                const isOriginalTaskCompleted = reminder.completed;
+                const hasTodayTask = isOriginalTaskToday && !isOriginalTaskCompleted;
+
+                // 将实例分类为：过去未完成、今天未完成、未来未完成、未来已完成、过去已完成
+                let pastIncompleteList: any[] = [];
+                let todayIncompleteList: any[] = [];
+                let futureIncompleteList: any[] = [];
+                let futureCompletedList: any[] = [];
+                let pastCompletedList: any[] = [];
 
                 repeatInstances.forEach(instance => {
                     // 对于农历重复，所有实例都添加（包括原始日期，如果它匹配农历）
                     // 对于非农历重复，只添加不同日期的实例
                     if (isLunarRepeat || instance.date !== reminder.date) {
-                        const completedInstances = reminder.repeat?.completedInstances || [];
                         const isInstanceCompleted = completedInstances.includes(instance.date);
-                        const instanceModifications = reminder.repeat?.instanceModifications || {};
                         const instanceMod = instanceModifications[instance.date];
 
-                        const instanceReminder = {
+                        const instanceTask = {
                             ...reminder,
                             id: instance.instanceId,
                             date: instance.date,
@@ -1374,18 +1397,69 @@ export class ReminderPanel {
                             isRepeatInstance: true,
                             originalId: instance.originalId,
                             completed: isInstanceCompleted,
-                            note: instanceMod?.note || reminder.note
+                            note: instanceMod?.note || reminder.note,
+                            // 为已完成的实例添加完成时间（用于排序）
+                            completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined
                         };
-                        const key = `${reminder.id}_${instance.date}`;
-                        if (!repeatInstancesMap.has(key)) {
-                            repeatInstancesMap.set(key, instanceReminder);
+
+                        // 按日期和完成状态分类
+                        const dateComparison = compareDateStrings(instance.date, today);
+
+                        if (dateComparison < 0) {
+                            // 过去的日期
+                            if (isInstanceCompleted) {
+                                pastCompletedList.push(instanceTask);
+                            } else {
+                                pastIncompleteList.push(instanceTask);
+                            }
+                        } else if (dateComparison === 0) {
+                            // 今天的日期（只收集未完成的）
+                            if (!isInstanceCompleted) {
+                                todayIncompleteList.push(instanceTask);
+                            } else {
+                                pastCompletedList.push(instanceTask); // 今天已完成算作过去
+                            }
+                        } else {
+                            // 未来的日期
+                            if (isInstanceCompleted) {
+                                futureCompletedList.push(instanceTask);
+                            } else {
+                                futureIncompleteList.push(instanceTask);
+                            }
                         }
                     }
                 });
+
+                // 添加过去的未完成实例
+                allReminders.push(...pastIncompleteList);
+
+                // 添加今天的未完成实例
+                allReminders.push(...todayIncompleteList);
+
+                // 添加未来的第一个未完成实例（如果存在）
+                // 这样即使有多个已完成的未来实例，也能显示下一个未完成的实例
+                if (futureIncompleteList.length > 0) {
+                    const hasTodayIncomplete = todayIncompleteList.length > 0;
+
+                    if (isLunarRepeat) {
+                        // 农历重复：如果今天没有实例，就添加未来第一个未完成的
+                        if (!hasTodayIncomplete) {
+                            allReminders.push(futureIncompleteList[0]);
+                        }
+                    } else {
+                        // 非农历重复：如果今天没有任何未完成任务，就添加未来第一个未完成的
+                        if (!hasTodayTask && !hasTodayIncomplete) {
+                            allReminders.push(futureIncompleteList[0]);
+                        }
+                    }
+                }
+
+                // 添加所有已完成的实例（包括过去和未来的）
+                allReminders.push(...pastCompletedList);
+                allReminders.push(...futureCompletedList);
             }
         });
 
-        repeatInstancesMap.forEach(instance => allReminders.push(instance));
         return allReminders;
     }
 
