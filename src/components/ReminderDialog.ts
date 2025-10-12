@@ -1384,6 +1384,49 @@ export class ReminderDialog {
                 reminder.note = note;
             }
 
+            // 如果是周期任务，自动完成所有过去的实例
+            if (this.repeatConfig.enabled && date) {
+                const { generateRepeatInstances } = await import("../utils/repeatUtils");
+                const today = getLocalDateString();
+                
+                // 计算从开始日期到今天的天数，用于设置 maxInstances
+                const startDateObj = new Date(date);
+                const todayObj = new Date(today);
+                const daysDiff = Math.ceil((todayObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24));
+                
+                // 根据重复类型估算可能的最大实例数
+                let maxInstances = 1000; // 默认值
+                if (this.repeatConfig.type === 'daily') {
+                    maxInstances = Math.max(daysDiff + 10, 1000); // 每日重复，最多是天数
+                } else if (this.repeatConfig.type === 'weekly') {
+                    maxInstances = Math.max(Math.ceil(daysDiff / 7) + 10, 500);
+                } else if (this.repeatConfig.type === 'monthly' || this.repeatConfig.type === 'lunar-monthly') {
+                    maxInstances = Math.max(Math.ceil(daysDiff / 30) + 10, 200);
+                } else if (this.repeatConfig.type === 'yearly' || this.repeatConfig.type === 'lunar-yearly') {
+                    maxInstances = Math.max(Math.ceil(daysDiff / 365) + 10, 50);
+                }
+                
+                // 生成从任务开始日期到今天的所有实例
+                const instances = generateRepeatInstances(reminder, date, today, maxInstances);
+                
+                // 将所有早于今天的实例标记为已完成
+                const pastInstances: string[] = [];
+                instances.forEach(instance => {
+                    if (instance.date < today) {
+                        pastInstances.push(instance.date);
+                    }
+                });
+                
+                // 如果有过去的实例，添加到completedInstances
+                if (pastInstances.length > 0) {
+                    if (!reminder.repeat.completedInstances) {
+                        reminder.repeat.completedInstances = [];
+                    }
+                    reminder.repeat.completedInstances.push(...pastInstances);
+                    console.log(`自动完成了 ${pastInstances.length} 个过去的周期实例（共生成 ${instances.length} 个实例）`);
+                }
+            }
+
             reminderData[reminderId] = reminder;
             await writeReminderData(reminderData);
 

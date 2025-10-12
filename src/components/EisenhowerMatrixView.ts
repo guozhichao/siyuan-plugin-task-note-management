@@ -247,43 +247,24 @@ export class EisenhowerMatrixView {
 
                 // 如果是周期事件，生成实例
                 if (reminder.repeat?.enabled) {
-                    // 对于农历重复任务，需要更长的时间范围以确保能找到下一个实例
-                    // 因为农历日期可能在很久以后（比如明年）才会再次出现
-                    let monthStart = new Date();
-                    let monthEnd = new Date();
+                    // 智能确定时间范围，确保至少能找到下一个未来实例
+                    const repeatInstances = this.generateInstancesWithFutureGuarantee(reminder, today, isLunarRepeat);
 
-                    if (isLunarRepeat) {
-                        // 农历重复：从上个月开始，到未来14个月（确保覆盖至少一个完整的农历年）
-                        monthStart.setDate(1);
-                        monthStart.setMonth(monthStart.getMonth() - 1);
-                        monthEnd.setMonth(monthEnd.getMonth() + 14);
-                        monthEnd.setDate(0);
-                    } else {
-                        // 非农历重复：使用较短的范围（上个月到未来2个月）
-                        monthStart.setDate(1);
-                        monthStart.setMonth(monthStart.getMonth() - 1);
-                        monthEnd.setMonth(monthEnd.getMonth() + 2);
-                        monthEnd.setDate(0);
-                    }
-
-                    const startDate = getLocalDateString(monthStart);
-                    const endDate = getLocalDateString(monthEnd);
-
-                    const repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
-
-                    // 过滤实例：保留过去未完成、今天的、未来最近一个未完成，以及已完成的实例
+                    // 过滤实例：保留过去未完成、今天的、未来第一个未完成，以及所有已完成的实例
                     const completedInstances = reminder.repeat?.completedInstances || [];
                     const instanceModifications = reminder.repeat?.instanceModifications || {};
-
-                    let pastIncomplete: any[] = [];
-                    let todayIncomplete: any | null = null;
-                    let futureIncomplete: any | null = null;
-                    let completedList: any[] = [];
 
                     // 检查原始任务的日期是否是今天且未完成
                     const isOriginalTaskToday = reminder.date && compareDateStrings(reminder.date, today) === 0;
                     const isOriginalTaskCompleted = reminder.completed;
                     const hasTodayTask = isOriginalTaskToday && !isOriginalTaskCompleted;
+
+                    // 将实例分类为：过去未完成、今天未完成、未来未完成、未来已完成、过去已完成
+                    let pastIncompleteList: any[] = [];
+                    let todayIncompleteList: any[] = [];
+                    let futureIncompleteList: any[] = [];
+                    let futureCompletedList: any[] = [];
+                    let pastCompletedList: any[] = [];
 
                     repeatInstances.forEach(instance => {
                         // 对于农历重复，所有实例都添加（包括原始日期，如果它匹配农历）
@@ -307,55 +288,61 @@ export class EisenhowerMatrixView {
                                 completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined
                             };
 
-                            if (isInstanceCompleted) {
-                                // 已完成的实例都添加到列表中
-                                completedList.push(instanceTask);
+                            // 按日期和完成状态分类
+                            const dateComparison = compareDateStrings(instance.date, today);
+                            
+                            if (dateComparison < 0) {
+                                // 过去的日期
+                                if (isInstanceCompleted) {
+                                    pastCompletedList.push(instanceTask);
+                                } else {
+                                    pastIncompleteList.push(instanceTask);
+                                }
+                            } else if (dateComparison === 0) {
+                                // 今天的日期（只收集未完成的）
+                                if (!isInstanceCompleted) {
+                                    todayIncompleteList.push(instanceTask);
+                                } else {
+                                    pastCompletedList.push(instanceTask); // 今天已完成算作过去
+                                }
                             } else {
-                                // 未完成的实例按原有逻辑分类
-                                if (compareDateStrings(instance.date, today) < 0) {
-                                    // 过去的日期
-                                    pastIncomplete.push(instanceTask);
-                                } else if (compareDateStrings(instance.date, today) === 0) {
-                                    // 今天的日期
-                                    if (!todayIncomplete) {
-                                        todayIncomplete = instanceTask;
-                                    }
-                                } else if (compareDateStrings(instance.date, today) > 0) {
-                                    // 未来的日期
-                                    if (!futureIncomplete) {
-                                        futureIncomplete = instanceTask;
-                                    }
+                                // 未来的日期
+                                if (isInstanceCompleted) {
+                                    futureCompletedList.push(instanceTask);
+                                } else {
+                                    futureIncompleteList.push(instanceTask);
                                 }
                             }
                         }
                     });
 
                     // 添加过去的未完成实例
-                    allRemindersWithInstances.push(...pastIncomplete);
+                    allRemindersWithInstances.push(...pastIncompleteList);
 
-                    // 添加今天的未完成实例（如果不是原始任务的日期）
-                    if (todayIncomplete) {
-                        allRemindersWithInstances.push(todayIncomplete);
-                    }
+                    // 添加今天的未完成实例
+                    allRemindersWithInstances.push(...todayIncompleteList);
 
-                    // 对于农历重复任务，如果今天没有实例，则添加未来最近一个未完成实例
-                    // 对于非农历重复任务，只有在今天没有任何未完成任务时（包括原始任务和实例），才添加未来最近一个未完成实例
-                    if (futureIncomplete) {
+                    // 添加未来的第一个未完成实例（如果存在）
+                    // 这样即使有多个已完成的未来实例，也能显示下一个未完成的实例
+                    if (futureIncompleteList.length > 0) {
+                        const hasTodayIncomplete = todayIncompleteList.length > 0;
+                        
                         if (isLunarRepeat) {
-                            // 农历重复：如果今天没有实例，就添加未来的
-                            if (!todayIncomplete) {
-                                allRemindersWithInstances.push(futureIncomplete);
+                            // 农历重复：如果今天没有实例，就添加未来第一个未完成的
+                            if (!hasTodayIncomplete) {
+                                allRemindersWithInstances.push(futureIncompleteList[0]);
                             }
                         } else {
-                            // 非农历重复：按原逻辑判断
-                            if (!hasTodayTask && !todayIncomplete) {
-                                allRemindersWithInstances.push(futureIncomplete);
+                            // 非农历重复：如果今天没有任何未完成任务，就添加未来第一个未完成的
+                            if (!hasTodayTask && !hasTodayIncomplete) {
+                                allRemindersWithInstances.push(futureIncompleteList[0]);
                             }
                         }
                     }
 
-                    // 添加所有已完成的实例
-                    allRemindersWithInstances.push(...completedList);
+                    // 添加所有已完成的实例（包括过去和未来的）
+                    allRemindersWithInstances.push(...pastCompletedList);
+                    allRemindersWithInstances.push(...futureCompletedList);
                 }
             }
 
@@ -3727,6 +3714,71 @@ export class EisenhowerMatrixView {
             console.error('添加排除日期失败:', error);
             throw error;
         }
+    }
+
+    /**
+     * 智能生成重复任务实例，确保至少能找到下一个未来实例
+     * @param reminder 提醒任务对象
+     * @param today 今天的日期字符串
+     * @param isLunarRepeat 是否是农历重复
+     * @returns 生成的实例数组
+     */
+    private generateInstancesWithFutureGuarantee(reminder: any, today: string, isLunarRepeat: boolean): any[] {
+        // 根据重复类型确定初始范围
+        let monthsToAdd = 2; // 默认范围
+        
+        if (isLunarRepeat) {
+            monthsToAdd = 14; // 农历重复需要更长范围
+        } else if (reminder.repeat.type === 'yearly') {
+            monthsToAdd = 14; // 年度重复初始范围为14个月
+        } else if (reminder.repeat.type === 'monthly') {
+            monthsToAdd = 3; // 月度重复使用3个月
+        }
+
+        let repeatInstances: any[] = [];
+        let hasUncompletedFutureInstance = false;
+        const maxAttempts = 5; // 最多尝试5次扩展
+        let attempts = 0;
+
+        // 获取已完成实例列表
+        const completedInstances = reminder.repeat?.completedInstances || [];
+
+        while (!hasUncompletedFutureInstance && attempts < maxAttempts) {
+            const monthStart = new Date();
+            monthStart.setDate(1);
+            monthStart.setMonth(monthStart.getMonth() - 1);
+            
+            const monthEnd = new Date();
+            monthEnd.setMonth(monthEnd.getMonth() + monthsToAdd);
+            monthEnd.setDate(0);
+
+            const startDate = getLocalDateString(monthStart);
+            const endDate = getLocalDateString(monthEnd);
+
+            // 生成实例，使用足够大的 maxInstances 以确保生成所有实例
+            const maxInstances = monthsToAdd * 50; // 根据范围动态调整
+            repeatInstances = generateRepeatInstances(reminder, startDate, endDate, maxInstances);
+
+            // 检查是否有未完成的未来实例（关键修复：不仅要是未来的，还要是未完成的）
+            hasUncompletedFutureInstance = repeatInstances.some(instance => 
+                compareDateStrings(instance.date, today) > 0 && 
+                !completedInstances.includes(instance.date)
+            );
+
+            if (!hasUncompletedFutureInstance) {
+                // 如果没有找到未完成的未来实例，扩展范围
+                if (reminder.repeat.type === 'yearly') {
+                    monthsToAdd += 12; // 年度重复每次增加12个月
+                } else if (isLunarRepeat) {
+                    monthsToAdd += 12; // 农历重复每次增加12个月
+                } else {
+                    monthsToAdd += 6; // 其他类型每次增加6个月
+                }
+                attempts++;
+            }
+        }
+
+        return repeatInstances;
     }
 
     destroy() {

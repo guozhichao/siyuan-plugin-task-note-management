@@ -1328,13 +1328,8 @@ export class ReminderPanel {
             }
 
             if (reminder.repeat?.enabled) {
-                const now = new Date();
-                const monthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                const monthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
-                const startDate = getLocalDateString(monthStart);
-                const endDate = getLocalDateString(monthEnd);
-
-                const repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
+                const today = getLocalDateString();
+                const repeatInstances = this.generateInstancesWithFutureGuarantee(reminder, today, isLunarRepeat);
 
                 repeatInstances.forEach(instance => {
                     // 对于农历重复，所有实例都添加（包括原始日期，如果它匹配农历）
@@ -6008,5 +6003,70 @@ export class ReminderPanel {
             console.error('获取番茄钟计数失败:', error);
             return 0;
         }
+    }
+
+    /**
+     * 智能生成重复任务实例，确保至少能找到下一个未来实例
+     * @param reminder 提醒任务对象
+     * @param today 今天的日期字符串
+     * @param isLunarRepeat 是否是农历重复
+     * @returns 生成的实例数组
+     */
+    private generateInstancesWithFutureGuarantee(reminder: any, today: string, isLunarRepeat: boolean): any[] {
+        // 根据重复类型确定初始范围
+        let monthsToAdd = 2; // 默认范围
+        
+        if (isLunarRepeat) {
+            monthsToAdd = 14; // 农历重复需要更长范围
+        } else if (reminder.repeat.type === 'yearly') {
+            monthsToAdd = 14; // 年度重复初始范围为14个月
+        } else if (reminder.repeat.type === 'monthly') {
+            monthsToAdd = 3; // 月度重复使用3个月
+        }
+
+        let repeatInstances: any[] = [];
+        let hasUncompletedFutureInstance = false;
+        const maxAttempts = 5; // 最多尝试5次扩展
+        let attempts = 0;
+
+        // 获取已完成实例列表
+        const completedInstances = reminder.repeat?.completedInstances || [];
+
+        while (!hasUncompletedFutureInstance && attempts < maxAttempts) {
+            const monthStart = new Date();
+            monthStart.setDate(1);
+            monthStart.setMonth(monthStart.getMonth() - 1);
+            
+            const monthEnd = new Date();
+            monthEnd.setMonth(monthEnd.getMonth() + monthsToAdd);
+            monthEnd.setDate(0);
+
+            const startDate = getLocalDateString(monthStart);
+            const endDate = getLocalDateString(monthEnd);
+
+            // 生成实例，使用足够大的 maxInstances 以确保生成所有实例
+            const maxInstances = monthsToAdd * 50; // 根据范围动态调整
+            repeatInstances = generateRepeatInstances(reminder, startDate, endDate, maxInstances);
+
+            // 检查是否有未完成的未来实例（关键修复：不仅要是未来的，还要是未完成的）
+            hasUncompletedFutureInstance = repeatInstances.some(instance => 
+                compareDateStrings(instance.date, today) > 0 && 
+                !completedInstances.includes(instance.date)
+            );
+
+            if (!hasUncompletedFutureInstance) {
+                // 如果没有找到未完成的未来实例，扩展范围
+                if (reminder.repeat.type === 'yearly') {
+                    monthsToAdd += 12; // 年度重复每次增加12个月
+                } else if (isLunarRepeat) {
+                    monthsToAdd += 12; // 农历重复每次增加12个月
+                } else {
+                    monthsToAdd += 6; // 其他类型每次增加6个月
+                }
+                attempts++;
+            }
+        }
+
+        return repeatInstances;
     }
 }
