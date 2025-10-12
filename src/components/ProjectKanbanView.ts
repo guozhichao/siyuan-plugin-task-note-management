@@ -1792,7 +1792,7 @@ export class ProjectKanbanView {
                                 reminderData[actualTaskId].repeat.completedInstances.splice(index, 1);
                             }
                         }
-                        
+
                         // 对于周期事件，也需要支持修改 termType 和 kanbanStatus
                         // 修改的是原始周期事件的属性，会影响所有未来实例
                         if (newStatus === 'long_term' || newStatus === 'short_term') {
