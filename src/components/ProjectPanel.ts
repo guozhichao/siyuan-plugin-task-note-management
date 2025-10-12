@@ -27,7 +27,7 @@ export class ProjectPanel {
     private currentSort: string = 'priority';
     private currentSortOrder: 'asc' | 'desc' = 'desc';
     private currentSearchQuery: string = '';
-    private showOnlyWithDoingTasks: boolean = true;
+    private showOnlyWithDoingTasks: boolean = false;
     private categoryManager: CategoryManager;
     private statusManager: StatusManager;
     private projectUpdatedHandler: () => void;
