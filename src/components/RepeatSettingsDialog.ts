@@ -48,7 +48,7 @@ export class RepeatSettingsDialog {
             title: t("repeatSettings"),
             content: this.createDialogContent(),
             width: "480px",
-            height: "600px"
+            height: "290px"
         });
 
         this.bindEvents();
@@ -58,7 +58,7 @@ export class RepeatSettingsDialog {
     private createDialogContent(): string {
         return `
             <div class="repeat-settings-dialog">
-                <div class="b3-dialog__content">
+                <div class="b3-dialog__content" style="height: 159px;">
                     <div class="b3-form__group">
                         <label class="b3-checkbox">
                             <input type="checkbox" id="enableRepeat" ${this.repeatConfig.enabled ? 'checked' : ''}>
