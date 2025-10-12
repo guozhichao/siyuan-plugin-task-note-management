@@ -10,6 +10,7 @@ import { PomodoroManager } from "../utils/pomodoroManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
 import { getSolarDateLunarString } from "../utils/lunarUtils";
+import { QuickReminderDialog } from "./QuickReminderDialog";
 
 // 层级化任务接口
 interface HierarchicalTask {
@@ -2015,321 +2016,107 @@ export class ProjectKanbanView {
         });
     }
 
+    // 使用 QuickReminderDialog 创建任务
     private showCreateTaskDialog(parentTask?: any) {
-        const dialog = new Dialog({
-            title: parentTask ? `为 "${parentTask.title}" 创建子任务` : "新建任务",
-            content: `
-                <div class="reminder-dialog">
-                <div class="b3-dialog__content">
-                    <div class="b3-form__group">
-                        <label class="b3-form__label">任务标题</label>
-                        <input type="text" id="taskTitle" class="b3-text-field" placeholder="请输入任务标题" required style="width: 100%;">
-                    </div>
-                    <div class="b3-form__group">
-                        <label class="b3-form__label">分类
-                            <button type="button" id="manageCategoriesBtn" class="b3-button b3-button--outline" title="管理分类" style="margin-left: 8px; vertical-align: middle;">
-                                <svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg>
-                            </button>
-                        </label>
-                        <div class="category-selector" id="categorySelector" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;"></div>
-                    </div>
-                    <div class="b3-form__group">
-                        <label class="b3-form__label">优先级</label>
-                        <div class="priority-selector" id="prioritySelector">
-                            <div class="priority-option" data-priority="high"><div class="priority-dot high"></div><span>高</span></div>
-                            <div class="priority-option" data-priority="medium"><div class="priority-dot medium"></div><span>中</span></div>
-                            <div class="priority-option" data-priority="low"><div class="priority-dot low"></div><span>低</span></div>
-                            <div class="priority-option selected" data-priority="none"><div class="priority-dot none"></div><span>无</span></div>
-                        </div>
-                    </div>
-                    <div class="b3-form__group">
-                        <label class="b3-form__label">任务类型</label>
-                        <div class="term-type-selector" id="termTypeSelector">
-                            <div class="term-type-option selected" data-term-type="short_term">
-                                <span>📝</span><span>短期任务</span>
-                            </div>
-                            <div class="term-type-option" data-term-type="long_term">
-                                <span>🎯</span><span>长期任务</span>
-                            </div>
-                        </div>
-                    </div>
-                     <div class="b3-form__group">
-                        <label class="b3-form__label">任务日期</label>
-                        <div class="reminder-date-container">
-                            <input type="date" id="taskStartDate" class="b3-text-field" title="开始日期">
-                            <span class="reminder-arrow">→</span>
-                            <input type="date" id="taskEndDate" class="b3-text-field" title="结束日期">
-                        </div>
-                    </div>
-                    <div class="b3-form__group">
-                        <label class="b3-form__label">绑定块 (可选)</label>
-                        <div class="b3-form__desc">输入块ID将任务绑定到指定块</div>
-                        <input type="text" id="taskBlockId" class="b3-text-field" placeholder="请输入块ID (可选)" style="width: 100%; margin-top: 8px;">
-                        <div id="blockPreview" class="block-content-preview" style="
-                            display: none;
-                            padding: 8px;
-                            background-color: var(--b3-theme-surface-lighter);
-                            border-radius: 4px;
-                            border: 1px solid var(--b3-theme-border);
-                            max-height: 60px;
-                            overflow-y: auto;
-                            font-size: 12px;
-                            color: var(--b3-theme-on-surface);
-                            margin-top: 8px;
-                        "></div>
-                    </div>
-                    <div class="b3-form__group">
-                        <label class="b3-form__label">备注</label>
-                        <textarea id="taskNote" class="b3-text-field" placeholder="请输入任务备注" rows="2" style="width: 100%;resize: vertical; min-height: 60px;"></textarea>
-                    </div>
-                </div>
-                <div class="b3-dialog__action">
-                    <button class="b3-button b3-button--cancel" id="cancelBtn">取消</button>
-                    <button class="b3-button b3-button--primary" id="createBtn">创建</button>
-                </div>
-                </div>
-            `,
-            width: "500px",
-            height: "720px"
-        });
+        const today = getLocalDateString();
 
-        const titleInput = dialog.element.querySelector('#taskTitle') as HTMLInputElement;
-        const noteInput = dialog.element.querySelector('#taskNote') as HTMLTextAreaElement;
-        const startDateInput = dialog.element.querySelector('#taskStartDate') as HTMLInputElement;
-        const endDateInput = dialog.element.querySelector('#taskEndDate') as HTMLInputElement;
-        const prioritySelector = dialog.element.querySelector('#prioritySelector') as HTMLElement;
-        const termTypeSelector = dialog.element.querySelector('#termTypeSelector') as HTMLElement;
-        const categorySelector = dialog.element.querySelector('#categorySelector') as HTMLElement;
-        const manageCategoriesBtn = dialog.element.querySelector('#manageCategoriesBtn') as HTMLButtonElement;
-        const blockIdInput = dialog.element.querySelector('#taskBlockId') as HTMLInputElement;
-        const blockPreview = dialog.element.querySelector('#blockPreview') as HTMLElement;
-        const cancelBtn = dialog.element.querySelector('#cancelBtn') as HTMLButtonElement;
-        const createBtn = dialog.element.querySelector('#createBtn') as HTMLButtonElement;
-
-        // 渲染并绑定分类选择器
-        this.renderCategorySelector(categorySelector, this.project.categoryId);
-
-        // 绑定优先级选择事件
-        prioritySelector.addEventListener('click', (e) => {
-            const target = e.target as HTMLElement;
-            const option = target.closest('.priority-option') as HTMLElement;
-            if (option) {
-                prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
-                option.classList.add('selected');
+        const quickDialog = new QuickReminderDialog(
+            today,
+            undefined, // 无初始时间
+            () => {
+                // 保存成功后刷新看板
+                this.loadTasks();
+            },
+            undefined, // 无时间段选项
+            {
+                defaultProjectId: this.projectId, // 默认项目ID
+                defaultCategoryId: parentTask?.categoryId, // 如果是子任务，继承父任务分类
+                defaultPriority: parentTask?.priority, // 如果是子任务，继承父任务优先级
+                defaultTitle: parentTask ? '' : undefined, // 子任务不预填标题
+                hideProjectSelector: true, // 隐藏项目选择器
+                showTermTypeSelector: true, // 显示任务类型选择器
+                defaultTermType: 'short_term', // 默认短期任务
+                plugin: this.plugin // 传入plugin实例
             }
-        });
+        );
+        
+        quickDialog.show();
 
-        // 绑定任务类型选择事件
-        termTypeSelector.addEventListener('click', (e) => {
-            const target = e.target as HTMLElement;
-            const option = target.closest('.term-type-option') as HTMLElement;
-            if (option) {
-                termTypeSelector.querySelectorAll('.term-type-option').forEach(opt => opt.classList.remove('selected'));
-                option.classList.add('selected');
-            }
-        });
+        // 如果需要设置父子关系，在保存后处理
+        if(parentTask) {
+            // 重写保存回调，添加父子关系设置
+            const originalOnSaved = quickDialog['onSaved'];
+            quickDialog['onSaved'] = async () => {
+                if (originalOnSaved) {
+                    originalOnSaved();
+                }
 
-        // 管理分类按钮事件
-        manageCategoriesBtn.addEventListener('click', () => {
-            new CategoryManageDialog(() => {
-                this.renderCategorySelector(categorySelector, this.project.categoryId);
-            }).show();
-        });
-
-        // 监听块ID输入变化
-        blockIdInput.addEventListener('input', async () => {
-            const blockId = blockIdInput.value.trim();
-            if (blockId.length >= 20) { // 块ID通常是20位字符
+                // 获取最新创建的任务并设置父任务关系
                 try {
-                    const block = await getBlockByID(blockId);
-                    if (block) {
-                        const blockContent = block.content || block.fcontent || '未命名块';
-                        blockPreview.textContent = `预览: ${blockContent}`;
-                        blockPreview.style.display = 'block';
-                    } else {
-                        blockPreview.style.display = 'none';
+                    const reminderData = await readReminderData();
+                    const allTasks = Object.values(reminderData).filter((r: any) =>
+                        r.projectId === this.projectId && !r.completed
+                    );
+
+                    // 找到最新创建的任务（最大的 createdAt 时间戳）
+                    const latestTask = allTasks.reduce((latest: any, current: any) => {
+                        if (!latest) return current;
+                        const latestTime = new Date(latest.createdAt || 0).getTime();
+                        const currentTime = new Date(current.createdAt || 0).getTime();
+                        return currentTime > latestTime ? current : latest;
+                    }, null);
+
+                    if (latestTask) {
+                        // 设置父任务关系
+                        (latestTask as any).parentId = parentTask.id;
+                        reminderData[(latestTask as any).id] = latestTask;
+                        await writeReminderData(reminderData);
+
+                        showMessage(`子任务已创建并关联到 "${parentTask.title}"`);
+
+                        // 再次刷新看板
+                        this.loadTasks();
                     }
                 } catch (error) {
-                    blockPreview.style.display = 'none';
+                    console.error('设置父任务关系失败:', error);
                 }
-            } else {
-                blockPreview.style.display = 'none';
-            }
-        });
-
-        cancelBtn.addEventListener('click', () => dialog.destroy());
-
-        // 如果是创建子任务，预填父任务信息
-        if (parentTask) {
-            // 预选分类
-            const categoryOption = categorySelector.querySelector(`.category-option[data-category="${parentTask.categoryId || ''}"]`) as HTMLElement;
-            if (categoryOption) {
-                categorySelector.querySelectorAll('.category-option').forEach(opt => opt.classList.remove('selected'));
-                categoryOption.classList.add('selected');
-            }
-
-            // 预选优先级
-            const priorityOption = prioritySelector.querySelector(`.priority-option[data-priority="${parentTask.priority || 'none'}"]`) as HTMLElement;
-            if (priorityOption) {
-                prioritySelector.querySelectorAll('.priority-option').forEach(opt => opt.classList.remove('selected'));
-                priorityOption.classList.add('selected');
-            }
+            };
         }
-
-        createBtn.addEventListener('click', async () => {
-            const title = titleInput.value.trim();
-            if (!title) {
-                showMessage("请输入任务标题");
-                return;
-            }
-
-            const selectedPriority = prioritySelector.querySelector('.priority-option.selected') as HTMLElement;
-            const priority = selectedPriority?.getAttribute('data-priority') || 'none';
-
-            const selectedTermType = termTypeSelector.querySelector('.term-type-option.selected') as HTMLElement;
-            const termType = selectedTermType?.getAttribute('data-term-type') || 'short_term';
-
-            const selectedCategory = categorySelector.querySelector('.category-option.selected') as HTMLElement;
-            const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
-
-            const blockId = blockIdInput.value.trim() || undefined;
-
-            await this.createTask({
-                title: title,
-                note: noteInput.value.trim(),
-                date: startDateInput.value,
-                endDate: endDateInput.value,
-                priority: priority,
-                termType: termType,
-                categoryId: categoryId,
-                blockId: blockId
-            }, parentTask);
-
-            dialog.destroy();
-        });
-
-    }
-
-    private async createTask(taskData: any, parentTask?: any) {
-        const reminderData = await readReminderData();
-        const taskId = `quick_${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-
-        const newTask: any = {
-            id: taskId,
-            title: taskData.title,
-            note: taskData.note || '',
-            date: taskData.date || undefined,
-            endDate: taskData.endDate || undefined,
-            priority: taskData.priority || 'none',
-            categoryId: taskData.categoryId,
-            projectId: this.projectId,
-            completed: false,
-            kanbanStatus: 'todo',
-            termType: taskData.termType || 'short_term', // 默认为短期任务
-            createdTime: new Date().toISOString(),
-        };
-
-        // 如果是子任务，添加 parentId
-        if (parentTask) {
-            newTask.parentId = parentTask.id;
-            // 子任务继承父任务的状态
-            if (parentTask.status === 'doing') {
-                newTask.kanbanStatus = 'doing';
-            }
-        }
-
-        // 如果提供了块ID，添加绑定信息
-        if (taskData.blockId) {
-            try {
-                const block = await getBlockByID(taskData.blockId);
-                if (block) {
-                    newTask.blockId = taskData.blockId;
-                    newTask.docId = block.root_id || taskData.blockId;
-
-                    // 更新块的书签状态
-                    await updateBlockReminderBookmark(taskData.blockId);
-                }
-            } catch (error) {
-                console.error('绑定块失败:', error);
-                showMessage("警告：块绑定失败，但任务已创建");
-            }
-        }
-
-        // 计算 newTask 应该插入的分组（同项目，同父任务/顶层，同状态，同优先级）的最大 sort
-        try {
-            const parentId = parentTask ? parentTask.id : undefined;
-            const desiredPriority = taskData.priority || 'none';
-            // 目标状态（使用与加载任务时相同的判定逻辑）
-            const desiredStatus = parentTask && parentTask.status === 'doing' ? 'doing' : 'todo';
-
-            const maxSortForGroup = Object.values(reminderData)
-                .filter((r: any) => r && r.projectId === this.projectId)
-                .filter((r: any) => {
-                    const rParent = r.parentId || undefined;
-                    // 父任务分组一致
-                    if (parentId !== undefined) {
-                        if (rParent !== parentId) return false;
-                    } else {
-                        if (rParent !== undefined) return false;
-                    }
-                    // 状态一致
-                    const rStatus = this.getTaskStatus(r);
-                    if (rStatus !== desiredStatus) return false;
-                    // 优先级一致
-                    const rPriority = r.priority || 'none';
-                    if (rPriority !== desiredPriority) return false;
-                    return typeof r.sort === 'number';
-                })
-                .reduce((max: number, t: any) => Math.max(max, t.sort || 0), 0) as number;
-
-            // 使用步长10与批量创建保持一致，确保插到末尾
-            newTask.sort = maxSortForGroup + 10;
-        } catch (err) {
-            // 如果任何错误，回退为默认排序0
-            newTask.sort = 0;
-        }
-
-        reminderData[taskId] = newTask;
-        await writeReminderData(reminderData);
-
-        showMessage("任务创建成功");
-        await this.loadTasks();
-        window.dispatchEvent(new CustomEvent('reminderUpdated'));
     }
 
     private async editTask(task: any) {
-        try {
-            // 对于周期实例，编辑原始周期事件
-            if (task.isRepeatInstance) {
-                const reminderData = await readReminderData();
-                const originalReminder = reminderData[task.originalId];
-                if (!originalReminder) {
-                    showMessage("原始周期事件不存在");
-                    return;
-                }
-                const editDialog = new ReminderEditDialog(originalReminder, async () => {
-                    await this.loadTasks();
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                });
-                editDialog.show();
-            } else {
-                // 普通任务或原始周期事件
-                const editDialog = new ReminderEditDialog(task, async () => {
-                    await this.loadTasks();
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                });
-                editDialog.show();
+    try {
+        // 对于周期实例，编辑原始周期事件
+        if (task.isRepeatInstance) {
+            const reminderData = await readReminderData();
+            const originalReminder = reminderData[task.originalId];
+            if (!originalReminder) {
+                showMessage("原始周期事件不存在");
+                return;
             }
-        } catch (error) {
-            console.error('打开编辑对话框失败:', error);
-            showMessage("打开编辑对话框失败");
+            const editDialog = new ReminderEditDialog(originalReminder, async () => {
+                await this.loadTasks();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            });
+            editDialog.show();
+        } else {
+            // 普通任务或原始周期事件
+            const editDialog = new ReminderEditDialog(task, async () => {
+                await this.loadTasks();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            });
+            editDialog.show();
         }
+    } catch (error) {
+        console.error('打开编辑对话框失败:', error);
+        showMessage("打开编辑对话框失败");
     }
+}
 
-    private showPasteTaskDialog(parentTask?: any) {
-        const dialog = new Dialog({
-            title: "粘贴列表新建任务",
-            content: `
+    private showPasteTaskDialog(parentTask ?: any) {
+    const dialog = new Dialog({
+        title: "粘贴列表新建任务",
+        content: `
                 <div class="b3-dialog__content">
                     <p>粘贴Markdown列表或多行文本，每行将创建一个任务。支持多层级列表自动创建父子任务。</p>
                     <p style="font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8; margin-bottom: 4px;">
@@ -2360,38 +2147,38 @@ export class ProjectKanbanView {
                     <button class="b3-button b3-button--primary" id="createBtn">创建任务</button>
                 </div>
             `,
-            width: "500px",
-        });
+        width: "500px",
+    });
 
-        const textArea = dialog.element.querySelector('#taskList') as HTMLTextAreaElement;
-        const cancelBtn = dialog.element.querySelector('#cancelBtn') as HTMLButtonElement;
-        const createBtn = dialog.element.querySelector('#createBtn') as HTMLButtonElement;
+    const textArea = dialog.element.querySelector('#taskList') as HTMLTextAreaElement;
+    const cancelBtn = dialog.element.querySelector('#cancelBtn') as HTMLButtonElement;
+    const createBtn = dialog.element.querySelector('#createBtn') as HTMLButtonElement;
 
-        cancelBtn.addEventListener('click', () => dialog.destroy());
+    cancelBtn.addEventListener('click', () => dialog.destroy());
 
-        createBtn.addEventListener('click', async () => {
-            const text = textArea.value.trim();
-            if (!text) {
-                showMessage("列表内容不能为空");
-                return;
+    createBtn.addEventListener('click', async () => {
+        const text = textArea.value.trim();
+        if (!text) {
+            showMessage("列表内容不能为空");
+            return;
+        }
+
+        // 使用新的层级解析方法
+        const hierarchicalTasks = this.parseHierarchicalTaskList(text);
+
+        if (hierarchicalTasks.length > 0) {
+            // 如果传入 parentTask，则把所有顶级解析项作为 parentTask 的子任务
+            if (parentTask) {
+                await this.batchCreateTasksWithHierarchy(hierarchicalTasks, parentTask.id);
+            } else {
+                await this.batchCreateTasksWithHierarchy(hierarchicalTasks);
             }
-
-            // 使用新的层级解析方法
-            const hierarchicalTasks = this.parseHierarchicalTaskList(text);
-
-            if (hierarchicalTasks.length > 0) {
-                // 如果传入 parentTask，则把所有顶级解析项作为 parentTask 的子任务
-                if (parentTask) {
-                    await this.batchCreateTasksWithHierarchy(hierarchicalTasks, parentTask.id);
-                } else {
-                    await this.batchCreateTasksWithHierarchy(hierarchicalTasks);
-                }
-                dialog.destroy();
-                const totalTasks = this.countTotalTasks(hierarchicalTasks);
-                showMessage(`${totalTasks} 个任务已创建`);
-            }
-        });
-    }
+            dialog.destroy();
+            const totalTasks = this.countTotalTasks(hierarchicalTasks);
+            showMessage(`${totalTasks} 个任务已创建`);
+        }
+    });
+}
 
     /**
      * 解析层级化任务列表
@@ -2399,76 +2186,76 @@ export class ProjectKanbanView {
      * @returns 层级化的任务结构
      */
     private parseHierarchicalTaskList(text: string): HierarchicalTask[] {
-        const lines = text.split('\n');
-        const tasks: HierarchicalTask[] = [];
-        const stack: Array<{ task: HierarchicalTask; level: number }> = [];
+    const lines = text.split('\n');
+    const tasks: HierarchicalTask[] = [];
+    const stack: Array<{ task: HierarchicalTask; level: number }> = [];
 
-        for (const line of lines) {
-            if (!line.trim()) continue;
+    for (const line of lines) {
+        if (!line.trim()) continue;
 
-            // 计算缩进级别
-            const level = this.calculateIndentLevel(line);
-            const cleanLine = line.trim();
+        // 计算缩进级别
+        const level = this.calculateIndentLevel(line);
+        const cleanLine = line.trim();
 
-            // 跳过空行和非列表项
-            if (!cleanLine || (!cleanLine.startsWith('-') && level === 0 && !cleanLine.match(/^\s*-/))) {
-                // 如果不是列表项但有内容，作为顶级任务处理
-                if (cleanLine && level === 0) {
-                    const taskData = this.parseTaskLine(cleanLine);
-                    const task: HierarchicalTask = {
-                        ...taskData,
-                        level: 0,
-                        children: []
-                    };
-                    tasks.push(task);
-                    stack.length = 0;
-                    stack.push({ task, level: 0 });
-                }
-                continue;
-            }
-
-            // 支持多个连续的列表标记（-- 表示更深层级）以及复选框语法 "- [ ]" 或 "- [x]"
-            // 先计算基于连续 '-' 的额外层级（例如 "-- item" 看作更深一层）
-            let levelFromDashes = 0;
-            const dashPrefixMatch = cleanLine.match(/^(-{2,})\s*/);
-            if (dashPrefixMatch) {
-                // 连续的 '-' 比第一个额外增加层级数
-                levelFromDashes = dashPrefixMatch[1].length - 1;
-            }
-
-            // 合并缩进级别和 '-' 表示的额外级别
-            const combinedLevel = level + levelFromDashes;
-
-            // 移除所有开头的列表标记（- * +）以及前导空格
-            const taskContent = cleanLine.replace(/^[-*+]+\s*/, '');
-            if (!taskContent) continue;
-
-            const taskData = this.parseTaskLine(taskContent);
-            const task: HierarchicalTask = {
-                ...taskData,
-                level: combinedLevel,
-                children: []
-            };
-
-            // 清理栈，移除级别更高或相等的项
-            while (stack.length > 0 && stack[stack.length - 1].level >= combinedLevel) {
-                stack.pop();
-            }
-
-            if (stack.length === 0) {
-                // 顶级任务
+        // 跳过空行和非列表项
+        if (!cleanLine || (!cleanLine.startsWith('-') && level === 0 && !cleanLine.match(/^\s*-/))) {
+            // 如果不是列表项但有内容，作为顶级任务处理
+            if (cleanLine && level === 0) {
+                const taskData = this.parseTaskLine(cleanLine);
+                const task: HierarchicalTask = {
+                    ...taskData,
+                    level: 0,
+                    children: []
+                };
                 tasks.push(task);
-            } else {
-                // 子任务
-                const parent = stack[stack.length - 1].task;
-                parent.children.push(task);
+                stack.length = 0;
+                stack.push({ task, level: 0 });
             }
-
-            stack.push({ task, level: combinedLevel });
+            continue;
         }
 
-        return tasks;
+        // 支持多个连续的列表标记（-- 表示更深层级）以及复选框语法 "- [ ]" 或 "- [x]"
+        // 先计算基于连续 '-' 的额外层级（例如 "-- item" 看作更深一层）
+        let levelFromDashes = 0;
+        const dashPrefixMatch = cleanLine.match(/^(-{2,})\s*/);
+        if (dashPrefixMatch) {
+            // 连续的 '-' 比第一个额外增加层级数
+            levelFromDashes = dashPrefixMatch[1].length - 1;
+        }
+
+        // 合并缩进级别和 '-' 表示的额外级别
+        const combinedLevel = level + levelFromDashes;
+
+        // 移除所有开头的列表标记（- * +）以及前导空格
+        const taskContent = cleanLine.replace(/^[-*+]+\s*/, '');
+        if (!taskContent) continue;
+
+        const taskData = this.parseTaskLine(taskContent);
+        const task: HierarchicalTask = {
+            ...taskData,
+            level: combinedLevel,
+            children: []
+        };
+
+        // 清理栈，移除级别更高或相等的项
+        while (stack.length > 0 && stack[stack.length - 1].level >= combinedLevel) {
+            stack.pop();
+        }
+
+        if (stack.length === 0) {
+            // 顶级任务
+            tasks.push(task);
+        } else {
+            // 子任务
+            const parent = stack[stack.length - 1].task;
+            parent.children.push(task);
+        }
+
+        stack.push({ task, level: combinedLevel });
     }
+
+    return tasks;
+}
 
     /**
      * 计算行的缩进级别
@@ -2476,105 +2263,105 @@ export class ProjectKanbanView {
      * @returns 缩进级别
      */
     private calculateIndentLevel(line: string): number {
-        // 匹配开头的空格或制表符
-        const match = line.match(/^(\s*)/);
-        if (!match) return 0;
+    // 匹配开头的空格或制表符
+    const match = line.match(/^(\s*)/);
+    if (!match) return 0;
 
-        const indent = match[1];
-        // 每2个空格或1个制表符算一级
-        const spaces = indent.replace(/\t/g, '  ').length;
-        return Math.floor(spaces / 2);
-    }
+    const indent = match[1];
+    // 每2个空格或1个制表符算一级
+    const spaces = indent.replace(/\t/g, '  ').length;
+    return Math.floor(spaces / 2);
+}
 
     /**
      * 批量创建层级化任务
      * @param tasks 层级化任务列表
      */
-    private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[], parentIdForAllTopLevel?: string) {
-        const reminderData = await readReminderData();
-        const categoryId = this.project.categoryId; // 继承项目分类
+    private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[], parentIdForAllTopLevel ?: string) {
+    const reminderData = await readReminderData();
+    const categoryId = this.project.categoryId; // 继承项目分类
 
-        // 获取当前项目中所有任务的最大排序值
-        const maxSort = Object.values(reminderData)
-            .filter((r: any) => r && r.projectId === this.projectId && typeof r.sort === 'number')
-            .reduce((max: number, task: any) => Math.max(max, task.sort || 0), 0) as number;
+    // 获取当前项目中所有任务的最大排序值
+    const maxSort = Object.values(reminderData)
+        .filter((r: any) => r && r.projectId === this.projectId && typeof r.sort === 'number')
+        .reduce((max: number, task: any) => Math.max(max, task.sort || 0), 0) as number;
 
-        let sortCounter = maxSort;
+    let sortCounter = maxSort;
 
-        // 递归创建任务
-        const createTaskRecursively = async (
-            task: HierarchicalTask,
-            parentId?: string
-        ): Promise<string> => {
-            const taskId = `quick_${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-            sortCounter += 10;
+    // 递归创建任务
+    const createTaskRecursively = async (
+        task: HierarchicalTask,
+        parentId?: string
+    ): Promise<string> => {
+        const taskId = `quick_${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        sortCounter += 10;
 
-            const newTask: any = {
-                id: taskId,
-                title: task.title,
-                note: '',
-                priority: task.priority || 'none',
-                categoryId: categoryId,
-                projectId: this.projectId,
-                completed: false,
-                kanbanStatus: 'todo',
-                termType: 'short_term', // 默认为短期任务
-                createdTime: new Date().toISOString(),
-                date: task.startDate,
-                endDate: task.endDate,
-                sort: sortCounter,
-            };
-
-            // 如果有父任务ID，设置parentId
-            if (parentId) {
-                newTask.parentId = parentId;
-            }
-
-            // 如果解析出了块ID，尝试绑定块
-            if (task.blockId) {
-                try {
-                    const block = await getBlockByID(task.blockId);
-                    if (block) {
-                        newTask.blockId = task.blockId;
-                        newTask.docId = block.root_id || task.blockId;
-
-                        // 如果任务标题为空或者是默认标题，使用块内容作为标题
-                        if (!task.title || task.title === '未命名任务') {
-                            newTask.title = block.content || block.fcontent || '未命名任务';
-                        }
-
-                        // 更新块的书签状态
-                        await updateBlockReminderBookmark(task.blockId);
-                    }
-                } catch (error) {
-                    console.error('绑定块失败:', error);
-                    // 绑定失败不影响任务创建，继续创建任务
-                }
-            }
-
-            reminderData[taskId] = newTask;
-
-            // 递归创建子任务
-            if (task.children && task.children.length > 0) {
-                for (let i = 0; i < task.children.length; i++) {
-                    await createTaskRecursively(task.children[i], taskId);
-                }
-            }
-
-            return taskId;
+        const newTask: any = {
+            id: taskId,
+            title: task.title,
+            note: '',
+            priority: task.priority || 'none',
+            categoryId: categoryId,
+            projectId: this.projectId,
+            completed: false,
+            kanbanStatus: 'todo',
+            termType: 'short_term', // 默认为短期任务
+            createdTime: new Date().toISOString(),
+            date: task.startDate,
+            endDate: task.endDate,
+            sort: sortCounter,
         };
 
-        // 创建所有顶级任务及其子任务
-        for (let i = 0; i < tasks.length; i++) {
-            // 如果提供了 parentIdForAllTopLevel，则把解析出的顶级任务作为该父任务的子任务
-            const topParent = parentIdForAllTopLevel ? parentIdForAllTopLevel : undefined;
-            await createTaskRecursively(tasks[i], topParent);
+        // 如果有父任务ID，设置parentId
+        if (parentId) {
+            newTask.parentId = parentId;
         }
 
-        await writeReminderData(reminderData);
-        await this.loadTasks();
-        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+        // 如果解析出了块ID，尝试绑定块
+        if (task.blockId) {
+            try {
+                const block = await getBlockByID(task.blockId);
+                if (block) {
+                    newTask.blockId = task.blockId;
+                    newTask.docId = block.root_id || task.blockId;
+
+                    // 如果任务标题为空或者是默认标题，使用块内容作为标题
+                    if (!task.title || task.title === '未命名任务') {
+                        newTask.title = block.content || block.fcontent || '未命名任务';
+                    }
+
+                    // 更新块的书签状态
+                    await updateBlockReminderBookmark(task.blockId);
+                }
+            } catch (error) {
+                console.error('绑定块失败:', error);
+                // 绑定失败不影响任务创建，继续创建任务
+            }
+        }
+
+        reminderData[taskId] = newTask;
+
+        // 递归创建子任务
+        if (task.children && task.children.length > 0) {
+            for (let i = 0; i < task.children.length; i++) {
+                await createTaskRecursively(task.children[i], taskId);
+            }
+        }
+
+        return taskId;
+    };
+
+    // 创建所有顶级任务及其子任务
+    for (let i = 0; i < tasks.length; i++) {
+        // 如果提供了 parentIdForAllTopLevel，则把解析出的顶级任务作为该父任务的子任务
+        const topParent = parentIdForAllTopLevel ? parentIdForAllTopLevel : undefined;
+        await createTaskRecursively(tasks[i], topParent);
     }
+
+    await writeReminderData(reminderData);
+    await this.loadTasks();
+    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+}
 
     /**
      * 计算总任务数量（包括子任务）
@@ -2582,98 +2369,98 @@ export class ProjectKanbanView {
      * @returns 总任务数量
      */
     private countTotalTasks(tasks: HierarchicalTask[]): number {
-        let count = 0;
+    let count = 0;
 
-        const countRecursively = (taskList: HierarchicalTask[]) => {
-            for (const task of taskList) {
-                count++;
-                if (task.children && task.children.length > 0) {
-                    countRecursively(task.children);
-                }
+    const countRecursively = (taskList: HierarchicalTask[]) => {
+        for (const task of taskList) {
+            count++;
+            if (task.children && task.children.length > 0) {
+                countRecursively(task.children);
             }
-        };
+        }
+    };
 
-        countRecursively(tasks);
-        return count;
+    countRecursively(tasks);
+    return count;
+}
+
+    private parseTaskLine(line: string): { title: string; priority ?: string; startDate ?: string; endDate ?: string; blockId ?: string; completed ?: boolean } {
+    // 查找参数部分 @priority=high&startDate=2025-08-12&endDate=2025-08-30
+    const paramMatch = line.match(/@(.+)$/);
+    let title = line;
+    let priority: string | undefined;
+    let startDate: string | undefined;
+    let endDate: string | undefined;
+    let blockId: string | undefined;
+    let completed: boolean | undefined;
+
+    // 检查是否包含思源块链接或块引用
+    blockId = this.extractBlockIdFromText(line);
+
+    // 如果找到了块链接，从标题中移除链接部分
+    if (blockId) {
+        // 移除 Markdown 链接格式 [标题](siyuan://blocks/blockId)
+        title = title.replace(/\[([^\]]+)\]\(siyuan:\/\/blocks\/[^)]+\)/g, '$1');
+        // 移除块引用格式 ((blockId '标题'))
+        title = title.replace(/\(\([^\s)]+\s+'([^']+)'\)\)/g, '$1');
+        // 移除块引用格式 ((blockId "标题"))
+        title = title.replace(/\(\([^\s)]+\s+"([^"]+)"\)\)/g, '$1');
+        // 移除简单块引用格式 ((blockId))
+        title = title.replace(/\(\([^\)]+\)\)/g, '');
     }
 
-    private parseTaskLine(line: string): { title: string; priority?: string; startDate?: string; endDate?: string; blockId?: string; completed?: boolean } {
-        // 查找参数部分 @priority=high&startDate=2025-08-12&endDate=2025-08-30
-        const paramMatch = line.match(/@(.+)$/);
-        let title = line;
-        let priority: string | undefined;
-        let startDate: string | undefined;
-        let endDate: string | undefined;
-        let blockId: string | undefined;
-        let completed: boolean | undefined;
-
-        // 检查是否包含思源块链接或块引用
-        blockId = this.extractBlockIdFromText(line);
-
-        // 如果找到了块链接，从标题中移除链接部分
-        if (blockId) {
-            // 移除 Markdown 链接格式 [标题](siyuan://blocks/blockId)
-            title = title.replace(/\[([^\]]+)\]\(siyuan:\/\/blocks\/[^)]+\)/g, '$1');
-            // 移除块引用格式 ((blockId '标题'))
-            title = title.replace(/\(\([^\s)]+\s+'([^']+)'\)\)/g, '$1');
-            // 移除块引用格式 ((blockId "标题"))
-            title = title.replace(/\(\([^\s)]+\s+"([^"]+)"\)\)/g, '$1');
-            // 移除简单块引用格式 ((blockId))
-            title = title.replace(/\(\([^\)]+\)\)/g, '');
-        }
-
-        // 解析复选框语法 (- [ ] 或 - [x])，并从标题中移除复选框标记
-        const checkboxMatch = title.match(/^\s*\[\s*([ xX])\s*\]\s*/);
-        if (checkboxMatch) {
-            const mark = checkboxMatch[1];
-            completed = (mark.toLowerCase() === 'x');
-            title = title.replace(/^\s*\[\s*([ xX])\s*\]\s*/, '').trim();
-        }
-
-        // 有些 Markdown 列表中复选框放在 - [ ] 后面，处理示例："- [ ] 任务标题"
-        // 如果 title 起始包含 '- [ ]' 或 '- [x]'，也要处理
-        const leadingCheckboxMatch = line.match(/^\s*[-*+]\s*\[\s*([ xX])\s*\]\s*(.+)$/);
-        if (leadingCheckboxMatch) {
-            completed = (leadingCheckboxMatch[1].toLowerCase() === 'x');
-            title = leadingCheckboxMatch[2];
-        }
-
-        if (paramMatch) {
-            // 移除参数部分，获取纯标题
-            title = title.replace(/@(.+)$/, '').trim();
-
-            // 解析参数
-            const paramString = paramMatch[1];
-            const params = new URLSearchParams(paramString);
-
-            priority = params.get('priority') || undefined;
-            startDate = params.get('startDate') || undefined;
-            endDate = params.get('endDate') || undefined;
-
-            // 验证优先级值
-            if (priority && !['high', 'medium', 'low', 'none'].includes(priority)) {
-                priority = 'none';
-            }
-
-            // 验证日期格式 (YYYY-MM-DD)
-            const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-            if (startDate && !dateRegex.test(startDate)) {
-                startDate = undefined;
-            }
-            if (endDate && !dateRegex.test(endDate)) {
-                endDate = undefined;
-            }
-        }
-
-        return {
-            title: title.trim() || '未命名任务',
-            priority,
-            startDate,
-            endDate,
-            blockId
-            , completed
-        };
+    // 解析复选框语法 (- [ ] 或 - [x])，并从标题中移除复选框标记
+    const checkboxMatch = title.match(/^\s*\[\s*([ xX])\s*\]\s*/);
+    if (checkboxMatch) {
+        const mark = checkboxMatch[1];
+        completed = (mark.toLowerCase() === 'x');
+        title = title.replace(/^\s*\[\s*([ xX])\s*\]\s*/, '').trim();
     }
+
+    // 有些 Markdown 列表中复选框放在 - [ ] 后面，处理示例："- [ ] 任务标题"
+    // 如果 title 起始包含 '- [ ]' 或 '- [x]'，也要处理
+    const leadingCheckboxMatch = line.match(/^\s*[-*+]\s*\[\s*([ xX])\s*\]\s*(.+)$/);
+    if (leadingCheckboxMatch) {
+        completed = (leadingCheckboxMatch[1].toLowerCase() === 'x');
+        title = leadingCheckboxMatch[2];
+    }
+
+    if (paramMatch) {
+        // 移除参数部分，获取纯标题
+        title = title.replace(/@(.+)$/, '').trim();
+
+        // 解析参数
+        const paramString = paramMatch[1];
+        const params = new URLSearchParams(paramString);
+
+        priority = params.get('priority') || undefined;
+        startDate = params.get('startDate') || undefined;
+        endDate = params.get('endDate') || undefined;
+
+        // 验证优先级值
+        if (priority && !['high', 'medium', 'low', 'none'].includes(priority)) {
+            priority = 'none';
+        }
+
+        // 验证日期格式 (YYYY-MM-DD)
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (startDate && !dateRegex.test(startDate)) {
+            startDate = undefined;
+        }
+        if (endDate && !dateRegex.test(endDate)) {
+            endDate = undefined;
+        }
+    }
+
+    return {
+        title: title.trim() || '未命名任务',
+        priority,
+        startDate,
+        endDate,
+        blockId
+        , completed
+    };
+}
 
     /**
      * 从文本中提取思源块ID
@@ -2683,241 +2470,216 @@ export class ProjectKanbanView {
      * 3. 简单块引用：((blockId))
      */
     private extractBlockIdFromText(text: string): string | undefined {
-        // 匹配 Markdown 链接格式：[标题](siyuan://blocks/blockId)
-        const markdownLinkMatch = text.match(/\[([^\]]+)\]\(siyuan:\/\/blocks\/([^)]+)\)/);
-        if (markdownLinkMatch) {
-            const blockId = markdownLinkMatch[2];
-            // 验证块ID格式（通常是20位字符）
-            if (blockId && blockId.length >= 20) {
-                return blockId;
-            }
+    // 匹配 Markdown 链接格式：[标题](siyuan://blocks/blockId)
+    const markdownLinkMatch = text.match(/\[([^\]]+)\]\(siyuan:\/\/blocks\/([^)]+)\)/);
+    if (markdownLinkMatch) {
+        const blockId = markdownLinkMatch[2];
+        // 验证块ID格式（通常是20位字符）
+        if (blockId && blockId.length >= 20) {
+            return blockId;
         }
-
-        // 匹配块引用格式：((blockId '标题')) 或 ((blockId "标题"))
-        const blockRefWithTitleMatch = text.match(/\(\(([^)\s]+)\s+['"]([^'"]+)['"]\)\)/);
-        if (blockRefWithTitleMatch) {
-            const blockId = blockRefWithTitleMatch[1];
-            if (blockId && blockId.length >= 20) {
-                return blockId;
-            }
-        }
-
-        // 匹配简单块引用格式：((blockId))
-        const simpleBlockRefMatch = text.match(/\(\(([^)]+)\)\)/);
-        if (simpleBlockRefMatch) {
-            const blockId = simpleBlockRefMatch[1].trim();
-            if (blockId && blockId.length >= 20) {
-                return blockId;
-            }
-        }
-
-        return undefined;
     }
 
-    private async deleteTask(task: any) {
-        // 对于周期实例，删除原始周期事件（所有实例）
-        const taskToDelete = task.isRepeatInstance ?
-            { ...task, id: task.originalId, isRepeatInstance: false } : task;
-
-        // 先尝试读取数据以计算所有后代任务数量，用于更准确的确认提示
-        let confirmMessage = task.isRepeatInstance ?
-            `确定要删除周期任务 "${task.title}" 的所有实例吗？此操作不可撤销。` :
-            `确定要删除任务 "${task.title}" 吗？此操作不可撤销。`;
-        try {
-            const reminderDataForPreview = await readReminderData();
-            const descendantIdsPreview = this.getAllDescendantIds(taskToDelete.id, reminderDataForPreview);
-            if (descendantIdsPreview.length > 0) {
-                confirmMessage += `\n\n此任务包含 ${descendantIdsPreview.length} 个子任务（包括多级子任务），它们也将被一并删除。`;
-            }
-        } catch (err) {
-            // 无法读取数据时，仍然显示通用提示
+    // 匹配块引用格式：((blockId '标题')) 或 ((blockId "标题"))
+    const blockRefWithTitleMatch = text.match(/\(\(([^)\s]+)\s+['"]([^'"]+)['"]\)\)/);
+    if (blockRefWithTitleMatch) {
+        const blockId = blockRefWithTitleMatch[1];
+        if (blockId && blockId.length >= 20) {
+            return blockId;
         }
+    }
 
-        confirm(
-            "删除任务",
-            confirmMessage,
-            async () => {
-                try {
-                    // 重读数据以确保删除时数据为最新
-                    const reminderData = await readReminderData();
+    // 匹配简单块引用格式：((blockId))
+    const simpleBlockRefMatch = text.match(/\(\(([^)]+)\)\)/);
+    if (simpleBlockRefMatch) {
+        const blockId = simpleBlockRefMatch[1].trim();
+        if (blockId && blockId.length >= 20) {
+            return blockId;
+        }
+    }
 
-                    // 获取所有后代任务ID（递归）
-                    const descendantIds = this.getAllDescendantIds(taskToDelete.id, reminderData);
+    return undefined;
+}
 
-                    const tasksToDelete = [taskToDelete.id, ...descendantIds];
+    private async deleteTask(task: any) {
+    // 对于周期实例，删除原始周期事件（所有实例）
+    const taskToDelete = task.isRepeatInstance ?
+        { ...task, id: task.originalId, isRepeatInstance: false } : task;
 
-                    // 删除并为绑定块更新书签状态
-                    for (const taskId of tasksToDelete) {
-                        const t = reminderData[taskId];
-                        if (t) {
-                            // 先删除数据项
-                            delete reminderData[taskId];
+    // 先尝试读取数据以计算所有后代任务数量，用于更准确的确认提示
+    let confirmMessage = task.isRepeatInstance ?
+        `确定要删除周期任务 "${task.title}" 的所有实例吗？此操作不可撤销。` :
+        `确定要删除任务 "${task.title}" 吗？此操作不可撤销。`;
+    try {
+        const reminderDataForPreview = await readReminderData();
+        const descendantIdsPreview = this.getAllDescendantIds(taskToDelete.id, reminderDataForPreview);
+        if (descendantIdsPreview.length > 0) {
+            confirmMessage += `\n\n此任务包含 ${descendantIdsPreview.length} 个子任务（包括多级子任务），它们也将被一并删除。`;
+        }
+    } catch (err) {
+        // 无法读取数据时，仍然显示通用提示
+    }
 
-                            // 如果绑定了块，更新块的书签（忽略错误）
-                            if (t.blockId || t.docId) {
-                                try {
-                                    await updateBlockReminderBookmark(t.blockId || t.docId);
-                                } catch (err) {
-                                    console.warn(`更新已删除任务 ${taskId} 的块书签失败:`, err);
-                                }
+    confirm(
+        "删除任务",
+        confirmMessage,
+        async () => {
+            try {
+                // 重读数据以确保删除时数据为最新
+                const reminderData = await readReminderData();
+
+                // 获取所有后代任务ID（递归）
+                const descendantIds = this.getAllDescendantIds(taskToDelete.id, reminderData);
+
+                const tasksToDelete = [taskToDelete.id, ...descendantIds];
+
+                // 删除并为绑定块更新书签状态
+                for (const taskId of tasksToDelete) {
+                    const t = reminderData[taskId];
+                    if (t) {
+                        // 先删除数据项
+                        delete reminderData[taskId];
+
+                        // 如果绑定了块，更新块的书签（忽略错误）
+                        if (t.blockId || t.docId) {
+                            try {
+                                await updateBlockReminderBookmark(t.blockId || t.docId);
+                            } catch (err) {
+                                console.warn(`更新已删除任务 ${taskId} 的块书签失败:`, err);
                             }
                         }
                     }
+                }
 
-                    await writeReminderData(reminderData);
+                await writeReminderData(reminderData);
 
-                    // 触发更新事件
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                // 触发更新事件
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
-                    // 重新加载任务
-                    await this.loadTasks();
+                // 重新加载任务
+                await this.loadTasks();
 
-                    showMessage("任务已删除");
-                } catch (error) {
-                    console.error('删除任务失败:', error);
-                    showMessage("删除任务失败");
+                showMessage("任务已删除");
+            } catch (error) {
+                console.error('删除任务失败:', error);
+                showMessage("删除任务失败");
+            }
+        }
+    );
+}
+
+    private startPomodoro(task: any) {
+    if (!this.plugin) {
+        showMessage("无法启动番茄钟：插件实例不可用");
+        return;
+    }
+
+    // 检查是否已经有活动的番茄钟
+    const currentTimer = this.pomodoroManager.getCurrentPomodoroTimer();
+    if (currentTimer && currentTimer.isWindowActive()) {
+        const currentState = currentTimer.getCurrentState();
+        const currentTitle = currentState.reminderTitle || '当前任务';
+        const newTitle = task.title || '新任务';
+
+        let confirmMessage = `当前正在进行番茄钟任务："${currentTitle}"，是否要切换到新任务："${newTitle}"？`;
+
+        if (currentState.isRunning && !currentState.isPaused) {
+            try {
+                this.pomodoroManager.pauseCurrentTimer();
+            } catch (error) {
+                console.error('暂停当前番茄钟失败:', error);
+            }
+
+            confirmMessage += `\n\n选择"确定"将继承当前进度继续计时。`;
+        }
+
+        confirm(
+            "切换番茄钟任务",
+            confirmMessage,
+            () => {
+                this.performStartPomodoro(task, currentState);
+            },
+            () => {
+                if (currentState.isRunning && !currentState.isPaused) {
+                    try {
+                        this.pomodoroManager.resumeCurrentTimer();
+                    } catch (error) {
+                        console.error('恢复番茄钟运行失败:', error);
+                    }
                 }
             }
         );
+    } else {
+        this.performStartPomodoro(task);
     }
-
-    private startPomodoro(task: any) {
-        if (!this.plugin) {
-            showMessage("无法启动番茄钟：插件实例不可用");
-            return;
-        }
-
-        // 检查是否已经有活动的番茄钟
-        const currentTimer = this.pomodoroManager.getCurrentPomodoroTimer();
-        if (currentTimer && currentTimer.isWindowActive()) {
-            const currentState = currentTimer.getCurrentState();
-            const currentTitle = currentState.reminderTitle || '当前任务';
-            const newTitle = task.title || '新任务';
-
-            let confirmMessage = `当前正在进行番茄钟任务："${currentTitle}"，是否要切换到新任务："${newTitle}"？`;
-
-            if (currentState.isRunning && !currentState.isPaused) {
-                try {
-                    this.pomodoroManager.pauseCurrentTimer();
-                } catch (error) {
-                    console.error('暂停当前番茄钟失败:', error);
-                }
-
-                confirmMessage += `\n\n选择"确定"将继承当前进度继续计时。`;
-            }
-
-            confirm(
-                "切换番茄钟任务",
-                confirmMessage,
-                () => {
-                    this.performStartPomodoro(task, currentState);
-                },
-                () => {
-                    if (currentState.isRunning && !currentState.isPaused) {
-                        try {
-                            this.pomodoroManager.resumeCurrentTimer();
-                        } catch (error) {
-                            console.error('恢复番茄钟运行失败:', error);
-                        }
-                    }
-                }
-            );
-        } else {
-            this.performStartPomodoro(task);
-        }
-    }
+}
 
     private startPomodoroCountUp(task: any) {
-        if (!this.plugin) {
-            showMessage("无法启动番茄钟：插件实例不可用");
-            return;
-        }
-
-        // 检查是否已经有活动的番茄钟
-        const currentTimer = this.pomodoroManager.getCurrentPomodoroTimer();
-        if (currentTimer && currentTimer.isWindowActive()) {
-            const currentState = currentTimer.getCurrentState();
-            const currentTitle = currentState.reminderTitle || '当前任务';
-            const newTitle = task.title || '新任务';
-
-            let confirmMessage = `当前正在进行番茄钟任务："${currentTitle}"，是否要切换到新的正计时任务："${newTitle}"？`;
-
-            if (currentState.isRunning && !currentState.isPaused) {
-                try {
-                    this.pomodoroManager.pauseCurrentTimer();
-                } catch (error) {
-                    console.error('暂停当前番茄钟失败:', error);
-                }
-
-                confirmMessage += `\n\n选择"确定"将继承当前进度继续计时。`;
-            }
-
-            confirm(
-                "切换到正计时番茄钟",
-                confirmMessage,
-                () => {
-                    this.performStartPomodoroCountUp(task, currentState);
-                },
-                () => {
-                    if (currentState.isRunning && !currentState.isPaused) {
-                        try {
-                            this.pomodoroManager.resumeCurrentTimer();
-                        } catch (error) {
-                            console.error('恢复番茄钟运行失败:', error);
-                        }
-                    }
-                }
-            );
-        } else {
-            this.performStartPomodoroCountUp(task);
-        }
+    if (!this.plugin) {
+        showMessage("无法启动番茄钟：插件实例不可用");
+        return;
     }
 
-    private async performStartPomodoro(task: any, inheritState?: any) {
-        const settings = await this.plugin.getPomodoroSettings();
+    // 检查是否已经有活动的番茄钟
+    const currentTimer = this.pomodoroManager.getCurrentPomodoroTimer();
+    if (currentTimer && currentTimer.isWindowActive()) {
+        const currentState = currentTimer.getCurrentState();
+        const currentTitle = currentState.reminderTitle || '当前任务';
+        const newTitle = task.title || '新任务';
 
-        // 检查是否已有独立窗口存在
-        const hasStandaloneWindow = this.plugin && this.plugin.pomodoroWindowId;
+        let confirmMessage = `当前正在进行番茄钟任务："${currentTitle}"，是否要切换到新的正计时任务："${newTitle}"？`;
 
-        if (hasStandaloneWindow) {
-            // 如果存在独立窗口，更新独立窗口中的番茄钟
-            console.log('检测到独立窗口，更新独立窗口中的番茄钟');
+        if (currentState.isRunning && !currentState.isPaused) {
+            try {
+                this.pomodoroManager.pauseCurrentTimer();
+            } catch (error) {
+                console.error('暂停当前番茄钟失败:', error);
+            }
 
-            const reminder = {
-                id: task.id,
-                title: task.title,
-                blockId: task.blockId,
-                isRepeatInstance: false,
-                originalId: task.id
-            };
+            confirmMessage += `\n\n选择"确定"将继承当前进度继续计时。`;
+        }
 
-            if (typeof this.plugin.openPomodoroWindow === 'function') {
-                await this.plugin.openPomodoroWindow(reminder, settings, false, inheritState);
-
-                // 如果继承了状态且原来正在运行，显示继承信息
-                if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
-                    const phaseText = inheritState.isWorkPhase ? '工作时间' : '休息时间';
-                    showMessage(`已切换任务并继承${phaseText}进度`, 2000);
+        confirm(
+            "切换到正计时番茄钟",
+            confirmMessage,
+            () => {
+                this.performStartPomodoroCountUp(task, currentState);
+            },
+            () => {
+                if (currentState.isRunning && !currentState.isPaused) {
+                    try {
+                        this.pomodoroManager.resumeCurrentTimer();
+                    } catch (error) {
+                        console.error('恢复番茄钟运行失败:', error);
+                    }
                 }
             }
-        } else {
-            // 没有独立窗口，在当前窗口显示番茄钟 Dialog（默认行为）
-            console.log('没有独立窗口，在当前窗口显示番茄钟 Dialog');
+        );
+    } else {
+        this.performStartPomodoroCountUp(task);
+    }
+}
 
-            // 如果已经有活动的番茄钟，先关闭它
-            this.pomodoroManager.closeCurrentTimer();
+    private async performStartPomodoro(task: any, inheritState ?: any) {
+    const settings = await this.plugin.getPomodoroSettings();
 
-            const reminder = {
-                id: task.id,
-                title: task.title,
-                blockId: task.blockId,
-                isRepeatInstance: false,
-                originalId: task.id
-            };
+    // 检查是否已有独立窗口存在
+    const hasStandaloneWindow = this.plugin && this.plugin.pomodoroWindowId;
 
-            const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState, this.plugin);
-            this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
-            pomodoroTimer.show();
+    if (hasStandaloneWindow) {
+        // 如果存在独立窗口，更新独立窗口中的番茄钟
+        console.log('检测到独立窗口，更新独立窗口中的番茄钟');
+
+        const reminder = {
+            id: task.id,
+            title: task.title,
+            blockId: task.blockId,
+            isRepeatInstance: false,
+            originalId: task.id
+        };
+
+        if (typeof this.plugin.openPomodoroWindow === 'function') {
+            await this.plugin.openPomodoroWindow(reminder, settings, false, inheritState);
 
             // 如果继承了状态且原来正在运行，显示继承信息
             if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
@@ -2925,55 +2687,53 @@ export class ProjectKanbanView {
                 showMessage(`已切换任务并继承${phaseText}进度`, 2000);
             }
         }
+    } else {
+        // 没有独立窗口，在当前窗口显示番茄钟 Dialog（默认行为）
+        console.log('没有独立窗口，在当前窗口显示番茄钟 Dialog');
+
+        // 如果已经有活动的番茄钟，先关闭它
+        this.pomodoroManager.closeCurrentTimer();
+
+        const reminder = {
+            id: task.id,
+            title: task.title,
+            blockId: task.blockId,
+            isRepeatInstance: false,
+            originalId: task.id
+        };
+
+        const pomodoroTimer = new PomodoroTimer(reminder, settings, false, inheritState, this.plugin);
+        this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
+        pomodoroTimer.show();
+
+        // 如果继承了状态且原来正在运行，显示继承信息
+        if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
+            const phaseText = inheritState.isWorkPhase ? '工作时间' : '休息时间';
+            showMessage(`已切换任务并继承${phaseText}进度`, 2000);
+        }
     }
+}
 
-    private async performStartPomodoroCountUp(task: any, inheritState?: any) {
-        const settings = await this.plugin.getPomodoroSettings();
+    private async performStartPomodoroCountUp(task: any, inheritState ?: any) {
+    const settings = await this.plugin.getPomodoroSettings();
 
-        // 检查是否已有独立窗口存在
-        const hasStandaloneWindow = this.plugin && this.plugin.pomodoroWindowId;
+    // 检查是否已有独立窗口存在
+    const hasStandaloneWindow = this.plugin && this.plugin.pomodoroWindowId;
 
-        if (hasStandaloneWindow) {
-            // 如果存在独立窗口，更新独立窗口中的番茄钟
-            console.log('检测到独立窗口，更新独立窗口中的番茄钟（正计时模式）');
+    if (hasStandaloneWindow) {
+        // 如果存在独立窗口，更新独立窗口中的番茄钟
+        console.log('检测到独立窗口，更新独立窗口中的番茄钟（正计时模式）');
 
-            const reminder = {
-                id: task.id,
-                title: task.title,
-                blockId: task.blockId,
-                isRepeatInstance: false,
-                originalId: task.id
-            };
+        const reminder = {
+            id: task.id,
+            title: task.title,
+            blockId: task.blockId,
+            isRepeatInstance: false,
+            originalId: task.id
+        };
 
-            if (typeof this.plugin.openPomodoroWindow === 'function') {
-                await this.plugin.openPomodoroWindow(reminder, settings, true, inheritState);
-
-                // 如果继承了状态且原来正在运行，显示继承信息
-                if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
-                    const phaseText = inheritState.isWorkPhase ? '工作时间' : '休息时间';
-                    showMessage(`已切换到正计时模式并继承${phaseText}进度`, 2000);
-                } else {
-                    showMessage("已启动正计时番茄钟", 2000);
-                }
-            }
-        } else {
-            // 没有独立窗口，在当前窗口显示番茄钟 Dialog（默认行为）
-            console.log('没有独立窗口，在当前窗口显示番茄钟 Dialog（正计时模式）');
-
-            // 如果已经有活动的番茄钟，先关闭它
-            this.pomodoroManager.closeCurrentTimer();
-
-            const reminder = {
-                id: task.id,
-                title: task.title,
-                blockId: task.blockId,
-                isRepeatInstance: false,
-                originalId: task.id
-            };
-
-            const pomodoroTimer = new PomodoroTimer(reminder, settings, true, inheritState, this.plugin);
-            this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
-            pomodoroTimer.show();
+        if (typeof this.plugin.openPomodoroWindow === 'function') {
+            await this.plugin.openPomodoroWindow(reminder, settings, true, inheritState);
 
             // 如果继承了状态且原来正在运行，显示继承信息
             if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
@@ -2983,17 +2743,44 @@ export class ProjectKanbanView {
                 showMessage("已启动正计时番茄钟", 2000);
             }
         }
+    } else {
+        // 没有独立窗口，在当前窗口显示番茄钟 Dialog（默认行为）
+        console.log('没有独立窗口，在当前窗口显示番茄钟 Dialog（正计时模式）');
+
+        // 如果已经有活动的番茄钟，先关闭它
+        this.pomodoroManager.closeCurrentTimer();
+
+        const reminder = {
+            id: task.id,
+            title: task.title,
+            blockId: task.blockId,
+            isRepeatInstance: false,
+            originalId: task.id
+        };
+
+        const pomodoroTimer = new PomodoroTimer(reminder, settings, true, inheritState, this.plugin);
+        this.pomodoroManager.setCurrentPomodoroTimer(pomodoroTimer);
+        pomodoroTimer.show();
+
+        // 如果继承了状态且原来正在运行，显示继承信息
+        if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
+            const phaseText = inheritState.isWorkPhase ? '工作时间' : '休息时间';
+            showMessage(`已切换到正计时模式并继承${phaseText}进度`, 2000);
+        } else {
+            showMessage("已启动正计时番茄钟", 2000);
+        }
     }
+}
 
     private addCustomStyles() {
-        // 检查是否已经添加过样式
-        if (document.querySelector('#project-kanban-custom-styles')) {
-            return;
-        }
+    // 检查是否已经添加过样式
+    if (document.querySelector('#project-kanban-custom-styles')) {
+        return;
+    }
 
-        const style = document.createElement('style');
-        style.id = 'project-kanban-custom-styles';
-        style.textContent = `
+    const style = document.createElement('style');
+    style.id = 'project-kanban-custom-styles';
+    style.textContent = `
             .project-kanban-view {
                 height: 100%;
                 display: flex;
@@ -3405,9 +3192,7 @@ export class ProjectKanbanView {
                 background-color: var(--b3-theme-primary-lightest);
                 color: var(--b3-theme-primary);
             }
-            .term-type-option span:first-child {
-                font-size: 18px;
-            }
+
             
             .category-selector .category-option {
                 padding: 4px 10px;
@@ -3618,88 +3403,88 @@ export class ProjectKanbanView {
                 text-align: right;
             }
        `;
-        document.head.appendChild(style);
-    }
-    private renderCategorySelector(container: HTMLElement, defaultCategoryId?: string) {
-        container.innerHTML = '';
-        const categories = this.categoryManager.getCategories();
+    document.head.appendChild(style);
+}
+    private renderCategorySelector(container: HTMLElement, defaultCategoryId ?: string) {
+    container.innerHTML = '';
+    const categories = this.categoryManager.getCategories();
 
-        const noCategoryEl = document.createElement('div');
-        noCategoryEl.className = 'category-option';
-        noCategoryEl.setAttribute('data-category', '');
-        noCategoryEl.innerHTML = `<span>无分类</span>`;
-        if (!defaultCategoryId) {
-            noCategoryEl.classList.add('selected');
+    const noCategoryEl = document.createElement('div');
+    noCategoryEl.className = 'category-option';
+    noCategoryEl.setAttribute('data-category', '');
+    noCategoryEl.innerHTML = `<span>无分类</span>`;
+    if (!defaultCategoryId) {
+        noCategoryEl.classList.add('selected');
+    }
+    container.appendChild(noCategoryEl);
+
+    categories.forEach(category => {
+        const categoryEl = document.createElement('div');
+        categoryEl.className = 'category-option';
+        categoryEl.setAttribute('data-category', category.id);
+        categoryEl.style.backgroundColor = category.color;
+        categoryEl.innerHTML = `<span>${category.icon ? category.icon + ' ' : ''}${category.name}</span>`;
+        if (category.id === defaultCategoryId) {
+            categoryEl.classList.add('selected');
         }
-        container.appendChild(noCategoryEl);
+        container.appendChild(categoryEl);
+    });
 
-        categories.forEach(category => {
-            const categoryEl = document.createElement('div');
-            categoryEl.className = 'category-option';
-            categoryEl.setAttribute('data-category', category.id);
-            categoryEl.style.backgroundColor = category.color;
-            categoryEl.innerHTML = `<span>${category.icon ? category.icon + ' ' : ''}${category.name}</span>`;
-            if (category.id === defaultCategoryId) {
-                categoryEl.classList.add('selected');
-            }
-            container.appendChild(categoryEl);
-        });
-
-        container.addEventListener('click', (e) => {
-            const target = e.target as HTMLElement;
-            const option = target.closest('.category-option') as HTMLElement;
-            if (option) {
-                container.querySelectorAll('.category-option').forEach(opt => opt.classList.remove('selected'));
-                option.classList.add('selected');
-            }
-        });
-    }
+    container.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        const option = target.closest('.category-option') as HTMLElement;
+        if (option) {
+            container.querySelectorAll('.category-option').forEach(opt => opt.classList.remove('selected'));
+            option.classList.add('selected');
+        }
+    });
+}
 
     // 设置任务优先级
     private async setPriority(taskId: string, priority: string) {
-        try {
-            const reminderData = await readReminderData();
-            if (reminderData[taskId]) {
-                reminderData[taskId].priority = priority;
-                await writeReminderData(reminderData);
+    try {
+        const reminderData = await readReminderData();
+        if (reminderData[taskId]) {
+            reminderData[taskId].priority = priority;
+            await writeReminderData(reminderData);
 
-                showMessage("优先级已更新");
-                await this.loadTasks();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
-            } else {
-                showMessage("任务不存在");
-            }
-        } catch (error) {
-            console.error('设置优先级失败:', error);
-            showMessage("设置优先级失败");
+            showMessage("优先级已更新");
+            await this.loadTasks();
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+        } else {
+            showMessage("任务不存在");
         }
+    } catch (error) {
+        console.error('设置优先级失败:', error);
+        showMessage("设置优先级失败");
     }
+}
 
     // 复制块引用
     private async copyBlockRef(task: any) {
-        try {
-            const blockId = task.blockId;
-            if (!blockId) {
-                showMessage("无法获取块ID");
-                return;
-            }
-
-            const title = task.title || "未命名任务";
-            const blockRef = `((${blockId} "${title}"))`;
-
-            await navigator.clipboard.writeText(blockRef);
-            showMessage("块引用已复制到剪贴板");
-        } catch (error) {
-            console.error('复制块引用失败:', error);
-            showMessage("复制块引用失败");
+    try {
+        const blockId = task.blockId;
+        if (!blockId) {
+            showMessage("无法获取块ID");
+            return;
         }
+
+        const title = task.title || "未命名任务";
+        const blockRef = `((${blockId} "${title}"))`;
+
+        await navigator.clipboard.writeText(blockRef);
+        showMessage("块引用已复制到剪贴板");
+    } catch (error) {
+        console.error('复制块引用失败:', error);
+        showMessage("复制块引用失败");
     }
+}
 
     // 显示绑定到块的对话框（支持绑定现有块或创建新文档并绑定）
     private showBindToBlockDialog(reminder: any) {
-        const dialog = new Dialog({
-            title: t("bindReminderToBlock"),
-            content: `
+    const dialog = new Dialog({
+        title: t("bindReminderToBlock"),
+        content: `
                 <div class="bind-to-block-dialog">
                     <div class="b3-dialog__content">
                         <div class="mode-toggle" style="margin-bottom: 16px;">
@@ -3749,55 +3534,96 @@ export class ProjectKanbanView {
                     </div>
                 </div>
             `,
-            width: "500px",
-            height: "400px"
-        });
+        width: "500px",
+        height: "400px"
+    });
 
-        // 获取DOM元素
-        const bindExistingBtn = dialog.element.querySelector('#bindExistingBtn') as HTMLButtonElement;
-        const createNewBtn = dialog.element.querySelector('#createNewBtn') as HTMLButtonElement;
-        const bindExistingPanel = dialog.element.querySelector('#bindExistingPanel') as HTMLElement;
-        const createNewPanel = dialog.element.querySelector('#createNewPanel') as HTMLElement;
+    // 获取DOM元素
+    const bindExistingBtn = dialog.element.querySelector('#bindExistingBtn') as HTMLButtonElement;
+    const createNewBtn = dialog.element.querySelector('#createNewBtn') as HTMLButtonElement;
+    const bindExistingPanel = dialog.element.querySelector('#bindExistingPanel') as HTMLElement;
+    const createNewPanel = dialog.element.querySelector('#createNewPanel') as HTMLElement;
 
-        const blockIdInput = dialog.element.querySelector('#blockIdInput') as HTMLInputElement;
-        const selectedBlockInfo = dialog.element.querySelector('#selectedBlockInfo') as HTMLElement;
-        const blockContentEl = dialog.element.querySelector('#blockContent') as HTMLElement;
+    const blockIdInput = dialog.element.querySelector('#blockIdInput') as HTMLInputElement;
+    const selectedBlockInfo = dialog.element.querySelector('#selectedBlockInfo') as HTMLElement;
+    const blockContentEl = dialog.element.querySelector('#blockContent') as HTMLElement;
 
-        const docTitleInput = dialog.element.querySelector('#docTitleInput') as HTMLInputElement;
-        const docContentInput = dialog.element.querySelector('#docContentInput') as HTMLTextAreaElement;
+    const docTitleInput = dialog.element.querySelector('#docTitleInput') as HTMLInputElement;
+    const docContentInput = dialog.element.querySelector('#docContentInput') as HTMLTextAreaElement;
 
-        const cancelBtn = dialog.element.querySelector('#bindCancelBtn') as HTMLButtonElement;
-        const confirmBtn = dialog.element.querySelector('#bindConfirmBtn') as HTMLButtonElement;
+    const cancelBtn = dialog.element.querySelector('#bindCancelBtn') as HTMLButtonElement;
+    const confirmBtn = dialog.element.querySelector('#bindConfirmBtn') as HTMLButtonElement;
 
-        let currentMode = 'existing';
+    let currentMode = 'existing';
 
-        // 模式切换事件
-        bindExistingBtn.addEventListener('click', () => {
-            currentMode = 'existing';
-            bindExistingBtn.classList.add('active');
-            createNewBtn.classList.remove('active');
-            bindExistingPanel.style.display = 'block';
-            createNewPanel.style.display = 'none';
-            confirmBtn.textContent = t("bindToBlock");
-        });
+    // 模式切换事件
+    bindExistingBtn.addEventListener('click', () => {
+        currentMode = 'existing';
+        bindExistingBtn.classList.add('active');
+        createNewBtn.classList.remove('active');
+        bindExistingPanel.style.display = 'block';
+        createNewPanel.style.display = 'none';
+        confirmBtn.textContent = t("bindToBlock");
+    });
 
-        createNewBtn.addEventListener('click', () => {
-            currentMode = 'create';
-            createNewBtn.classList.add('active');
-            bindExistingBtn.classList.remove('active');
-            createNewPanel.style.display = 'block';
-            bindExistingPanel.style.display = 'none';
-            confirmBtn.textContent = t("createDocumentAndBind");
+    createNewBtn.addEventListener('click', () => {
+        currentMode = 'create';
+        createNewBtn.classList.add('active');
+        bindExistingBtn.classList.remove('active');
+        createNewPanel.style.display = 'block';
+        bindExistingPanel.style.display = 'none';
+        confirmBtn.textContent = t("createDocumentAndBind");
 
-            // 自动填充标题
-            if (!docTitleInput.value && reminder.title) {
-                docTitleInput.value = reminder.title;
+        // 自动填充标题
+        if (!docTitleInput.value && reminder.title) {
+            docTitleInput.value = reminder.title;
+        }
+    });
+
+    // 监听块ID输入变化
+    blockIdInput.addEventListener('input', async () => {
+        const inputValue = blockIdInput.value.trim();
+
+        // 尝试从输入内容中提取块ID（支持块引用格式）
+        let blockId = this.extractBlockIdFromText(inputValue);
+
+        // 如果没有匹配到块引用格式，则将输入作为纯块ID使用
+        if (!blockId) {
+            blockId = inputValue;
+        }
+
+        if (blockId && blockId.length >= 20) { // 块ID通常是20位字符
+            try {
+                const block = await getBlockByID(blockId);
+                if (block) {
+                    const blockContent = block.content || block.fcontent || '未命名块';
+                    blockContentEl.textContent = blockContent;
+                    selectedBlockInfo.style.display = 'block';
+                } else {
+                    selectedBlockInfo.style.display = 'none';
+                }
+            } catch (error) {
+                selectedBlockInfo.style.display = 'none';
             }
-        });
+        } else {
+            selectedBlockInfo.style.display = 'none';
+        }
+    });
 
-        // 监听块ID输入变化
-        blockIdInput.addEventListener('input', async () => {
+    // 取消按钮
+    cancelBtn.addEventListener('click', () => {
+        dialog.destroy();
+    });
+
+    // 确认按钮
+    confirmBtn.addEventListener('click', async () => {
+        if (currentMode === 'existing') {
+            // 绑定现有块模式
             const inputValue = blockIdInput.value.trim();
+            if (!inputValue) {
+                showMessage('请输入块ID');
+                return;
+            }
 
             // 尝试从输入内容中提取块ID（支持块引用格式）
             let blockId = this.extractBlockIdFromText(inputValue);
@@ -3807,177 +3633,136 @@ export class ProjectKanbanView {
                 blockId = inputValue;
             }
 
-            if (blockId && blockId.length >= 20) { // 块ID通常是20位字符
-                try {
-                    const block = await getBlockByID(blockId);
-                    if (block) {
-                        const blockContent = block.content || block.fcontent || '未命名块';
-                        blockContentEl.textContent = blockContent;
-                        selectedBlockInfo.style.display = 'block';
-                    } else {
-                        selectedBlockInfo.style.display = 'none';
-                    }
-                } catch (error) {
-                    selectedBlockInfo.style.display = 'none';
-                }
-            } else {
-                selectedBlockInfo.style.display = 'none';
+            if (!blockId || blockId.length < 20) {
+                showMessage('请输入有效的块ID或块引用');
+                return;
             }
-        });
 
-        // 取消按钮
-        cancelBtn.addEventListener('click', () => {
-            dialog.destroy();
-        });
-
-        // 确认按钮
-        confirmBtn.addEventListener('click', async () => {
-            if (currentMode === 'existing') {
-                // 绑定现有块模式
-                const inputValue = blockIdInput.value.trim();
-                if (!inputValue) {
-                    showMessage('请输入块ID');
-                    return;
-                }
-
-                // 尝试从输入内容中提取块ID（支持块引用格式）
-                let blockId = this.extractBlockIdFromText(inputValue);
-
-                // 如果没有匹配到块引用格式，则将输入作为纯块ID使用
-                if (!blockId) {
-                    blockId = inputValue;
-                }
-
-                if (!blockId || blockId.length < 20) {
-                    showMessage('请输入有效的块ID或块引用');
-                    return;
-                }
-
-                try {
-                    await this.bindReminderToBlock(reminder, blockId);
-                    showMessage(t("reminderBoundToBlock"));
-                    dialog.destroy();
-                    this.loadTasks();
-                } catch (error) {
-                    console.error('绑定提醒到块失败:', error);
-                    showMessage(t("bindToBlockFailed"));
-                }
-            } else {
-                // 创建新文档模式
-                const title = docTitleInput.value.trim();
-                const content = docContentInput.value.trim();
-
-                if (!title) {
-                    showMessage(t("pleaseEnterTitle"));
-                    return;
-                }
-
-                try {
-                    await this.createDocumentAndBind(reminder, title, content);
-                    showMessage(t("documentCreatedAndBound"));
-                    dialog.destroy();
-                    this.loadTasks();
-                } catch (error) {
-                    console.error('创建文档并绑定失败:', error);
-                    showMessage(t("createDocumentFailed"));
-                }
+            try {
+                await this.bindReminderToBlock(reminder, blockId);
+                showMessage(t("reminderBoundToBlock"));
+                dialog.destroy();
+                this.loadTasks();
+            } catch (error) {
+                console.error('绑定提醒到块失败:', error);
+                showMessage(t("bindToBlockFailed"));
             }
-        });
+        } else {
+            // 创建新文档模式
+            const title = docTitleInput.value.trim();
+            const content = docContentInput.value.trim();
 
-        // 自动聚焦输入框
-        setTimeout(() => {
-            if (currentMode === 'existing') {
-                blockIdInput.focus();
-            } else {
-                docTitleInput.focus();
+            if (!title) {
+                showMessage(t("pleaseEnterTitle"));
+                return;
             }
-        }, 100);
-    }
+
+            try {
+                await this.createDocumentAndBind(reminder, title, content);
+                showMessage(t("documentCreatedAndBound"));
+                dialog.destroy();
+                this.loadTasks();
+            } catch (error) {
+                console.error('创建文档并绑定失败:', error);
+                showMessage(t("createDocumentFailed"));
+            }
+        }
+    });
+
+    // 自动聚焦输入框
+    setTimeout(() => {
+        if (currentMode === 'existing') {
+            blockIdInput.focus();
+        } else {
+            docTitleInput.focus();
+        }
+    }, 100);
+}
 
 
     /**
      * 创建文档并绑定提醒（复用 ReminderPanel 中实现）
      */
-    private async createDocumentAndBind(reminder: any, title: string, content: string): Promise<string> {
-        try {
-            // 获取插件设置
-            const settings = await this.plugin.loadSettings();
-            const notebook = settings.newDocNotebook;
-            const pathTemplate = settings.newDocPath || '/{{now | date "2006/200601"}}/';
+    private async createDocumentAndBind(reminder: any, title: string, content: string): Promise < string > {
+    try {
+        // 获取插件设置
+        const settings = await this.plugin.loadSettings();
+        const notebook = settings.newDocNotebook;
+        const pathTemplate = settings.newDocPath || '/{{now | date "2006/200601"}}/';
 
-            if (!notebook) {
-                throw new Error(t("pleaseConfigureNotebook"));
-            }
+        if(!notebook) {
+            throw new Error(t("pleaseConfigureNotebook"));
+        }
 
             // 导入API函数
             const { renderSprig, createDocWithMd } = await import("../api");
 
-            // 渲染路径模板
-            let renderedPath: string;
-            try {
-                // 需要检测pathTemplate是否以/结尾，如果不是，则添加/
-                if (!pathTemplate.endsWith('/')) {
-                    renderedPath = pathTemplate + '/';
-                } else {
-                    renderedPath = pathTemplate;
-                }
-                renderedPath = await renderSprig(renderedPath + title);
+        // 渲染路径模板
+        let renderedPath: string;
+        try {
+            // 需要检测pathTemplate是否以/结尾，如果不是，则添加/
+            if(!pathTemplate.endsWith('/')) {
+    renderedPath = pathTemplate + '/';
+} else {
+    renderedPath = pathTemplate;
+}
+renderedPath = await renderSprig(renderedPath + title);
             } catch (error) {
-                console.error('渲染路径模板失败:', error);
-                throw new Error(t("renderPathFailed"));
-            }
+    console.error('渲染路径模板失败:', error);
+    throw new Error(t("renderPathFailed"));
+}
 
-            // 准备文档内容
-            const docContent = content;
+// 准备文档内容
+const docContent = content;
 
-            // 创建文档
-            const docId = await createDocWithMd(notebook, renderedPath, docContent);
+// 创建文档
+const docId = await createDocWithMd(notebook, renderedPath, docContent);
 
-            // 绑定提醒到新创建的文档
-            await this.bindReminderToBlock(reminder, docId);
+// 绑定提醒到新创建的文档
+await this.bindReminderToBlock(reminder, docId);
 
-            return docId;
+return docId;
         } catch (error) {
-            console.error('创建文档并绑定失败:', error);
-            throw error;
-        }
+    console.error('创建文档并绑定失败:', error);
+    throw error;
+}
     }
 
     /**
      * 将提醒绑定到指定的块（adapted from ReminderPanel）
      */
     private async bindReminderToBlock(reminder: any, blockId: string) {
-        try {
-            const reminderData = await readReminderData();
-            const reminderId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
+    try {
+        const reminderData = await readReminderData();
+        const reminderId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
 
-            if (reminderData[reminderId]) {
-                // 获取块信息
-                const block = await getBlockByID(blockId);
-                if (!block) {
-                    throw new Error('目标块不存在');
-                }
-
-                // 更新提醒数据
-                reminderData[reminderId].blockId = blockId;
-                reminderData[reminderId].docId = block.root_id || blockId;
-                reminderData[reminderId].isQuickReminder = false; // 移除快速提醒标记
-
-                await writeReminderData(reminderData);
-
-                // 更新块的书签状态
-                await updateBlockReminderBookmark(blockId);
-
-                // 触发更新事件
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
-            } else {
-                throw new Error('提醒不存在');
+        if (reminderData[reminderId]) {
+            // 获取块信息
+            const block = await getBlockByID(blockId);
+            if (!block) {
+                throw new Error('目标块不存在');
             }
-        } catch (error) {
-            console.error('绑定提醒到块失败:', error);
-            throw error;
+
+            // 更新提醒数据
+            reminderData[reminderId].blockId = blockId;
+            reminderData[reminderId].docId = block.root_id || blockId;
+            reminderData[reminderId].isQuickReminder = false; // 移除快速提醒标记
+
+            await writeReminderData(reminderData);
+
+            // 更新块的书签状态
+            await updateBlockReminderBookmark(blockId);
+
+            // 触发更新事件
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+        } else {
+            throw new Error('提醒不存在');
         }
+    } catch (error) {
+        console.error('绑定提醒到块失败:', error);
+        throw error;
     }
+}
 
 
     /**
@@ -3985,100 +3770,100 @@ export class ProjectKanbanView {
      * @param blockId 块ID
      */
     private async openBlockTab(blockId: string) {
-        try {
-            openBlock(blockId);
-        } catch (error) {
-            console.error('打开块失败:', error);
+    try {
+        openBlock(blockId);
+    } catch (error) {
+        console.error('打开块失败:', error);
 
-            // 询问用户是否删除无效的绑定
-            await confirm(
-                "打开块失败",
-                "绑定的块可能已被删除，是否解除绑定？",
-                async () => {
-                    // 解除任务的块绑定
-                    await this.unbindTaskFromBlock(blockId);
-                },
-                () => {
-                    showMessage("打开块失败");
-                }
-            );
-        }
+        // 询问用户是否删除无效的绑定
+        await confirm(
+            "打开块失败",
+            "绑定的块可能已被删除，是否解除绑定？",
+            async () => {
+                // 解除任务的块绑定
+                await this.unbindTaskFromBlock(blockId);
+            },
+            () => {
+                showMessage("打开块失败");
+            }
+        );
     }
+}
 
     /**
      * 打开项目笔记
      * @param blockId 项目笔记的块ID
      */
     private async openProjectNote(blockId: string) {
-        try {
-            openBlock(blockId);
-        } catch (error) {
-            console.error('打开项目笔记失败:', error);
-            showMessage("打开项目笔记失败");
-        }
+    try {
+        openBlock(blockId);
+    } catch (error) {
+        console.error('打开项目笔记失败:', error);
+        showMessage("打开项目笔记失败");
     }
+}
 
     /**
      * 解除任务与块的绑定
      * @param blockId 块ID
      */
     private async unbindTaskFromBlock(blockId: string) {
-        try {
-            const reminderData = await readReminderData();
-            let unboundCount = 0;
+    try {
+        const reminderData = await readReminderData();
+        let unboundCount = 0;
 
-            // 找到所有绑定到该块的任务并解除绑定
-            Object.keys(reminderData).forEach(taskId => {
-                const task = reminderData[taskId];
-                if (task && task.blockId === blockId) {
-                    delete task.blockId;
-                    delete task.docId;
-                    unboundCount++;
-                }
-            });
-
-            if (unboundCount > 0) {
-                await writeReminderData(reminderData);
-
-                // 触发更新事件
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
-
-                showMessage(`已解除 ${unboundCount} 个任务的块绑定`);
-                await this.loadTasks();
-            } else {
-                showMessage("未找到相关的任务绑定");
+        // 找到所有绑定到该块的任务并解除绑定
+        Object.keys(reminderData).forEach(taskId => {
+            const task = reminderData[taskId];
+            if (task && task.blockId === blockId) {
+                delete task.blockId;
+                delete task.docId;
+                unboundCount++;
             }
-        } catch (error) {
-            console.error('解除块绑定失败:', error);
-            showMessage("解除块绑定失败");
+        });
+
+        if (unboundCount > 0) {
+            await writeReminderData(reminderData);
+
+            // 触发更新事件
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+            showMessage(`已解除 ${unboundCount} 个任务的块绑定`);
+            await this.loadTasks();
+        } else {
+            showMessage("未找到相关的任务绑定");
         }
+    } catch (error) {
+        console.error('解除块绑定失败:', error);
+        showMessage("解除块绑定失败");
     }
+}
 
     private getTaskFromElement(element: HTMLElement): any {
-        const taskId = element.dataset.taskId;
-        if (!taskId) return null;
-        return this.tasks.find(t => t.id === taskId);
-    }
+    const taskId = element.dataset.taskId;
+    if (!taskId) return null;
+    return this.tasks.find(t => t.id === taskId);
+}
 
     private canDropForSort(draggedTask: any, targetTask: any): boolean {
-        if (!draggedTask || !targetTask) return false;
+    if (!draggedTask || !targetTask) return false;
 
-        // 情况1：同级顶层任务之间排序（相同优先级）
-        if (!draggedTask.parentId && !targetTask.parentId) {
-            // 只允许在相同优先级内拖动
-            const draggedPriority = draggedTask.priority || 'none';
-            const targetPriority = targetTask.priority || 'none';
-            return draggedPriority === targetPriority;
-        }
-
-        // 情况2：子任务之间排序（同一个父任务下）
-        if (draggedTask.parentId && targetTask.parentId) {
-            return draggedTask.parentId === targetTask.parentId;
-        }
-
-        // 情况3：不允许顶层任务与子任务之间排序
-        return false;
+    // 情况1：同级顶层任务之间排序（相同优先级）
+    if (!draggedTask.parentId && !targetTask.parentId) {
+        // 只允许在相同优先级内拖动
+        const draggedPriority = draggedTask.priority || 'none';
+        const targetPriority = targetTask.priority || 'none';
+        return draggedPriority === targetPriority;
     }
+
+    // 情况2：子任务之间排序（同一个父任务下）
+    if (draggedTask.parentId && targetTask.parentId) {
+        return draggedTask.parentId === targetTask.parentId;
+    }
+
+    // 情况3：不允许顶层任务与子任务之间排序
+    return false;
+}
 
     /**
      * Checks if a dragged task can become a sibling of a target task.
@@ -4088,25 +3873,25 @@ export class ProjectKanbanView {
      * @returns boolean
      */
     private canBecomeSiblingOf(draggedTask: any, targetTask: any): boolean {
-        if (!draggedTask || !targetTask) return false;
+    if (!draggedTask || !targetTask) return false;
 
-        // Target task must be a subtask to define a sibling context.
-        if (!targetTask.parentId) return false;
+    // Target task must be a subtask to define a sibling context.
+    if (!targetTask.parentId) return false;
 
-        // Dragged task cannot be the same as the target task.
-        if (draggedTask.id === targetTask.id) return false;
+    // Dragged task cannot be the same as the target task.
+    if (draggedTask.id === targetTask.id) return false;
 
-        // Dragged task cannot be the parent of the target task.
-        if (draggedTask.id === targetTask.parentId) return false;
+    // Dragged task cannot be the parent of the target task.
+    if (draggedTask.id === targetTask.parentId) return false;
 
-        // If dragged task is already a sibling, this case is handled by canDropForSort.
-        if (draggedTask.parentId === targetTask.parentId) return false;
+    // If dragged task is already a sibling, this case is handled by canDropForSort.
+    if (draggedTask.parentId === targetTask.parentId) return false;
 
-        // To prevent circular dependencies, the dragged task cannot be an ancestor of the target task.
-        if (this.isDescendant(targetTask, draggedTask)) return false;
+    // To prevent circular dependencies, the dragged task cannot be an ancestor of the target task.
+    if (this.isDescendant(targetTask, draggedTask)) return false;
 
-        return true;
-    }
+    return true;
+}
 
     /**
      * 检查是否可以设置父子任务关系
@@ -4115,26 +3900,26 @@ export class ProjectKanbanView {
      * @returns 是否可以设置为父子关系
      */
     private canSetAsParentChild(draggedTask: any, targetTask: any): boolean {
-        if (!draggedTask || !targetTask) return false;
+    if (!draggedTask || !targetTask) return false;
 
-        // 不能将任务拖拽到自己身上
-        if (draggedTask.id === targetTask.id) return false;
+    // 不能将任务拖拽到自己身上
+    if (draggedTask.id === targetTask.id) return false;
 
-        // 如果两个任务都是子任务且属于同一个父任务，不显示父子关系提示
-        // （应该显示排序提示）
-        if (draggedTask.parentId && targetTask.parentId &&
-            draggedTask.parentId === targetTask.parentId) {
-            return false;
-        }
-
-        // 不能将父任务拖拽到自己的子任务上（防止循环依赖）
-        if (this.isDescendant(targetTask, draggedTask)) return false;
-
-        // 不能将任务拖拽到已经是其父任务的任务上
-        if (draggedTask.parentId === targetTask.id) return false;
-
-        return true;
+    // 如果两个任务都是子任务且属于同一个父任务，不显示父子关系提示
+    // （应该显示排序提示）
+    if (draggedTask.parentId && targetTask.parentId &&
+        draggedTask.parentId === targetTask.parentId) {
+        return false;
     }
+
+    // 不能将父任务拖拽到自己的子任务上（防止循环依赖）
+    if (this.isDescendant(targetTask, draggedTask)) return false;
+
+    // 不能将任务拖拽到已经是其父任务的任务上
+    if (draggedTask.parentId === targetTask.id) return false;
+
+    return true;
+}
 
     /**
      * 检查 potential_child 是否是 potential_parent 的后代
@@ -4143,24 +3928,24 @@ export class ProjectKanbanView {
      * @returns 是否是后代关系
      */
     private isDescendant(potentialChild: any, potentialParent: any): boolean {
-        if (!potentialChild || !potentialParent) return false;
+    if (!potentialChild || !potentialParent) return false;
 
-        let currentTask = potentialChild;
-        const visited = new Set(); // 防止无限循环
+    let currentTask = potentialChild;
+    const visited = new Set(); // 防止无限循环
 
-        while (currentTask && currentTask.parentId && !visited.has(currentTask.id)) {
-            visited.add(currentTask.id);
+    while (currentTask && currentTask.parentId && !visited.has(currentTask.id)) {
+        visited.add(currentTask.id);
 
-            if (currentTask.parentId === potentialParent.id) {
-                return true;
-            }
-
-            // 查找父任务
-            currentTask = this.tasks.find(t => t.id === currentTask.parentId);
+        if (currentTask.parentId === potentialParent.id) {
+            return true;
         }
 
-        return false;
+        // 查找父任务
+        currentTask = this.tasks.find(t => t.id === currentTask.parentId);
     }
+
+    return false;
+}
 
     /**
      * 统一的指示器更新方法，避免频繁的DOM操作导致闪烁
@@ -4170,69 +3955,69 @@ export class ProjectKanbanView {
      * @param event 可选的拖拽事件
      */
     private updateIndicator(
-        type: 'none' | 'sort' | 'parentChild',
-        target: HTMLElement | null,
-        position: 'top' | 'bottom' | 'middle' | null,
-        event?: DragEvent
-    ) {
-        // 检查是否需要更新
-        const needsUpdate = this.currentIndicatorType !== type ||
-            this.currentIndicatorTarget !== target ||
-            this.currentIndicatorPosition !== position;
+    type: 'none' | 'sort' | 'parentChild',
+    target: HTMLElement | null,
+    position: 'top' | 'bottom' | 'middle' | null,
+    event ?: DragEvent
+) {
+    // 检查是否需要更新
+    const needsUpdate = this.currentIndicatorType !== type ||
+        this.currentIndicatorTarget !== target ||
+        this.currentIndicatorPosition !== position;
 
-        if (!needsUpdate) {
-            return; // 状态没有改变，不需要更新
-        }
-
-        // 清除现有的所有指示器
-        this.clearAllIndicators();
-
-        // 更新状态
-        this.currentIndicatorType = type;
-        this.currentIndicatorTarget = target;
-        this.currentIndicatorPosition = position;
-
-        // 显示新的指示器
-        switch (type) {
-            case 'sort':
-                if (target && event) {
-                    this.createSortIndicator(target, event);
-                }
-                break;
-            case 'parentChild':
-                if (target && position === 'top') {
-                    this.createParentChildIndicator(target, 'top');
-                } else if (target) {
-                    this.createParentChildIndicator(target);
-                }
-                break;
-            case 'none':
-            default:
-                // 已经清除了所有指示器，无需额外操作
-                break;
-        }
+    if (!needsUpdate) {
+        return; // 状态没有改变，不需要更新
     }
+
+    // 清除现有的所有指示器
+    this.clearAllIndicators();
+
+    // 更新状态
+    this.currentIndicatorType = type;
+    this.currentIndicatorTarget = target;
+    this.currentIndicatorPosition = position;
+
+    // 显示新的指示器
+    switch (type) {
+        case 'sort':
+            if (target && event) {
+                this.createSortIndicator(target, event);
+            }
+            break;
+        case 'parentChild':
+            if (target && position === 'top') {
+                this.createParentChildIndicator(target, 'top');
+            } else if (target) {
+                this.createParentChildIndicator(target);
+            }
+            break;
+        case 'none':
+        default:
+            // 已经清除了所有指示器，无需额外操作
+            break;
+    }
+}
 
     /**
      * 清除所有指示器
      */
     private clearAllIndicators() {
-        // 移除排序指示器
-        this.container.querySelectorAll('.drop-indicator').forEach(indicator => indicator.remove());
+    // 移除排序指示器
+    this.container.querySelectorAll('.drop-indicator').forEach(indicator => indicator.remove());
 
-        // 移除父子关系指示器
-        this.container.querySelectorAll('.parent-child-indicator').forEach(indicator => indicator.remove());
-        this.container.querySelectorAll('.parent-child-drop-target').forEach(el => {
-            el.classList.remove('parent-child-drop-target');
-        });
+    // 移除父子关系指示器
+    this.container.querySelectorAll('.parent-child-indicator').forEach(indicator => indicator.remove());
+    this.container.querySelectorAll('.parent-child-drop-target').forEach(el => {
+        el.classList.remove('parent-child-drop-target');
+    });
 
-        // 重置position样式
-        this.container.querySelectorAll('.kanban-task').forEach((el: HTMLElement) => {
-            if (el.style.position === 'relative') {
-                el.style.position = '';
-            }
-        });
-    }
+    // 重置position样式
+    this.container.querySelectorAll('.kanban-task').forEach((el: HTMLElement) => {
+        if (el.style.position === 'relative') {
+            el.style.position = '';
+        }
+    });
+}
 
     /**
      * 创建排序指示器
@@ -4240,12 +4025,12 @@ export class ProjectKanbanView {
      * @param event 拖拽事件
      */
     private createSortIndicator(element: HTMLElement, event: DragEvent) {
-        const rect = element.getBoundingClientRect();
-        const midpoint = rect.top + rect.height / 2;
+    const rect = element.getBoundingClientRect();
+    const midpoint = rect.top + rect.height / 2;
 
-        const indicator = document.createElement('div');
-        indicator.className = 'drop-indicator';
-        indicator.style.cssText = `
+    const indicator = document.createElement('div');
+    indicator.className = 'drop-indicator';
+    indicator.style.cssText = `
             position: absolute;
             left: 0;
             right: 0;
@@ -4256,17 +4041,17 @@ export class ProjectKanbanView {
             box-shadow: 0 0 4px var(--b3-theme-primary);
         `;
 
-        element.style.position = 'relative';
+    element.style.position = 'relative';
 
-        if (event.clientY < midpoint) {
-            indicator.style.top = '-1px';
-        } else {
-            indicator.style.bottom = '-1px';
-        }
-
-        // 不再添加排序提示文字，只显示蓝色指示线
-        element.appendChild(indicator);
+    if (event.clientY < midpoint) {
+        indicator.style.top = '-1px';
+    } else {
+        indicator.style.bottom = '-1px';
     }
+
+    // 不再添加排序提示文字，只显示蓝色指示线
+    element.appendChild(indicator);
+}
 
     /**
      * 创建父子任务指示器
@@ -4276,24 +4061,24 @@ export class ProjectKanbanView {
      * 创建父子任务指示器，支持指定位置
      */
     private createParentChildIndicator(element: HTMLElement, _position: 'top' | 'middle' = 'middle') {
-        element.classList.add('parent-child-drop-target');
+    element.classList.add('parent-child-drop-target');
 
-    }
+}
 
     /**
      * 处理父子任务拖拽放置
      * @param targetTask 目标任务（将成为父任务）
      */
     private async handleParentChildDrop(targetTask: any) {
-        if (!this.draggedTask) return;
+    if (!this.draggedTask) return;
 
-        try {
-            await this.setParentChildRelation(this.draggedTask, targetTask);
-            showMessage(`"${this.draggedTask.title}" 已设置为 "${targetTask.title}" 的子任务`);
-        } catch (error) {
-            // showMessage("设置父子任务关系失败");
-        }
+    try {
+        await this.setParentChildRelation(this.draggedTask, targetTask);
+        showMessage(`"${this.draggedTask.title}" 已设置为 "${targetTask.title}" 的子任务`);
+    } catch (error) {
+        // showMessage("设置父子任务关系失败");
     }
+}
 
     /**
      * 设置任务的父子关系
@@ -4301,90 +4086,90 @@ export class ProjectKanbanView {
      * @param parentTask 父任务
      */
     private async setParentChildRelation(childTask: any, parentTask: any) {
-        try {
-            const reminderData = await readReminderData();
+    try {
+        const reminderData = await readReminderData();
 
-            if (!reminderData[childTask.id]) {
-                throw new Error("子任务不存在");
-            }
-
-            if (!reminderData[parentTask.id]) {
-                throw new Error("父任务不存在");
-            }
-
-            // 设置子任务的父任务ID
-            reminderData[childTask.id].parentId = parentTask.id;
-
-            // 子任务继承父任务的状态（如果父任务是进行中状态）
-            const parentStatus = this.getTaskStatus(reminderData[parentTask.id]);
-            if (parentStatus === 'doing' && !reminderData[childTask.id].completed) {
-                reminderData[childTask.id].kanbanStatus = 'doing';
-            }
-
-            await writeReminderData(reminderData);
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
-
-            // 重新加载任务以更新显示
-            await this.loadTasks();
-        } catch (error) {
-            console.error('设置父子关系失败:', error);
-            throw error;
+        if (!reminderData[childTask.id]) {
+            throw new Error("子任务不存在");
         }
+
+        if (!reminderData[parentTask.id]) {
+            throw new Error("父任务不存在");
+        }
+
+        // 设置子任务的父任务ID
+        reminderData[childTask.id].parentId = parentTask.id;
+
+        // 子任务继承父任务的状态（如果父任务是进行中状态）
+        const parentStatus = this.getTaskStatus(reminderData[parentTask.id]);
+        if (parentStatus === 'doing' && !reminderData[childTask.id].completed) {
+            reminderData[childTask.id].kanbanStatus = 'doing';
+        }
+
+        await writeReminderData(reminderData);
+        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+        // 重新加载任务以更新显示
+        await this.loadTasks();
+    } catch (error) {
+        console.error('设置父子关系失败:', error);
+        throw error;
     }
+}
 
     /**
      * 解除任务的父子关系
      * @param childTask 子任务
      */
     private async unsetParentChildRelation(childTask: any) {
-        try {
-            const reminderData = await readReminderData();
+    try {
+        const reminderData = await readReminderData();
 
-            if (!reminderData[childTask.id]) {
-                throw new Error("任务不存在");
-            }
-
-            if (!childTask.parentId) {
-                return; // 没有父任务，不需要解除关系
-            }
-
-            // 查找父任务的标题用于提示
-            const parentTask = reminderData[childTask.parentId];
-            const parentTitle = parentTask ? parentTask.title : '未知任务';
-
-            // 移除父任务ID
-            delete reminderData[childTask.id].parentId;
-
-            await writeReminderData(reminderData);
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
-
-            showMessage(`"${childTask.title}" 已从 "${parentTitle}" 中独立出来`);
-
-            // 重新加载任务以更新显示
-            await this.loadTasks();
-        } catch (error) {
-            console.error('解除父子关系失败:', error);
-            showMessage("解除父子关系失败");
+        if (!reminderData[childTask.id]) {
+            throw new Error("任务不存在");
         }
+
+        if (!childTask.parentId) {
+            return; // 没有父任务，不需要解除关系
+        }
+
+        // 查找父任务的标题用于提示
+        const parentTask = reminderData[childTask.parentId];
+        const parentTitle = parentTask ? parentTask.title : '未知任务';
+
+        // 移除父任务ID
+        delete reminderData[childTask.id].parentId;
+
+        await writeReminderData(reminderData);
+        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+        showMessage(`"${childTask.title}" 已从 "${parentTitle}" 中独立出来`);
+
+        // 重新加载任务以更新显示
+        await this.loadTasks();
+    } catch (error) {
+        console.error('解除父子关系失败:', error);
+        showMessage("解除父子关系失败");
     }
+}
 
     private async handleSortDrop(targetTask: any, event: DragEvent) {
-        if (!this.draggedTask) return;
+    if (!this.draggedTask) return;
 
-        try {
-            const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-            const midpoint = rect.top + rect.height / 2;
-            const insertBefore = event.clientY < midpoint;
+    try {
+        const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+        const insertBefore = event.clientY < midpoint;
 
-            await this.reorderTasks(this.draggedTask, targetTask, insertBefore);
+        await this.reorderTasks(this.draggedTask, targetTask, insertBefore);
 
-            showMessage("排序已更新");
-            // 重新加载由 reorderTasks 中派发的 'reminderUpdated' 事件触发，此处无需重复调用
-        } catch (error) {
-            console.error('处理拖放排序失败:', error);
-            showMessage("排序更新失败");
-        }
+        showMessage("排序已更新");
+        // 重新加载由 reorderTasks 中派发的 'reminderUpdated' 事件触发，此处无需重复调用
+    } catch (error) {
+        console.error('处理拖放排序失败:', error);
+        showMessage("排序更新失败");
     }
+}
 
     /**
      * Handles the drop event for making a task a sibling of another and sorting it.
@@ -4393,313 +4178,313 @@ export class ProjectKanbanView {
      * @param event The drop event
      */
     private async handleBecomeSiblingDrop(draggedTask: any, targetTask: any, event: DragEvent) {
-        if (!draggedTask || !targetTask || !targetTask.parentId) return;
+    if (!draggedTask || !targetTask || !targetTask.parentId) return;
 
-        try {
-            const reminderData = await readReminderData();
-            const draggedTaskInDb = reminderData[draggedTask.id];
-            if (!draggedTaskInDb) {
-                throw new Error("Dragged task not found in data");
-            }
+    try {
+        const reminderData = await readReminderData();
+        const draggedTaskInDb = reminderData[draggedTask.id];
+        if (!draggedTaskInDb) {
+            throw new Error("Dragged task not found in data");
+        }
 
-            const newParentId = targetTask.parentId;
-            const parentTaskInDb = reminderData[newParentId];
-            if (!parentTaskInDb) {
-                throw new Error("Parent task not found in data");
-            }
+        const newParentId = targetTask.parentId;
+        const parentTaskInDb = reminderData[newParentId];
+        if (!parentTaskInDb) {
+            throw new Error("Parent task not found in data");
+        }
 
-            // 1. Set parentId for the dragged task
-            draggedTaskInDb.parentId = newParentId;
+        // 1. Set parentId for the dragged task
+        draggedTaskInDb.parentId = newParentId;
 
-            // 2. A sub-task inherits the status of its parent (or more accurately, its root parent)
-            const parentStatus = this.getTaskStatus(parentTaskInDb);
-            if (parentStatus === 'doing' && !draggedTaskInDb.completed) {
-                draggedTaskInDb.kanbanStatus = 'doing';
-            } else if (!draggedTaskInDb.completed) {
-                // If parent is not 'doing', child becomes 'todo'
-                draggedTaskInDb.kanbanStatus = 'todo';
-            }
+        // 2. A sub-task inherits the status of its parent (or more accurately, its root parent)
+        const parentStatus = this.getTaskStatus(parentTaskInDb);
+        if (parentStatus === 'doing' && !draggedTaskInDb.completed) {
+            draggedTaskInDb.kanbanStatus = 'doing';
+        } else if (!draggedTaskInDb.completed) {
+            // If parent is not 'doing', child becomes 'todo'
+            draggedTaskInDb.kanbanStatus = 'todo';
+        }
 
-            // 3. Reorder siblings
-            // Get all new siblings, EXCEPT the dragged task itself
+        // 3. Reorder siblings
+        // Get all new siblings, EXCEPT the dragged task itself
+        const siblingTasks = Object.values(reminderData)
+            .filter((r: any) => r && r.parentId === newParentId && r.id !== draggedTask.id)
+            .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+        // Determine insertion point
+        // Use event.target instead of event.currentTarget to avoid null reference
+        const targetElement = event.target as HTMLElement;
+        if (!targetElement) {
+            throw new Error("Event target is null");
+        }
+
+        // Find the task element that contains the target
+        let taskElement = targetElement.closest('.kanban-task') as HTMLElement;
+        if (!taskElement) {
+            throw new Error("Could not find task element");
+        }
+
+        const rect = taskElement.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+        const insertBefore = event.clientY < midpoint;
+
+        const targetIndex = siblingTasks.findIndex((t: any) => t.id === targetTask.id);
+        const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
+
+        // Insert the dragged task into the siblings list
+        siblingTasks.splice(insertIndex, 0, draggedTaskInDb);
+
+        // Re-assign sort values
+        siblingTasks.forEach((task: any, index: number) => {
+            reminderData[task.id].sort = index * 10;
+        });
+
+        await writeReminderData(reminderData);
+        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+    } catch (error) {
+        console.error('Failed to set task as sibling and sort:', error);
+        showMessage("移动任务失败");
+    }
+}
+
+    private async reorderTasks(draggedTask: any, targetTask: any, insertBefore: boolean) {
+    try {
+        const reminderData = await readReminderData();
+
+        const draggedId = draggedTask.id;
+        const targetId = targetTask.id;
+
+        const draggedTaskInDb = reminderData[draggedId];
+        const targetTaskInDb = reminderData[targetId];
+
+        if (!draggedTaskInDb || !targetTaskInDb) {
+            throw new Error("Task not found in data");
+        }
+
+        const oldStatus = this.getTaskStatus(draggedTaskInDb);
+        const newStatus = this.getTaskStatus(targetTaskInDb);
+
+        // 检查是否为子任务排序
+        const isSubtaskReorder = draggedTaskInDb.parentId && targetTaskInDb.parentId &&
+            draggedTaskInDb.parentId === targetTaskInDb.parentId;
+
+        if (isSubtaskReorder) {
+            // 子任务排序逻辑
+            const parentId = draggedTaskInDb.parentId;
+
+            // 获取同一父任务下的所有子任务
             const siblingTasks = Object.values(reminderData)
-                .filter((r: any) => r && r.parentId === newParentId && r.id !== draggedTask.id)
+                .filter((r: any) => r && r.parentId === parentId && r.id !== draggedId)
                 .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
 
-            // Determine insertion point
-            // Use event.target instead of event.currentTarget to avoid null reference
-            const targetElement = event.target as HTMLElement;
-            if (!targetElement) {
-                throw new Error("Event target is null");
-            }
-
-            // Find the task element that contains the target
-            let taskElement = targetElement.closest('.kanban-task') as HTMLElement;
-            if (!taskElement) {
-                throw new Error("Could not find task element");
-            }
-
-            const rect = taskElement.getBoundingClientRect();
-            const midpoint = rect.top + rect.height / 2;
-            const insertBefore = event.clientY < midpoint;
-
-            const targetIndex = siblingTasks.findIndex((t: any) => t.id === targetTask.id);
+            const targetIndex = siblingTasks.findIndex((t: any) => t.id === targetId);
             const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
 
-            // Insert the dragged task into the siblings list
+            // 插入被拖拽的任务
             siblingTasks.splice(insertIndex, 0, draggedTaskInDb);
 
-            // Re-assign sort values
+            // 重新分配排序值
             siblingTasks.forEach((task: any, index: number) => {
                 reminderData[task.id].sort = index * 10;
             });
 
             await writeReminderData(reminderData);
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
-
-        } catch (error) {
-            console.error('Failed to set task as sibling and sort:', error);
-            showMessage("移动任务失败");
+            return; // 子任务排序完成，直接返回
         }
-    }
 
-    private async reorderTasks(draggedTask: any, targetTask: any, insertBefore: boolean) {
-        try {
-            const reminderData = await readReminderData();
+        // 顶层任务排序逻辑（原有逻辑）
+        const priority = draggedTaskInDb.priority || 'none';
 
-            const draggedId = draggedTask.id;
-            const targetId = targetTask.id;
-
-            const draggedTaskInDb = reminderData[draggedId];
-            const targetTaskInDb = reminderData[targetId];
-
-            if (!draggedTaskInDb || !targetTaskInDb) {
-                throw new Error("Task not found in data");
+        // --- Update status of dragged task ---
+        if (oldStatus !== newStatus) {
+            if (newStatus === 'done') {
+                draggedTaskInDb.completed = true;
+                draggedTaskInDb.completedTime = getLocalDateTimeString(new Date());
+            } else {
+                draggedTaskInDb.completed = false;
+                delete draggedTaskInDb.completedTime;
+                draggedTaskInDb.kanbanStatus = newStatus;
             }
+        }
 
-            const oldStatus = this.getTaskStatus(draggedTaskInDb);
-            const newStatus = this.getTaskStatus(targetTaskInDb);
-
-            // 检查是否为子任务排序
-            const isSubtaskReorder = draggedTaskInDb.parentId && targetTaskInDb.parentId &&
-                draggedTaskInDb.parentId === targetTaskInDb.parentId;
-
-            if (isSubtaskReorder) {
-                // 子任务排序逻辑
-                const parentId = draggedTaskInDb.parentId;
-
-                // 获取同一父任务下的所有子任务
-                const siblingTasks = Object.values(reminderData)
-                    .filter((r: any) => r && r.parentId === parentId && r.id !== draggedId)
-                    .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
-
-                const targetIndex = siblingTasks.findIndex((t: any) => t.id === targetId);
-                const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
-
-                // 插入被拖拽的任务
-                siblingTasks.splice(insertIndex, 0, draggedTaskInDb);
-
-                // 重新分配排序值
-                siblingTasks.forEach((task: any, index: number) => {
-                    reminderData[task.id].sort = index * 10;
-                });
-
-                await writeReminderData(reminderData);
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                return; // 子任务排序完成，直接返回
-            }
-
-            // 顶层任务排序逻辑（原有逻辑）
-            const priority = draggedTaskInDb.priority || 'none';
-
-            // --- Update status of dragged task ---
-            if (oldStatus !== newStatus) {
-                if (newStatus === 'done') {
-                    draggedTaskInDb.completed = true;
-                    draggedTaskInDb.completedTime = getLocalDateTimeString(new Date());
-                } else {
-                    draggedTaskInDb.completed = false;
-                    delete draggedTaskInDb.completedTime;
-                    draggedTaskInDb.kanbanStatus = newStatus;
-                }
-            }
-
-            // --- Reorder source list (if status changed) ---
-            if (oldStatus !== newStatus) {
-                const sourceList = Object.values(reminderData)
-                    .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && this.getTaskStatus(r) === oldStatus && (r.priority || 'none') === priority && r.id !== draggedId)
-                    .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
-
-                sourceList.forEach((task: any, index: number) => {
-                    reminderData[task.id].sort = index * 10;
-                });
-            }
-
-            // --- Reorder target list ---
-            const targetList = Object.values(reminderData)
-                .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && this.getTaskStatus(r) === newStatus && (r.priority || 'none') === priority && r.id !== draggedId)
+        // --- Reorder source list (if status changed) ---
+        if (oldStatus !== newStatus) {
+            const sourceList = Object.values(reminderData)
+                .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && this.getTaskStatus(r) === oldStatus && (r.priority || 'none') === priority && r.id !== draggedId)
                 .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
 
-            const targetIndex = targetList.findIndex((t: any) => t.id === targetId);
-            const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
-
-            targetList.splice(insertIndex, 0, draggedTaskInDb);
-
-            targetList.forEach((task: any, index: number) => {
+            sourceList.forEach((task: any, index: number) => {
                 reminderData[task.id].sort = index * 10;
             });
-
-            await writeReminderData(reminderData);
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
-
-        } catch (error) {
-            console.error('重新排序任务失败:', error);
-            throw error;
         }
+
+        // --- Reorder target list ---
+        const targetList = Object.values(reminderData)
+            .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && this.getTaskStatus(r) === newStatus && (r.priority || 'none') === priority && r.id !== draggedId)
+            .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+        const targetIndex = targetList.findIndex((t: any) => t.id === targetId);
+        const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
+
+        targetList.splice(insertIndex, 0, draggedTaskInDb);
+
+        targetList.forEach((task: any, index: number) => {
+            reminderData[task.id].sort = index * 10;
+        });
+
+        await writeReminderData(reminderData);
+        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+    } catch (error) {
+        console.error('重新排序任务失败:', error);
+        throw error;
     }
+}
 
     /**
      * 递归收集指定父任务的所有直接子任务和后代，保持原有的任务顺序。
      * 返回一个按层级组织的节点数组，节点包含 task 对象和 level。
      */
-    private collectChildrenRecursively(parentId: string): Array<{ task: any; level: number }> {
-        const result: Array<{ task: any; level: number }> = [];
+    private collectChildrenRecursively(parentId: string): Array < { task: any; level: number } > {
+    const result: Array<{ task: any; level: number }> =[];
 
-        const children = this.tasks.filter(t => t.parentId === parentId);
+const children = this.tasks.filter(t => t.parentId === parentId);
 
-        const walk = (items: any[], level: number) => {
-            for (const it of items) {
-                result.push({ task: it, level });
-                const sub = this.tasks.filter(t => t.parentId === it.id);
-                if (sub && sub.length > 0) {
-                    walk(sub, level + 1);
-                }
-            }
-        };
+const walk = (items: any[], level: number) => {
+    for (const it of items) {
+        result.push({ task: it, level });
+        const sub = this.tasks.filter(t => t.parentId === it.id);
+        if (sub && sub.length > 0) {
+            walk(sub, level + 1);
+        }
+    }
+};
 
-        walk(children, 0);
-        return result;
+walk(children, 0);
+return result;
     }
 
     /**
      * 编辑周期任务的单个实例
      */
     private async editInstanceReminder(task: any) {
-        try {
-            const reminderData = await readReminderData();
-            const originalReminder = reminderData[task.originalId];
+    try {
+        const reminderData = await readReminderData();
+        const originalReminder = reminderData[task.originalId];
 
-            if (!originalReminder) {
-                showMessage("原始周期事件不存在");
-                return;
-            }
-
-            // 检查实例级别的修改（包括备注）
-            const instanceModifications = originalReminder.repeat?.instanceModifications || {};
-            const instanceMod = instanceModifications[task.date];
-
-            // 创建实例数据，包含当前实例的特定信息
-            const instanceData = {
-                ...originalReminder,
-                id: task.id,
-                date: task.date,
-                endDate: task.endDate,
-                time: task.time,
-                endTime: task.endTime,
-                note: instanceMod?.note || '',  // 每个实例的备注都是独立的，默认为空
-                isInstance: true,
-                originalId: task.originalId,
-                instanceDate: task.date
-            };
-
-            const editDialog = new ReminderEditDialog(instanceData, async () => {
-                await this.loadTasks();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
-            });
-            editDialog.show();
-        } catch (error) {
-            console.error('打开实例编辑对话框失败:', error);
-            showMessage("打开编辑对话框失败");
+        if (!originalReminder) {
+            showMessage("原始周期事件不存在");
+            return;
         }
+
+        // 检查实例级别的修改（包括备注）
+        const instanceModifications = originalReminder.repeat?.instanceModifications || {};
+        const instanceMod = instanceModifications[task.date];
+
+        // 创建实例数据，包含当前实例的特定信息
+        const instanceData = {
+            ...originalReminder,
+            id: task.id,
+            date: task.date,
+            endDate: task.endDate,
+            time: task.time,
+            endTime: task.endTime,
+            note: instanceMod?.note || '',  // 每个实例的备注都是独立的，默认为空
+            isInstance: true,
+            originalId: task.originalId,
+            instanceDate: task.date
+        };
+
+        const editDialog = new ReminderEditDialog(instanceData, async () => {
+            await this.loadTasks();
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+        });
+        editDialog.show();
+    } catch (error) {
+        console.error('打开实例编辑对话框失败:', error);
+        showMessage("打开编辑对话框失败");
     }
+}
 
     /**
      * 删除周期任务的单个实例
      */
     private async deleteInstanceOnly(task: any) {
-        await confirm(
-            "删除此实例",
-            `确定要删除周期任务 "${task.title}" 在 ${task.date} 的实例吗？`,
-            async () => {
-                try {
-                    const originalId = task.originalId;
-                    const instanceDate = task.date;
+    await confirm(
+        "删除此实例",
+        `确定要删除周期任务 "${task.title}" 在 ${task.date} 的实例吗？`,
+        async () => {
+            try {
+                const originalId = task.originalId;
+                const instanceDate = task.date;
 
-                    await this.addExcludedDate(originalId, instanceDate);
+                await this.addExcludedDate(originalId, instanceDate);
 
-                    showMessage("实例已删除");
-                    await this.loadTasks();
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                } catch (error) {
-                    console.error('删除周期实例失败:', error);
-                    showMessage("删除实例失败");
-                }
+                showMessage("实例已删除");
+                await this.loadTasks();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            } catch (error) {
+                console.error('删除周期实例失败:', error);
+                showMessage("删除实例失败");
             }
-        );
-    }
+        }
+    );
+}
 
     /**
      * 为原始周期事件添加排除日期
      */
     private async addExcludedDate(originalId: string, excludeDate: string) {
-        try {
-            const reminderData = await readReminderData();
+    try {
+        const reminderData = await readReminderData();
 
-            if (reminderData[originalId]) {
-                if (!reminderData[originalId].repeat) {
-                    throw new Error('不是重复事件');
-                }
-
-                // 初始化排除日期列表
-                if (!reminderData[originalId].repeat.excludeDates) {
-                    reminderData[originalId].repeat.excludeDates = [];
-                }
-
-                // 添加排除日期（如果还没有的话）
-                if (!reminderData[originalId].repeat.excludeDates.includes(excludeDate)) {
-                    reminderData[originalId].repeat.excludeDates.push(excludeDate);
-                }
-
-                await writeReminderData(reminderData);
-            } else {
-                throw new Error('原始事件不存在');
+        if (reminderData[originalId]) {
+            if (!reminderData[originalId].repeat) {
+                throw new Error('不是重复事件');
             }
-        } catch (error) {
-            console.error('添加排除日期失败:', error);
-            throw error;
+
+            // 初始化排除日期列表
+            if (!reminderData[originalId].repeat.excludeDates) {
+                reminderData[originalId].repeat.excludeDates = [];
+            }
+
+            // 添加排除日期（如果还没有的话）
+            if (!reminderData[originalId].repeat.excludeDates.includes(excludeDate)) {
+                reminderData[originalId].repeat.excludeDates.push(excludeDate);
+            }
+
+            await writeReminderData(reminderData);
+        } else {
+            throw new Error('原始事件不存在');
         }
+    } catch (error) {
+        console.error('添加排除日期失败:', error);
+        throw error;
     }
+}
 
     /**
      * 根据父任务ID生成多级 Markdown 列表文本数组，每行为一行 Markdown。
      * 对于绑定块的任务，使用 siyuan://blocks/<id> 格式的链接。
      */
     private buildMarkdownListFromChildren(parentId: string): string[] {
-        const nodes = this.collectChildrenRecursively(parentId);
-        if (!nodes || nodes.length === 0) return [];
+    const nodes = this.collectChildrenRecursively(parentId);
+    if (!nodes || nodes.length === 0) return [];
 
-        const lines: string[] = [];
-        for (const node of nodes) {
-            const indent = '  '.repeat(node.level);
-            const t = node.task;
-            let title = t.title || '未命名任务';
-            if (t.blockId || t.docId) {
-                // 使用思源块链接
-                const targetId = t.blockId || t.docId;
-                title = `[${title}](siyuan://blocks/${targetId})`;
-            }
-            lines.push(`${indent}- ${title}`);
+    const lines: string[] = [];
+    for (const node of nodes) {
+        const indent = '  '.repeat(node.level);
+        const t = node.task;
+        let title = t.title || '未命名任务';
+        if (t.blockId || t.docId) {
+            // 使用思源块链接
+            const targetId = t.blockId || t.docId;
+            title = `[${title}](siyuan://blocks/${targetId})`;
         }
-        return lines;
+        lines.push(`${indent}- ${title}`);
     }
+    return lines;
+}
 }
