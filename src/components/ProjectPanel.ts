@@ -20,12 +20,14 @@ export class ProjectPanel {
     private categoryFilterSelect: HTMLSelectElement;
     private sortButton: HTMLButtonElement;
     private searchInput: HTMLInputElement;
+    private showOnlyWithDoingCheckbox: HTMLInputElement;
     private plugin: any;
     private currentTab: string = 'all';
     private currentCategoryFilter: string = 'all';
     private currentSort: string = 'priority';
     private currentSortOrder: 'asc' | 'desc' = 'desc';
     private currentSearchQuery: string = '';
+    private showOnlyWithDoingTasks: boolean = true;
     private categoryManager: CategoryManager;
     private statusManager: StatusManager;
     private projectUpdatedHandler: () => void;
@@ -207,6 +209,7 @@ export class ProjectPanel {
             display: flex;
             gap: 8px;
             width: 100%;
+            align-items: center;
         `;
 
         // 状态筛选
@@ -235,6 +238,39 @@ export class ProjectPanel {
             this.loadProjects();
         });
         controls.appendChild(this.categoryFilterSelect);
+
+        // 添加"只显示进行中>0"复选框
+        const doingFilterContainer = document.createElement('label');
+        doingFilterContainer.className = 'b3-label';
+        doingFilterContainer.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin: 0;
+            white-space: nowrap;
+            cursor: pointer;
+            padding: 0;
+        `;
+
+        this.showOnlyWithDoingCheckbox = document.createElement('input');
+        this.showOnlyWithDoingCheckbox.type = 'checkbox';
+        this.showOnlyWithDoingCheckbox.className = 'b3-switch';
+        this.showOnlyWithDoingCheckbox.checked = this.showOnlyWithDoingTasks;
+        this.showOnlyWithDoingCheckbox.addEventListener('change', () => {
+            this.showOnlyWithDoingTasks = this.showOnlyWithDoingCheckbox.checked;
+            this.loadProjects();
+        });
+
+        const doingFilterText = document.createElement('span');
+        doingFilterText.textContent = t("showOnlyWithDoingTasks") || '进行中>0';
+        doingFilterText.style.cssText = `
+            font-size: 12px;
+            color: var(--b3-theme-on-surface);
+        `;
+
+        doingFilterContainer.appendChild(this.showOnlyWithDoingCheckbox);
+        doingFilterContainer.appendChild(doingFilterText);
+        controls.appendChild(doingFilterContainer);
 
         header.appendChild(controls);
 
@@ -455,6 +491,14 @@ export class ProjectPanel {
             } catch (err) {
                 console.warn('读取提醒数据失败，计数将异步回退：', err);
                 this.reminderDataCache = null;
+            }
+
+            // 如果勾选了"只显示进行中>0"，则过滤项目
+            if (this.showOnlyWithDoingTasks && this.reminderDataCache) {
+                displayProjects = displayProjects.filter((project: any) => {
+                    const counts = this.countTopLevelKanbanStatus(project.id, this.reminderDataCache);
+                    return counts.doing > 0;
+                });
             }
 
             // 渲染项目
@@ -756,7 +800,7 @@ export class ProjectPanel {
         doingCountEl.className = 'project-count project-count--doing';
         doingCountEl.textContent = '进行中: ...';
         countsContainer.appendChild(doingCountEl);
-        
+
         const todoCountEl = document.createElement('span');
         todoCountEl.className = 'project-count project-count--todo';
         todoCountEl.textContent = '待办: ...';

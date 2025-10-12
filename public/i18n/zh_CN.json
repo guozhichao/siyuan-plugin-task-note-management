@@ -603,5 +603,6 @@
     "lunarMonth11": "冬月",
     "lunarMonth12": "腊月",
     "lunarMonthlyRepeat": "农历每月重复",
-    "lunarYearlyRepeat": "农历每年重复"
+    "lunarYearlyRepeat": "农历每年重复",
+    "showOnlyWithDoingTasks": "进行中"
 }

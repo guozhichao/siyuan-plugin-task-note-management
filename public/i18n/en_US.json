@@ -556,5 +556,6 @@
     "lunarMonth11": "11th Month",
     "lunarMonth12": "12th Month",
     "lunarMonthlyRepeat": "Lunar Monthly Repeat",
-    "lunarYearlyRepeat": "Lunar Yearly Repeat"
+    "lunarYearlyRepeat": "Lunar Yearly Repeat",
+    "showOnlyWithDoingTasks": "doing"
 }
