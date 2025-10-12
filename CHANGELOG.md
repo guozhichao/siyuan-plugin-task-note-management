@@ -1,3 +1,8 @@
+## v1.7 / 20251012
+- ✨ 项目看板优化 [#68](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/68)
+- ✨打开项目面板默认显示全部项目
+
+
 ## v1.6 / 20251012
 
 - ✨ 任务支持农历重复设置
