@@ -330,7 +330,7 @@ export class ReminderDialog {
                         <div class="b3-form__group">
                             <label class="b3-form__label">输入自然语言描述</label>
                             <input type="text" id="nlInput" class="b3-text-field" placeholder="例如：明天下午3点、下周五、3天后等" style="width: 100%;" autofocus>
-                            <div class="b3-form__desc">支持中文自然语言，如：今天、明天、下周一、3月15日、下午2点等</div>
+                            <div class="b3-form__desc">支持中文自然语言，如：今天、明天、下周一、3月15日、下午2点、农历八月廿一等</div>
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">识别结果预览</label>
