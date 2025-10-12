@@ -56,6 +56,7 @@ export class EisenhowerMatrixView {
     private projectFilter: Set<string> = new Set();
     private projectSortOrder: string[] = [];
     private currentProjectSortMode: 'name' | 'custom' = 'name';
+    private kanbanStatusFilter: 'all' | 'doing' = 'doing'; // 任务看板状态筛选
     private criteriaSettings = {
         importanceThreshold: 'medium' as 'high' | 'medium' | 'low',
         urgencyDays: 3
@@ -135,6 +136,10 @@ export class EisenhowerMatrixView {
                 <button class="b3-button b3-button--primary new-task-btn" title="${t("newTask")}">
                     <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
                     ${t("newTask")}
+                </button>
+                <button class="b3-button b3-button--primary kanban-status-filter-btn" title="状态筛选" data-filter="all">
+                    <svg class="b3-button__icon"><use xlink:href="#iconPlay"></use></svg>
+                    进行中
                 </button>
                 <button class="b3-button b3-button--outline sort-projects-btn" title="项目排序">
                     <svg class="b3-button__icon"><use xlink:href="#iconSort"></use></svg>
@@ -496,6 +501,13 @@ export class EisenhowerMatrixView {
     private applyFiltersAndGroup() {
         // 应用筛选
         this.filteredTasks = this.allTasks.filter(task => {
+            // 看板状态筛选（只显示进行中的任务）
+            if (this.kanbanStatusFilter === 'doing') {
+                if (task.extendedProps?.kanbanStatus !== 'doing') {
+                    return false;
+                }
+            }
+
             // 状态筛选
             if (this.statusFilter.size > 0) {
                 const projectStatus = task.projectId ?
@@ -830,6 +842,34 @@ export class EisenhowerMatrixView {
         const taskMeta = document.createElement('div');
         taskMeta.className = 'task-meta';
 
+        // 显示看板状态（仅当任务未完成时显示）
+        if (!task.completed) {
+            const kanbanStatus = task.extendedProps?.kanbanStatus || 'todo';
+            const statusConfig = {
+                'todo': { icon: '📝', label: '待办', color: '#95a5a6' },
+                'doing': { icon: '🚀', label: '进行中', color: '#3498db' },
+                'done': { icon: '✅', label: '已完成', color: '#27ae60' }
+            };
+            const statusInfo = statusConfig[kanbanStatus] || statusConfig['todo'];
+            
+            const statusSpan = document.createElement('span');
+            statusSpan.className = 'task-kanban-status';
+            statusSpan.textContent = `${statusInfo.icon} ${statusInfo.label}`;
+            statusSpan.style.cssText = `
+                display: inline-flex;
+                align-items: center;
+                gap: 2px;
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-size: 11px;
+                font-weight: 500;
+                background-color: ${statusInfo.color}20;
+                color: ${statusInfo.color};
+                border: 1px solid ${statusInfo.color}40;
+            `;
+            taskMeta.appendChild(statusSpan);
+        }
+
         if (task.date) {
             const dateSpan = document.createElement('span');
             dateSpan.className = 'task-date';
@@ -1139,6 +1179,20 @@ export class EisenhowerMatrixView {
             });
         }
 
+        // 看板状态筛选按钮
+        const kanbanStatusFilterBtn = this.container.querySelector('.kanban-status-filter-btn');
+        if (kanbanStatusFilterBtn) {
+            kanbanStatusFilterBtn.addEventListener('click', () => {
+                // 切换筛选状态
+                this.kanbanStatusFilter = this.kanbanStatusFilter === 'all' ? 'doing' : 'all';
+                // 更新按钮显示
+                this.updateKanbanStatusFilterButton();
+                // 重新应用筛选和渲染
+                this.applyFiltersAndGroup();
+                this.renderMatrix();
+            });
+        }
+
         // 筛选按钮
         const filterBtn = this.container.querySelector('.filter-btn');
         if (filterBtn) {
@@ -1160,6 +1214,14 @@ export class EisenhowerMatrixView {
         if (sortProjectsBtn) {
             sortProjectsBtn.addEventListener('click', () => {
                 this.showProjectSortDialog();
+            });
+        }
+
+        // 刷新按钮
+        const refreshBtn = this.container.querySelector('.refresh-btn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                this.refresh();
             });
         }
 
@@ -1645,11 +1707,7 @@ export class EisenhowerMatrixView {
                 border-color: var(--b3-theme-primary);
             }
 
-            .new-task-btn:hover {
-                background-color: var(--b3-theme-primary-hover) !important;
-                border-color: var(--b3-theme-primary-hover) !important;
-                color: var(--b3-theme-on-primary) !important;
-            }
+
 
             .refresh-btn,
             .switch-to-calendar-btn {
@@ -2140,6 +2198,32 @@ export class EisenhowerMatrixView {
             submenu: createPriorityMenuItems()
         });
 
+        // 设置看板状态子菜单
+        const createKanbanStatusMenuItems = () => {
+            const statuses = [
+                { key: 'todo', label: '待办', icon: '📝' },
+                { key: 'doing', label: '进行中', icon: '🚀' },
+                { key: 'done', label: '已完成', icon: '✅' }
+            ];
+
+            const currentStatus = task.extendedProps?.kanbanStatus || 'todo';
+
+            return statuses.map(status => ({
+                iconHTML: status.icon,
+                label: status.label,
+                current: currentStatus === status.key,
+                click: () => {
+                    this.setTaskKanbanStatus(task.id, status.key);
+                }
+            }));
+        };
+
+        menu.addItem({
+            iconHTML: "📊",
+            label: "设置状态",
+            submenu: createKanbanStatusMenuItems()
+        });
+
         menu.addSeparator();
 
         // 番茄钟功能
@@ -2352,6 +2436,25 @@ export class EisenhowerMatrixView {
         } catch (error) {
             console.error('设置任务优先级失败:', error);
             showMessage(t("setPriorityFailed") || "操作失败");
+        }
+    }
+
+    private async setTaskKanbanStatus(taskId: string, kanbanStatus: string) {
+        try {
+            const reminderData = await readReminderData();
+            if (reminderData[taskId]) {
+                reminderData[taskId].kanbanStatus = kanbanStatus;
+                await writeReminderData(reminderData);
+
+                await this.refresh();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                showMessage("任务状态更新成功");
+            } else {
+                showMessage(t("taskNotExist") || "任务不存在");
+            }
+        } catch (error) {
+            console.error('设置任务看板状态失败:', error);
+            showMessage("操作失败");
         }
     }
 
@@ -2590,6 +2693,29 @@ export class EisenhowerMatrixView {
     async refresh() {
         await this.loadTasks();
         this.renderMatrix();
+        // 刷新后保持按钮状态
+        this.updateKanbanStatusFilterButton();
+    }
+
+    private updateKanbanStatusFilterButton() {
+        const kanbanStatusFilterBtn = this.container.querySelector('.kanban-status-filter-btn');
+        if (kanbanStatusFilterBtn) {
+            if (this.kanbanStatusFilter === 'doing') {
+                kanbanStatusFilterBtn.innerHTML = `
+                    <svg class="b3-button__icon"><use xlink:href="#iconPlay"></use></svg>
+                    进行中
+                `;
+                kanbanStatusFilterBtn.classList.add('b3-button--primary');
+                kanbanStatusFilterBtn.classList.remove('b3-button--outline');
+            } else {
+                kanbanStatusFilterBtn.innerHTML = `
+                    <svg class="b3-button__icon"><use xlink:href="#iconList"></use></svg>
+                    全部状态
+                `;
+                kanbanStatusFilterBtn.classList.remove('b3-button--primary');
+                kanbanStatusFilterBtn.classList.add('b3-button--outline');
+            }
+        }
     }
 
     private async loadProjectSortOrder() {
