@@ -21,7 +21,7 @@ export class ProjectPanel {
     private sortButton: HTMLButtonElement;
     private searchInput: HTMLInputElement;
     private plugin: any;
-    private currentTab: string = 'active';
+    private currentTab: string = 'all';
     private currentCategoryFilter: string = 'all';
     private currentSort: string = 'priority';
     private currentSortOrder: 'asc' | 'desc' = 'desc';
