@@ -1744,6 +1744,9 @@
 
 // 分类管理对话框样式
 .category-manage-dialog {
+    display: flex;
+    overflow: auto;
+    flex-direction: column;
     .b3-dialog__content {
         padding: 16px;
     }
