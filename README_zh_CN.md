@@ -1,5 +1,9 @@
 
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Achuan-2/siyuan-plugin-task-note-management&type=Date)](https://star-history.com/Achuan-2/siyuan-plugin-task-note-management&Date)
+
 ## 插件简介
 
 ![](preview.png)
