@@ -7,7 +7,9 @@ import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroManager } from "../utils/pomodoroManager";
 import { showMessage, confirm, Menu, Dialog } from "siyuan";
 import { t } from "../utils/i18n";
-import { getLocalDateTimeString } from "../utils/dateUtils";
+import { getLocalDateTimeString, getLocalDateString, compareDateStrings } from "../utils/dateUtils";
+import { getSolarDateLunarString } from "../utils/lunarUtils";
+import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
 interface QuadrantTask {
     id: string;
     title: string;
@@ -18,6 +20,7 @@ interface QuadrantTask {
     completed: boolean;
     date: string;
     time?: string;
+    endTime?: string;
     note?: string;
     blockId?: string;
     extendedProps: any;
@@ -28,6 +31,9 @@ interface QuadrantTask {
     createdTime?: string; // 创建时间
     endDate?: string; // 结束日期
     categoryId?: string; // 分类ID
+    repeat?: any; // 重复事件配置
+    isRepeatInstance?: boolean; // 是否为重复事件实例
+    originalId?: string; // 原始重复事件的ID
 }
 
 interface Quadrant {
@@ -197,29 +203,159 @@ export class EisenhowerMatrixView {
     private async loadTasks() {
         try {
             const reminderData = await readReminderData();
+            const today = getLocalDateString();
             this.allTasks = [];
+
+            // 辅助函数：检查祖先是否已完成
+            const isAncestorCompleted = (r: any): boolean => {
+                let current = r;
+                while (current && current.parentId) {
+                    const parent = reminderData[current.parentId];
+                    if (!parent) break;
+                    if (parent.completed) return true;
+                    current = parent;
+                }
+                return false;
+            };
+
+            // 第一步：生成所有任务（包括重复实例）
+            const allRemindersWithInstances: any[] = [];
 
             for (const [id, reminderObj] of Object.entries(reminderData as any)) {
                 const reminder = reminderObj as any;
                 if (!reminder || typeof reminder !== 'object') continue;
 
                 // 如果该任务或其任一祖先父任务已完成，则跳过
-                // 目标：不显示已完成的父任务及其所有子任务
-                const isAncestorCompleted = (r: any): boolean => {
-                    let current = r;
-                    while (current && current.parentId) {
-                        const parent = reminderData[current.parentId];
-                        if (!parent) break;
-                        if (parent.completed) return true;
-                        current = parent;
-                    }
-                    return false;
-                };
-
                 if (isAncestorCompleted(reminder)) continue;
 
                 // 跳过已完成的顶层任务
                 if (reminder?.completed && !reminder?.parentId) continue;
+
+                // 对于农历重复任务，只添加符合农历日期的实例，不添加原始日期
+                const isLunarRepeat = reminder.repeat?.enabled &&
+                    (reminder.repeat.type === 'lunar-monthly' || reminder.repeat.type === 'lunar-yearly');
+
+                if (!isLunarRepeat) {
+                    // 非农历重复任务，正常添加原始任务
+                    allRemindersWithInstances.push({ ...reminder, id });
+                }
+
+                // 如果是周期事件，生成实例
+                if (reminder.repeat?.enabled) {
+                    // 对于农历重复任务，需要更长的时间范围以确保能找到下一个实例
+                    // 因为农历日期可能在很久以后（比如明年）才会再次出现
+                    let monthStart = new Date();
+                    let monthEnd = new Date();
+
+                    if (isLunarRepeat) {
+                        // 农历重复：从上个月开始，到未来14个月（确保覆盖至少一个完整的农历年）
+                        monthStart.setDate(1);
+                        monthStart.setMonth(monthStart.getMonth() - 1);
+                        monthEnd.setMonth(monthEnd.getMonth() + 14);
+                        monthEnd.setDate(0);
+                    } else {
+                        // 非农历重复：使用较短的范围（上个月到未来2个月）
+                        monthStart.setDate(1);
+                        monthStart.setMonth(monthStart.getMonth() - 1);
+                        monthEnd.setMonth(monthEnd.getMonth() + 2);
+                        monthEnd.setDate(0);
+                    }
+
+                    const startDate = getLocalDateString(monthStart);
+                    const endDate = getLocalDateString(monthEnd);
+
+                    const repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
+
+                    // 过滤实例：保留过去未完成、今天的、未来最近一个未完成，以及已完成的实例
+                    const completedInstances = reminder.repeat?.completedInstances || [];
+                    const instanceModifications = reminder.repeat?.instanceModifications || {};
+
+                    let pastIncomplete: any[] = [];
+                    let todayIncomplete: any | null = null;
+                    let futureIncomplete: any | null = null;
+                    let completedList: any[] = [];
+
+                    // 检查原始任务的日期是否是今天且未完成
+                    const isOriginalTaskToday = reminder.date && compareDateStrings(reminder.date, today) === 0;
+                    const isOriginalTaskCompleted = reminder.completed;
+                    const hasTodayTask = isOriginalTaskToday && !isOriginalTaskCompleted;
+
+                    repeatInstances.forEach(instance => {
+                        // 对于农历重复，所有实例都添加（包括原始日期，如果它匹配农历）
+                        // 对于非农历重复，只添加不同日期的实例
+                        if (isLunarRepeat || instance.date !== reminder.date) {
+                            const isInstanceCompleted = completedInstances.includes(instance.date);
+                            const instanceMod = instanceModifications[instance.date];
+
+                            const instanceTask = {
+                                ...reminder,
+                                id: instance.instanceId,
+                                date: instance.date,
+                                endDate: instance.endDate,
+                                time: instance.time,
+                                endTime: instance.endTime,
+                                isRepeatInstance: true,
+                                originalId: instance.originalId,
+                                completed: isInstanceCompleted,
+                                note: instanceMod?.note || reminder.note,
+                                // 为已完成的实例添加完成时间（用于排序）
+                                completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined
+                            };
+
+                            if (isInstanceCompleted) {
+                                // 已完成的实例都添加到列表中
+                                completedList.push(instanceTask);
+                            } else {
+                                // 未完成的实例按原有逻辑分类
+                                if (compareDateStrings(instance.date, today) < 0) {
+                                    // 过去的日期
+                                    pastIncomplete.push(instanceTask);
+                                } else if (compareDateStrings(instance.date, today) === 0) {
+                                    // 今天的日期
+                                    if (!todayIncomplete) {
+                                        todayIncomplete = instanceTask;
+                                    }
+                                } else if (compareDateStrings(instance.date, today) > 0) {
+                                    // 未来的日期
+                                    if (!futureIncomplete) {
+                                        futureIncomplete = instanceTask;
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // 添加过去的未完成实例
+                    allRemindersWithInstances.push(...pastIncomplete);
+
+                    // 添加今天的未完成实例（如果不是原始任务的日期）
+                    if (todayIncomplete) {
+                        allRemindersWithInstances.push(todayIncomplete);
+                    }
+
+                    // 对于农历重复任务，如果今天没有实例，则添加未来最近一个未完成实例
+                    // 对于非农历重复任务，只有在今天没有任何未完成任务时（包括原始任务和实例），才添加未来最近一个未完成实例
+                    if (futureIncomplete) {
+                        if (isLunarRepeat) {
+                            // 农历重复：如果今天没有实例，就添加未来的
+                            if (!todayIncomplete) {
+                                allRemindersWithInstances.push(futureIncomplete);
+                            }
+                        } else {
+                            // 非农历重复：按原逻辑判断
+                            if (!hasTodayTask && !todayIncomplete) {
+                                allRemindersWithInstances.push(futureIncomplete);
+                            }
+                        }
+                    }
+
+                    // 添加所有已完成的实例
+                    allRemindersWithInstances.push(...completedList);
+                }
+            }
+
+            // 第二步：将提醒转换为 QuadrantTask
+            for (const reminder of allRemindersWithInstances) {
 
                 // 判断重要性
                 const importanceOrder = { 'none': 0, 'low': 1, 'medium': 2, 'high': 3 };
@@ -240,9 +376,8 @@ export class EisenhowerMatrixView {
                     if (parentTask) {
                         quadrant = parentTask.quadrant!;
                     } else {
-                        // 如果父任务还没加载，从原始数据中查找
-                        const parentReminderObj = reminderData[reminder.parentId];
-                        const parentReminder = parentReminderObj as any;
+                        // 如果父任务还没加载，从allRemindersWithInstances中查找
+                        const parentReminder = allRemindersWithInstances.find(r => r.id === reminder.parentId);
                         if (parentReminder && parentReminder?.quadrant && this.isValidQuadrant(parentReminder.quadrant)) {
                             quadrant = parentReminder.quadrant;
                         } else {
@@ -301,7 +436,7 @@ export class EisenhowerMatrixView {
                 }
 
                 const task: QuadrantTask = {
-                    id,
+                    id: reminder.id,
                     title: reminder?.title || t('unnamedNote'),
                     priority: reminder?.priority || 'none',
                     isUrgent,
@@ -310,6 +445,7 @@ export class EisenhowerMatrixView {
                     completed: reminder?.completed || false,
                     date: reminder?.date,
                     time: reminder?.time,
+                    endTime: reminder?.endTime,
                     note: reminder?.note,
                     blockId: reminder?.blockId,
                     extendedProps: reminder,
@@ -319,7 +455,10 @@ export class EisenhowerMatrixView {
                     sort: reminder?.sort || 0,
                     createdTime: reminder?.createdTime,
                     endDate: reminder?.endDate,
-                    categoryId: reminder?.categoryId
+                    categoryId: reminder?.categoryId,
+                    repeat: reminder?.repeat,
+                    isRepeatInstance: reminder?.isRepeatInstance,
+                    originalId: reminder?.originalId
                 };
 
                 this.allTasks.push(task);
@@ -694,7 +833,40 @@ export class EisenhowerMatrixView {
         if (task.date) {
             const dateSpan = document.createElement('span');
             dateSpan.className = 'task-date';
-            dateSpan.textContent = `📅 ${task.date}`;
+            dateSpan.style.cssText = `
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                flex-wrap: wrap;
+            `;
+
+            // 添加周期图标（如果是周期事件或周期实例）
+            if (task.extendedProps?.repeat?.enabled || task.extendedProps?.isRepeatInstance) {
+                const repeatIcon = document.createElement('span');
+                repeatIcon.textContent = '🔄';
+                repeatIcon.title = task.extendedProps?.repeat?.enabled ? getRepeatDescription(task.extendedProps.repeat) : '周期事件实例';
+                repeatIcon.style.cssText = 'cursor: help;';
+                dateSpan.appendChild(repeatIcon);
+            }
+
+            // 如果是农历循环事件，添加农历日期显示
+            let dateText = task.date;
+            if (task.extendedProps?.repeat?.enabled &&
+                (task.extendedProps.repeat.type === 'lunar-monthly' || task.extendedProps.repeat.type === 'lunar-yearly')) {
+                try {
+                    const lunarStr = getSolarDateLunarString(task.date);
+                    if (lunarStr) {
+                        dateText = `${task.date} (${lunarStr})`;
+                    }
+                } catch (error) {
+                    console.error('Failed to format lunar date:', error);
+                }
+            }
+
+            const dateTextSpan = document.createElement('span');
+            dateTextSpan.textContent = `📅 ${dateText}`;
+            dateSpan.appendChild(dateTextSpan);
+
             taskMeta.appendChild(dateSpan);
         }
 
@@ -1304,8 +1476,29 @@ export class EisenhowerMatrixView {
         menu.open({ x: 0, y: 0 });
     }
 
-    private showTaskEditDialog(task: QuadrantTask) {
-        const editDialog = new ReminderEditDialog(task.extendedProps, async () => {
+    private async showTaskEditDialog(task: QuadrantTask) {
+        // 如果是重复事件实例，需要加载原始任务数据
+        let taskData = task.extendedProps;
+
+        if (task.isRepeatInstance && task.originalId) {
+            try {
+                const reminderData = await readReminderData();
+                const originalReminder = reminderData[task.originalId];
+
+                if (originalReminder) {
+                    taskData = originalReminder;
+                } else {
+                    showMessage("原始周期事件不存在");
+                    return;
+                }
+            } catch (error) {
+                console.error('加载原始任务失败:', error);
+                showMessage("加载任务数据失败");
+                return;
+            }
+        }
+
+        const editDialog = new ReminderEditDialog(taskData, async () => {
             await this.refresh();
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
         });
@@ -1993,23 +2186,51 @@ export class EisenhowerMatrixView {
 
         menu.addSeparator();
 
-        // 添加编辑任务选项
-        menu.addItem({
-            label: t('edit'),
-            icon: 'iconEdit',
-            click: () => {
-                this.showTaskEditDialog(task);
-            }
-        });
+        // 编辑任务 - 针对周期任务显示不同选项
+        if (task.isRepeatInstance || task.repeat?.enabled) {
+            // 周期事件（包括实例和原始事件） - 显示修改此实例和修改所有实例
+            menu.addItem({
+                iconHTML: "📝",
+                label: "修改此实例",
+                click: () => this.editInstanceReminder(task)
+            });
+            menu.addItem({
+                iconHTML: "🔄",
+                label: "修改所有实例",
+                click: () => this.showTaskEditDialog(task)
+            });
+        } else {
+            // 普通任务
+            menu.addItem({
+                label: t('edit'),
+                icon: 'iconEdit',
+                click: () => this.showTaskEditDialog(task)
+            });
+        }
 
-        // 添加删除任务选项
-        menu.addItem({
-            label: t('delete'),
-            icon: 'iconTrashcan',
-            click: async () => {
-                await this.deleteTask(task);
-            }
-        });
+        // 删除任务 - 针对周期任务显示不同选项
+        if (task.isRepeatInstance || task.repeat?.enabled) {
+            // 周期事件（包括实例和原始事件） - 显示删除此实例和删除所有实例
+            menu.addItem({
+                iconHTML: "🗑️",
+                label: "删除此实例",
+                click: () => this.deleteInstanceOnly(task)
+            });
+            menu.addItem({
+                iconHTML: "🗑️",
+                label: "删除所有实例",
+                click: async () => await this.deleteTask(task)
+            });
+        } else {
+            // 普通任务
+            menu.addItem({
+                label: t('delete'),
+                icon: 'iconTrashcan',
+                click: async () => {
+                    await this.deleteTask(task);
+                }
+            });
+        }
 
         menu.open({ x: event.clientX, y: event.clientY });
     }
@@ -2155,12 +2376,18 @@ export class EisenhowerMatrixView {
     }
 
     private async deleteTask(task: QuadrantTask) {
+        // 如果是重复事件实例，需要使用原始ID
+        const taskToDelete = task.isRepeatInstance ?
+            { ...task, id: task.originalId!, isRepeatInstance: false } : task;
+
         // 检查是否有子任务
-        const childTasks = this.allTasks.filter(t => t.parentId === task.id);
+        const childTasks = this.allTasks.filter(t => t.parentId === taskToDelete.id);
         const hasChildren = childTasks.length > 0;
 
         let title = '删除提醒';
-        let content = '确定要删除任务 "${title}" 吗？\n\n此操作不可撤销。';
+        let content = task.isRepeatInstance ?
+            '确定要删除周期任务 "${title}" 的所有实例吗？\n\n此操作不可撤销。' :
+            '确定要删除任务 "${title}" 吗？\n\n此操作不可撤销。';
 
         if (hasChildren) {
             title = '删除任务及子任务';
@@ -2185,7 +2412,7 @@ export class EisenhowerMatrixView {
 
                     // 收集所有要删除的任务ID（包括子任务）
                     const taskIdsToDelete = new Set<string>();
-                    taskIdsToDelete.add(task.id);
+                    taskIdsToDelete.add(taskToDelete.id);
 
                     // 递归收集所有子任务
                     const collectChildTasks = (parentId: string) => {
@@ -3274,6 +3501,105 @@ export class EisenhowerMatrixView {
         } catch (error) {
             console.error('解除绑定失败:', error);
             showMessage('操作失败，请重试');
+        }
+    }
+
+    /**
+     * 编辑周期任务的单个实例
+     */
+    private async editInstanceReminder(task: QuadrantTask) {
+        try {
+            const reminderData = await readReminderData();
+            const originalReminder = reminderData[task.originalId!];
+
+            if (!originalReminder) {
+                showMessage("原始周期事件不存在");
+                return;
+            }
+
+            // 检查实例级别的修改（包括备注）
+            const instanceModifications = originalReminder.repeat?.instanceModifications || {};
+            const instanceMod = instanceModifications[task.date];
+
+            // 创建实例数据，包含当前实例的特定信息
+            const instanceData = {
+                ...originalReminder,
+                id: task.id,
+                date: task.date,
+                endDate: task.endDate,
+                time: task.time,
+                endTime: task.endTime,
+                note: instanceMod?.note || '',  // 每个实例的备注都是独立的，默认为空
+                isInstance: true,
+                originalId: task.originalId,
+                instanceDate: task.date
+            };
+
+            const editDialog = new ReminderEditDialog(instanceData, async () => {
+                await this.loadTasks();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            });
+            editDialog.show();
+        } catch (error) {
+            console.error('打开实例编辑对话框失败:', error);
+            showMessage("打开编辑对话框失败");
+        }
+    }
+
+    /**
+     * 删除周期任务的单个实例
+     */
+    private async deleteInstanceOnly(task: QuadrantTask) {
+        confirm(
+            "删除此实例",
+            `确定要删除周期任务 "${task.title}" 在 ${task.date} 的实例吗？`,
+            async () => {
+                try {
+                    const originalId = task.originalId!;
+                    const instanceDate = task.date;
+
+                    await this.addExcludedDate(originalId, instanceDate);
+
+                    showMessage("实例已删除");
+                    await this.loadTasks();
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                } catch (error) {
+                    console.error('删除周期实例失败:', error);
+                    showMessage("删除实例失败");
+                }
+            }
+        );
+    }
+
+    /**
+     * 为原始周期事件添加排除日期
+     */
+    private async addExcludedDate(originalId: string, excludeDate: string) {
+        try {
+            const reminderData = await readReminderData();
+
+            if (reminderData[originalId]) {
+                if (!reminderData[originalId].repeat) {
+                    throw new Error('不是重复事件');
+                }
+
+                // 初始化排除日期列表
+                if (!reminderData[originalId].repeat.excludeDates) {
+                    reminderData[originalId].repeat.excludeDates = [];
+                }
+
+                // 添加排除日期（如果还没有的话）
+                if (!reminderData[originalId].repeat.excludeDates.includes(excludeDate)) {
+                    reminderData[originalId].repeat.excludeDates.push(excludeDate);
+                }
+
+                await writeReminderData(reminderData);
+            } else {
+                throw new Error('原始事件不存在');
+            }
+        } catch (error) {
+            console.error('添加排除日期失败:', error);
+            throw error;
         }
     }
 

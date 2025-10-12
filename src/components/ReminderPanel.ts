@@ -12,6 +12,7 @@ import { PomodoroStatsView } from "./PomodoroStatsView";
 import { EisenhowerMatrixView } from "./EisenhowerMatrixView";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { PomodoroManager } from "../utils/pomodoroManager";
+import { getSolarDateLunarString, getNextLunarMonthlyDate, getNextLunarYearlyDate } from "../utils/lunarUtils";
 
 // 添加四象限面板常量
 const EISENHOWER_TAB_TYPE = "reminder_eisenhower_tab";
@@ -1317,7 +1318,14 @@ export class ReminderPanel {
         const repeatInstancesMap = new Map();
 
         reminders.forEach((reminder: any) => {
-            allReminders.push(reminder);
+            // 对于农历重复任务，只添加符合农历日期的实例，不添加原始日期
+            const isLunarRepeat = reminder.repeat?.enabled &&
+                (reminder.repeat.type === 'lunar-monthly' || reminder.repeat.type === 'lunar-yearly');
+
+            if (!isLunarRepeat) {
+                // 非农历重复任务，正常添加原始任务
+                allReminders.push(reminder);
+            }
 
             if (reminder.repeat?.enabled) {
                 const now = new Date();
@@ -1329,7 +1337,9 @@ export class ReminderPanel {
                 const repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
 
                 repeatInstances.forEach(instance => {
-                    if (instance.date !== reminder.date) {
+                    // 对于农历重复，所有实例都添加（包括原始日期，如果它匹配农历）
+                    // 对于非农历重复，只添加不同日期的实例
+                    if (isLunarRepeat || instance.date !== reminder.date) {
                         const completedInstances = reminder.repeat?.completedInstances || [];
                         const isInstanceCompleted = completedInstances.includes(instance.date);
                         const instanceModifications = reminder.repeat?.instanceModifications || {};
@@ -1899,7 +1909,7 @@ export class ReminderPanel {
         }
     }
 
-    private formatReminderTime(date: string, time?: string, today?: string, endDate?: string, endTime?: string): string {
+    private formatReminderTime(date: string, time?: string, today?: string, endDate?: string, endTime?: string, reminder?: any): string {
         if (!today) {
             today = getLocalDateString();
         }
@@ -1926,6 +1936,18 @@ export class ReminderPanel {
                 month: 'short',
                 day: 'numeric'
             });
+        }
+
+        // 如果是农历循环事件，添加农历日期显示
+        if (reminder?.repeat?.enabled && (reminder.repeat.type === 'lunar-monthly' || reminder.repeat.type === 'lunar-yearly')) {
+            try {
+                const lunarStr = getSolarDateLunarString(date);
+                if (lunarStr) {
+                    dateStr = `${dateStr} (${lunarStr})`;
+                }
+            } catch (error) {
+                console.error('Failed to format lunar date:', error);
+            }
         }
 
         // 处理跨天事件
@@ -2244,7 +2266,7 @@ export class ReminderPanel {
         if (reminder.date) {
             const timeEl = document.createElement('div');
             timeEl.className = 'reminder-item__time';
-            const timeText = this.formatReminderTime(reminder.date, reminder.time, today, reminder.endDate, reminder.endTime);
+            const timeText = this.formatReminderTime(reminder.date, reminder.time, today, reminder.endDate, reminder.endTime, reminder);
             timeEl.textContent = '🕐' + timeText;
             timeEl.style.cursor = 'pointer';
             timeEl.title = t("clickToModifyTime");
@@ -3446,6 +3468,12 @@ export class ReminderPanel {
             case 'yearly':
                 return this.calculateYearlyNext(startDate, repeat.interval || 1);
 
+            case 'lunar-monthly':
+                return this.calculateLunarMonthlyNext(startDateStr, repeat);
+
+            case 'lunar-yearly':
+                return this.calculateLunarYearlyNext(startDateStr, repeat);
+
             case 'custom':
                 return this.calculateCustomNext(startDate, repeat);
 
@@ -3632,6 +3660,42 @@ export class ReminderPanel {
         nextDate.setDate(nextDate.getDate() + firstInterval);
 
         return nextDate;
+    }
+
+    /**
+     * Calculate next lunar monthly occurrence
+     */
+    private calculateLunarMonthlyNext(startDateStr: string, repeat: any): Date {
+        try {
+            const nextDateStr = getNextLunarMonthlyDate(startDateStr, repeat.lunarDay);
+            if (nextDateStr) {
+                return new Date(nextDateStr + 'T12:00:00');
+            }
+        } catch (error) {
+            console.error('Failed to calculate lunar monthly next:', error);
+        }
+        // Fallback: add 30 days
+        const fallbackDate = new Date(startDateStr + 'T12:00:00');
+        fallbackDate.setDate(fallbackDate.getDate() + 30);
+        return fallbackDate;
+    }
+
+    /**
+     * Calculate next lunar yearly occurrence
+     */
+    private calculateLunarYearlyNext(startDateStr: string, repeat: any): Date {
+        try {
+            const nextDateStr = getNextLunarYearlyDate(startDateStr, repeat.lunarMonth, repeat.lunarDay);
+            if (nextDateStr) {
+                return new Date(nextDateStr + 'T12:00:00');
+            }
+        } catch (error) {
+            console.error('Failed to calculate lunar yearly next:', error);
+        }
+        // Fallback: add 365 days
+        const fallbackDate = new Date(startDateStr + 'T12:00:00');
+        fallbackDate.setDate(fallbackDate.getDate() + 365);
+        return fallbackDate;
     }
 
     private async deleteReminder(reminder: any) {

@@ -17,7 +17,7 @@ import { generateRepeatInstances, RepeatInstance } from "../utils/repeatUtils";
 import { CalendarConfigManager } from "../utils/calendarConfigManager";
 import { TaskSummaryDialog } from "@/components/TaskSummaryDialog";
 import { PomodoroManager } from "../utils/pomodoroManager";
-import { getNextLunarMonthlyDate, getNextLunarYearlyDate } from "../utils/lunarUtils";
+import { getNextLunarMonthlyDate, getNextLunarYearlyDate, getSolarDateLunarString } from "../utils/lunarUtils";
 export class CalendarView {
     private container: HTMLElement;
     private calendar: Calendar;

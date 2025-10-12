@@ -30,10 +30,15 @@ export function solarToLunar(solarDate: string): { month: number; day: number } 
  */
 export function lunarToSolar(year: number, lunarMonth: number, lunarDay: number, isLeapMonth: boolean = false): string | null {
     try {
-        const lunar = Lunar.fromYmd(year, lunarMonth, lunarDay);
+        // 创建农历对象，如果是闰月需要特殊处理
+        let lunar;
         if (isLeapMonth) {
-            lunar.setLeap(true);
+            // 闰月用负数表示，例如闰四月为-4
+            lunar = Lunar.fromYmd(year, -Math.abs(lunarMonth), lunarDay);
+        } else {
+            lunar = Lunar.fromYmd(year, lunarMonth, lunarDay);
         }
+
         const solar = lunar.getSolar();
 
         const solarYear = solar.getYear();
@@ -174,4 +179,56 @@ export function parseLunarDateText(text: string): { month: number; day: number }
 export function getCurrentYearLunarToSolar(lunarMonth: number, lunarDay: number): string | null {
     const currentYear = new Date().getFullYear();
     return lunarToSolar(currentYear, lunarMonth, lunarDay);
+}
+
+/**
+ * 将农历月份数字转换为中文
+ * @param month 农历月份 (1-12)
+ * @returns 中文月份名称
+ */
+export function formatLunarMonth(month: number): string {
+    const lunarMonths = ['', '正月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '冬月', '腊月'];
+    return lunarMonths[month] || `${month}月`;
+}
+
+/**
+ * 将农历日期数字转换为中文
+ * @param day 农历日期 (1-30)
+ * @returns 中文日期
+ */
+export function formatLunarDay(day: number): string {
+    const lunarDays = [
+        '', '初一', '初二', '初三', '初四', '初五',
+        '初六', '初七', '初八', '初九', '初十',
+        '十一', '十二', '十三', '十四', '十五',
+        '十六', '十七', '十八', '十九', '二十',
+        '廿一', '廿二', '廿三', '廿四', '廿五',
+        '廿六', '廿七', '廿八', '廿九', '三十'
+    ];
+    return lunarDays[day] || `${day}日`;
+}
+
+/**
+ * 格式化完整的农历日期为中文
+ * @param month 农历月份 (1-12)
+ * @param day 农历日期 (1-30)
+ * @returns 格式化的农历日期，如 "八月十五"
+ */
+export function formatLunarDate(month: number, day: number): string {
+    return `${formatLunarMonth(month)}${formatLunarDay(day)}`;
+}
+
+/**
+ * 获取公历日期对应的农历日期字符串
+ * @param solarDate 公历日期 (YYYY-MM-DD)
+ * @returns 农历日期字符串，如 "八月十五"
+ */
+export function getSolarDateLunarString(solarDate: string): string {
+    try {
+        const lunar = solarToLunar(solarDate);
+        return formatLunarDate(lunar.month, lunar.day);
+    } catch (error) {
+        console.error('Failed to get lunar string:', error);
+        return '';
+    }
 }

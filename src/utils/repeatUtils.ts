@@ -39,7 +39,20 @@ export function generateRepeatInstances(
 
     const instances: RepeatInstance[] = [];
     const repeatConfig = reminder.repeat;
-    let currentDate = new Date(reminder.date + 'T00:00:00');
+
+    // 对于农历重复任务，如果没有设置 reminder.date，使用 startDate 作为起始日期
+    // 对于其他类型的重复任务，必须有 reminder.date
+    let currentDate: Date;
+    if (reminder.date) {
+        currentDate = new Date(reminder.date + 'T00:00:00');
+    } else if (repeatConfig.type === 'lunar-monthly' || repeatConfig.type === 'lunar-yearly') {
+        // 农历重复任务没有 startDate 时，从查询范围的开始日期开始生成
+        currentDate = new Date(startDate + 'T00:00:00');
+    } else {
+        // 非农历重复任务必须有 startDate
+        return [];
+    }
+
     const endDateObj = new Date(endDate + 'T23:59:59');
     let instanceCount = 0;
 
@@ -69,7 +82,8 @@ export function generateRepeatInstances(
             }
 
             // 检查是否符合重复规则且不在排除列表中
-            if (shouldGenerateInstance(currentDate, reminder.date, repeatConfig) &&
+            // 对于农历重复，originalDate 可以为空
+            if (shouldGenerateInstance(currentDate, reminder.date || startDate, repeatConfig) &&
                 !excludeDates.includes(currentDateStr)) {
 
                 // 检查是否有针对此实例的修改
@@ -81,7 +95,7 @@ export function generateRepeatInstances(
                 const instance: RepeatInstance = {
                     date: modification?.date || currentDateStr,
                     time: modification?.time || reminder.time,
-                    endDate: modification?.endDate || (reminder.endDate ? addDaysToDate(modification?.date || currentDateStr, getDaysDifference(reminder.date, reminder.endDate)) : undefined),
+                    endDate: modification?.endDate || (reminder.endDate && reminder.date ? addDaysToDate(modification?.date || currentDateStr, getDaysDifference(reminder.date, reminder.endDate)) : undefined),
                     endTime: modification?.endTime || reminder.endTime,
                     instanceId: `${reminder.id}_${currentDateStr}`,
                     originalId: reminder.id,
@@ -136,10 +150,10 @@ function shouldGenerateInstance(currentDate: Date, originalDate: string, repeatC
             return checkEbbinghausRepeat(currentDate, originalDateObj, repeatConfig);
 
         case 'lunar-monthly':
-            return checkLunarMonthlyRepeat(currentDate, repeatConfig);
+            return checkLunarMonthlyRepeat(currentDate, originalDateObj, repeatConfig);
 
         case 'lunar-yearly':
-            return checkLunarYearlyRepeat(currentDate, repeatConfig);
+            return checkLunarYearlyRepeat(currentDate, originalDateObj, repeatConfig);
 
         default:
             return false;
@@ -187,11 +201,11 @@ function checkEbbinghausRepeat(currentDate: Date, originalDate: Date, repeatConf
 /**
  * 检查农历每月重复规则
  */
-function checkLunarMonthlyRepeat(currentDate: Date, repeatConfig: RepeatConfig): boolean {
+function checkLunarMonthlyRepeat(currentDate: Date, _originalDate: Date, repeatConfig: RepeatConfig): boolean {
     if (!repeatConfig.lunarDay) {
         return false;
     }
-    
+
     try {
         const currentDateStr = getLocalDateString(currentDate);
         const lunar = solarToLunar(currentDateStr);
@@ -205,11 +219,11 @@ function checkLunarMonthlyRepeat(currentDate: Date, repeatConfig: RepeatConfig):
 /**
  * 检查农历每年重复规则
  */
-function checkLunarYearlyRepeat(currentDate: Date, repeatConfig: RepeatConfig): boolean {
+function checkLunarYearlyRepeat(currentDate: Date, _originalDate: Date, repeatConfig: RepeatConfig): boolean {
     if (!repeatConfig.lunarMonth || !repeatConfig.lunarDay) {
         return false;
     }
-    
+
     try {
         const currentDateStr = getLocalDateString(currentDate);
         const lunar = solarToLunar(currentDateStr);

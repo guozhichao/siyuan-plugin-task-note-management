@@ -9,6 +9,7 @@ import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroManager } from "../utils/pomodoroManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
+import { getSolarDateLunarString } from "../utils/lunarUtils";
 
 // 层级化任务接口
 interface HierarchicalTask {
@@ -379,17 +380,35 @@ export class ProjectKanbanView {
             const allTasksWithInstances: any[] = [];
 
             projectTasks.forEach((reminder: any) => {
-                // 添加原始任务
-                allTasksWithInstances.push(reminder);
+                // 对于农历重复任务，只添加符合农历日期的实例，不添加原始日期
+                const isLunarRepeat = reminder.repeat?.enabled &&
+                    (reminder.repeat.type === 'lunar-monthly' || reminder.repeat.type === 'lunar-yearly');
+
+                if (!isLunarRepeat) {
+                    // 非农历重复任务，正常添加原始任务
+                    allTasksWithInstances.push(reminder);
+                }
 
                 // 如果是周期事件，生成实例
                 if (reminder.repeat?.enabled) {
-                    const monthStart = new Date();
-                    monthStart.setDate(1);
-                    monthStart.setMonth(monthStart.getMonth() - 1);
-                    const monthEnd = new Date();
-                    monthEnd.setMonth(monthEnd.getMonth() + 2);
-                    monthEnd.setDate(0);
+                    // 对于农历重复任务，需要更长的时间范围以确保能找到下一个实例
+                    // 因为农历日期可能在很久以后（比如明年）才会再次出现
+                    let monthStart = new Date();
+                    let monthEnd = new Date();
+
+                    if (isLunarRepeat) {
+                        // 农历重复：从上个月开始，到未来14个月（确保覆盖至少一个完整的农历年）
+                        monthStart.setDate(1);
+                        monthStart.setMonth(monthStart.getMonth() - 1);
+                        monthEnd.setMonth(monthEnd.getMonth() + 14);
+                        monthEnd.setDate(0);
+                    } else {
+                        // 非农历重复：使用较短的范围（上个月到未来2个月）
+                        monthStart.setDate(1);
+                        monthStart.setMonth(monthStart.getMonth() - 1);
+                        monthEnd.setMonth(monthEnd.getMonth() + 2);
+                        monthEnd.setDate(0);
+                    }
 
                     const startDate = getLocalDateString(monthStart);
                     const endDate = getLocalDateString(monthEnd);
@@ -411,46 +430,45 @@ export class ProjectKanbanView {
                     const hasTodayTask = isOriginalTaskToday && !isOriginalTaskCompleted;
 
                     repeatInstances.forEach(instance => {
-                        // 跳过原始日期的实例（已经包含在原始任务中）
-                        if (instance.date === reminder.date) {
-                            return;
-                        }
+                        // 对于农历重复，所有实例都添加（包括原始日期，如果它匹配农历）
+                        // 对于非农历重复，只添加不同日期的实例
+                        if (isLunarRepeat || instance.date !== reminder.date) {
+                            const isInstanceCompleted = completedInstances.includes(instance.date);
+                            const instanceMod = instanceModifications[instance.date];
 
-                        const isInstanceCompleted = completedInstances.includes(instance.date);
-                        const instanceMod = instanceModifications[instance.date];
+                            const instanceTask = {
+                                ...reminder,
+                                id: instance.instanceId,
+                                date: instance.date,
+                                endDate: instance.endDate,
+                                time: instance.time,
+                                endTime: instance.endTime,
+                                isRepeatInstance: true,
+                                originalId: instance.originalId,
+                                completed: isInstanceCompleted,
+                                note: instanceMod?.note || reminder.note,
+                                // 为已完成的实例添加完成时间（用于排序）
+                                completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined
+                            };
 
-                        const instanceTask = {
-                            ...reminder,
-                            id: instance.instanceId,
-                            date: instance.date,
-                            endDate: instance.endDate,
-                            time: instance.time,
-                            endTime: instance.endTime,
-                            isRepeatInstance: true,
-                            originalId: instance.originalId,
-                            completed: isInstanceCompleted,
-                            note: instanceMod?.note || reminder.note,
-                            // 为已完成的实例添加完成时间（用于排序）
-                            completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined
-                        };
-
-                        if (isInstanceCompleted) {
-                            // 已完成的实例都添加到列表中
-                            completedList.push(instanceTask);
-                        } else {
-                            // 未完成的实例按原有逻辑分类
-                            if (compareDateStrings(instance.date, today) < 0) {
-                                // 过去的日期
-                                pastIncomplete.push(instanceTask);
-                            } else if (compareDateStrings(instance.date, today) === 0) {
-                                // 今天的日期
-                                if (!todayIncomplete) {
-                                    todayIncomplete = instanceTask;
-                                }
-                            } else if (compareDateStrings(instance.date, today) > 0) {
-                                // 未来的日期
-                                if (!futureIncomplete) {
-                                    futureIncomplete = instanceTask;
+                            if (isInstanceCompleted) {
+                                // 已完成的实例都添加到列表中
+                                completedList.push(instanceTask);
+                            } else {
+                                // 未完成的实例按原有逻辑分类
+                                if (compareDateStrings(instance.date, today) < 0) {
+                                    // 过去的日期
+                                    pastIncomplete.push(instanceTask);
+                                } else if (compareDateStrings(instance.date, today) === 0) {
+                                    // 今天的日期
+                                    if (!todayIncomplete) {
+                                        todayIncomplete = instanceTask;
+                                    }
+                                } else if (compareDateStrings(instance.date, today) > 0) {
+                                    // 未来的日期
+                                    if (!futureIncomplete) {
+                                        futureIncomplete = instanceTask;
+                                    }
                                 }
                             }
                         }
@@ -464,9 +482,20 @@ export class ProjectKanbanView {
                         allTasksWithInstances.push(todayIncomplete);
                     }
 
-                    // 只有在今天没有任何未完成任务时（包括原始任务和实例），才添加未来最近一个未完成实例
-                    if (!hasTodayTask && !todayIncomplete && futureIncomplete) {
-                        allTasksWithInstances.push(futureIncomplete);
+                    // 对于农历重复任务，如果今天没有实例，则添加未来最近一个未完成实例
+                    // 对于非农历重复任务，只有在今天没有任何未完成任务时（包括原始任务和实例），才添加未来最近一个未完成实例
+                    if (futureIncomplete) {
+                        if (isLunarRepeat) {
+                            // 农历重复：如果今天没有实例，就添加未来的
+                            if (!todayIncomplete) {
+                                allTasksWithInstances.push(futureIncomplete);
+                            }
+                        } else {
+                            // 非农历重复：按原逻辑判断
+                            if (!hasTodayTask && !todayIncomplete) {
+                                allTasksWithInstances.push(futureIncomplete);
+                            }
+                        }
                     }
 
                     // 添加所有已完成的实例
@@ -1365,6 +1394,18 @@ export class ProjectKanbanView {
         } else {
             const taskDate = new Date(task.date);
             dateStr = taskDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+        }
+
+        // 如果是农历循环事件，添加农历日期显示
+        if (task.repeat?.enabled && (task.repeat.type === 'lunar-monthly' || task.repeat.type === 'lunar-yearly')) {
+            try {
+                const lunarStr = getSolarDateLunarString(task.date);
+                if (lunarStr) {
+                    dateStr = `${dateStr} (${lunarStr})`;
+                }
+            } catch (error) {
+                console.error('Failed to format lunar date:', error);
+            }
         }
 
         let endDateStr = '';
