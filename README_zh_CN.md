@@ -355,7 +355,10 @@ dock栏和顶栏点击按钮，可打开列表视图查看任务
 
 ## ❤️致谢
 
-- 日历视图基于fullcalendar开发
+- fullcalendar：日历视图开发
+- lunar-typescript：农历计算
+- echarts：番茄钟数据可视化
+- chrono-node： 自然语言时间解析
 
 ## ❤️用爱发电
 
