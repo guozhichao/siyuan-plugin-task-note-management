@@ -1785,12 +1785,23 @@ export class ProjectKanbanView {
                         // 周期实例完成时，不自动完成子任务（因为每个实例都是独立的）
                         // 如果需要完成子任务，用户应该在右键菜单中选择"完成任务及所有子任务"
                     } else {
-                        // 取消完成周期实例
+                        // 取消完成周期实例或修改其他状态（long_term, short_term, doing）
                         if (reminderData[actualTaskId].repeat?.completedInstances) {
                             const index = reminderData[actualTaskId].repeat.completedInstances.indexOf(task.date);
                             if (index > -1) {
                                 reminderData[actualTaskId].repeat.completedInstances.splice(index, 1);
                             }
+                        }
+                        
+                        // 对于周期事件，也需要支持修改 termType 和 kanbanStatus
+                        // 修改的是原始周期事件的属性，会影响所有未来实例
+                        if (newStatus === 'long_term' || newStatus === 'short_term') {
+                            reminderData[actualTaskId].termType = newStatus;
+                            reminderData[actualTaskId].kanbanStatus = 'todo';
+                        } else if (newStatus === 'doing') {
+                            reminderData[actualTaskId].kanbanStatus = 'doing';
+                            // 设置为进行中时，清空termType
+                            delete reminderData[actualTaskId].termType;
                         }
                     }
                 } else {
