@@ -13,7 +13,7 @@ export function solarToLunar(solarDate: string): { month: number; day: number } 
     const [year, month, day] = solarDate.split('-').map(Number);
     const solar = Solar.fromYmd(year, month, day);
     const lunar = solar.getLunar();
-    
+
     return {
         month: lunar.getMonth(),
         day: lunar.getDay()
@@ -35,11 +35,11 @@ export function lunarToSolar(year: number, lunarMonth: number, lunarDay: number,
             lunar.setLeap(true);
         }
         const solar = lunar.getSolar();
-        
+
         const solarYear = solar.getYear();
         const solarMonth = solar.getMonth().toString().padStart(2, '0');
         const solarDay = solar.getDay().toString().padStart(2, '0');
-        
+
         return `${solarYear}-${solarMonth}-${solarDay}`;
     } catch (error) {
         console.error('Invalid lunar date:', error);
@@ -57,11 +57,11 @@ export function getNextLunarMonthlyDate(currentDate: string, lunarDay: number): 
     const [year, month, day] = currentDate.split('-').map(Number);
     const solar = Solar.fromYmd(year, month, day);
     const lunar = solar.getLunar();
-    
+
     // 先尝试当月的农历日期
     let nextLunarMonth = lunar.getMonth();
     let nextLunarYear = lunar.getYear();
-    
+
     // 如果当前农历日期还没到指定日期，使用当月
     if (lunar.getDay() < lunarDay) {
         const solarDate = lunarToSolar(nextLunarYear, nextLunarMonth, lunarDay);
@@ -69,14 +69,14 @@ export function getNextLunarMonthlyDate(currentDate: string, lunarDay: number): 
             return solarDate;
         }
     }
-    
+
     // 否则，使用下个月
     nextLunarMonth += 1;
     if (nextLunarMonth > 12) {
         nextLunarMonth = 1;
         nextLunarYear += 1;
     }
-    
+
     return lunarToSolar(nextLunarYear, nextLunarMonth, lunarDay);
 }
 
@@ -91,15 +91,15 @@ export function getNextLunarYearlyDate(currentDate: string, lunarMonth: number, 
     const [year, month, day] = currentDate.split('-').map(Number);
     const solar = Solar.fromYmd(year, month, day);
     const lunar = solar.getLunar();
-    
+
     let nextLunarYear = lunar.getYear();
-    
+
     // 先尝试今年的农历日期
     const thisYearDate = lunarToSolar(nextLunarYear, lunarMonth, lunarDay);
     if (thisYearDate && thisYearDate > currentDate) {
         return thisYearDate;
     }
-    
+
     // 否则，使用明年
     nextLunarYear += 1;
     return lunarToSolar(nextLunarYear, lunarMonth, lunarDay);
@@ -113,7 +113,7 @@ export function getNextLunarYearlyDate(currentDate: string, lunarMonth: number, 
 export function parseLunarDateText(text: string): { month: number; day: number } | null {
     // 预处理：移除"农历"关键字
     let processedText = text.replace(/^农历/, '').trim();
-    
+
     // 农历月份映射
     const lunarMonthMap: { [key: string]: number } = {
         '正月': 1, '一月': 1,
@@ -129,7 +129,7 @@ export function parseLunarDateText(text: string): { month: number; day: number }
         '冬月': 11, '十一月': 11,
         '腊月': 12, '十二月': 12
     };
-    
+
     // 农历日期映射
     const lunarDayMap: { [key: string]: number } = {
         '初一': 1, '初二': 2, '初三': 3, '初四': 4, '初五': 5,
@@ -139,29 +139,29 @@ export function parseLunarDateText(text: string): { month: number; day: number }
         '廿一': 21, '廿二': 22, '廿三': 23, '廿四': 24, '廿五': 25,
         '廿六': 26, '廿七': 27, '廿八': 28, '廿九': 29, '三十': 30
     };
-    
+
     // 匹配 "八月廿一" 格式
     const monthDayPattern = /^(.+月)(.+)$/;
     const match = processedText.match(monthDayPattern);
-    
+
     if (match) {
         const monthText = match[1];
         const dayText = match[2];
-        
+
         const month = lunarMonthMap[monthText];
         const day = lunarDayMap[dayText];
-        
+
         if (month && day) {
             return { month, day };
         }
     }
-    
+
     // 只匹配日期 "廿一"、"初一" 等
     const day = lunarDayMap[processedText];
     if (day) {
         return { month: 0, day }; // month 为 0 表示只有日期
     }
-    
+
     return null;
 }
 
