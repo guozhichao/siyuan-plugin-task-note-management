@@ -851,7 +851,7 @@ export class EisenhowerMatrixView {
                 'done': { icon: '✅', label: '已完成', color: '#27ae60' }
             };
             const statusInfo = statusConfig[kanbanStatus] || statusConfig['todo'];
-            
+
             const statusSpan = document.createElement('span');
             statusSpan.className = 'task-kanban-status';
             statusSpan.textContent = `${statusInfo.icon} ${statusInfo.label}`;
