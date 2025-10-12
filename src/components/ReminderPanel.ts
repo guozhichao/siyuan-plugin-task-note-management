@@ -42,6 +42,7 @@ export class ReminderPanel {
     // 使用全局番茄钟管理器
     private pomodoroManager: PomodoroManager = PomodoroManager.getInstance();
     private currentRemindersCache: any[] = [];
+    private allRemindersMap: Map<string, any> = new Map(); // 存储所有任务的完整信息，用于计算进度
     private isLoading: boolean = false;
     private loadTimeoutId: number | null = null;
 
@@ -776,6 +777,11 @@ export class ReminderPanel {
                     childReminder.completedTime = currentTime;
                     completedCount++;
 
+                    // 同步更新 allRemindersMap 中的数据
+                    if (this.allRemindersMap.has(childId)) {
+                        this.allRemindersMap.set(childId, { ...this.allRemindersMap.get(childId), completed: true, completedTime: currentTime });
+                    }
+
                     // 如果子任务有绑定块，也需要处理任务列表完成
                     if (childReminder.blockId) {
                         try {
@@ -1015,17 +1021,23 @@ export class ReminderPanel {
             const parentEl = this.remindersContainer.querySelector(`[data-reminder-id="${parentId}"]`) as HTMLElement | null;
             if (!parentEl) return;
 
-            // 计算直接子任务
-            const directChildren = this.currentRemindersCache.filter(r => r.parentId === parentId);
-            if (!directChildren || directChildren.length === 0) {
+            // 计算直接子任务 - 使用 allRemindersMap 来获取所有子任务（包括被隐藏的已完成子任务）
+            const allChildren: any[] = [];
+            this.allRemindersMap.forEach(r => {
+                if (r.parentId === parentId) {
+                    allChildren.push(r);
+                }
+            });
+
+            if (!allChildren || allChildren.length === 0) {
                 // 移除进度条（如果存在）
                 const progressContainer = parentEl.querySelector('.reminder-progress-container');
                 if (progressContainer) progressContainer.remove();
                 return;
             }
 
-            const completedCount = directChildren.filter(c => c.completed).length;
-            const percent = Math.round((completedCount / directChildren.length) * 100);
+            const completedCount = allChildren.filter(c => c.completed).length;
+            const percent = Math.round((completedCount / allChildren.length) * 100);
 
             let progressContainer = parentEl.querySelector('.reminder-progress-container') as HTMLElement | null;
             if (!progressContainer) {
@@ -1156,6 +1168,9 @@ export class ReminderPanel {
             const reminderMap = new Map<string, any>();
             allRemindersWithInstances.forEach(r => reminderMap.set(r.id, r));
 
+            // 将所有任务保存到 allRemindersMap 中，用于后续计算进度
+            this.allRemindersMap = new Map(reminderMap);
+
             // 1. 应用分类过滤
             const categoryFilteredReminders = this.applyCategoryFilter(allRemindersWithInstances);
 
@@ -1171,7 +1186,16 @@ export class ReminderPanel {
             // 父任务驱动: 如果父任务匹配，其所有后代都应显示
             for (const parent of directlyMatchingReminders) {
                 const descendants = this.getAllDescendantIds(parent.id, reminderMap);
-                descendants.forEach(id => idsToRender.add(id));
+                descendants.forEach(id => {
+                    // 在"今日任务"视图中，如果父任务未完成，不显示已完成的子任务
+                    if (this.currentTab === 'today' && !parent.completed) {
+                        const descendant = reminderMap.get(id);
+                        if (descendant && descendant.completed) {
+                            return; // 跳过已完成的子任务
+                        }
+                    }
+                    idsToRender.add(id);
+                });
             }
 
             // 子任务驱动: 如果子任务匹配，其所有祖先都应显示
@@ -1672,6 +1696,11 @@ export class ReminderPanel {
 
                 await writeReminderData(reminderData);
 
+                // 更新 allRemindersMap 中的原始数据
+                if (this.allRemindersMap.has(originalId)) {
+                    this.allRemindersMap.set(originalId, { ...this.allRemindersMap.get(originalId), repeat: original.repeat });
+                }
+
                 // 更新块书签与任务列表状态
                 const blockId = original.blockId;
                 if (blockId) {
@@ -1706,6 +1735,11 @@ export class ReminderPanel {
             }
 
             await writeReminderData(reminderData);
+
+            // 更新 allRemindersMap 中的数据，以便 updateParentProgress 能获取最新的完成状态
+            if (this.allRemindersMap.has(reminderId)) {
+                this.allRemindersMap.set(reminderId, { ...this.allRemindersMap.get(reminderId), completed, completedTime: reminder.completedTime });
+            }
 
             // 更新块书签与任务列表状态
             if (reminder.blockId) {
@@ -2390,9 +2424,17 @@ export class ReminderPanel {
 
         // 如果为父任务，计算直接子任务完成进度并在底部显示进度条
         if (hasChildren) {
-            const directChildren = allVisibleReminders.filter(r => r.parentId === reminder.id);
-            const completedCount = directChildren.filter(c => c.completed).length;
-            const percent = Math.round((completedCount / directChildren.length) * 100);
+            // 注意：需要从 allRemindersMap 中获取所有子任务（包括被隐藏的已完成子任务）
+            // 而不是只从 allVisibleReminders 或 currentRemindersCache 中获取
+            // 这样进度条才能正确反映所有子任务的完成情况
+            const allChildren: any[] = [];
+            this.allRemindersMap.forEach(r => {
+                if (r.parentId === reminder.id) {
+                    allChildren.push(r);
+                }
+            });
+            const completedCount = allChildren.filter(c => c.completed).length;
+            const percent = allChildren.length > 0 ? Math.round((completedCount / allChildren.length) * 100) : 0;
 
             const progressContainer = document.createElement('div');
             progressContainer.className = 'reminder-progress-container';
