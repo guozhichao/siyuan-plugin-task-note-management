@@ -286,7 +286,7 @@ export class ReminderEditDialog {
         // 获取当前任务标题作为默认值
         const titleInput = this.dialog.element.querySelector('#editReminderTitle') as HTMLInputElement;
         const currentTitle = titleInput?.value?.trim() || '';
-        
+
         const nlDialog = new Dialog({
             title: "✨ 智能日期识别",
             content: `
