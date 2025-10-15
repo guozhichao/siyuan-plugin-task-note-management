@@ -472,12 +472,17 @@ export class EisenhowerMatrixView {
         const today = new Date();
         today.setHours(0, 0, 0, 0); // 重置时间到当天开始
 
+        const taskDate = new Date(reminder.date);
+        taskDate.setHours(0, 0, 0, 0);
+
+        // 如果任务未完成且已过期，则认为是紧急的
+        if (!reminder.completed && taskDate < today) {
+            return true;
+        }
+
         const urgencyDate = new Date();
         urgencyDate.setDate(urgencyDate.getDate() + this.criteriaSettings.urgencyDays);
         urgencyDate.setHours(23, 59, 59, 999); // 设置到当天结束
-
-        const taskDate = new Date(reminder.date);
-        taskDate.setHours(0, 0, 0, 0);
 
         // 根据设置的天数判断紧急性，如果任务日期在今天或紧急日期范围内
         return taskDate >= today && taskDate <= urgencyDate;
