@@ -132,13 +132,6 @@ pnpm install
 # Development mode (with hot reload)
 npm run dev
 
-# Build for production
-npm run build
-
-# Create symbolic link to SiYuan plugins directory
-npm run make-link
-# or for Windows with admin rights
-npm run make-link-win
 ```
 
 ### Development Mode
