@@ -2049,7 +2049,7 @@ export class ProjectKanbanView {
                 defaultPriority: parentTask?.priority, // 如果是子任务，继承父任务优先级
                 defaultTitle: parentTask ? '' : undefined, // 子任务不预填标题
                 hideProjectSelector: true, // 隐藏项目选择器
-                showTermTypeSelector: true, // 显示任务类型选择器
+                showKanbanStatus: 'term', // 显示任务类型选择
                 defaultTermType: 'short_term', // 默认短期任务
                 plugin: this.plugin // 传入plugin实例
             }

@@ -31,8 +31,9 @@ export class QuickReminderDialog {
     private defaultBlockId?: string;
     private plugin: any; // 添加plugin引用以访问设置
     private hideProjectSelector?: boolean; // 是否隐藏项目选择器
-    private showTermTypeSelector?: boolean; // 是否显示任务类型选择器
-    private defaultTermType?: 'short_term' | 'long_term' | 'doing'; // 默认任务类型
+
+    private showKanbanStatus?: 'todo' | 'term' | 'none' = 'todo'; // 看板状态显示模式，默认为 'todo'
+    private defaultTermType?: 'short_term' | 'long_term' | 'doing' | 'todo'; // 默认任务类型
 
     constructor(initialDate?: string, initialTime?: string, onSaved?: () => void, timeRangeOptions?: {
         endDate?: string;
@@ -48,8 +49,8 @@ export class QuickReminderDialog {
         defaultBlockId?: string;
         plugin?: any; // 添加plugin选项
         hideProjectSelector?: boolean; // 是否隐藏项目选择器
-        showTermTypeSelector?: boolean; // 是否显示任务类型选择器
-        defaultTermType?: 'short_term' | 'long_term' | 'doing'; // 默认任务类型
+        showKanbanStatus?: 'todo' | 'term' | 'none'; // 看板状态显示模式，默认为 'todo'
+        defaultTermType?: 'short_term' | 'long_term' | 'doing' | 'todo'; // 默认任务类型
     }) {
         // 确保日期格式正确 - 只保留 YYYY-MM-DD 部分
         this.initialDate = initialDate ? this.formatDateForInput(initialDate) : '';
@@ -82,7 +83,7 @@ export class QuickReminderDialog {
             this.defaultBlockId = options.defaultBlockId;
             this.plugin = options.plugin; // 保存plugin引用
             this.hideProjectSelector = options.hideProjectSelector;
-            this.showTermTypeSelector = options.showTermTypeSelector;
+            this.showKanbanStatus = options.showKanbanStatus || 'todo'; // 默认为 'todo'
             this.defaultTermType = options.defaultTermType;
         }
 
@@ -511,22 +512,7 @@ export class QuickReminderDialog {
                                 <!-- 项目选择器将在这里渲染 -->
                             </select>
                         </div>
-                        ${this.showTermTypeSelector ? `
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">任务类型</label>
-                            <div class="term-type-selector" id="quickTermTypeSelector" style="display: flex; gap: 12px;">
-                                <div class="term-type-option ${this.defaultTermType === 'doing' ? 'selected' : ''}" data-term-type="doing">
-                                    <span>🔥 进行中</span>
-                                </div>
-                                <div class="term-type-option ${this.defaultTermType === 'short_term' || !this.defaultTermType ? 'selected' : ''}" data-term-type="short_term">
-                                    <span>📋 短期待办</span>
-                                </div>
-                                <div class="term-type-option ${this.defaultTermType === 'long_term' ? 'selected' : ''}" data-term-type="long_term">
-                                    <span>📅 长期待办</span>
-                                </div>
-                            </div>
-                        </div>
-                        ` : ''}
+                        ${this.renderTermTypeSelector()}
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("priority")}</label>
                             <div class="priority-selector" id="quickPrioritySelector">
@@ -678,6 +664,60 @@ export class QuickReminderDialog {
                 noPriorityOption.classList.add('selected');
             }
         }
+    }
+
+    // 渲染任务类型选择器
+    private renderTermTypeSelector(): string {
+        // 如果 showKanbanStatus 为 'none'，不显示任务类型选择器
+        if (this.showKanbanStatus === 'none') {
+            return '';
+        }
+
+        let options = '';
+
+        if (this.showKanbanStatus === 'todo') {
+            // 显示 todo 和 doing
+            options = `
+                <div class="term-type-option ${this.defaultTermType === 'doing' ? 'selected' : ''}" data-term-type="doing">
+                    <span>🔥 进行中</span>
+                </div>
+                <div class="term-type-option ${this.defaultTermType === 'todo' ? 'selected' : ''}" data-term-type="todo">
+                    <span>📝 待办</span>
+                </div>
+            `;
+        } else if (this.showKanbanStatus === 'term') {
+            // 显示 doing、short_term、long_term
+            options = `
+                <div class="term-type-option ${this.defaultTermType === 'doing' ? 'selected' : ''}" data-term-type="doing">
+                    <span>🔥 进行中</span>
+                </div>
+                <div class="term-type-option ${this.defaultTermType === 'short_term' || (!this.defaultTermType && this.showKanbanStatus === 'term') ? 'selected' : ''}" data-term-type="short_term">
+                    <span>📋 短期待办</span>
+                </div>
+                <div class="term-type-option ${this.defaultTermType === 'long_term' ? 'selected' : ''}" data-term-type="long_term">
+                    <span>📅 长期待办</span>
+                </div>
+            `;
+        } else {
+            // 默认情况（showKanbanStatus === 'todo'），显示 todo 和 doing
+            options = `
+                <div class="term-type-option ${this.defaultTermType === 'todo' ? 'selected' : ''}" data-term-type="todo">
+                    <span>📝 待办</span>
+                </div>
+                <div class="term-type-option ${this.defaultTermType === 'doing' ? 'selected' : ''}" data-term-type="doing">
+                    <span>🔥 进行中</span>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="b3-form__group">
+                <label class="b3-form__label">任务类型</label>
+                <div class="term-type-selector" id="quickTermTypeSelector" style="display: flex; gap: 12px;">
+                    ${options}
+                </div>
+            </div>
+        `;
     }
 
     private async renderCategorySelector() {
@@ -1189,7 +1229,7 @@ export class QuickReminderDialog {
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
         const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
         const projectId = projectSelector.value || undefined;
-        const termType = selectedTermType?.getAttribute('data-term-type') as 'short_term' | 'long_term' | 'doing' | undefined;
+        const termType = selectedTermType?.getAttribute('data-term-type') as 'short_term' | 'long_term' | 'doing' | 'todo' | undefined;
 
         // 解析日期和时间
         let date: string;
@@ -1268,9 +1308,14 @@ export class QuickReminderDialog {
             if (termType === 'doing') {
                 reminder.kanbanStatus = 'doing';
             } else if (termType === 'long_term') {
-                reminder.kanbanStatus = 'long_term';
+                reminder.kanbanStatus = 'todo';
+                reminder.termType = 'long_term';
             } else if (termType === 'short_term') {
-                // 短期待办默认不设置kanbanStatus，让getTaskStatus方法处理
+                reminder.kanbanStatus = 'todo';
+                reminder.termType = 'short_term';
+            } else if (termType === 'todo') {
+                reminder.kanbanStatus = 'todo';
+                reminder.termType = 'short_term'; // 默认todo为短期待办
             }
 
             // 如果任务时间早于当前时间，则标记为已通知（仅当有日期时）
