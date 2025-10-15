@@ -244,13 +244,19 @@ export class EisenhowerMatrixView {
 
                 // 对于周期任务的处理：
                 // 1. 农历重复：不添加原始任务，只添加实例
-                // 2. 非农历重复：不添加原始任务，只添加实例
-                // 3. 非周期任务：正常添加
+                // 2. 非农历重复且原始日期早于今天：不添加原始任务，只添加实例
+                // 3. 非农历重复且原始日期是今天或未来：添加原始任务
+                // 4. 非周期任务：正常添加
                 if (!reminder.repeat?.enabled) {
                     // 非周期任务，正常添加
                     allRemindersWithInstances.push({ ...reminder, id });
+                } else if (!isLunarRepeat) {
+                    // 非农历周期任务，只有当原始日期是今天或未来时才添加原始任务
+                    if (reminder.date && compareDateStrings(reminder.date, today) >= 0) {
+                        allRemindersWithInstances.push({ ...reminder, id });
+                    }
                 }
-                // 所有周期任务都不添加原始任务，只添加实例
+                // 农历重复任务不添加原始任务，只添加实例
 
                 // 如果是周期事件，生成实例
                 if (reminder.repeat?.enabled) {
