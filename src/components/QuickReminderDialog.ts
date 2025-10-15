@@ -32,7 +32,7 @@ export class QuickReminderDialog {
     private plugin: any; // 添加plugin引用以访问设置
     private hideProjectSelector?: boolean; // 是否隐藏项目选择器
     private showTermTypeSelector?: boolean; // 是否显示任务类型选择器
-    private defaultTermType?: 'short_term' | 'long_term'; // 默认任务类型
+    private defaultTermType?: 'short_term' | 'long_term' | 'doing'; // 默认任务类型
 
     constructor(initialDate?: string, initialTime?: string, onSaved?: () => void, timeRangeOptions?: {
         endDate?: string;
@@ -49,7 +49,7 @@ export class QuickReminderDialog {
         plugin?: any; // 添加plugin选项
         hideProjectSelector?: boolean; // 是否隐藏项目选择器
         showTermTypeSelector?: boolean; // 是否显示任务类型选择器
-        defaultTermType?: 'short_term' | 'long_term'; // 默认任务类型
+        defaultTermType?: 'short_term' | 'long_term' | 'doing'; // 默认任务类型
     }) {
         // 确保日期格式正确 - 只保留 YYYY-MM-DD 部分
         this.initialDate = initialDate ? this.formatDateForInput(initialDate) : '';
@@ -520,6 +520,9 @@ export class QuickReminderDialog {
                                 </div>
                                 <div class="term-type-option ${this.defaultTermType === 'long_term' ? 'selected' : ''}" data-term-type="long_term">
                                     <span>📅 长期待办</span>
+                                </div>
+                                <div class="term-type-option ${this.defaultTermType === 'doing' ? 'selected' : ''}" data-term-type="doing">
+                                    <span>🔥 进行中</span>
                                 </div>
                             </div>
                         </div>
@@ -1186,7 +1189,7 @@ export class QuickReminderDialog {
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
         const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
         const projectId = projectSelector.value || undefined;
-        const termType = selectedTermType?.getAttribute('data-term-type') as 'short_term' | 'long_term' | undefined;
+        const termType = selectedTermType?.getAttribute('data-term-type') as 'short_term' | 'long_term' | 'doing' | undefined;
 
         // 解析日期和时间
         let date: string;
@@ -1260,6 +1263,15 @@ export class QuickReminderDialog {
                 quadrant: this.defaultQuadrant, // 添加象限信息
                 termType: termType // 添加任务类型（短期/长期）
             };
+
+            // 根据任务类型设置看板状态
+            if (termType === 'doing') {
+                reminder.kanbanStatus = 'doing';
+            } else if (termType === 'long_term') {
+                reminder.kanbanStatus = 'long_term';
+            } else if (termType === 'short_term') {
+                // 短期待办默认不设置kanbanStatus，让getTaskStatus方法处理
+            }
 
             // 如果任务时间早于当前时间，则标记为已通知（仅当有日期时）
             if (date) {

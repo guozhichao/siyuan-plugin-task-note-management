@@ -591,6 +591,7 @@ export class ProjectKanbanView {
         if (task.kanbanStatus === 'doing') return 'doing';
         // 根据termType确定是长期还是短期
         if (task.termType === 'long_term') return 'long_term';
+        if (task.termType === 'doing') return 'doing';
         return 'short_term'; // 默认为短期
     }
 
