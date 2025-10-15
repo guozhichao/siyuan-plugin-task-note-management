@@ -312,7 +312,6 @@
             justify-content: center;
             font-size: 16px;
             border-radius: 6px;
-            title: "智能日期识别";
         }
 
         @media (max-width: 576px) {
@@ -946,6 +945,7 @@
 }
 
 // 通用 dialog 布局优化
+.nl-dialog,
 .quick-reminder-dialog,
 .reminder-dialog,
 .batch-reminder-dialog,
@@ -1012,30 +1012,7 @@
     }
 }
 
-// 预览样式
-.nl-preview {
-    padding: 12px;
-    border: 1px solid var(--b3-border-color);
-    border-radius: 6px;
-    background: var(--b3-theme-surface);
-    font-size: 14px;
-    color: var(--b3-theme-on-surface-light);
-    min-height: 40px;
-    display: flex;
-    align-items: center;
 
-    &.nl-preview--success {
-        background: var(--b3-card-success-background);
-        color: var(--b3-card-success-color);
-        border-color: var(--b3-card-success-color);
-    }
-
-    &.nl-preview--error {
-        background: var(--b3-card-error-background);
-        color: var(--b3-card-error-color);
-        border-color: var(--b3-card-error-color);
-    }
-}
 
 /* 悬浮窗口中的提醒面板样式 */
 #floatReminderPanel {
@@ -2095,7 +2072,7 @@
         border-radius: 4px;
         background-color: var(--b3-theme-surface-lighter);
         font-size: 13px;
-        min-height: 40px;
+        min-height: 20px;
         display: flex;
         align-items: center;
 

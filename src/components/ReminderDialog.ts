@@ -344,7 +344,7 @@ export class ReminderDialog {
                 </div>
             `,
             width: "400px",
-            height: "25%"
+            height: "30%"
         });
 
         const nlInput = nlDialog.element.querySelector('#nlInput') as HTMLInputElement;

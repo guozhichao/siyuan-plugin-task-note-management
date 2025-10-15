@@ -363,7 +363,7 @@ export class QuickReminderDialog {
                 </div>
             `,
             width: "400px",
-            height: "32%"
+            height: "30%"
         });
 
         const nlInput = nlDialog.element.querySelector('#quickNlInput') as HTMLInputElement;

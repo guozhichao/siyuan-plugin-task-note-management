@@ -283,6 +283,10 @@ export class ReminderEditDialog {
 
     // 显示自然语言输入对话框
     private showNaturalLanguageDialog() {
+        // 获取当前任务标题作为默认值
+        const titleInput = this.dialog.element.querySelector('#editReminderTitle') as HTMLInputElement;
+        const currentTitle = titleInput?.value?.trim() || '';
+        
         const nlDialog = new Dialog({
             title: "✨ 智能日期识别",
             content: `
@@ -290,7 +294,7 @@ export class ReminderEditDialog {
                     <div class="b3-dialog__content">
                         <div class="b3-form__group">
                             <label class="b3-form__label">输入自然语言描述</label>
-                            <input type="text" id="editNlInput" class="b3-text-field" placeholder="例如：明天下午3点、下周五、3天后等" style="width: 100%;" autofocus>
+                            <input type="text" id="editNlInput" class="b3-text-field" placeholder="例如：明天下午3点、下周五、3天后等" value="${currentTitle.replace(/"/g, '&quot;')}" style="width: 100%;" autofocus>
                             <div class="b3-form__desc">支持中文自然语言，如：今天、明天、下周一、3月15日、下午2点、农历八月廿一等</div>
                         </div>
                         <div class="b3-form__group">
@@ -305,7 +309,7 @@ export class ReminderEditDialog {
                 </div>
             `,
             width: "400px",
-            height: "25%"
+            height: "30%"
         });
 
         const nlInput = nlDialog.element.querySelector('#editNlInput') as HTMLInputElement;
@@ -368,9 +372,14 @@ export class ReminderEditDialog {
             nlDialog.destroy();
         });
 
-        // 自动聚焦输入框
+        // 自动聚焦输入框并选中文本，同时立即触发预览更新
         setTimeout(() => {
             nlInput.focus();
+            nlInput.select();
+            // 如果有默认值，立即触发预览更新
+            if (nlInput.value) {
+                updatePreview();
+            }
         }, 100);
     }
 
@@ -383,19 +392,26 @@ export class ReminderEditDialog {
 
         // 设置日期和时间
         if (result.hasTime && result.time) {
-            // 有时间信息：设置为datetime-local格式
-            dateInput.value = `${result.date}T${result.time}`;
+            // 有时间信息：先取消"不设置具体时间"，然后切换输入框类型，最后设置值
             noTimeCheckbox.checked = false;
             this.toggleDateTimeInputs(false);
+            // 确保输入框已经切换为datetime-local类型后再设置值
+            setTimeout(() => {
+                dateInput.value = `${result.date}T${result.time}`;
+                // 触发日期变化事件以更新结束日期限制
+                dateInput.dispatchEvent(new Event('change'));
+            }, 50);
         } else {
-            // 只有日期信息：设置为date格式
-            dateInput.value = result.date;
+            // 只有日期信息：先勾选"不设置具体时间"，然后切换输入框类型，最后设置值
             noTimeCheckbox.checked = true;
             this.toggleDateTimeInputs(true);
+            // 确保输入框已经切换为date类型后再设置值
+            setTimeout(() => {
+                dateInput.value = result.date;
+                // 触发日期变化事件以更新结束日期限制
+                dateInput.dispatchEvent(new Event('change'));
+            }, 50);
         }
-
-        // 触发日期变化事件以更新结束日期限制
-        dateInput.dispatchEvent(new Event('change'));
 
         showMessage(`✨ 已识别并设置：${new Date(result.date + 'T00:00:00').toLocaleDateString('zh-CN')}${result.time ? ` ${result.time}` : ''}`);
     }
