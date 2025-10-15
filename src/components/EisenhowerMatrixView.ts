@@ -504,13 +504,36 @@ export class EisenhowerMatrixView {
         return ['important-urgent', 'important-not-urgent', 'not-important-urgent', 'not-important-not-urgent'].includes(quadrant);
     }
 
+    /**
+     * 检查任务本身或其父任务是否为进行中状态
+     * @param task 要检查的任务
+     * @returns 如果任务或其父任务是进行中状态，返回true
+     */
+    private isTaskOrParentDoing(task: QuadrantTask): boolean {
+        // 检查任务本身是否是进行中
+        if (task.extendedProps?.kanbanStatus === 'doing') {
+            return true;
+        }
+
+        // 检查父任务是否是进行中
+        if (task.parentId) {
+            const parentTask = this.allTasks.find(t => t.id === task.parentId);
+            if (parentTask && parentTask.extendedProps?.kanbanStatus === 'doing') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private applyFiltersAndGroup() {
         // 应用筛选
         this.filteredTasks = this.allTasks.filter(task => {
             // 任务状态筛选（基于 termType 或 kanbanStatus）
             if (this.kanbanStatusFilter !== 'all') {
                 if (this.kanbanStatusFilter === 'doing') {
-                    if (task.extendedProps?.kanbanStatus !== 'doing') {
+                    // 筛选进行中任务：任务本身是进行中，或者父任务是进行中
+                    if (!this.isTaskOrParentDoing(task)) {
                         return false;
                     }
                 } else if (this.kanbanStatusFilter === 'todo') {
