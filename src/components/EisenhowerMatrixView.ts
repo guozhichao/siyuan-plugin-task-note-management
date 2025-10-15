@@ -3280,7 +3280,6 @@ export class EisenhowerMatrixView {
                 // 如果是子任务，使用父任务的象限；否则使用当前点击的象限
                 defaultQuadrant: parentTask ? parentTask.quadrant : quadrant,
                 plugin: this.plugin, // 传入plugin实例
-                showKanbanStatus: 'todo', // 不显示任务类型选择器
             }
         );
 

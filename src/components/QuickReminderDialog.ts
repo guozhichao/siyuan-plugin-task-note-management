@@ -32,8 +32,8 @@ export class QuickReminderDialog {
     private plugin: any; // 添加plugin引用以访问设置
     private hideProjectSelector?: boolean; // 是否隐藏项目选择器
 
-    private showKanbanStatus?: 'todo' | 'term' | 'none' = 'todo'; // 看板状态显示模式，默认为 'todo'
-    private defaultTermType?: 'short_term' | 'long_term' | 'doing' | 'todo'; // 默认任务类型
+    private showKanbanStatus?: 'todo' | 'term' | 'none' = 'term'; // 看板状态显示模式，默认为 'term'
+    private defaultTermType?: 'short_term' | 'long_term' | 'doing' | 'todo' = 'doing'; // 默认任务类型
 
     constructor(initialDate?: string, initialTime?: string, onSaved?: () => void, timeRangeOptions?: {
         endDate?: string;
@@ -49,7 +49,7 @@ export class QuickReminderDialog {
         defaultBlockId?: string;
         plugin?: any; // 添加plugin选项
         hideProjectSelector?: boolean; // 是否隐藏项目选择器
-        showKanbanStatus?: 'todo' | 'term' | 'none'; // 看板状态显示模式，默认为 'todo'
+        showKanbanStatus?: 'todo' | 'term' | 'none'; // 看板状态显示模式，默认为 'term'
         defaultTermType?: 'short_term' | 'long_term' | 'doing' | 'todo'; // 默认任务类型
     }) {
         // 确保日期格式正确 - 只保留 YYYY-MM-DD 部分
@@ -83,8 +83,8 @@ export class QuickReminderDialog {
             this.defaultBlockId = options.defaultBlockId;
             this.plugin = options.plugin; // 保存plugin引用
             this.hideProjectSelector = options.hideProjectSelector;
-            this.showKanbanStatus = options.showKanbanStatus || 'todo'; // 默认为 'todo'
-            this.defaultTermType = options.defaultTermType;
+            this.showKanbanStatus = options.showKanbanStatus || 'term'; // 默认为 'term'
+            this.defaultTermType = options.defaultTermType || 'doing'; // 默认为 'doing'
         }
 
         this.categoryManager = CategoryManager.getInstance();
