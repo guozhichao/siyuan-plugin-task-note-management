@@ -242,10 +242,15 @@ export class EisenhowerMatrixView {
                 const isLunarRepeat = reminder.repeat?.enabled &&
                     (reminder.repeat.type === 'lunar-monthly' || reminder.repeat.type === 'lunar-yearly');
 
-                if (!isLunarRepeat) {
-                    // 非农历重复任务，正常添加原始任务
+                // 对于周期任务的处理：
+                // 1. 农历重复：不添加原始任务，只添加实例
+                // 2. 非农历重复：不添加原始任务，只添加实例
+                // 3. 非周期任务：正常添加
+                if (!reminder.repeat?.enabled) {
+                    // 非周期任务，正常添加
                     allRemindersWithInstances.push({ ...reminder, id });
                 }
+                // 所有周期任务都不添加原始任务，只添加实例
 
                 // 如果是周期事件，生成实例
                 if (reminder.repeat?.enabled) {
