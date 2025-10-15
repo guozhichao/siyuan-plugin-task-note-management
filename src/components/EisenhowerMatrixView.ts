@@ -472,7 +472,8 @@ export class EisenhowerMatrixView {
         const today = new Date();
         today.setHours(0, 0, 0, 0); // 重置时间到当天开始
 
-        const taskDate = new Date(reminder.date);
+        // 如果有结束日期，使用结束日期判断紧急性，否则使用开始日期
+        const taskDate = new Date(reminder.endDate || reminder.date);
         taskDate.setHours(0, 0, 0, 0);
 
         // 如果任务未完成且已过期，则认为是紧急的
@@ -898,14 +899,19 @@ export class EisenhowerMatrixView {
                 dateSpan.appendChild(repeatIcon);
             }
 
-            // 如果是农历循环事件，添加农历日期显示
+            // 如果有结束日期，显示日期跨度
             let dateText = task.date;
+            if (task.endDate && task.endDate !== task.date) {
+                dateText = `${task.date} ~ ${task.endDate}`;
+            }
+
+            // 如果是农历循环事件，添加农历日期显示
             if (task.extendedProps?.repeat?.enabled &&
                 (task.extendedProps.repeat.type === 'lunar-monthly' || task.extendedProps.repeat.type === 'lunar-yearly')) {
                 try {
                     const lunarStr = getSolarDateLunarString(task.date);
                     if (lunarStr) {
-                        dateText = `${task.date} (${lunarStr})`;
+                        dateText = `${dateText} (${lunarStr})`;
                     }
                 } catch (error) {
                     console.error('Failed to format lunar date:', error);
