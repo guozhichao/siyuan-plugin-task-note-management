@@ -139,7 +139,7 @@ export class EisenhowerMatrixView {
                 </button>
                 <button class="b3-button b3-button--primary kanban-status-filter-btn" title="状态筛选" data-filter="all">
                     <svg class="b3-button__icon"><use xlink:href="#iconPlay"></use></svg>
-                    进行中
+                    只显示进行中任务
                 </button>
                 <button class="b3-button b3-button--outline sort-projects-btn" title="项目排序">
                     <svg class="b3-button__icon"><use xlink:href="#iconSort"></use></svg>
@@ -2690,14 +2690,14 @@ export class EisenhowerMatrixView {
             if (this.kanbanStatusFilter === 'doing') {
                 kanbanStatusFilterBtn.innerHTML = `
                     <svg class="b3-button__icon"><use xlink:href="#iconPlay"></use></svg>
-                    进行中
+                    只显示进行中任务
                 `;
                 kanbanStatusFilterBtn.classList.add('b3-button--primary');
                 kanbanStatusFilterBtn.classList.remove('b3-button--outline');
             } else {
                 kanbanStatusFilterBtn.innerHTML = `
                     <svg class="b3-button__icon"><use xlink:href="#iconList"></use></svg>
-                    全部状态
+                    全部任务
                 `;
                 kanbanStatusFilterBtn.classList.remove('b3-button--primary');
                 kanbanStatusFilterBtn.classList.add('b3-button--outline');

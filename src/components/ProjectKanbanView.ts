@@ -1650,7 +1650,7 @@ export class ProjectKanbanView {
         if (currentTermType !== 'short_term') {
             menu.addItem({
                 iconHTML: "📝",
-                label: "设为短期任务",
+                label: "设为短期待办",
                 click: () => this.changeTaskStatus(task, 'short_term')
             });
         }
@@ -1658,7 +1658,7 @@ export class ProjectKanbanView {
         if (currentTermType !== 'long_term') {
             menu.addItem({
                 iconHTML: "🎯",
-                label: "设为长期任务",
+                label: "设为长期待办",
                 click: () => this.changeTaskStatus(task, 'long_term')
             });
         }

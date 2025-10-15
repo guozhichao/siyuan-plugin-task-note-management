@@ -516,10 +516,10 @@ export class QuickReminderDialog {
                             <label class="b3-form__label">任务类型</label>
                             <div class="term-type-selector" id="quickTermTypeSelector" style="display: flex; gap: 12px;">
                                 <div class="term-type-option ${this.defaultTermType === 'short_term' || !this.defaultTermType ? 'selected' : ''}" data-term-type="short_term">
-                                    <span>📋 短期任务</span>
+                                    <span>📋 短期待办</span>
                                 </div>
                                 <div class="term-type-option ${this.defaultTermType === 'long_term' ? 'selected' : ''}" data-term-type="long_term">
-                                    <span>📅 长期任务</span>
+                                    <span>📅 长期待办</span>
                                 </div>
                             </div>
                         </div>
