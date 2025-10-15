@@ -2617,22 +2617,22 @@ export class ReminderPanel {
     private async removeParentRelation(childReminder: any, silent: boolean = false) {
         try {
             const reminderData = await readReminderData();
-            
+
             // 获取原始ID（处理重复实例的情况）
             const childId = childReminder.isRepeatInstance ? childReminder.originalId : childReminder.id;
-            
+
             if (!reminderData[childId]) {
                 throw new Error('任务不存在');
             }
-            
+
             // 移除 parentId
             delete reminderData[childId].parentId;
-            
+
             await writeReminderData(reminderData);
 
             // 触发刷新以重新渲染整个列表（因为层级结构变化需要重新渲染）
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
-            
+
         } catch (error) {
             console.error('移除父子关系失败:', error);
             showMessage(t("operationFailed") || "操作失败", 3000, 'error');
@@ -2789,7 +2789,7 @@ export class ReminderPanel {
         // 检查循环任务限制：循环任务不能有父任务或子任务
         const draggedIsRecurring = draggedReminder.isRepeatInstance || (draggedReminder.repeat && draggedReminder.repeat.enabled);
         const targetIsRecurring = targetReminder.isRepeatInstance || (targetReminder.repeat && targetReminder.repeat.enabled);
-        
+
         if (isSetParent) {
             // 设置父子关系时的检查
             if (draggedIsRecurring) {
@@ -2798,7 +2798,7 @@ export class ReminderPanel {
             if (targetIsRecurring) {
                 return false; // 循环任务不能成为父任务
             }
-            
+
             // 检查是否会造成循环引用
             if (this.wouldCreateCycle(draggedReminder.id, targetReminder.id)) {
                 return false;
@@ -2807,7 +2807,7 @@ export class ReminderPanel {
             // 排序时的检查
             // 如果被拖动的任务有父任务，说明是要移除父子关系，此时不检查优先级限制
             const isRemovingParent = draggedReminder.parentId != null;
-            
+
             if (!isRemovingParent) {
                 // 只有在不是移除父子关系的情况下，才检查优先级限制
                 const draggedPriority = draggedReminder.priority || 'none';
@@ -2826,10 +2826,10 @@ export class ReminderPanel {
         // 检查 newParentId 是否是 childId 的后代
         const reminderMap = new Map<string, any>();
         this.currentRemindersCache.forEach(r => reminderMap.set(r.id, r));
-        
+
         let currentId: string | undefined = newParentId;
         const visited = new Set<string>();
-        
+
         while (currentId) {
             if (currentId === childId) {
                 return true; // 发现循环
@@ -2838,11 +2838,11 @@ export class ReminderPanel {
                 break; // 防止无限循环
             }
             visited.add(currentId);
-            
+
             const current = reminderMap.get(currentId);
             currentId = current?.parentId;
         }
-        
+
         return false;
     }
 
@@ -2853,13 +2853,13 @@ export class ReminderPanel {
         const rect = element.getBoundingClientRect();
         const height = rect.height;
         const mouseY = event.clientY - rect.top;
-        
+
         // 定义边缘区域：上下各 25% 区域用于排序，中间 50% 区域用于设置父子关系
         const edgeThreshold = height * 0.25;
-        
+
         const indicator = document.createElement('div');
         indicator.className = 'drop-indicator';
-        
+
         if (mouseY < edgeThreshold) {
             // 上边缘：插入到目标元素之前（排序）
             indicator.style.cssText = `
@@ -2904,7 +2904,7 @@ export class ReminderPanel {
                 pointer-events: none;
             `;
             indicator.setAttribute('data-drop-type', 'set-parent');
-            
+
             // 添加提示文字
             const hintText = document.createElement('div');
             hintText.style.cssText = `
@@ -2920,7 +2920,7 @@ export class ReminderPanel {
             `;
             hintText.textContent = '设为子任务 ↓';
             indicator.appendChild(hintText);
-            
+
             element.style.position = 'relative';
             element.appendChild(indicator);
         }
@@ -2932,7 +2932,7 @@ export class ReminderPanel {
         const height = rect.height;
         const mouseY = event.clientY - rect.top;
         const edgeThreshold = height * 0.25;
-        
+
         if (mouseY < edgeThreshold) {
             return 'before';
         } else if (mouseY > height - edgeThreshold) {
