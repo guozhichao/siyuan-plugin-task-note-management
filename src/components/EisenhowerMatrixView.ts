@@ -2241,9 +2241,9 @@ export class EisenhowerMatrixView {
                 termType: 'short_term' | 'long_term' | null;
             }> = [
                     { key: 'doing', label: '进行中', icon: '🔥', kanbanStatus: 'doing', termType: null },
-                { key: 'short-todo', label: '短期待办', icon: '📋', kanbanStatus: 'todo', termType: 'short_term' },
-                { key: 'long-todo', label: '长期待办', icon: '📆', kanbanStatus: 'todo', termType: 'long_term' }
-            ];
+                    { key: 'short-todo', label: '短期待办', icon: '📋', kanbanStatus: 'todo', termType: 'short_term' },
+                    { key: 'long-todo', label: '长期待办', icon: '📆', kanbanStatus: 'todo', termType: 'long_term' }
+                ];
 
             const currentKanbanStatus = task.extendedProps?.kanbanStatus || 'todo';
             const currentTermType = task.extendedProps?.termType;
