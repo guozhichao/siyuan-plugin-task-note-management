@@ -34,6 +34,7 @@ interface QuadrantTask {
     repeat?: any; // 重复事件配置
     isRepeatInstance?: boolean; // 是否为重复事件实例
     originalId?: string; // 原始重复事件的ID
+    termType?: 'short_term' | 'long_term'; // 任务期限类型：短期或长期
 }
 
 interface Quadrant {
@@ -840,12 +841,20 @@ export class EisenhowerMatrixView {
         // 显示看板状态（仅当任务未完成时显示）
         if (!task.completed) {
             const kanbanStatus = task.extendedProps?.kanbanStatus || 'todo';
-            const statusConfig = {
-                'todo': { icon: '📝', label: '待办', color: '#95a5a6' },
-                'doing': { icon: '🚀', label: '进行中', color: '#3498db' },
-                'done': { icon: '✅', label: '已完成', color: '#27ae60' }
-            };
-            const statusInfo = statusConfig[kanbanStatus] || statusConfig['todo'];
+            const termType = task.extendedProps?.termType;
+
+            // 根据kanbanStatus和termType确定状态配置
+            let statusInfo;
+            if (kanbanStatus === 'doing') {
+                statusInfo = { icon: '⏰', label: '进行中', color: '#f39c12' };
+            } else if (kanbanStatus === 'todo' && termType === 'short_term') {
+                statusInfo = { icon: '📝', label: '短期待办', color: '#95a5a6' };
+            } else if (kanbanStatus === 'todo' && termType === 'long_term') {
+                statusInfo = { icon: '📆', label: '长期待办', color: '#95a5a6' };
+            } else {
+                // 默认待办状态
+                statusInfo = { icon: '📝', label: '短期待办', color: '#95a5a6' };
+            }
 
             const statusSpan = document.createElement('span');
             statusSpan.className = 'task-kanban-status';
@@ -2224,22 +2233,40 @@ export class EisenhowerMatrixView {
 
         // 设置看板状态子菜单
         const createKanbanStatusMenuItems = () => {
-            const statuses = [
-                { key: 'todo', label: '待办', icon: '📝' },
-                { key: 'doing', label: '进行中', icon: '🚀' },
-                { key: 'done', label: '已完成', icon: '✅' }
+            const statuses: Array<{
+                key: string;
+                label: string;
+                icon: string;
+                kanbanStatus: string;
+                termType: 'short_term' | 'long_term' | null;
+            }> = [
+                    { key: 'doing', label: '进行中', icon: '🔥', kanbanStatus: 'doing', termType: null },
+                { key: 'short-todo', label: '短期待办', icon: '📋', kanbanStatus: 'todo', termType: 'short_term' },
+                { key: 'long-todo', label: '长期待办', icon: '📆', kanbanStatus: 'todo', termType: 'long_term' }
             ];
 
-            const currentStatus = task.extendedProps?.kanbanStatus || 'todo';
+            const currentKanbanStatus = task.extendedProps?.kanbanStatus || 'todo';
+            const currentTermType = task.extendedProps?.termType;
 
-            return statuses.map(status => ({
-                iconHTML: status.icon,
-                label: status.label,
-                current: currentStatus === status.key,
-                click: () => {
-                    this.setTaskKanbanStatus(task.id, status.key);
+            return statuses.map(status => {
+                let isCurrent = false;
+                if (status.key === 'doing') {
+                    isCurrent = currentKanbanStatus === 'doing';
+                } else if (status.key === 'short-todo') {
+                    isCurrent = currentKanbanStatus === 'todo' && currentTermType === 'short_term';
+                } else if (status.key === 'long-todo') {
+                    isCurrent = currentKanbanStatus === 'todo' && currentTermType === 'long_term';
                 }
-            }));
+
+                return {
+                    iconHTML: status.icon,
+                    label: status.label,
+                    current: isCurrent,
+                    click: () => {
+                        this.setTaskStatusAndTerm(task.id, status.kanbanStatus, status.termType);
+                    }
+                };
+            });
         };
 
         menu.addItem({
@@ -2463,11 +2490,19 @@ export class EisenhowerMatrixView {
         }
     }
 
-    private async setTaskKanbanStatus(taskId: string, kanbanStatus: string) {
+    private async setTaskStatusAndTerm(taskId: string, kanbanStatus: string, termType: 'short_term' | 'long_term' | null) {
         try {
             const reminderData = await readReminderData();
             if (reminderData[taskId]) {
                 reminderData[taskId].kanbanStatus = kanbanStatus;
+
+                // 设置 termType：如果为 null 则删除属性，否则设置值
+                if (termType) {
+                    reminderData[taskId].termType = termType;
+                } else {
+                    delete reminderData[taskId].termType;
+                }
+
                 await writeReminderData(reminderData);
 
                 await this.refresh();
@@ -2477,7 +2512,7 @@ export class EisenhowerMatrixView {
                 showMessage(t("taskNotExist") || "任务不存在");
             }
         } catch (error) {
-            console.error('设置任务看板状态失败:', error);
+            console.error('设置任务状态失败:', error);
             showMessage("操作失败");
         }
     }
@@ -3330,8 +3365,7 @@ export class EisenhowerMatrixView {
                 defaultProjectId: undefined,
                 defaultQuadrant: undefined,
                 plugin: this.plugin, // 传入plugin实例
-                showTermTypeSelector: false, // 不显示任务类型选择器
-                defaultKanbanStatus: 'todo' // 默认设置为待办状态
+                defaultTermType: 'short_term' // 默认设置为短期待办状态
             }
         );
 
