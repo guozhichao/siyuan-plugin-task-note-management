@@ -1099,13 +1099,13 @@ export default class ReminderPlugin extends Plugin {
             // 获取用户设置的每日通知时间
             const dailyNotificationHour = await this.getDailyNotificationTime();
 
-            // 只在设置的时间后进行提醒检查
+            // 检查单个时间提醒（不受每日通知时间限制）
+            await this.checkTimeReminders(reminderData, today, currentTime);
+
+            // 只在设置的时间后进行全天事项的每日汇总提醒检查
             if (currentHour < dailyNotificationHour) {
                 return;
             }
-
-            // 检查单个时间提醒
-            await this.checkTimeReminders(reminderData, today, currentTime);
 
             // 检查今天是否已经提醒过全天事件
             let hasNotifiedDailyToday = false;
@@ -1140,7 +1140,7 @@ export default class ReminderPlugin extends Plugin {
                 }
 
                 // 检查必要的属性
-                if (typeof reminder.completed !== 'boolean' || !reminder.date || !reminder.id) {
+                if (typeof reminder.completed !== 'boolean' || !reminder.id) {
                     console.warn('提醒项缺少必要属性:', reminder);
                     return;
                 }
