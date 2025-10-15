@@ -321,6 +321,9 @@ export class ReminderPanel {
         this.remindersContainer.style.position = 'relative';
         this.container.appendChild(this.remindersContainer);
 
+        // 为容器添加拖拽事件，支持拖动到空白区域移除父子关系
+        this.addContainerDragEvents();
+
         // 渲染分类过滤器
         this.renderCategoryFilter();
 
@@ -2242,9 +2245,8 @@ export class ReminderPanel {
         reminderEl.dataset.reminderId = reminder.id;
         reminderEl.dataset.priority = priority;
 
-        if (this.currentSort === 'priority') {
-            this.addDragFunctionality(reminderEl, reminder);
-        }
+        // 总是启用拖拽功能（支持排序和设置父子关系）
+        this.addDragFunctionality(reminderEl, reminder);
 
         reminderEl.addEventListener('contextmenu', (e) => {
             e.preventDefault();
@@ -2565,8 +2567,14 @@ export class ReminderPanel {
                 e.preventDefault();
 
                 const targetReminder = this.getReminderFromElement(element);
-                // 只允许同优先级内的拖拽
-                if (targetReminder && this.canDropHere(this.draggedReminder, targetReminder)) {
+                if (!targetReminder) return;
+
+                // 判断拖放类型
+                const dropType = this.getDropType(element, e);
+                const isSetParent = dropType === 'set-parent';
+
+                // 检查是否可以放置
+                if (this.canDropHere(this.draggedReminder, targetReminder, isSetParent)) {
                     e.dataTransfer.dropEffect = 'move';
                     this.showDropIndicator(element, e);
                 }
@@ -2578,8 +2586,17 @@ export class ReminderPanel {
                 e.preventDefault();
 
                 const targetReminder = this.getReminderFromElement(element);
-                if (targetReminder && this.canDropHere(this.draggedReminder, targetReminder)) {
-                    this.handleDrop(this.draggedReminder, targetReminder, e);
+                if (!targetReminder) {
+                    this.hideDropIndicator();
+                    return;
+                }
+
+                // 判断拖放类型
+                const dropType = this.getDropType(element, e);
+                const isSetParent = dropType === 'set-parent';
+
+                if (this.canDropHere(this.draggedReminder, targetReminder, isSetParent)) {
+                    this.handleDrop(this.draggedReminder, targetReminder, e, dropType);
                 }
             }
             this.hideDropIndicator();
@@ -2588,6 +2605,39 @@ export class ReminderPanel {
         element.addEventListener('dragleave', () => {
             this.hideDropIndicator();
         });
+    }
+
+    // 容器拖拽事件（已不需要，通过拖到其他任务上下方自动移除父子关系）
+    private addContainerDragEvents() {
+        // 不再需要容器级别的拖拽提示
+        // 移除父子关系现在通过拖动到其他任务的上方或下方自动完成
+    }
+
+    // 新增：移除父子关系
+    private async removeParentRelation(childReminder: any, silent: boolean = false) {
+        try {
+            const reminderData = await readReminderData();
+            
+            // 获取原始ID（处理重复实例的情况）
+            const childId = childReminder.isRepeatInstance ? childReminder.originalId : childReminder.id;
+            
+            if (!reminderData[childId]) {
+                throw new Error('任务不存在');
+            }
+            
+            // 移除 parentId
+            delete reminderData[childId].parentId;
+            
+            await writeReminderData(reminderData);
+
+            // 触发刷新以重新渲染整个列表（因为层级结构变化需要重新渲染）
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            
+        } catch (error) {
+            console.error('移除父子关系失败:', error);
+            showMessage(t("operationFailed") || "操作失败", 3000, 'error');
+            throw error;
+        }
     }
 
     // 新增：创建提醒倒计时元素 - 改进以支持过期显示
@@ -2730,12 +2780,70 @@ export class ReminderPanel {
     }
 
     // 新增：检查是否可以放置
-    private canDropHere(draggedReminder: any, targetReminder: any): boolean {
-        const draggedPriority = draggedReminder.priority || 'none';
-        const targetPriority = targetReminder.priority || 'none';
+    private canDropHere(draggedReminder: any, targetReminder: any, isSetParent: boolean = false): boolean {
+        // 检查基本条件：不能拖到自己上
+        if (draggedReminder.id === targetReminder.id) {
+            return false;
+        }
 
-        // 只允许同优先级内的拖拽
-        return draggedPriority === targetPriority;
+        // 检查循环任务限制：循环任务不能有父任务或子任务
+        const draggedIsRecurring = draggedReminder.isRepeatInstance || (draggedReminder.repeat && draggedReminder.repeat.enabled);
+        const targetIsRecurring = targetReminder.isRepeatInstance || (targetReminder.repeat && targetReminder.repeat.enabled);
+        
+        if (isSetParent) {
+            // 设置父子关系时的检查
+            if (draggedIsRecurring) {
+                return false; // 循环任务不能成为子任务
+            }
+            if (targetIsRecurring) {
+                return false; // 循环任务不能成为父任务
+            }
+            
+            // 检查是否会造成循环引用
+            if (this.wouldCreateCycle(draggedReminder.id, targetReminder.id)) {
+                return false;
+            }
+        } else {
+            // 排序时的检查
+            // 如果被拖动的任务有父任务，说明是要移除父子关系，此时不检查优先级限制
+            const isRemovingParent = draggedReminder.parentId != null;
+            
+            if (!isRemovingParent) {
+                // 只有在不是移除父子关系的情况下，才检查优先级限制
+                const draggedPriority = draggedReminder.priority || 'none';
+                const targetPriority = targetReminder.priority || 'none';
+                if (draggedPriority !== targetPriority) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    // 新增：检查是否会造成循环引用
+    private wouldCreateCycle(childId: string, newParentId: string): boolean {
+        // 检查 newParentId 是否是 childId 的后代
+        const reminderMap = new Map<string, any>();
+        this.currentRemindersCache.forEach(r => reminderMap.set(r.id, r));
+        
+        let currentId: string | undefined = newParentId;
+        const visited = new Set<string>();
+        
+        while (currentId) {
+            if (currentId === childId) {
+                return true; // 发现循环
+            }
+            if (visited.has(currentId)) {
+                break; // 防止无限循环
+            }
+            visited.add(currentId);
+            
+            const current = reminderMap.get(currentId);
+            currentId = current?.parentId;
+        }
+        
+        return false;
     }
 
     // 新增：显示拖放指示器
@@ -2743,30 +2851,94 @@ export class ReminderPanel {
         this.hideDropIndicator(); // 先清除之前的指示器
 
         const rect = element.getBoundingClientRect();
-        const midpoint = rect.top + rect.height / 2;
-
+        const height = rect.height;
+        const mouseY = event.clientY - rect.top;
+        
+        // 定义边缘区域：上下各 25% 区域用于排序，中间 50% 区域用于设置父子关系
+        const edgeThreshold = height * 0.25;
+        
         const indicator = document.createElement('div');
         indicator.className = 'drop-indicator';
-        indicator.style.cssText = `
+        
+        if (mouseY < edgeThreshold) {
+            // 上边缘：插入到目标元素之前（排序）
+            indicator.style.cssText = `
                 position: absolute;
                 left: 0;
                 right: 0;
+                top: 0;
                 height: 2px;
                 background-color: var(--b3-theme-primary);
                 z-index: 1000;
                 pointer-events: none;
             `;
-
-        if (event.clientY < midpoint) {
-            // 插入到目标元素之前
-            indicator.style.top = '0';
             element.style.position = 'relative';
             element.insertBefore(indicator, element.firstChild);
-        } else {
-            // 插入到目标元素之后
-            indicator.style.bottom = '0';
+        } else if (mouseY > height - edgeThreshold) {
+            // 下边缘：插入到目标元素之后（排序）
+            indicator.style.cssText = `
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                height: 2px;
+                background-color: var(--b3-theme-primary);
+                z-index: 1000;
+                pointer-events: none;
+            `;
             element.style.position = 'relative';
             element.appendChild(indicator);
+        } else {
+            // 中间区域：设置为子任务（显示不同的指示器）
+            indicator.style.cssText = `
+                position: absolute;
+                left: 0;
+                right: 0;
+                top: 0;
+                bottom: 0;
+                background-color: var(--b3-theme-primary);
+                opacity: 0.1;
+                border: 2px dashed var(--b3-theme-primary);
+                border-radius: 4px;
+                z-index: 1000;
+                pointer-events: none;
+            `;
+            indicator.setAttribute('data-drop-type', 'set-parent');
+            
+            // 添加提示文字
+            const hintText = document.createElement('div');
+            hintText.style.cssText = `
+                position: absolute;
+                left: 50%;
+                top: 50%;
+                transform: translate(-50%, -50%);
+                color: var(--b3-theme-primary);
+                font-size: 14px;
+                font-weight: bold;
+                white-space: nowrap;
+                pointer-events: none;
+            `;
+            hintText.textContent = '设为子任务 ↓';
+            indicator.appendChild(hintText);
+            
+            element.style.position = 'relative';
+            element.appendChild(indicator);
+        }
+    }
+
+    // 新增：判断拖放类型（根据鼠标位置）
+    private getDropType(element: HTMLElement, event: DragEvent): 'before' | 'after' | 'set-parent' {
+        const rect = element.getBoundingClientRect();
+        const height = rect.height;
+        const mouseY = event.clientY - rect.top;
+        const edgeThreshold = height * 0.25;
+        
+        if (mouseY < edgeThreshold) {
+            return 'before';
+        } else if (mouseY > height - edgeThreshold) {
+            return 'after';
+        } else {
+            return 'set-parent';
         }
     }
 
@@ -2777,22 +2949,59 @@ export class ReminderPanel {
     }
 
     // 新增：处理拖放
-    private async handleDrop(draggedReminder: any, targetReminder: any, event: DragEvent) {
+    private async handleDrop(draggedReminder: any, targetReminder: any, event: DragEvent, dropType: 'before' | 'after' | 'set-parent') {
         try {
-            const rect = (event.target as HTMLElement).getBoundingClientRect();
-            const midpoint = rect.top + rect.height / 2;
-            const insertBefore = event.clientY < midpoint;
-
-            // 更新数据中的排序
-            await this.reorderReminders(draggedReminder, targetReminder, insertBefore);
-
-            // 只更新DOM，不刷新整个列表
-            this.updateDOMOrder(draggedReminder, targetReminder, insertBefore);
-
-
+            if (dropType === 'set-parent') {
+                // 设置父子关系
+                await this.setParentRelation(draggedReminder, targetReminder);
+            } else {
+                // 排序操作：拖到其他任务上下方时，如果有父子关系则自动移除（静默）
+                if (draggedReminder.parentId) {
+                    await this.removeParentRelation(draggedReminder, true); // 传入 silent 参数
+                }
+                const insertBefore = dropType === 'before';
+                await this.reorderReminders(draggedReminder, targetReminder, insertBefore);
+                // 只更新DOM，不刷新整个列表
+                this.updateDOMOrder(draggedReminder, targetReminder, insertBefore);
+            }
         } catch (error) {
             console.error('处理拖放失败:', error);
-            showMessage("排序更新失败");
+            showMessage(t("operationFailed") || "操作失败");
+        }
+    }
+
+    // 新增：设置父子关系
+    private async setParentRelation(childReminder: any, parentReminder: any) {
+        try {
+            const reminderData = await readReminderData();
+
+            // 获取原始ID（处理重复实例的情况）
+            const childId = childReminder.isRepeatInstance ? childReminder.originalId : childReminder.id;
+            const parentId = parentReminder.isRepeatInstance ? parentReminder.originalId : parentReminder.id;
+
+            if (!reminderData[childId]) {
+                throw new Error('子任务不存在');
+            }
+            if (!reminderData[parentId]) {
+                throw new Error('父任务不存在');
+            }
+
+            // 更新子任务的 parentId
+            reminderData[childId].parentId = parentId;
+
+            // 如果父任务有 projectId，则自动赋值给子任务
+            if (reminderData[parentId].projectId) {
+                reminderData[childId].projectId = reminderData[parentId].projectId;
+            }
+
+            await writeReminderData(reminderData);
+
+            // 触发刷新以重新渲染整个列表（因为层级结构变化需要重新渲染）
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+        } catch (error) {
+            console.error('设置父子关系失败:', error);
+            throw error;
         }
     }
 
