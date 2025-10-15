@@ -1283,13 +1283,13 @@ export default class ReminderPlugin extends Plugin {
                 // 播放通知声音
                 await this.playNotificationSound();
 
+                // 始终显示思源内部通知对话框
+                NotificationDialog.showAllDayReminders(sortedReminders);
+
                 // 检查是否启用系统弹窗通知
                 const systemNotificationEnabled = await this.getReminderSystemNotificationEnabled();
 
-                // 仅在系统弹窗未启用时显示思源笔记消息弹窗
-                if (!systemNotificationEnabled) {
-                    NotificationDialog.showAllDayReminders(sortedReminders);
-                }
+                // 如果启用了系统弹窗，同时也显示系统通知
                 if (systemNotificationEnabled) {
                     const totalCount = sortedReminders.length;
                     const title = '📅 ' + t("dailyRemindersNotification") + ` (${totalCount})`;
@@ -1454,14 +1454,13 @@ export default class ReminderPlugin extends Plugin {
                 ...categoryInfo
             };
 
+            // 始终显示思源内部通知对话框
+            NotificationDialog.show(reminderInfo);
+
             // 检查是否启用系统弹窗通知
             const systemNotificationEnabled = await this.getReminderSystemNotificationEnabled();
 
-            // 仅在系统弹窗未启用时显示思源笔记消息弹窗
-            if (!systemNotificationEnabled) {
-                NotificationDialog.show(reminderInfo);
-            }
-
+            // 如果启用了系统弹窗，同时也显示系统通知
             if (systemNotificationEnabled) {
                 const title = '⏰ ' + t("timeReminderNotification");
                 const categoryText = (categoryInfo as any).categoryName ? ` [${(categoryInfo as any).categoryName}]` : '';
