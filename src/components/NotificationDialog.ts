@@ -294,10 +294,10 @@ export class NotificationDialog {
                 width: 350px;
                 max-width: 300px;
                 min-width: 300px;
-                z-index: 999;
+                z-index: 200;
                 animation: slideInRight 0.3s ease-out;
                 margin-bottom: 10px;
-                pointer-events: auto;
+                pointer-events: none;
             }
 
             .notification-content {
@@ -373,6 +373,7 @@ export class NotificationDialog {
                 text-overflow: ellipsis;
                 white-space: nowrap;
                 max-width: 100%;
+                pointer-events: auto;
             }
 
             .notification-title:hover {
@@ -395,6 +396,7 @@ export class NotificationDialog {
                 color: var(--b3-theme-on-surface);
                 opacity: 0.7;
                 transition: all 0.2s ease;
+                pointer-events: auto;
             }
 
             .notification-close:hover {
@@ -488,6 +490,7 @@ export class NotificationDialog {
                 border-left: 3px solid var(--b3-theme-primary-lighter);
                 cursor: pointer;
                 transition: all 0.2s ease;
+                pointer-events: auto;
             }
 
             .all-day-reminder-item.priority-high {
