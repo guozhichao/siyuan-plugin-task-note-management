@@ -645,7 +645,7 @@ export class ReminderPanel {
             const menu = new Menu("reminderSortMenu");
 
             const sortOptions = [
-                { key: 'time', label: t("sortByTime"), icon: '🕐' },
+                { key: 'time', label: t("sortByTime"), icon: '🗓' },
                 { key: 'priority', label: t("sortByPriority"), icon: '🎯' },
                 { key: 'title', label: t("sortByTitle"), icon: '📝' }
             ];
@@ -2372,7 +2372,7 @@ export class ReminderPanel {
             const timeEl = document.createElement('div');
             timeEl.className = 'reminder-item__time';
             const timeText = this.formatReminderTime(reminder.date, reminder.time, today, reminder.endDate, reminder.endTime, reminder);
-            timeEl.textContent = '🕐' + timeText;
+            timeEl.textContent = '🗓' + timeText;
             timeEl.style.cursor = 'pointer';
             timeEl.title = t("clickToModifyTime");
             timeEl.addEventListener('click', (e) => {
