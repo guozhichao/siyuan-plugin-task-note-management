@@ -5068,9 +5068,9 @@ export class ReminderPanel {
                          <div class="b3-form__group">
                             <label class="b3-form__label">任务日期</label>
                             <div class="reminder-date-container">
-                                <input type="date" id="taskStartDate" class="b3-text-field" title="开始日期">
+                                <input type="date" id="taskStartDate" class="b3-text-field" title="开始日期" max="9999-12-31">
                                 <span class="reminder-arrow">→</span>
-                                <input type="date" id="taskEndDate" class="b3-text-field" title="结束日期">
+                                <input type="date" id="taskEndDate" class="b3-text-field" title="结束日期" max="9999-12-31">
                             </div>
                         </div>
                         <div class="b3-form__group">

@@ -544,9 +544,9 @@ export class QuickReminderDialog {
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("reminderDate")}${this.defaultProjectId ? ' (可选)' : ''}</label>
                             <div class="reminder-date-container">
-                                <input type="date" id="quickReminderDate" class="b3-text-field" value="${this.initialDate}">
+                                <input type="date" id="quickReminderDate" class="b3-text-field" value="${this.initialDate}" max="9999-12-31">
                                 <span class="reminder-arrow">→</span>
-                                <input type="date" id="quickReminderEndDate" class="b3-text-field reminder-end-date" placeholder="${t("endDateOptional")}" title="${t("spanningEventDesc")}">
+                                <input type="date" id="quickReminderEndDate" class="b3-text-field reminder-end-date" placeholder="${t("endDateOptional")}" title="${t("spanningEventDesc")}" max="9999-12-31">
                             </div>
                             <div class="b3-form__desc" id="quickDateTimeDesc">${this.initialTime ? t("dateTimeDesc") : (this.defaultProjectId ? '项目任务可以不设置日期' : t("dateOnlyDesc"))}</div>
                         </div>
@@ -779,9 +779,11 @@ export class QuickReminderDialog {
             const startValue = startDateInput.value;
             const endValue = endDateInput.value;
 
-            // 切换类型
+            // 切换类型和max属性
             startDateInput.type = 'date';
             endDateInput.type = 'date';
+            startDateInput.max = '9999-12-31';
+            endDateInput.max = '9999-12-31';
 
             // 如果当前值包含时间，只保留日期部分，不清空日期
             if (startValue && startValue.includes('T')) {
@@ -811,9 +813,11 @@ export class QuickReminderDialog {
             const startValue = startDateInput.value;
             const endValue = endDateInput.value;
 
-            // 切换类型
+            // 切换类型和max属性
             startDateInput.type = 'datetime-local';
             endDateInput.type = 'datetime-local';
+            startDateInput.max = '9999-12-31T23:59';
+            endDateInput.max = '9999-12-31T23:59';
 
             // 如果当前值只有日期，添加默认时间，保留原有日期
             if (startValue && !startValue.includes('T')) {

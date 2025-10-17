@@ -591,9 +591,9 @@ export class ReminderDialog {
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("reminderDate")}</label>
                             <div class="reminder-date-container">
-                                <input type="date" id="reminderDate" class="b3-text-field" value="${initialDate}" required>
+                                <input type="date" id="reminderDate" class="b3-text-field" value="${initialDate}" required max="9999-12-31">
                                 <span class="reminder-arrow">→</span>
-                                <input type="date" id="reminderEndDate" class="b3-text-field reminder-end-date" placeholder="${t("endDateOptional")}" title="${t("spanningEventDesc")}">
+                                <input type="date" id="reminderEndDate" class="b3-text-field reminder-end-date" placeholder="${t("endDateOptional")}" title="${t("spanningEventDesc")}" max="9999-12-31">
                             </div>
                             <div class="b3-form__desc" id="dateTimeDesc">${initialNoTime ? t("dateOnlyDesc") : t("dateTimeDesc")}</div>
                         </div>
@@ -1139,9 +1139,11 @@ export class ReminderDialog {
             const startValue = startDateInput.value;
             const endValue = endDateInput.value;
 
-            // 切换类型
+            // 切换类型和max属性
             startDateInput.type = 'date';
             endDateInput.type = 'date';
+            startDateInput.max = '9999-12-31';
+            endDateInput.max = '9999-12-31';
 
             // 如果当前值包含时间，只保留日期部分，不清空日期
             if (startValue && startValue.includes('T')) {
@@ -1165,9 +1167,11 @@ export class ReminderDialog {
             const startValue = startDateInput.value;
             const endValue = endDateInput.value;
 
-            // 切换类型
+            // 切换类型和max属性
             startDateInput.type = 'datetime-local';
             endDateInput.type = 'datetime-local';
+            startDateInput.max = '9999-12-31T23:59';
+            endDateInput.max = '9999-12-31T23:59';
 
             // 如果当前值只有日期，添加默认时间，保留原有日期
             if (startValue && !startValue.includes('T')) {
