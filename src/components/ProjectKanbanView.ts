@@ -1060,7 +1060,7 @@ export class ProjectKanbanView {
             }
 
             const dateText = this.formatTaskDate(task);
-            let dateHtml = `<span>📅</span><span>${dateText}</span>`;
+            let dateHtml = `<span>📅${dateText}</span>`;
 
             // 添加倒计时显示
             if (!task.completed) {
@@ -1348,15 +1348,46 @@ export class ProjectKanbanView {
         tomorrow.setDate(tomorrow.getDate() + 1);
         const tomorrowStr = getLocalDateString(tomorrow);
 
+        // 获取当前年份
+        const currentYear = new Date().getFullYear();
+
+        // 辅助函数：格式化日期显示
+        const formatDateWithYear = (dateStr: string, date: Date): string => {
+            const year = date.getFullYear();
+            return year !== currentYear
+                ? date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' })
+                : date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+        };
+
+        // 辅助函数：计算过期天数
+        const getExpiredDays = (targetDate: string): number => {
+            return Math.ceil((new Date(today).getTime() - new Date(targetDate).getTime()) / (1000 * 60 * 60 * 24));
+        };
+
+        // 辅助函数：创建过期徽章
+        const createExpiredBadge = (days: number): string => {
+            return `<span class="countdown-badge countdown-normal" style="background-color: rgba(231, 76, 60, 0.15); color: #e74c3c; border: 1px solid rgba(231, 76, 60, 0.3);">已过期${days}天</span>`;
+        };
+
         // 如果只有截止时间，显示截止时间
         if (!task.date && task.endDate) {
             const endDate = new Date(task.endDate);
+            const endYear = endDate.getFullYear();
+
+            // 检查是否过期
+            if (task.endDate < today) {
+                const daysDiff = getExpiredDays(task.endDate);
+                const dateStr = formatDateWithYear(task.endDate, endDate);
+                return `${dateStr} ${createExpiredBadge(daysDiff)}`;
+            }
+
             if (task.endDate === today) {
                 return '今天截止';
             } else if (task.endDate === tomorrowStr) {
                 return '明天截止';
             } else {
-                return endDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) + ' 截止';
+                const dateStr = formatDateWithYear(task.endDate, endDate);
+                return `${dateStr} 截止`;
             }
         }
 
@@ -1368,7 +1399,17 @@ export class ProjectKanbanView {
             dateStr = '明天';
         } else {
             const taskDate = new Date(task.date);
-            dateStr = taskDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+            const taskYear = taskDate.getFullYear();
+
+            // 检查是否过期
+            if (task.date < today) {
+                const daysDiff = getExpiredDays(task.date);
+                const formattedDate = formatDateWithYear(task.date, taskDate);
+                dateStr = `${formattedDate} ${createExpiredBadge(daysDiff)}`;
+            } else {
+                // 如果不在今年，显示年份
+                dateStr = formatDateWithYear(task.date, taskDate);
+            }
         }
 
         // 如果是农历循环事件，添加农历日期显示
@@ -1386,7 +1427,17 @@ export class ProjectKanbanView {
         let endDateStr = '';
         if (task.endDate && task.endDate !== task.date) {
             const taskEndDate = new Date(task.endDate);
-            endDateStr = taskEndDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+            const endYear = taskEndDate.getFullYear();
+
+            // 检查结束日期是否过期
+            if (task.endDate < today) {
+                const daysDiff = getExpiredDays(task.endDate);
+                const formattedEndDate = formatDateWithYear(task.endDate, taskEndDate);
+                endDateStr = `${formattedEndDate} ${createExpiredBadge(daysDiff)}`;
+            } else {
+                // 如果结束日期不在今年，显示年份
+                endDateStr = formatDateWithYear(task.endDate, taskEndDate);
+            }
         }
 
         if (endDateStr) {
@@ -3345,6 +3396,7 @@ export class ProjectKanbanView {
                 border-radius: 10px;
                 font-weight: 500;
                 margin-left: 4px;
+                display: inline-block;
             }
 
             .countdown-urgent {
@@ -3363,6 +3415,13 @@ export class ProjectKanbanView {
                 background-color: rgba(46, 204, 113, 0.15);
                 color: #2ecc71;
                 border: 1px solid rgba(46, 204, 113, 0.3);
+            }
+
+            /* 过期任务样式 - 复用倒计时样式 */
+            .countdown-badge.countdown-normal[style*="rgba(231, 76, 60"] {
+                background-color: rgba(231, 76, 60, 0.15) !important;
+                color: #e74c3c !important;
+                border: 1px solid rgba(231, 76, 60, 0.3) !important;
             }
 
            .kanban-task-checkbox {

@@ -897,6 +897,28 @@ export class EisenhowerMatrixView {
                 flex-wrap: wrap;
             `;
 
+            // 获取当前年份
+            const currentYear = new Date().getFullYear();
+
+            // 辅助函数：格式化日期显示
+            const formatDateWithYear = (dateStr: string): string => {
+                const date = new Date(dateStr);
+                const year = date.getFullYear();
+                return year !== currentYear
+                    ? date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' })
+                    : date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+            };
+
+            // 辅助函数：计算过期天数
+            const getExpiredDays = (targetDate: string): number => {
+                return Math.ceil((new Date().getTime() - new Date(targetDate).getTime()) / (1000 * 60 * 60 * 24));
+            };
+
+            // 辅助函数：创建过期徽章
+            const createExpiredBadge = (days: number): string => {
+                return `<span class="countdown-badge countdown-normal" style="background-color: rgba(231, 76, 60, 0.15); color: #e74c3c; border: 1px solid rgba(231, 76, 60, 0.3); font-size: 11px; padding: 2px 6px; border-radius: 10px; font-weight: 500; margin-left: 4px; display: inline-block;">已过期${days}天</span>`;
+            };
+
             // 添加周期图标（如果是周期事件或周期实例）
             if (task.extendedProps?.repeat?.enabled || task.extendedProps?.isRepeatInstance) {
                 const repeatIcon = document.createElement('span');
@@ -907,9 +929,25 @@ export class EisenhowerMatrixView {
             }
 
             // 如果有结束日期，显示日期跨度
-            let dateText = task.date;
+            let dateText = '';
             if (task.endDate && task.endDate !== task.date) {
-                dateText = `${task.date} ~ ${task.endDate}`;
+                // 检查结束日期是否过期
+                if (task.endDate < getLocalDateString()) {
+                    const daysDiff = getExpiredDays(task.endDate);
+                    const formattedEndDate = formatDateWithYear(task.endDate);
+                    dateText = `${formatDateWithYear(task.date)} ~ ${formattedEndDate} ${createExpiredBadge(daysDiff)}`;
+                } else {
+                    dateText = `${formatDateWithYear(task.date)} ~ ${formatDateWithYear(task.endDate)}`;
+                }
+            } else {
+                // 检查开始日期是否过期
+                if (task.date < getLocalDateString()) {
+                    const daysDiff = getExpiredDays(task.date);
+                    const formattedDate = formatDateWithYear(task.date);
+                    dateText = `${formattedDate} ${createExpiredBadge(daysDiff)}`;
+                } else {
+                    dateText = formatDateWithYear(task.date);
+                }
             }
 
             // 如果是农历循环事件，添加农历日期显示
@@ -926,7 +964,7 @@ export class EisenhowerMatrixView {
             }
 
             const dateTextSpan = document.createElement('span');
-            dateTextSpan.textContent = `📅 ${dateText}`;
+            dateTextSpan.innerHTML = `📅 ${dateText}`;
             dateSpan.appendChild(dateTextSpan);
 
             taskMeta.appendChild(dateSpan);
@@ -2207,6 +2245,41 @@ export class EisenhowerMatrixView {
                 font-size: 12px;
                 color: var(--b3-theme-on-surface-light);
                 margin-left: 8px;
+            }
+
+            /* 倒计时样式 */
+            .countdown-badge {
+                font-size: 11px;
+                padding: 2px 6px;
+                border-radius: 10px;
+                font-weight: 500;
+                margin-left: 4px;
+                display: inline-block;
+            }
+
+            .countdown-urgent {
+                background-color: rgba(231, 76, 60, 0.15);
+                color: #e74c3c;
+                border: 1px solid rgba(231, 76, 60, 0.3);
+            }
+
+            .countdown-warning {
+                background-color: rgba(243, 156, 18, 0.15);
+                color: #f39c12;
+                border: 1px solid rgba(243, 156, 18, 0.3);
+            }
+
+            .countdown-normal {
+                background-color: rgba(46, 204, 113, 0.15);
+                color: #2ecc71;
+                border: 1px solid rgba(46, 204, 113, 0.3);
+            }
+
+            /* 过期任务样式 - 复用倒计时样式 */
+            .countdown-badge.countdown-normal[style*="rgba(231, 76, 60"] {
+                background-color: rgba(231, 76, 60, 0.15) !important;
+                color: #e74c3c !important;
+                border: 1px solid rgba(231, 76, 60, 0.3) !important;
             }
             
             /* 象限预览样式 */
