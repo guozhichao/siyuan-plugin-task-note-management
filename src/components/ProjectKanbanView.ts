@@ -2194,11 +2194,17 @@ export class ProjectKanbanView {
                     if (latestTask) {
                         // 设置父任务关系
                         (latestTask as any).parentId = parentTask.id;
+        
+                        // 如果最新创建的任务没有优先级，继承父任务的优先级
+                        if (!(latestTask as any).priority || (latestTask as any).priority === 'none') {
+                            (latestTask as any).priority = parentTask.priority || 'none';
+                        }
+        
                         reminderData[(latestTask as any).id] = latestTask;
                         await writeReminderData(reminderData);
-
+        
                         showMessage(`子任务已创建并关联到 "${parentTask.title}"`);
-
+        
                         // 再次刷新看板
                         this.loadTasks();
                     }
@@ -2416,16 +2422,20 @@ export class ProjectKanbanView {
         // 递归创建任务
         const createTaskRecursively = async (
             task: HierarchicalTask,
-            parentId?: string
+            parentId?: string,
+            parentPriority?: string
         ): Promise<string> => {
             const taskId = `quick_${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
             sortCounter += 10;
+
+            // 如果子任务没有指定优先级，继承父任务的优先级
+            const inheritedPriority = task.priority || parentPriority || 'none';
 
             const newTask: any = {
                 id: taskId,
                 title: task.title,
                 note: '',
-                priority: task.priority || 'none',
+                priority: inheritedPriority,
                 categoryId: categoryId,
                 projectId: this.projectId,
                 completed: false,
@@ -2469,7 +2479,7 @@ export class ProjectKanbanView {
             // 递归创建子任务
             if (task.children && task.children.length > 0) {
                 for (let i = 0; i < task.children.length; i++) {
-                    await createTaskRecursively(task.children[i], taskId);
+                    await createTaskRecursively(task.children[i], taskId, inheritedPriority);
                 }
             }
 
@@ -2480,7 +2490,16 @@ export class ProjectKanbanView {
         for (let i = 0; i < tasks.length; i++) {
             // 如果提供了 parentIdForAllTopLevel，则把解析出的顶级任务作为该父任务的子任务
             const topParent = parentIdForAllTopLevel ? parentIdForAllTopLevel : undefined;
-            await createTaskRecursively(tasks[i], topParent);
+
+            // 如果有父任务ID，获取父任务的优先级用于继承
+            let parentPriority: string | undefined;
+            if (topParent) {
+                const reminderData = await readReminderData();
+                const parentTask = reminderData[topParent];
+                parentPriority = parentTask?.priority;
+            }
+
+            await createTaskRecursively(tasks[i], topParent, parentPriority);
         }
 
         await writeReminderData(reminderData);
