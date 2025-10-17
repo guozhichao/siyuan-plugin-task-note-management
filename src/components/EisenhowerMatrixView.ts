@@ -857,8 +857,8 @@ export class EisenhowerMatrixView {
         const taskMeta = document.createElement('div');
         taskMeta.className = 'task-meta';
 
-        // 显示看板状态（仅当任务未完成时显示）
-        if (!task.completed) {
+        // 显示看板状态（仅当任务未完成且不是子任务时显示）
+        if (!task.completed && level === 0) {
             const kanbanStatus = task.extendedProps?.kanbanStatus || 'todo';
             const termType = task.extendedProps?.termType;
 
