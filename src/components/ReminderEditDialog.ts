@@ -747,24 +747,11 @@ export class ReminderEditDialog {
 
         startDateInput.addEventListener('change', () => {
             const startDate = startDateInput.value;
-            const endDate = endDateInput.value;
-
-            if (endDate && endDate < startDate) {
-                endDateInput.value = startDate;
-                showMessage(t("endDateAdjusted"));
-            }
-
             endDateInput.min = startDate;
         });
 
         endDateInput.addEventListener('change', () => {
-            const startDate = startDateInput.value;
-            const endDate = endDateInput.value;
-
-            if (endDate && endDate < startDate) {
-                endDateInput.value = startDate;
-                showMessage(t("endDateCannotBeEarlier"));
-            }
+            // 移除立即验证逻辑，只在保存时验证
         });
 
         // 管理分类按钮事件
@@ -880,9 +867,15 @@ export class ReminderEditDialog {
             return;
         }
 
-        if (endDate && endDate < date) {
-            showMessage(t("endDateCannotBeEarlier"));
-            return;
+        // 验证结束日期时间不能早于开始日期时间
+        if (endDate && date) {
+            const startDateTime = time ? `${date}T${time}` : `${date}T00:00:00`;
+            const endDateTime = endTime ? `${endDate}T${endTime}` : `${endDate}T00:00:00`;
+
+            if (new Date(endDateTime) < new Date(startDateTime)) {
+                showMessage(t("endDateCannotBeEarlier"));
+                return;
+            }
         }
 
         // 检查新的日期时间是否在未来，如果是则重置通知状态
