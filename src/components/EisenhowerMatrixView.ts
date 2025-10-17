@@ -235,7 +235,8 @@ export class EisenhowerMatrixView {
                 // 如果该任务或其任一祖先父任务已完成，则跳过
                 if (isAncestorCompleted(reminder)) continue;
 
-                // 跳过已完成的顶层任务
+                // 对于子任务，即使已完成也要保留（用于计算父任务进度）
+                // 只跳过已完成的顶层任务
                 if (reminder?.completed && !reminder?.parentId) continue;
 
                 // 对于农历重复任务，只添加符合农历日期的实例，不添加原始日期
@@ -690,11 +691,16 @@ export class EisenhowerMatrixView {
                 const taskMap = new Map(tasks.map(t => [t.id, t]));
                 const topLevelTasks = tasks.filter(t => !t.parentId || !taskMap.has(t.parentId));
                 const renderTaskWithChildren = (task: QuadrantTask, level: number) => {
+                    // 只渲染未完成的子任务，已完成的子任务不显示但用于进度计算
+                    if (task.completed && level > 0) {
+                        return;
+                    }
+
                     const taskEl = this.createTaskElement(task, level);
                     projectGroup.appendChild(taskEl);
 
-                    // 渲染子任务
-                    const childTasks = tasks.filter(t => t.parentId === task.id);
+                    // 渲染子任务（只渲染未完成的）
+                    const childTasks = tasks.filter(t => t.parentId === task.id && !t.completed);
                     if (childTasks.length > 0 && !this.collapsedTasks.has(task.id)) {
                         childTasks.forEach(childTask => renderTaskWithChildren(childTask, level + 1));
                     }
