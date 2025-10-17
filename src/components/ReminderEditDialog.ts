@@ -1,6 +1,6 @@
 import { showMessage, Dialog } from "siyuan";
 import { readReminderData, writeReminderData, getBlockByID } from "../api";
-import { getLocalTimeString } from "../utils/dateUtils";
+import { getLocalTimeString, getLocalDateString } from "../utils/dateUtils";
 import { CategoryManager, Category } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
@@ -787,7 +787,20 @@ export class ReminderEditDialog {
     private showRepeatSettingsDialog() {
         // 获取当前设置的开始日期
         const startDateInput = this.dialog.element.querySelector('#editReminderDate') as HTMLInputElement;
-        const startDate = startDateInput?.value;
+        let startDate = startDateInput?.value;
+
+        // 如果没有设置开始日期，使用初始日期或今天的日期
+        if (!startDate) {
+            startDate = this.reminder.date || getLocalDateString();
+        }
+
+        // 如果是农历重复类型，需要重新计算农历日期
+        if (this.repeatConfig.enabled &&
+            (this.repeatConfig.type === 'lunar-monthly' || this.repeatConfig.type === 'lunar-yearly')) {
+            // 清除现有的农历日期，让 RepeatSettingsDialog 重新计算
+            this.repeatConfig.lunarDay = undefined;
+            this.repeatConfig.lunarMonth = undefined;
+        }
 
         const repeatDialog = new RepeatSettingsDialog(this.repeatConfig, (config: RepeatConfig) => {
             this.repeatConfig = config;

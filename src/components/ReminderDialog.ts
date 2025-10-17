@@ -1314,7 +1314,20 @@ export class ReminderDialog {
     private showRepeatSettingsDialog() {
         // 获取当前设置的开始日期
         const startDateInput = this.dialog.element.querySelector('#reminderDate') as HTMLInputElement;
-        const startDate = startDateInput?.value;
+        let startDate = startDateInput?.value;
+
+        // 如果没有设置开始日期，使用今天的日期
+        if (!startDate) {
+            startDate = getLocalDateString();
+        }
+
+        // 如果是农历重复类型，需要重新计算农历日期
+        if (this.repeatConfig.enabled &&
+            (this.repeatConfig.type === 'lunar-monthly' || this.repeatConfig.type === 'lunar-yearly')) {
+            // 清除现有的农历日期，让 RepeatSettingsDialog 重新计算
+            this.repeatConfig.lunarDay = undefined;
+            this.repeatConfig.lunarMonth = undefined;
+        }
 
         const repeatDialog = new RepeatSettingsDialog(this.repeatConfig, (config: RepeatConfig) => {
             this.repeatConfig = config;
