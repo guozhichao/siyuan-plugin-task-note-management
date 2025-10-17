@@ -5404,7 +5404,8 @@ export class ReminderPanel {
                 note: '',
                 date: task.startDate || undefined,
                 endDate: task.endDate || undefined,
-                priority: task.priority === 'none' ? undefined : task.priority,
+                // 如果子任务没指定优先级，继承父任务的优先级
+                priority: task.priority && task.priority !== 'none' ? task.priority : (parent ? parent.priority : undefined),
                 categoryId: parent ? parent.categoryId : undefined,
                 projectId: projectId,
                 parentId: parentId || parentIdForAllTopLevel,
@@ -5807,7 +5808,8 @@ export class ReminderPanel {
             note: taskData.note || '',
             date: taskData.date || undefined,
             endDate: taskData.endDate || undefined,
-            priority: taskData.priority === 'none' ? undefined : taskData.priority,
+            // 如果子任务没指定优先级，要继承父任务的优先级
+            priority: taskData.priority && taskData.priority !== 'none' ? taskData.priority : (parentReminder ? parentReminder.priority : undefined),
             categoryId: taskData.categoryId,
             projectId: taskData.projectId, // 添加项目ID
             parentId: parentReminder.id,
