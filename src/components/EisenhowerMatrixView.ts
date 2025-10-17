@@ -2348,28 +2348,37 @@ export class EisenhowerMatrixView {
             label: "创建子任务",
             click: () => this.showCreateTaskDialog(task.quadrant, task)
         });
-
         menu.addSeparator();
 
-        // 添加项目分配菜单
-        menu.addItem({
-            label: t('addToProject'),
-            icon: 'iconProject',
-            click: async () => {
-                await this.assignTaskToProject(task, event);
-            }
-        });
-
-        // 如果任务已有项目，添加移除项目选项
-        if (task.projectId) {
+        // 绑定块功能
+        if (task.blockId) {
             menu.addItem({
-                label: t('removeFromProject'),
-                icon: 'iconRemove',
-                click: async () => {
-                    await this.removeTaskFromProject(task);
-                }
+                iconHTML: "🔗",
+                label: "打开绑定块",
+                click: () => this.openTaskBlock(task.blockId!)
+            });
+
+            menu.addItem({
+                iconHTML: "📋",
+                label: "复制块引用",
+                click: () => this.copyBlockRef(task)
+            });
+
+            menu.addItem({
+                iconHTML: "🔓",
+                label: "解除绑定",
+                click: () => this.unbindTaskFromBlock(task.blockId!)
+            });
+        } else {
+            menu.addItem({
+                iconHTML: "🔗",
+                label: "绑定到块",
+                click: () => this.showBindToBlockDialog(task)
             });
         }
+        menu.addSeparator();
+
+
 
         // 设置优先级子菜单
         const createPriorityMenuItems = () => {
@@ -2457,34 +2466,7 @@ export class EisenhowerMatrixView {
             click: () => this.startPomodoroCountUp(task)
         });
 
-        menu.addSeparator();
 
-        // 绑定块功能
-        if (task.blockId) {
-            menu.addItem({
-                iconHTML: "🔗",
-                label: "打开绑定块",
-                click: () => this.openTaskBlock(task.blockId!)
-            });
-
-            menu.addItem({
-                iconHTML: "📋",
-                label: "复制块引用",
-                click: () => this.copyBlockRef(task)
-            });
-
-            menu.addItem({
-                iconHTML: "🔓",
-                label: "解除绑定",
-                click: () => this.unbindTaskFromBlock(task.blockId!)
-            });
-        } else {
-            menu.addItem({
-                iconHTML: "🔗",
-                label: "绑定到块",
-                click: () => this.showBindToBlockDialog(task)
-            });
-        }
 
         menu.addSeparator();
 
