@@ -2165,7 +2165,7 @@ export class ProjectKanbanView {
             undefined, // 无时间段选项
             {
                 defaultProjectId: this.projectId, // 默认项目ID
-                defaultCategoryId: parentTask?.categoryId, // 如果是子任务，继承父任务分类
+                defaultCategoryId: parentTask?.categoryId || this.project.categoryId, // 如果是子任务，继承父任务分类；否则使用项目分类
                 defaultPriority: parentTask?.priority, // 如果是子任务，继承父任务优先级
                 defaultTitle: parentTask ? '' : undefined, // 子任务不预填标题
                 hideProjectSelector: true, // 隐藏项目选择器
