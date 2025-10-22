@@ -1609,40 +1609,40 @@ export class ProjectKanbanView {
             // 周期事件实例 - 显示修改此实例和修改所有实例
             menu.addItem({
                 iconHTML: "📝",
-                label: "修改此实例",
+                label: t('modifyThisInstance'),
                 click: () => this.editInstanceReminder(task)
             });
             menu.addItem({
                 iconHTML: "🔄",
-                label: "修改所有实例",
+                label: t('modifyAllInstances'),
                 click: () => this.editTask(task)
             });
         } else if (task.repeat?.enabled) {
             // 原始周期事件 - 只显示编辑选项
             menu.addItem({
                 iconHTML: "📝",
-                label: "编辑任务",
+                label: t('editTask'),
                 click: () => this.editTask(task)
             });
         } else {
             // 普通任务
             menu.addItem({
                 iconHTML: "📝",
-                label: "编辑任务",
+                label: t('editTask'),
                 click: () => this.editTask(task)
             });
         }
 
         menu.addItem({
             iconHTML: "➕",
-            label: "创建子任务",
+            label: t('createSubtask'),
             click: () => this.showCreateTaskDialog(task)
         });
 
         // 粘贴新建子任务
         menu.addItem({
             iconHTML: "📋",
-            label: "粘贴新建子任务",
+            label: t('pasteCreateSubtask'),
             click: () => this.showPasteTaskDialog(task)
         });
 
@@ -1650,7 +1650,7 @@ export class ProjectKanbanView {
         if (task.parentId) {
             menu.addItem({
                 iconHTML: "🔗",
-                label: "解除父任务关系",
+                label: t('unsetParentRelation'),
                 click: () => this.unsetParentChildRelation(task)
             });
         }
@@ -1793,7 +1793,7 @@ export class ProjectKanbanView {
                         // 复制到剪贴板
                         try {
                             navigator.clipboard.writeText(text);
-                            showMessage('已复制子任务列表到剪贴板');
+                            showMessage(t('copiedSubtasksList'));
                         } catch (err) {
                             // 备用：使用临时 textarea
                             const ta = document.createElement('textarea');
@@ -1802,7 +1802,7 @@ export class ProjectKanbanView {
                             ta.select();
                             document.execCommand('copy');
                             document.body.removeChild(ta);
-                            showMessage('已复制子任务列表到剪贴板');
+                            showMessage(t('copiedSubtasksList'));
                         }
                     } else {
                         showMessage(t('noSubtasksToCopy'));
@@ -2678,20 +2678,20 @@ export class ProjectKanbanView {
 
         // 先尝试读取数据以计算所有后代任务数量，用于更准确的确认提示
         let confirmMessage = task.isRepeatInstance ?
-            `确定要删除周期任务 "${task.title}" 的所有实例吗？此操作不可撤销。` :
-            `确定要删除任务 "${task.title}" 吗？此操作不可撤销。`;
+            t('confirmDeleteRepeat', { title: task.title }) :
+            t('confirmDeleteTask', { title: task.title });
         try {
             const reminderDataForPreview = await readReminderData();
             const descendantIdsPreview = this.getAllDescendantIds(taskToDelete.id, reminderDataForPreview);
             if (descendantIdsPreview.length > 0) {
-                confirmMessage += `\n\n此任务包含 ${descendantIdsPreview.length} 个子任务（包括多级子任务），它们也将被一并删除。`;
+                confirmMessage += `\n\n${t('includesNSubtasks', { count: String(descendantIdsPreview.length) })}`;
             }
         } catch (err) {
             // 无法读取数据时，仍然显示通用提示
         }
 
         confirm(
-            "删除任务",
+            t('deleteTask'),
             confirmMessage,
             async () => {
                 try {
@@ -2740,7 +2740,7 @@ export class ProjectKanbanView {
 
     private startPomodoro(task: any) {
         if (!this.plugin) {
-            showMessage("无法启动番茄钟：插件实例不可用");
+            showMessage(t('pomodoroUnavailable'));
             return;
         }
 
@@ -2748,10 +2748,10 @@ export class ProjectKanbanView {
         const currentTimer = this.pomodoroManager.getCurrentPomodoroTimer();
         if (currentTimer && currentTimer.isWindowActive()) {
             const currentState = currentTimer.getCurrentState();
-            const currentTitle = currentState.reminderTitle || '当前任务';
-            const newTitle = task.title || '新任务';
+            const currentTitle = currentState.reminderTitle || t('currentPomodoroTask');
+            const newTitle = task.title || t('newPomodoroTask');
 
-            let confirmMessage = `当前正在进行番茄钟任务："${currentTitle}"，是否要切换到新任务："${newTitle}"？`;
+            let confirmMessage = `${t('currentPomodoroTask')}："${currentTitle}"，${t('switchPomodoroTask')}："${newTitle}"？`;
 
             if (currentState.isRunning && !currentState.isPaused) {
                 try {
@@ -2760,11 +2760,11 @@ export class ProjectKanbanView {
                     console.error('暂停当前番茄钟失败:', error);
                 }
 
-                confirmMessage += `\n\n选择"确定"将继承当前进度继续计时。`;
+                confirmMessage += `\n\n${t('switchAndInherit')}`;
             }
 
             confirm(
-                "切换番茄钟任务",
+                t('switchPomodoroTask'),
                 confirmMessage,
                 () => {
                     this.performStartPomodoro(task, currentState);
@@ -2786,7 +2786,7 @@ export class ProjectKanbanView {
 
     private startPomodoroCountUp(task: any) {
         if (!this.plugin) {
-            showMessage("无法启动番茄钟：插件实例不可用");
+            showMessage(t('pomodoroUnavailable'));
             return;
         }
 
@@ -2794,10 +2794,10 @@ export class ProjectKanbanView {
         const currentTimer = this.pomodoroManager.getCurrentPomodoroTimer();
         if (currentTimer && currentTimer.isWindowActive()) {
             const currentState = currentTimer.getCurrentState();
-            const currentTitle = currentState.reminderTitle || '当前任务';
-            const newTitle = task.title || '新任务';
+            const currentTitle = currentState.reminderTitle || t('currentPomodoroTask');
+            const newTitle = task.title || t('newPomodoroTask');
 
-            let confirmMessage = `当前正在进行番茄钟任务："${currentTitle}"，是否要切换到新的正计时任务："${newTitle}"？`;
+            let confirmMessage = `${t('currentPomodoroTask')}："${currentTitle}"，${t('switchToStopwatch')}："${newTitle}"？`;
 
             if (currentState.isRunning && !currentState.isPaused) {
                 try {
@@ -2806,11 +2806,11 @@ export class ProjectKanbanView {
                     console.error('暂停当前番茄钟失败:', error);
                 }
 
-                confirmMessage += `\n\n选择"确定"将继承当前进度继续计时。`;
+                confirmMessage += `\n\n${t('switchAndInherit')}`;
             }
 
             confirm(
-                "切换到正计时番茄钟",
+                t('switchToStopwatch'),
                 confirmMessage,
                 () => {
                     this.performStartPomodoroCountUp(task, currentState);
@@ -2907,10 +2907,10 @@ export class ProjectKanbanView {
 
                 // 如果继承了状态且原来正在运行，显示继承信息
                 if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
-                    const phaseText = inheritState.isWorkPhase ? '工作时间' : '休息时间';
-                    showMessage(`已切换到正计时模式并继承${phaseText}进度`, 2000);
+                    const phaseText = inheritState.isWorkPhase ? t('workTime') : t('breakTime');
+                    showMessage(t('switchToStopwatchWithInherit', { phase: phaseText }), 2000);
                 } else {
-                    showMessage("已启动正计时番茄钟", 2000);
+                    showMessage(t('startStopwatchSuccess'), 2000);
                 }
             }
         } else {
@@ -4591,8 +4591,8 @@ export class ProjectKanbanView {
      */
     private async deleteInstanceOnly(task: any) {
         await confirm(
-            "删除此实例",
-            `确定要删除周期任务 "${task.title}" 在 ${task.date} 的实例吗？`,
+            t('deleteThisInstance'),
+            t('confirmDeleteInstanceOf', { title: task.title, date: task.date }),
             async () => {
                 try {
                     const originalId = task.originalId;
