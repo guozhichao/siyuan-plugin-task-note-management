@@ -101,7 +101,7 @@ export class ProjectKanbanView {
         titleContainer.className = 'project-kanban-title';
 
         const titleEl = document.createElement('h2');
-        titleEl.textContent = this.project?.title || '项目看板';
+        titleEl.textContent = this.project?.title || t('projectKanban');
         titleEl.style.cssText = `
             margin: 0;
             font-size: 18px;
@@ -114,7 +114,7 @@ export class ProjectKanbanView {
             titleEl.style.cursor = 'pointer';
             titleEl.style.textDecoration = 'underline';
             titleEl.style.textDecorationStyle = 'dotted';
-            titleEl.title = '点击跳转到项目笔记';
+            titleEl.title = t('clickToJumpToProjectNote');
             titleEl.setAttribute('data-has-note', 'true');
 
             titleEl.addEventListener('click', () => {
@@ -161,23 +161,23 @@ export class ProjectKanbanView {
         // 新建任务按钮
         const addTaskBtn = document.createElement('button');
         addTaskBtn.className = 'b3-button b3-button--primary';
-        addTaskBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg> 新建任务';
+        addTaskBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg> ${t('newTask')}`;
         addTaskBtn.addEventListener('click', () => this.showCreateTaskDialog());
         controlsGroup.appendChild(addTaskBtn);
 
         const pasteTaskBtn = document.createElement('button');
         pasteTaskBtn.className = 'b3-button';
-        pasteTaskBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg> 粘贴新建';
+        pasteTaskBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg> ${t('pasteNew')}`;
         pasteTaskBtn.addEventListener('click', () => this.showPasteTaskDialog());
         controlsGroup.appendChild(pasteTaskBtn);
 
         // 显示/隐藏已完成任务
         const toggleDoneBtn = document.createElement('button');
         toggleDoneBtn.className = 'b3-button b3-button--outline';
-        toggleDoneBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconEye"></use></svg> ${this.showDone ? '隐藏已完成' : '显示已完成'}`;
+        toggleDoneBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconEye"></use></svg> ${this.showDone ? t('hideCompleted') : t('showCompleted')}`;
         toggleDoneBtn.addEventListener('click', () => {
             this.showDone = !this.showDone;
-            toggleDoneBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconEye"></use></svg> ${this.showDone ? '隐藏已完成' : '显示已完成'}`;
+            toggleDoneBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconEye"></use></svg> ${this.showDone ? t('hideCompleted') : t('showCompleted')}`;
             this.renderKanban();
         });
         controlsGroup.appendChild(toggleDoneBtn);
@@ -193,7 +193,7 @@ export class ProjectKanbanView {
         const refreshBtn = document.createElement('button');
         refreshBtn.className = 'b3-button b3-button--outline';
         refreshBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>';
-        refreshBtn.title = '刷新';
+        refreshBtn.title = t('refresh');
         refreshBtn.addEventListener('click', () => this.loadTasks());
         controlsGroup.appendChild(refreshBtn);
 
@@ -205,10 +205,10 @@ export class ProjectKanbanView {
         this.container.appendChild(kanbanContainer);
 
         // 创建四个列：进行中、短期、长期、已完成
-        this.createKanbanColumn(kanbanContainer, 'doing', '进行中', '#f39c12');
-        this.createKanbanColumn(kanbanContainer, 'short_term', '短期', '#3498db');
-        this.createKanbanColumn(kanbanContainer, 'long_term', '长期', '#9b59b6');
-        this.createKanbanColumn(kanbanContainer, 'done', '已完成', '#27ae60');
+        this.createKanbanColumn(kanbanContainer, 'doing', t('doing'), '#f39c12');
+        this.createKanbanColumn(kanbanContainer, 'short_term', t('shortTerm'), '#3498db');
+        this.createKanbanColumn(kanbanContainer, 'long_term', t('longTerm'), '#9b59b6');
+        this.createKanbanColumn(kanbanContainer, 'done', t('done'), '#27ae60');
 
         // 添加自定义样式
         this.addCustomStyles();
@@ -573,31 +573,31 @@ export class ProjectKanbanView {
     private updateSortButtonTitle() {
         if (this.sortButton) {
             const sortNames = {
-                'time': '时间',
-                'priority': '优先级',
-                'title': '标题'
+                'time': t('sortingTime'),
+                'priority': t('sortingPriority'),
+                'title': t('sortingTitle')
             };
             const orderNames = {
-                'asc': '升序',
-                'desc': '降序'
+                'asc': t('ascendingOrder'),
+                'desc': t('descendingOrder')
             };
-            this.sortButton.title = `排序: ${sortNames[this.currentSort]} (${orderNames[this.currentSortOrder]})`;
+            this.sortButton.title = `${t('sortBy')}: ${sortNames[this.currentSort]} (${orderNames[this.currentSortOrder]})`;
         }
     }
 
     private updateDoneSortButtonTitle() {
         if (this.doneSortButton) {
             const sortNames = {
-                'completedTime': '完成时间',
-                'title': '标题',
-                'priority': '优先级',
-                'time': '设定时间'
+                'completedTime': t('sortByCompletedTime'),
+                'title': t('sortingTitle'),
+                'priority': t('sortingPriority'),
+                'time': t('sortBySetTime')
             };
             const orderNames = {
-                'asc': '升序',
-                'desc': '降序'
+                'asc': t('ascendingOrder'),
+                'desc': t('descendingOrder')
             };
-            this.doneSortButton.title = `排序: ${sortNames[this.doneSort] || '完成时间'} (${orderNames[this.doneSortOrder] || '降序'})`;
+            this.doneSortButton.title = `${t('sortBy')}: ${sortNames[this.doneSort] || t('sortByCompletedTime')} (${orderNames[this.doneSortOrder] || t('descendingOrder')})`;
         }
     }
 
@@ -914,7 +914,7 @@ export class ProjectKanbanView {
             const collapseBtn = document.createElement('button');
             collapseBtn.className = 'b3-button b3-button--text kanban-task-collapse-btn';
             collapseBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#icon${isCollapsed ? 'Right' : 'Down'}"></use></svg>`;
-            collapseBtn.title = isCollapsed ? '展开子任务' : '折叠子任务';
+            collapseBtn.title = isCollapsed ? t('expandSubtasks') : t('collapseSubtasks');
             collapseBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (isCollapsed) {
@@ -992,15 +992,15 @@ export class ProjectKanbanView {
             `;
         }
 
-        titleEl.textContent = task.title || '未命名任务';
-        titleEl.title = (task.blockId || task.docId) ? `点击打开绑定块: ${task.title || '未命名任务'}` : (task.title || '未命名任务');
+        titleEl.textContent = task.title || t('noContentHint');
+        titleEl.title = (task.blockId || task.docId) ? t('clickToOpenBoundBlock', { title: task.title || t('noContentHint') }) : (task.title || t('noContentHint'));
 
         // 如果有子任务，添加数量指示器
         if (childTasks.length > 0) {
             const subtaskIndicator = document.createElement('span');
             subtaskIndicator.className = 'subtask-indicator';
             subtaskIndicator.textContent = ` (${childTasks.length})`;
-            subtaskIndicator.title = `包含 ${childTasks.length} 个子任务`;
+            subtaskIndicator.title = t('containsNSubtasks', { count: childTasks.length });
             subtaskIndicator.style.cssText = `
                 font-size: 12px;
                 color: var(--b3-theme-on-surface);
@@ -1382,21 +1382,21 @@ export class ProjectKanbanView {
             }
 
             if (task.endDate === today) {
-                return '今天截止';
+                return t('todayDeadline');
             } else if (task.endDate === tomorrowStr) {
-                return '明天截止';
+                return t('tomorrowDeadline');
             } else {
                 const dateStr = formatDateWithYear(task.endDate, endDate);
-                return `${dateStr} 截止`;
+                return `${dateStr} ${t('countdownEnd')}`;
             }
         }
 
         // 如果有开始时间，按原逻辑显示
         let dateStr = '';
         if (task.date === today) {
-            dateStr = '今天';
+            dateStr = t('today');
         } else if (task.date === tomorrowStr) {
-            dateStr = '明天';
+            dateStr = t('tomorrow');
         } else {
             const taskDate = new Date(task.date);
             const taskYear = taskDate.getFullYear();
@@ -1405,7 +1405,7 @@ export class ProjectKanbanView {
             if (task.date < today) {
                 const daysDiff = getExpiredDays(task.date);
                 const formattedDate = formatDateWithYear(task.date, taskDate);
-                dateStr = `${formattedDate} ${createExpiredBadge(daysDiff)}`;
+                dateStr = `${formattedDate} ${createExpiredBadge(daysDiff)} `;
             } else {
                 // 如果不在今年，显示年份
                 dateStr = formatDateWithYear(task.date, taskDate);
@@ -1433,7 +1433,7 @@ export class ProjectKanbanView {
             if (task.endDate < today) {
                 const daysDiff = getExpiredDays(task.endDate);
                 const formattedEndDate = formatDateWithYear(task.endDate, taskEndDate);
-                endDateStr = `${formattedEndDate} ${createExpiredBadge(daysDiff)}`;
+                endDateStr = `${formattedEndDate} ${createExpiredBadge(daysDiff)} `;
             } else {
                 // 如果结束日期不在今年，显示年份
                 endDateStr = formatDateWithYear(task.endDate, taskEndDate);
@@ -1441,11 +1441,11 @@ export class ProjectKanbanView {
         }
 
         if (endDateStr) {
-            return `${dateStr} → ${endDateStr}`;
+            return `${dateStr} → ${endDateStr} `;
         }
 
         if (task.time) {
-            return `${dateStr} ${task.time}`;
+            return `${dateStr} ${task.time} `;
         }
 
         return dateStr || "未设置日期";
@@ -1464,7 +1464,7 @@ export class ProjectKanbanView {
             // 如果还没开始
             if (startDays > 0) {
                 return {
-                    text: startDays === 1 ? '明天开始' : `${startDays}天后开始`,
+                    text: startDays === 1 ? t('tomorrowStart') : t('startsInNDays', { days: startDays }),
                     days: startDays,
                     type: 'start'
                 };
@@ -1478,7 +1478,7 @@ export class ProjectKanbanView {
 
                 if (endDays >= 0) {
                     return {
-                        text: endDays === 0 ? '今天截止' : `${endDays}天截止`,
+                        text: endDays === 0 ? t('todayEnd') : t('endsInNDays', { days: endDays }),
                         days: endDays,
                         type: 'end'
                     };
@@ -1493,7 +1493,7 @@ export class ProjectKanbanView {
 
             if (endDays >= 0) {
                 return {
-                    text: endDays === 0 ? '今天截止' : `${endDays}天截止`,
+                    text: endDays === 0 ? t('todayEnd') : t('endsInNDays', { days: endDays }),
                     days: endDays,
                     type: 'end'
                 };
@@ -1632,10 +1632,10 @@ export class ProjectKanbanView {
         // 设置优先级子菜单
         const priorityMenuItems = [];
         const priorities = [
-            { key: 'high', label: '高优先级', icon: '🔴' },
-            { key: 'medium', label: '中优先级', icon: '🟡' },
-            { key: 'low', label: '低优先级', icon: '🔵' },
-            { key: 'none', label: '无优先级', icon: '⚫' }
+            { key: 'high', label: t('priorityHigh'), icon: '🔴' },
+            { key: 'medium', label: t('priorityMedium'), icon: '🟡' },
+            { key: 'low', label: t('priorityLow'), icon: '🔵' },
+            { key: 'none', label: t('none'), icon: '⚫' }
         ];
 
         const currentPriority = task.priority || 'none';
@@ -1677,7 +1677,7 @@ export class ProjectKanbanView {
         if (currentTermType !== 'short_term') {
             menu.addItem({
                 iconHTML: "📝",
-                label: "设为短期待办",
+                label: t('setAsShortTerm'),
                 click: () => this.changeTaskStatus(task, 'short_term')
             });
         }
@@ -1685,7 +1685,7 @@ export class ProjectKanbanView {
         if (currentTermType !== 'long_term') {
             menu.addItem({
                 iconHTML: "🎯",
-                label: "设为长期待办",
+                label: t('setAsLongTerm'),
                 click: () => this.changeTaskStatus(task, 'long_term')
             });
         }
@@ -1697,7 +1697,7 @@ export class ProjectKanbanView {
         if (currentStatus !== 'doing') {
             menu.addItem({
                 iconHTML: "⚡",
-                label: "移动到进行中",
+                label: t('moveToDoing'),
                 click: () => this.changeTaskStatus(task, 'doing')
             });
         }
@@ -1705,7 +1705,7 @@ export class ProjectKanbanView {
         if (currentStatus !== 'done') {
             menu.addItem({
                 iconHTML: "✅",
-                label: "标记为完成",
+                label: t('markCompleted'),
                 click: () => this.changeTaskStatus(task, 'done')
             });
         }
@@ -1715,13 +1715,13 @@ export class ProjectKanbanView {
         // 番茄钟
         menu.addItem({
             iconHTML: "🍅",
-            label: "开始番茄钟",
+            label: t('startPomodoro'),
             click: () => this.startPomodoro(task)
         });
 
         menu.addItem({
             iconHTML: "⏱️",
-            label: "开始正计时",
+            label: t('startStopwatch'),
             click: () => this.startPomodoroCountUp(task)
         });
 
@@ -1744,7 +1744,7 @@ export class ProjectKanbanView {
             // 普通任务或原始周期事件
             menu.addItem({
                 iconHTML: "🗑️",
-                label: "删除任务",
+                label: t('deleteTask'),
                 click: () => this.deleteTask(task)
             });
         }
@@ -1753,7 +1753,7 @@ export class ProjectKanbanView {
         if (childTasks.length > 0) {
             menu.addItem({
                 iconHTML: "📋",
-                label: "复制子任务为列表",
+                label: t('copySubtasksAsList'),
                 click: () => {
                     const childLines = this.buildMarkdownListFromChildren(task.id);
                     if (childLines && childLines.length > 0) {
@@ -1773,7 +1773,7 @@ export class ProjectKanbanView {
                             showMessage('已复制子任务列表到剪贴板');
                         }
                     } else {
-                        showMessage('该任务没有子任务可复制');
+                        showMessage(t('noSubtasksToCopy'));
                     }
                 }
             });
@@ -1988,15 +1988,15 @@ export class ProjectKanbanView {
                         try {
                             await updateBlockReminderBookmark(childTask.blockId || childTask.docId);
                         } catch (error) {
-                            console.warn(`更新子任务 ${childId} 的块书签失败:`, error);
+                            console.warn(`更新子任务 ${childId} 的块书签失败: `, error);
                         }
                     }
                 }
             }
 
             if (completedCount > 0) {
-                console.log(`父任务 ${parentId} 完成时，自动完成了 ${completedCount} 个子任务`);
-                showMessage(`已自动完成 ${completedCount} 个子任务`, 2000);
+                console.log(`${t('parentTaskCompleted')} ${parentId}, ${t('autoCompleteSubtasks', { count: completedCount })} `);
+                showMessage(t('autoCompleteSubtasks', { count: completedCount }), 2000);
             }
         } catch (error) {
             console.error('自动完成子任务失败:', error);
@@ -2040,17 +2040,17 @@ export class ProjectKanbanView {
         const menuEl = document.createElement('div');
         menuEl.className = 'kanban-sort-menu';
         menuEl.style.cssText = `
-            position: absolute;
+                position: absolute;
             background: var(--b3-theme-surface);
             border: 1px solid var(--b3-theme-border);
             border-radius: 6px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            padding: 8px;
+                padding: 8px;
             z-index: 100;
-            display: flex;
+                display: flex;
             flex-direction: column;
-            gap: 4px;
-        `;
+                gap: 4px;
+                `;
 
         const sortOptions = [
             { key: 'priority', label: '优先级', icon: '🎯' },
@@ -2068,11 +2068,11 @@ export class ProjectKanbanView {
                 text-align: left;
                 background-color: ${isActive ? 'var(--b3-theme-primary-lightest)' : 'transparent'};
                 color: ${isActive ? 'var(--b3-theme-primary)' : 'var(--b3-theme-on-surface)'};
-            `;
+                `;
             button.innerHTML = `
-                <span style="font-size: 16px; margin-right: 8px;">${option.icon}</span>
-                <span>${option.label} (${order === 'asc' ? '升序' : '降序'})</span>
-            `;
+                    < span style="font-size: 16px; margin-right: 8px;" > ${option.icon} </span>
+                        < span>${option.label} (${order === 'asc' ? t('ascendingOrder') : t('descendingOrder')})</span>
+                            `;
             button.addEventListener('click', () => {
                 this.currentSort = option.key;
                 this.currentSortOrder = order;
@@ -2092,8 +2092,8 @@ export class ProjectKanbanView {
         document.body.appendChild(menuEl);
 
         const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-        menuEl.style.top = `${rect.bottom + 4}px`;
-        menuEl.style.left = `${rect.right - menuEl.offsetWidth}px`;
+        menuEl.style.top = `${rect.bottom + 4} px`;
+        menuEl.style.left = `${rect.right - menuEl.offsetWidth} px`;
 
         const closeMenu = () => {
             menuEl.remove();
@@ -2125,17 +2125,17 @@ export class ProjectKanbanView {
             });
         };
 
-        addMenuItem('完成时间 (降序)', 'completedTime', 'desc');
-        addMenuItem('完成时间 (升序)', 'completedTime', 'asc');
+        addMenuItem(`${t('sortByCompletedTime')} (${t('descendingOrder')})`, 'completedTime', 'desc');
+        addMenuItem(`${t('sortByCompletedTime')} (${t('ascendingOrder')})`, 'completedTime', 'asc');
         menu.addSeparator();
-        addMenuItem('优先级 (高到低)', 'priority', 'desc');
-        addMenuItem('优先级 (低到高)', 'priority', 'asc');
+        addMenuItem(`${t('sortingPriority')} (${t('descendingOrder')})`, 'priority', 'desc');
+        addMenuItem(`${t('sortingPriority')} (${t('ascendingOrder')})`, 'priority', 'asc');
         menu.addSeparator();
-        addMenuItem('设定时间 (降序)', 'time', 'desc');
-        addMenuItem('设定时间 (升序)', 'time', 'asc');
+        addMenuItem(`${t('sortBySetTime')} (${t('descendingOrder')})`, 'time', 'desc');
+        addMenuItem(`${t('sortBySetTime')} (${t('ascendingOrder')})`, 'time', 'asc');
         menu.addSeparator();
-        addMenuItem('标题 (升序)', 'title', 'asc');
-        addMenuItem('标题 (降序)', 'title', 'desc');
+        addMenuItem(`${t('sortingTitle')} (${t('ascendingOrder')})`, 'title', 'asc');
+        addMenuItem(`${t('sortingTitle')} (${t('descendingOrder')})`, 'title', 'desc');
 
         menu.open({
             x: event.clientX,
@@ -2194,17 +2194,17 @@ export class ProjectKanbanView {
                     if (latestTask) {
                         // 设置父任务关系
                         (latestTask as any).parentId = parentTask.id;
-        
+
                         // 如果最新创建的任务没有优先级，继承父任务的优先级
                         if (!(latestTask as any).priority || (latestTask as any).priority === 'none') {
                             (latestTask as any).priority = parentTask.priority || 'none';
                         }
-        
+
                         reminderData[(latestTask as any).id] = latestTask;
                         await writeReminderData(reminderData);
-        
+
                         showMessage(`子任务已创建并关联到 "${parentTask.title}"`);
-        
+
                         // 再次刷新看板
                         this.loadTasks();
                     }
@@ -2249,35 +2249,35 @@ export class ProjectKanbanView {
             title: "粘贴列表新建任务",
             content: `
                 <div class="b3-dialog__content">
-                    <p>粘贴Markdown列表或多行文本，每行将创建一个任务。支持多层级列表自动创建父子任务。</p>
+                        <p>粘贴Markdown列表或多行文本，每行将创建一个任务。支持多层级列表自动创建父子任务。</p>
                     <p style="font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8; margin-bottom: 4px;">
                         支持语法：<code>@priority=high&startDate=2025-08-12&endDate=2025-08-30</code>
-                    </p>
+                                    </p>
                     <p style="font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8; margin-bottom: 4px;">
-                        支持块链接：<code>[任务标题](siyuan://blocks/块ID)</code> 或 <code>((块ID '任务标题'))</code>
-                    </p>
+                                        支持块链接：<code>[任务标题](siyuan://blocks/块ID)</code> 或 <code>((块ID '任务标题'))</code>
+                                            </p>
                     <p style="font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8; margin-bottom: 8px;">
                         支持多层级：使用缩进或多个<code>-</code>符号创建父子任务关系
-                    </p>
+                                            </p>
                     <textarea id="taskList" class="b3-text-field"
                         placeholder="示例：
 - 完成项目文档 @priority=high&startDate=2025-08-12&endDate=2025-08-15
-  - 需求文档
-  - 技术方案
-    - 架构设计
-    - 接口设计
+                                            - 需求文档
+                                            - 技术方案
+                                            - 架构设计
+                                            - 接口设计
 - 准备会议材料 @priority=medium&startDate=2025-08-13
-  - PPT制作
-  - 数据整理
-- [思源笔记插件开发丨任务笔记管理插件](siyuan://blocks/20250610000808-3vqwuh3)
+                                        - PPT制作
+                                        - 数据整理
+                                        - [思源笔记插件开发丨任务笔记管理插件](siyuan://blocks/20250610000808-3vqwuh3)
 - 学习新技术 @priority=low"
                         style="width: 100%; height: 250px; resize: vertical;"></textarea>
-                </div>
+                                            </div>
                 <div class="b3-dialog__action">
                     <button class="b3-button b3-button--cancel" id="cancelBtn">取消</button>
                     <button class="b3-button b3-button--primary" id="createBtn">创建任务</button>
-                </div>
-            `,
+                                            </div>
+                                                `,
             width: "500px",
         });
 
@@ -2461,8 +2461,8 @@ export class ProjectKanbanView {
                         newTask.docId = block.root_id || task.blockId;
 
                         // 如果任务标题为空或者是默认标题，使用块内容作为标题
-                        if (!task.title || task.title === '未命名任务') {
-                            newTask.title = block.content || block.fcontent || '未命名任务';
+                        if (!task.title || task.title === t('noContentHint')) {
+                            newTask.title = block.content || block.fcontent || t('noContentHint');
                         }
 
                         // 更新块的书签状态
@@ -2597,7 +2597,7 @@ export class ProjectKanbanView {
         }
 
         return {
-            title: title.trim() || '未命名任务',
+            title: title.trim() || t('noContentHint'),
             priority,
             startDate,
             endDate,
@@ -2689,7 +2689,7 @@ export class ProjectKanbanView {
                                 try {
                                     await updateBlockReminderBookmark(t.blockId || t.docId);
                                 } catch (err) {
-                                    console.warn(`更新已删除任务 ${taskId} 的块书签失败:`, err);
+                                    console.warn(`更新已删除任务 ${taskId} 的块书签失败: `, err);
                                 }
                             }
                         }
@@ -2927,8 +2927,8 @@ export class ProjectKanbanView {
         style.textContent = `
             .project-kanban-view {
                 height: 100%;
-                display: flex;
-                flex-direction: column;
+                                                display: flex;
+                                                flex-direction: column;
                 background: var(--b3-theme-background);
             }
 
@@ -3444,59 +3444,59 @@ export class ProjectKanbanView {
             }
 
            .kanban-task-checkbox {
-               -webkit-appearance: none;
-               appearance: none;
-               background-color: var(--b3-theme-surface);
-               margin: 0;
-               margin-top: 5px; /* 微调对齐 */
-               font: inherit;
-               color: var(--b3-theme-on-surface);
-               width: 1.15em;
-               height: 1.15em;
-               border: 0.1em solid var(--b3-theme-on-surface);
-               border-radius: 0.25em;
-               transform: translateY(-0.075em);
-               display: grid;
-               place-content: center;
-               cursor: pointer;
-               transition: all 0.2s ease;
-               flex-shrink: 0;
-           }
+                -webkit-appearance: none;
+                appearance: none;
+                background-color: var(--b3-theme-surface);
+                margin: 0;
+                margin-top: 5px; /* 微调对齐 */
+                font: inherit;
+                color: var(--b3-theme-on-surface);
+                width: 1.15em;
+                height: 1.15em;
+                border: 0.1em solid var(--b3-theme-on-surface);
+                border-radius: 0.25em;
+                transform: translateY(-0.075em);
+                display: grid;
+                place-content: center;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                flex-shrink: 0;
+            }
 
            .kanban-task-checkbox:hover {
-               border-color: var(--b3-theme-primary);
-           }
+                border-color: var(--b3-theme-primary);
+            }
 
            .kanban-task-checkbox::before {
-               content: "";
-               width: 0.65em;
-               height: 0.65em;
-               transform: scale(0);
-               transition: 120ms transform ease-in-out;
-               box-shadow: inset 1em 1em var(--b3-theme-primary);
-               transform-origin: bottom left;
-               clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
-           }
+                content: "";
+                width: 0.65em;
+                height: 0.65em;
+                transform: scale(0);
+                transition: 120ms transform ease-in-out;
+                box-shadow: inset 1em 1em var(--b3-theme-primary);
+                transform-origin: bottom left;
+                clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+            }
 
            .kanban-task-checkbox:checked {
-               background: var(--b3-theme-primary);
-               border-color: var(--b3-theme-primary);
-           }
+                background: var(--b3-theme-primary);
+                border-color: var(--b3-theme-primary);
+            }
 
            .kanban-task-checkbox:checked::before {
-               transform: scale(1);
-               box-shadow: inset 1em 1em var(--b3-theme-surface);
-           }
+                transform: scale(1);
+                box-shadow: inset 1em 1em var(--b3-theme-surface);
+            }
 
            .kanban-task-collapse-btn {
-               width: 10px;
-               min-width: auto;
-               color: var(--b3-theme-on-surface);
-               opacity: 0.6;
-               display: flex;
-               align-items: center;
-               justify-content: center;
-           }
+                width: 10px;
+                min-width: auto;
+                color: var(--b3-theme-on-surface);
+                opacity: 0.6;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
            .kanban-task-collapse-btn .b3-button__icon {
                 margin: 0;
             }
@@ -3505,29 +3505,29 @@ export class ProjectKanbanView {
                 width: 10px;
             }
            .kanban-task-collapse-btn:hover {
-               opacity: 1;
-               color: var(--b3-theme-primary);
-               background: var(--b3-theme-surface-lighter);
-           }
+                opacity: 1;
+                color: var(--b3-theme-primary);
+                background: var(--b3-theme-surface-lighter);
+            }
 
            /* 项目标题点击样式 */
            .project-kanban-title h2 {
-               cursor: pointer;
-               transition: color 0.2s ease;
-           }
+                cursor: pointer;
+                transition: color 0.2s ease;
+            }
            
            .project-kanban-title h2:hover {
-               color: var(--b3-theme-primary);
-           }
+                color: var(--b3-theme-primary);
+            }
            
            .project-kanban-title h2[data-has-note="true"] {
-               text-decoration: underline;
-               text-decoration-style: dotted;
-           }
+                text-decoration: underline;
+                text-decoration-style: dotted;
+            }
            
            .project-kanban-title h2[data-has-note="true"]:hover {
-               color: var(--b3-theme-primary);
-           }
+                color: var(--b3-theme-primary);
+            }
             /* 父任务子任务进度条 */
             .kanban-task-progress-container {
                 margin-top: 8px;
@@ -3554,7 +3554,7 @@ export class ProjectKanbanView {
                 min-width: 34px;
                 text-align: right;
             }
-       `;
+            `;
         document.head.appendChild(style);
     }
     private renderCategorySelector(container: HTMLElement, defaultCategoryId?: string) {
