@@ -441,6 +441,8 @@
     "reminderSystemNotificationDesc": "任务提醒时显示系统弹窗通知，支持点击跳转到相关块",
     "dailyNotificationTime": "每日通知时间",
     "dailyNotificationTimeDesc": "设置每天几点后进行全天事项通知（0-24点），默认上午8点",
+    "dailyNotificationEnabled": "启用每日统一通知",
+    "dailyNotificationEnabledDesc": "每天在指定时间统一显示全天事项的汇总通知，关闭后将不再进行通知",
     "timeReminderNotification": "任务提醒",
     "dailyRemindersNotification": "今日事项提醒",
     "dailyRemindersMessage": "您有 ${overdue} 个过期事项和 ${today} 个今日事项",
@@ -716,5 +718,5 @@
     "taskTitle": "任务标题",
     "blockId": "块ID",
     "or": "或",
-    "multiLevelSupport": "支持多层级：使用缩进或多个<code>-</code>符号创建父子任务关系",
+    "multiLevelSupport": "支持多层级：使用缩进或多个<code>-</code>符号创建父子任务关系"
 }

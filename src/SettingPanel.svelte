@@ -45,6 +45,13 @@
                     description: t('dailyNotificationTimeDesc'),
                 },
                 {
+                    key: 'dailyNotificationEnabled',
+                    value: settings.dailyNotificationEnabled,
+                    type: 'checkbox',
+                    title: t('dailyNotificationEnabled'),
+                    description: t('dailyNotificationEnabledDesc'),
+                },
+                {
                     key: 'autoDetectDateTime',
                     value: settings.autoDetectDateTime,
                     type: 'checkbox',

@@ -59,6 +59,7 @@ export const DEFAULT_SETTINGS = {
     pomodoroSystemNotification: true, // 新增：番茄结束后系统弹窗
     reminderSystemNotification: true, // 新增：事件到期提醒系统弹窗
     dailyNotificationTime: 8, // 新增：每日通知时间，默认8点
+    dailyNotificationEnabled: true, // 新增：是否启用每日统一通知
     randomNotificationEnabled: false,
     randomNotificationMinInterval: 3,
     randomNotificationMaxInterval: 10,
@@ -1107,6 +1108,12 @@ export default class ReminderPlugin extends Plugin {
                 return;
             }
 
+            // 检查是否启用了每日统一通知
+            const dailyNotificationEnabled = await this.getDailyNotificationEnabled();
+            if (!dailyNotificationEnabled) {
+                return;
+            }
+
             // 检查今天是否已经提醒过全天事件
             let hasNotifiedDailyToday = false;
             try {
@@ -1897,6 +1904,12 @@ export default class ReminderPlugin extends Plugin {
         const time = settings.dailyNotificationTime;
         // 确保时间在0-24范围内
         return Math.max(0, Math.min(24, typeof time === 'number' ? time : DEFAULT_SETTINGS.dailyNotificationTime));
+    }
+
+    // 获取每日通知启用状态
+    async getDailyNotificationEnabled(): Promise<boolean> {
+        const settings = await this.loadSettings();
+        return settings.dailyNotificationEnabled !== false;
     }
 
     // 获取自动识别日期时间设置

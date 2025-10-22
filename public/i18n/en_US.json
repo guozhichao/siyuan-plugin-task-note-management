@@ -438,6 +438,8 @@
     "reminderSystemNotificationDesc": "Show system notification popup when events are due, supports clicking to jump to related blocks",
     "dailyNotificationTime": "Daily Notification Time",
     "dailyNotificationTimeDesc": "Set the time of day to show daily reminders (0-24 hours), default is 8 AM",
+    "dailyNotificationEnabled": "Enable Daily Unified Notification",
+    "dailyNotificationEnabledDesc": "Show a unified daily summary notification of all-day items at the specified time. When disabled, daily reminder notifications will not be displayed",
     "timeReminderNotification": "Time Reminder",
     "dailyRemindersNotification": "Daily Reminders",
     "dailyRemindersMessage": "You have {overdue} overdue items and {today} today's items",
@@ -717,5 +719,5 @@
     "taskTitle": "Task Title",
     "blockId": "Block ID",
     "or": "or",
-    "multiLevelSupport": "Multi-level support: Use indentation or multiple <code>-</code> symbols to create parent-child task relationships",
+    "multiLevelSupport": "Multi-level support: Use indentation or multiple <code>-</code> symbols to create parent-child task relationships"
 }
