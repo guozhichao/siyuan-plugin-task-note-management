@@ -275,6 +275,7 @@ export class ReminderPanel {
             <option value="overdue">${t("overdueReminders")}</option>
             <option value="all">${t("past7Reminders")}</option>
             <option value="todayCompleted">${t("todayCompletedReminders")}</option>
+            <option value="yesterdayCompleted">${t("yesterdayCompletedReminders")}</option>
             <option value="completed">${t("completedReminders")}</option>
         `;
         this.filterSelect.addEventListener('change', () => {
@@ -1470,6 +1471,9 @@ export class ReminderPanel {
         const tomorrow = getLocalDateString(new Date(Date.now() + 86400000));
         const future7Days = getLocalDateString(new Date(Date.now() + 7 * 86400000));
         const sevenDaysAgo = getLocalDateString(new Date(Date.now() - 7 * 86400000));
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = getLocalDateString(yesterday);
 
         const isEffectivelyCompleted = (reminder: any) => {
             // 如果任务已标记为完成，直接返回 true
@@ -1530,6 +1534,26 @@ export class ReminderPanel {
                     // 未直接标记为完成的（可能为跨天事件的今日已完成标记）
                     return r.endDate && this.isSpanningEventTodayCompleted(r) && compareDateStrings(r.date, today) <= 0 && compareDateStrings(today, r.endDate) <= 0;
                 });
+            case 'yesterdayCompleted':
+                return reminders.filter(r => {
+                    // 已标记为完成的：如果其完成时间（completedTime）在昨日，则视为昨日已完成
+                    if (r.completed) {
+                        try {
+                            const completedTime = this.getCompletedTime(r);
+                            if (completedTime) {
+                                const completedDate = completedTime.split(' ')[0];
+                                if (completedDate === yesterdayStr) return true;
+                            }
+                        } catch (e) {
+                            // ignore and fallback to date checks
+                        }
+
+                        return (r.endDate && compareDateStrings(r.date, yesterdayStr) <= 0 && compareDateStrings(yesterdayStr, r.endDate) <= 0) || r.date === yesterdayStr;
+                    }
+
+                    // 未直接标记为完成的（可能为跨天事件的昨日已完成标记）
+                    return r.endDate && this.isSpanningEventYesterdayCompleted(r) && compareDateStrings(r.date, yesterdayStr) <= 0 && compareDateStrings(yesterdayStr, r.endDate) <= 0;
+                });
             case 'all': // Past 7 days
                 return reminders.filter(r => r.date && compareDateStrings(sevenDaysAgo, r.date) <= 0 && compareDateStrings(r.endDate || r.date, today) < 0);
             default:
@@ -1585,6 +1609,30 @@ export class ReminderPanel {
         return false;
     }
 
+    /**
+     * 检查跨天事件是否已标记"昨日已完成"
+     * @param reminder 提醒对象
+     * @returns 是否已标记昨日已完成
+     */
+    private isSpanningEventYesterdayCompleted(reminder: any): boolean {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = getLocalDateString(yesterday);
+
+        if (reminder.isRepeatInstance) {
+            // 重复事件实例：检查原始事件的每日完成记录
+            const originalReminder = this.getOriginalReminder(reminder.originalId);
+            if (originalReminder && originalReminder.dailyCompletions) {
+                return originalReminder.dailyCompletions[yesterdayStr] === true;
+            }
+        } else {
+            // 普通事件：检查事件的每日完成记录
+            return reminder.dailyCompletions && reminder.dailyCompletions[yesterdayStr] === true;
+        }
+
+        return false;
+    }
+
     private renderReminders(reminderData: any) {
         // This function is now largely superseded by the new loadReminders logic.
         // It can be kept as a fallback or for simpler views if needed, but for now, we clear the container if no data.
@@ -1596,6 +1644,7 @@ export class ReminderPanel {
                 'overdue': t("noOverdueReminders"),
                 'completed': t("noCompletedReminders"),
                 'todayCompleted': "今日暂无已完成任务",
+                'yesterdayCompleted': "昨日暂无已完成任务",
                 'all': t("noPast7Reminders")
             };
             this.remindersContainer.innerHTML = `<div class="reminder-empty">${filterNames[this.currentTab] || t("noReminders")}</div>`;

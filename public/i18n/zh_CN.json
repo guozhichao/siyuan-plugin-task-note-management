@@ -23,6 +23,7 @@
     "overdueReminders": "过期任务",
     "completedReminders": "已完成",
     "todayCompletedReminders": "今日已完成",
+    "yesterdayCompletedReminders": "昨日已完成",
     "past7Reminders": "过去七天",
     "noReminders": "暂无任务",
     "noTodayReminders": "暂无今日任务",
