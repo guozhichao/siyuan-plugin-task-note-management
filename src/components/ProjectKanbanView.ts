@@ -1083,8 +1083,7 @@ export class ProjectKanbanView {
                         urgencyClass = 'countdown-warning';
                     }
 
-                    const prefix = countdownInfo.type === 'start' ? '剩' : '';
-                    dateHtml += `<span class="countdown-badge ${urgencyClass}">${prefix}${countdownInfo.text}</span>`;
+                    dateHtml += `<span class="countdown-badge ${urgencyClass}">${countdownInfo.text}</span>`;
                 }
             }
 
@@ -2295,14 +2294,8 @@ export class ProjectKanbanView {
                     <textarea id="taskList" class="b3-text-field"
                         placeholder="示例：
 - 完成项目文档 @priority=high&startDate=2025-08-12&endDate=2025-08-15
-                                            - 需求文档
-                                            - 技术方案
-                                            - 架构设计
-                                            - 接口设计
 - 准备会议材料 @priority=medium&startDate=2025-08-13
-                                        - PPT制作
-                                        - 数据整理
-                                        - [思源笔记插件开发丨任务笔记管理插件](siyuan://blocks/20250610000808-3vqwuh3)
+- [思源笔记插件开发丨任务笔记管理插件](siyuan://blocks/20250610000808-3vqwuh3)
 - 学习新技术 @priority=low"
                         style="width: 100%; height: 250px; resize: vertical;"></textarea>
                                             </div>
