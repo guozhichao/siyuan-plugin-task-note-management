@@ -4681,8 +4681,8 @@ export class ReminderPanel {
                 endDate: reminder.endDate,
                 time: reminder.time,
                 endTime: reminder.endTime,
-                // 修改备注逻辑：只有实例有明确的备注时才使用，否则为空
-                note: instanceMod?.note || '',  // 每个实例的备注都是独立的，默认为空
+                // 修改备注逻辑：复用原始事件的备注内容
+                note: instanceMod?.note || originalReminder.note || '',  // 优先使用实例备注，其次复用原始事件备注
                 isInstance: true,
                 originalId: reminder.originalId,
                 instanceDate: reminder.date

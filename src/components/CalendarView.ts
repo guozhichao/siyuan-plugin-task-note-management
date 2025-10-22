@@ -772,8 +772,8 @@ export class CalendarView {
                 endDate: calendarEvent.extendedProps.endDate,
                 time: calendarEvent.extendedProps.time,
                 endTime: calendarEvent.extendedProps.endTime,
-                // 修改备注逻辑：只有实例有明确的备注时才使用，否则为空
-                note: instanceMod?.note || '',  // 每个实例的备注都是独立的，默认为空
+                // 修改备注逻辑：复用原始事件的备注，如果实例有明确的备注则优先使用
+                note: instanceMod?.note || originalReminder.note || '',  // 优先使用实例备注，其次使用原始事件备注
                 isInstance: true,
                 originalId: originalId,
                 instanceDate: instanceDate

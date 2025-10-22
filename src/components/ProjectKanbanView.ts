@@ -4576,7 +4576,7 @@ export class ProjectKanbanView {
                 endDate: task.endDate,
                 time: task.time,
                 endTime: task.endTime,
-                note: instanceMod?.note || '',  // 每个实例的备注都是独立的，默认为空
+                note: instanceMod?.note || originalReminder.note || '',  // 复用原始事件备注，实例修改优先
                 isInstance: true,
                 originalId: task.originalId,
                 instanceDate: task.date
