@@ -463,6 +463,7 @@
     "openPomodoroWindowFailed": "打开番茄钟窗口失败",
     "daysRemaining": "还剩${days}天",
     "overdueDays": "已过期${days}天",
+    "daysAgo": "${days}天前",
     "dueToday": "今天截止",
     "startedDays": "已开始${days}天",
     "startToday": "今天开始",

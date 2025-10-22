@@ -460,6 +460,7 @@
     "openPomodoroWindowFailed": "Failed to open Pomodoro window",
     "daysRemaining": "${days} days remaining",
     "overdueDays": "Overdue by ${days} days",
+    "daysAgo": "${days} days ago",
     "dueToday": "Due today",
     "startedDays": "Started ${days} days ago",
     "startToday": "Starting today",

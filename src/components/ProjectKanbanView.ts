@@ -1010,7 +1010,7 @@ export class ProjectKanbanView {
             const subtaskIndicator = document.createElement('span');
             subtaskIndicator.className = 'subtask-indicator';
             subtaskIndicator.textContent = ` (${childTasks.length})`;
-            subtaskIndicator.title = t('containsNSubtasks', { count: childTasks.length });
+            subtaskIndicator.title = t('containsNSubtasks', { count: String(childTasks.length) });
             subtaskIndicator.style.cssText = `
                 font-size: 12px;
                 color: var(--b3-theme-on-surface);
@@ -1047,7 +1047,7 @@ export class ProjectKanbanView {
 
         // 日期时间
         const hasDate = task.date || task.endDate;
-        if (hasDate) {
+        if (hasDate && !task.completed) {
             const dateEl = document.createElement('div');
             dateEl.className = 'kanban-task-date';
             dateEl.style.cssText = `
@@ -1374,9 +1374,10 @@ export class ProjectKanbanView {
             return Math.ceil((new Date(today).getTime() - new Date(targetDate).getTime()) / (1000 * 60 * 60 * 24));
         };
 
-        // 辅助函数：创建过期徽章
-        const createExpiredBadge = (days: number): string => {
-            return `<span class="countdown-badge countdown-normal" style="background-color: rgba(231, 76, 60, 0.15); color: #e74c3c; border: 1px solid rgba(231, 76, 60, 0.3);">已过期${days}天</span>`;
+        // 辅助函数：创建过期徽章（completed 为 true 时使用“X天前”的词语）
+        const createExpiredBadge = (days: number, completed: boolean = false): string => {
+            const text = completed ? t('daysAgo', { days: String(days) }) : t('overdueDays', { days: String(days) });
+            return `<span class="countdown-badge countdown-normal" style="background-color: rgba(231, 76, 60, 0.15); color: #e74c3c; border: 1px solid rgba(231, 76, 60, 0.3);">${text}</span>`;
         };
 
         // 如果只有截止时间，显示截止时间
@@ -1388,7 +1389,7 @@ export class ProjectKanbanView {
             if (task.endDate < today) {
                 const daysDiff = getExpiredDays(task.endDate);
                 const dateStr = formatDateWithYear(task.endDate, endDate);
-                return `${dateStr} ${createExpiredBadge(daysDiff)}`;
+                return `${dateStr} ${createExpiredBadge(daysDiff, !!task.completed)}`;
             }
 
             if (task.endDate === today) {
@@ -1413,9 +1414,14 @@ export class ProjectKanbanView {
 
             // 检查是否过期
             if (task.date < today) {
-                const daysDiff = getExpiredDays(task.date);
                 const formattedDate = formatDateWithYear(task.date, taskDate);
-                dateStr = `${formattedDate} ${createExpiredBadge(daysDiff)} `;
+                // 如果任务有结束日期且和开始日期不同，避免在开始日期处显示过期徽章（只在结束日期处显示一次）
+                if (task.endDate && task.endDate !== task.date) {
+                    dateStr = formattedDate;
+                } else {
+                    const daysDiff = getExpiredDays(task.date);
+                    dateStr = `${formattedDate} ${createExpiredBadge(daysDiff, !!task.completed)} `;
+                }
             } else {
                 // 如果不在今年，显示年份
                 dateStr = formatDateWithYear(task.date, taskDate);
@@ -1443,7 +1449,7 @@ export class ProjectKanbanView {
             if (task.endDate < today) {
                 const daysDiff = getExpiredDays(task.endDate);
                 const formattedEndDate = formatDateWithYear(task.endDate, taskEndDate);
-                endDateStr = `${formattedEndDate} ${createExpiredBadge(daysDiff)} `;
+                endDateStr = `${formattedEndDate} ${createExpiredBadge(daysDiff, !!task.completed)} `;
             } else {
                 // 如果结束日期不在今年，显示年份
                 endDateStr = formatDateWithYear(task.endDate, taskEndDate);
@@ -1465,7 +1471,23 @@ export class ProjectKanbanView {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // 如果有开始日期
+        // 如果同时有开始日期和结束日期，则仅基于结束日期显示倒计时（避免同时显示开始和结束倒计时）
+        if (task.date && task.endDate) {
+            const endDate = new Date(task.endDate);
+            endDate.setHours(0, 0, 0, 0);
+            const endDays = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+            if (endDays >= 0) {
+                return {
+                    text: endDays === 0 ? t('todayEnd') : t('endsInNDays', { days: String(endDays) }),
+                    days: endDays,
+                    type: 'end'
+                };
+            }
+            return { text: '', days: endDays, type: 'none' };
+        }
+
+        // 如果只有开始日期
         if (task.date) {
             const startDate = new Date(task.date);
             startDate.setHours(0, 0, 0, 0);
@@ -1474,13 +1496,29 @@ export class ProjectKanbanView {
             // 如果还没开始
             if (startDays > 0) {
                 return {
-                    text: startDays === 1 ? t('tomorrowStart') : t('startsInNDays', { days: startDays }),
+                    text: t('startsInNDays', { days: String(startDays) }),
                     days: startDays,
                     type: 'start'
                 };
             }
 
-            // 如果已经开始且有结束日期
+            // 否则没有有效的开始倒计时，继续检查结束日期（如果存在）
+            if (task.endDate) {
+                const endDate = new Date(task.endDate);
+                endDate.setHours(0, 0, 0, 0);
+                const endDays = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+                if (endDays >= 0) {
+                    return {
+                        text: endDays === 0 ? t('todayEnd') : t('endsInNDays', { days: String(endDays) }),
+                        days: endDays,
+                        type: 'end'
+                    };
+                }
+            }
+        }
+
+        // 只有结束日期的情况
         if (task.endDate) {
             const endDate = new Date(task.endDate);
             endDate.setHours(0, 0, 0, 0);
@@ -1488,25 +1526,10 @@ export class ProjectKanbanView {
 
             if (endDays >= 0) {
                 return {
-                    text: endDays === 0 ? t('todayEnd') : t('endsInNDays', { days: endDays }),
+                    text: endDays === 0 ? t('todayEnd') : t('endsInNDays', { days: String(endDays) }),
                     days: endDays,
                     type: 'end'
                 };
-            }
-        }
-        }
-        // 只有结束日期的情况
-        else if (task.endDate) {
-            const endDate = new Date(task.endDate);
-            endDate.setHours(0, 0, 0, 0);
-            const endDays = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-            if (endDays >= 0) {
-                    return {
-                    text: endDays === 0 ? t('todayEnd') : t('endsInNDays', { days: endDays }),
-                    days: endDays,
-                    type: 'end'
-                    };
             }
         }
 
@@ -2005,8 +2028,8 @@ export class ProjectKanbanView {
             }
 
             if (completedCount > 0) {
-                console.log(`${t('parentTaskCompleted')} ${parentId}, ${t('autoCompleteSubtasks', { count: completedCount })} `);
-                showMessage(t('autoCompleteSubtasks', { count: completedCount }), 2000);
+                console.log(`${t('parentTaskCompleted')} ${parentId}, ${t('autoCompleteSubtasks', { count: String(completedCount) })} `);
+                showMessage(t('autoCompleteSubtasks', { count: String(completedCount) }), 2000);
             }
         } catch (error) {
             console.error('自动完成子任务失败:', error);
