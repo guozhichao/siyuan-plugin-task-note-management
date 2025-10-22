@@ -793,7 +793,7 @@ export class ProjectPanel {
         // 添加项目下顶级任务计数（todo/doing/done）
         const countsContainer = document.createElement('div');
         countsContainer.className = 'project-item__counts';
-        countsContainer.style.cssText = `display:flex; gap:8px; margin-top:6px; align-items:center;`;
+        countsContainer.style.cssText = `display:flex; gap:8px; margin-top:6px; align-items:center; flex-wrap: wrap;`;
 
 
         const doingCountEl = document.createElement('span');
@@ -811,6 +811,25 @@ export class ProjectPanel {
         doneCountEl.className = 'project-count project-count--done';
         doneCountEl.textContent = '已完成: ...';
         countsContainer.appendChild(doneCountEl);
+
+        // 添加番茄钟总数显示
+        const pomodoroCountEl = document.createElement('span');
+        pomodoroCountEl.className = 'project-count project-count--pomodoro';
+        pomodoroCountEl.textContent = '🍅 总计: ...';
+        pomodoroCountEl.style.cssText = `
+            font-size: 12px;
+            color: var(--b3-theme-on-surface);
+            opacity: 0.8;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            background: rgba(231, 76, 60, 0.1);
+            padding: 2px 6px;
+            border-radius: 10px;
+            border: 1px solid rgba(231, 76, 60, 0.2);
+            white-space: nowrap;
+        `;
+        countsContainer.appendChild(pomodoroCountEl);
 
         infoEl.appendChild(countsContainer);
 
@@ -860,7 +879,7 @@ export class ProjectPanel {
         infoEl.appendChild(progressWrapper);
 
         // 异步填充计数（使用缓存或实时读取），并同时更新进度条
-        this.fillProjectTopLevelCounts(project.id, todoCountEl, doingCountEl, doneCountEl, progressBarInner, progressText).catch(err => {
+        this.fillProjectTopLevelCounts(project.id, todoCountEl, doingCountEl, doneCountEl, pomodoroCountEl, progressBarInner, progressText).catch(err => {
             console.warn('填充项目任务计数失败:', err);
         });
         // 分类显示
@@ -927,7 +946,7 @@ export class ProjectPanel {
     /**
      * 填充某个项目的顶级任务计数到三个元素
      */
-    private async fillProjectTopLevelCounts(projectId: string, todoEl: HTMLElement, doingEl: HTMLElement, doneEl: HTMLElement, progressBarInner?: HTMLElement | null, progressText?: HTMLElement | null) {
+    private async fillProjectTopLevelCounts(projectId: string, todoEl: HTMLElement, doingEl: HTMLElement, doneEl: HTMLElement, pomodoroEl?: HTMLElement | null, progressBarInner?: HTMLElement | null, progressText?: HTMLElement | null) {
         try {
             let reminderData = this.reminderDataCache;
             if (!reminderData) {
@@ -936,10 +955,16 @@ export class ProjectPanel {
             }
 
             const counts = this.countTopLevelKanbanStatus(projectId, reminderData);
+            const totalPomodoro = this.countProjectTotalPomodoro(projectId, reminderData);
 
             todoEl.textContent = `${t("todo") || '待办'}: ${counts.todo}`;
             doingEl.textContent = `${t("doing") || '进行中'}: ${counts.doing}`;
             doneEl.textContent = `${t("done") || '已完成'}: ${counts.done}`;
+
+            // 更新番茄钟总数显示
+            if (pomodoroEl) {
+                pomodoroEl.textContent = `🍅 总计: ${totalPomodoro}`;
+            }
 
             // 计算进度： done / (todo + doing + done)
             if (progressBarInner && progressText) {
@@ -953,6 +978,9 @@ export class ProjectPanel {
             todoEl.textContent = `${t("todo") || '待办'}: ?`;
             doingEl.textContent = `${t("doing") || '进行中'}: ?`;
             doneEl.textContent = `${t("done") || '已完成'}: ?`;
+            if (pomodoroEl) {
+                pomodoroEl.textContent = `🍅 总计: ?`;
+            }
             if (progressBarInner && progressText) {
                 progressBarInner.style.width = `0%`;
                 progressText.textContent = `0%`;
@@ -986,6 +1014,24 @@ export class ProjectPanel {
         });
 
         return { todo, doing, done };
+    }
+
+    /**
+     * 计算给定项目中所有任务的番茄钟总数（包括子任务）
+     */
+    private countProjectTotalPomodoro(projectId: string, reminderData: any): number {
+        const allReminders = reminderData && typeof reminderData === 'object' ? Object.values(reminderData) : [];
+        let totalPomodoro = 0;
+
+        allReminders.forEach((r: any) => {
+            if (!r || typeof r !== 'object') return;
+            // 统计属于该项目的所有任务（包括子任务）的番茄钟数量
+            if (r.projectId === projectId && r.pomodoroCount && typeof r.pomodoroCount === 'number') {
+                totalPomodoro += r.pomodoroCount;
+            }
+        });
+
+        return totalPomodoro;
     }
     // 新增：添加拖拽功能
     private addDragFunctionality(element: HTMLElement, project: any) {
