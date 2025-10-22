@@ -1471,9 +1471,11 @@ export class ReminderPanel {
         const tomorrow = getLocalDateString(new Date(Date.now() + 86400000));
         const future7Days = getLocalDateString(new Date(Date.now() + 7 * 86400000));
         const sevenDaysAgo = getLocalDateString(new Date(Date.now() - 7 * 86400000));
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = getLocalDateString(yesterday);
+        // 修复昨天计算：基于本地日期而不是UTC时间
+        const todayDate = new Date(today + 'T00:00:00');
+        const yesterdayDate = new Date(todayDate);
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        const yesterdayStr = getLocalDateString(yesterdayDate);
 
         const isEffectivelyCompleted = (reminder: any) => {
             // 如果任务已标记为完成，直接返回 true
@@ -1548,7 +1550,8 @@ export class ReminderPanel {
                             // ignore and fallback to date checks
                         }
 
-                        return (r.endDate && compareDateStrings(r.date, yesterdayStr) <= 0 && compareDateStrings(yesterdayStr, r.endDate) <= 0) || r.date === yesterdayStr;
+                        // 移除fallback逻辑，只根据完成时间判断
+                        return false;
                     }
 
                     // 未直接标记为完成的（可能为跨天事件的昨日已完成标记）
@@ -1615,9 +1618,11 @@ export class ReminderPanel {
      * @returns 是否已标记昨日已完成
      */
     private isSpanningEventYesterdayCompleted(reminder: any): boolean {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = getLocalDateString(yesterday);
+        const today = getLocalDateString();
+        const todayDate = new Date(today + 'T00:00:00');
+        const yesterdayDate = new Date(todayDate);
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        const yesterdayStr = getLocalDateString(yesterdayDate);
 
         if (reminder.isRepeatInstance) {
             // 重复事件实例：检查原始事件的每日完成记录
