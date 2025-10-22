@@ -564,6 +564,16 @@ export class ProjectKanbanView {
     private getTaskStatus(task: any): string {
         if (task.completed) return 'done';
         if (task.kanbanStatus === 'doing') return 'doing';
+
+        // 如果未完成的任务设置了日期，且日期为今天或未来，放入进行中列
+        if (task.date) {
+            const today = getLocalDateString();
+            const dateComparison = compareDateStrings(task.date, today);
+            if (dateComparison >= 0) { // 今天或未来
+                return 'doing';
+            }
+        }
+
         // 根据termType确定是长期还是短期
         if (task.termType === 'long_term') return 'long_term';
         if (task.termType === 'doing') return 'doing';
