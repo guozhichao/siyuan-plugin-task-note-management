@@ -2717,7 +2717,7 @@ export class PomodoroTimer {
         // 更新颜色和状态显示
         let color = '#FF6B6B';
         let statusText = t('pomodoroWork') || '工作时间';
-        let statusIconHtml = '🍅';
+        let statusIconHtml = this.isCountUp ? '🍅' : '⏳';
 
         if (!this.isWorkPhase) {
             if (this.isLongBreak) {
