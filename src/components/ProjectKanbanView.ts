@@ -565,11 +565,11 @@ export class ProjectKanbanView {
         if (task.completed) return 'done';
         if (task.kanbanStatus === 'doing') return 'doing';
 
-        // 如果未完成的任务设置了日期，且日期为今天或未来，放入进行中列
+        // 如果未完成的任务设置了日期，且日期为今天或过期，放入进行中列
         if (task.date) {
             const today = getLocalDateString();
             const dateComparison = compareDateStrings(task.date, today);
-            if (dateComparison >= 0) { // 今天或未来
+            if (dateComparison <= 0) { // 今天或未来
                 return 'doing';
             }
         }
@@ -1481,22 +1481,7 @@ export class ProjectKanbanView {
             }
 
             // 如果已经开始且有结束日期
-            if (task.endDate) {
-                const endDate = new Date(task.endDate);
-                endDate.setHours(0, 0, 0, 0);
-                const endDays = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-                if (endDays >= 0) {
-                    return {
-                        text: endDays === 0 ? t('todayEnd') : t('endsInNDays', { days: endDays }),
-                        days: endDays,
-                        type: 'end'
-                    };
-                }
-            }
-        }
-        // 只有结束日期的情况
-        else if (task.endDate) {
+        if (task.endDate) {
             const endDate = new Date(task.endDate);
             endDate.setHours(0, 0, 0, 0);
             const endDays = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -1507,6 +1492,21 @@ export class ProjectKanbanView {
                     days: endDays,
                     type: 'end'
                 };
+            }
+        }
+        }
+        // 只有结束日期的情况
+        else if (task.endDate) {
+            const endDate = new Date(task.endDate);
+            endDate.setHours(0, 0, 0, 0);
+            const endDays = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+            if (endDays >= 0) {
+                    return {
+                    text: endDays === 0 ? t('todayEnd') : t('endsInNDays', { days: endDays }),
+                    days: endDays,
+                    type: 'end'
+                    };
             }
         }
 
