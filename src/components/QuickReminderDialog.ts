@@ -542,13 +542,13 @@ export class QuickReminderDialog {
                             </label>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t("reminderDate")}${this.defaultProjectId ? ' (可选)' : ''}</label>
+                            <label class="b3-form__label">${t("reminderDate")} (可选)</label>
                             <div class="reminder-date-container">
                                 <input type="date" id="quickReminderDate" class="b3-text-field" value="${this.initialDate}" max="9999-12-31">
                                 <span class="reminder-arrow">→</span>
                                 <input type="date" id="quickReminderEndDate" class="b3-text-field reminder-end-date" placeholder="${t("endDateOptional")}" title="${t("spanningEventDesc")}" max="9999-12-31">
                             </div>
-                            <div class="b3-form__desc" id="quickDateTimeDesc">${this.initialTime ? t("dateTimeDesc") : (this.defaultProjectId ? '项目任务可以不设置日期' : t("dateOnlyDesc"))}</div>
+                            <div class="b3-form__desc" id="quickDateTimeDesc">${this.initialTime ? t("dateTimeDesc") : '可以不设置日期'}</div>
                         </div>
                         
                         <!-- 添加重复设置 -->
@@ -1274,11 +1274,7 @@ export class QuickReminderDialog {
             return;
         }
 
-        // 对于项目任务，允许不设置日期；对于非项目任务，日期是必需的
-        if (!date && !projectId) {
-            showMessage(t("pleaseSelectDate"));
-            return;
-        }
+        // 允许不设置日期
 
         // 验证结束日期时间不能早于开始日期时间
         if (endDate && date) {

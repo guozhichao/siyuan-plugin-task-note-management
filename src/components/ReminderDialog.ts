@@ -591,7 +591,7 @@ export class ReminderDialog {
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("reminderDate")}</label>
                             <div class="reminder-date-container">
-                                <input type="date" id="reminderDate" class="b3-text-field" value="${initialDate}" required max="9999-12-31">
+                                <input type="date" id="reminderDate" class="b3-text-field" value="${initialDate}" max="9999-12-31">
                                 <span class="reminder-arrow">→</span>
                                 <input type="date" id="reminderEndDate" class="b3-text-field reminder-end-date" placeholder="${t("endDateOptional")}" title="${t("spanningEventDesc")}" max="9999-12-31">
                             </div>
@@ -1409,11 +1409,6 @@ export class ReminderDialog {
 
         if (!title) {
             showMessage(t("pleaseEnterTitle"));
-            return;
-        }
-
-        if (!date) {
-            showMessage(t("pleaseSelectDate"));
             return;
         }
 

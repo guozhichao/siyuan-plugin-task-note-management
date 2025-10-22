@@ -550,7 +550,7 @@ export class ReminderEditDialog {
                         </label>
                     </div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("reminderDate")}</label>
+                        <label class="b3-form__label">${t("reminderDate")} (可选)</label>
                         <div class="reminder-date-container">
                             <input type="date" id="editReminderDate" class="b3-text-field" value="${this.reminder.date}" max="9999-12-31">
                             <span class="reminder-arrow">→</span>
