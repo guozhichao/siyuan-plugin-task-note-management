@@ -582,10 +582,10 @@ export class ProjectKanbanView {
                     e.preventDefault();
                     container.querySelectorAll('.group-drop-indicator').forEach(el => el.remove());
 
-                        let draggedGroupId = (e as DragEvent).dataTransfer?.getData('text/plain');
-                        // 某些环境（如受限的 webview/iframe）可能无法通过 dataTransfer 传递数据，使用类字段作为回退
-                        if (!draggedGroupId) draggedGroupId = this.draggedGroupId || '';
-                        if (!draggedGroupId) return;
+                    let draggedGroupId = (e as DragEvent).dataTransfer?.getData('text/plain');
+                    // 某些环境（如受限的 webview/iframe）可能无法通过 dataTransfer 传递数据，使用类字段作为回退
+                    if (!draggedGroupId) draggedGroupId = this.draggedGroupId || '';
+                    if (!draggedGroupId) return;
 
                     try {
                         const { ProjectManager } = await import('../utils/projectManager');
