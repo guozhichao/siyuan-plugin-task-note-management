@@ -41,6 +41,12 @@ export class ProjectKanbanView {
     private isDragging: boolean = false;
     private draggedTask: any = null;
     private draggedElement: HTMLElement | null = null;
+    // 当前正在拖拽的分组ID（用于分组管理对话框的拖拽排序）
+    private draggedGroupId: string | null = null;
+    // 当前显示的分组拖拽指示器（绝对定位在 container 内）
+    private _groupDropIndicator: HTMLElement | null = null;
+    // 拖拽时用于 setDragImage 的克隆元素（用于预览整个 group-item）
+    private _groupDragImageEl: HTMLElement | null = null;
     private sortButton: HTMLButtonElement;
     private doneSortButton: HTMLButtonElement;
     private isLoading: boolean = false;
@@ -364,6 +370,7 @@ export class ProjectKanbanView {
 
                 // 拖拽手柄
                 const dragHandle = document.createElement('span');
+                dragHandle.className = 'group-drag-handle';
                 dragHandle.innerHTML = '⋮⋮';
                 dragHandle.style.cssText = `
                     font-size: 14px;
@@ -379,6 +386,7 @@ export class ProjectKanbanView {
                 dragHandle.title = '拖拽排序';
 
                 // 添加悬停效果
+                dragHandle.draggable = true;
                 dragHandle.addEventListener('mouseenter', () => {
                     dragHandle.style.backgroundColor = 'var(--b3-theme-surface)';
                     dragHandle.style.opacity = '0.8';
@@ -387,6 +395,24 @@ export class ProjectKanbanView {
                 dragHandle.addEventListener('mouseleave', () => {
                     dragHandle.style.backgroundColor = 'transparent';
                     dragHandle.style.opacity = '0.6';
+                });
+
+                // 在手柄上也绑定 dragstart/dragend，保证拖拽手柄触发拖拽行为
+                dragHandle.addEventListener('dragstart', (e) => {
+                    // 设置全局 draggedGroupId 并修改父项样式以反映拖拽
+                    this.draggedGroupId = group.id;
+                    groupItem.style.opacity = '0.5';
+                    groupItem.style.cursor = 'grabbing';
+                    if (e.dataTransfer) {
+                        try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', group.id); } catch (err) { }
+                    }
+                });
+
+                dragHandle.addEventListener('dragend', () => {
+                    this.draggedGroupId = null;
+                    groupItem.style.opacity = '';
+                    groupItem.style.cursor = 'move';
+                    container.querySelectorAll('.group-drop-indicator').forEach(el => el.remove());
                 });
 
                 const groupIcon = document.createElement('span');
@@ -481,13 +507,130 @@ export class ProjectKanbanView {
                 // 添加拖拽排序功能
                 this.addGroupDragAndDrop(groupItem, group, container);
             });
+
+            // 容器级别的拖放支持：允许将分组拖到列表任意位置（包括末尾）
+            // 只注册一次，避免重复绑定事件
+            if (!container.dataset.hasDropHandlers) {
+                container.dataset.hasDropHandlers = '1';
+
+                container.addEventListener('dragover', (e) => {
+                    try {
+                        const dt = (e as DragEvent).dataTransfer;
+                        if (!dt) return;
+                        const draggedId = dt.getData('text/plain');
+                        if (!draggedId) return;
+
+                        e.preventDefault();
+                        dt.dropEffect = 'move';
+
+                        // 清除已有指示器
+                        container.querySelectorAll('.group-drop-indicator').forEach(el => el.remove());
+
+                        const children = Array.from(container.querySelectorAll('.group-item')) as HTMLElement[];
+
+                        // 创建静态位置指示器并插入到合适位置
+                        const createIndicator = (beforeEl: HTMLElement | null) => {
+                            const indicator = document.createElement('div');
+                            indicator.className = 'group-drop-indicator';
+                            indicator.style.cssText = `
+                                height: 2px;
+                                background-color: var(--b3-theme-primary);
+                                margin: 4px 0;
+                                border-radius: 2px;
+                                box-shadow: 0 0 4px var(--b3-theme-primary);
+                            `;
+                            if (beforeEl) container.insertBefore(indicator, beforeEl);
+                            else container.appendChild(indicator);
+                        };
+
+                        if (children.length === 0) {
+                            createIndicator(null);
+                            return;
+                        }
+
+                        // 根据 mouse Y 判断插入点
+                        const clientY = (e as DragEvent).clientY;
+                        let inserted = false;
+                        for (const child of children) {
+                            const rect = child.getBoundingClientRect();
+                            const midpoint = rect.top + rect.height / 2;
+                            if (clientY < midpoint) {
+                                createIndicator(child);
+                                inserted = true;
+                                break;
+                            }
+                        }
+
+                        if (!inserted) {
+                            // 放到末尾
+                            createIndicator(null);
+                        }
+                    } catch (err) {
+                        // ignore
+                    }
+                });
+
+                container.addEventListener('dragleave', (e) => {
+                    // 当真正离开容器时清除指示器
+                    const related = (e as any).relatedTarget as Node;
+                    if (!related || !container.contains(related)) {
+                        container.querySelectorAll('.group-drop-indicator').forEach(el => el.remove());
+                    }
+                });
+
+                container.addEventListener('drop', async (e) => {
+                    e.preventDefault();
+                    container.querySelectorAll('.group-drop-indicator').forEach(el => el.remove());
+
+                        let draggedGroupId = (e as DragEvent).dataTransfer?.getData('text/plain');
+                        // 某些环境（如受限的 webview/iframe）可能无法通过 dataTransfer 传递数据，使用类字段作为回退
+                        if (!draggedGroupId) draggedGroupId = this.draggedGroupId || '';
+                        if (!draggedGroupId) return;
+
+                    try {
+                        const { ProjectManager } = await import('../utils/projectManager');
+                        const projectManager = ProjectManager.getInstance();
+                        const currentGroups = await projectManager.getProjectCustomGroups(this.projectId);
+
+                        const draggedIndex = currentGroups.findIndex((g: any) => g.id === draggedGroupId);
+                        if (draggedIndex === -1) return;
+
+                        // 计算插入索引（基于鼠标位置与当前子项中点比较）
+                        const children = Array.from(container.querySelectorAll('.group-item')) as HTMLElement[];
+                        const clientY = (e as DragEvent).clientY;
+                        let insertIndex = children.length; // 默认末尾
+                        for (let i = 0; i < children.length; i++) {
+                            const rect = children[i].getBoundingClientRect();
+                            const midpoint = rect.top + rect.height / 2;
+                            if (clientY < midpoint) { insertIndex = i; break; }
+                        }
+
+                        // 从原数组移除并插入到目标位置
+                        const draggedGroup = currentGroups.splice(draggedIndex, 1)[0];
+                        const actualIndex = insertIndex;
+                        currentGroups.splice(actualIndex, 0, draggedGroup);
+
+                        // 重新分配排序值并保存
+                        currentGroups.forEach((g: any, index: number) => { g.sort = index * 10; });
+                        await projectManager.setProjectCustomGroups(this.projectId, currentGroups);
+
+                        // 刷新界面
+                        await this.loadAndDisplayGroups(container);
+                        this.renderKanban();
+                        showMessage('分组顺序已更新');
+                    } catch (error) {
+                        console.error('更新分组顺序失败:', error);
+                        showMessage('更新分组顺序失败');
+                    }
+                });
+            }
         } catch (error) {
             console.error('加载分组列表失败:', error);
             container.innerHTML = '<div style="text-align: center; color: var(--b3-theme-error); padding: 20px;">加载分组失败</div>';
         }
     }
 
-    private async editGroup(group: any, groupItem: HTMLElement, container: HTMLElement) {
+    private async editGroup(group: any, _groupItem: HTMLElement, container: HTMLElement) {
         const dialog = new Dialog({
             title: '编辑分组',
             content: `
@@ -559,7 +702,7 @@ export class ProjectKanbanView {
         });
     }
 
-    private async deleteGroup(groupId: string, groupItem: HTMLElement, container: HTMLElement) {
+    private async deleteGroup(groupId: string, _groupItem: HTMLElement, container: HTMLElement) {
         // 获取分组信息用于显示名称
         const { ProjectManager } = await import('../utils/projectManager');
         const projectManager = ProjectManager.getInstance();
@@ -6502,124 +6645,140 @@ export class ProjectKanbanView {
      * 为分组项添加拖拽排序功能
      */
     private addGroupDragAndDrop(groupItem: HTMLElement, group: any, container: HTMLElement) {
-        let isDragging = false;
-        let draggedElement: HTMLElement | null = null;
-
+        // 使用和 CategoryManageDialog 一致的拖拽处理模式：通过类名指示上/下插入位置
         groupItem.draggable = true;
 
         groupItem.addEventListener('dragstart', (e) => {
-            isDragging = true;
-            draggedElement = groupItem;
-            groupItem.style.opacity = '0.5';
-            groupItem.style.cursor = 'grabbing';
+            this.draggedGroupId = group.id;
+            groupItem.classList.add('dragging');
 
-            if (e.dataTransfer) {
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/plain', group.id);
+            // 创建可作为拖拽预览的克隆元素并放置到 body，用作 setDragImage
+            try {
+                const clone = groupItem.cloneNode(true) as HTMLElement;
+                clone.style.position = 'absolute';
+                clone.style.top = '-9999px';
+                clone.style.left = '-9999px';
+                clone.style.width = `${groupItem.getBoundingClientRect().width}px`;
+                clone.style.boxShadow = '0 6px 20px rgba(0,0,0,0.2)';
+                document.body.appendChild(clone);
+                this._groupDragImageEl = clone;
+
+                if (e.dataTransfer) {
+                    try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', group.id); e.dataTransfer.setDragImage(clone, 10, 10); } catch (err) { }
+                }
+            } catch (err) {
+                // ignore
             }
         });
 
         groupItem.addEventListener('dragend', () => {
-            isDragging = false;
-            draggedElement = null;
-            groupItem.style.opacity = '';
-            groupItem.style.cursor = 'move';
+            groupItem.classList.remove('dragging');
+            this.draggedGroupId = null;
 
-            // 清除拖拽指示器
-            container.querySelectorAll('.group-drop-indicator').forEach(el => el.remove());
+            // 清除所有项的拖拽相关样式
+            container.querySelectorAll('.group-item').forEach((el) => {
+                el.classList.remove('drag-over-top', 'drag-over-bottom');
+            });
+
+            // 清理 drag image clone
+            if (this._groupDragImageEl && this._groupDragImageEl.parentNode) {
+                this._groupDragImageEl.parentNode.removeChild(this._groupDragImageEl);
+            }
+            this._groupDragImageEl = null;
+
+            // 清理容器级指示器
+            if (this._groupDropIndicator && this._groupDropIndicator.parentNode) {
+                this._groupDropIndicator.parentNode.removeChild(this._groupDropIndicator);
+            }
+            this._groupDropIndicator = null;
         });
 
         groupItem.addEventListener('dragover', (e) => {
-            if (!isDragging || !draggedElement || draggedElement === groupItem) return;
-
             e.preventDefault();
-            e.dataTransfer!.dropEffect = 'move';
+            try { if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; } catch (err) { }
 
-            // 清除现有的指示器
-            container.querySelectorAll('.group-drop-indicator').forEach(el => el.remove());
+            // 使用容器级绝对定位的指示器来显示插入位置（跨项一致）
+            if (this.draggedGroupId && this.draggedGroupId !== group.id) {
+                const rect = groupItem.getBoundingClientRect();
+                const mouseY = (e as DragEvent).clientY;
+                const insertTop = mouseY < rect.top + rect.height / 2;
 
-            const rect = groupItem.getBoundingClientRect();
-            const midpoint = rect.top + rect.height / 2;
+                // 创建或更新指示器
+                if (!this._groupDropIndicator) {
+                    const ind = document.createElement('div');
+                    ind.className = 'group-drop-indicator';
+                    ind.style.position = 'absolute';
+                    ind.style.height = '3px';
+                    ind.style.backgroundColor = 'var(--b3-theme-primary)';
+                    ind.style.boxShadow = '0 0 8px var(--b3-theme-primary)';
+                    ind.style.zIndex = '2000';
+                    ind.style.pointerEvents = 'none';
+                    container.appendChild(ind);
+                    this._groupDropIndicator = ind;
+                }
 
-            // 创建指示器
-            const indicator = document.createElement('div');
-            indicator.className = 'group-drop-indicator';
-            indicator.style.cssText = `
-                position: absolute;
-                left: 0;
-                right: 0;
-                height: 2px;
-                background-color: var(--b3-theme-primary);
-                z-index: 1000;
-                pointer-events: none;
-                box-shadow: 0 0 4px var(--b3-theme-primary);
-            `;
-
-            if (e.clientY < midpoint) {
-                indicator.style.top = '-1px';
-            } else {
-                indicator.style.bottom = '-1px';
+                const indicator = this._groupDropIndicator!;
+                // 计算指示器相对于 container 的位置
+                const containerRect = container.getBoundingClientRect();
+                if (insertTop) {
+                    indicator.style.width = `${rect.width}px`;
+                    indicator.style.left = `${rect.left - containerRect.left}px`;
+                    indicator.style.top = `${rect.top - containerRect.top - 2}px`;
+                } else {
+                    indicator.style.width = `${rect.width}px`;
+                    indicator.style.left = `${rect.left - containerRect.left}px`;
+                    indicator.style.top = `${rect.bottom - containerRect.top}px`;
+                }
             }
+        });
 
-            groupItem.style.position = 'relative';
-            groupItem.appendChild(indicator);
+        groupItem.addEventListener('dragleave', (e) => {
+            // 仅当鼠标真正离开元素时才清除样式
+            const rect = groupItem.getBoundingClientRect();
+            const x = (e as DragEvent).clientX;
+            const y = (e as DragEvent).clientY;
+            if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+                groupItem.classList.remove('drag-over-top', 'drag-over-bottom');
+            }
         });
 
         groupItem.addEventListener('drop', async (e) => {
             e.preventDefault();
+            groupItem.classList.remove('drag-over-top', 'drag-over-bottom');
 
-            if (!isDragging || !draggedElement || draggedElement === groupItem) return;
-
-            const draggedGroupId = e.dataTransfer!.getData('text/plain');
-            if (!draggedGroupId || draggedGroupId === group.id) return;
+            // 支持 dataTransfer 或 class 字段回退
+            let draggedId = (e as DragEvent).dataTransfer?.getData('text/plain') || this.draggedGroupId;
+            if (!draggedId || draggedId === group.id) return;
 
             try {
-                // 获取当前项目的分组列表
                 const { ProjectManager } = await import('../utils/projectManager');
                 const projectManager = ProjectManager.getInstance();
                 const currentGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
-                const draggedIndex = currentGroups.findIndex((g: any) => g.id === draggedGroupId);
+                const draggedIndex = currentGroups.findIndex((g: any) => g.id === draggedId);
                 const targetIndex = currentGroups.findIndex((g: any) => g.id === group.id);
+                if (draggedIndex === -1 || targetIndex === -1) return;
 
-                if (draggedIndex !== -1 && targetIndex !== -1) {
-                    const rect = groupItem.getBoundingClientRect();
-                    const midpoint = rect.top + rect.height / 2;
-                    const insertBefore = e.clientY < midpoint;
+                const rect = groupItem.getBoundingClientRect();
+                const midPoint = rect.top + rect.height / 2;
+                const insertBefore = (e as DragEvent).clientY < midPoint;
 
-                    // 重新排列分组顺序
-                    const draggedGroup = currentGroups.splice(draggedIndex, 1)[0];
-                    const actualTargetIndex = insertBefore ? targetIndex : targetIndex + 1;
-                    currentGroups.splice(actualTargetIndex, 0, draggedGroup);
+                const draggedGroup = currentGroups.splice(draggedIndex, 1)[0];
+                const actualTargetIndex = insertBefore ? targetIndex : targetIndex + 1;
+                currentGroups.splice(actualTargetIndex, 0, draggedGroup);
 
-                    // 重新分配排序值
-                    currentGroups.forEach((g: any, index: number) => {
-                        g.sort = index * 10;
-                    });
+                // 重新分配 sort 并保存
+                currentGroups.forEach((g: any, index: number) => { g.sort = index * 10; });
+                await projectManager.setProjectCustomGroups(this.projectId, currentGroups);
 
-                    // 保存更新后的分组列表
-                    await projectManager.setProjectCustomGroups(this.projectId, currentGroups);
-
-                    // 刷新分组列表
-                    await this.loadAndDisplayGroups(container);
-
-                    // 刷新看板
-                    this.renderKanban();
-
-                    showMessage('分组顺序已更新');
-                }
+                // 刷新 UI
+                await this.loadAndDisplayGroups(container);
+                this.renderKanban();
+                showMessage('分组顺序已更新');
             } catch (error) {
                 console.error('更新分组顺序失败:', error);
                 showMessage('更新分组顺序失败');
             }
-
-            // 清除拖拽指示器
-            container.querySelectorAll('.group-drop-indicator').forEach(el => el.remove());
-        });
-
-        groupItem.addEventListener('dragleave', () => {
-            // 清除拖拽指示器
-            container.querySelectorAll('.group-drop-indicator').forEach(el => el.remove());
         });
     }
 }
