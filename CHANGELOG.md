@@ -1,3 +1,6 @@
+## v2.2.1 / 20251023
+- 🐛 项目看板自定义分组-修改项目内容后保存保存会丢失分组信息 [#95](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/95)
+
 ## v2.2 / 20251023
 - ✨ 项目看板支持自定义分组 [#85](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/85)
 
