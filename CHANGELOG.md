@@ -1,3 +1,6 @@
+## v2.2 / 20251023
+- ✨ 项目看板支持自定义分组 [#85](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/85)
+
 ## v2.1 / 20251022
 
 - ✨ 每日通知支持关闭 [#88](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/88)
