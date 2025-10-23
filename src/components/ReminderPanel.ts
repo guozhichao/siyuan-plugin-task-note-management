@@ -3238,13 +3238,13 @@ export class ReminderPanel {
         if (!isRecurring) {
             menu.addItem({
                 iconHTML: "➕",
-                label: "创建子任务",
+                label: t("createSubtask"),
                 click: () => this.showCreateSubtaskDialog(reminder)
             });
             // 粘贴新建子任务（参考 ProjectKanbanView 的实现）
             menu.addItem({
                 iconHTML: "📋",
-                label: "粘贴新建子任务",
+                label: t("pasteCreateSubtask"),
                 click: () => this.showPasteSubtaskDialog(reminder)
             });
         } else {
@@ -3327,7 +3327,7 @@ export class ReminderPanel {
         if (reminder.projectId) {
             menu.addItem({
                 icon: "iconGrid",
-                label: "打开项目看板",
+                label: t("openProjectKanban"),
                 click: () => this.openProjectKanban(reminder.projectId)
             });
             menu.addSeparator();

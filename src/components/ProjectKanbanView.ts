@@ -153,15 +153,15 @@ export class ProjectKanbanView {
 
     private async showManageGroupsDialog() {
         const dialog = new Dialog({
-            title: '管理自定义分组',
+            title: t('manageCustomGroups'),
             content: `
                 <div class="manage-groups-dialog">
                     <div class="b3-dialog__content">
                         <div class="groups-list" style="margin-bottom: 16px;">
                             <div class="groups-header" style="display: flex; justify-content: space-between; align-items: center;">
-                                <h4 style="margin: 0;">现有分组</h4>
+                                <h4 style="margin: 0;">${t('existingGroups')}</h4>
                                 <button id="addGroupBtn" class="b3-button b3-button--small b3-button--primary">
-                                    <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg> 新建分组
+                                    <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg> ${t('newGroup')}
                                 </button>
                             </div>
                             <div id="groupsContainer" class="groups-container" style="max-height: 300px; overflow-y: auto;">
@@ -170,25 +170,25 @@ export class ProjectKanbanView {
                         </div>
 
                         <div id="groupForm" class="group-form" style="display: none; padding: 16px; background: var(--b3-theme-surface-lighter); border-radius: 8px; border: 1px solid var(--b3-theme-border);">
-                            <h4 id="formTitle" style="margin-top: 0;">新建分组</h4>
+                            <h4 id="formTitle" style="margin-top: 0;">${t('newGroup')}</h4>
                             <div class="b3-form__group">
-                                <label class="b3-form__label">分组名称</label>
-                                <input type="text" id="groupNameInput" class="b3-text-field" placeholder="请输入分组名称" style="width: 100%;">
+                                <label class="b3-form__label">${t('groupName')}</label>
+                                <input type="text" id="groupNameInput" class="b3-text-field" placeholder="${t('pleaseEnterGroupName')}" style="width: 100%;">
                             </div>
                             <div class="b3-form__group">
-                                <label class="b3-form__label">分组颜色</label>
+                                <label class="b3-form__label">${t('groupColor')}</label>
                                 <div class="color-picker" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
                                     <!-- 预设颜色选项 -->
                                 </div>
                                 <input type="color" id="groupColorInput" class="b3-text-field" value="#3498db" style="width: 100%; margin-top: 8px;">
                             </div>
                             <div class="b3-form__group">
-                                <label class="b3-form__label">图标（可选）</label>
-                                <input type="text" id="groupIconInput" class="b3-text-field" placeholder="emoji图标，如：🔬 📊 📝" style="width: 100%;">
+                                <label class="b3-form__label">${t('iconOptional')}</label>
+                                <input type="text" id="groupIconInput" class="b3-text-field" placeholder="${t('emojiIconExample')}" style="width: 100%;">
                             </div>
                             <div class="form-actions" style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
-                                <button id="cancelFormBtn" class="b3-button b3-button--outline">取消</button>
-                                <button id="saveGroupBtn" class="b3-button b3-button--primary">保存</button>
+                                <button id="cancelFormBtn" class="b3-button b3-button--outline">${t('cancel')}</button>
+                                <button id="saveGroupBtn" class="b3-button b3-button--primary">${t('save')}</button>
                             </div>
                         </div>
                     </div>
@@ -247,12 +247,12 @@ export class ProjectKanbanView {
         // 新建分组按钮
         addGroupBtn.addEventListener('click', () => {
             editingGroupId = null;
-            formTitle.textContent = '新建分组';
+            formTitle.textContent = t('newGroup');
             groupNameInput.value = '';
             groupColorInput.value = '#3498db';
             groupIconInput.value = '';
             groupForm.style.display = 'block';
-            saveGroupBtn.textContent = '创建分组';
+            saveGroupBtn.textContent = t('createGroup');
 
             // 重置颜色选择器
             colorPicker.querySelectorAll('.color-option').forEach(opt => {
@@ -290,7 +290,7 @@ export class ProjectKanbanView {
                         currentGroups[groupIndex] = { ...currentGroups[groupIndex], name, color, icon };
                         newGroup = currentGroups[groupIndex];
                     }
-                    showMessage('分组已更新');
+                    showMessage(t('groupUpdated'));
                 } else {
                     // 创建新分组
                     const maxSort = currentGroups.reduce((max: number, g: any) => Math.max(max, g.sort || 0), 0);
@@ -302,7 +302,7 @@ export class ProjectKanbanView {
                         sort: maxSort + 10
                     };
                     currentGroups.push(newGroup);
-                    showMessage('分组已创建');
+                    showMessage(t('groupCreated'));
                 }
 
                 // 保存到项目数据
@@ -316,7 +316,7 @@ export class ProjectKanbanView {
                 this.renderKanban();
             } catch (error) {
                 console.error('保存分组失败:', error);
-                showMessage('保存分组失败');
+                showMessage(t('saveGroupFailed'));
             }
         });
     }
@@ -330,7 +330,7 @@ export class ProjectKanbanView {
             container.innerHTML = '';
 
             if (projectGroups.length === 0) {
-                container.innerHTML = '<div style="text-align: center; color: var(--b3-theme-on-surface); opacity: 0.6; padding: 20px;">暂无自定义分组</div>';
+                container.innerHTML = `<div style="text-align: center; color: var(--b3-theme-on-surface); opacity: 0.6; padding: 20px;">${t('noCustomGroups')}</div>`;
                 return;
             }
 
@@ -460,7 +460,7 @@ export class ProjectKanbanView {
                 const editBtn = document.createElement('button');
                 editBtn.className = 'b3-button b3-button--small b3-button--outline';
                 editBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconEdit"></use></svg>';
-                editBtn.title = '编辑分组';
+                editBtn.title = t('editGroup');
                 editBtn.style.cssText = `
                     display: inline-flex;
                     align-items: center;
@@ -474,7 +474,7 @@ export class ProjectKanbanView {
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'b3-button b3-button--outline';
                 deleteBtn.innerHTML = '<svg class="b3-button__icon" style="color: var(--b3-theme-error);"><use xlink:href="#iconTrashcan"></use></svg>';
-                deleteBtn.title = '删除分组';
+                deleteBtn.title = t('deleteGroup');
                 deleteBtn.style.cssText = `
                     display: inline-flex;
                     align-items: center;
@@ -636,25 +636,25 @@ export class ProjectKanbanView {
 
     private async editGroup(group: any, _groupItem: HTMLElement, container: HTMLElement) {
         const dialog = new Dialog({
-            title: '编辑分组',
+            title: t('editGroup'),
             content: `
                 <div class="b3-dialog__content">
                     <div class="b3-form__group">
-                        <label class="b3-form__label">分组名称</label>
+                        <label class="b3-form__label">${t('groupName')}</label>
                         <input type="text" id="editGroupName" class="b3-text-field" value="${group.name}" style="width: 100%;">
                     </div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">分组颜色</label>
+                        <label class="b3-form__label">${t('groupColor')}</label>
                         <input type="color" id="editGroupColor" class="b3-text-field" value="${group.color}" style="width: 100%;">
                     </div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">图标（可选）</label>
-                        <input type="text" id="editGroupIcon" class="b3-text-field" value="${group.icon || ''}" placeholder="emoji图标" style="width: 100%;">
+                        <label class="b3-form__label">${t('iconOptional')}</label>
+                        <input type="text" id="editGroupIcon" class="b3-text-field" value="${group.icon || ''}" placeholder="${t('emojiIconExample')}" style="width: 100%;">
                     </div>
                 </div>
                 <div class="b3-dialog__action">
-                    <button class="b3-button b3-button--cancel" id="editCancelBtn">取消</button>
-                    <button class="b3-button b3-button--primary" id="editSaveBtn">保存</button>
+                    <button class="b3-button b3-button--cancel" id="editCancelBtn">${t('cancel')}</button>
+                    <button class="b3-button b3-button--primary" id="editSaveBtn">${t('save')}</button>
                 </div>
             `,
             width: "400px"
@@ -697,11 +697,11 @@ export class ProjectKanbanView {
                 // 刷新看板
                 this.renderKanban();
 
-                showMessage('分组已更新');
+                showMessage(t('groupUpdated'));
                 dialog.destroy();
             } catch (error) {
                 console.error('更新分组失败:', error);
-                showMessage('更新分组失败');
+                showMessage(t('updateGroupFailed'));
             }
         });
     }
@@ -714,7 +714,7 @@ export class ProjectKanbanView {
         const groupToDelete = projectGroups.find((g: any) => g.id === groupId);
 
         if (!groupToDelete) {
-            showMessage('分组不存在');
+            showMessage(t('groupNotExist'));
             return;
         }
 
@@ -726,39 +726,39 @@ export class ProjectKanbanView {
 
         const hasTasks = tasksInGroup.length > 0;
 
-        let confirmMessage = `确定要删除分组"${groupToDelete.name}"吗？`;
+        let confirmMessage = t('confirmDeleteGroup', { name: groupToDelete.name });
 
         if (hasTasks) {
-            confirmMessage += `\n\n该分组下有${tasksInGroup.length}个任务，请选择处理方式：`;
+            confirmMessage += `\n\n${t('groupHasTasks', { count: String(tasksInGroup.length) })}`;
         }
 
         const dialog = new Dialog({
-            title: '删除分组',
+            title: t('deleteGroup'),
             content: `
                 <div class="delete-group-dialog">
                     <div class="b3-dialog__content">
                         <p>${confirmMessage}</p>
                         ${hasTasks ? `
                             <div class="b3-form__group">
-                                <label class="b3-form__label">任务处理方式</label>
+                                <label class="b3-form__label">${t('taskAction')}</label>
                                 <div class="b3-radio">
                                     <label class="b3-radio">
                                         <input type="radio" name="taskAction" value="ungroup" checked>
                                         <span class="b3-radio__mark"></span>
-                                        <span class="b3-radio__text">将任务设为未分组</span>
+                                        <span class="b3-radio__text">${t('setTasksUngrouped')}</span>
                                     </label>
                                     <label class="b3-radio">
                                         <input type="radio" name="taskAction" value="delete">
                                         <span class="b3-radio__mark"></span>
-                                        <span class="b3-radio__text">删除所有任务</span>
+                                        <span class="b3-radio__text">${t('deleteAllTasks')}</span>
                                     </label>
                                 </div>
                             </div>
                         ` : ''}
                     </div>
                     <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="deleteCancelBtn">取消</button>
-                        <button class="b3-button b3-button--error" id="deleteConfirmBtn">删除分组</button>
+                        <button class="b3-button b3-button--cancel" id="deleteCancelBtn">${t('cancel')}</button>
+                        <button class="b3-button b3-button--error" id="deleteConfirmBtn">${t('deleteGroup')}</button>
                     </div>
                 </div>
             `,
@@ -789,16 +789,16 @@ export class ProjectKanbanView {
                         const taskData = task as any;
                         delete reminderData[taskData.id];
                     }
-                    showMessage(`分组已删除，已同时删除${tasksInGroup.length}个任务`);
+                    showMessage(t('groupDeletedWithTasks', { count: String(tasksInGroup.length) }));
                 } else if (hasTasks && taskAction === 'ungroup') {
                     // 将任务设为未分组
                     for (const task of tasksInGroup) {
                         const taskData = task as any;
                         delete taskData.customGroupId;
                     }
-                    showMessage(`分组已删除，${tasksInGroup.length}个任务已设为未分组`);
+                    showMessage(t('groupDeletedTasksUngrouped', { count: String(tasksInGroup.length) }));
                 } else {
-                    showMessage('分组已删除');
+                    showMessage(t('groupDeleted'));
                 }
 
                 // 保存任务数据（如果有任务被修改或删除）
@@ -816,7 +816,7 @@ export class ProjectKanbanView {
                 dialog.destroy();
             } catch (error) {
                 console.error('删除分组失败:', error);
-                showMessage('删除分组失败');
+                showMessage(t('deleteGroupFailed'));
                 dialog.destroy();
             }
         });
@@ -987,7 +987,7 @@ export class ProjectKanbanView {
         const manageGroupsBtn = document.createElement('button');
         manageGroupsBtn.className = 'b3-button b3-button--outline';
         manageGroupsBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg> ${t('manageGroups')}`;
-        manageGroupsBtn.title = '管理自定义分组';
+        manageGroupsBtn.title = t('manageCustomGroups');
         manageGroupsBtn.style.display = this.kanbanMode === 'custom' ? 'inline-flex' : 'none';
         manageGroupsBtn.addEventListener('click', () => this.showManageGroupsDialog());
         controlsGroup.appendChild(manageGroupsBtn);
@@ -3258,7 +3258,7 @@ export class ProjectKanbanView {
 
         menu.addItem({
             iconHTML: "🎯",
-            label: "设置优先级",
+            label: t('setPriority'),
             submenu: priorityMenuItems
         });
 
@@ -3275,7 +3275,7 @@ export class ProjectKanbanView {
                 // 添加"移除分组"选项
                 groupMenuItems.push({
                     iconHTML: "❌",
-                    label: "移除分组",
+                    label: t('removeGroup'),
                     current: !currentGroupId,
                     // 传入 task 对象（setTaskCustomGroup 期望第一个参数为 task 对象）
                     click: () => this.setTaskCustomGroup(task, null)
@@ -3294,7 +3294,7 @@ export class ProjectKanbanView {
 
                 menu.addItem({
                     iconHTML: "📂",
-                    label: "设置分组",
+                    label: t('setCategory'),
                     submenu: groupMenuItems
                 });
             }
@@ -3306,13 +3306,13 @@ export class ProjectKanbanView {
         if (task.blockId || task.docId) {
             menu.addItem({
                 iconHTML: "📋",
-                label: "复制块引用",
+                label: t('copyBlockRef'),
                 click: () => this.copyBlockRef(task)
             });
         } else {
             menu.addItem({
                 iconHTML: "🔗",
-                label: "绑定到块",
+                label: t('bindToBlock'),
                 click: () => this.showBindToBlockDialog(task)
             });
         }
@@ -3380,12 +3380,12 @@ export class ProjectKanbanView {
             // 周期事件实例 - 显示删除此实例和删除所有实例
             menu.addItem({
                 iconHTML: "🗑️",
-                label: "删除此实例",
+                label: t('deleteThisInstance'),
                 click: () => this.deleteInstanceOnly(task)
             });
             menu.addItem({
                 iconHTML: "🗑️",
-                label: "删除所有实例",
+                label: t('deleteAllInstances'),
                 click: () => this.deleteTask(task)
             });
         } else {

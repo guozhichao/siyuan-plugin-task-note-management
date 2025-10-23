@@ -1356,7 +1356,7 @@ export class ProjectPanel {
             // 打开项目看板
             menu.addItem({
                 iconHTML: "📋",
-                label: "打开项目看板",
+                label: t("openProjectKanban") || "打开项目看板",
                 click: () => this.openProjectKanban(project)
             });
 
@@ -1481,7 +1481,7 @@ export class ProjectPanel {
         // 删除项目
         menu.addItem({
             iconHTML: "🗑️",
-            label: "删除项目",
+            label: t("deleteProject") || "删除项目",
             click: () => this.deleteProject(project)
         });
 
