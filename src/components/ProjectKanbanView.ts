@@ -575,6 +575,10 @@ export class ProjectKanbanView {
                     const related = (e as any).relatedTarget as Node;
                     if (!related || !container.contains(related)) {
                         container.querySelectorAll('.group-drop-indicator').forEach(el => el.remove());
+                        if (this._groupDropIndicator && this._groupDropIndicator.parentNode) {
+                            this._groupDropIndicator.parentNode.removeChild(this._groupDropIndicator);
+                        }
+                        this._groupDropIndicator = null;
                     }
                 });
 
@@ -6770,6 +6774,12 @@ export class ProjectKanbanView {
                 // 重新分配 sort 并保存
                 currentGroups.forEach((g: any, index: number) => { g.sort = index * 10; });
                 await projectManager.setProjectCustomGroups(this.projectId, currentGroups);
+
+                // 清理绝对定位的插入指示器（如存在）
+                if (this._groupDropIndicator && this._groupDropIndicator.parentNode) {
+                    this._groupDropIndicator.parentNode.removeChild(this._groupDropIndicator);
+                }
+                this._groupDropIndicator = null;
 
                 // 刷新 UI
                 await this.loadAndDisplayGroups(container);
