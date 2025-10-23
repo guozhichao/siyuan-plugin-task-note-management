@@ -1,20 +1,20 @@
-## Star History
+## ✨Star History
 
 <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Achuan-2/siyuan-plugin-task-note-management&type=Date" />
 
-## 插件简介
+## 📒插件简介
 
 一款在思源笔记里实现任务管理功能的插件，为了践行防弹笔记法而开发。支持文档和块提醒、日历视图查看行事历、番茄钟专注等功能
 
 > 前排提醒，插件为个人自用，对任何因为插件导致的数据丢失问题概不负责。  
 > 请考虑清楚再使用。
 
-## 更新日志
+## 📝更新日志
 
 见: [CHANGELOG.md](https://cdn.jsdelivr.net/gh/Achuan-2/siyuan-plugin-task-note-management@main/CHANGELOG.md
 )
 
-## 🤔插件背后的指导思想：防弹笔记法
+## 🛡️插件背后的指导思想：防弹笔记法
 
 ### 什么是防弹笔记法
 
@@ -149,17 +149,34 @@
 
 ### 项目看板功能
 
-项目支持双击或者右键打开项目看板
+项目管理侧栏支持双击或者右键打开项目看板
 
-<img alt="PixPin_2025-10-23_00-51-26" src="https://assets.b3logfile.com/siyuan/1610205759005/assets/PixPin_2025-10-23_00-51-26-20251023005145-qaxltad.png" />
+<img alt="PixPin_2025-10-23_10-34-04" src="https://assets.b3logfile.com/siyuan/1610205759005/assets/PixPin_2025-10-23_10-34-04-20251023103406-kyynpg1.png" style="width: 352px;" />
 
-新建任务
+支持新建任务
 
 <img alt="PixPin_2025-10-23_00-52-24" src="https://assets.b3logfile.com/siyuan/1610205759005/assets/PixPin_2025-10-23_00-52-24-20251023005228-o5m5xv2.png" />
 
 粘贴列表快速新建任务
 
 <img alt="PixPin_2025-10-23_00-52-16" src="https://assets.b3logfile.com/siyuan/1610205759005/assets/PixPin_2025-10-23_00-52-16-20251023005219-wrl3ppz.png" />
+
+项目看板有两个样式
+
+1. 任务状态看板：显示进行中、短期、长期、已完成任务
+2. 自定义分组看板：根据任务类型自定义分组
+
+任务状态看板
+
+<img alt="PixPin20251023102608.png" src="https://assets.b3logfile.com/siyuan/1610205759005/assets/PixPin_2025-10-23_10-26-08-DEgjVQZ-20251023103303-zsi2mo5.png" />
+
+自定义分组看板
+
+<img alt="PixPin20251023102454.png" src="https://assets.b3logfile.com/siyuan/1610205759005/assets/PixPin_2025-10-23_10-24-54-zZ6RAPo-20251023103303-zog0g50.png" />
+
+自定义分组看板支持自定义颜色和 emoji
+
+<img alt="PixPin20251023102527.png" src="https://assets.b3logfile.com/siyuan/1610205759005/assets/PixPin_2025-10-23_10-25-27-0le3lv2-20251023103303-vqoo5pd.png" />
 
 
 

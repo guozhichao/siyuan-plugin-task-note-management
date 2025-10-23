@@ -29,10 +29,12 @@ export class ReminderDialog {
     private defaultProjectId?: string;
     private showKanbanStatus?: 'todo' | 'term' | 'none' = 'term'; // 看板状态显示模式，默认为 'term'
     private defaultTermType?: 'short_term' | 'long_term' | 'doing' | 'todo' = 'doing'; // 默认任务类型
+    private defaultCustomGroupId?: string | null;
 
     constructor(blockId: string, autoDetectDateTime: boolean = false, defaultProjectId?: string, options?: {
         showKanbanStatus?: 'todo' | 'term' | 'none';
         defaultTermType?: 'short_term' | 'long_term' | 'doing' | 'todo';
+        defaultCustomGroupId?: string | null;
     }) {
         this.blockId = blockId;
         this.autoDetectDateTime = autoDetectDateTime; // 存储参数
@@ -42,6 +44,7 @@ export class ReminderDialog {
         if (options) {
             this.showKanbanStatus = options.showKanbanStatus || 'term';
             this.defaultTermType = options.defaultTermType || 'doing';
+            this.defaultCustomGroupId = options.defaultCustomGroupId;
         }
         this.categoryManager = CategoryManager.getInstance();
         this.projectManager = ProjectManager.getInstance();
@@ -560,25 +563,18 @@ export class ReminderDialog {
                             </div>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t("priority")}</label>
-                            <div class="priority-selector" id="prioritySelector">
-                                <div class="priority-option" data-priority="high">
-                                    <div class="priority-dot high"></div>
-                                    <span>${t("highPriority")}</span>
-                                </div>
-                                <div class="priority-option" data-priority="medium">
-                                    <div class="priority-dot medium"></div>
-                                    <span>${t("mediumPriority")}</span>
-                                </div>
-                                <div class="priority-option" data-priority="low">
-                                    <div class="priority-dot low"></div>
-                                    <span>${t("lowPriority")}</span>
-                                </div>
-                                <div class="priority-option selected" data-priority="none">
-                                    <div class="priority-dot none"></div>
-                                    <span>${t("noPriority")}</span>
-                                </div>
-                            </div>
+                            <label class="b3-form__label">${t("projectManagement")}</label>
+                            <select id="projectSelector" class="b3-select" style="width: 100%;">
+                                <option value="">${t("noProject")}</option>
+                                <!-- 项目选择器将在这里渲染 -->
+                            </select>
+                        </div>
+                        <div class="b3-form__group" id="customGroup" style="display: none;">
+                            <label class="b3-form__label">${t("customGroup") || '自定义分组'}</label>
+                            <select id="customGroupSelector" class="b3-select" style="width: 100%;">
+                                <option value="">${t("noGroup") || '无分组'}</option>
+                                <!-- 自定义分组选择器将在这里渲染 -->
+                            </select>
                         </div>
                         ${this.renderTermTypeSelector()}
                         <div class="b3-form__group">
@@ -608,13 +604,26 @@ export class ReminderDialog {
                                 </button>
                             </div>
                         </div>
-                        
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t("projectManagement")}</label>
-                            <select id="projectSelector" class="b3-select" style="width: 100%;">
-                                <option value="">${t("noProject")}</option>
-                                <!-- 项目选择器将在这里渲染 -->
-                            </select>
+                            <label class="b3-form__label">${t("priority")}</label>
+                            <div class="priority-selector" id="prioritySelector">
+                                <div class="priority-option" data-priority="high">
+                                    <div class="priority-dot high"></div>
+                                    <span>${t("highPriority")}</span>
+                                </div>
+                                <div class="priority-option" data-priority="medium">
+                                    <div class="priority-dot medium"></div>
+                                    <span>${t("mediumPriority")}</span>
+                                </div>
+                                <div class="priority-option" data-priority="low">
+                                    <div class="priority-dot low"></div>
+                                    <span>${t("lowPriority")}</span>
+                                </div>
+                                <div class="priority-option selected" data-priority="none">
+                                    <div class="priority-dot none"></div>
+                                    <span>${t("noPriority")}</span>
+                                </div>
+                            </div>
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("reminderNoteOptional")}</label>
@@ -639,8 +648,8 @@ export class ReminderDialog {
 
         this.bindEvents();
         await this.renderCategorySelector();
-        await this.renderPrioritySelector();
         await this.renderProjectSelector();
+        await this.renderPrioritySelector();
         await this.loadExistingReminder();
 
         // 初始化日期时间输入框
@@ -861,11 +870,78 @@ export class ReminderDialog {
             console.error('渲染项目选择器失败:', error);
             projectSelector.innerHTML = '<option value="">加载项目失败</option>';
         }
+
+        // 如果有默认项目，触发项目改变事件以显示分组选择器
+        if (this.defaultProjectId) {
+            setTimeout(() => this.onProjectChange(this.defaultProjectId!), 100);
+        }
     }
 
     private getStatusDisplayName(statusKey: string): string {
         const status = this.projectManager.getStatusManager().getStatusById(statusKey);
         return status?.name || statusKey;
+    }
+
+    /**
+     * 项目选择器改变时的处理方法
+     */
+    private async onProjectChange(projectId: string) {
+        const customGroupContainer = this.dialog.element.querySelector('#customGroup') as HTMLElement;
+        if (!customGroupContainer) return;
+
+        if (projectId) {
+            customGroupContainer.style.display = '';
+            await this.renderCustomGroupSelector(projectId);
+        } else {
+            customGroupContainer.style.display = 'none';
+        }
+    }
+
+    /**
+     * 渲染自定义分组选择器
+     */
+    /**
+     * 渲染自定义分组选择器
+     */
+    private async renderCustomGroupSelector(projectId: string) {
+        const groupSelector = this.dialog.element.querySelector('#customGroupSelector') as HTMLSelectElement;
+        if (!groupSelector) return;
+
+        try {
+            const projectGroups = await this.projectManager.getProjectCustomGroups(projectId);
+
+            // 清空并重新构建分组选择器
+            groupSelector.innerHTML = '';
+
+            // 添加无分组选项
+            const noGroupOption = document.createElement('option');
+            noGroupOption.value = '';
+            noGroupOption.textContent = t('noGroup') || '无分组';
+            noGroupOption.selected = true;
+            groupSelector.appendChild(noGroupOption);
+
+            // 添加所有分组选项
+            if (projectGroups && projectGroups.length > 0) {
+                projectGroups.forEach((group: any) => {
+                    const option = document.createElement('option');
+                    option.value = group.id;
+                    option.textContent = `${group.icon || '📋'} ${group.name}`.trim();
+                    groupSelector.appendChild(option);
+                });
+            }
+
+            // 如果传入了默认 custom group id，则预选（注意：null 表示明确不分组）
+            if (this.defaultCustomGroupId !== undefined) {
+                if (this.defaultCustomGroupId === null) {
+                    groupSelector.value = '';
+                } else {
+                    groupSelector.value = this.defaultCustomGroupId;
+                }
+            }
+        } catch (error) {
+            console.error('渲染自定义分组选择器失败:', error);
+            groupSelector.innerHTML = '<option value="">加载分组失败</option>';
+        }
     }
 
     // 修改获取文档默认分类的方法
@@ -1295,9 +1371,10 @@ export class ReminderDialog {
             this.showCategoryManageDialog();
         });
 
-        // 自然语言识别按钮
-        nlBtn?.addEventListener('click', () => {
-            this.showNaturalLanguageDialog();
+        // 项目选择器改变事件
+        projectSelector?.addEventListener('change', () => {
+            const selectedProjectId = projectSelector.value;
+            this.onProjectChange(selectedProjectId);
         });
     }
 
@@ -1356,6 +1433,7 @@ export class ReminderDialog {
         const selectedCategory = this.dialog.element.querySelector('#categorySelector .category-option.selected') as HTMLElement;
         const selectedTermType = this.dialog.element.querySelector('#termTypeSelector .term-type-option.selected') as HTMLElement;
         const projectSelector = this.dialog.element.querySelector('#projectSelector') as HTMLSelectElement;
+        const customGroupSelector = this.dialog.element.querySelector('#customGroupSelector') as HTMLSelectElement;
 
         const title = titleInput.value.trim();
         const note = noteInput.value.trim() || undefined;
@@ -1363,6 +1441,7 @@ export class ReminderDialog {
         const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
         const termType = selectedTermType?.getAttribute('data-term-type') as 'short_term' | 'long_term' | 'doing' | 'todo' | undefined;
         let projectId = projectSelector.value || undefined;
+        const customGroupId = customGroupSelector?.value || undefined;
         // 如果用户未选择项目，但存在默认项目ID（例如文档被设置为项目），则使用该默认项目
         if ((!projectId || projectId === '') && this.defaultProjectId) {
             projectId = this.defaultProjectId;
@@ -1437,6 +1516,7 @@ export class ReminderDialog {
                 priority: priority,
                 categoryId: categoryId, // 添加分类ID
                 projectId: projectId, // 添加项目ID字段
+                customGroupId: customGroupId, // 添加自定义分组ID字段
                 createdAt: new Date().toISOString(),
                 repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined
             };

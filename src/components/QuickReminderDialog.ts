@@ -47,6 +47,7 @@ export class QuickReminderDialog {
         defaultCategoryId?: string;
         defaultPriority?: string;
         defaultBlockId?: string;
+        defaultCustomGroupId?: string | null;
         plugin?: any; // 添加plugin选项
         hideProjectSelector?: boolean; // 是否隐藏项目选择器
         showKanbanStatus?: 'todo' | 'term' | 'none'; // 看板状态显示模式，默认为 'term'
@@ -81,6 +82,7 @@ export class QuickReminderDialog {
             this.defaultCategoryId = options.defaultCategoryId;
             this.defaultPriority = options.defaultPriority;
             this.defaultBlockId = options.defaultBlockId;
+            this['defaultCustomGroupId'] = options.defaultCustomGroupId; // may be undefined or null
             this.plugin = options.plugin; // 保存plugin引用
             this.hideProjectSelector = options.hideProjectSelector;
             this.showKanbanStatus = options.showKanbanStatus || 'term'; // 默认为 'term'
@@ -510,6 +512,13 @@ export class QuickReminderDialog {
                             <select id="quickProjectSelector" class="b3-select" style="width: 100%;">
                                 <option value="">${t("noProject")}</option>
                                 <!-- 项目选择器将在这里渲染 -->
+                            </select>
+                        </div>
+                        <div class="b3-form__group" id="quickCustomGroup" style="display: none;">
+                            <label class="b3-form__label">${t("customGroup") || '自定义分组'}</label>
+                            <select id="quickCustomGroupSelector" class="b3-select" style="width: 100%;">
+                                <option value="">${t("noGroup") || '无分组'}</option>
+                                <!-- 自定义分组选择器将在这里渲染 -->
                             </select>
                         </div>
                         ${this.renderTermTypeSelector()}
@@ -1072,6 +1081,16 @@ export class QuickReminderDialog {
                     projectSelector.appendChild(optgroup);
                 }
             });
+
+            // 添加项目选择器改变事件监听器
+            projectSelector.addEventListener('change', async () => {
+                await this.onProjectChange(projectSelector.value);
+            });
+
+            // 初始化时检查默认项目
+            if (this.defaultProjectId) {
+                await this.onProjectChange(this.defaultProjectId);
+            }
         } catch (error) {
             console.error('渲染项目选择器失败:', error);
         }
@@ -1080,6 +1099,80 @@ export class QuickReminderDialog {
     private getStatusDisplayName(statusKey: string): string {
         const status = this.projectManager.getStatusManager().getStatusById(statusKey);
         return status?.name || statusKey;
+    }
+
+    /**
+     * 项目选择器改变时的处理方法
+     */
+    private async onProjectChange(projectId: string) {
+        const customGroupContainer = this.dialog.element.querySelector('#quickCustomGroup') as HTMLElement;
+        if (!customGroupContainer) return;
+
+        if (projectId) {
+            // 检查项目是否有自定义分组
+            try {
+                const { ProjectManager } = await import('../utils/projectManager');
+                const projectManager = ProjectManager.getInstance();
+                const projectGroups = await projectManager.getProjectCustomGroups(projectId);
+
+                if (projectGroups.length > 0) {
+                    // 显示分组选择器并渲染分组选项
+                    customGroupContainer.style.display = 'block';
+                    await this.renderCustomGroupSelector(projectId);
+                } else {
+                    // 隐藏分组选择器
+                    customGroupContainer.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('检查项目分组失败:', error);
+                customGroupContainer.style.display = 'none';
+            }
+        } else {
+            // 没有选择项目，隐藏分组选择器
+            customGroupContainer.style.display = 'none';
+        }
+    }
+
+    /**
+     * 渲染自定义分组选择器
+     */
+    private async renderCustomGroupSelector(projectId: string) {
+        const groupSelector = this.dialog.element.querySelector('#quickCustomGroupSelector') as HTMLSelectElement;
+        if (!groupSelector) return;
+
+        try {
+            const { ProjectManager } = await import('../utils/projectManager');
+            const projectManager = ProjectManager.getInstance();
+            const projectGroups = await projectManager.getProjectCustomGroups(projectId);
+
+            // 清空并重新构建分组选择器
+            groupSelector.innerHTML = '';
+
+            // 添加无分组选项
+            const noGroupOption = document.createElement('option');
+            noGroupOption.value = '';
+            noGroupOption.textContent = t('noGroup') || '无分组';
+            groupSelector.appendChild(noGroupOption);
+
+            // 添加所有分组选项
+            projectGroups.forEach((group: any) => {
+                const option = document.createElement('option');
+                option.value = group.id;
+                option.textContent = `${group.icon || '📋'} ${group.name}`.trim();
+                groupSelector.appendChild(option);
+            });
+
+            // 如果传入了默认 custom group id，则预选（注意：null 表示明确不分组）
+            if (this['defaultCustomGroupId'] !== undefined) {
+                if (this['defaultCustomGroupId'] === null) {
+                    groupSelector.value = '';
+                } else {
+                    groupSelector.value = this['defaultCustomGroupId'];
+                }
+            }
+        } catch (error) {
+            console.error('渲染自定义分组选择器失败:', error);
+        }
     }
 
     /**
@@ -1225,6 +1318,7 @@ export class QuickReminderDialog {
         const selectedPriority = this.dialog.element.querySelector('#quickPrioritySelector .priority-option.selected') as HTMLElement;
         const selectedCategory = this.dialog.element.querySelector('#quickCategorySelector .category-option.selected') as HTMLElement;
         const selectedTermType = this.dialog.element.querySelector('#quickTermTypeSelector .term-type-option.selected') as HTMLElement;
+        const customGroupSelector = this.dialog.element.querySelector('#quickCustomGroupSelector') as HTMLSelectElement;
 
         const title = titleInput.value.trim();
         const inputId = blockInput?.value?.trim() || undefined;
@@ -1233,6 +1327,7 @@ export class QuickReminderDialog {
         const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
         const projectId = projectSelector.value || undefined;
         const termType = selectedTermType?.getAttribute('data-term-type') as 'short_term' | 'long_term' | 'doing' | 'todo' | undefined;
+        const customGroupId = customGroupSelector?.value || undefined;
 
         // 解析日期和时间
         let date: string;
@@ -1302,6 +1397,7 @@ export class QuickReminderDialog {
                 priority: priority,
                 categoryId: categoryId,
                 projectId: projectId,
+                customGroupId: customGroupId,
                 createdAt: new Date().toISOString(),
                 repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined,
                 isQuickReminder: true, // 标记为快速创建的提醒

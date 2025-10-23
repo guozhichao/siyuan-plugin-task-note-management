@@ -8,6 +8,8 @@ export interface Project {
     name: string;
     status: string;
     color?: string;
+    kanbanMode?: 'status' | 'custom';
+    customGroups?: any[];
 }
 
 export class ProjectManager {
@@ -174,5 +176,69 @@ export class ProjectManager {
 
     public getStatusManager(): StatusManager {
         return this.statusManager;
+    }
+
+    /**
+     * 获取项目的看板模式
+     */
+    public async getProjectKanbanMode(projectId: string): Promise<'status' | 'custom'> {
+        try {
+            const projectData = await readProjectData();
+            const project = projectData[projectId];
+            return project?.kanbanMode || 'status';
+        } catch (error) {
+            console.error('获取项目看板模式失败:', error);
+            return 'status';
+        }
+    }
+
+    /**
+     * 设置项目的看板模式
+     */
+    public async setProjectKanbanMode(projectId: string, mode: 'status' | 'custom'): Promise<void> {
+        try {
+            const projectData = await readProjectData();
+            if (projectData[projectId]) {
+                projectData[projectId].kanbanMode = mode;
+                // 保存项目数据（这里需要调用API保存）
+                const { writeProjectData } = await import('../api');
+                await writeProjectData(projectData);
+            }
+        } catch (error) {
+            console.error('设置项目看板模式失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 获取项目的自定义分组
+     */
+    public async getProjectCustomGroups(projectId: string): Promise<any[]> {
+        try {
+            const projectData = await readProjectData();
+            const project = projectData[projectId];
+            return project?.customGroups || [];
+        } catch (error) {
+            console.error('获取项目自定义分组失败:', error);
+            return [];
+        }
+    }
+
+    /**
+     * 设置项目的自定义分组
+     */
+    public async setProjectCustomGroups(projectId: string, groups: any[]): Promise<void> {
+        try {
+            const projectData = await readProjectData();
+            if (projectData[projectId]) {
+                projectData[projectId].customGroups = groups;
+                // 保存项目数据（这里需要调用API保存）
+                const { writeProjectData } = await import('../api');
+                await writeProjectData(projectData);
+            }
+        } catch (error) {
+            console.error('设置项目自定义分组失败:', error);
+            throw error;
+        }
     }
 }

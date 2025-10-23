@@ -521,6 +521,13 @@ export class ReminderEditDialog {
                             <!-- 项目选择器将在这里渲染 -->
                         </select>
                     </div>
+                    <div class="b3-form__group" id="editCustomGroup" style="display: none;">
+                        <label class="b3-form__label">${t("customGroup") || '自定义分组'}</label>
+                        <select id="editCustomGroupSelector" class="b3-select" style="width: 100%;">
+                            <option value="">${t("noGroup") || '无分组'}</option>
+                            <!-- 自定义分组选择器将在这里渲染 -->
+                        </select>
+                    </div>
                     <div class="b3-form__group">
                         <label class="b3-form__label">${t("priority")}</label>
                         <div class="priority-selector" id="editPrioritySelector">
@@ -819,6 +826,7 @@ export class ReminderEditDialog {
         const selectedCategory = this.dialog.element.querySelector('#editCategorySelector .category-option.selected') as HTMLElement;
         const projectSelector = this.dialog.element.querySelector('#editProjectSelector') as HTMLSelectElement;
         const selectedTermType = this.dialog.element.querySelector('#editTermTypeSelector .term-type-option.selected') as HTMLElement;
+        const customGroupSelector = this.dialog.element.querySelector('#editCustomGroupSelector') as HTMLSelectElement;
 
         const title = titleInput.value.trim();
         const inputId = blockInput?.value?.trim() || undefined;
@@ -827,6 +835,7 @@ export class ReminderEditDialog {
         const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
         const projectId = projectSelector.value || undefined;
         const termType = selectedTermType?.getAttribute('data-term-type') as 'short_term' | 'long_term' | 'doing' | 'todo' | undefined;
+        const customGroupId = customGroupSelector?.value || undefined;
 
         // 解析日期和时间
         let date: string;
@@ -900,6 +909,7 @@ export class ReminderEditDialog {
                     categoryId: categoryId, // 添加分类ID
                     blockId: inputId || undefined,
                     projectId: projectId,
+                    customGroupId: customGroupId, // 添加自定义分组ID
                     repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined,
                     notified: shouldResetNotified ? false : this.reminder.notified,
                     // 设置任务类型
@@ -931,6 +941,7 @@ export class ReminderEditDialog {
                     categoryId: categoryId, // 添加分类ID
                     blockId: inputId || undefined,
                     projectId: projectId,
+                    customGroupId: customGroupId, // 添加自定义分组ID
                     notified: shouldResetNotified ? false : this.reminder.notified,
                     termType: termType,
                     kanbanStatus: termType === 'doing' ? 'doing' : 'todo'
@@ -945,6 +956,7 @@ export class ReminderEditDialog {
                     reminderData[this.reminder.id].note = note;
                     reminderData[this.reminder.id].priority = priority;
                     reminderData[this.reminder.id].categoryId = categoryId; // 添加分类ID
+                    reminderData[this.reminder.id].customGroupId = customGroupId; // 添加自定义分组ID
 
                     // 设置任务类型
                     if (termType) {
@@ -1135,7 +1147,7 @@ export class ReminderEditDialog {
         }
     }
 
-    private async saveInstanceModification(instanceData: any & { termType?: string; kanbanStatus?: string }) {
+    private async saveInstanceModification(instanceData: any & { termType?: string; kanbanStatus?: string; customGroupId?: string }) {
         // 保存重复事件实例的修改
         try {
             const originalId = instanceData.originalId;
@@ -1166,6 +1178,7 @@ export class ReminderEditDialog {
                 priority: instanceData.priority,
                 categoryId: instanceData.categoryId, // 添加分类ID
                 projectId: instanceData.projectId, // 添加项目ID
+                customGroupId: instanceData.customGroupId, // 添加自定义分组ID
                 notified: instanceData.notified, // 添加通知状态
                 modifiedAt: new Date().toISOString(),
                 // 设置任务类型
@@ -1240,6 +1253,16 @@ export class ReminderEditDialog {
                     projectSelector.appendChild(optgroup);
                 }
             });
+
+            // 添加项目选择器改变事件监听器
+            projectSelector.addEventListener('change', async () => {
+                await this.onProjectChange(projectSelector.value);
+            });
+
+            // 初始化时检查当前项目
+            if (this.reminder.projectId) {
+                await this.onProjectChange(this.reminder.projectId);
+            }
         } catch (error) {
             console.error('渲染项目选择器失败:', error);
             projectSelector.innerHTML = '<option value="">加载项目失败</option>';
@@ -1366,5 +1389,76 @@ export class ReminderEditDialog {
     private getStatusDisplayName(statusKey: string): string {
         const status = this.projectManager.getStatusManager().getStatusById(statusKey);
         return status?.name || statusKey;
+    }
+
+    /**
+     * 项目选择器改变时的处理方法
+     */
+    private async onProjectChange(projectId: string) {
+        const customGroupContainer = this.dialog.element.querySelector('#editCustomGroup') as HTMLElement;
+        if (!customGroupContainer) return;
+
+        if (projectId) {
+            // 检查项目是否有自定义分组
+            try {
+                const { ProjectManager } = await import('../utils/projectManager');
+                const projectManager = ProjectManager.getInstance();
+                const projectGroups = await projectManager.getProjectCustomGroups(projectId);
+
+                if (projectGroups.length > 0) {
+                    // 显示分组选择器并渲染分组选项
+                    customGroupContainer.style.display = 'block';
+                    await this.renderCustomGroupSelector(projectId);
+                } else {
+                    // 隐藏分组选择器
+                    customGroupContainer.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('检查项目分组失败:', error);
+                customGroupContainer.style.display = 'none';
+            }
+        } else {
+            // 没有选择项目，隐藏分组选择器
+            customGroupContainer.style.display = 'none';
+        }
+    }
+
+    /**
+     * 渲染自定义分组选择器
+     */
+    private async renderCustomGroupSelector(projectId: string) {
+        const groupSelector = this.dialog.element.querySelector('#editCustomGroupSelector') as HTMLSelectElement;
+        if (!groupSelector) return;
+
+        try {
+            const { ProjectManager } = await import('../utils/projectManager');
+            const projectManager = ProjectManager.getInstance();
+            const projectGroups = await projectManager.getProjectCustomGroups(projectId);
+
+            // 清空并重新构建分组选择器
+            groupSelector.innerHTML = '';
+
+            // 添加无分组选项
+            const noGroupOption = document.createElement('option');
+            noGroupOption.value = '';
+            noGroupOption.textContent = t('noGroup') || '无分组';
+            groupSelector.appendChild(noGroupOption);
+
+            // 添加所有分组选项
+            projectGroups.forEach((group: any) => {
+                const option = document.createElement('option');
+                option.value = group.id;
+                option.textContent = `${group.icon || '📋'} ${group.name}`.trim();
+
+                // 如果当前提醒有分组ID，选中它
+                if (this.reminder.customGroupId === group.id) {
+                    option.selected = true;
+                }
+
+                groupSelector.appendChild(option);
+            });
+        } catch (error) {
+            console.error('渲染自定义分组选择器失败:', error);
+        }
     }
 }

@@ -731,5 +731,11 @@
     "taskTitle": "Task Title",
     "blockId": "Block ID",
     "or": "or",
-    "multiLevelSupport": "Multi-level support: Use indentation or multiple <code>-</code> symbols to create parent-child task relationships"
+    "multiLevelSupport": "Multi-level support: Use indentation or multiple <code>-</code> symbols to create parent-child task relationships",
+    "statusKanban": "Status Kanban",
+    "customGroupKanban": "Custom Group Kanban",
+    "switchKanbanMode": "Switch Kanban Mode",
+    "manageGroups": "Manage Groups",
+    "customGroup": "Custom Group",
+    "noGroup": "No Group"
 }

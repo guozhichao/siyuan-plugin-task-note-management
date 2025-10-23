@@ -865,14 +865,14 @@ export class EisenhowerMatrixView {
             // 根据kanbanStatus和termType确定状态配置
             let statusInfo;
             if (kanbanStatus === 'doing') {
-                statusInfo = { icon: '⏰', label: '进行中', color: '#f39c12' };
+                statusInfo = { icon: '⏳', label: '进行中', color: '#f39c12' };
             } else if (kanbanStatus === 'todo' && termType === 'short_term') {
-                statusInfo = { icon: '📝', label: '短期待办', color: '#95a5a6' };
+                statusInfo = { icon: '📋', label: '短期待办', color: '#95a5a6' };
             } else if (kanbanStatus === 'todo' && termType === 'long_term') {
-                statusInfo = { icon: '📆', label: '长期待办', color: '#95a5a6' };
+                statusInfo = { icon: '🤔', label: '长期待办', color: '#95a5a6' };
             } else {
                 // 默认待办状态
-                statusInfo = { icon: '📝', label: '短期待办', color: '#95a5a6' };
+                statusInfo = { icon: '📋', label: '短期待办', color: '#95a5a6' };
             }
 
             const statusSpan = document.createElement('span');
@@ -2416,9 +2416,9 @@ export class EisenhowerMatrixView {
                 kanbanStatus: string;
                 termType: 'short_term' | 'long_term' | null;
             }> = [
-                    { key: 'doing', label: '进行中', icon: '🔥', kanbanStatus: 'doing', termType: null },
+                    { key: 'doing', label: '进行中', icon: '⏳', kanbanStatus: 'doing', termType: null },
                     { key: 'short-todo', label: '短期待办', icon: '📋', kanbanStatus: 'todo', termType: 'short_term' },
-                    { key: 'long-todo', label: '长期待办', icon: '📆', kanbanStatus: 'todo', termType: 'long_term' }
+                    { key: 'long-todo', label: '长期待办', icon: '🤔', kanbanStatus: 'todo', termType: 'long_term' }
                 ];
 
             const currentKanbanStatus = task.extendedProps?.kanbanStatus || 'todo';

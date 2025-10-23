@@ -730,5 +730,11 @@
     "taskTitle": "任务标题",
     "blockId": "块ID",
     "or": "或",
-    "multiLevelSupport": "支持多层级：使用缩进或多个<code>-</code>符号创建父子任务关系"
+    "multiLevelSupport": "支持多层级：使用缩进或多个<code>-</code>符号创建父子任务关系",
+    "statusKanban": "任务状态看板",
+    "customGroupKanban": "自定义分组看板",
+    "switchKanbanMode": "切换看板模式",
+    "manageGroups": "管理分组",
+    "customGroup": "自定义分组",
+    "noGroup": "无分组"
 }
