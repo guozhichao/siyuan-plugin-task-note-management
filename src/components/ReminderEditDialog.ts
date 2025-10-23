@@ -780,6 +780,13 @@ export class ReminderEditDialog {
         editNlBtn?.addEventListener('click', () => {
             this.showNaturalLanguageDialog();
         });
+
+        // 自定义分组选择器改变事件
+        const customGroupSelector = this.dialog.element.querySelector('#editCustomGroupSelector') as HTMLSelectElement;
+        customGroupSelector?.addEventListener('change', () => {
+            // 更新reminder的自定义分组ID
+            this.reminder.customGroupId = customGroupSelector.value || undefined;
+        });
     }
 
     private showRepeatSettingsDialog() {
@@ -950,6 +957,10 @@ export class ReminderEditDialog {
                 // 保存普通事件或重复事件系列的修改
                 const reminderData = await readReminderData();
                 if (reminderData[this.reminder.id]) {
+                    // 先获取旧值，用于比较变化
+                    const oldProjectId = reminderData[this.reminder.id].projectId;
+                    const oldCustomGroupId = reminderData[this.reminder.id].customGroupId;
+
                     reminderData[this.reminder.id].title = title;
                     reminderData[this.reminder.id].date = date;
                     reminderData[this.reminder.id].time = time;
@@ -970,7 +981,6 @@ export class ReminderEditDialog {
                     }
 
                     // 检查项目ID是否发生变化
-                    const oldProjectId = reminderData[this.reminder.id].projectId;
                     const projectIdChanged = oldProjectId !== projectId;
 
                     reminderData[this.reminder.id].projectId = projectId;
@@ -979,6 +989,14 @@ export class ReminderEditDialog {
                     // 如果项目ID发生变化，更新所有子任务的项目ID
                     if (projectIdChanged) {
                         this.updateChildrenProjectId(reminderData, this.reminder.id, projectId);
+                    }
+
+                    // 检查自定义分组ID是否发生变化
+                    const customGroupIdChanged = oldCustomGroupId !== customGroupId;
+
+                    // 如果自定义分组ID发生变化，更新所有子任务的自定义分组ID
+                    if (customGroupIdChanged) {
+                        this.updateChildrenCustomGroupId(reminderData, this.reminder.id, customGroupId);
                     }
 
                     // 重置通知状态
@@ -1386,6 +1404,28 @@ export class ReminderEditDialog {
         });
     }
 
+    /**
+     * 递归更新所有子任务的自定义分组ID
+     * @param reminderData 所有提醒数据
+     * @param parentId 父任务ID
+     * @param customGroupId 新的自定义分组ID
+     */
+    private updateChildrenCustomGroupId(reminderData: any, parentId: string, customGroupId: string | undefined): void {
+        // 查找所有直接子任务
+        const children = Object.values(reminderData).filter((reminder: any) =>
+            reminder && reminder.parentId === parentId
+        );
+
+        // 递归更新每个子任务及其子任务
+        children.forEach((child: any) => {
+            if (child && child.id) {
+                child.customGroupId = customGroupId;
+                // 递归更新子任务的子任务
+                this.updateChildrenCustomGroupId(reminderData, child.id, customGroupId);
+            }
+        });
+    }
+
     private getStatusDisplayName(statusKey: string): string {
         const status = this.projectManager.getStatusManager().getStatusById(statusKey);
         return status?.name || statusKey;
@@ -1412,14 +1452,20 @@ export class ReminderEditDialog {
                 } else {
                     // 隐藏分组选择器
                     customGroupContainer.style.display = 'none';
+                    // 如果切换到没有分组的项目，清空自定义分组
+                    this.reminder.customGroupId = undefined;
                 }
             } catch (error) {
                 console.error('检查项目分组失败:', error);
                 customGroupContainer.style.display = 'none';
+                // 出错时也清空自定义分组
+                this.reminder.customGroupId = undefined;
             }
         } else {
             // 没有选择项目，隐藏分组选择器
             customGroupContainer.style.display = 'none';
+            // 清空自定义分组
+            this.reminder.customGroupId = undefined;
         }
     }
 
