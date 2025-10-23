@@ -1093,7 +1093,7 @@ export class ProjectKanbanView {
     /**
      * 设置任务的自定义分组
      */
-    private async setTaskCustomGroup(task: any, groupId: string) {
+    private async setTaskCustomGroup(task: any, groupId: string | null) {
         try {
             const reminderData = await readReminderData();
 
@@ -1102,15 +1102,43 @@ export class ProjectKanbanView {
                 return;
             }
 
-            // 设置分组ID
-            reminderData[task.id].customGroupId = groupId;
+            // 计算要更新的任务列表：包含当前任务及其所有后代
+            const toUpdateIds = [task.id, ...this.getAllDescendantIds(task.id, reminderData)];
+
+            let updatedCount = 0;
+            toUpdateIds.forEach(id => {
+                const item = reminderData[id];
+                if (!item) return;
+                if (groupId === null) {
+                    // 明确移除分组
+                    if (item.customGroupId !== undefined) {
+                        delete item.customGroupId;
+                        updatedCount++;
+                    }
+                } else {
+                    if (item.customGroupId !== groupId) {
+                        item.customGroupId = groupId;
+                        updatedCount++;
+                    }
+                }
+            });
+
+            if (updatedCount === 0) {
+                showMessage('没有需要更新的任务分组');
+                return;
+            }
 
             await writeReminderData(reminderData);
 
             // 广播更新事件
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
-            showMessage(`任务已添加到分组`);
+            // 提示更新的任务数
+            if (groupId === null) {
+                showMessage(`已将 ${updatedCount} 个任务移出分组`);
+            } else {
+                showMessage(`已将 ${updatedCount} 个任务添加到分组`);
+            }
 
             // 重新加载任务以更新显示
             await this.loadTasks();
