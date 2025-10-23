@@ -211,7 +211,10 @@ export class ProjectDialog {
                 archived: statusEl.value === 'archived',
                 createdTime: existingProject?.createdTime || new Date().toISOString(),
                 updatedTime: new Date().toISOString(),
-                sort: existingProject?.sort || 0
+                sort: existingProject?.sort || 0,
+                // 保留现有的看板模式和自定义分组
+                kanbanMode: existingProject?.kanbanMode,
+                customGroups: existingProject?.customGroups
             };
 
             projectData[projectId] = project;
