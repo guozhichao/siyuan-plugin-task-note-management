@@ -722,7 +722,6 @@
 
 .reminder-panel {
     padding: 8px;
-    height: 95%;
     display: flex;
     flex-direction: column;
 }
@@ -1017,7 +1016,6 @@
 /* 悬浮窗口中的提醒面板样式 */
 #floatReminderPanel {
     .reminder-panel {
-        height: 95%;
         padding: 4px;
     }
 
@@ -1282,7 +1280,6 @@
 .reminder-panel {
     display: flex;
     flex-direction: column;
-    height: 95%;
 }
 
 .reminder-panel__header {
