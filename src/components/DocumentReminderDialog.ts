@@ -692,8 +692,8 @@ export class DocumentReminderDialog {
             `;
 
             // 生成番茄emoji
-            const tomatoEmojis = '🍅'.repeat(Math.min(targetReminder.pomodoroCount, 5));
-            const extraCount = targetReminder.pomodoroCount > 5 ? `+${targetReminder.pomodoroCount - 5}` : '';
+            const tomatoEmojis = `🍅 ${targetReminder.pomodoroCount}`;
+            const extraCount = '';
 
             pomodoroDisplay.innerHTML = `
                 <span title="${t("completedPomodoroCount")}: ${targetReminder.pomodoroCount}">${tomatoEmojis}${extraCount}</span>

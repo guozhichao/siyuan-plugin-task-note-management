@@ -2445,28 +2445,7 @@ export class ReminderPanel {
             }
         }
 
-        // 添加番茄钟计数显示
-        const pomodoroCount = await this.getReminderPomodoroCount(reminder.id);
-        if (pomodoroCount && pomodoroCount > 0) {
-            const pomodoroDisplay = document.createElement('div');
-            pomodoroDisplay.className = 'reminder-item__pomodoro-count';
-            pomodoroDisplay.style.cssText = `
-                font-size: 12px;
-                display: inline-flex;
-                align-items: center;
-                gap: 2px;
-                margin-top: 4px;
-            `;
 
-            const tomatoEmojis = '🍅'.repeat(Math.min(pomodoroCount, 5));
-            const extraCount = pomodoroCount > 5 ? `+${pomodoroCount - 5}` : '';
-
-            pomodoroDisplay.innerHTML = `
-                <span title="完成的番茄钟数量: ${pomodoroCount}">${tomatoEmojis}${extraCount}</span>
-            `;
-
-            timeContainer.appendChild(pomodoroDisplay);
-        }
 
 
 
@@ -2474,7 +2453,32 @@ export class ReminderPanel {
         // (The rest of the element creation logic remains the same)
         infoEl.appendChild(titleContainer);
         infoEl.appendChild(timeContainer);
+        // 添加番茄钟计数显示
+        const pomodoroCount = await this.getReminderPomodoroCount(reminder.id);
+        if (pomodoroCount && pomodoroCount > 0) {
+            const pomodoroDisplay = document.createElement('div');
+            pomodoroDisplay.className = 'reminder-item__pomodoro-count';
+            pomodoroDisplay.style.cssText = `
+                font-size: 12px;
+                display: block;
+                background: rgba(255, 99, 71, 0.1);
+                color: rgb(255, 99, 71);
+                padding: 4px 8px;
+                border-radius: 4px;
+                margin-top: 4px;
+                width: fit-content;
+            `;
 
+            const tomatoEmojis = `🍅 ${pomodoroCount}`;
+            const extraCount = '';
+
+            pomodoroDisplay.innerHTML = `
+                <span title="完成的番茄钟数量: ${pomodoroCount}">${tomatoEmojis}${extraCount}</span>
+            `;
+
+            // 将番茄计数添加到 timeContainer 后面
+            infoEl.appendChild(pomodoroDisplay);
+        }
         // 已完成任务显示透明度并显示完成时间
         if (reminder.completed) {
             // 设置整体透明度为 0.5
