@@ -1504,9 +1504,8 @@ export class ProjectKanbanView {
                     parentMap.forEach((_children, parentId) => {
                         const parent = this.tasks.find(p => p.id === parentId);
                         if (!parent) return;
-                        if (parent.status !== 'doing') {
-                            this.collapsedTasks.add(parentId);
-                        }
+                        // 默认折叠所有父任务
+                        this.collapsedTasks.add(parentId);
                     });
                 }
             } catch (err) {
