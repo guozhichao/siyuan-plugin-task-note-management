@@ -57,6 +57,9 @@ export class ProjectKanbanView {
     // 存储每列当前页，key 为 status ('long_term'|'short_term'|'doing'|'done')
     private pageIndexMap: { [status: string]: number } = { long_term: 1, short_term: 1, doing: 1, done: 1 };
 
+    // 自定义分组子分组折叠状态跟踪，key 为 "groupId-status" 格式
+    private collapsedStatusGroups: Set<string> = new Set();
+
     // 指示器状态跟踪
     private currentIndicatorType: 'none' | 'sort' | 'parentChild' = 'none';
     private currentIndicatorTarget: HTMLElement | null = null;
@@ -1238,6 +1241,46 @@ export class ProjectKanbanView {
     }
 
     /**
+     * **[新增]** 为自定义分组下的状态子分组添加拖拽事件（设置任务状态）
+     * @param element 目标DOM元素
+     * @param targetStatus 目标状态 ('doing', 'short_term', 'long_term')
+     */
+    private addStatusSubGroupDropEvents(element: HTMLElement, targetStatus: string) {
+        element.addEventListener('dragover', (e) => {
+            if (this.isDragging && this.draggedTask) {
+                // 获取当前任务的状态
+                const currentStatus = this.getTaskStatus(this.draggedTask);
+                // 如果当前状态与目标状态不同，则允许放置
+                if (currentStatus !== targetStatus) {
+                    e.preventDefault();
+                    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                    element.classList.add('kanban-drop-zone-active');
+                }
+            }
+        });
+
+        element.addEventListener('dragleave', (e) => {
+            // 使用 contains 检查是否真正离开目标区域
+            if (!element.contains((e as any).relatedTarget as Node)) {
+                element.classList.remove('kanban-drop-zone-active');
+            }
+        });
+
+        element.addEventListener('drop', (e) => {
+            if (this.isDragging && this.draggedTask) {
+                e.preventDefault();
+                // 关键：阻止事件冒泡，防止触发父级（整个自定义分组）的drop事件
+                e.stopPropagation();
+                element.classList.remove('kanban-drop-zone-active');
+
+                // 改变任务状态
+                this.changeTaskStatus(this.draggedTask, targetStatus);
+            }
+        });
+    }
+
+
+    /**
      * 设置任务的自定义分组
      */
     private async setTaskCustomGroup(task: any, groupId: string | null) {
@@ -1508,7 +1551,7 @@ export class ProjectKanbanView {
         if (task.date) {
             const today = getLocalDateString();
             const dateComparison = compareDateStrings(task.date, today);
-            if (dateComparison <= 0) { // 今天或未来
+            if (dateComparison <= 0) { // 今天或过去
                 return 'doing';
             }
         }
@@ -1692,9 +1735,14 @@ export class ProjectKanbanView {
             kanbanContainer.innerHTML = '';
         }
 
-        // 将任务分为已完成和未完成两组
+        // 将任务分为已完成和其他状态
         const completedTasks = this.tasks.filter(task => task.completed);
         const incompleteTasks = this.tasks.filter(task => !task.completed);
+
+        // 将未完成任务进一步分为：进行中、短期、长期
+        const doingTasks = incompleteTasks.filter(task => this.getTaskStatus(task) === 'doing');
+        const shortTermTasks = incompleteTasks.filter(task => this.getTaskStatus(task) === 'short_term');
+        const longTermTasks = incompleteTasks.filter(task => this.getTaskStatus(task) === 'long_term');
 
         // 对已完成任务按完成时间倒序排序
         completedTasks.sort((a, b) => {
@@ -1703,19 +1751,22 @@ export class ProjectKanbanView {
             return timeB - timeA; // 倒序排列，最新的在前
         });
 
-        // 为每个自定义分组创建两个子列：已完成和未完成（即使没有任务也要显示）
+        // 为每个自定义分组创建四个子列：进行中、短期、长期、已完成（即使没有任务也要显示）
         projectGroups.forEach((group: any) => {
+            const groupDoingTasks = doingTasks.filter(task => task.customGroupId === group.id);
+            const groupShortTermTasks = shortTermTasks.filter(task => task.customGroupId === group.id);
+            const groupLongTermTasks = longTermTasks.filter(task => task.customGroupId === group.id);
             const groupCompletedTasks = completedTasks.filter(task => task.customGroupId === group.id);
-            const groupIncompleteTasks = incompleteTasks.filter(task => task.customGroupId === group.id);
 
             // 即使没有任务也要显示分组列
-            // renderCustomGroupColumnWithStatus 的参数顺序为 (group, incompleteTasks, completedTasks)
-            this.renderCustomGroupColumnWithStatus(group, groupIncompleteTasks, groupCompletedTasks);
+            this.renderCustomGroupColumnWithFourStatus(group, groupDoingTasks, groupShortTermTasks, groupLongTermTasks, groupCompletedTasks);
         });
 
         // 处理未分组任务（即使没有任务也要显示）
+        const ungroupedDoingTasks = doingTasks.filter(task => !task.customGroupId);
+        const ungroupedShortTermTasks = shortTermTasks.filter(task => !task.customGroupId);
+        const ungroupedLongTermTasks = longTermTasks.filter(task => !task.customGroupId);
         const ungroupedCompletedTasks = completedTasks.filter(task => !task.customGroupId);
-        const ungroupedIncompleteTasks = incompleteTasks.filter(task => !task.customGroupId);
 
         const ungroupedGroup = {
             id: 'ungrouped',
@@ -1723,7 +1774,7 @@ export class ProjectKanbanView {
             color: '#95a5a6',
             icon: '📋'
         };
-        this.renderCustomGroupColumnWithStatus(ungroupedGroup, ungroupedIncompleteTasks, ungroupedCompletedTasks);
+        this.renderCustomGroupColumnWithFourStatus(ungroupedGroup, ungroupedDoingTasks, ungroupedShortTermTasks, ungroupedLongTermTasks, ungroupedCompletedTasks);
     }
 
     private renderStatusKanban() {
@@ -2069,7 +2120,7 @@ export class ProjectKanbanView {
         this.renderCustomGroupColumn(ungroupedGroup, tasks);
     }
 
-    private renderCustomGroupColumnWithStatus(group: any, incompleteTasks: any[], completedTasks: any[]) {
+    private renderCustomGroupColumnWithFourStatus(group: any, doingTasks: any[], shortTermTasks: any[], longTermTasks: any[], completedTasks: any[]) {
         const columnId = `custom-group-${group.id}`;
         let column = this.container.querySelector(`.kanban-column-${columnId}`) as HTMLElement;
 
@@ -2092,38 +2143,54 @@ export class ProjectKanbanView {
             gap: 16px;
         `;
 
-        // 未完成任务分组（总是显示，即使没有任务）
-        const incompleteGroupContainer = this.createStatusGroupInCustomColumn(
+        // 进行中任务分组（总是显示，即使没有任务）
+        const doingGroupContainer = this.createStatusGroupInCustomColumn(
             group,
-            incompleteTasks,
-            'incomplete',
-            '未完成'
+            doingTasks,
+            'doing',
+            '进行中'
         );
-        groupsContainer.appendChild(incompleteGroupContainer);
+        groupsContainer.appendChild(doingGroupContainer);
 
-        // 已完成任务分组（只有有任务时才显示）
-        if (completedTasks.length > 0) {
-            const completedGroupContainer = this.createStatusGroupInCustomColumn(
-                group,
-                completedTasks,
-                'completed',
-                '已完成'
-            );
-            groupsContainer.appendChild(completedGroupContainer);
-        }
+        // 短期任务分组（总是显示，即使没有任务）
+        const shortTermGroupContainer = this.createStatusGroupInCustomColumn(
+            group,
+            shortTermTasks,
+            'short_term',
+            '短期'
+        );
+        groupsContainer.appendChild(shortTermGroupContainer);
+
+        // 长期任务分组（总是显示，即使没有任务）
+        const longTermGroupContainer = this.createStatusGroupInCustomColumn(
+            group,
+            longTermTasks,
+            'long_term',
+            '长期'
+        );
+        groupsContainer.appendChild(longTermGroupContainer);
+
+        // 已完成任务分组（总是显示，即使没有任务）
+        const completedGroupContainer = this.createStatusGroupInCustomColumn(
+            group,
+            completedTasks,
+            'completed',
+            '已完成'
+        );
+        groupsContainer.appendChild(completedGroupContainer);
 
         content.appendChild(groupsContainer);
 
         // 更新列顶部计数 — 只统计顶层（父）任务，不包括子任务
         if (count) {
-            const combined = [...incompleteTasks, ...completedTasks];
+            const combined = [...doingTasks, ...shortTermTasks, ...longTermTasks, ...completedTasks];
             const mapCombined = new Map(combined.map((t: any) => [t.id, t]));
             const topLevelCombined = combined.filter((t: any) => !t.parentId || !mapCombined.has(t.parentId));
             count.textContent = topLevelCombined.length.toString();
         }
     }
 
-    private createStatusGroupInCustomColumn(group: any, tasks: any[], status: 'completed' | 'incomplete', statusLabel: string): HTMLElement {
+    private createStatusGroupInCustomColumn(group: any, tasks: any[], status: 'completed' | 'incomplete' | 'doing' | 'short_term' | 'long_term', statusLabel: string): HTMLElement {
         const groupContainer = document.createElement('div');
         groupContainer.className = `custom-status-group custom-status-${status}`;
         groupContainer.dataset.groupId = group.id;
@@ -2155,8 +2222,15 @@ export class ProjectKanbanView {
         `;
 
         const groupIcon = document.createElement('span');
-        // 对于自定义分组下的未完成/已完成子分组，不显示分组的自定义 emoji，使用固定图标：未完成 => 🗓，已完成 => ✅
-        groupIcon.textContent = status === 'incomplete' ? '🗓' : '✅';
+        // 对于自定义分组下的四个子分组，使用不同的固定图标
+        const statusIcons = {
+            'doing': '⏳',
+            'short_term': '📋',
+            'long_term': '🤔',
+            'completed': '✅',
+            'incomplete': '🗓'
+        };
+        groupIcon.textContent = statusIcons[status] || '📋';
         groupTitle.appendChild(groupIcon);
 
         const groupName = document.createElement('span');
@@ -2165,13 +2239,13 @@ export class ProjectKanbanView {
 
         const taskCount = document.createElement('span');
         taskCount.className = 'custom-status-group-count';
-        // 未完成分组只显示顶层任务数量，已完成分组显示所有已完成任务（包括子任务）
-        if (status === 'incomplete') {
+        // 进行中、短期、长期分组只显示顶层任务数量，已完成分组显示所有已完成任务（包括子任务）
+        if (status === 'completed') {
+            taskCount.textContent = tasks.length.toString();
+        } else {
             const taskMapLocal = new Map(tasks.map((t: any) => [t.id, t]));
             const topLevel = tasks.filter((t: any) => !t.parentId || !taskMapLocal.has(t.parentId));
             taskCount.textContent = topLevel.length.toString();
-        } else {
-            taskCount.textContent = tasks.length.toString();
         }
         taskCount.style.cssText = `
             background: ${group.color};
@@ -2192,7 +2266,15 @@ export class ProjectKanbanView {
         groupTasksContainer.className = 'custom-status-group-tasks';
         groupTasksContainer.style.cssText = `
             padding-left: 8px;
+            padding-top: 8px; /* 添加一点顶部间距 */
+            min-height: 20px; /* 确保即使没有任务也有拖放区域 */
         `;
+
+        // **[核心修改]** 为非“已完成”的子分组添加拖放事件处理器
+        if (status !== 'completed') {
+            this.addStatusSubGroupDropEvents(groupTasksContainer, status);
+        }
+
 
         // 折叠按钮
         const collapseBtn = document.createElement('button');
@@ -2205,12 +2287,34 @@ export class ProjectKanbanView {
             margin-right: 4px;
         `;
 
-        let isCollapsed = false;
+        const groupKey = `${group.id}-${status}`;
+        // 检查是否已有保存的折叠状态，如果没有则默认为已完成状态折叠
+        let isCollapsed = this.collapsedStatusGroups.has(groupKey);
+        if (!this.collapsedStatusGroups.has(groupKey)) {
+            // 只有在第一次创建时才设置默认状态
+            isCollapsed = status === 'completed';
+            if (isCollapsed) {
+                this.collapsedStatusGroups.add(groupKey);
+            }
+        }
+
+        // 设置初始显示状态
+        groupTasksContainer.style.display = isCollapsed ? 'none' : 'block';
+        collapseBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#icon${isCollapsed ? 'Right' : 'Down'}"></use></svg>`;
+        collapseBtn.title = isCollapsed ? '展开分组' : '折叠分组';
+
         collapseBtn.addEventListener('click', () => {
             isCollapsed = !isCollapsed;
             groupTasksContainer.style.display = isCollapsed ? 'none' : 'block';
             collapseBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#icon${isCollapsed ? 'Right' : 'Down'}"></use></svg>`;
             collapseBtn.title = isCollapsed ? '展开分组' : '折叠分组';
+
+            // 更新持久化状态
+            if (isCollapsed) {
+                this.collapsedStatusGroups.add(groupKey);
+            } else {
+                this.collapsedStatusGroups.delete(groupKey);
+            }
         });
 
         groupTitle.insertBefore(collapseBtn, groupIcon);
@@ -2734,14 +2838,17 @@ export class ProjectKanbanView {
             pomodoroDisplay.className = 'kanban-task-pomodoro-count';
             pomodoroDisplay.style.cssText = `
                 font-size: 12px;
-                display: inline-flex;
-                align-items: center;
-                gap: 2px;
+                display: block;
+                background: rgba(255, 99, 71, 0.1);
+                color: rgb(255, 99, 71);
+                padding: 4px 8px;
+                border-radius: 4px;
                 margin-top: 4px;
+                width: fit-content;
             `;
 
-            const tomatoEmojis = '🍅'.repeat(Math.min(task.pomodoroCount, 5));
-            const extraCount = task.pomodoroCount > 5 ? `+${task.pomodoroCount - 5}` : '';
+            const tomatoEmojis = `🍅 ${task.pomodoroCount}`;
+            const extraCount = '';
 
             pomodoroDisplay.innerHTML = `
                 <span title="完成的番茄钟数量: ${task.pomodoroCount}">${tomatoEmojis}${extraCount}</span>
@@ -2836,21 +2943,43 @@ export class ProjectKanbanView {
                 const canBecomeSibling = this.canBecomeSiblingOf(this.draggedTask, targetTask);
                 const canSetParentChild = this.canSetAsParentChild(this.draggedTask, targetTask);
 
+                // --- [新逻辑] ---
+                // 检查是否允许改变状态
+                let canChangeStatus = false;
+                if (this.kanbanMode === 'custom') {
+                    const targetSubGroup = taskEl.closest('.custom-status-group') as HTMLElement;
+                    const targetStatus = targetSubGroup?.dataset.status;
+
+                    if (targetStatus && targetStatus !== 'completed') {
+                        const draggedStatus = this.getTaskStatus(this.draggedTask);
+                        if (draggedStatus !== targetStatus) {
+                            canChangeStatus = true;
+                        }
+                    }
+                }
+                // --- [新逻辑结束] ---
+
                 if ((isInTopSortZone || isInBottomSortZone)) {
                     // 排序操作
-                    if (canSort || canBecomeSibling) {
+                    // [修改]：如果可以排序、成为同级 或 改变状态，则允许放置
+                    if (canSort || canBecomeSibling || canChangeStatus) {
                         e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
+                        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
                         const position = isInTopSortZone ? 'top' : 'bottom';
                         this.updateIndicator('sort', taskEl, position, e);
                     } else {
                         this.updateIndicator('none', null, null);
                     }
-                } else if (isInParentChildZone && canSetParentChild) {
+                } else if (isInParentChildZone) {
                     // 父子任务操作
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    this.updateIndicator('parentChild', taskEl, 'middle');
+                    // [修改]：如果可以设置父子 或 改变状态，则允许放置
+                    if (canSetParentChild || canChangeStatus) {
+                        e.preventDefault();
+                        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                        this.updateIndicator('parentChild', taskEl, 'middle');
+                    } else {
+                        this.updateIndicator('none', null, null);
+                    }
                 } else {
                     // 清除所有指示器
                     this.updateIndicator('none', null, null);
@@ -2871,35 +3000,60 @@ export class ProjectKanbanView {
                 e.stopPropagation(); // 阻止事件冒泡到列的 drop 区域
 
                 const targetTask = this.getTaskFromElement(taskEl);
-                if (!targetTask) return;
+                if (!targetTask) {
+                    this.updateIndicator('none', null, null);
+                    return;
+                }
 
-                const rect = taskEl.getBoundingClientRect();
-                const mouseY = e.clientY;
-                const taskTop = rect.top;
-                const taskBottom = rect.bottom;
-                const taskHeight = rect.height;
+                // --- [新逻辑：优先检查状态变更] ---
+                let statusChanged = false;
+                if (this.kanbanMode === 'custom') {
+                    const targetSubGroup = taskEl.closest('.custom-status-group') as HTMLElement;
+                    const targetStatus = targetSubGroup?.dataset.status;
 
-                // 定义区域
-                const sortZoneHeight = taskHeight * 0.2;
-                const isInTopSortZone = mouseY <= taskTop + sortZoneHeight;
-                const isInBottomSortZone = mouseY >= taskBottom - sortZoneHeight;
-                const isInParentChildZone = !isInTopSortZone && !isInBottomSortZone;
+                    if (targetStatus && targetStatus !== 'completed') {
+                        const draggedStatus = this.getTaskStatus(this.draggedTask);
 
-                const canSort = this.canDropForSort(this.draggedTask, targetTask);
-                const canBecomeSibling = this.canBecomeSiblingOf(this.draggedTask, targetTask);
-                const canSetParentChild = this.canSetAsParentChild(this.draggedTask, targetTask);
-
-                if ((isInTopSortZone || isInBottomSortZone)) {
-                    if (canSort) {
-                        // 执行排序
-                        this.handleSortDrop(targetTask, e);
-                    } else if (canBecomeSibling) {
-                        // 执行成为兄弟任务并排序的操作
-                        this.handleBecomeSiblingDrop(this.draggedTask, targetTask, e);
+                        if (draggedStatus !== targetStatus) {
+                            // 状态不同，执行状态变更
+                            this.changeTaskStatus(this.draggedTask, targetStatus);
+                            statusChanged = true;
+                        }
                     }
-                } else if (isInParentChildZone && canSetParentChild) {
-                    // 执行父子任务设置
-                    this.handleParentChildDrop(targetTask);
+                }
+                // --- [新逻辑结束] ---
+
+                // [修改]：仅在状态 *未* 发生改变时，才执行排序或父子逻辑
+                // （因为状态改变后看板会刷新，排序/父子逻辑已无意义）
+                if (!statusChanged) {
+                    const rect = taskEl.getBoundingClientRect();
+                    const mouseY = e.clientY;
+                    const taskTop = rect.top;
+                    const taskBottom = rect.bottom;
+                    const taskHeight = rect.height;
+
+                    // 定义区域
+                    const sortZoneHeight = taskHeight * 0.2;
+                    const isInTopSortZone = mouseY <= taskTop + sortZoneHeight;
+                    const isInBottomSortZone = mouseY >= taskBottom - sortZoneHeight;
+                    const isInParentChildZone = !isInTopSortZone && !isInBottomSortZone;
+
+                    const canSort = this.canDropForSort(this.draggedTask, targetTask);
+                    const canBecomeSibling = this.canBecomeSiblingOf(this.draggedTask, targetTask);
+                    const canSetParentChild = this.canSetAsParentChild(this.draggedTask, targetTask);
+
+                    if ((isInTopSortZone || isInBottomSortZone)) {
+                        if (canSort) {
+                            // 执行排序
+                            this.handleSortDrop(targetTask, e);
+                        } else if (canBecomeSibling) {
+                            // 执行成为兄弟任务并排序的操作
+                            this.handleBecomeSiblingDrop(this.draggedTask, targetTask, e);
+                        }
+                    } else if (isInParentChildZone && canSetParentChild) {
+                        // 执行父子任务设置
+                        this.handleParentChildDrop(targetTask);
+                    }
                 }
             }
             this.updateIndicator('none', null, null);
@@ -3207,6 +3361,20 @@ export class ProjectKanbanView {
                 label: t('editTask'),
                 click: () => this.editTask(task)
             });
+            // 绑定块功能
+            if (task.blockId || task.docId) {
+                menu.addItem({
+                    iconHTML: "📋",
+                    label: t('copyBlockRef'),
+                    click: () => this.copyBlockRef(task)
+                });
+            } else {
+                menu.addItem({
+                    iconHTML: "🔗",
+                    label: t('bindToBlock'),
+                    click: () => this.showBindToBlockDialog(task)
+                });
+            }
         }
 
         menu.addItem({
@@ -3302,20 +3470,7 @@ export class ProjectKanbanView {
             console.error('加载分组信息失败:', error);
         }
 
-        // 绑定块功能
-        if (task.blockId || task.docId) {
-            menu.addItem({
-                iconHTML: "📋",
-                label: t('copyBlockRef'),
-                click: () => this.copyBlockRef(task)
-            });
-        } else {
-            menu.addItem({
-                iconHTML: "🔗",
-                label: t('bindToBlock'),
-                click: () => this.showBindToBlockDialog(task)
-            });
-        }
+
 
         menu.addSeparator();
 
@@ -5319,6 +5474,48 @@ export class ProjectKanbanView {
                 transition: all 0.3s ease;
             }
 
+            /* 进行中状态组样式区分 */
+            .custom-status-doing .custom-status-group-header {
+                background: rgba(243, 156, 18, 0.1) !important;
+                border-color: rgba(243, 156, 18, 0.3) !important;
+            }
+
+            .custom-status-doing .custom-status-group-title {
+                color: #f39c12 !important;
+            }
+
+            .custom-status-doing .custom-status-group-count {
+                background: #f39c12 !important;
+            }
+
+            /* 短期状态组样式区分 */
+            .custom-status-short_term .custom-status-group-header {
+                background: rgba(52, 152, 219, 0.1) !important;
+                border-color: rgba(52, 152, 219, 0.3) !important;
+            }
+
+            .custom-status-short_term .custom-status-group-title {
+                color: #3498db !important;
+            }
+
+            .custom-status-short_term .custom-status-group-count {
+                background: #3498db !important;
+            }
+
+            /* 长期状态组样式区分 */
+            .custom-status-long_term .custom-status-group-header {
+                background: rgba(155, 89, 182, 0.1) !important;
+                border-color: rgba(155, 89, 182, 0.3) !important;
+            }
+
+            .custom-status-long_term .custom-status-group-title {
+                color: #9b59b6 !important;
+            }
+
+            .custom-status-long_term .custom-status-group-count {
+                background: #9b59b6 !important;
+            }
+
             /* 已完成状态组样式区分 */
             .custom-status-completed .custom-status-group-header {
                 background: rgba(46, 204, 113, 0.1) !important;
@@ -5331,20 +5528,6 @@ export class ProjectKanbanView {
 
             .custom-status-completed .custom-status-group-count {
                 background: #2ecc71 !important;
-            }
-
-            /* 未完成状态组样式区分 */
-            .custom-status-incomplete .custom-status-group-header {
-                background: rgba(52, 152, 219, 0.1) !important;
-                border-color: rgba(52, 152, 219, 0.3) !important;
-            }
-
-            .custom-status-incomplete .custom-status-group-title {
-                color: #3498db !important;
-            }
-
-            .custom-status-incomplete .custom-status-group-count {
-                background: #3498db !important;
             }
 
             /* 分组管理对话框样式 */
