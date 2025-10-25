@@ -3871,7 +3871,7 @@ export class ProjectKanbanView {
                         reminderData[(latestTask as any).id] = latestTask;
                         await writeReminderData(reminderData);
 
-                        showMessage(`子任务已创建并关联到 "${parentTask.title}"`);
+                        // showMessage(`子任务已创建并关联到 "${parentTask.title}"`);
 
                         // 再次刷新看板
                         this.loadTasks();
@@ -4373,7 +4373,7 @@ export class ProjectKanbanView {
                     // 重新加载任务
                     await this.loadTasks();
 
-                    showMessage("任务已删除");
+                    // showMessage("任务已删除");
                 } catch (error) {
                     console.error('删除任务失败:', error);
                     showMessage("删除任务失败");
