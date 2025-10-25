@@ -3005,18 +3005,32 @@ export class ProjectKanbanView {
                     return;
                 }
 
-                // --- [新逻辑：优先检查状态变更] ---
+                // --- [新逻辑：优先检查状态变更和分组变更] ---
                 let statusChanged = false;
                 if (this.kanbanMode === 'custom') {
                     const targetSubGroup = taskEl.closest('.custom-status-group') as HTMLElement;
                     const targetStatus = targetSubGroup?.dataset.status;
+                    const targetGroup = targetSubGroup?.dataset.groupId;
 
                     if (targetStatus && targetStatus !== 'completed') {
                         const draggedStatus = this.getTaskStatus(this.draggedTask);
+                        const draggedGroup = this.draggedTask.customGroupId === undefined ? null : this.draggedTask.customGroupId;
 
-                        if (draggedStatus !== targetStatus) {
-                            // 状态不同，执行状态变更
-                            this.changeTaskStatus(this.draggedTask, targetStatus);
+                        // 检查是否需要改变状态或分组
+                        const statusDifferent = draggedStatus !== targetStatus;
+                        const groupDifferent = draggedGroup !== targetGroup;
+
+                        if (statusDifferent || groupDifferent) {
+                            // 如果分组不同，先改变分组
+                            if (groupDifferent) {
+                                this.setTaskCustomGroup(this.draggedTask, targetGroup);
+                            }
+
+                            // 如果状态不同，改变状态
+                            if (statusDifferent) {
+                                this.changeTaskStatus(this.draggedTask, targetStatus);
+                            }
+
                             statusChanged = true;
                         }
                     }
