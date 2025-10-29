@@ -2,9 +2,8 @@
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Achuan-2/siyuan-plugin-task-note-management&type=Date)](https://star-history.com/Achuan-2/siyuan-plugin-task-note-management&Date)
 
-## Plugin Introduction
 
-<img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Achuan-2/siyuan-plugin-task-note-management&type=Date" />
+
 
 ## Plugin Introduction
 
