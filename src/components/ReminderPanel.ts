@@ -2219,6 +2219,9 @@ export class ReminderPanel {
                     this.plugin.updateBadges();
                 }
 
+                // 触发UI刷新
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
                 return;
             }
 
@@ -2256,9 +2259,14 @@ export class ReminderPanel {
                 this.plugin.updateBadges();
             }
 
+            // 触发UI刷新
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
         } catch (error) {
             console.error('切换提醒状态失败:', error);
             showMessage(t("operationFailed"));
+            // 即使出错也要触发UI刷新，确保界面状态同步
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
         }
     }
     /**
