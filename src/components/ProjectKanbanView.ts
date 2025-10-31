@@ -68,6 +68,9 @@ export class ProjectKanbanView {
     // 全局番茄钟管理器
     private pomodoroManager = PomodoroManager.getInstance();
 
+    // 上一次选择的任务状态（用于记住新建任务时的默认选择）
+    private lastSelectedTermType: 'short_term' | 'long_term' | 'doing' | 'todo' = 'short_term';
+
     constructor(container: HTMLElement, plugin: any, projectId: string) {
         this.container = container;
         this.plugin = plugin;
@@ -3978,8 +3981,8 @@ export class ProjectKanbanView {
                 defaultCustomGroupId: typeof defaultCustomGroupId === 'undefined' ? undefined : defaultCustomGroupId,
                 hideProjectSelector: true, // 隐藏项目选择器
                 showKanbanStatus: 'term', // 显示任务类型选择
-                // 如果调用处传入 defaultTermType 则以其为准，否则使用 short_term
-                defaultTermType: defaultTermType || 'short_term',
+                // 使用上一次选择的 termType 作为默认值
+                defaultTermType: this.lastSelectedTermType,
                 plugin: this.plugin // 传入plugin实例
             }
         );
@@ -4049,6 +4052,25 @@ export class ProjectKanbanView {
                 }
             };
         }
+
+        // 重写保存回调，保存用户选择的 termType
+        const originalOnSaved = quickDialog['onSaved'];
+        quickDialog['onSaved'] = async () => {
+            if (originalOnSaved) {
+                await originalOnSaved();
+            }
+
+            // 保存用户选择的 termType 到内存中
+            try {
+                const selectedTermType = quickDialog['dialog']?.element?.querySelector('#quickTermTypeSelector .term-type-option.selected') as HTMLElement;
+                const termType = selectedTermType?.getAttribute('data-term-type') as 'short_term' | 'long_term' | 'doing' | 'todo' | undefined;
+                if (termType && termType !== this.lastSelectedTermType) {
+                    this.lastSelectedTermType = termType;
+                }
+            } catch (error) {
+                console.error('保存上一次选择的 termType 失败:', error);
+            }
+        };
     }
 
     private async editTask(task: any) {
