@@ -1,3 +1,9 @@
+## v2.4 / 20251101
+
+- 🎨项目看板：新建任务记住上一次的任务状态选择 [#103](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/103)
+- 🎨 项目看板：任务状态看板的刷新优化，刷新不跳动 [#100](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/100)
+- 🎨任务管理侧栏的刷新优化，刷新不跳动 [#101](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/101)
+
 ## v2.3 / 20251026
 - 💄 style(样式): 移除提醒面板高度限制
   - 调整提醒面板样式，移除高度设置
