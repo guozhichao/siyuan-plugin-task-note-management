@@ -1710,11 +1710,11 @@ export class ProjectKanbanView {
         return sortedTasks;
     }
 
-    private renderKanban() {
+    private async renderKanban() {
         if (this.kanbanMode === 'status') {
-            this.renderStatusKanban();
+            await this.renderStatusKanban();
         } else {
-            this.renderCustomGroupKanban();
+            await this.renderCustomGroupKanban();
         }
     }
 
@@ -1779,36 +1779,301 @@ export class ProjectKanbanView {
         this.renderCustomGroupColumnWithFourStatus(ungroupedGroup, ungroupedDoingTasks, ungroupedShortTermTasks, ungroupedLongTermTasks, ungroupedCompletedTasks);
     }
 
-    private renderStatusKanban() {
-        // 清空现有列（除了标题栏）
+    private async renderStatusKanban() {
         const kanbanContainer = this.container.querySelector('.project-kanban-container') as HTMLElement;
-        if (kanbanContainer) {
-            // 保留标题栏，清空看板内容
-            kanbanContainer.innerHTML = '';
-        }
+        if (!kanbanContainer) return;
 
+        // 不再清空整个看板容器，而是保留列结构
+        // kanbanContainer.innerHTML = '';
+
+        // 确保状态列存在，如果不存在才创建
+        this.ensureStatusColumnsExist(kanbanContainer);
+
+        // 按任务状态分组
         const doingTasks = this.tasks.filter(task => task.status === 'doing');
         const shortTermTasks = this.tasks.filter(task => task.status === 'short_term');
         const longTermTasks = this.tasks.filter(task => task.status === 'long_term');
         const doneTasks = this.tasks.filter(task => task.status === 'done');
 
-        // 重新创建状态列
-        this.createKanbanColumn(kanbanContainer, 'doing', t('doing'), '#f39c12');
-        this.createKanbanColumn(kanbanContainer, 'short_term', t('shortTerm'), '#3498db');
-        this.createKanbanColumn(kanbanContainer, 'long_term', t('longTerm'), '#9b59b6');
-        this.createKanbanColumn(kanbanContainer, 'done', t('done'), '#27ae60');
-
-        // 渲染带分组的任务
-        this.renderStatusColumnWithGroups('doing', doingTasks);
-        this.renderStatusColumnWithGroups('short_term', shortTermTasks);
-        this.renderStatusColumnWithGroups('long_term', longTermTasks);
+        // 渲染带分组的任务（在稳定的子分组容器内）
+        await this.renderStatusColumnWithStableGroups('doing', doingTasks);
+        await this.renderStatusColumnWithStableGroups('short_term', shortTermTasks);
+        await this.renderStatusColumnWithStableGroups('long_term', longTermTasks);
 
         if (this.showDone) {
             const sortedDoneTasks = this.sortDoneTasks(doneTasks);
-            this.renderStatusColumnWithGroups('done', sortedDoneTasks);
+            await this.renderStatusColumnWithStableGroups('done', sortedDoneTasks);
             this.showColumn('done');
         } else {
             this.hideColumn('done');
+        }
+    }
+
+    private ensureStatusColumnsExist(kanbanContainer: HTMLElement) {
+        // 检查并创建必要的状态列
+        const columns = [
+            { id: 'doing', title: t('doing'), color: '#f39c12' },
+            { id: 'short_term', title: t('shortTerm'), color: '#3498db' },
+            { id: 'long_term', title: t('longTerm'), color: '#9b59b6' },
+            { id: 'done', title: t('done'), color: '#27ae60' }
+        ];
+
+        columns.forEach(({ id, title, color }) => {
+            let column = kanbanContainer.querySelector(`.kanban-column-${id}`) as HTMLElement;
+            if (!column) {
+                column = this.createKanbanColumn(kanbanContainer, id, title, color);
+            }
+            // 确保列有稳定的子分组容器结构
+            this.ensureColumnHasStableGroups(column, id);
+        });
+    }
+
+    private ensureColumnHasStableGroups(column: HTMLElement, status: string) {
+        const content = column.querySelector('.kanban-column-content') as HTMLElement;
+        if (!content) return;
+
+        // 检查是否已有稳定的分组容器
+        let groupsContainer = content.querySelector('.status-column-stable-groups') as HTMLElement;
+        if (!groupsContainer) {
+            // 创建稳定的分组容器
+            groupsContainer = document.createElement('div');
+            groupsContainer.className = 'status-column-stable-groups';
+            groupsContainer.style.cssText = `
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+            `;
+
+            // 根据状态列类型创建相应的子分组
+            const groupConfigs = this.getGroupConfigsForStatus(status);
+
+            groupConfigs.forEach(config => {
+                const groupContainer = this.createStableStatusGroup(config);
+                groupsContainer.appendChild(groupContainer);
+            });
+
+            // 清空内容并添加分组容器
+            content.innerHTML = '';
+            content.appendChild(groupsContainer);
+        }
+    }
+
+    private getGroupConfigsForStatus(status: string): Array<{status: string, label: string, icon: string}> {
+        // 为不同的状态列定义子分组配置
+        const configs = {
+            'doing': [
+                { status: 'doing', label: '进行中', icon: '⏳' }
+            ],
+            'short_term': [
+                { status: 'short_term', label: '短期', icon: '📋' }
+            ],
+            'long_term': [
+                { status: 'long_term', label: '长期', icon: '🤔' }
+            ],
+            'done': [
+                { status: 'done', label: '已完成', icon: '✅' }
+            ]
+        };
+
+        return configs[status] || [];
+    }
+
+    private createStableStatusGroup(config: {status: string, label: string, icon: string}): HTMLElement {
+        const groupContainer = document.createElement('div');
+        groupContainer.className = `status-stable-group status-stable-${config.status}`;
+        groupContainer.dataset.status = config.status;
+
+        // 分组标题
+        const groupHeader = document.createElement('div');
+        groupHeader.className = 'status-stable-group-header';
+        groupHeader.style.cssText = `
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: var(--b3-theme-surface-lighter);
+            border: 1px solid var(--b3-theme-border);
+            border-radius: 6px;
+            cursor: pointer;
+        `;
+
+        const groupTitle = document.createElement('div');
+        groupTitle.className = 'status-stable-group-title';
+        groupTitle.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+            color: var(--b3-theme-on-surface);
+            font-size: 13px;
+        `;
+
+        const groupIcon = document.createElement('span');
+        groupIcon.textContent = config.icon;
+        groupTitle.appendChild(groupIcon);
+
+        const groupName = document.createElement('span');
+        groupName.textContent = config.label;
+        groupTitle.appendChild(groupName);
+
+        const taskCount = document.createElement('span');
+        taskCount.className = 'status-stable-group-count';
+        taskCount.style.cssText = `
+            background: var(--b3-theme-primary);
+            color: white;
+            border-radius: 10px;
+            padding: 2px 6px;
+            font-size: 11px;
+            font-weight: 500;
+            min-width: 18px;
+            text-align: center;
+        `;
+        taskCount.textContent = '0';
+
+        groupHeader.appendChild(groupTitle);
+        groupHeader.appendChild(taskCount);
+
+        // 分组任务容器
+        const groupTasksContainer = document.createElement('div');
+        groupTasksContainer.className = 'status-stable-group-tasks';
+        groupTasksContainer.style.cssText = `
+            padding-left: 8px;
+            padding-top: 8px;
+            min-height: 20px;
+        `;
+
+        // 为非已完成分组添加拖放事件
+        if (config.status !== 'done') {
+            this.addStatusSubGroupDropEvents(groupTasksContainer, config.status);
+        }
+
+        groupContainer.appendChild(groupHeader);
+        groupContainer.appendChild(groupTasksContainer);
+
+        return groupContainer;
+    }
+
+    private async renderStatusColumnWithStableGroups(status: string, tasks: any[]) {
+        const column = this.container.querySelector(`.kanban-column-${status}`) as HTMLElement;
+        if (!column) return;
+
+        const content = column.querySelector('.kanban-column-content') as HTMLElement;
+        const count = column.querySelector('.kanban-column-count') as HTMLElement;
+
+        // 获取稳定的分组容器
+        const groupsContainer = content.querySelector('.status-column-stable-groups') as HTMLElement;
+        if (!groupsContainer) return;
+
+        // 获取项目自定义分组
+        // 注意：这里我们简化处理，如果有自定义分组，则按分组渲染；否则直接在状态子分组中渲染任务
+        // 为了保持向后兼容，我们仍然支持自定义分组的显示逻辑
+
+        // 检查是否有自定义分组
+        const hasCustomGroups = await this.hasProjectCustomGroups();
+
+        if (hasCustomGroups) {
+            // 如果有自定义分组，使用原有的分组渲染逻辑
+            this.renderTasksGroupedByCustomGroupInStableContainer(groupsContainer, tasks, status);
+        } else {
+            // 如果没有自定义分组，直接在状态子分组中渲染任务
+            this.renderTasksInStableStatusGroups(groupsContainer, tasks, status);
+        }
+
+        // 更新列顶部计数
+        if (count) {
+            count.textContent = tasks.length.toString();
+        }
+    }
+
+    private async hasProjectCustomGroups(): Promise<boolean> {
+        try {
+            const { ProjectManager } = await import('../utils/projectManager');
+            const projectManager = ProjectManager.getInstance();
+            const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
+            return projectGroups.length > 0;
+        } catch (error) {
+            console.error('检查项目分组失败:', error);
+            return false;
+        }
+    }
+
+    private renderTasksInStableStatusGroups(groupsContainer: HTMLElement, tasks: any[], status: string) {
+        // 获取对应的状态分组容器
+        const groupContainer = groupsContainer.querySelector(`.status-stable-group[data-status="${status}"]`) as HTMLElement;
+        if (!groupContainer) return;
+
+        const groupTasksContainer = groupContainer.querySelector('.status-stable-group-tasks') as HTMLElement;
+        const taskCount = groupContainer.querySelector('.status-stable-group-count') as HTMLElement;
+
+        // 清空任务容器并重新渲染任务
+        groupTasksContainer.innerHTML = '';
+        this.renderTasksInColumn(groupTasksContainer, tasks);
+
+        // 更新分组任务计数
+        if (taskCount) {
+            const taskMap = new Map(tasks.map(t => [t.id, t]));
+            const topLevelTasks = tasks.filter(t => !t.parentId || !taskMap.has(t.parentId));
+            taskCount.textContent = topLevelTasks.length.toString();
+        }
+    }
+
+    private async renderTasksGroupedByCustomGroupInStableContainer(groupsContainer: HTMLElement, tasks: any[], status: string) {
+        // 获取项目自定义分组
+        const { ProjectManager } = await import('../utils/projectManager');
+        const projectManager = ProjectManager.getInstance();
+        const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
+
+        // 获取对应的状态分组容器
+        const groupContainer = groupsContainer.querySelector(`.status-stable-group[data-status="${status}"]`) as HTMLElement;
+        if (!groupContainer) return;
+
+        const groupTasksContainer = groupContainer.querySelector('.status-stable-group-tasks') as HTMLElement;
+        const taskCount = groupContainer.querySelector('.status-stable-group-count') as HTMLElement;
+
+        // 在状态分组容器内渲染自定义分组
+        groupTasksContainer.innerHTML = '';
+
+        if (projectGroups.length === 0) {
+            // 如果没有自定义分组，直接渲染任务
+            this.renderTasksInColumn(groupTasksContainer, tasks);
+        } else {
+            // 按自定义分组渲染任务组
+            const groupsSubContainer = document.createElement('div');
+            groupsSubContainer.className = 'status-column-groups-in-stable';
+            groupsSubContainer.style.cssText = `
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            `;
+
+            // 为每个自定义分组创建子容器
+            projectGroups.forEach((group: any) => {
+                const groupTasks = tasks.filter(task => task.customGroupId === group.id);
+                if (groupTasks.length > 0) {
+                    const groupSubContainer = this.createCustomGroupInStatusColumn(group, groupTasks);
+                    groupsSubContainer.appendChild(groupSubContainer);
+                }
+            });
+
+            // 添加未分组任务
+            const ungroupedTasks = tasks.filter(task => !task.customGroupId);
+            if (ungroupedTasks.length > 0) {
+                const ungroupedGroup = {
+                    id: 'ungrouped',
+                    name: '未分组',
+                    color: '#95a5a6',
+                    icon: '📋'
+                };
+                const ungroupedContainer = this.createCustomGroupInStatusColumn(ungroupedGroup, ungroupedTasks);
+                groupsSubContainer.appendChild(ungroupedContainer);
+            }
+
+            groupTasksContainer.appendChild(groupsSubContainer);
+        }
+
+        // 更新分组任务计数
+        if (taskCount) {
+            taskCount.textContent = tasks.length.toString();
         }
     }
 
