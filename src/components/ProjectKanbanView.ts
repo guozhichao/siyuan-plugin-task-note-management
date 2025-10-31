@@ -1858,7 +1858,7 @@ export class ProjectKanbanView {
         }
     }
 
-    private getGroupConfigsForStatus(status: string): Array<{status: string, label: string, icon: string}> {
+    private getGroupConfigsForStatus(status: string): Array<{ status: string, label: string, icon: string }> {
         // 为不同的状态列定义子分组配置
         const configs = {
             'doing': [
@@ -1878,7 +1878,7 @@ export class ProjectKanbanView {
         return configs[status] || [];
     }
 
-    private createStableStatusGroup(config: {status: string, label: string, icon: string}): HTMLElement {
+    private createStableStatusGroup(config: { status: string, label: string, icon: string }): HTMLElement {
         const groupContainer = document.createElement('div');
         groupContainer.className = `status-stable-group status-stable-${config.status}`;
         groupContainer.dataset.status = config.status;
