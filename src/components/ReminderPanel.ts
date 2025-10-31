@@ -96,6 +96,9 @@ export class ReminderPanel {
         // 初始化分类管理器
         await this.categoryManager.initialize();
 
+        // 加载折叠状态
+        await this.loadCollapseStates();
+
         this.initUI();
         this.loadSortConfig();
         this.loadReminders();
@@ -116,6 +119,9 @@ export class ReminderPanel {
             clearTimeout(this.loadTimeoutId);
             this.loadTimeoutId = null;
         }
+
+        // 保存折叠状态
+        this.saveCollapseStates();
 
         if (this.reminderUpdatedHandler) {
             window.removeEventListener('reminderUpdated', this.reminderUpdatedHandler);
@@ -727,6 +733,22 @@ export class ReminderPanel {
         }
     }
     /**
+     * 判断任务是否应该被折叠
+     * 优先考虑用户手动展开，其次是collapsedTasks集合，
+     * 如果都没有，则使用默认行为：父任务默认折叠（如果有子任务）
+     */
+    private isTaskCollapsed(taskId: string, hasChildren: boolean = false): boolean {
+        if (this.userExpandedTasks.has(taskId)) {
+            return false; // 用户手动展开的任务不折叠
+        } else if (this.collapsedTasks.has(taskId)) {
+            return true; // 明确标记为折叠的任务
+        } else {
+            // 默认行为：父任务（有子任务）默认折叠
+            return hasChildren;
+        }
+    }
+
+    /**
      * 获取给定提醒的所有后代 id（深度优先）
      */
     private getAllDescendantIds(id: string, reminderMap: Map<string, any>): string[] {
@@ -983,12 +1005,68 @@ export class ReminderPanel {
      * 展示指定父任务的直接子项，并递归展示那些用户已手动展开的子树
      */
     private showChildrenRecursively(parentId: string) {
+        // 防护：如果未传入 parentId（意外调用），直接返回，避免 ReferenceError
+        if (!parentId) return;
         try {
-            const children = this.currentRemindersCache.filter(r => r.parentId === parentId).sort((a, b) => (a.sort || 0) - (b.sort || 0));
+            // 优先从当前缓存查找子项
+            let children = this.currentRemindersCache.filter(r => r.parentId === parentId).sort((a, b) => (a.sort || 0) - (b.sort || 0));
+
+            // 如果当前缓存没有子项（例如因分页/刷新被截断），尝试从完整的 allRemindersMap 中加载子项
+            if (children.length === 0 && this.allRemindersMap) {
+                children = [];
+                this.allRemindersMap.forEach(r => {
+                    if (r.parentId === parentId) children.push(r);
+                });
+                children.sort((a, b) => (a.sort || 0) - (b.sort || 0));
+            }
+
+            // 找到父元素用于插入位置和层级计算
+            const parentEl = this.remindersContainer.querySelector(`[data-reminder-id="${parentId}"]`) as HTMLElement | null;
+            const parentLevel = parentEl ? parseInt(parentEl.getAttribute('data-level') || '0') : 0;
+
+            // 插入顺序：紧跟在父元素后或者已插入的最后一个子元素之后
+            let insertAfterEl: HTMLElement | null = parentEl;
             for (const child of children) {
-                const el = this.remindersContainer.querySelector(`[data-reminder-id="${child.id}"]`) as HTMLElement | null;
-                if (el) el.style.display = '';
-                // 如果用户手动展开了该 child，则继续展示其子项
+                let el = this.remindersContainer.querySelector(`[data-reminder-id="${child.id}"]`) as HTMLElement | null;
+
+                if (el) {
+                    // 如果元素存在，显示出来
+                    el.style.display = '';
+                } else {
+                    // 元素不存在：尝试基于所有可见提醒和默认数据创建元素（缺省 asyncDataCache）
+                    try {
+                        const today = getLocalDateString();
+                        const asyncCache = new Map<string, any>();
+                        const allVisible = this.currentRemindersCache.concat(children);
+                        el = this.createReminderElementOptimized(child, asyncCache, today, parentLevel + 1, allVisible);
+
+                        // 插入到 DOM：在 insertAfterEl 之后
+                        if (insertAfterEl && insertAfterEl.parentNode) {
+                            if (insertAfterEl.nextSibling) {
+                                insertAfterEl.parentNode.insertBefore(el, insertAfterEl.nextSibling);
+                            } else {
+                                insertAfterEl.parentNode.appendChild(el);
+                            }
+                        } else {
+                            // 作为兜底，追加到容器末尾
+                            this.remindersContainer.appendChild(el);
+                        }
+
+                        // 将该子项同步加入 currentRemindersCache 的合适位置（紧跟父后）
+                        const parentIndex = this.currentRemindersCache.findIndex(r => r.id === parentId);
+                        const insertIndex = parentIndex >= 0 ? parentIndex + 1 : this.currentRemindersCache.length;
+                        this.currentRemindersCache.splice(insertIndex, 0, child);
+                        this.totalItems = Math.max(this.totalItems, this.currentRemindersCache.length);
+                    } catch (err) {
+                        console.error('failed to create child element on expand', err);
+                        continue;
+                    }
+                }
+
+                // 更新 insertAfterEl 为当前子元素，确保多个子项按顺序插入
+                insertAfterEl = el;
+
+                // 如果用户手动展开了该 child，则继续展示其子项（递归）
                 if (this.userExpandedTasks.has(child.id)) {
                     this.showChildrenRecursively(child.id);
                 }
@@ -1226,10 +1304,9 @@ export class ReminderPanel {
         const renderQueue: Array<{ reminder: any; level: number }> = [];
 
         // 初始化队列：只添加顶级任务（没有父任务的任务）
-        const topLevelReminders = reminders.filter(r => !r.parentId);
-        topLevelReminders.forEach(reminder => {
-            renderQueue.push({ reminder, level: 0 });
-        });
+        // 注意：如果某个任务的父任务不在当前可见列表中，也应当将其视为顶级（例如祖先被过滤掉的情况）
+        const topLevelReminders = reminders.filter(r => !r.parentId || !reminders.some(p => p.id === r.parentId));
+        topLevelReminders.forEach(reminder => renderQueue.push({ reminder, level: 0 }));
 
         // 处理渲染队列
         while (renderQueue.length > 0) {
@@ -1244,7 +1321,8 @@ export class ReminderPanel {
 
                 // 如果任务有子任务且未折叠，添加到队列中
                 const hasChildren = reminders.some(r => r.parentId === reminder.id);
-                if (hasChildren && !this.collapsedTasks.has(reminder.id)) {
+                // 传入 hasChildren 给 isTaskCollapsed，保证折叠判定在渲染时与元素创建时一致
+                if (hasChildren && !this.isTaskCollapsed(reminder.id, hasChildren)) {
                     const children = reminders.filter(r => r.parentId === reminder.id);
                     // 按排序添加子任务到队列前面（深度优先）
                     for (let i = children.length - 1; i >= 0; i--) {
@@ -1287,16 +1365,8 @@ export class ReminderPanel {
         const isSpanningDays = reminder.endDate && reminder.endDate !== reminder.date;
         const priority = reminder.priority || 'none';
         const hasChildren = allVisibleReminders.some(r => r.parentId === reminder.id);
-        // 决定当前任务是否折叠：优先考虑用户手动展开，其次是collapsedTasks集合，
-        // 如果都没有，则使用默认行为：父任务默认折叠（如果有子任务）
-        let isCollapsed: boolean;
-        if (this.userExpandedTasks.has(reminder.id)) {
-            isCollapsed = false;
-        } else if (this.collapsedTasks.has(reminder.id)) {
-            isCollapsed = true;
-        } else {
-            isCollapsed = hasChildren;
-        }
+        // 使用统一的方法判断任务是否应该被折叠
+        const isCollapsed: boolean = this.isTaskCollapsed(reminder.id, hasChildren);
 
         // 计算子任务的层级深度，用于显示层级指示
         let maxChildDepth = 0;
@@ -1395,9 +1465,22 @@ export class ReminderPanel {
             collapseBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
 
-                // 切换折叠状态并仅在 DOM 上操作，避免重新渲染整个面板
-                if (this.userExpandedTasks.has(reminder.id)) {
-                    // 已由用户展开 -> 切换为折叠
+                // 使用统一方法判断当前状态
+                const currentCollapsed = this.isTaskCollapsed(reminder.id, hasChildren);
+
+                if (currentCollapsed) {
+                    // 当前是折叠 -> 展开
+                    // 移除折叠状态，添加到用户展开集合
+                    this.collapsedTasks.delete(reminder.id);
+                    this.userExpandedTasks.add(reminder.id);
+                    // 递归显示子任务
+                    this.showChildrenRecursively(reminder.id);
+                    // 更新按钮图标与标题
+                    collapseBtn.innerHTML = '<svg><use xlink:href="#iconDown"></use></svg>';
+                    collapseBtn.title = t("collapse");
+                } else {
+                    // 当前是展开 -> 折叠
+                    // 移除用户展开状态，添加到折叠集合
                     this.userExpandedTasks.delete(reminder.id);
                     this.collapsedTasks.add(reminder.id);
                     // 隐藏后代
@@ -1405,27 +1488,6 @@ export class ReminderPanel {
                     // 更新按钮图标与标题
                     collapseBtn.innerHTML = '<svg><use xlink:href="#iconRight"></use></svg>';
                     collapseBtn.title = t("expand");
-                } else if (this.collapsedTasks.has(reminder.id)) {
-                    // 当前是折叠 -> 展开
-                    this.collapsedTasks.delete(reminder.id);
-                    this.userExpandedTasks.add(reminder.id);
-                    this.showChildrenRecursively(reminder.id);
-                    collapseBtn.innerHTML = '<svg><use xlink:href="#iconDown"></use></svg>';
-                    collapseBtn.title = t("collapse");
-                } else {
-                    // 两者都没有：依据默认（父默认折叠）决定切换方向
-                    if (hasChildren) {
-                        // 默认折叠 -> 展开
-                        this.userExpandedTasks.add(reminder.id);
-                        this.showChildrenRecursively(reminder.id);
-                        collapseBtn.innerHTML = '<svg><use xlink:href="#iconDown"></use></svg>';
-                        collapseBtn.title = t("collapse");
-                    } else {
-                        // 无子节点，标记为折叠是一种罕见情况，仅更新集合
-                        this.collapsedTasks.add(reminder.id);
-                        collapseBtn.innerHTML = '<svg><use xlink:href="#iconRight"></use></svg>';
-                        collapseBtn.title = t("expand");
-                    }
                 }
             });
             leftControls.appendChild(collapseBtn);
@@ -2580,6 +2642,8 @@ export class ReminderPanel {
                 }
 
                 showMessage(t("deletedRelatedReminders", { count: deletedCount.toString() }));
+                // 全量刷新以确保分页、父子关系与异步数据都正确更新
+                await this.loadReminders(true);
             } else {
                 showMessage(t("noRelatedReminders"));
             }
@@ -4610,11 +4674,13 @@ export class ReminderPanel {
                     // 父任务进度将在下次刷新时自动更新
                 }
 
+                // 全量刷新面板，保证父任务进度、分页和异步数据都能够正确更新
+                await this.loadReminders(true);
                 showMessage(t("reminderDeleted"));
 
-                // 触发其他组件更新（但不刷新本面板）
+                // 触发其他组件更新
                 window.dispatchEvent(new CustomEvent('reminderUpdated', {
-                    detail: { skipPanelRefresh: true }
+                    detail: { }
                 }));
             } else {
                 showMessage(t("reminderNotExist"));
@@ -5863,21 +5929,13 @@ export class ReminderPanel {
         }
 
         await writeReminderData(reminderData);
+        // 全量刷新面板以确保分页/父子关系/异步数据一致
+        try {
+            await this.loadReminders(true);
+        } catch (err) {
+            console.warn('批量创建子任务后刷新面板失败，可能在并发加载中:', err);
+        }
 
-        // 局部更新DOM：批量插入新创建的子任务
-        // try {
-        //     await this.batchInsertNewRemindersDOM(createdTasks, parent);
-        // } catch (error) {
-        //     console.error('批量插入子任务DOM失败，使用全局刷新:', error);
-        //     await this.loadReminders();
-        // }
-        // 改为全局刷新以确保显示正确
-        await this.loadReminders();
-
-        // 触发其他组件更新（但不刷新本面板）
-        window.dispatchEvent(new CustomEvent('reminderUpdated', {
-            detail: { skipPanelRefresh: true }
-        }));
     }
 
     private countTotalTasks(tasks: any[]): number {
@@ -6558,402 +6616,40 @@ export class ReminderPanel {
         return repeatInstances;
     }
 
+
     /**
-     * 优化的提醒元素创建方法 - 使用预处理的异步数据缓存
-     * @param reminder 提醒对象
-     * @param asyncDataCache 预处理的异步数据缓存
-     * @param today 今天的日期字符串
-     * @param level 层级深度
-     * @param allVisibleReminders 所有可见的提醒列表
-     * @returns HTMLElement
+     * 加载折叠状态
      */
-    private createReminderElementOptimized(reminder: any, asyncDataCache: Map<string, any>, today: string, level: number = 0, allVisibleReminders: any[] = []): HTMLElement {
-        // 改进过期判断逻辑
-        let isOverdue = false;
-        if (!reminder.completed && reminder.date) {
-            if (reminder.endDate) {
-                isOverdue = compareDateStrings(reminder.endDate, today) < 0;
-            } else {
-                isOverdue = compareDateStrings(reminder.date, today) < 0;
-            }
+    private async loadCollapseStates() {
+        try {
+            if (!this.plugin) return;
+
+            const collapseData = await this.plugin.loadData('reminder-collapse-states') || {};
+            this.collapsedTasks = new Set(collapseData.collapsedTasks || []);
+            this.userExpandedTasks = new Set(collapseData.userExpandedTasks || []);
+        } catch (error) {
+            console.warn('加载折叠状态失败:', error);
+            // 初始化为空的Set
+            this.collapsedTasks = new Set();
+            this.userExpandedTasks = new Set();
         }
+    }
 
-        const isSpanningDays = reminder.endDate && reminder.endDate !== reminder.date;
-        const priority = reminder.priority || 'none';
-        const hasChildren = allVisibleReminders.some(r => r.parentId === reminder.id);
-        // 决定当前任务是否折叠：优先考虑用户手动展开，其次是collapsedTasks集合，
-        // 如果都没有，则使用默认行为：父任务默认折叠（如果有子任务）
-        let isCollapsed: boolean;
-        if (this.userExpandedTasks.has(reminder.id)) {
-            isCollapsed = false;
-        } else if (this.collapsedTasks.has(reminder.id)) {
-            isCollapsed = true;
-        } else {
-            isCollapsed = hasChildren;
-        }
+    /**
+     * 保存折叠状态
+     */
+    private async saveCollapseStates() {
+        try {
+            if (!this.plugin) return;
 
-        // 计算子任务的层级深度，用于显示层级指示
-        let maxChildDepth = 0;
-        if (hasChildren) {
-            const calculateDepth = (id: string, currentDepth: number): number => {
-                const children = allVisibleReminders.filter(r => r.parentId === id);
-                if (children.length === 0) return currentDepth;
-
-                let maxDepth = currentDepth;
-                for (const child of children) {
-                    const childDepth = calculateDepth(child.id, currentDepth + 1);
-                    maxDepth = Math.max(maxDepth, childDepth);
-                }
-                return maxDepth;
+            const collapseData = {
+                collapsedTasks: Array.from(this.collapsedTasks),
+                userExpandedTasks: Array.from(this.userExpandedTasks)
             };
-            maxChildDepth = calculateDepth(reminder.id, 0);
+
+            await this.plugin.saveData('reminder-collapse-states', collapseData);
+        } catch (error) {
+            console.warn('保存折叠状态失败:', error);
         }
-
-        const reminderEl = document.createElement('div');
-        reminderEl.className = `reminder-item ${isOverdue ? 'reminder-item--overdue' : ''} ${isSpanningDays ? 'reminder-item--spanning' : ''} reminder-priority-${priority}`;
-
-        // 子任务缩进：使用margin-left让整个任务块缩进，包括背景色
-        if (level > 0) {
-            reminderEl.style.marginLeft = `${level * 20}px`;
-            // reminderEl.style.width = `calc(100% - ${level * 20}px)`;
-            // 为子任务添加层级数据属性，用于CSS样式
-            reminderEl.setAttribute('data-level', level.toString());
-        }
-
-        // 为有深层子任务的父任务添加额外的视觉提示
-        if (hasChildren && maxChildDepth > 1) {
-            reminderEl.setAttribute('data-has-deep-children', maxChildDepth.toString());
-            reminderEl.classList.add('reminder-item--has-deep-children');
-        }
-
-        // ... 优先级背景色和边框设置 ...
-        let backgroundColor = '';
-        let borderColor = '';
-        switch (priority) {
-            case 'high':
-                backgroundColor = 'var(--b3-card-error-background)';
-                borderColor = 'var(--b3-card-error-color)';
-                break;
-            case 'medium':
-                backgroundColor = 'var(--b3-card-warning-background)';
-                borderColor = 'var(--b3-card-warning-color)';
-                break;
-            case 'low':
-                backgroundColor = 'var(--b3-card-info-background)';
-                borderColor = 'var(--b3-card-info-color)';
-                break;
-            default:
-                backgroundColor = 'var(--b3-theme-surface-lighter)';
-                borderColor = 'var(--b3-theme-surface-lighter)';
-        }
-        reminderEl.style.backgroundColor = backgroundColor;
-        reminderEl.style.border = `2px solid ${borderColor}`;
-
-        reminderEl.dataset.reminderId = reminder.id;
-        reminderEl.dataset.priority = priority;
-
-        // 总是启用拖拽功能（支持排序和设置父子关系）
-        this.addDragFunctionality(reminderEl, reminder);
-
-        reminderEl.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            this.showReminderContextMenu(e, reminder);
-        });
-
-        const contentEl = document.createElement('div');
-        contentEl.className = 'reminder-item__content';
-
-        // 折叠按钮和复选框容器
-        const leftControls = document.createElement('div');
-        leftControls.className = 'reminder-item__left-controls';
-        // 复选框
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.checked = reminder.completed || false;
-        checkbox.addEventListener('change', () => {
-            if (reminder.isRepeatInstance) {
-                this.toggleReminder(reminder.originalId, checkbox.checked, true, reminder.date);
-            } else {
-                this.toggleReminder(reminder.id, checkbox.checked);
-            }
-        });
-
-        leftControls.appendChild(checkbox);
-        // 折叠按钮
-        if (hasChildren) {
-            const collapseBtn = document.createElement('button');
-            collapseBtn.className = 'b3-button b3-button--text collapse-btn';
-            collapseBtn.innerHTML = isCollapsed ? '<svg><use xlink:href="#iconRight"></use></svg>' : '<svg><use xlink:href="#iconDown"></use></svg>';
-            collapseBtn.title = isCollapsed ? t("expand") : t("collapse");
-            collapseBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-
-                // 切换折叠状态并仅在 DOM 上操作，避免重新渲染整个面板
-                if (this.userExpandedTasks.has(reminder.id)) {
-                    // 已由用户展开 -> 切换为折叠
-                    this.userExpandedTasks.delete(reminder.id);
-                    this.collapsedTasks.add(reminder.id);
-                    // 隐藏后代
-                    this.hideAllDescendants(reminder.id);
-                    // 更新按钮图标与标题
-                    collapseBtn.innerHTML = '<svg><use xlink:href="#iconRight"></use></svg>';
-                    collapseBtn.title = t("expand");
-                } else if (this.collapsedTasks.has(reminder.id)) {
-                    // 当前是折叠 -> 展开
-                    this.collapsedTasks.delete(reminder.id);
-                    this.userExpandedTasks.add(reminder.id);
-                    this.showChildrenRecursively(reminder.id);
-                    collapseBtn.innerHTML = '<svg><use xlink:href="#iconDown"></use></svg>';
-                    collapseBtn.title = t("collapse");
-                } else {
-                    // 两者都没有：依据默认（父默认折叠）决定切换方向
-                    if (hasChildren) {
-                        // 默认折叠 -> 展开
-                        this.userExpandedTasks.add(reminder.id);
-                        this.showChildrenRecursively(reminder.id);
-                        collapseBtn.innerHTML = '<svg><use xlink:href="#iconDown"></use></svg>';
-                        collapseBtn.title = t("collapse");
-                    } else {
-                        // 无子节点，标记为折叠是一种罕见情况，仅更新集合
-                        this.collapsedTasks.add(reminder.id);
-                        collapseBtn.innerHTML = '<svg><use xlink:href="#iconRight"></use></svg>';
-                        collapseBtn.title = t("expand");
-                    }
-                }
-            });
-            leftControls.appendChild(collapseBtn);
-        } else {
-            // 占位符以对齐
-            const spacer = document.createElement('div');
-            spacer.className = 'collapse-spacer';
-            leftControls.appendChild(spacer);
-        }
-
-        // 信息容器
-        const infoEl = document.createElement('div');
-        infoEl.className = 'reminder-item__info';
-
-        const titleContainer = document.createElement('div');
-        titleContainer.className = 'reminder-item__title-container';
-
-        if (reminder.docId && reminder.blockId !== reminder.docId) {
-            this.addDocumentTitle(titleContainer, reminder.docId);
-        }
-
-        const titleEl = document.createElement('span');
-        titleEl.className = 'reminder-item__title';
-
-        if (reminder.blockId) {
-            titleEl.setAttribute('data-type', 'a');
-            titleEl.setAttribute('data-href', `siyuan://blocks/${reminder.blockId}`);
-            titleEl.style.cssText = `cursor: pointer; color: var(--b3-theme-primary); text-decoration: underline; text-decoration-style: dotted; font-weight: 500;`;
-            titleEl.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                this.openBlockTab(reminder.blockId);
-            });
-        } else {
-            titleEl.style.cssText = `font-weight: 500; color: var(--b3-theme-on-surface); cursor: default; text-decoration: none;`;
-        }
-
-        titleEl.textContent = reminder.title || t("unnamedNote");
-        titleEl.title = reminder.blockId ? `点击打开绑定块: ${reminder.title || t("unnamedNote")}` : (reminder.title || t("unnamedNote"));
-        titleContainer.appendChild(titleEl);
-
-        const timeContainer = document.createElement('div');
-        timeContainer.className = 'reminder-item__time-container';
-        timeContainer.style.cssText = `display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap;`;
-
-        if (reminder.repeat?.enabled || reminder.isRepeatInstance) {
-            const repeatIcon = document.createElement('span');
-            repeatIcon.className = 'reminder-repeat-icon';
-            repeatIcon.textContent = '🔄';
-            repeatIcon.title = reminder.repeat?.enabled ? getRepeatDescription(reminder.repeat) : t("repeatInstance");
-            timeContainer.appendChild(repeatIcon);
-        }
-
-        // 只显示有日期的任务的时间信息
-        if (reminder.date) {
-            const timeEl = document.createElement('div');
-            timeEl.className = 'reminder-item__time';
-            const timeText = this.formatReminderTime(reminder.date, reminder.time, today, reminder.endDate, reminder.endTime, reminder);
-            timeEl.textContent = '🗓' + timeText;
-            timeEl.style.cursor = 'pointer';
-            timeEl.title = t("clickToModifyTime");
-            timeEl.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (reminder.isRepeatInstance) {
-                    this.editOriginalReminder(reminder.originalId);
-                } else {
-                    this.showTimeEditDialog(reminder);
-                }
-            });
-            timeContainer.appendChild(timeEl);
-
-            const countdownEl = this.createReminderCountdownElement(reminder, today);
-            if (countdownEl) {
-                timeContainer.appendChild(countdownEl);
-            }
-        }
-
-        infoEl.appendChild(titleContainer);
-        infoEl.appendChild(timeContainer);
-
-        // 添加番茄钟计数显示 - 使用预处理的缓存数据
-        const cachedData = asyncDataCache.get(reminder.id);
-        if (cachedData && cachedData.pomodoroCount && cachedData.pomodoroCount > 0) {
-            const pomodoroDisplay = document.createElement('div');
-            pomodoroDisplay.className = 'reminder-item__pomodoro-count';
-            pomodoroDisplay.style.cssText = `
-                font-size: 12px;
-                display: block;
-                background: rgba(255, 99, 71, 0.1);
-                color: rgb(255, 99, 71);
-                padding: 4px 8px;
-                border-radius: 4px;
-                margin-top: 4px;
-                width: fit-content;
-            `;
-
-            const tomatoEmojis = `🍅 ${cachedData.pomodoroCount}`;
-            const extraCount = '';
-
-            pomodoroDisplay.innerHTML = `
-                <span title="完成的番茄钟数量: ${cachedData.pomodoroCount}">${tomatoEmojis}${extraCount}</span>
-            `;
-
-            // 将番茄计数添加到 timeContainer 后面
-            infoEl.appendChild(pomodoroDisplay);
-        }
-
-        // 已完成任务显示透明度并显示完成时间
-        if (reminder.completed) {
-            // 设置整体透明度为 0.5
-            try {
-                reminderEl.style.opacity = '0.5';
-            } catch (e) {
-                // ignore style errors
-            }
-
-            // 获取完成时间（支持重复实例）并显示
-            const completedTimeStr = this.getCompletedTime(reminder);
-            if (completedTimeStr) {
-                const completedEl = document.createElement('div');
-                completedEl.className = 'reminder-item__completed-time';
-                completedEl.textContent = `✅ ${this.formatCompletedTime(completedTimeStr)}`;
-                completedEl.style.cssText = 'font-size:12px;  margin-top:6px; opacity:0.95;';
-                infoEl.appendChild(completedEl);
-            }
-        }
-
-        if (reminder.note) {
-            const noteEl = document.createElement('div');
-            noteEl.className = 'reminder-item__note';
-            noteEl.textContent = reminder.note;
-            infoEl.appendChild(noteEl);
-        }
-
-        // 添加项目信息显示 - 使用预处理的缓存数据
-        if (reminder.projectId && cachedData && cachedData.projectInfo) {
-            const projectInfo = cachedData.projectInfo;
-            const projectEl = document.createElement('div');
-            projectEl.className = 'reminder-item__project';
-            projectEl.style.cssText = `
-                font-size: 11px;
-                color: ${projectInfo.color || '#666'};
-                background-color: ${projectInfo.color}20;
-                padding: 2px 6px;
-                border-radius: 10px;
-                margin-top: 4px;
-                display: inline-block;
-                border: 1px solid ${projectInfo.color}40;
-            `;
-            projectEl.textContent = `📋 ${projectInfo.title}`;
-            projectEl.title = `项目: ${projectInfo.title}`;
-            infoEl.appendChild(projectEl);
-        }
-
-        // 添加分类标签显示（放在项目信息后面）
-        if (reminder.categoryId) {
-            const category = this.categoryManager.getCategoryById(reminder.categoryId);
-            if (category) {
-                const categoryTag = document.createElement('div');
-                categoryTag.className = 'reminder-item__category';
-                categoryTag.style.cssText = `
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 2px;
-                    font-size: 11px;
-                    background-color: ${category.color}20;
-                    color: ${category.color};
-                    border: 1px solid ${category.color}40;
-                    border-radius: 12px;
-                    padding: 2px 8px;
-                    margin-top: 4px;
-                    font-weight: 500;
-                `;
-
-                // 添加分类图标（如果有）
-                if (category.icon) {
-                    const iconSpan = document.createElement('span');
-                    iconSpan.textContent = category.icon;
-                    iconSpan.style.cssText = 'font-size: 10px;';
-                    categoryTag.appendChild(iconSpan);
-                }
-
-                // 添加分类名称
-                const nameSpan = document.createElement('span');
-                nameSpan.textContent = category.name;
-                categoryTag.appendChild(nameSpan);
-
-                // 设置标题提示
-                categoryTag.title = `分类: ${category.name}`;
-
-                // 将分类标签添加到信息容器底部（项目信息后面）
-                infoEl.appendChild(categoryTag);
-            }
-        }
-
-        contentEl.appendChild(leftControls);
-        contentEl.appendChild(infoEl);
-        reminderEl.appendChild(contentEl);
-
-        // 如果为父任务，计算直接子任务完成进度并在底部显示进度条
-        if (hasChildren) {
-            // 注意：需要从 allRemindersMap 中获取所有子任务（包括被隐藏的已完成子任务）
-            // 而不是只从 allVisibleReminders 或 currentRemindersCache 中获取
-            // 这样进度条才能正确反映所有子任务的完成情况
-            const allChildren: any[] = [];
-            this.allRemindersMap.forEach(r => {
-                if (r.parentId === reminder.id) {
-                    allChildren.push(r);
-                }
-            });
-            const completedCount = allChildren.filter(c => c.completed).length;
-            const percent = allChildren.length > 0 ? Math.round((completedCount / allChildren.length) * 100) : 0;
-
-            const progressContainer = document.createElement('div');
-            progressContainer.className = 'reminder-progress-container';
-
-            const progressWrap = document.createElement('div');
-            progressWrap.className = 'reminder-progress-wrap';
-
-            const progressBar = document.createElement('div');
-            progressBar.className = 'reminder-progress-bar';
-            progressBar.style.width = `${percent}%`;
-
-            progressWrap.appendChild(progressBar);
-
-            const percentLabel = document.createElement('div');
-            percentLabel.className = 'reminder-progress-text';
-            percentLabel.textContent = `${percent}%`;
-
-            progressContainer.appendChild(progressWrap);
-            progressContainer.appendChild(percentLabel);
-
-            reminderEl.appendChild(progressContainer);
-        }
-
-        return reminderEl;
     }
 }
