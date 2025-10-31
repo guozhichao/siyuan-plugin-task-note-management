@@ -4680,7 +4680,7 @@ export class ReminderPanel {
 
                 // 触发其他组件更新
                 window.dispatchEvent(new CustomEvent('reminderUpdated', {
-                    detail: { }
+                    detail: {}
                 }));
             } else {
                 showMessage(t("reminderNotExist"));
