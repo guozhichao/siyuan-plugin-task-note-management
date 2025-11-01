@@ -1161,7 +1161,7 @@ export class ProjectKanbanView {
 
         column.appendChild(pagination);
         container.appendChild(column);
-        
+
         return column;
     }
 
