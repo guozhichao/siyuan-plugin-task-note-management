@@ -1161,6 +1161,8 @@ export class ProjectKanbanView {
 
         column.appendChild(pagination);
         container.appendChild(column);
+        
+        return column;
     }
 
     private addDropZoneEvents(element: HTMLElement, status: string) {
@@ -1737,6 +1739,12 @@ export class ProjectKanbanView {
     }
 
     private async renderKanban() {
+        // 在切换模式时完全清空容器，避免不同模式的组件残留
+        const kanbanContainer = this.container.querySelector('.project-kanban-container') as HTMLElement;
+        if (kanbanContainer) {
+            kanbanContainer.innerHTML = '';
+        }
+
         if (this.kanbanMode === 'status') {
             await this.renderStatusKanban();
         } else {
@@ -1756,12 +1764,8 @@ export class ProjectKanbanView {
             return;
         }
 
-        // 清空现有列（除了标题栏）
         const kanbanContainer = this.container.querySelector('.project-kanban-container') as HTMLElement;
-        if (kanbanContainer) {
-            // 保留标题栏，清空看板内容
-            kanbanContainer.innerHTML = '';
-        }
+        if (!kanbanContainer) return;
 
         // 将任务分为已完成和其他状态
         const completedTasks = this.tasks.filter(task => task.completed);
@@ -1808,9 +1812,6 @@ export class ProjectKanbanView {
     private async renderStatusKanban() {
         const kanbanContainer = this.container.querySelector('.project-kanban-container') as HTMLElement;
         if (!kanbanContainer) return;
-
-        // 不再清空整个看板容器，而是保留列结构
-        // kanbanContainer.innerHTML = '';
 
         // 确保状态列存在，如果不存在才创建
         this.ensureStatusColumnsExist(kanbanContainer);
