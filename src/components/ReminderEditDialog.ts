@@ -986,6 +986,37 @@ export class ReminderEditDialog {
                     reminderData[this.reminder.id].projectId = projectId;
                     reminderData[this.reminder.id].repeat = this.repeatConfig.enabled ? this.repeatConfig : undefined;
 
+                    // 如果是重复事件，清除所有实例的优先级、分类、项目、自定义分组等覆盖
+                    // 这样"修改全部实例"才能真正影响所有实例
+                    if (reminderData[this.reminder.id].repeat?.enabled && reminderData[this.reminder.id].repeat?.instanceModifications) {
+                        const modifications = reminderData[this.reminder.id].repeat.instanceModifications;
+                        Object.keys(modifications).forEach(date => {
+                            // 清除优先级覆盖
+                            if (modifications[date].priority !== undefined) {
+                                delete modifications[date].priority;
+                            }
+                            // 清除分类覆盖
+                            if (modifications[date].categoryId !== undefined) {
+                                delete modifications[date].categoryId;
+                            }
+                            // 清除项目覆盖
+                            if (modifications[date].projectId !== undefined) {
+                                delete modifications[date].projectId;
+                            }
+                            // 清除自定义分组覆盖
+                            if (modifications[date].customGroupId !== undefined) {
+                                delete modifications[date].customGroupId;
+                            }
+                            // 清除任务类型覆盖
+                            if (modifications[date].termType !== undefined) {
+                                delete modifications[date].termType;
+                            }
+                            if (modifications[date].kanbanStatus !== undefined) {
+                                delete modifications[date].kanbanStatus;
+                            }
+                        });
+                    }
+
                     // 如果项目ID发生变化，更新所有子任务的项目ID
                     if (projectIdChanged) {
                         this.updateChildrenProjectId(reminderData, this.reminder.id, projectId);

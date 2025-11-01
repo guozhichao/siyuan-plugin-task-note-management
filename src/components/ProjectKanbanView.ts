@@ -1408,7 +1408,14 @@ export class ProjectKanbanView {
                             isRepeatInstance: true,
                             originalId: instance.originalId,
                             completed: isInstanceCompleted,
-                            note: instanceMod?.note || reminder.note,
+                            // 如果实例有修改，使用实例的值；否则使用原始值
+                            note: instanceMod?.note !== undefined ? instanceMod.note : reminder.note,
+                            priority: instanceMod?.priority !== undefined ? instanceMod.priority : reminder.priority,
+                            categoryId: instanceMod?.categoryId !== undefined ? instanceMod.categoryId : reminder.categoryId,
+                            projectId: instanceMod?.projectId !== undefined ? instanceMod.projectId : reminder.projectId,
+                            customGroupId: instanceMod?.customGroupId !== undefined ? instanceMod.customGroupId : reminder.customGroupId,
+                            termType: instanceMod?.termType !== undefined ? instanceMod.termType : reminder.termType,
+                            kanbanStatus: instanceMod?.kanbanStatus !== undefined ? instanceMod.kanbanStatus : reminder.kanbanStatus,
                             // 为已完成的实例添加完成时间（用于排序）
                             completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined
                         };
@@ -3701,7 +3708,7 @@ export class ProjectKanbanView {
                 iconHTML: priority.icon,
                 label: priority.label,
                 current: currentPriority === priority.key,
-                click: () => this.setPriority(task.id, priority.key)
+                click: () => this.setPriority(task, priority.key)
             });
         });
 
@@ -4340,27 +4347,26 @@ export class ProjectKanbanView {
 
     private async editTask(task: any) {
         try {
-            // 对于周期实例，编辑原始周期事件
-            if (task.isRepeatInstance) {
+            // 对于周期实例，需要编辑原始周期事件
+            // 注意：不能直接使用实例对象，需要从数据中读取原始事件
+            let taskToEdit = task;
+
+            if (task.isRepeatInstance && task.originalId) {
                 const reminderData = await readReminderData();
                 const originalReminder = reminderData[task.originalId];
                 if (!originalReminder) {
                     showMessage("原始周期事件不存在");
                     return;
                 }
-                const editDialog = new ReminderEditDialog(originalReminder, async () => {
-                    await this.loadTasks();
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                });
-                editDialog.show();
-            } else {
-                // 普通任务或原始周期事件
-                const editDialog = new ReminderEditDialog(task, async () => {
-                    await this.loadTasks();
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                });
-                editDialog.show();
+                // 使用原始事件对象而不是实例对象
+                taskToEdit = originalReminder;
             }
+
+            const editDialog = new ReminderEditDialog(taskToEdit, async () => {
+                await this.loadTasks();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            });
+            editDialog.show();
         } catch (error) {
             console.error('打开编辑对话框失败:', error);
             showMessage("打开编辑对话框失败");
@@ -5953,19 +5959,59 @@ export class ProjectKanbanView {
     }
 
     // 设置任务优先级
-    private async setPriority(taskId: string, priority: string) {
+    private async setPriority(task: any, priority: string) {
         try {
             const reminderData = await readReminderData();
-            if (reminderData[taskId]) {
-                reminderData[taskId].priority = priority;
-                await writeReminderData(reminderData);
 
-                showMessage("优先级已更新");
-                await this.loadTasks();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            // 如果是重复实例，修改实例的优先级
+            if (task.isRepeatInstance && task.originalId) {
+                const originalReminder = reminderData[task.originalId];
+                if (!originalReminder) {
+                    showMessage("原始任务不存在");
+                    return;
+                }
+
+                // 初始化实例修改结构
+                if (!originalReminder.repeat) {
+                    originalReminder.repeat = {};
+                }
+                if (!originalReminder.repeat.instanceModifications) {
+                    originalReminder.repeat.instanceModifications = {};
+                }
+                if (!originalReminder.repeat.instanceModifications[task.date]) {
+                    originalReminder.repeat.instanceModifications[task.date] = {};
+                }
+
+                // 设置实例的优先级
+                originalReminder.repeat.instanceModifications[task.date].priority = priority;
+
+                await writeReminderData(reminderData);
+                showMessage("实例优先级已更新");
             } else {
-                showMessage("任务不存在");
+                // 普通任务或原始重复事件，直接修改
+                if (reminderData[task.id]) {
+                    reminderData[task.id].priority = priority;
+
+                    // 如果是重复事件，清除所有实例的优先级覆盖
+                    if (reminderData[task.id].repeat?.enabled && reminderData[task.id].repeat?.instanceModifications) {
+                        const modifications = reminderData[task.id].repeat.instanceModifications;
+                        Object.keys(modifications).forEach(date => {
+                            if (modifications[date].priority !== undefined) {
+                                delete modifications[date].priority;
+                            }
+                        });
+                    }
+
+                    await writeReminderData(reminderData);
+                    showMessage("优先级已更新");
+                } else {
+                    showMessage("任务不存在");
+                    return;
+                }
             }
+
+            await this.loadTasks();
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
         } catch (error) {
             console.error('设置优先级失败:', error);
             showMessage("设置优先级失败");

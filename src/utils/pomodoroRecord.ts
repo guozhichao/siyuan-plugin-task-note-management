@@ -239,7 +239,31 @@ export class PomodoroRecordManager {
             const { readReminderData } = await import("../api");
             const reminderData = await readReminderData();
 
-            if (reminderData && reminderData[reminderId]) {
+            if (!reminderData) return 0;
+
+            // 检查是否是重复实例ID（格式：originalId_date）
+            if (reminderId.includes('_')) {
+                // 可能是重复实例，尝试提取原始ID
+                const parts = reminderId.split('_');
+                if (parts.length >= 2) {
+                    // 最后一部分应该是日期，前面的部分组成原始ID
+                    const lastPart = parts[parts.length - 1];
+                    // 简单检查最后一部分是否像日期（YYYY-MM-DD格式）
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(lastPart)) {
+                        // 这是一个重复实例ID
+                        const originalId = parts.slice(0, -1).join('_');
+                        const originalReminder = reminderData[originalId];
+
+                        if (originalReminder?.repeat?.instancePomodoroCount) {
+                            return originalReminder.repeat.instancePomodoroCount[reminderId] || 0;
+                        }
+                        return 0;
+                    }
+                }
+            }
+
+            // 普通任务或不是重复实例格式
+            if (reminderData[reminderId]) {
                 return reminderData[reminderId].pomodoroCount || 0;
             }
 

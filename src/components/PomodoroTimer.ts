@@ -3132,7 +3132,8 @@ export class PomodoroTimer {
     private async resetTimer() {
         // 如果是正计时工作模式下手动停止，并且有专注时间，则记录总的专注时间
         if (this.isCountUp && this.isWorkPhase && this.timeElapsed > 0) {
-            const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
+            // 每个实例使用自己的ID来记录番茄钟（重复实例也独立记录）
+            const eventId = this.reminder.id;
             const eventTitle = this.reminder.title || '番茄专注';
 
             // 正计时模式：记录总的实际专注时间（不按番茄单位划分）
@@ -3285,8 +3286,8 @@ export class PomodoroTimer {
                 this.updateStatsDisplay();
             }, 100);
 
-            // 倒计时模式：记录完成的工作番茄
-            const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
+            // 倒计时模式：记录完成的工作番茄（每个实例独立记录）
+            const eventId = this.reminder.id;
             const eventTitle = this.reminder.title || '番茄专注';
             await this.recordManager.recordWorkSession(
                 this.currentPhaseOriginalDuration,
@@ -3338,8 +3339,8 @@ export class PomodoroTimer {
             );
         }
 
-        // 记录完成的休息时间
-        const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
+        // 记录完成的休息时间（每个实例独立记录）
+        const eventId = this.reminder.id;
         const eventTitle = this.reminder.title || '番茄专注';
 
         await this.recordManager.recordBreakSession(
@@ -3406,8 +3407,8 @@ export class PomodoroTimer {
 
             if (this.workEndAudio) {
                 await this.safePlayAudio(this.workEndAudio);
-            }            // 记录完成的工作番茄
-            const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
+            }            // 记录完成的工作番茄（每个实例独立记录）
+            const eventId = this.reminder.id;
             const eventTitle = this.reminder.title || '番茄专注';
 
             await this.recordManager.recordWorkSession(
@@ -3473,8 +3474,8 @@ export class PomodoroTimer {
                 await this.safePlayAudio(this.breakEndAudio);
             }
 
-            // 记录完成的休息时间
-            const eventId = this.reminder.isRepeatInstance ? this.reminder.originalId : this.reminder.id;
+            // 记录完成的休息时间（每个实例独立记录）
+            const eventId = this.reminder.id;
             const eventTitle = this.reminder.title || '番茄专注';
 
             await this.recordManager.recordBreakSession(
@@ -3697,25 +3698,52 @@ export class PomodoroTimer {
         try {
             const reminderData = await readReminderData();
 
-            let targetId: string;
-            if (this.reminder.isRepeatInstance) {
-                targetId = this.reminder.originalId;
-            } else {
-                targetId = this.reminder.id;
-            }
+            // 每个实例（包括重复实例）使用自己的ID来保存番茄钟计数
+            const targetId = this.reminder.id;
 
-            if (reminderData[targetId]) {
-                if (typeof reminderData[targetId].pomodoroCount !== 'number') {
-                    reminderData[targetId].pomodoroCount = 0;
+            // 对于重复实例，需要确保在 reminderData 中存在对应的条目
+            // 因为重复实例不会直接保存在 reminderData 中，所以需要特殊处理
+            if (this.reminder.isRepeatInstance) {
+                // 获取原始任务
+                const originalReminder = reminderData[this.reminder.originalId];
+                if (!originalReminder) {
+                    console.warn('未找到原始提醒项:', this.reminder.originalId);
+                    return;
                 }
 
-                reminderData[targetId].pomodoroCount++;
+                // 为重复实例创建独立的番茄钟计数记录（保存在 repeat.instancePomodoroCount 中）
+                if (!originalReminder.repeat) {
+                    originalReminder.repeat = {};
+                }
+                if (!originalReminder.repeat.instancePomodoroCount) {
+                    originalReminder.repeat.instancePomodoroCount = {};
+                }
+
+                // 使用实例ID作为key保存番茄钟计数
+                if (typeof originalReminder.repeat.instancePomodoroCount[targetId] !== 'number') {
+                    originalReminder.repeat.instancePomodoroCount[targetId] = 0;
+                }
+                originalReminder.repeat.instancePomodoroCount[targetId]++;
+
                 await writeReminderData(reminderData);
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
-                console.log(`提醒 ${targetId} 的番茄数量已更新为: ${reminderData[targetId].pomodoroCount}`);
+                console.log(`重复实例 ${targetId} 的番茄数量已更新为: ${originalReminder.repeat.instancePomodoroCount[targetId]}`);
             } else {
-                console.warn('未找到对应的提醒项:', targetId);
+                // 普通任务直接保存
+                if (reminderData[targetId]) {
+                    if (typeof reminderData[targetId].pomodoroCount !== 'number') {
+                        reminderData[targetId].pomodoroCount = 0;
+                    }
+
+                    reminderData[targetId].pomodoroCount++;
+                    await writeReminderData(reminderData);
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+                    console.log(`提醒 ${targetId} 的番茄数量已更新为: ${reminderData[targetId].pomodoroCount}`);
+                } else {
+                    console.warn('未找到对应的提醒项:', targetId);
+                }
             }
         } catch (error) {
             console.error('更新提醒番茄数量失败:', error);
