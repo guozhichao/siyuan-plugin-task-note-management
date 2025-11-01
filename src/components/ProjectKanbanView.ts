@@ -1469,7 +1469,7 @@ export class ProjectKanbanView {
                 }
             });
 
-            this.tasks = allTasksWithInstances.map((reminder: any) => {
+            this.tasks = await Promise.all(allTasksWithInstances.map(async (reminder: any) => {
                 let status;
                 if (reminder.parentId && taskMap.has(reminder.parentId)) {
                     // For ALL subtasks, their column is determined by their root parent's status
@@ -1478,11 +1478,14 @@ export class ProjectKanbanView {
                     // For top-level tasks, use their own status
                     status = this.getTaskStatus(reminder);
                 }
+                // 获取番茄钟计数（支持重复实例的单独计数）
+                const pomodoroCount = await this.getReminderPomodoroCount(reminder.id);
                 return {
                     ...reminder,
-                    status: status
+                    status: status,
+                    pomodoroCount: pomodoroCount
                 };
-            });
+            }));
 
             this.sortTasks();
 
@@ -1549,6 +1552,22 @@ export class ProjectKanbanView {
             showMessage("加载任务失败");
         } finally {
             this.isLoading = false;
+        }
+    }
+
+    /**
+     * 获取提醒的番茄钟计数（支持重复实例的单独计数）
+     * @param reminderId 提醒ID
+     * @returns 番茄钟计数
+     */
+    private async getReminderPomodoroCount(reminderId: string): Promise<number> {
+        try {
+            const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
+            const pomodoroManager = PomodoroRecordManager.getInstance();
+            return await pomodoroManager.getReminderPomodoroCount(reminderId);
+        } catch (error) {
+            console.error('获取番茄钟计数失败:', error);
+            return 0;
         }
     }
 

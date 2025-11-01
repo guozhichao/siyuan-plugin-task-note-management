@@ -282,6 +282,7 @@ export class EisenhowerMatrixView {
                             originalId: instance.originalId,
                             completed: isInstanceCompleted,
                             note: instanceMod?.note || reminder.note,
+                            priority: instanceMod?.priority || reminder.priority,
                             // 为已完成的实例添加完成时间（用于排序）
                             completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined
                         };
@@ -430,7 +431,7 @@ export class EisenhowerMatrixView {
                     extendedProps: reminder,
                     quadrant,
                     parentId: reminder?.parentId,
-                    pomodoroCount: reminder?.pomodoroCount || 0,
+                    pomodoroCount: await this.getReminderPomodoroCount(reminder.id),
                     sort: reminder?.sort || 0,
                     createdTime: reminder?.createdTime,
                     endDate: reminder?.endDate,
@@ -448,6 +449,22 @@ export class EisenhowerMatrixView {
         } catch (error) {
             console.error('加载任务失败:', error);
             showMessage(t('loadTasksFailed'));
+        }
+    }
+
+    /**
+     * 获取提醒的番茄钟计数（支持重复实例的单独计数）
+     * @param reminderId 提醒ID
+     * @returns 番茄钟计数
+     */
+    private async getReminderPomodoroCount(reminderId: string): Promise<number> {
+        try {
+            const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
+            const pomodoroManager = PomodoroRecordManager.getInstance();
+            return await pomodoroManager.getReminderPomodoroCount(reminderId);
+        } catch (error) {
+            console.error('获取番茄钟计数失败:', error);
+            return 0;
         }
     }
 
@@ -480,6 +497,7 @@ export class EisenhowerMatrixView {
 
     /**
      * 检查任务本身或其父任务是否为进行中状态
+     * 今天或过去的任务也视为进行中状态
      * @param task 要检查的任务
      * @returns 如果任务或其父任务是进行中状态，返回true
      */
@@ -489,11 +507,39 @@ export class EisenhowerMatrixView {
             return true;
         }
 
+        // 检查任务日期：今天或过去的任务视为进行中（但已完成的任务除外）
+        if (!task.completed && task.date) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // 重置时间到当天开始
+
+            // 如果有结束日期，使用结束日期判断，否则使用开始日期
+            const taskDate = new Date(task.endDate || task.date);
+            taskDate.setHours(0, 0, 0, 0);
+
+            // 如果任务日期是今天或过去，则视为进行中
+            if (taskDate <= today) {
+                return true;
+            }
+        }
+
         // 检查父任务是否是进行中
         if (task.parentId) {
             const parentTask = this.allTasks.find(t => t.id === task.parentId);
             if (parentTask && parentTask.extendedProps?.kanbanStatus === 'doing') {
                 return true;
+            }
+
+            // 检查父任务的日期：今天或过去的父任务也视为进行中
+            if (parentTask && !parentTask.completed && parentTask.date) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                const parentTaskDate = new Date(parentTask.endDate || parentTask.date);
+                parentTaskDate.setHours(0, 0, 0, 0);
+
+                if (parentTaskDate <= today) {
+                    return true;
+                }
             }
         }
 
