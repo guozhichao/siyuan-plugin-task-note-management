@@ -556,6 +556,16 @@ export class ReminderPanel {
 
                 // 将文档标题插入到容器的最前面
                 container.insertBefore(docTitleEl, container.firstChild);
+
+                // 异步加载完成后，恢复滚动位置以防止位置跳动
+                // 保存当前滚动位置，避免异步加载导致的滚动跳动
+                const currentScrollTop = this.remindersContainer.scrollTop;
+                const currentScrollLeft = this.remindersContainer.scrollLeft;
+                // 使用 setTimeout 确保 DOM 更新后再恢复滚动位置
+                setTimeout(() => {
+                    this.remindersContainer.scrollTop = currentScrollTop;
+                    this.remindersContainer.scrollLeft = currentScrollLeft;
+                }, 0);
             }
         } catch (error) {
             console.warn('获取文档标题失败:', error);
