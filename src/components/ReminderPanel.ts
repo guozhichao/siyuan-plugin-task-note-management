@@ -3779,6 +3779,10 @@ export class ReminderPanel {
             if (this.plugin && typeof this.plugin.updateBadges === 'function') {
                 this.plugin.updateBadges();
             }
+
+            // 刷新界面显示
+            this.loadReminders();
+            showMessage(t("markedTodayCompleted") || "已标记今日已完成", 2000);
         } catch (error) {
             console.error('标记今日已完成失败:', error);
             showMessage(t("operationFailed"));
@@ -3812,12 +3816,15 @@ export class ReminderPanel {
             }
 
             await writeReminderData(reminderData);
-            showMessage(t("unmarkedTodayCompleted"));
 
             // 通知插件更新徽章
             if (this.plugin && typeof this.plugin.updateBadges === 'function') {
                 this.plugin.updateBadges();
             }
+
+            // 刷新界面显示
+            this.loadReminders();
+            showMessage(t("unmarkedTodayCompleted") || "已取消今日已完成", 2000);
         } catch (error) {
             console.error('取消今日已完成失败:', error);
             showMessage(t("operationFailed"));
