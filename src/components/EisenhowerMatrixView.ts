@@ -963,7 +963,12 @@ export class EisenhowerMatrixView {
 
             // 辅助函数：计算过期天数
             const getExpiredDays = (targetDate: string): number => {
-                return Math.ceil((new Date().getTime() - new Date(targetDate).getTime()) / (1000 * 60 * 60 * 24));
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const taskDate = new Date(targetDate);
+                taskDate.setHours(0, 0, 0, 0);
+                const diffTime = today.getTime() - taskDate.getTime();
+                return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             };
 
             // 辅助函数：创建过期徽章
