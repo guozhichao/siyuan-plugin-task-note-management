@@ -4285,7 +4285,7 @@ export class ProjectKanbanView {
                 hideProjectSelector: true, // 隐藏项目选择器
                 showKanbanStatus: 'term', // 显示任务类型选择
                 // 使用上一次选择的 termType 作为默认值
-                defaultTermType: this.lastSelectedTermType,
+                defaultTermType: defaultTermType || this.lastSelectedTermType,
                 plugin: this.plugin // 传入plugin实例
             }
         );
