@@ -15,67 +15,10 @@ export async function request(url: string, data: any) {
     return res;
 }
 
-// **************************************** Riff (闪卡) ****************************************
-
-export async function addRiffCards(blockIDs: string[], deckID: string = Constants.QUICK_DECK_ID): Promise<any> {
-    let data = {
-        deckID: deckID,
-        blockIDs: blockIDs
-    };
-    let url = '/api/riff/addRiffCards';
-    return request(url, data);
-}
-
-export async function removeRiffCards(blockIDs: string[], deckID: string = Constants.QUICK_DECK_ID): Promise<any> {
-    let data = {
-        deckID: deckID,
-        blockIDs: blockIDs
-    };
-    let url = '/api/riff/removeRiffCards';
-    return request(url, data);
-}
-
-export async function getRiffDecks(): Promise<any> {
-    let url = '/api/riff/getRiffDecks';
-    return request(url, {});
-}
-
-export async function createRiffDeck(name: string): Promise<any> {
-    let data = {
-        name: name
-    };
-    let url = '/api/riff/createRiffDeck';
-    return request(url, data);
-}
-
-export async function removeRiffDeck(deckID: string): Promise<any> {
-    let data = {
-        deckID: deckID
-    };
-    let url = '/api/riff/removeRiffDeck';
-    return request(url, data);
-}
-
-export async function renameRiffDeck(deckID: string, name: string): Promise<any> {
-    let data = {
-        deckID: deckID,
-        name: name
-    };
-    let url = '/api/riff/renameRiffDeck';
-    return request(url, data);
-}
-
-export async function getRiffCards(deckID: string): Promise<any> {
-    let data = {
-        deckID: deckID
-    };
-    let url = '/api/riff/getRiffCards';
-    return request(url, data);
-}
-
-
 // **************************************** Noteboook ****************************************
-
+export async function refreshSql() {
+    return fetchSyncPost('/api/sqlite/flushTransaction');
+}
 
 export async function lsNotebooks(): Promise<IReslsNotebooks> {
     let url = '/api/notebook/lsNotebooks';
@@ -839,3 +782,64 @@ export async function ensureProjectDataFile(): Promise<void> {
         await writeProjectData({});
     }
 }
+
+
+
+// **************************************** Riff (闪卡) ****************************************
+
+export async function addRiffCards(blockIDs: string[], deckID: string = Constants.QUICK_DECK_ID): Promise<any> {
+    let data = {
+        deckID: deckID,
+        blockIDs: blockIDs
+    };
+    let url = '/api/riff/addRiffCards';
+    return request(url, data);
+}
+
+export async function removeRiffCards(blockIDs: string[], deckID: string = Constants.QUICK_DECK_ID): Promise<any> {
+    let data = {
+        deckID: deckID,
+        blockIDs: blockIDs
+    };
+    let url = '/api/riff/removeRiffCards';
+    return request(url, data);
+}
+
+export async function getRiffDecks(): Promise<any> {
+    let url = '/api/riff/getRiffDecks';
+    return request(url, {});
+}
+
+export async function createRiffDeck(name: string): Promise<any> {
+    let data = {
+        name: name
+    };
+    let url = '/api/riff/createRiffDeck';
+    return request(url, data);
+}
+
+export async function removeRiffDeck(deckID: string): Promise<any> {
+    let data = {
+        deckID: deckID
+    };
+    let url = '/api/riff/removeRiffDeck';
+    return request(url, data);
+}
+
+export async function renameRiffDeck(deckID: string, name: string): Promise<any> {
+    let data = {
+        deckID: deckID,
+        name: name
+    };
+    let url = '/api/riff/renameRiffDeck';
+    return request(url, data);
+}
+
+export async function getRiffCards(deckID: string): Promise<any> {
+    let data = {
+        deckID: deckID
+    };
+    let url = '/api/riff/getRiffCards';
+    return request(url, data);
+}
+

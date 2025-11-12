@@ -1,6 +1,6 @@
 import { showMessage, confirm, Menu, Dialog } from "siyuan";
 
-import { readReminderData, writeReminderData, readProjectData, getBlockByID, updateBlockReminderBookmark, openBlock } from "../api";
+import { refreshSql,readReminderData, writeReminderData, readProjectData, getBlockByID, updateBlockReminderBookmark, openBlock } from "../api";
 import { t } from "../utils/i18n";
 import { getLocalDateString, getLocalDateTimeString, compareDateStrings } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
@@ -6306,7 +6306,7 @@ export class ProjectKanbanView {
 
             // 创建文档
             const docId = await createDocWithMd(notebook, renderedPath, docContent);
-
+            await refreshSql();
             // 绑定提醒到新创建的文档
             await this.bindReminderToBlock(reminder, docId);
 
