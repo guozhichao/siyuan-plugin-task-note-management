@@ -32,6 +32,7 @@ export class CalendarView {
     private taskSummaryDialog: TaskSummaryDialog;
     private currentCategoryFilter: string = 'all'; // 当前分类过滤
     private currentProjectFilter: string = 'all'; // 当前项目过滤
+    private initialProjectFilter: string | null = null;
     private colorBy: 'category' | 'priority' | 'project' = 'project'; // 按分类或优先级上色
     private tooltip: HTMLElement | null = null; // 添加提示框元素
     private hideTooltipTimeout: number | null = null; // 添加提示框隐藏超时控制
@@ -49,7 +50,7 @@ export class CalendarView {
     // 使用全局番茄钟管理器
     private pomodoroManager: PomodoroManager = PomodoroManager.getInstance();
 
-    constructor(container: HTMLElement, plugin: any) {
+    constructor(container: HTMLElement, plugin: any, data?: { projectFilter?: string }) {
         this.container = container;
         this.plugin = plugin;
         this.categoryManager = CategoryManager.getInstance(); // 初始化分类管理器
@@ -57,6 +58,9 @@ export class CalendarView {
         this.statusManager = StatusManager.getInstance();
         this.calendarConfigManager = CalendarConfigManager.getInstance();
         this.taskSummaryDialog = new TaskSummaryDialog();
+        if (data?.projectFilter) {
+            this.initialProjectFilter = data.projectFilter;
+        }
         this.initUI();
     }
 
@@ -66,6 +70,11 @@ export class CalendarView {
         await this.projectManager.initialize();
         await this.statusManager.initialize();
         await this.calendarConfigManager.initialize();
+
+        if (this.initialProjectFilter) {
+            this.currentProjectFilter = this.initialProjectFilter;
+            this.currentCategoryFilter = 'all';
+        }
 
         // 从配置中读取colorBy和viewMode设置
         this.colorBy = this.calendarConfigManager.getColorBy();
@@ -159,6 +168,9 @@ export class CalendarView {
         });
         filterGroup.appendChild(unifiedFilterSelect);
 
+        // 渲染统一筛选器
+        await this.renderUnifiedFilter(unifiedFilterSelect);
+
         // 添加按分类/优先级上色切换
         const colorBySelect = document.createElement('select');
         colorBySelect.className = 'b3-select';
@@ -176,8 +188,9 @@ export class CalendarView {
         });
         filterGroup.appendChild(colorBySelect);
 
-        // 渲染统一筛选器
-        await this.renderUnifiedFilter(unifiedFilterSelect);
+        if (this.initialProjectFilter) {
+            unifiedFilterSelect.value = `project:${this.initialProjectFilter}`;
+        }
 
         // 刷新按钮
         const refreshBtn = document.createElement('button');

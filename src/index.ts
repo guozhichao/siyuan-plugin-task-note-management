@@ -349,7 +349,7 @@ export default class ReminderPlugin extends Plugin {
         this.addTab({
             type: TAB_TYPE,
             init: ((tab) => {
-                const calendarView = new CalendarView(tab.element, this);
+                const calendarView = new CalendarView(tab.element, this, tab.data);
                 // 保存实例引用用于清理
                 this.tabViews.set(tab.id, calendarView);
             }) as any
@@ -1531,7 +1531,7 @@ export default class ReminderPlugin extends Plugin {
     }
 
     // 打开日历视图标签页
-    openCalendarTab() {
+    openCalendarTab(data?: { projectFilter?: string }) {
         const isMobile = getFrontend().endsWith('mobile');
 
         if (isMobile) {
@@ -1556,7 +1556,7 @@ export default class ReminderPlugin extends Plugin {
             // 在Dialog中创建日历视图
             const calendarContainer = dialog.element.querySelector('#mobileCalendarContainer') as HTMLElement;
             if (calendarContainer) {
-                const calendarView = new CalendarView(calendarContainer, this);
+                const calendarView = new CalendarView(calendarContainer, this, data);
                 // 保存实例引用用于清理
                 (calendarContainer as any)._calendarView = calendarView;
             }
@@ -1569,7 +1569,7 @@ export default class ReminderPlugin extends Plugin {
                     title: t("calendarView"),
                     icon: 'iconCalendar',
                     id: this.name + TAB_TYPE,
-                    data: {}
+                    data: data || {}
                 }
             });
         }

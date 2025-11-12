@@ -940,6 +940,13 @@ export class ProjectKanbanView {
         refreshBtn.addEventListener('click', () => this.loadTasks());
         controlsGroup.appendChild(refreshBtn);
 
+        const calendarBtn = document.createElement('button');
+        calendarBtn.className = 'b3-button b3-button--outline';
+        calendarBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconCalendar"></use></svg>';
+        calendarBtn.title = t('openCalendarView') || '打开日历视图';
+        calendarBtn.addEventListener('click', () => this.openCalendarForProject());
+        controlsGroup.appendChild(calendarBtn);
+
         // 看板模式选择下拉框
         const modeSelectContainer = document.createElement('div');
         modeSelectContainer.className = 'kanban-mode-select-container';
@@ -1706,6 +1713,10 @@ export class ProjectKanbanView {
             return new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime();
         }
         return timeA - timeB;
+    }
+
+    private openCalendarForProject() {
+        this.plugin.openCalendarTab({ projectFilter: this.projectId });
     }
 
     private sortDoneTasks(tasks: any[]): any[] {
