@@ -4277,11 +4277,12 @@ export class ProjectKanbanView {
             undefined, // 无时间段选项
             {
                 defaultProjectId: this.projectId, // 默认项目ID
+                defaultParentId: parentTask?.id, // 传递父任务ID
                 defaultCategoryId: parentTask?.categoryId || this.project.categoryId, // 如果是子任务，继承父任务分类；否则使用项目分类
                 defaultPriority: parentTask?.priority, // 如果是子任务，继承父任务优先级
                 defaultTitle: parentTask ? '' : undefined, // 子任务不预填标题
                 // 传入默认 custom group id（可能为 undefined 或 null）
-                defaultCustomGroupId: typeof defaultCustomGroupId === 'undefined' ? undefined : defaultCustomGroupId,
+                defaultCustomGroupId: parentTask?.customGroupId ?? defaultCustomGroupId,
                 hideProjectSelector: true, // 隐藏项目选择器
                 showKanbanStatus: 'term', // 显示任务类型选择
                 // 使用上一次选择的 termType 作为默认值
@@ -4292,75 +4293,11 @@ export class ProjectKanbanView {
 
         quickDialog.show();
 
-        // 如果需要设置父子关系或有默认 customGroupId，在保存后处理
-        if (parentTask || typeof (arguments as any)[1] !== 'undefined') {
-            // 重写保存回调，添加父子关系设置
-            const originalOnSaved = quickDialog['onSaved'];
-            // capture defaultCustomGroupId from outer scope by reading the dialog options
-            const capturedDefaultCustomGroupId = (quickDialog as any)['defaultCustomGroupId'] as string | null | undefined;
-
-            quickDialog['onSaved'] = async () => {
-                if (originalOnSaved) {
-                    originalOnSaved();
-                }
-
-                // 获取最新创建的任务并设置父任务关系
-                try {
-                    const reminderData = await readReminderData();
-                    const allTasks = Object.values(reminderData).filter((r: any) =>
-                        r.projectId === this.projectId && !r.completed
-                    );
-
-                    // 找到最新创建的任务（最大的 createdAt 时间戳）
-                    const latestTask = allTasks.reduce((latest: any, current: any) => {
-                        if (!latest) return current;
-                        const latestTime = new Date(latest.createdAt || 0).getTime();
-                        const currentTime = new Date(current.createdAt || 0).getTime();
-                        return currentTime > latestTime ? current : latest;
-                    }, null);
-
-                    if (latestTask) {
-                        // 设置父任务关系
-                        (latestTask as any).parentId = parentTask.id;
-
-                        // 如果最新创建的任务没有优先级，继承父任务的优先级
-                        if (!(latestTask as any).priority || (latestTask as any).priority === 'none') {
-                            (latestTask as any).priority = parentTask.priority || 'none';
-                        }
-
-                        // 如果父任务有自定义分组，继承该分组
-                        if (parentTask && parentTask.customGroupId) {
-                            (latestTask as any).customGroupId = parentTask.customGroupId;
-                        }
-
-                        // 如果 dialog 创建时传入了默认 customGroupId（含 null 表示明确不分组），则以它为准
-                        if (capturedDefaultCustomGroupId !== undefined) {
-                            if (capturedDefaultCustomGroupId === null) {
-                                delete (latestTask as any).customGroupId;
-                            } else {
-                                (latestTask as any).customGroupId = capturedDefaultCustomGroupId;
-                            }
-                        }
-
-                        reminderData[(latestTask as any).id] = latestTask;
-                        await writeReminderData(reminderData);
-
-                        // showMessage(`子任务已创建并关联到 "${parentTask.title}"`);
-
-                        // 再次刷新看板
-                        this.loadTasks();
-                    }
-                } catch (error) {
-                    console.error('设置父任务关系失败:', error);
-                }
-            };
-        }
-
         // 重写保存回调，保存用户选择的 termType
         const originalOnSaved = quickDialog['onSaved'];
         quickDialog['onSaved'] = async () => {
             if (originalOnSaved) {
-                await originalOnSaved();
+                originalOnSaved(); // This will call this.loadTasks()
             }
 
             // 保存用户选择的 termType 到内存中

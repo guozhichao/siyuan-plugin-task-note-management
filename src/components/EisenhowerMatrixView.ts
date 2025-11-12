@@ -3497,8 +3497,15 @@ export class EisenhowerMatrixView {
     }
 
     private showCreateTaskDialog(quadrant: QuadrantTask['quadrant'], parentTask?: QuadrantTask) {
-        // 根据象限和当前设置计算推荐的日期和时间
-        const { date, time } = this.calculateRecommendedDateTime(quadrant);
+        let date: string | undefined;
+        let time: string | undefined;
+
+        if (!parentTask) {
+            // 根据象限和当前设置计算推荐的日期和时间
+            const recommended = this.calculateRecommendedDateTime(quadrant);
+            date = recommended.date;
+            time = recommended.time;
+        }
 
         // 创建 QuickReminderDialog，传入象限信息
         const quickDialog = new QuickReminderDialog(
@@ -3511,32 +3518,13 @@ export class EisenhowerMatrixView {
             },
             undefined, // timeRangeOptions
             {
+                defaultParentId: parentTask?.id,
                 defaultProjectId: parentTask?.projectId,
                 // 如果是子任务，使用父任务的象限；否则使用当前点击的象限
                 defaultQuadrant: parentTask ? parentTask.quadrant : quadrant,
                 plugin: this.plugin, // 传入plugin实例
             }
         );
-
-        // 如果有父任务，需要在任务创建后设置父子关系
-        if (parentTask) {
-            // 保存原始 saveReminder 方法的引用
-            const originalSaveReminder = quickDialog['saveReminder'].bind(quickDialog);
-
-            // 重写 saveReminder 方法以支持父任务关系
-            quickDialog['saveReminder'] = async function () {
-                try {
-                    // 调用原始方法保存任务
-                    await originalSaveReminder();
-
-                    // 保存成功后，设置父子关系
-                    await this.setParentTaskRelationship(parentTask);
-                } catch (error) {
-                    console.error('创建子任务失败:', error);
-                    throw error;
-                }
-            }.bind(this);
-        }
 
         // 显示对话框
         quickDialog.show();

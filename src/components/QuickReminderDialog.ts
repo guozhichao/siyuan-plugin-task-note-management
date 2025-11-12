@@ -29,6 +29,7 @@ export class QuickReminderDialog {
     private defaultCategoryId?: string;
     private defaultPriority?: string;
     private defaultBlockId?: string;
+    private defaultParentId?: string;
     private plugin: any; // 添加plugin引用以访问设置
     private hideProjectSelector?: boolean; // 是否隐藏项目选择器
 
@@ -52,6 +53,7 @@ export class QuickReminderDialog {
         hideProjectSelector?: boolean; // 是否隐藏项目选择器
         showKanbanStatus?: 'todo' | 'term' | 'none'; // 看板状态显示模式，默认为 'term'
         defaultTermType?: 'short_term' | 'long_term' | 'doing' | 'todo'; // 默认任务类型
+        defaultParentId?: string;
     }) {
         // 确保日期格式正确 - 只保留 YYYY-MM-DD 部分
         this.initialDate = initialDate ? this.formatDateForInput(initialDate) : '';
@@ -87,6 +89,7 @@ export class QuickReminderDialog {
             this.hideProjectSelector = options.hideProjectSelector;
             this.showKanbanStatus = options.showKanbanStatus || 'term'; // 默认为 'term'
             this.defaultTermType = options.defaultTermType || 'doing'; // 默认为 'doing'
+            this.defaultParentId = options.defaultParentId;
         }
 
         this.categoryManager = CategoryManager.getInstance();
@@ -1389,6 +1392,7 @@ export class QuickReminderDialog {
             const reminderId = `quick_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             const reminder: any = {
                 id: reminderId,
+                parentId: this.defaultParentId,
                 blockId: inputId || this.defaultBlockId || null,
                 docId: null, // 没有绑定文档
                 title: title,
