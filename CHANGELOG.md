@@ -1,3 +1,14 @@
+## v3.0 / 20251112
+
+- ✨ 日历视图添加筛选只显示某个项目功能 [#114](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/114)
+- ✨ 新建子任务支持设置具体时间 [#108](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/108)
+- 🐛 绑定块创建文档失败 [#113](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/113)
+尝试修复
+- 🐛 四象限已过期N天标签数值计算错误 [#111](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/111)
+
+
+
+
 ## v2.4 / 20251101
 
 - 🎨项目看板：新建任务记住上一次的任务状态选择 [#103](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/103)
