@@ -3,12 +3,13 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
-import { readReminderData, writeReminderData, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark, openBlock } from "../api";
+import { readReminderData, writeReminderData, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark, openBlock, readProjectData } from "../api";
 import { getLocalDateString, getLocalDateTime, getLocalDateTimeString } from "../utils/dateUtils";
 import { ReminderEditDialog } from "./ReminderEditDialog";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
+import { StatusManager } from "../utils/statusManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { ProjectColorDialog } from "./ProjectColorDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
@@ -26,9 +27,11 @@ export class CalendarView {
     private resizeTimeout: number;
     private categoryManager: CategoryManager; // 添加分类管理器
     private projectManager: ProjectManager;
+    private statusManager: StatusManager; // 添加状态管理器
     private calendarConfigManager: CalendarConfigManager;
     private taskSummaryDialog: TaskSummaryDialog;
     private currentCategoryFilter: string = 'all'; // 当前分类过滤
+    private currentProjectFilter: string = 'all'; // 当前项目过滤
     private colorBy: 'category' | 'priority' | 'project' = 'project'; // 按分类或优先级上色
     private tooltip: HTMLElement | null = null; // 添加提示框元素
     private hideTooltipTimeout: number | null = null; // 添加提示框隐藏超时控制
@@ -51,6 +54,7 @@ export class CalendarView {
         this.plugin = plugin;
         this.categoryManager = CategoryManager.getInstance(); // 初始化分类管理器
         this.projectManager = ProjectManager.getInstance();
+        this.statusManager = StatusManager.getInstance();
         this.calendarConfigManager = CalendarConfigManager.getInstance();
         this.taskSummaryDialog = new TaskSummaryDialog();
         this.initUI();
@@ -60,6 +64,7 @@ export class CalendarView {
         // 初始化分类管理器
         await this.categoryManager.initialize();
         await this.projectManager.initialize();
+        await this.statusManager.initialize();
         await this.calendarConfigManager.initialize();
 
         // 从配置中读取colorBy和viewMode设置
@@ -118,18 +123,41 @@ export class CalendarView {
         viewGroup.appendChild(this.matrixBtn);
 
 
-        // 添加分类过滤器
+        // 添加统一过滤器
         const filterGroup = document.createElement('div');
         filterGroup.className = 'reminder-calendar-filter-group';
         toolbar.appendChild(filterGroup);
-        // 分类过滤下拉框
-        const categoryFilterSelect = document.createElement('select');
-        categoryFilterSelect.className = 'b3-select';
-        categoryFilterSelect.addEventListener('change', () => {
-            this.currentCategoryFilter = categoryFilterSelect.value;
+
+        // 筛选图标
+        const filterIcon = document.createElement('span');
+        filterIcon.innerHTML = '<svg style="width: 14px; height: 14px; margin-right: 4px; vertical-align: middle;"><use xlink:href="#iconFilter"></use></svg>';
+        filterIcon.style.color = 'var(--b3-theme-on-surface-light)';
+        filterGroup.appendChild(filterIcon);
+
+        // 创建统一的筛选下拉框
+        const unifiedFilterSelect = document.createElement('select');
+        unifiedFilterSelect.className = 'b3-select';
+        // 设置最大width
+        unifiedFilterSelect.style.maxWidth = '200px';
+        unifiedFilterSelect.title = t("filterReminders") || "筛选提醒";
+        unifiedFilterSelect.addEventListener('change', () => {
+            const selectedValue = unifiedFilterSelect.value;
+            // 解析选择值格式：type:id (category:123 或 project:456)
+            const [type, id] = selectedValue.split(':');
+            if (type === 'category') {
+                this.currentCategoryFilter = id;
+                this.currentProjectFilter = 'all'; // 重置项目筛选
+            } else if (type === 'project') {
+                this.currentProjectFilter = id;
+                this.currentCategoryFilter = 'all'; // 重置分类筛选
+            } else {
+                // 全部或无分类/无项目
+                this.currentCategoryFilter = selectedValue;
+                this.currentProjectFilter = selectedValue === 'all' ? 'all' : (selectedValue === 'none' ? 'none' : 'all');
+            }
             this.refreshEvents();
         });
-        filterGroup.appendChild(categoryFilterSelect);
+        filterGroup.appendChild(unifiedFilterSelect);
 
         // 添加按分类/优先级上色切换
         const colorBySelect = document.createElement('select');
@@ -148,8 +176,8 @@ export class CalendarView {
         });
         filterGroup.appendChild(colorBySelect);
 
-        // 渲染分类过滤器
-        await this.renderCategoryFilter(categoryFilterSelect);
+        // 渲染统一筛选器
+        await this.renderUnifiedFilter(unifiedFilterSelect);
 
         // 刷新按钮
         const refreshBtn = document.createElement('button');
@@ -180,7 +208,7 @@ export class CalendarView {
         categoryManageBtn.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconTags"></use></svg>';
         categoryManageBtn.title = t("manageCategories");
         categoryManageBtn.addEventListener('click', () => {
-            this.showCategoryManageDialog(categoryFilterSelect);
+            this.showCategoryManageDialog();
         });
         filterGroup.appendChild(categoryManageBtn);
 
@@ -355,10 +383,161 @@ export class CalendarView {
         }
     }
 
-    private showCategoryManageDialog(categoryFilterSelect: HTMLSelectElement) {
-        const categoryDialog = new CategoryManageDialog(() => {
-            // 分类更新后重新渲染过滤器和事件
-            this.renderCategoryFilter(categoryFilterSelect);
+    private async renderProjectFilter(selectElement: HTMLSelectElement) {
+        try {
+            const projectData = await readProjectData();
+            
+            selectElement.innerHTML = `
+                <option value="all" ${this.currentProjectFilter === 'all' ? 'selected' : ''}>${t("allProjects")}</option>
+                <option value="none" ${this.currentProjectFilter === 'none' ? 'selected' : ''}>${t("noProject")}</option>
+            `;
+
+            if (projectData) {
+                Object.values(projectData).forEach((project: any) => {
+                    const optionEl = document.createElement('option');
+                    optionEl.value = project.id;
+                    optionEl.textContent = project.title || '未命名项目';
+                    optionEl.selected = this.currentProjectFilter === project.id;
+                    selectElement.appendChild(optionEl);
+                });
+            }
+
+        } catch (error) {
+            console.error('渲染项目过滤器失败:', error);
+            selectElement.innerHTML = `<option value="all">${t("allProjects")}</option>`;
+        }
+    }
+
+    private async renderUnifiedFilter(selectElement: HTMLSelectElement) {
+        try {
+            const categories = this.categoryManager.getCategories();
+            const projectData = await readProjectData();
+            const statuses = this.statusManager.getStatuses();
+            
+            // 构建选项列表
+            const options = [];
+            
+            // 添加顶级选项
+            options.push({
+                value: 'all',
+                text: t("allCategoriesAndProjects") || "全部",
+                group: 'main'
+            });
+            options.push({
+                value: 'none',
+                text: t("noCategoryNoProject") || "无分类无项目",
+                group: 'main'
+            });
+            
+            // 添加分类分组
+            if (categories && categories.length > 0) {
+                options.push({
+                    value: 'category_group',
+                    text: '📂 ' + (t("categories") || "分类"),
+                    group: 'categories',
+                    disabled: true
+                });
+                
+                categories.forEach(category => {
+                    options.push({
+                        value: `category:${category.id}`,
+                        text: `${category.icon || ''} ${category.name}`,
+                        group: 'categories',
+                        indent: 1
+                    });
+                });
+            }
+            
+            // 添加项目分组 - 按状态分组（排除归档状态）
+            if (projectData && Object.keys(projectData).length > 0) {
+                // 按状态分组项目，排除归档状态
+                const projectsByStatus: { [key: string]: any[] } = {};
+                
+                Object.values(projectData).forEach((project: any) => {
+                    // 跳过归档状态的项目，直接根据project的status判断是否为归档状态
+                    const projectStatus = statuses.find(status => status.id === project.status);
+                    if (projectStatus && !projectStatus.isArchived) {
+                        // 非归档状态的项目，按状态分组
+                        if (!projectsByStatus[project.status]) {
+                            projectsByStatus[project.status] = [];
+                        }
+                        projectsByStatus[project.status].push(project);
+                    }
+                    // 归档状态的项目被跳过，不会在筛选器中显示
+                });
+                
+                // 为每个非归档状态创建分组
+                statuses.forEach(status => {
+                    // 跳过归档状态
+                    if (status.isArchived) {
+                        return;
+                    }
+                    
+                    const statusProjects = projectsByStatus[status.id] || [];
+                    if (statusProjects.length > 0) {
+                        // 添加状态分组标题
+                        options.push({
+                            value: `status_group_${status.id}`,
+                            text: `${status.icon || ''} ${status.name}`,
+                            group: 'projects',
+                            disabled: true,
+                            indent: 0
+                        });
+                        
+                        // 添加该状态下的项目
+                        statusProjects.forEach(project => {
+                            options.push({
+                                value: `project:${project.id}`,
+                                text: project.title || '未命名项目',
+                                group: 'projects',
+                                indent: 1
+                            });
+                        });
+                    }
+                });
+            }
+            
+            // 生成HTML
+            selectElement.innerHTML = '';
+            options.forEach(option => {
+                const optionEl = document.createElement('option');
+                optionEl.value = option.value;
+                optionEl.textContent = option.text;
+                optionEl.disabled = option.disabled || false;
+                
+                // 设置缩进（通过添加空格实现）
+                if (option.indent && option.indent > 0) {
+                    const spaces = '　'.repeat(option.indent); // 使用中文全角空格
+                    optionEl.textContent = spaces + option.text;
+                }
+                
+                // 设置当前选择状态
+                if (option.value === 'all' && this.currentCategoryFilter === 'all' && this.currentProjectFilter === 'all') {
+                    optionEl.selected = true;
+                } else if (option.value === 'none' && this.currentCategoryFilter === 'none' && this.currentProjectFilter === 'none') {
+                    optionEl.selected = true;
+                } else if (option.value.startsWith('category:') && option.value === `category:${this.currentCategoryFilter}`) {
+                    optionEl.selected = true;
+                } else if (option.value.startsWith('project:') && option.value === `project:${this.currentProjectFilter}`) {
+                    optionEl.selected = true;
+                }
+                
+                selectElement.appendChild(optionEl);
+            });
+
+        } catch (error) {
+            console.error('渲染统一筛选器失败:', error);
+            selectElement.innerHTML = `<option value="all">${t("allCategoriesAndProjects") || "全部"}</option>`;
+        }
+    }
+
+    private async showCategoryManageDialog() {
+        const categoryDialog = new CategoryManageDialog(async () => {
+            // 分类更新后重新渲染统一筛选器和事件
+            const unifiedFilterSelect = this.container.querySelector('.reminder-calendar-filter-group select') as HTMLSelectElement;
+            if (unifiedFilterSelect) {
+                await this.renderUnifiedFilter(unifiedFilterSelect);
+            }
             this.refreshEvents();
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
         });
@@ -2092,11 +2271,12 @@ export class CalendarView {
             }
         }
 
-        // 创建快速提醒对话框
+        // 创建快速提醒对话框，传递默认项目ID
         const quickDialog = new QuickReminderDialog(clickedDate, clickedTime, async () => {
             // 刷新日历事件
             await this.refreshEvents();
         }, undefined, {
+            defaultProjectId: this.currentProjectFilter !== 'all' && this.currentProjectFilter !== 'none' ? this.currentProjectFilter : undefined,
             plugin: this.plugin // 传入plugin实例
         });
 
@@ -2195,7 +2375,7 @@ export class CalendarView {
         const finalStartTime = selectInfo.allDay ? null : startTimeStr;
         const finalEndTime = selectInfo.allDay ? null : endTimeStr;
 
-        // 创建快速提醒对话框，传递时间段信息
+        // 创建快速提醒对话框，传递时间段信息和默认项目ID
         const quickDialog = new QuickReminderDialog(
             startDateStr,
             finalStartTime,
@@ -2209,6 +2389,7 @@ export class CalendarView {
                 isTimeRange: true
             },
             {
+                defaultProjectId: this.currentProjectFilter !== 'all' && this.currentProjectFilter !== 'none' ? this.currentProjectFilter : undefined,
                 plugin: this.plugin // 传入plugin实例
             }
         );
@@ -2279,6 +2460,9 @@ export class CalendarView {
 
                 // 应用分类过滤
                 if (!this.passesCategoryFilter(reminder)) continue;
+
+                // 应用项目过滤
+                if (!this.passesProjectFilter(reminder)) continue;
 
                 // 获取文档标题（如果还没有缓存）
                 await this.ensureDocTitle(reminder, docTitleCache);
@@ -2398,6 +2582,18 @@ export class CalendarView {
         }
 
         return reminder.categoryId === this.currentCategoryFilter;
+    }
+
+    passesProjectFilter(reminder: any): boolean {
+        if (this.currentProjectFilter === 'all') {
+            return true;
+        }
+
+        if (this.currentProjectFilter === 'none') {
+            return !reminder.projectId;
+        }
+
+        return reminder.projectId === this.currentProjectFilter;
     }
 
     private addEventToList(events: any[], reminder: any, eventId: string, isRepeated: boolean, originalId?: string) {

@@ -765,5 +765,14 @@
     "deleteGroupFailed": "Delete group failed",
     "taskAction": "Task handling method",
     "removeGroup": "Remove from group",
-    "deleteProject": "Delete Project"
+    "deleteProject": "Delete Project",
+    "projectFilter": "项目筛选",
+    "filteredByProject": "已按项目筛选",
+    "filterByProject": "按项目筛选",
+    "createTaskInProject": "在项目中创建任务",
+    "filterReminders": "筛选提醒",
+    "allCategoriesAndProjects": "全部",
+    "noCategoryNoProject": "无分类无项目",
+    "categories": "分类",
+    "projects": "项目"
 }
