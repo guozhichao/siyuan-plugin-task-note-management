@@ -386,7 +386,7 @@ export class CalendarView {
     private async renderProjectFilter(selectElement: HTMLSelectElement) {
         try {
             const projectData = await readProjectData();
-            
+
             selectElement.innerHTML = `
                 <option value="all" ${this.currentProjectFilter === 'all' ? 'selected' : ''}>${t("allProjects")}</option>
                 <option value="none" ${this.currentProjectFilter === 'none' ? 'selected' : ''}>${t("noProject")}</option>
@@ -413,10 +413,10 @@ export class CalendarView {
             const categories = this.categoryManager.getCategories();
             const projectData = await readProjectData();
             const statuses = this.statusManager.getStatuses();
-            
+
             // 构建选项列表
             const options = [];
-            
+
             // 添加顶级选项
             options.push({
                 value: 'all',
@@ -428,7 +428,7 @@ export class CalendarView {
                 text: t("noCategoryNoProject") || "无分类无项目",
                 group: 'main'
             });
-            
+
             // 添加分类分组
             if (categories && categories.length > 0) {
                 options.push({
@@ -437,7 +437,7 @@ export class CalendarView {
                     group: 'categories',
                     disabled: true
                 });
-                
+
                 categories.forEach(category => {
                     options.push({
                         value: `category:${category.id}`,
@@ -447,12 +447,12 @@ export class CalendarView {
                     });
                 });
             }
-            
+
             // 添加项目分组 - 按状态分组（排除归档状态）
             if (projectData && Object.keys(projectData).length > 0) {
                 // 按状态分组项目，排除归档状态
                 const projectsByStatus: { [key: string]: any[] } = {};
-                
+
                 Object.values(projectData).forEach((project: any) => {
                     // 跳过归档状态的项目，直接根据project的status判断是否为归档状态
                     const projectStatus = statuses.find(status => status.id === project.status);
@@ -465,14 +465,14 @@ export class CalendarView {
                     }
                     // 归档状态的项目被跳过，不会在筛选器中显示
                 });
-                
+
                 // 为每个非归档状态创建分组
                 statuses.forEach(status => {
                     // 跳过归档状态
                     if (status.isArchived) {
                         return;
                     }
-                    
+
                     const statusProjects = projectsByStatus[status.id] || [];
                     if (statusProjects.length > 0) {
                         // 添加状态分组标题
@@ -483,7 +483,7 @@ export class CalendarView {
                             disabled: true,
                             indent: 0
                         });
-                        
+
                         // 添加该状态下的项目
                         statusProjects.forEach(project => {
                             options.push({
@@ -496,7 +496,7 @@ export class CalendarView {
                     }
                 });
             }
-            
+
             // 生成HTML
             selectElement.innerHTML = '';
             options.forEach(option => {
@@ -504,13 +504,13 @@ export class CalendarView {
                 optionEl.value = option.value;
                 optionEl.textContent = option.text;
                 optionEl.disabled = option.disabled || false;
-                
+
                 // 设置缩进（通过添加空格实现）
                 if (option.indent && option.indent > 0) {
                     const spaces = '　'.repeat(option.indent); // 使用中文全角空格
                     optionEl.textContent = spaces + option.text;
                 }
-                
+
                 // 设置当前选择状态
                 if (option.value === 'all' && this.currentCategoryFilter === 'all' && this.currentProjectFilter === 'all') {
                     optionEl.selected = true;
@@ -521,7 +521,7 @@ export class CalendarView {
                 } else if (option.value.startsWith('project:') && option.value === `project:${this.currentProjectFilter}`) {
                     optionEl.selected = true;
                 }
-                
+
                 selectElement.appendChild(optionEl);
             });
 
