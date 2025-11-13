@@ -2284,12 +2284,13 @@ export class CalendarView {
             }
         }
 
-        // 创建快速提醒对话框，传递默认项目ID
+        // 创建快速提醒对话框，传递默认项目ID和默认分类ID
         const quickDialog = new QuickReminderDialog(clickedDate, clickedTime, async () => {
             // 刷新日历事件
             await this.refreshEvents();
         }, undefined, {
             defaultProjectId: this.currentProjectFilter !== 'all' && this.currentProjectFilter !== 'none' ? this.currentProjectFilter : undefined,
+            defaultCategoryId: this.currentCategoryFilter !== 'all' && this.currentCategoryFilter !== 'none' ? this.currentCategoryFilter : undefined,
             plugin: this.plugin // 传入plugin实例
         });
 
@@ -2403,6 +2404,7 @@ export class CalendarView {
             },
             {
                 defaultProjectId: this.currentProjectFilter !== 'all' && this.currentProjectFilter !== 'none' ? this.currentProjectFilter : undefined,
+                defaultCategoryId: this.currentCategoryFilter !== 'all' && this.currentCategoryFilter !== 'none' ? this.currentCategoryFilter : undefined,
                 plugin: this.plugin // 传入plugin实例
             }
         );
