@@ -5364,11 +5364,7 @@ export class ReminderPanel {
             async () => { // onSaved
                 await this.loadReminders(true);
             },
-            { // timeRangeOptions
-                endDate: parentReminder.endDate,
-                endTime: parentReminder.endTime,
-                isTimeRange: !!parentReminder.endDate
-            },
+            undefined, // 无时间段选项
             { // options
                 defaultParentId: parentReminder.id,
                 defaultProjectId: parentReminder.projectId,
