@@ -7,6 +7,7 @@ import { readProjectData, writeProjectData, getBlockByID, openBlock, readReminde
 import { getLocalDateString, compareDateStrings } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { StatusManager } from "../utils/statusManager";
+import { CustomGroupManager } from "../utils/customGroupManager";
 import { ProjectDialog } from "./ProjectDialog";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { StatusManageDialog } from "./StatusManageDialog";
@@ -30,6 +31,7 @@ export class ProjectPanel {
     private showOnlyWithDoingTasks: boolean = false;
     private categoryManager: CategoryManager;
     private statusManager: StatusManager;
+    private customGroupManager: CustomGroupManager;
     private projectUpdatedHandler: () => void;
     private reminderUpdatedHandler: () => void;
     // 添加拖拽相关属性
@@ -47,6 +49,7 @@ export class ProjectPanel {
         this.plugin = plugin;
         this.categoryManager = CategoryManager.getInstance();
         this.statusManager = StatusManager.getInstance();
+        this.customGroupManager = CustomGroupManager.getInstance();
 
         this.projectUpdatedHandler = () => {
             this.loadProjects();
@@ -66,6 +69,7 @@ export class ProjectPanel {
     private async initializeAsync() {
         await this.categoryManager.initialize();
         await this.statusManager.initialize();
+        await this.customGroupManager.initialize();
         this.initUI();
         this.loadProjects();
 
@@ -528,9 +532,27 @@ export class ProjectPanel {
             return projects;
         }
 
+        // 将搜索查询按空格分割成多个词
+        const searchTerms = this.currentSearchQuery.trim().split(/\s+/).filter(term => term.length > 0);
+
         return projects.filter(project => {
+            // 构建搜索文本：标题 + 分类名称 + 自定义分组名称
             const title = (project.title || '').toLowerCase();
-            return title.includes(this.currentSearchQuery);
+            let categoryName = '';
+            if (project.categoryId) {
+                const category = this.categoryManager.getCategoryById(project.categoryId);
+                if (category) {
+                    categoryName = (category.name || '').toLowerCase();
+                }
+            }
+            let customGroupNames = '';
+            if (project.customGroups && Array.isArray(project.customGroups)) {
+                customGroupNames = project.customGroups.map((group: any) => (group.name || '').toLowerCase()).join(' ');
+            }
+            const searchText = title + ' ' + categoryName + ' ' + customGroupNames;
+
+            // 检查所有搜索词是否都包含在搜索文本中
+            return searchTerms.every(term => searchText.includes(term.toLowerCase()));
         });
     }
 

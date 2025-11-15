@@ -524,7 +524,7 @@
     "taskCategoryDistribution": "任务分类分布",
     "addToProject": "添加到项目",
     "searchProjects": "搜索项目...",
-    "searchProjectPlaceholder": "搜索项目...",
+    "searchProjectPlaceholder": "搜索项目...（支持搜索项目名、项目分类、项目自定义分组名）",
     "recentProjects": "最近使用",
     "addedToProjectSuccess": "已成功将 ${count} 个块添加到项目",
     "addedToProjectFailed": "添加到项目失败",
