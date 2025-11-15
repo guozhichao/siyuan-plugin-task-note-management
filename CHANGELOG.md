@@ -1,7 +1,7 @@
 ## v3.2 / 20251115
 
 - ✨项目搜索优化：支持搜索项目分类、自定义分组搜索项目 [#117](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/117)
-- ✨ feat(任务管理): 新增未来任务过滤项,方便修改管理7天以后的未来任务 ([#116](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/116))
+- ✨ feat(任务管理): 新增未来任务过滤项,方便修改管理7天以后的未来任务 ([#116](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/116))（感谢[@fetasty](https://github.com/fetasty)贡献）
 
 
 ## v3.1 / 20251113
