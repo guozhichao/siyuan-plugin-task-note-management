@@ -773,5 +773,9 @@
     "allCategoriesAndProjects": "全部",
     "noCategoryNoProject": "无分类无项目",
     "categories": "分类",
-    "projects": "项目"
+    "projects": "项目",
+    "pasteBlockRef": "粘贴块引用/链接",
+    "pasteBlockRefSuccess": "已成功粘贴并解析块信息",
+    "pasteBlockRefFailed": "无法从剪贴板内容中解析块信息",
+    "readClipboardFailed": "读取剪贴板失败"
 }

@@ -495,6 +495,9 @@ export class QuickReminderDialog {
                             <label class="b3-form__label">${t("bindToBlock") || '块或文档 ID'}</label>
                             <div style="display: flex; gap: 8px;">
                                 <input type="text" id="quickBlockInput" class="b3-text-field" value="${this.defaultBlockId || ''}" placeholder="${t("enterBlockId") || '请输入块或文档 ID'}" style="flex: 1;">
+                                <button type="button" id="quickPasteBlockRefBtn" class="b3-button b3-button--outline" title="${t("pasteBlockRef")}">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg>
+                                </button>
                                 <button type="button" id="quickCreateDocBtn" class="b3-button b3-button--outline" title="${t("createNewDocument") || '新建文档'}">
                                     <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
                                 </button>
@@ -876,6 +879,7 @@ export class QuickReminderDialog {
         const manageCategoriesBtn = this.dialog.element.querySelector('#quickManageCategoriesBtn') as HTMLButtonElement;
         const nlBtn = this.dialog.element.querySelector('#quickNlBtn') as HTMLButtonElement;
         const createDocBtn = this.dialog.element.querySelector('#quickCreateDocBtn') as HTMLButtonElement;
+        const pasteBlockRefBtn = this.dialog.element.querySelector('#quickPasteBlockRefBtn') as HTMLButtonElement;
         const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
         const dateTimeDesc = this.dialog.element.querySelector('#quickDateTimeDesc') as HTMLElement;
 
@@ -993,6 +997,50 @@ export class QuickReminderDialog {
         // 新建文档按钮
         createDocBtn?.addEventListener('click', () => {
             this.showCreateDocumentDialog();
+        });
+
+        // 粘贴块引用/链接按钮
+        pasteBlockRefBtn?.addEventListener('click', async () => {
+            try {
+                const clipboardText = await navigator.clipboard.readText();
+                if (!clipboardText) return;
+
+                const blockRefRegex = /\(\(([\w\-]+)\s+'(.*)'\)\)/;
+                const blockLinkRegex = /\[(.*)\]\(siyuan:\/\/blocks\/([\w\-]+)\)/;
+
+                let blockId: string | undefined;
+                let title: string | undefined;
+
+                const refMatch = clipboardText.match(blockRefRegex);
+                if (refMatch) {
+                    blockId = refMatch[1];
+                    title = refMatch[2];
+                } else {
+                    const linkMatch = clipboardText.match(blockLinkRegex);
+                    if (linkMatch) {
+                        title = linkMatch[1];
+                        blockId = linkMatch[2];
+                    }
+                }
+
+                if (blockId && title) {
+                    const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
+                    const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+
+                    if (blockInput) {
+                        blockInput.value = blockId;
+                    }
+                    if (titleInput) {
+                        titleInput.value = title;
+                    }
+                    showMessage(t('pasteBlockRefSuccess'));
+                } else {
+                    showMessage(t('pasteBlockRefFailed'), 3000, 'error');
+                }
+            } catch (error) {
+                console.error('读取剪贴板失败:', error);
+                showMessage(t('readClipboardFailed'), 3000, 'error');
+            }
         });
     }
 

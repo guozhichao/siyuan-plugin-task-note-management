@@ -774,5 +774,9 @@
     "allCategoriesAndProjects": "全部",
     "noCategoryNoProject": "无分类无项目",
     "categories": "分类",
-    "projects": "项目"
+    "projects": "Projects",
+    "pasteBlockRef": "Paste Block Reference/Link",
+    "pasteBlockRefSuccess": "Successfully pasted and parsed block information",
+    "pasteBlockRefFailed": "Failed to parse block information from clipboard content",
+    "readClipboardFailed": "Failed to read clipboard"
 }
