@@ -1,3 +1,12 @@
+## v3.3 / 20251121
+
+- ✨ 日历视图 周视图支持设置一周开始 [#126](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/126)
+- ✨ 绑定块有项目在块属性显示按钮 [#120](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/120)
+- 🎨 新建快速提醒在绑定块右边添加一个粘贴块引用/块链接按钮，可以粘贴块引用，获取标题和块id [#123](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/123)
+- 🎨 日历显示子任务优化：悬浮需要显示父任务 [#118](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/118)
+- 🎨 项目自定义分组看板优化下父子任务成情况：完成的子任务也要显示（参考任务状态看板） [#124](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/124)
+- 🐛项目排序kanban-sort-menu样式错乱 [#122](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/122)
+
 ## v3.2 / 20251115
 
 - ✨项目搜索优化：支持搜索项目分类、自定义分组搜索项目 [#117](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/117)
