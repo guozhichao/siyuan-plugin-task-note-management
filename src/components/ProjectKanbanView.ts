@@ -1,6 +1,6 @@
 import { showMessage, confirm, Menu, Dialog } from "siyuan";
 
-import { refreshSql,readReminderData, writeReminderData, readProjectData, getBlockByID, updateBlockReminderBookmark, openBlock } from "../api";
+import { refreshSql, readReminderData, writeReminderData, readProjectData, getBlockByID, updateBlockReminderBookmark, openBlock } from "../api";
 import { t } from "../utils/i18n";
 import { getLocalDateString, getLocalDateTimeString, compareDateStrings } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
@@ -4194,8 +4194,8 @@ export class ProjectKanbanView {
                 background-color: ${isActive ? 'var(--b3-theme-primary-lightest)' : 'transparent'};
                 color: ${isActive ? 'var(--b3-theme-primary)' : 'var(--b3-theme-on-surface)'};
                 `;
-                // Use valid <span> tags (no stray spaces in tag names), and keep layout compact
-                button.innerHTML = `
+            // Use valid <span> tags (no stray spaces in tag names), and keep layout compact
+            button.innerHTML = `
                     <span style="font-size: 16px; margin-right: 8px;">${option.icon}</span>
                     <span>${option.label} (${order === 'asc' ? t('ascendingOrder') : t('descendingOrder')})</span>
                 `;
