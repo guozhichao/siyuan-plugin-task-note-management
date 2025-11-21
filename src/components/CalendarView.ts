@@ -2489,8 +2489,19 @@ export class CalendarView {
 
 
 
-                // 添加原始事件
-                this.addEventToList(events, reminder, reminder.id, false);
+                    // 如果有父任务，注入父任务的标题信息，用于在提示框中显示
+                    if (reminder.parentId && reminderData[reminder.parentId]) {
+                        try {
+                            const parentReminder = reminderData[reminder.parentId];
+                            reminder.parentTitle = parentReminder?.title || '';
+                            reminder.parentBlockId = parentReminder?.blockId || parentReminder?.id;
+                        } catch (err) {
+                            console.warn('注入父任务信息失败:', err);
+                        }
+                    }
+
+                    // 添加原始事件
+                    this.addEventToList(events, reminder, reminder.id, false);
 
                 // 如果有重复设置，生成重复事件实例
                 if (reminder.repeat?.enabled) {
@@ -2516,6 +2527,16 @@ export class CalendarView {
                                 note: instanceMod?.note || '',
                                 docTitle: reminder.docTitle // 保持文档标题
                             };
+                            // 如果实例所在的提醒有父任务，注入父任务标题信息
+                            if (instanceReminder.parentId && reminderData[instanceReminder.parentId]) {
+                                try {
+                                    const parentReminder = reminderData[instanceReminder.parentId];
+                                    instanceReminder.parentTitle = parentReminder?.title || '';
+                                    instanceReminder.parentBlockId = parentReminder?.blockId || parentReminder?.id;
+                                } catch (err) {
+                                    console.warn('注入父任务信息失败:', err);
+                                }
+                            }
 
                             // 确保实例ID的唯一性，避免重复
                             const uniqueInstanceId = `${reminder.id}_instance_${instance.date}`;
@@ -2698,6 +2719,9 @@ export class CalendarView {
                 blockId: reminder.blockId || reminder.id,
                 docId: reminder.docId, // 添加docId
                 docTitle: reminder.docTitle, // 添加文档标题
+                parentId: reminder.parentId || null,
+                parentTitle: reminder.parentTitle || null,
+                parentBlockId: reminder.parentBlockId || null,
                 isRepeated: isRepeated,
                 originalId: originalId || reminder.id,
                 repeat: reminder.repeat,
@@ -2929,6 +2953,29 @@ export class CalendarView {
                 parts.push(`<div style="color: var(--b3-theme-on-surface); margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
                     <span style="opacity: 0.7;">🕐</span>
                     <span>${dateTimeInfo}</span>
+                </div>`);
+            }
+
+            // 3.1 父任务信息（如果存在）
+            if (reminder.parentId) {
+                // 如果 parentTitle 未注入，则尝试实时获取
+                if (!reminder.parentTitle) {
+                    try {
+                        const data = await readReminderData();
+                        const parent = data[reminder.parentId];
+                        if (parent) {
+                            reminder.parentTitle = parent.title || '';
+                            reminder.parentBlockId = parent.blockId || parent.id;
+                        }
+                    } catch (err) {
+                        // ignore
+                    }
+                }
+
+                const parentTitleSafe = this.escapeHtml(reminder.parentTitle || '');
+                parts.push(`<div style="color: var(--b3-theme-on-surface); margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
+                    <span style="opacity: 0.7;">↪️</span>
+                    <span style="font-size: 13px;">${t("parentTask") || '父任务'}: ${parentTitleSafe}</span>
                 </div>`);
             }
 
