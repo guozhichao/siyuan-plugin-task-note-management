@@ -2200,9 +2200,11 @@ export class ProjectKanbanView {
 
         content.innerHTML = '';
 
-        const taskMap = new Map(tasks.map(t => [t.id, t]));
-        const topLevelTasks = tasks.filter(t => !t.parentId || !taskMap.has(t.parentId));
-        const childTasks = tasks.filter(t => t.parentId && taskMap.has(t.parentId));
+        // 为了确保父任务下显示所有后代（包括已完成的子任务），扩展传入的任务列表
+        const expandedTasks = this.augmentTasksWithDescendants(tasks);
+        const taskMap = new Map(expandedTasks.map(t => [t.id, t]));
+        const topLevelTasks = expandedTasks.filter(t => !t.parentId || !taskMap.has(t.parentId));
+        const childTasks = expandedTasks.filter(t => t.parentId && taskMap.has(t.parentId));
 
         // 分页计算
         const totalTop = topLevelTasks.length;
@@ -2288,9 +2290,11 @@ export class ProjectKanbanView {
 
         content.innerHTML = '';
 
-        const taskMap = new Map(tasks.map(t => [t.id, t]));
-        const topLevelTasks = tasks.filter(t => !t.parentId || !taskMap.has(t.parentId));
-        const childTasks = tasks.filter(t => t.parentId && taskMap.has(t.parentId));
+        // 扩展当前分组任务列表，包含所有后代任务（包括已完成子任务）
+        const expandedTasks = this.augmentTasksWithDescendants(tasks, group.id);
+        const taskMap = new Map(expandedTasks.map(t => [t.id, t]));
+        const topLevelTasks = expandedTasks.filter(t => !t.parentId || !taskMap.has(t.parentId));
+        const childTasks = expandedTasks.filter(t => t.parentId && taskMap.has(t.parentId));
 
         const renderTaskWithChildren = (task: any, level: number) => {
             const taskEl = this.createTaskElement(task, level);
@@ -2308,8 +2312,8 @@ export class ProjectKanbanView {
 
         // 更新列顶部计数 — 只统计顶层（父）任务，不包括子任务
         if (count) {
-            const taskMapAll = new Map(tasks.map((t: any) => [t.id, t]));
-            const topLevelAll = tasks.filter((t: any) => !t.parentId || !taskMapAll.has(t.parentId));
+            const taskMapAll = new Map(expandedTasks.map((t: any) => [t.id, t]));
+            const topLevelAll = expandedTasks.filter((t: any) => !t.parentId || !taskMapAll.has(t.parentId));
             count.textContent = topLevelAll.length.toString();
         }
     }
@@ -2449,36 +2453,45 @@ export class ProjectKanbanView {
         `;
 
         // 进行中任务分组（总是显示，即使没有任务）
+        const expandedDoingTasks = this.augmentTasksWithDescendants(doingTasks, group.id);
         const doingGroupContainer = this.createStatusGroupInCustomColumn(
             group,
-            doingTasks,
+            expandedDoingTasks,
             'doing',
             '进行中'
         );
         groupsContainer.appendChild(doingGroupContainer);
 
         // 短期任务分组（总是显示，即使没有任务）
+        const expandedShortTermTasks = this.augmentTasksWithDescendants(shortTermTasks, group.id);
         const shortTermGroupContainer = this.createStatusGroupInCustomColumn(
             group,
-            shortTermTasks,
+            expandedShortTermTasks,
             'short_term',
             '短期'
         );
         groupsContainer.appendChild(shortTermGroupContainer);
 
         // 长期任务分组（总是显示，即使没有任务）
+        const expandedLongTermTasks = this.augmentTasksWithDescendants(longTermTasks, group.id);
         const longTermGroupContainer = this.createStatusGroupInCustomColumn(
             group,
-            longTermTasks,
+            expandedLongTermTasks,
             'long_term',
             '长期'
         );
         groupsContainer.appendChild(longTermGroupContainer);
 
         // 已完成任务分组（总是显示，即使没有任务）
+        // 已完成分组中默认显示该分组下独立的已完成任务，
+        // 但如果某个已完成任务已经作为子任务显示在其他分组（非已完成的父任务下），则不重复显示
+        const nonCompletedIncludedIds = new Set<string>();
+        [...expandedDoingTasks, ...expandedShortTermTasks, ...expandedLongTermTasks].forEach(t => nonCompletedIncludedIds.add(t.id));
+        const filteredCompletedTasks = completedTasks.filter(t => !nonCompletedIncludedIds.has(t.id));
+
         const completedGroupContainer = this.createStatusGroupInCustomColumn(
             group,
-            completedTasks,
+            filteredCompletedTasks,
             'completed',
             '已完成'
         );
@@ -2488,7 +2501,7 @@ export class ProjectKanbanView {
 
         // 更新列顶部计数 — 只统计顶层（父）任务，不包括子任务
         if (count) {
-            const combined = [...doingTasks, ...shortTermTasks, ...longTermTasks, ...completedTasks];
+            const combined = [...expandedDoingTasks, ...expandedShortTermTasks, ...expandedLongTermTasks, ...filteredCompletedTasks];
             const mapCombined = new Map(combined.map((t: any) => [t.id, t]));
             const topLevelCombined = combined.filter((t: any) => !t.parentId || !mapCombined.has(t.parentId));
             count.textContent = topLevelCombined.length.toString();
@@ -2758,8 +2771,10 @@ export class ProjectKanbanView {
         const taskCount = document.createElement('span');
         taskCount.className = 'custom-group-count';
         // 在状态列中，分组徽章：只统计顶层任务数量（子任务不计入）
-        const taskMapLocal = new Map(tasks.map((t: any) => [t.id, t]));
-        const topLevel = tasks.filter((t: any) => !t.parentId || !taskMapLocal.has(t.parentId));
+        // 扩展 tasks 以包含后代任务，确保已完成子任务也能显示
+        const expandedTasks = this.augmentTasksWithDescendants(tasks, group.id);
+        const taskMapLocal = new Map(expandedTasks.map((t: any) => [t.id, t]));
+        const topLevel = expandedTasks.filter((t: any) => !t.parentId || !taskMapLocal.has(t.parentId));
         taskCount.textContent = topLevel.length.toString();
         taskCount.style.cssText = `
             background: ${group.color};
@@ -2805,8 +2820,8 @@ export class ProjectKanbanView {
 
         groupContainer.appendChild(groupHeader);
 
-        // 渲染任务
-        this.renderTasksInColumn(groupTasksContainer, tasks);
+        // 渲染任务（使用扩展后的任务列表）
+        this.renderTasksInColumn(groupTasksContainer, expandedTasks);
 
         groupContainer.appendChild(groupTasksContainer);
 
@@ -4151,6 +4166,69 @@ export class ProjectKanbanView {
         };
 
         getChildren(parentId);
+        return result;
+    }
+
+    /**
+     * 收集给定任务ID集合的所有后代任务ID（基于 this.tasks）
+     * @param taskIds 初始任务ID集合
+     */
+    private collectDescendantIds(taskIds: Set<string>): Set<string> {
+        const idToTask = new Map(this.tasks.map(t => [t.id, t]));
+        const visited = new Set<string>();
+        const result = new Set<string>();
+        const stack = Array.from(taskIds);
+
+        while (stack.length > 0) {
+            const id = stack.pop();
+            if (!id || visited.has(id)) continue;
+            visited.add(id);
+            // 查找直接子任务
+            for (const t of this.tasks) {
+                if (t.parentId === id && !result.has(t.id)) {
+                    result.add(t.id);
+                    stack.push(t.id);
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 扩展一组任务，使其包含所有后代任务（可能包括已完成的子任务），以便在父任务下显示
+     * @param tasksParam 需要扩展的任务数组（顶层任务列表）
+     */
+    private augmentTasksWithDescendants(tasksParam: any[], groupId?: string | null): any[] {
+        if (!tasksParam || tasksParam.length === 0) return [];
+        const idToTask = new Map(this.tasks.map(t => [t.id, t]));
+        const resultMap = new Map<string, any>();
+
+        // 初始添加（包含传入的任务）
+        for (const t of tasksParam) {
+            resultMap.set(t.id, t);
+        }
+
+        // 收集所有顶层任务 id
+        const rootIds = new Set<string>(tasksParam.map(t => t.id));
+        const descIds = this.collectDescendantIds(rootIds);
+        for (const dId of descIds) {
+            const dt = idToTask.get(dId);
+            // 仅当子任务没有被分配到另一个自定义分组或其 customGroupId 与当前 groupId 匹配时，才作为后代添加
+            if (dt) {
+                if (!groupId || !dt.customGroupId || dt.customGroupId === groupId) {
+                    resultMap.set(dId, dt);
+                }
+            }
+        }
+
+        // 返回数组形式，保持原来 tasksParam 的顺序尽可能不变：先原数组，然后添加后代（按 this.tasks 的顺序）
+        const result: any[] = [];
+        for (const t of tasksParam) result.push(t);
+        for (const t of this.tasks) {
+            if (resultMap.has(t.id) && !tasksParam.find(pt => pt.id === t.id)) {
+                result.push(t);
+            }
+        }
         return result;
     }
 
