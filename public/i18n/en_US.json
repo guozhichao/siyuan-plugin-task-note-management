@@ -778,5 +778,10 @@
     "pasteBlockRef": "Paste Block Reference/Link",
     "pasteBlockRefSuccess": "Successfully pasted and parsed block information",
     "pasteBlockRefFailed": "Failed to parse block information from clipboard content",
-    "readClipboardFailed": "Failed to read clipboard"
+    "readClipboardFailed": "Failed to read clipboard",
+    "calendarSettings": "📅 Calendar Settings",
+    "weekStartDay": "Week Start Day",
+    "weekStartDayDesc": "Set the start day of the week for week view",
+    "weekStartMonday": "Monday",
+    "weekStartSunday": "Sunday"
 }

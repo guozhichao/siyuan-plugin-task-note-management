@@ -71,6 +71,7 @@ export const DEFAULT_SETTINGS = {
     autoDetectDateTime: false, // 新增：是否自动识别日期时间
     newDocNotebook: '', // 新增：新建文档的笔记本ID
     newDocPath: '/{{now | date "2006-01-02"}}/', // 新增：新建文档的路径模板，支持sprig语法
+    weekStartDay: 1, // 新增：周视图的一周开始日 (0=周日, 1=周一，默认周一)
 };
 
 export default class ReminderPlugin extends Plugin {
@@ -208,6 +209,11 @@ export default class ReminderPlugin extends Plugin {
         const data = await this.loadData(SETTINGS_FILE) || {};
         // 合并默认设置和用户设置，确保所有设置项都有值
         const settings = { ...DEFAULT_SETTINGS, ...data };
+        // 确保 weekStartDay 在加载后是数字（可能以字符串形式保存）
+        if (typeof settings.weekStartDay === 'string') {
+            const parsed = parseInt(settings.weekStartDay, 10);
+            settings.weekStartDay = isNaN(parsed) ? DEFAULT_SETTINGS.weekStartDay : parsed;
+        }
         return settings;
     }
 

@@ -777,5 +777,10 @@
     "pasteBlockRef": "粘贴块引用/链接",
     "pasteBlockRefSuccess": "已成功粘贴并解析块信息",
     "pasteBlockRefFailed": "无法从剪贴板内容中解析块信息",
-    "readClipboardFailed": "读取剪贴板失败"
+    "readClipboardFailed": "读取剪贴板失败",
+    "calendarSettings": "📅日历设置",
+    "weekStartDay": "周起始日",
+    "weekStartDayDesc": "设置周视图的一周开始时间",
+    "weekStartMonday": "周一",
+    "weekStartSunday": "周日"
 }

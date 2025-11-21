@@ -9,9 +9,9 @@
 
     // 使用从 index.ts 导入的默认设置
     let settings = { ...DEFAULT_SETTINGS };
-    
+
     // 笔记本列表
-    let notebooks: Array<{id: string, name: string}> = [];
+    let notebooks: Array<{ id: string; name: string }> = [];
 
     interface ISettingGroup {
         name: string;
@@ -59,20 +59,44 @@
                     description: t('autoDetectDateTimeDesc'),
                 },
             ],
+        },        {
+            name: t('calendarSettings'),
+            items: [
+                {
+                    key: 'weekStartDay',
+                    // For select UI, use string values so they match option keys in the DOM
+                    value: String(settings.weekStartDay),
+                    type: 'select',
+                    title: t('weekStartDay'),
+                    description: t('weekStartDayDesc'),
+                    options: {
+                        0: t('sunday'),
+                        1: t('monday'),
+                        2: t('tuesday'),
+                        3: t('wednesday'),
+                        4: t('thursday'),
+                        5: t('friday'),
+                        6: t('saturday'),
+                    },
+                },
+            ],
         },
         {
-            name: '✅'+t('timeReminder'),
+            name: '✅' + t('timeReminder'),
             items: [
-                                {
+                {
                     key: 'newDocNotebook',
                     value: settings.newDocNotebook,
                     type: 'select',
                     title: t('newDocNotebook'),
                     description: t('newDocNotebookDesc'),
-                    options: notebooks.reduce((acc, notebook) => {
-                        acc[notebook.id] = notebook.name;
-                        return acc;
-                    }, {} as {[key: string]: string})
+                    options: notebooks.reduce(
+                        (acc, notebook) => {
+                            acc[notebook.id] = notebook.name;
+                            return acc;
+                        },
+                        {} as { [key: string]: string }
+                    ),
                 },
                 {
                     key: 'newDocPath',
@@ -81,7 +105,7 @@
                     title: t('newDocPath'),
                     description: t('newDocPathDesc'),
                 },
-            ]
+            ],
         },
         {
             name: t('pomodoroSettings'),
@@ -246,7 +270,7 @@
             ],
         },
         {
-            name: '📁'+t('dataStorageLocation'),
+            name: '📁' + t('dataStorageLocation'),
             items: [
                 {
                     key: 'dataStorageInfo',
@@ -271,18 +295,53 @@
         console.log(detail.key, detail.value);
         const setting = settings[detail.key];
         if (setting !== undefined) {
-            settings[detail.key] = detail.value;
+            // 如果是weekStartDay，将字符串转为数字
+            if (detail.key === 'weekStartDay' && typeof detail.value === 'string') {
+                const parsed = parseInt(detail.value, 10);
+                settings[detail.key] = isNaN(parsed) ? DEFAULT_SETTINGS.weekStartDay : parsed;
+            } else {
+                settings[detail.key] = detail.value;
+            }
             saveSettings();
+            // 确保 UI 中 select 等值显示被刷新
+            updateGroupItems();
         }
     };
 
     async function saveSettings() {
         await plugin.saveData(SETTINGS_FILE, settings);
+        // 通知其他组件（如日历视图）设置项已更新
+        try {
+            window.dispatchEvent(new CustomEvent('reminderSettingsUpdated'));
+        } catch (err) {
+            console.warn('Dispatch settings updated event failed:', err);
+        }
     }
 
-    onMount(async () => {
-        await loadNotebooks();
-        await runload();
+    onMount(() => {
+        // 执行异步加载
+        (async () => {
+            await loadNotebooks();
+            await runload();
+        })();
+
+        // 监听外部设置变更事件，重新加载设置并刷新 UI
+        const settingsUpdateHandler = async () => {
+            const loadedSettings = await plugin.loadSettings();
+            settings = { ...loadedSettings };
+            // 确保 weekStartDay 在加载后是数字（可能以字符串形式保存）
+            if (typeof settings.weekStartDay === 'string') {
+                const parsed = parseInt(settings.weekStartDay, 10);
+                settings.weekStartDay = isNaN(parsed) ? DEFAULT_SETTINGS.weekStartDay : parsed;
+            }
+            updateGroupItems();
+        };
+        window.addEventListener('reminderSettingsUpdated', settingsUpdateHandler);
+
+        // 在组件销毁时移除监听
+        return () => {
+            window.removeEventListener('reminderSettingsUpdated', settingsUpdateHandler);
+        };
     });
 
     async function loadNotebooks() {
@@ -290,7 +349,7 @@
             const result = await lsNotebooks();
             notebooks = result.notebooks.map(notebook => ({
                 id: notebook.id,
-                name: notebook.name
+                name: notebook.name,
             }));
         } catch (error) {
             console.error('加载笔记本列表失败:', error);
@@ -301,6 +360,11 @@
     async function runload() {
         const loadedSettings = await plugin.loadSettings();
         settings = { ...loadedSettings };
+        // 确保 weekStartDay 在加载后是数字（可能以字符串形式保存）
+        if (typeof settings.weekStartDay === 'string') {
+            const parsed = parseInt(settings.weekStartDay, 10);
+            settings.weekStartDay = isNaN(parsed) ? DEFAULT_SETTINGS.weekStartDay : parsed;
+        }
         updateGroupItems();
         // 确保设置已保存（可能包含新的默认值）
         await saveSettings();
@@ -313,17 +377,27 @@
             items: group.items.map(item => {
                 const updatedItem = {
                     ...item,
-                    value: settings[item.key] ?? item.value,
+                    value: (() => {
+                        const v = settings[item.key] ?? item.value;
+                        // If this is a select input, use string representation for UI matching
+                        if (item.type === 'select') {
+                            return typeof v === 'string' ? v : String(v);
+                        }
+                        return v;
+                    })(),
                 };
-                
+
                 // 为笔记本选择器更新选项
                 if (item.key === 'newDocNotebook') {
-                    updatedItem.options = notebooks.reduce((acc, notebook) => {
-                        acc[notebook.id] = notebook.name;
-                        return acc;
-                    }, {} as {[key: string]: string});
+                    updatedItem.options = notebooks.reduce(
+                        (acc, notebook) => {
+                            acc[notebook.id] = notebook.name;
+                            return acc;
+                        },
+                        {} as { [key: string]: string }
+                    );
                 }
-                
+
                 return updatedItem;
             }),
         }));

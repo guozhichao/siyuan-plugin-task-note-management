@@ -79,6 +79,9 @@ export class CalendarView {
         // 从配置中读取colorBy和viewMode设置
         this.colorBy = this.calendarConfigManager.getColorBy();
 
+        // 获取周开始日设置
+        const weekStartDay = await this.getWeekStartDay();
+
         this.container.classList.add('reminder-calendar-view');
 
         // 创建工具栏
@@ -266,7 +269,7 @@ export class CalendarView {
         calendarEl.className = 'reminder-calendar-container';
         this.container.appendChild(calendarEl);
 
-        // 初始化日历
+        // 初始化日历 - 使用用户设置的周开始日
         this.calendar = new Calendar(calendarEl, {
             plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
             initialView: this.calendarConfigManager.getViewMode(),
@@ -281,7 +284,7 @@ export class CalendarView {
             selectOverlap: true,
             locale: window.siyuan.config.lang.toLowerCase().replace('_', '-'),
             scrollTime: '08:00:00', // 视图将滚动到此时间
-            firstDay: 1, // 设置周一为每周第一天
+            firstDay: weekStartDay, // 使用用户设置的周开始日
             nowIndicator: true, // 显示当前时间指示线
             eventClassNames: 'reminder-calendar-event',
             eventContent: this.renderEventContent.bind(this),
@@ -364,6 +367,8 @@ export class CalendarView {
 
         // 监听提醒更新事件
         window.addEventListener('reminderUpdated', () => this.refreshEvents());
+        // 监听设置更新事件（如：周开始日）
+        window.addEventListener('reminderSettingsUpdated', () => this.applyWeekStartDay());
 
         // 添加窗口大小变化监听器
         this.addResizeListeners();
@@ -4174,6 +4179,54 @@ export class CalendarView {
         }
 
         return undefined;
+    }
+
+    /**
+     * 获取周开始日设置
+     */
+    private async getWeekStartDay(): Promise<number> {
+        try {
+            const settings = await this.plugin.loadSettings();
+            let weekStartDay = settings.weekStartDay;
+            console.log('Raw weekStartDay from settings:', weekStartDay);
+
+            // 如果以字符串形式存储（如"1"），尝试转换为数字
+            if (typeof weekStartDay === 'string') {
+                const parsed = parseInt(weekStartDay, 10);
+                if (!isNaN(parsed)) {
+                    weekStartDay = parsed;
+                }
+            }
+
+            // 确保值在0-6范围内 (0=周日, 1=周一, ..., 6=周六)
+            if (typeof weekStartDay === 'number' && weekStartDay >= 0 && weekStartDay <= 6) {
+                return weekStartDay;
+            }
+
+            // 如果配置无效，返回默认值（周一）
+            return 1;
+        } catch (error) {
+            console.error('获取周开始日设置失败:', error);
+            // 出错时返回默认值（周一）
+            return 1;
+        }
+    }
+
+    /**
+     * 应用周开始日设置到日历
+     */
+    private async applyWeekStartDay() {
+        try {
+            const weekStartDay = await this.getWeekStartDay();
+            // 更新日历的firstDay设置
+            this.calendar.setOption('firstDay', weekStartDay);
+            // 更友好的日志信息（使用翻译后的星期名）
+            const weekDayNames = [t('sunday'), t('monday'), t('tuesday'), t('wednesday'), t('thursday'), t('friday'), t('saturday')];
+            const dayName = (weekStartDay >= 0 && weekStartDay <= 6) ? weekDayNames[weekStartDay] : t('monday');
+            console.log('周开始日已设置为:', dayName);
+        } catch (error) {
+            console.error('应用周开始日设置失败:', error);
+        }
     }
 }
 
