@@ -2175,3 +2175,26 @@
     opacity: 1;
     filter: grayscale(0.1) brightness(1.1);
 }
+
+/* 块旁的项目按钮样式 */
+.protyle .block-project-btn {
+    margin-left: 6px;
+    padding: 2px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 3px;
+    color: var(--b3-theme-on-background);
+    opacity: 0.85;
+    transition: all 0.12s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+}
+
+.protyle .block-project-btn:hover {
+    opacity: 1;
+    background: var(--b3-theme-surface-light);
+}

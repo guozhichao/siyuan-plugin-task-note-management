@@ -1123,10 +1123,55 @@ export class ReminderEditDialog {
                     }
 
                     await writeReminderData(reminderData);
+
+                    // 更新对应块的 custom-task-projectId 属性
+                    try {
+                        if (reminderData[this.reminder.id]?.blockId) {
+                            const blockIdToUpdate = reminderData[this.reminder.id].blockId;
+                            const { addBlockProjectId, setBlockProjectIds } = await import('../api');
+                            if (projectId) {
+                                // 将项目ID添加到块属性（避免重复）
+                                await addBlockProjectId(blockIdToUpdate, projectId);
+                                console.debug('ReminderEditDialog: addBlockProjectId for block', blockIdToUpdate, 'projectId', projectId);
+                            } else {
+                                // 清空块的 projectIds
+                                await setBlockProjectIds(blockIdToUpdate, []);
+                                console.debug('ReminderEditDialog: cleared custom-task-projectId for block', blockIdToUpdate);
+                            }
+                        }
+                        // 还需要递归更新所有子任务关联块的属性
+                        if (projectIdChanged) {
+                            try {
+                                const { setBlockProjectIds } = await import('../api');
+                                // 遍历所有提醒，找到 parentId 链下的子任务
+                                const updateQueue: string[] = [this.reminder.id];
+                                while (updateQueue.length) {
+                                    const pid = updateQueue.shift()!;
+                                    Object.values(reminderData).forEach((r: any) => {
+                                        if (r && r.parentId === pid) {
+                                            // 更新子任务的块属性
+                                            if (r.blockId) {
+                                                setBlockProjectIds(r.blockId, projectId ? [projectId] : []).then(() => {
+                                                    console.debug('ReminderEditDialog: setBlockProjectIds (recursively) for block', r.blockId, 'projectId', projectId);
+                                                }).catch(() => { });
+                                            }
+                                            updateQueue.push(r.id);
+                                        }
+                                    });
+                                }
+                            } catch (err) {
+                                console.warn('递归更新子任务块属性失败:', err);
+                            }
+                        }
+                    } catch (error) {
+                        console.warn('更新块自定义属性 custom-task-projectId 失败:', error);
+                    }
                 }
             }
 
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            // 触发项目更新事件（包含块属性变更）
+            window.dispatchEvent(new CustomEvent('projectUpdated'));
 
             // 显示保存成功消息
             const isSpanning = endDate && endDate !== date;

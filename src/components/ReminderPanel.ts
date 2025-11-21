@@ -1,5 +1,5 @@
 import { showMessage, confirm, Dialog, Menu, openTab } from "siyuan";
-import { refreshSql,readReminderData, writeReminderData, sql, updateBlock, getBlockKramdown, getBlockByID, updateBlockReminderBookmark, openBlock, createDocWithMd, renderSprig, readProjectData } from "../api";
+import { refreshSql, readReminderData, writeReminderData, sql, updateBlock, getBlockKramdown, getBlockByID, updateBlockReminderBookmark, openBlock, createDocWithMd, renderSprig, readProjectData } from "../api";
 import { getLocalDateString, compareDateStrings, getLocalDateTime, getLocalDateTimeString } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { ReminderEditDialog } from "./ReminderEditDialog";
@@ -2334,6 +2334,9 @@ export class ReminderPanel {
             }
 
             await writeReminderData(reminderData);
+
+            // (no block attribute updates here)
+
 
             // 更新 allRemindersMap 中的数据，以便 updateParentProgress 能获取最新的完成状态
             if (this.allRemindersMap.has(reminderId)) {

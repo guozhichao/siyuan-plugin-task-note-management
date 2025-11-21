@@ -149,6 +149,14 @@ export class AddToProjectDialog {
                 };
                 reminderData[taskId] = newTask;
                 await updateBlockReminderBookmark(block.id);
+                // 写入块属性 custom-task-projectId（追加并去重）
+                try {
+                    const { addBlockProjectId } = await import('../api');
+                    await addBlockProjectId(block.id, projectId);
+                    console.debug('AddToProjectDialog: addBlockProjectId for block', block.id, 'projectId', projectId);
+                } catch (err) {
+                    console.warn('写入块 custom-task-projectId 失败:', err);
+                }
             }
 
             await writeReminderData(reminderData);

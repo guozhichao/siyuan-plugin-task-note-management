@@ -88,6 +88,8 @@ export default class ReminderPlugin extends Plugin {
     private preloadedAudio: HTMLAudioElement | null = null;
     private projectPanel: ProjectPanel;
     private projectDockElement: HTMLElement;
+    // Set used to track blocks currently being processed to avoid duplicate work and race conditions
+    private processingBlockButtons: Set<string> = new Set();
 
     // 广播通信相关
     private windowId: string;
@@ -481,11 +483,14 @@ export default class ReminderPlugin extends Plugin {
         // 监听提醒更新事件，更新徽章
         window.addEventListener('reminderUpdated', () => {
             this.updateBadges();
+            // 重新扫描protyle的块，确保块按钮同步
+            this.addBreadcrumbButtonsToExistingProtyles();
         });
 
-        // 监听项目更新事件，更新项目徽章
+        // 监听项目更新事件，更新项目徽章并重新扫描protyle块按钮
         window.addEventListener('projectUpdated', () => {
             this.updateProjectBadges();
+            this.addBreadcrumbButtonsToExistingProtyles();
         });
     }
 
@@ -1732,6 +1737,236 @@ export default class ReminderPlugin extends Plugin {
                 existingProjectButton.remove();
             }
         }
+        // 同步为每个块添加项目按钮
+        this.addBlockProjectButtonsToProtyle(protyle);
+        // 添加MutationObserver用于处理动态加载或DOM变化
+        try {
+            // 对整个 protyle 元素进行监听，监听页面内结构变化（包括 protyle-title 和 protyle-wysiwyg）
+            const container = protyle.element;
+            if (container && !(container as any).__projectObserver) {
+                const observer = new MutationObserver(() => {
+                    // 延迟运行，确保DOM稳定
+                    setTimeout(() => {
+                        this.addBlockProjectButtonsToProtyle(protyle);
+                    }, 50);
+                });
+                observer.observe(container, { childList: true, subtree: true, attributes: true });
+                (container as any).__projectObserver = observer;
+            }
+        } catch (error) {
+            console.warn('初始化块项目按钮观察器失败:', error);
+        }
+    }
+
+    /**
+     * 在当前 protyle 的每个块旁边（protyle-attr）添加项目打开按钮
+     */
+    private async addBlockProjectButtonsToProtyle(protyle: any) {
+        try {
+            if (!protyle || !protyle.element) return;
+            console.debug('addBlockProjectButtonsToProtyle - scanning protyle for block buttons', { rootId: protyle.block?.rootID });
+            const blocks = protyle.element.querySelectorAll('div[data-node-id]');
+            if (!blocks || blocks.length === 0) return;
+
+            // 读取一次提醒数据用于后备查找
+            const { readReminderData } = await import('./api');
+            const reminderData = await readReminderData().catch(() => ({} as any));
+
+            // 遍历可见的块元素
+            for (const blockEl of Array.from(blocks) as Element[]) {
+                const blockId = blockEl.getAttribute('data-node-id');
+                if (!blockId) continue;
+
+                // 如果此 block 正在处理，跳过避免重复添加
+                if (this.processingBlockButtons.has(blockId)) {
+                    console.debug('addBlockProjectButtonsToProtyle - block is already processing, skipping', blockId);
+                    continue;
+                }
+
+                // 标记为正在处理，确保后续并发调用被跳过
+                this.processingBlockButtons.add(blockId);
+                try {
+
+                    // 获取现有按钮（支持多项目）
+                    const existingButtons = Array.from(blockEl.querySelectorAll('.block-project-btn')) as HTMLElement[];
+                    // 动态获取block的属性
+                    const { getBlockAttrs, readProjectData, getBlockProjectIds } = await import('./api');
+                    // 优先使用 helper 从属性中取得 projectId 列表
+                    const projectIdsFromAttr = await getBlockProjectIds(blockId).catch(() => [] as string[]);
+                    const attrs = await getBlockAttrs(blockId).catch(() => ({} as any));
+                    // 支持多种可能的属性命名（兼容历史版本或外部写入）
+                    const possibleAttrKeys = [
+                        'custom-task-projectId',
+                    ];
+                    // 将属性值解析为数组（支持 CSV 或单个值）
+                    let projectIds: string[] = Array.isArray(projectIdsFromAttr) ? projectIdsFromAttr : [];
+                    if ((!projectIds || projectIds.length === 0) && attrs && typeof attrs === 'object') {
+                        // 向后兼容：如果属性是单个字符串值（未使用 helper 写入），尝试解析
+                        for (const key of possibleAttrKeys) {
+                            if (attrs[key]) {
+                                const raw = String(attrs[key] || '').trim();
+                                projectIds = raw.split(',').map(s => s.trim()).filter(s => s);
+                                break;
+                            }
+                        }
+                    }
+                    // 调试日志：帮助定位为何某些块没有按钮显示
+                    console.debug('addBlockProjectButtonsToProtyle - blockId:', blockId, 'attrs:', attrs, 'detectedProjectIds:', projectIds, 'existingBtnCount:', existingButtons.length);
+
+                    // 如果没有projectId而存在旧按钮，移除按钮
+                    // 如果没有projectId而存在旧按钮，先回退查找提醒数据中的 projectId，再检查是否需要移除按钮
+                    if (!projectIds || projectIds.length === 0) {
+                        const reminderEntry = Object.values(reminderData).find((r: any) => r && r.blockId === blockId && r.projectId);
+                        if ((reminderEntry as any)?.projectId) {
+                            projectIds = [(reminderEntry as any).projectId];
+                        }
+                    }
+                    if (!projectIds || projectIds.length === 0) {
+                        // 没有任何项目关联，移除所有按钮
+                        existingButtons.forEach(btn => btn.remove());
+                        continue;
+                    }
+                    // 现在 projectIds 包含要显示的项目ID数组
+                    const desiredIds = Array.from(new Set(projectIds));
+
+                    // 移除不在 desiredIds 中的现有按钮
+                    existingButtons.forEach(btn => {
+                        const pid = btn.dataset.projectId;
+                        // 如果没有 projectId (旧的按钮)，直接移除
+                        if (!pid) {
+                            btn.remove();
+                            return;
+                        }
+                        // 如果按钮不在现在需要显示的 desiredIds 中，移除
+                        if (!desiredIds.includes(pid)) {
+                            btn.remove();
+                        }
+                    });
+
+                    // 去重：如果某个 pid 存在多个按钮实例，只保留第一个，其余移除
+                    const dedupeMap: Record<string, HTMLElement[]> = {};
+                    const currentButtons = Array.from(blockEl.querySelectorAll('.block-project-btn')) as HTMLElement[];
+                    currentButtons.forEach(btn => {
+                        const pid = btn.dataset.projectId || '';
+                        if (!pid) return;
+                        if (!dedupeMap[pid]) dedupeMap[pid] = [];
+                        dedupeMap[pid].push(btn);
+                    });
+                    Object.keys(dedupeMap).forEach(pid => {
+                        const group = dedupeMap[pid];
+                        if (group.length > 1) {
+                            // 保留第一个，删除后续的
+                            for (let i = 1; i < group.length; i++) {
+                                try { group[i].remove(); } catch (err) { }
+                            }
+                        }
+                    });
+
+                    // 寻找属性容器：优先尝试 protyle-attr，然后尝试在 title 区域插入，最后回退到块的第一个子元素
+                    const attrElement = blockEl.querySelector('div.protyle-attr');
+                    let container: HTMLElement | null = attrElement as HTMLElement;
+                    if (!container) {
+                        // 兼容不同 protyle DOM 结构：有些版本可能使用 .protyle-title 来展示块标题和属性
+                        const titleElement = blockEl.querySelector('.protyle-title') as HTMLElement | null;
+                        const attrWrap = titleElement?.querySelector('.protyle-title__attr-wrap') as HTMLElement | null;
+                        if (attrWrap) {
+                            container = attrWrap;
+                        } else if (titleElement) {
+                            // 尝试将按钮插入到 titleElement 的末尾
+                            container = titleElement;
+                        } else {
+                            // 作为最后回退，放到块的首个子元素
+                            container = blockEl.firstElementChild as HTMLElement | null;
+                        }
+                    }
+
+                    // 创建新的按钮（为每个新 projectId）
+                    for (const pid of desiredIds) {
+                        // 如果已有相同 pid 的按钮，跳过（采用 querySelector 确保任意容器内未创建）
+                        if (blockEl.querySelector('[data-project-id="' + pid + '"]')) continue;
+                        const btn = document.createElement('button');
+                        btn.className = 'block-project-btn block__icon fn__flex-center ariaLabel';
+                        btn.setAttribute('aria-label', '打开项目看板');
+                        btn.style.cssText = `
+                        margin-left: 6px;
+                        padding: 2px;
+                        border: none;
+                        background: transparent;
+                        cursor: pointer;
+                        border-radius: 3px;
+                        color: var(--b3-theme-on-background);
+                        opacity: 0.85;
+                        transition: all 0.12s ease;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 22px;
+                        height: 22px;
+                    `;
+                        btn.innerHTML = `<svg class="b3-list-item__graphic" style="width:14px;height:14px"><use xlink:href="#iconProject"></use></svg>`;
+                        btn.className = 'block-project-btn block__icon fn__flex-center ariaLabel';
+                        btn.setAttribute('aria-label', '打开项目看板');
+                        btn.style.cssText = `
+                    margin-left: 6px;
+                    padding: 2px;
+                    border: none;
+                    background: transparent;
+                    cursor: pointer;
+                    border-radius: 3px;
+                    color: var(--b3-theme-on-background);
+                    opacity: 0.85;
+                    transition: all 0.12s ease;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 22px;
+                    height: 22px;
+                `;
+                        btn.innerHTML = `<svg class="b3-list-item__graphic" style="width:14px;height:14px"><use xlink:href="#iconProject"></use></svg>`;
+
+                        // 点击事件：打开项目看板
+                        btn.addEventListener('click', async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            try {
+                                const projectData = await readProjectData();
+                                const project = projectData[pid];
+                                const title = project ? project.title : pid;
+                                this.openProjectKanbanTab(pid, title);
+                            } catch (error) {
+                                console.error('打开项目看板失败:', error);
+                                this.openProjectKanbanTab(pid, pid);
+                            }
+                        });
+                        // 设置data绑定，方便后续判断
+                        btn.dataset.projectId = pid;
+                        btn.title = t('openProjectKanban');
+                        btn.title = t('openProjectKanban');
+
+                        // 将按钮插入到合适的容器。插入方法取决于容器类型：如果是 .protyle-attr 则 append，
+                        // 否则 append 到容器末尾并在需要时添加额外样式以保持与 protyle UI 一致。
+                        if (container) {
+                            if (attrElement && container === attrElement) {
+                                attrElement.appendChild(btn);
+                            } else {
+                                // 尝试在 title 或其他区插入时，最好在容器的右侧/末尾插入以保持视觉一致性
+                                container.appendChild(btn);
+                            }
+                        } else {
+                            // 如果容器为空则直接将按钮追加到整个块元素后（不推荐，但作为最后回退）
+                            blockEl.appendChild(btn);
+                        }
+                        console.debug('addBlockProjectButtonsToProtyle - button created for blockId:', blockId, 'projectId:', pid);
+                    }
+                }
+                finally {
+                    // 确保在任何路径都移除处理标志
+                    this.processingBlockButtons.delete(blockId);
+                }
+            }
+        } catch (error) {
+            console.error('为块添加项目按钮失败:', error);
+        }
     }
 
 
@@ -1867,9 +2102,20 @@ export default class ReminderPlugin extends Plugin {
             this.projectPanel.destroy();
         }
 
-        // 清理所有面包屑按钮
-        document.querySelectorAll('.view-reminder-breadcrumb-btn, .project-breadcrumb-btn').forEach(btn => {
+        // 清理所有面包屑和块按钮
+        document.querySelectorAll('.view-reminder-breadcrumb-btn, .project-breadcrumb-btn, .block-project-btn').forEach(btn => {
             btn.remove();
+        });
+
+        // 断开所有protyle的MutationObserver
+        document.querySelectorAll('.protyle').forEach(protyleElement => {
+            const wysiwyg = protyleElement.querySelector('.protyle-wysiwyg');
+            if (wysiwyg && (wysiwyg as any).__projectObserver) {
+                try {
+                    (wysiwyg as any).__projectObserver.disconnect();
+                } catch (err) { }
+                delete (wysiwyg as any).__projectObserver;
+            }
         });
     }    /**
      * 初始化系统通知权限

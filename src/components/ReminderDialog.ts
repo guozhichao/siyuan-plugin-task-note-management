@@ -1610,6 +1610,23 @@ export class ReminderDialog {
             // 添加⏰书签到对应的块
             await updateBlockReminderBookmark(this.blockId);
 
+            // 将绑定的块添加项目ID属性 custom-task-projectId（支持多项目）
+            if (reminder.blockId) {
+                try {
+                    const { addBlockProjectId, setBlockProjectIds } = await import('../api');
+                    if (reminder.projectId) {
+                        await addBlockProjectId(reminder.blockId, reminder.projectId);
+                        console.debug('ReminderDialog: addBlockProjectId for block', reminder.blockId, 'projectId', reminder.projectId);
+                    } else {
+                        // 清理属性（设置为空列表）
+                        await setBlockProjectIds(reminder.blockId, []);
+                        console.debug('ReminderDialog: cleared custom-task-projectId for block', reminder.blockId);
+                    }
+                } catch (error) {
+                    console.warn('设置块自定义属性 custom-task-projectId 失败:', error);
+                }
+            }
+
             // 显示保存成功消息，包含重复信息
             let successMessage = t("reminderSaved");
             if (endDate && endDate !== date) {
@@ -1649,6 +1666,8 @@ export class ReminderDialog {
 
             // 触发更新事件
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            // 触发项目更新事件（包含块属性变更）
+            window.dispatchEvent(new CustomEvent('projectUpdated'));
 
             this.cleanup();
             this.dialog.destroy();

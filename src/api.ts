@@ -6,9 +6,9 @@
  * API 文档见 [API_zh_CN.md](https://github.com/siyuan-note/siyuan/blob/master/API_zh_CN.md)
  */
 
-import { fetchPost, fetchSyncPost, IWebSocketData,openTab,Constants } from "siyuan";
+import { fetchPost, fetchSyncPost, IWebSocketData, openTab, Constants } from "siyuan";
 
-import { getFrontend, openMobileFileById} from 'siyuan';
+import { getFrontend, openMobileFileById } from 'siyuan';
 export async function request(url: string, data: any) {
     let response: IWebSocketData = await fetchSyncPost(url, data);
     let res = response.code === 0 ? response.data : null;
@@ -324,6 +324,68 @@ export async function getBlockAttrs(id: BlockId): Promise<{ [key: string]: strin
     return request(url, data);
 }
 
+// **************************************** Block Project IDs Helpers ****************************************
+/**
+ * 解析块属性 custom-task-projectId 为数组（去重 & 去空格）
+ * @param id block id
+ */
+export async function getBlockProjectIds(id: BlockId): Promise<string[]> {
+    try {
+        const attrs = await getBlockAttrs(id);
+        if (!attrs || typeof attrs !== 'object') return [];
+        const raw = attrs['custom-task-projectId'] || '';
+        if (!raw) return [];
+        return Array.from(new Set(raw.split(',').map(s => s.trim()).filter(s => s)));
+    } catch (error) {
+        console.warn('getBlockProjectIds failed:', error);
+        return [];
+    }
+}
+
+/**
+ * 将数组写入块属性 custom-task-projectId（以逗号分隔），如果为空数组则清空属性
+ */
+export async function setBlockProjectIds(id: BlockId, projectIds: string[]): Promise<any> {
+    try {
+        const csv = projectIds && projectIds.length > 0 ? projectIds.join(',') : '';
+        return await setBlockAttrs(id, { 'custom-task-projectId': csv });
+    } catch (error) {
+        console.warn('setBlockProjectIds failed:', error);
+        throw error;
+    }
+}
+
+/**
+ * 将单个 projectId 添加到块的 custom-task-projectId 属性中（去重）
+ */
+export async function addBlockProjectId(id: BlockId, projectId: string): Promise<any> {
+    if (!projectId) return;
+    try {
+        const ids = await getBlockProjectIds(id);
+        if (!ids.includes(projectId)) {
+            ids.push(projectId);
+            return await setBlockProjectIds(id, ids);
+        }
+    } catch (error) {
+        console.warn('addBlockProjectId failed:', error);
+        throw error;
+    }
+}
+
+/**
+ * 从块的 custom-task-projectId 中移除一个 projectId，如果最后为空数组则清空属性
+ */
+export async function removeBlockProjectId(id: BlockId, projectId: string): Promise<any> {
+    try {
+        const ids = await getBlockProjectIds(id);
+        const filtered = ids.filter(p => p !== projectId);
+        return await setBlockProjectIds(id, filtered);
+    } catch (error) {
+        console.warn('removeBlockProjectId failed:', error);
+        throw error;
+    }
+}
+
 // **************************************** SQL ****************************************
 
 export async function sql(sql: string): Promise<any[]> {
@@ -355,17 +417,17 @@ export async function openBlock(blockId: string) {
     }
     // 判断块的类型
     const isDoc = block.type === 'd';
-    if (isDoc) { 
+    if (isDoc) {
         openTab({
             app: window.siyuan.ws.app,
             doc: {
                 id: blockId,
-                action: ["cb-get-focus","cb-get-scroll"]
+                action: ["cb-get-focus", "cb-get-scroll"]
             },
             keepCursor: false,
             removeCurrentTab: false
         });
-    } else{
+    } else {
         openTab({
             app: window.siyuan.ws.app,
             doc: {
@@ -375,8 +437,8 @@ export async function openBlock(blockId: string) {
             keepCursor: false,
             removeCurrentTab: false
         });
-        
-        }
+
+    }
 }
 
 // **************************************** Template ****************************************
