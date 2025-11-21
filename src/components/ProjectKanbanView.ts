@@ -4186,15 +4186,19 @@ export class ProjectKanbanView {
             const isActive = this.currentSort === option.key && this.currentSortOrder === order;
             button.style.cssText = `
                 width: 100%;
+                display: flex;
+                align-items: center;
+                gap: 8px;
                 justify-content: flex-start;
                 text-align: left;
                 background-color: ${isActive ? 'var(--b3-theme-primary-lightest)' : 'transparent'};
                 color: ${isActive ? 'var(--b3-theme-primary)' : 'var(--b3-theme-on-surface)'};
                 `;
-            button.innerHTML = `
-                    < span style="font-size: 16px; margin-right: 8px;" > ${option.icon} </span>
-                        < span>${option.label} (${order === 'asc' ? t('ascendingOrder') : t('descendingOrder')})</span>
-                            `;
+                // Use valid <span> tags (no stray spaces in tag names), and keep layout compact
+                button.innerHTML = `
+                    <span style="font-size: 16px; margin-right: 8px;">${option.icon}</span>
+                    <span>${option.label} (${order === 'asc' ? t('ascendingOrder') : t('descendingOrder')})</span>
+                `;
             button.addEventListener('click', () => {
                 this.currentSort = option.key;
                 this.currentSortOrder = order;
@@ -4214,8 +4218,22 @@ export class ProjectKanbanView {
         document.body.appendChild(menuEl);
 
         const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-        menuEl.style.top = `${rect.bottom + 4} px`;
-        menuEl.style.left = `${rect.right - menuEl.offsetWidth} px`;
+        // Remove stray whitespace before 'px' (invalid CSS) and ensure the menu stays aligned to trigger element
+        menuEl.style.top = `${rect.bottom + 4}px`;
+        menuEl.style.left = `${rect.right - menuEl.offsetWidth}px`;
+        // Ensure a minimum width so the content doesn't wrap awkwardly
+        menuEl.style.minWidth = '180px';
+        // preferable box-sizing for predictable width calculations
+        menuEl.style.boxSizing = 'border-box';
+
+        // Prevent the menu from going outside the viewport
+        let left = rect.right - menuEl.offsetWidth;
+        let top = rect.bottom + 4;
+        if (left < 4) left = 4;
+        if (left + menuEl.offsetWidth > window.innerWidth - 4) left = Math.max(4, window.innerWidth - menuEl.offsetWidth - 4);
+        if (top + menuEl.offsetHeight > window.innerHeight - 4) top = Math.max(4, rect.top - menuEl.offsetHeight - 4);
+        menuEl.style.left = `${left}px`;
+        menuEl.style.top = `${top}px`;
 
         const closeMenu = () => {
             menuEl.remove();
