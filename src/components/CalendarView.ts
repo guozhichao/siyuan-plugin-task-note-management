@@ -2489,19 +2489,19 @@ export class CalendarView {
 
 
 
-                    // 如果有父任务，注入父任务的标题信息，用于在提示框中显示
-                    if (reminder.parentId && reminderData[reminder.parentId]) {
-                        try {
-                            const parentReminder = reminderData[reminder.parentId];
-                            reminder.parentTitle = parentReminder?.title || '';
-                            reminder.parentBlockId = parentReminder?.blockId || parentReminder?.id;
-                        } catch (err) {
-                            console.warn('注入父任务信息失败:', err);
-                        }
+                // 如果有父任务，注入父任务的标题信息，用于在提示框中显示
+                if (reminder.parentId && reminderData[reminder.parentId]) {
+                    try {
+                        const parentReminder = reminderData[reminder.parentId];
+                        reminder.parentTitle = parentReminder?.title || '';
+                        reminder.parentBlockId = parentReminder?.blockId || parentReminder?.id;
+                    } catch (err) {
+                        console.warn('注入父任务信息失败:', err);
                     }
+                }
 
-                    // 添加原始事件
-                    this.addEventToList(events, reminder, reminder.id, false);
+                // 添加原始事件
+                this.addEventToList(events, reminder, reminder.id, false);
 
                 // 如果有重复设置，生成重复事件实例
                 if (reminder.repeat?.enabled) {
