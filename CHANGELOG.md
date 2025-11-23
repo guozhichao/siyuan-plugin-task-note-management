@@ -1,3 +1,7 @@
+## v3.3.1 / 20251123
+- 🎨 在发布模式下，用浏览器方式打开思源笔记，应隐藏并禁用 [#128](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/128)
+- 🎨 优化addBlockProjectButtonsToProtyle函数 [#130](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/130)
+
 ## v3.3 / 20251121
 
 - ✨ 日历视图 周视图支持设置一周开始 [#126](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/126)
