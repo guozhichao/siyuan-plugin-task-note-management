@@ -791,6 +791,12 @@ export async function updateBlockReminderBookmark(blockId: string): Promise<void
         // 如果没有提醒，移除书签
         if (blockReminders.length === 0) {
             await removeBlockBookmark(blockId);
+            // 同时清理块的 custom-task-projectId 属性（没有提醒则不应保留项目关联）
+            try {
+                await setBlockProjectIds(blockId, []);
+            } catch (err) {
+                console.warn('clear block project ids failed for', blockId, err);
+            }
             return;
         }
 
@@ -807,6 +813,49 @@ export async function updateBlockReminderBookmark(blockId: string): Promise<void
         } else {
             // 其他情况，移除书签
             await removeBlockBookmark(blockId);
+        }
+
+        // ----- 同步 custom-task-projectId 属性 -----
+        // 目标：将块属性中的项目ID与该块当前剩余提醒中引用的项目ID对齐。
+        // 如果没有任何提醒引用某个项目ID，则从属性中移除该项目ID；如果没有剩余项目则清空属性。
+        try {
+            // 收集提醒中引用的 project ids（兼容多种字段名）
+            const referencedProjectIds = new Set<string>();
+            for (const r of blockReminders as any[]) {
+                if (!r) continue;
+                if (typeof r.projectId === 'string' && r.projectId.trim()) referencedProjectIds.add(r.projectId.trim());
+                else if (Array.isArray(r.projectIds)) {
+                    r.projectIds.forEach((p: any) => { if (p && String(p).trim()) referencedProjectIds.add(String(p).trim()); });
+                } else if (r.project && typeof r.project === 'string' && r.project.trim()) referencedProjectIds.add(r.project.trim());
+                else if (r.project && typeof r.project === 'object' && r.project.id) referencedProjectIds.add(String(r.project.id).trim());
+            }
+
+            // 读取当前块属性中的 project ids（用于比较写回前后是否有变化）
+            let currentIds: string[] = [];
+            try {
+                currentIds = await getBlockProjectIds(blockId);
+            } catch (err) {
+                console.warn('getBlockProjectIds failed for', blockId, err);
+                currentIds = [];
+            }
+
+            // 直接使用提醒中被引用的 project ids（不再以块属性为基础）
+            const newIds = Array.from(referencedProjectIds).map(s => String(s).trim()).filter(s => s);
+
+            // 如果新数组与当前不一致，则写回（包括清空）
+            const equal = (a: string[], b: string[]) => a.length === b.length && a.every((v, i) => v === b[i]);
+            // 为稳定性，对数组排序再比较
+            const sortedCurrent = [...currentIds].sort();
+            const sortedNew = [...newIds].sort();
+            if (!equal(sortedCurrent, sortedNew)) {
+                try {
+                    await setBlockProjectIds(blockId, newIds);
+                } catch (err) {
+                    console.warn('setBlockProjectIds failed for', blockId, newIds, err);
+                }
+            }
+        } catch (err) {
+            console.warn('sync block project ids failed for', blockId, err);
         }
     } catch (error) {
         console.error('更新块提醒书签失败:', error);
