@@ -20,16 +20,17 @@
     "browser-mobile",
     "desktop-window"
   ],
+  "disabledInPublish": true,
   "displayName": {
-    "en_US": "Task Note Management",
+    "default": "Task Note Management",
     "zh_CN": "任务笔记管理"
   },
   "description": {
-    "en_US": "A plugin for SiYuan Note that implements task management features, developed to practice the Bullet Journal method. It supports document and block reminders, calendar view for scheduling, Pomodoro focus timer, and more.",
+    "default": "A plugin for SiYuan Note that implements task management features, developed to practice the Bullet Journal method. It supports document and block reminders, calendar view for scheduling, Pomodoro focus timer, and more.",
     "zh_CN": "一款在思源笔记里实现任务笔记管理功能的插件，为了践行防弹笔记法而开发。支持文档和块提醒、日历视图查看行事历、番茄钟专注和数据统计、项目看板、四象限面板等功能"
   },
   "readme": {
-    "en_US": "README.md",
+    "default": "README.md",
     "zh_CN": "README_zh_CN.md"
   },
   "funding": {
