@@ -1,3 +1,6 @@
+## v3.3.2 / 20251123
+- 🎨 重启思源，自定义Tab依然可以显示
+
 ## v3.3.1 / 20251123
 - 🎨 在发布模式下，用浏览器方式打开思源笔记，应隐藏并禁用 [#128](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/128)
 - 🎨 优化addBlockProjectButtonsToProtyle函数 [#130](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/130)
