@@ -118,6 +118,9 @@ export default class ReminderPlugin extends Plugin {
         setPluginInstance(this);
 
 
+        // 添加dock栏和顶栏按钮
+        this.initializeUI();
+        
         await ensureReminderDataFile();
 
         try {
@@ -132,6 +135,7 @@ export default class ReminderPlugin extends Plugin {
 
         this.categoryManager = CategoryManager.getInstance();
         await this.categoryManager.initialize();
+
 
         // 添加用户交互监听器来启用音频
         this.enableAudioOnUserInteraction();
@@ -502,8 +506,7 @@ export default class ReminderPlugin extends Plugin {
         // 初始化批量设置对话框（确保在UI初始化时创建）
         this.batchReminderDialog = new BatchReminderDialog(this);
 
-        // 添加dock栏和顶栏按钮
-        this.initializeUI();
+
 
         // 注册快捷键
         this.registerCommands();
