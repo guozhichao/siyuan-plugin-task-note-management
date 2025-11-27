@@ -2,7 +2,7 @@ import { showMessage, confirm, Dialog, Menu, openTab } from "siyuan";
 import { refreshSql, readReminderData, writeReminderData, sql, updateBlock, getBlockKramdown, getBlockByID, updateBlockReminderBookmark, openBlock, createDocWithMd, renderSprig, readProjectData } from "../api";
 import { getLocalDateString, compareDateStrings, getLocalDateTime, getLocalDateTimeString } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
-import { ReminderEditDialog } from "./ReminderEditDialog";
+import { QuickReminderDialog } from "./QuickReminderDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { t } from "../utils/i18n";
@@ -2585,6 +2585,9 @@ export class ReminderPanel {
             }
         }
 
+        // 准备最终结果字符串，统一在末尾追加 customReminderTime（如果存在）
+        let result = '';
+
         // 处理跨天事件
         if (endDate && endDate !== date) {
             let endDateStr = '';
@@ -2609,17 +2612,68 @@ export class ReminderPanel {
             // 跨天事件：显示开始日期 开始时间 - 结束日期 结束时间
             const startTimeStr = time ? ` ${time}` : '';
             const endTimeStr = endTime ? ` ${endTime}` : '';
-            return `${dateStr}${startTimeStr} → ${endDateStr}${endTimeStr}`;
-        }
-
-        // 处理当天时间段事件（有结束时间但没有结束日期）
-        if (endTime && endTime !== time) {
+            result = `${dateStr}${startTimeStr} → ${endDateStr}${endTimeStr}`;
+        } else if (endTime && endTime !== time) {
             // 当天时间段：显示开始时间 - 结束时间
             const startTimeStr = time || '';
-            return `${dateStr} ${startTimeStr} - ${endTime}`;
+            result = `${dateStr} ${startTimeStr} - ${endTime}`;
+        } else {
+            result = time ? `${dateStr} ${time}` : dateStr;
         }
 
-        return time ? `${dateStr} ${time}` : dateStr;
+        // 如果存在 customReminderTime，按规则显示：
+        // - custom 包含日期部分则以其为准，否则以 reminder.date 为准
+        // - 如果目标日期 < 今天（过去）则不显示 customReminderTime
+        // - 如果目标日期 == 今天 则仅显示时间
+        // - 如果目标日期 > 今天 则显示日期 + 时间
+        try {
+            const custom = reminder?.customReminderTime;
+            if (custom) {
+                let s = String(custom).trim();
+                let datePart: string | null = null;
+                let timePart: string | null = null;
+
+                if (s.includes('T')) {
+                    const parts = s.split('T');
+                    datePart = parts[0];
+                    timePart = parts[1] || null;
+                } else if (s.includes(' ')) {
+                    const parts = s.split(' ');
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(parts[0])) {
+                        datePart = parts[0];
+                        timePart = parts.slice(1).join(' ') || null;
+                    } else {
+                        timePart = parts.slice(-1)[0] || null;
+                    }
+                } else if (/^\d{2}:\d{2}$/.test(s)) {
+                    timePart = s;
+                } else if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+                    datePart = s;
+                } else {
+                    timePart = s;
+                }
+
+                const targetDate = datePart || date || today;
+
+                if (compareDateStrings(targetDate, today) < 0) {
+                    // 过去：不显示 customReminderTime
+                } else if (compareDateStrings(targetDate, today) === 0) {
+                    if (timePart) {
+                        const showTime = timePart.substring(0, 5);
+                        result = `${result} ⏰${showTime}`;
+                    }
+                } else {
+                    // 未来：显示日期 + 时间（如果有）
+                    const showDate = targetDate;
+                    const showTime = timePart ? ` ${timePart.substring(0, 5)}` : '';
+                    result = `${result} ⏰${showDate}${showTime}`;
+                }
+            }
+        } catch (e) {
+            console.warn('格式化 customReminderTime 失败', e);
+        }
+
+        return result;
     }
 
     private async deleteRemindersByBlockId(blockId: string) {
@@ -4773,9 +4827,13 @@ export class ReminderPanel {
             };
 
             // 打开编辑对话框
-            const editDialog = new ReminderEditDialog(editData, async (modifiedReminder) => {
-                // 编辑完成后执行分割逻辑
-                await this.performSplitOperation(originalReminder, modifiedReminder);
+            const editDialog = new QuickReminderDialog({
+                mode: 'edit',
+                reminder: editData,
+                onSave: async (modifiedReminder) => {
+                    // 编辑完成后执行分割逻辑
+                    await this.performSplitOperation(originalReminder, modifiedReminder);
+                }
             });
             editDialog.show();
 
@@ -4914,11 +4972,15 @@ export class ReminderPanel {
             await writeReminderData(reminderData);
 
             // 5. 打开编辑对话框编辑新系列
-            const editDialog = new ReminderEditDialog(newReminder, async () => {
-                this.loadReminders();
-                window.dispatchEvent(new CustomEvent('reminderUpdated', {
-                    detail: { skipPanelRefresh: true }
-                }));
+            const editDialog = new QuickReminderDialog({
+                mode: 'edit',
+                reminder: newReminder,
+                onSave: async () => {
+                    this.loadReminders();
+                    window.dispatchEvent(new CustomEvent('reminderUpdated', {
+                        detail: { skipPanelRefresh: true }
+                    }));
+                }
             });
             editDialog.show();
 
@@ -4965,12 +5027,22 @@ export class ReminderPanel {
 
             };
 
-            const editDialog = new ReminderEditDialog(instanceData, async () => {
-                this.loadReminders();
-                window.dispatchEvent(new CustomEvent('reminderUpdated', {
-                    detail: { skipPanelRefresh: true }
-                }));
-            });
+            const editDialog = new QuickReminderDialog(
+                undefined,
+                undefined,
+                async () => {
+                    this.loadReminders();
+                    window.dispatchEvent(new CustomEvent('reminderUpdated', {
+                        detail: { skipPanelRefresh: true }
+                    }));
+                },
+                undefined,
+                {
+                    mode: 'edit',
+                    reminder: instanceData,
+                    plugin: this.plugin
+                }
+            );
             editDialog.show();
         } catch (error) {
             console.error('打开实例编辑对话框失败:', error);
@@ -5034,9 +5106,19 @@ export class ReminderPanel {
     }
 
     private async showTimeEditDialog(reminder: any) {
-        const editDialog = new ReminderEditDialog(reminder, () => {
-            this.loadReminders();
-        });
+        const editDialog = new QuickReminderDialog(
+            undefined,
+            undefined,
+            () => {
+                this.loadReminders();
+            },
+            undefined,
+            {
+                mode: 'edit',
+                reminder: reminder,
+                plugin: this.plugin
+            }
+        );
         editDialog.show();
     }
 

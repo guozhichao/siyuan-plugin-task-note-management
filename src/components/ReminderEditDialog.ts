@@ -1030,9 +1030,45 @@ export class ReminderEditDialog {
                         this.updateChildrenCustomGroupId(reminderData, this.reminder.id, customGroupId);
                     }
 
-                    // 重置通知状态
+                    // 细化重置通知状态：按字段重置（如果任务时间被修改并且新的时间在未来，则重置对应的字段级已提醒）
                     if (shouldResetNotified) {
-                        reminderData[this.reminder.id].notified = false;
+                        try {
+                            const now = new Date();
+                            const old = reminderData[this.reminder.id];
+
+                            // 如果任务时间发生变化且新的时间在未来，重置 notifiedTime
+                            if (old.time !== time) {
+                                if (date) {
+                                    const newDateTime = new Date(`${date}T${time || '00:00:00'}`);
+                                    if (newDateTime > now) {
+                                        old.notifiedTime = false;
+                                    }
+                                } else {
+                                    // 没有日期，保守地重置
+                                    old.notifiedTime = false;
+                                }
+                            }
+
+                            // 如果存在自定义提醒并且发生变化（ReminderEditDialog 可能没有 custom 字段），尝试处理但以现有值为准
+                            // 这里不强制覆盖 custom，因为编辑器可能不提供 customReminderTime 的新值
+
+                            // 重新计算总体 notified
+                            const hasTime = !!old.time;
+                            const hasCustom = !!old.customReminderTime;
+                            const nt = !!old.notifiedTime;
+                            const nc = !!old.notifiedCustomTime;
+                            if (hasTime && hasCustom) {
+                                old.notified = nt && nc;
+                            } else if (hasTime) {
+                                old.notified = nt;
+                            } else if (hasCustom) {
+                                old.notified = nc;
+                            } else {
+                                old.notified = false;
+                            }
+                        } catch (err) {
+                            reminderData[this.reminder.id].notified = false;
+                        }
                     }
 
                     // 处理输入 ID（可能是块 ID 或文档 ID）

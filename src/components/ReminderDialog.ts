@@ -2,7 +2,7 @@ import { showMessage, Dialog, Menu, confirm } from "siyuan";
 import { readReminderData, writeReminderData, getBlockByID, updateBlockReminderBookmark, getBlockDOM } from "../api";
 import { getLocalDateString, getLocalTimeString, compareDateStrings } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
-import { ReminderEditDialog } from "./ReminderEditDialog";
+import { QuickReminderDialog } from "./QuickReminderDialog";
 import { RepeatSettingsDialog, RepeatConfig } from "./RepeatSettingsDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
@@ -10,7 +10,7 @@ import { t } from "../utils/i18n";
 import { getRepeatDescription } from "../utils/repeatUtils";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import * as chrono from 'chrono-node'; // 导入chrono-node
-import { parseLunarDateText, getCurrentYearLunarToSolar } from "../utils/lunarUtils";
+import { parseLunarDateText, getCurrentYearLunarToSolar, solarToLunar } from "../utils/lunarUtils";
 
 export class ReminderDialog {
     private blockId: string;
@@ -255,16 +255,41 @@ export class ReminderDialog {
             }
 
             // 处理农历日期格式（例如：八月廿一、正月初一、农历七月十三）
-            const lunarDate = parseLunarDateText(processedText);
-            if (lunarDate && lunarDate.month > 0) {
-                // 有完整的农历月日
-                const solarDate = getCurrentYearLunarToSolar(lunarDate.month, lunarDate.day);
-                if (solarDate) {
-                    console.log(`农历日期识别成功: 农历${lunarDate.month}月${lunarDate.day}日 -> 公历${solarDate}`);
-                    return {
-                        date: solarDate,
-                        hasTime: false
-                    };
+            // 优先判断用户是否明确写了“农历”关键字，若写了则强制按农历解析
+            if (/农历/.test(text) || /农历/.test(processedText)) {
+                const lunarDate = parseLunarDateText(processedText);
+                if (lunarDate) {
+                    if (lunarDate.month === 0) {
+                        try {
+                            const cur = solarToLunar(getLocalDateString());
+                            lunarDate.month = cur.month;
+                        } catch (e) {
+                            // ignore
+                        }
+                    }
+                    if (lunarDate.month > 0) {
+                        const solarDate = getCurrentYearLunarToSolar(lunarDate.month, lunarDate.day);
+                        if (solarDate) {
+                            console.log(`农历日期识别成功: 农历${lunarDate.month}月${lunarDate.day}日 -> 公历${solarDate}`);
+                            return {
+                                date: solarDate,
+                                hasTime: false
+                            };
+                        }
+                    }
+                }
+            } else {
+                const lunarDate = parseLunarDateText(processedText);
+                if (lunarDate && lunarDate.month > 0) {
+                    // 有完整的农历月日
+                    const solarDate = getCurrentYearLunarToSolar(lunarDate.month, lunarDate.day);
+                    if (solarDate) {
+                        console.log(`农历日期识别成功: 农历${lunarDate.month}月${lunarDate.day}日 -> 公历${solarDate}`);
+                        return {
+                            date: solarDate,
+                            hasTime: false
+                        };
+                    }
                 }
             }
 
@@ -1535,14 +1560,19 @@ export class ReminderDialog {
                 reminder.termType = 'short_term'; // 默认todo为短期待办
             }
 
-            // 如果任务时间早于当前时间，则标记为已通知
-            const reminderDateTime = new Date(time ? `${date}T${time}` : date);
-            if (!time) {
-                // 对于全天任务，我们比较当天的结束时间
-                reminderDateTime.setHours(23, 59, 59, 999);
-            }
-            if (reminderDateTime < new Date()) {
-                reminder.notified = true;
+            // 初始化字段级的已提醒标志
+            reminder.notifiedTime = false;
+            reminder.notifiedCustomTime = false;
+            // 如果任务时间早于当前时间，则标记 time 已提醒
+            if (date) {
+                const reminderDateTime = new Date(time ? `${date}T${time}` : date);
+                if (!time) {
+                    // 对于全天任务，我们比较当天的结束时间
+                    reminderDateTime.setHours(23, 59, 59, 999);
+                }
+                if (reminderDateTime < new Date()) {
+                    reminder.notifiedTime = true;
+                }
             }
 
             if (endDate && endDate !== date) {
@@ -1826,8 +1856,12 @@ export class ReminderDialog {
     }
 
     private showTimeEditDialog(reminder: any) {
-        const editDialog = new ReminderEditDialog(reminder, () => {
-            this.loadExistingReminder();
+        const editDialog = new QuickReminderDialog({
+            mode: 'edit',
+            reminder: reminder,
+            onSave: () => {
+                this.loadExistingReminder();
+            }
         });
         editDialog.show();
     }

@@ -12,7 +12,7 @@ import {
     getBackend,
 } from "siyuan";
 import "./index.scss";
-import { ReminderDialog } from "./components/ReminderDialog";
+import { QuickReminderDialog } from "./components/QuickReminderDialog";
 import { ReminderPanel } from "./components/ReminderPanel";
 import { BatchReminderDialog } from "./components/BatchReminderDialog";
 import { ensureReminderDataFile, updateBlockReminderBookmark, ensureProjectDataFile } from "./api";
@@ -120,7 +120,7 @@ export default class ReminderPlugin extends Plugin {
 
         // 添加dock栏和顶栏按钮
         this.initializeUI();
-        
+
         await ensureReminderDataFile();
 
         try {
@@ -943,10 +943,20 @@ export default class ReminderPlugin extends Plugin {
                         const { readProjectData } = await import("./api");
                         const projectData = await readProjectData();
                         const projectId = projectData && projectData[firstDocumentId] ? projectData[firstDocumentId].blockId || projectData[firstDocumentId].id : undefined;
-                        const dialog = new ReminderDialog(firstDocumentId, autoDetect, projectId);
+                        const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
+                            blockId: firstDocumentId,
+                            autoDetectDateTime: autoDetect,
+                            defaultProjectId: projectId,
+                            mode: 'block',
+                            plugin: this
+                        });
                         dialog.show();
                     } catch (err) {
-                        const dialog = new ReminderDialog(firstDocumentId, autoDetect);
+                        const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
+                            blockId: firstDocumentId,
+                            autoDetectDateTime: autoDetect,
+                            mode: 'block'
+                        });
                         dialog.show();
                     }
                 }
@@ -1003,10 +1013,21 @@ export default class ReminderPlugin extends Plugin {
                         const { readProjectData } = await import("./api");
                         const projectData = await readProjectData();
                         const projectId = projectData && projectData[documentId] ? projectData[documentId].blockId || projectData[documentId].id : undefined;
-                        const dialog = new ReminderDialog(documentId, autoDetect, projectId);
+                        const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
+                            blockId: documentId,
+                            autoDetectDateTime: autoDetect,
+                            defaultProjectId: projectId,
+                            mode: 'block',
+                            plugin: this
+                        });
                         dialog.show();
                     } catch (err) {
-                        const dialog = new ReminderDialog(documentId, autoDetect);
+                        const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
+                            blockId: documentId,
+                            autoDetectDateTime: autoDetect,
+                            mode: 'block',
+                            plugin: this
+                        });
                         dialog.show();
                     }
                 }
@@ -1084,10 +1105,21 @@ export default class ReminderPlugin extends Plugin {
                 const docId = block?.root_id || blockIds[0];
                 const projectData = await readProjectData();
                 const projectId = projectData && projectData[docId] ? projectData[docId].blockId || projectData[docId].id : undefined;
-                const dialog = new ReminderDialog(blockIds[0], autoDetect, projectId);
+                const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
+                    blockId: blockIds[0],
+                    autoDetectDateTime: autoDetect,
+                    defaultProjectId: projectId,
+                    mode: 'block',
+                    plugin: this
+                });
                 dialog.show();
             } catch (err) {
-                const dialog = new ReminderDialog(blockIds[0], autoDetect);
+                const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
+                    blockId: blockIds[0],
+                    autoDetectDateTime: autoDetect,
+                    mode: 'block',
+                    plugin: this
+                });
                 dialog.show();
             }
         } else {
@@ -1268,6 +1300,8 @@ export default class ReminderPlugin extends Plugin {
                 const isAllDay = !reminder.time || reminder.time === '';
 
                 // 构建完整的提醒信息
+                const dt = this.extractDateAndTime(reminder.time || reminder.customReminderTime);
+                const displayTime = dt?.time || reminder.time || reminder.customReminderTime;
                 const reminderInfo = {
                     id: reminder.id,
                     blockId: reminder.blockId,
@@ -1275,7 +1309,7 @@ export default class ReminderPlugin extends Plugin {
                     note: reminder.note,
                     priority: reminder.priority || 'none',
                     categoryId: reminder.categoryId,
-                    time: reminder.time,
+                    time: displayTime,
                     date: reminder.date,
                     endDate: reminder.endDate,
                     isAllDay: isAllDay,
@@ -1341,7 +1375,14 @@ export default class ReminderPlugin extends Plugin {
 
                     // 显示前2个任务
                     sortedReminders.slice(0, 2).forEach(reminder => {
-                        const timeText = reminder.time ? ` ${reminder.time}` : '';
+                        let timeText = '';
+                        // 使用仅时间部分进行提示文本显示
+                        const parsed = this.extractDateAndTime(reminder.customReminderTime || reminder.time || reminder.time);
+                        if (parsed && parsed.time) {
+                            timeText = ` ⏰${parsed.time}`;
+                        } else if (reminder.time) {
+                            timeText = ` ${reminder.time}`;
+                        }
                         const categoryText = (reminder as any).categoryName ? ` [${(reminder as any).categoryName}]` : '';
                         const overdueIcon = reminder.isOverdue ? '⚠️ ' : '';
                         taskList += `${overdueIcon}• ${reminder.title}${timeText}${categoryText}\n`;
@@ -1389,35 +1430,84 @@ export default class ReminderPlugin extends Plugin {
                 const reminderObj = reminder as any;
 
                 // 跳过已完成或没有时间的提醒
-                if (reminderObj.completed || !reminderObj.time) continue;
+                if (reminderObj.completed) continue;
 
                 // 处理普通提醒
                 if (!reminderObj.repeat?.enabled) {
-                    if (this.shouldNotifyNow(reminderObj, today, currentTime)) {
-                        await this.showTimeReminder(reminderObj);
-                        // 标记为已提醒
-                        reminderObj.notified = true;
-                        dataChanged = true;
+                    // 普通（非重复）提醒：按字段分别处理 time 和 customReminderTime，并独立记录两者的已提醒状态
+
+                    // 计算任务的起止范围（用于跨天提醒）
+                    const startDate = reminderObj.date || today;
+                    const endDate = reminderObj.endDate || reminderObj.date || startDate;
+                    const inDateRange = startDate <= today && today <= endDate;
+
+                    // 检查 time 提醒（支持跨天：如果 today 在 startDate..endDate 范围内，则每天在该时间提醒）
+                        if (reminderObj.time && inDateRange) {
+                        if (this.shouldNotifyNow(reminderObj, today, currentTime, 'time', true)) {
+                            console.debug('checkTimeReminders - triggering time reminder', { id: reminderObj.id, date: reminderObj.date, time: reminderObj.time });
+                            await this.showTimeReminder(reminderObj, 'time');
+                            if (!reminderObj.notifiedTime) reminderObj.notifiedTime = true;
+                            dataChanged = true;
+                        }
                     }
+
+                    // 检查 customReminderTime 提醒（对于跨天任务也应在每一天生效，直到 endDate 过期）
+                    if (reminderObj.customReminderTime) {
+                        // 如果 customReminderTime 带有具体日期（YYYY-MM-DD），则仅在该日期触发；否则按 inDateRange 检查
+                        const parsedCustom = this.extractDateAndTime(reminderObj.customReminderTime);
+                        const customHasDate = !!parsedCustom.date;
+                        const shouldCheckRange = customHasDate ? (parsedCustom.date === today) : inDateRange;
+                        if (shouldCheckRange) {
+                            if (this.shouldNotifyNow(reminderObj, today, currentTime, 'customReminderTime', true)) {
+                                console.debug('checkTimeReminders - triggering customReminderTime reminder', { id: reminderObj.id, date: reminderObj.date, customReminderTime: reminderObj.customReminderTime });
+                                await this.showTimeReminder(reminderObj, 'customReminderTime');
+                                if (!reminderObj.notifiedCustomTime) reminderObj.notifiedCustomTime = true;
+                                dataChanged = true;
+                            }
+                        }
+                    }
+
+                    // 更新总体的 notified 标志（仅在非重复任务上使用），只有在所有应被提醒的时间都已提醒且都已过时，才设为 true
+                    const overallChanged = this.updateOverallNotifiedFlag(reminderObj, today, currentTime);
+                    if (overallChanged) dataChanged = true;
                 } else {
                     // 处理重复提醒
                     const instances = generateRepeatInstances(reminderObj, today, today);
 
                     for (const instance of instances) {
-                        // 检查实例是否需要提醒
-                        if (this.shouldNotifyNow(instance, today, currentTime)) {
-                            // 检查实例级别是否已提醒
+                        // 检查实例是否需要提醒（对于重复实例，不依赖 reminderObj 的 notified 字段，而使用 repeat.notifiedInstances 去重）
+                        // 时间提醒
+                        if (instance.time && this.shouldNotifyNow(instance, today, currentTime, 'time', false)) {
                             const notifiedInstances = reminderObj.repeat?.notifiedInstances || [];
                             const instanceKey = `${instance.date}_${instance.time}`;
-
                             if (!notifiedInstances.includes(instanceKey)) {
-                                await this.showTimeReminder(instance);
-
-                                // 标记实例已提醒
+                                console.debug('checkTimeReminders - triggering repeat instance time reminder', { id: instance.id, date: instance.date, time: instance.time });
+                                await this.showTimeReminder(instance, 'time');
                                 if (!reminderObj.repeat) reminderObj.repeat = {};
                                 if (!reminderObj.repeat.notifiedInstances) reminderObj.repeat.notifiedInstances = [];
                                 reminderObj.repeat.notifiedInstances.push(instanceKey);
                                 dataChanged = true;
+                            }
+                        }
+
+                        // customReminderTime 实例提醒
+                        if (instance.customReminderTime) {
+                            const parsedCustomInst = this.extractDateAndTime(instance.customReminderTime);
+                            if (parsedCustomInst.date && parsedCustomInst.date !== instance.date) {
+                                // customReminderTime 指定了不同日期，不在此实例触发
+                            } else {
+                                if (this.shouldNotifyNow(instance, today, currentTime, 'customReminderTime', false)) {
+                                    const notifiedInstances = reminderObj.repeat?.notifiedInstances || [];
+                                    const instanceKey = `${instance.date}_${instance.customReminderTime}`;
+                                    if (!notifiedInstances.includes(instanceKey)) {
+                                        console.debug('checkTimeReminders - triggering repeat instance customReminderTime reminder', { id: instance.id, date: instance.date, customReminderTime: instance.customReminderTime });
+                                        await this.showTimeReminder(instance, 'customReminderTime');
+                                        if (!reminderObj.repeat) reminderObj.repeat = {};
+                                        if (!reminderObj.repeat.notifiedInstances) reminderObj.repeat.notifiedInstances = [];
+                                        reminderObj.repeat.notifiedInstances.push(instanceKey);
+                                        dataChanged = true;
+                                    }
+                                }
                             }
                         }
                     }
@@ -1435,35 +1525,138 @@ export default class ReminderPlugin extends Plugin {
     }
 
     // 判断是否应该现在提醒
-    private shouldNotifyNow(reminder: any, today: string, currentTime: string): boolean {
-        // 必须是今天的事件
-        if (reminder.date !== today) return false;
+    private shouldNotifyNow(reminder: any, today: string, currentTime: string, timeField: 'time' | 'customReminderTime' = 'time', checkNotified: boolean = true): boolean {
+        // 不在此处强制检查日期，调用方负责判断提醒是否在当天或范围内。
 
-        // 必须有时间
-        if (!reminder.time) return false;
+        // 必须有时间字段
+        if (!reminder[timeField]) return false;
 
-        // 已经提醒过了
-        if (reminder.notified) return false;
+        // 如果需要检查已提醒标志，则基于字段级别进行判断（time / customReminderTime）
+        if (checkNotified) {
+            if (timeField === 'time' && reminder.notifiedTime) return false;
+            if (timeField === 'customReminderTime' && reminder.notifiedCustomTime) return false;
+        }
 
-        // 比较当前时间和提醒时间
-        const reminderTime = reminder.time;
+        // 比较当前时间和提醒时间（支持带日期的自定义提醒）
+        const rawReminderTime = reminder[timeField];
+        const parsed = this.extractDateAndTime(rawReminderTime);
+
+        // 如果提醒时间包含日期并且不是今天，则不触发
+        if (parsed.date && parsed.date !== today) {
+            console.debug('shouldNotifyNow - date does not match today, skip', parsed.date, 'today:', today, 'id:', reminder.id, 'field:', timeField);
+            return false;
+        }
+
         const currentTimeNumber = this.timeStringToNumber(currentTime);
-        const reminderTimeNumber = this.timeStringToNumber(reminderTime);
-
+        const reminderTimeNumber = this.timeStringToNumber(rawReminderTime);
         // 当前时间必须达到或超过提醒时间
-        return currentTimeNumber >= reminderTimeNumber;
+        const shouldNotify = currentTimeNumber >= reminderTimeNumber;
+        if (shouldNotify) {
+            console.debug('shouldNotifyNow - trigger:', timeField, 'reminderId:', reminder.id, 'currentTime:', currentTime, 'reminderTime:', reminder[timeField]);
+        }
+        return shouldNotify;
+    }
+
+    /**
+     * 更新非重复任务的总体 notified 标志。
+     * 规则：
+     * - 如果有 time 和 customReminderTime，只有两者都已被对应标记为已提醒（notifiedTime/notifiedCustomTime）且两者时间都已过时，才将 notified 设为 true。
+     * - 如果只有其中一个时间存在，则以该字段的已提醒状态为准（并确保该时间已过去）。
+     * - 对于跨多天任务（有 endDate），只有当 endDate 是过去时间时，才允许设置 notified 为 true。
+     * 返回是否发生了变更（用于持久化判断）。
+     */
+    private updateOverallNotifiedFlag(reminder: any, today: string, currentTime: string): boolean {
+        const prev = !!reminder.notified;
+
+        // 对于跨多天任务，只有当 endDate 是过去时间时，才允许设置 notified
+        if (reminder.endDate && compareDateStrings(reminder.endDate, today) >= 0) {
+            reminder.notified = false;
+            return prev !== false;
+        }
+
+        const hasTime = !!reminder.time;
+        const hasCustom = !!reminder.customReminderTime;
+
+        const currentNum = this.timeStringToNumber(currentTime);
+
+        let now = false;
+
+        const checkPassed = (field: string | null): boolean => {
+            if (!field) return false;
+            const raw = reminder[field];
+            const parsed = this.extractDateAndTime(raw);
+            const fieldTimeNum = this.timeStringToNumber(raw || '00:00');
+            // 如果带日期
+            if (parsed.date) {
+                const dateCompare = compareDateStrings(parsed.date, today);
+                if (dateCompare < 0) return true; // 已过
+                if (dateCompare > 0) return false; // 未来
+                // 等于今天，按时间比较
+                return currentNum >= fieldTimeNum;
+            }
+            // 不带日期，按时间比较
+            return currentNum >= fieldTimeNum;
+        };
+
+        if (hasTime && hasCustom) {
+            const timeNum = this.timeStringToNumber(reminder.time || '00:00');
+            const customNum = this.timeStringToNumber(reminder.customReminderTime || '00:00');
+            const timeNotified = !!reminder.notifiedTime;
+            const customNotified = !!reminder.notifiedCustomTime;
+            if (timeNotified && customNotified && checkPassed('time') && checkPassed('customReminderTime')) {
+                now = true;
+            } else {
+                now = false;
+            }
+        } else if (hasTime) {
+            const timeNum = this.timeStringToNumber(reminder.time || '00:00');
+            const timePassed = checkPassed('time');
+            now = !!reminder.notifiedTime && timePassed;
+        } else if (hasCustom) {
+            const customPassed = checkPassed('customReminderTime');
+            now = !!reminder.notifiedCustomTime && customPassed;
+        } else {
+            now = false;
+        }
+
+        reminder.notified = now;
+        return prev !== now;
     }
 
     // 时间字符串转换为数字便于比较 (HH:MM -> HHMM)
+    private extractDateAndTime(value?: string): { date?: string | null, time?: string | null } {
+        if (!value || typeof value !== 'string') return { date: null, time: null };
+        if (value.includes('T')) {
+            const [datePart, timePart] = value.split('T');
+            if (!timePart) return { date: datePart, time: null };
+            const time = timePart.split(':').slice(0, 2).join(':');
+            return { date: datePart, time };
+        }
+        if (value.includes(' ')) {
+            const [datePart, timePart] = value.split(' ');
+            const time = (timePart || '').split(':').slice(0, 2).join(':') || null;
+            return { date: datePart, time };
+        }
+        if (value.split(':').length >= 2) {
+            return { date: null, time: value.split(':').slice(0, 2).join(':') };
+        }
+        return { date: null, time: null };
+    }
+
+    // 时间字符串转换为数字便于比较 (HH:MM -> HHMM)，支持带日期的字符串
     private timeStringToNumber(timeString: string): number {
         if (!timeString) return 0;
-        const parts = timeString.split(':');
-        if (parts.length !== 2) return 0;
+        const { time } = this.extractDateAndTime(timeString) || { time: null };
+        if (!time) return 0;
+        const parts = time.split(':');
+        if (parts.length < 2) return 0;
         const hours = parseInt(parts[0], 10);
         const minutes = parseInt(parts[1], 10);
+        if (isNaN(hours) || isNaN(minutes)) return 0;
         return hours * 100 + minutes;
-    }    // 显示时间提醒
-    private async showTimeReminder(reminder: any) {
+    }
+    // 显示时间提醒
+    private async showTimeReminder(reminder: any, triggerField: 'time' | 'customReminderTime' = 'time') {
         try {
             // 播放通知声音
             await this.playNotificationSound();
@@ -1481,6 +1674,8 @@ export default class ReminderPlugin extends Plugin {
                 }
             }
 
+            const rawChosenTime = (triggerField === 'customReminderTime') ? reminder.customReminderTime : reminder.time;
+            const displayChosen = this.extractDateAndTime(rawChosenTime)?.time || rawChosenTime || reminder.time || reminder.customReminderTime;
             const reminderInfo = {
                 id: reminder.id,
                 blockId: reminder.blockId,
@@ -1488,7 +1683,8 @@ export default class ReminderPlugin extends Plugin {
                 note: reminder.note,
                 priority: reminder.priority || 'none',
                 categoryId: reminder.categoryId,
-                time: reminder.time,
+                // 使用仅时间部分用于显示，若无则回退到原始字段
+                time: displayChosen || reminder.time || reminder.customReminderTime,
                 date: reminder.date,
                 endDate: reminder.endDate,
                 isAllDay: false,
@@ -1497,6 +1693,14 @@ export default class ReminderPlugin extends Plugin {
             };
 
             // 始终显示思源内部通知对话框
+            // 记录触发字段，方便调试与后续显示一致性处理
+            try { (reminderInfo as any)._triggerField = triggerField; } catch (e) { }
+            console.debug('showTimeReminder - triggering internal dialog', {
+                id: reminderInfo.id,
+                triggerField,
+                chosenTime: reminderInfo.time,
+                date: reminderInfo.date
+            });
             NotificationDialog.show(reminderInfo);
 
             // 检查是否启用系统弹窗通知
@@ -1506,7 +1710,16 @@ export default class ReminderPlugin extends Plugin {
             if (systemNotificationEnabled) {
                 const title = '⏰ ' + t("timeReminderNotification");
                 const categoryText = (categoryInfo as any).categoryName ? ` [${(categoryInfo as any).categoryName}]` : '';
-                const timeText = reminder.time ? ` ${reminder.time}` : '';
+                let timeText = '';
+                if (displayChosen) {
+                    timeText = ` ⏰${displayChosen}`;
+                } else if (triggerField === 'time' && reminder.time) {
+                    const dt = this.extractDateAndTime(reminder.time);
+                    timeText = ` ${dt.time || reminder.time}`;
+                } else if (reminder.customReminderTime) {
+                    const dt = this.extractDateAndTime(reminder.customReminderTime);
+                    timeText = ` ⏰${dt.time || reminder.customReminderTime}`;
+                }
                 const message = `${reminderInfo.title}${categoryText}${timeText}`;
 
                 this.showReminderSystemNotification(title, message, reminderInfo);
@@ -2090,10 +2303,21 @@ export default class ReminderPlugin extends Plugin {
                         const { readProjectData } = await import("./api");
                         const projectData = await readProjectData();
                         const projectId = projectData && projectData[documentId] ? projectData[documentId].blockId || projectData[documentId].id : undefined;
-                        const dialog = new ReminderDialog(documentId, autoDetect, projectId);
+                        const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
+                            blockId: documentId,
+                            autoDetectDateTime: autoDetect,
+                            defaultProjectId: projectId,
+                            mode: 'block',
+                            plugin: this
+                        });
                         dialog.show();
                     } catch (err) {
-                        const dialog = new ReminderDialog(documentId, autoDetect);
+                        const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
+                            blockId: documentId,
+                            autoDetectDateTime: autoDetect,
+                            mode: 'block',
+                            plugin: this
+                        });
                         dialog.show();
                     }
                 }

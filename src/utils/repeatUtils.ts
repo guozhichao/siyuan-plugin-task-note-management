@@ -8,6 +8,7 @@ export interface RepeatInstance {
     time?: string;
     endDate?: string;
     endTime?: string;
+    customReminderTime?: string;
     instanceId: string; // 实例标识符
     originalId: string; // 原始提醒ID
     isRepeatedInstance: boolean;
@@ -97,6 +98,7 @@ export function generateRepeatInstances(
                     time: modification?.time || reminder.time,
                     endDate: modification?.endDate || (reminder.endDate && reminder.date ? addDaysToDate(modification?.date || currentDateStr, getDaysDifference(reminder.date, reminder.endDate)) : undefined),
                     endTime: modification?.endTime || reminder.endTime,
+                    customReminderTime: modification?.customReminderTime || reminder.customReminderTime,
                     instanceId: `${reminder.id}_${currentDateStr}`,
                     originalId: reminder.id,
                     isRepeatedInstance: true,

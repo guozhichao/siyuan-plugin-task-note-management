@@ -6,10 +6,10 @@ import { getLocalDateString, getLocalTimeString } from "../utils/dateUtils";
 import { RepeatConfig, RepeatSettingsDialog } from "./RepeatSettingsDialog";
 import { NotificationDialog } from "./NotificationDialog";
 import * as chrono from 'chrono-node';
-import { ReminderDialog } from "./ReminderDialog";
+import { QuickReminderDialog } from "./QuickReminderDialog";
 import { CategoryManager } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
-import { parseLunarDateText, getCurrentYearLunarToSolar } from "../utils/lunarUtils";
+import { parseLunarDateText, getCurrentYearLunarToSolar, solarToLunar } from "../utils/lunarUtils";
 
 export interface BlockDetail {
     blockId: string;
@@ -163,7 +163,7 @@ export class BatchReminderDialog {
 
     async show(blockIds: string[]) {
         if (blockIds.length === 1) {
-            const dialog = new ReminderDialog(blockIds[0]);
+            const dialog = new QuickReminderDialog(blockIds[0]);
             dialog.show();
         } else {
             // 直接显示智能批量设置
@@ -360,16 +360,40 @@ export class BatchReminderDialog {
             }
 
             // 处理农历日期格式（例如：八月廿一、正月初一、农历七月十三）
-            const lunarDate = parseLunarDateText(processedText);
-            if (lunarDate && lunarDate.month > 0) {
-                // 有完整的农历月日
-                const solarDate = getCurrentYearLunarToSolar(lunarDate.month, lunarDate.day);
-                if (solarDate) {
-                    console.log(`农历日期识别成功: 农历${lunarDate.month}月${lunarDate.day}日 -> 公历${solarDate}`);
-                    return {
-                        date: solarDate,
-                        hasTime: false
-                    };
+            if (/农历/.test(text) || /农历/.test(processedText)) {
+                const lunarDate = parseLunarDateText(processedText);
+                if (lunarDate) {
+                    if (lunarDate.month === 0) {
+                        try {
+                            const cur = solarToLunar(getLocalDateString());
+                            lunarDate.month = cur.month;
+                        } catch (e) {
+                            // ignore
+                        }
+                    }
+                    if (lunarDate.month > 0) {
+                        const solarDate = getCurrentYearLunarToSolar(lunarDate.month, lunarDate.day);
+                        if (solarDate) {
+                            console.log(`农历日期识别成功: 农历${lunarDate.month}月${lunarDate.day}日 -> 公历${solarDate}`);
+                            return {
+                                date: solarDate,
+                                hasTime: false
+                            };
+                        }
+                    }
+                }
+            } else {
+                const lunarDate = parseLunarDateText(processedText);
+                if (lunarDate && lunarDate.month > 0) {
+                    // 有完整的农历月日
+                    const solarDate = getCurrentYearLunarToSolar(lunarDate.month, lunarDate.day);
+                    if (solarDate) {
+                        console.log(`农历日期识别成功: 农历${lunarDate.month}月${lunarDate.day}日 -> 公历${solarDate}`);
+                        return {
+                            date: solarDate,
+                            hasTime: false
+                        };
+                    }
                 }
             }
 

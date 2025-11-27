@@ -116,8 +116,8 @@ export function getNextLunarYearlyDate(currentDate: string, lunarMonth: number, 
  * @returns {month: number, day: number} 或 null
  */
 export function parseLunarDateText(text: string): { month: number; day: number } | null {
-    // 预处理：移除"农历"关键字
-    let processedText = text.replace(/^农历/, '').trim();
+    // 预处理：移除出现的所有"农历"关键字（不局限于开头），并去除多余空白
+    let processedText = text.replace(/农历/g, '').trim();
 
     // 农历月份映射
     const lunarMonthMap: { [key: string]: number } = {
@@ -145,7 +145,25 @@ export function parseLunarDateText(text: string): { month: number; day: number }
         '廿六': 26, '廿七': 27, '廿八': 28, '廿九': 29, '三十': 30
     };
 
-    // 匹配 "八月廿一" 格式
+    // 先尝试匹配数字月份 + 数字日期/中文日期（例如："7月13"、"7月13日"、"7月十三"、"7月 廿一"）
+    const numericMonthDayRegex = /(\d{1,2})月\s*([\d]{1,2}|[初十廿一二三四五六七八九零十百]+)(?:日|号)?/;
+    const numericMonthDayMatch = processedText.match(numericMonthDayRegex);
+    if (numericMonthDayMatch) {
+        const month = parseInt(numericMonthDayMatch[1], 10);
+        let dayText = numericMonthDayMatch[2];
+        let day = parseInt(dayText, 10);
+        if (isNaN(day)) {
+            // 不是纯数字，尝试从映射表中解析中文日期（如 十三、廿一 等）
+            dayText = dayText.trim();
+            day = lunarDayMap[dayText] || NaN;
+        }
+
+        if (!isNaN(month) && !isNaN(day)) {
+            return { month, day };
+        }
+    }
+
+    // 再尝试匹配中文月份 + 中文日期（例如："八月廿一"、"正月初一"）
     const monthDayPattern = /^(.+月)(.+)$/;
     const match = processedText.match(monthDayPattern);
 
@@ -154,17 +172,34 @@ export function parseLunarDateText(text: string): { month: number; day: number }
         const dayText = match[2];
 
         const month = lunarMonthMap[monthText];
-        const day = lunarDayMap[dayText];
+        let day = lunarDayMap[dayText];
+
+        // 如果日部分是阿拉伯数字（例如 "13"），将其解析为数字
+        if ((!day || day === undefined) && /^\d{1,2}$/.test(dayText.trim())) {
+            const dayNum = parseInt(dayText.trim(), 10);
+            if (dayNum >= 1 && dayNum <= 30) {
+                day = dayNum;
+            }
+        }
 
         if (month && day) {
             return { month, day };
         }
     }
 
-    // 只匹配日期 "廿一"、"初一" 等
+    // 只匹配日期 "廿一"、"初一" 等（没有提到月份的情况）
     const day = lunarDayMap[processedText];
     if (day) {
         return { month: 0, day }; // month 为 0 表示只有日期
+    }
+
+    // 也尝试纯数字日期（如："13日"、"13号"、"13"）但不指定月份
+    const numericDayMatch = processedText.match(/^(?:第)?(\d{1,2})(?:日|号)?$/);
+    if (numericDayMatch) {
+        const dayNum = parseInt(numericDayMatch[1], 10);
+        if (!isNaN(dayNum) && dayNum >= 1 && dayNum <= 30) {
+            return { month: 0, day: dayNum };
+        }
     }
 
     return null;

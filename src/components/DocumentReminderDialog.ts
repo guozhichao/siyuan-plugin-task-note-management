@@ -2,8 +2,7 @@ import { Dialog, showMessage, confirm } from "siyuan";
 import { readReminderData, writeReminderData, updateBlockReminderBookmark, sql, getBlockByID, openBlock } from "../api";
 import { getLocalDateString, compareDateStrings, getLocalDateTimeString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
-import { ReminderDialog } from "./ReminderDialog";
-import { ReminderEditDialog } from "./ReminderEditDialog";
+import { QuickReminderDialog } from "./QuickReminderDialog";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
 import { t } from "../utils/i18n";
 
@@ -912,9 +911,13 @@ export class DocumentReminderDialog {
     }
 
     private async editReminder(reminder: any) {
-        const editDialog = new ReminderEditDialog(reminder, () => {
-            this.loadReminders();
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+        const editDialog = new QuickReminderDialog({
+            mode: 'edit',
+            reminder: reminder,
+            onSave: () => {
+                this.loadReminders();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            }
         });
         editDialog.show();
     }
@@ -935,7 +938,7 @@ export class DocumentReminderDialog {
 
     // 添加新建提醒对话框方法
     private showAddReminderDialog() {
-        const dialog = new ReminderDialog(this.documentId);
+        const dialog = new QuickReminderDialog(this.documentId);
         dialog.show();
 
         // 监听提醒更新事件以刷新当前对话框

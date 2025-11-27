@@ -5,7 +5,6 @@ import { t } from "../utils/i18n";
 import { getLocalDateString, getLocalDateTimeString, compareDateStrings } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { CustomGroupManager } from "../utils/customGroupManager";
-import { ReminderEditDialog } from "./ReminderEditDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroManager } from "../utils/pomodoroManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
@@ -3087,6 +3086,64 @@ export class ProjectKanbanView {
                 }
             }
 
+            // 如果存在自定义提醒时间，按规则显示：
+            // - 如果 custom 包含日期部分，则以该日期为准；否则以 task.date（或今天）为准
+            // - 如果目标日期 < 今天（过去），则不显示 customReminderTime
+            // - 如果目标日期 > 今天（未来），则显示日期+时间
+            // - 如果目标日期 == 今天，则仅显示时间
+            try {
+                const customRaw = task.customReminderTime;
+                if (customRaw) {
+                    let s = String(customRaw).trim();
+                    let datePart: string | null = null;
+                    let timePart: string | null = null;
+
+                    if (s.includes('T')) {
+                        const parts = s.split('T');
+                        datePart = parts[0];
+                        timePart = parts[1] || null;
+                    } else if (s.includes(' ')) {
+                        const parts = s.split(' ');
+                        // 支持两种： "YYYY-MM-DD HH:MM" 或 "HH:MM extra"
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(parts[0])) {
+                            datePart = parts[0];
+                            timePart = parts.slice(1).join(' ') || null;
+                        } else {
+                            timePart = parts.slice(-1)[0] || null;
+                        }
+                    } else if (/^\d{2}:\d{2}$/.test(s)) {
+                        timePart = s;
+                    } else if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+                        datePart = s;
+                    } else {
+                        // 兜底把整个字符串当时间处理
+                        timePart = s;
+                    }
+
+                    const today = getLocalDateString();
+                    const effectiveDate = datePart || task.date || today;
+
+                    // 比较日期（格式 YYYY-MM-DD 可直接字符串比较）
+                    if (effectiveDate) {
+                        if (effectiveDate < today) {
+                            // 过去：不显示 custom 时间
+                        } else if (effectiveDate === today) {
+                            if (timePart) {
+                                const showTime = timePart.substring(0, 5);
+                                dateHtml += `<span> ⏰${showTime}</span>`;
+                            }
+                        } else {
+                            // 未来：显示日期 + 时间（如果有）
+                            const showDate = effectiveDate;
+                            const showTime = timePart ? ` ${timePart.substring(0, 5)}` : '';
+                            dateHtml += `<span> ⏰${showDate}${showTime}</span>`;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('格式化 customReminderTime 失败', e);
+            }
+
             dateEl.innerHTML += dateHtml;
             infoEl.appendChild(dateEl);
         }
@@ -4426,10 +4483,7 @@ export class ProjectKanbanView {
                 taskToEdit = originalReminder;
             }
 
-            const editDialog = new ReminderEditDialog(taskToEdit, async () => {
-                await this.loadTasks();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
-            });
+            const editDialog = new QuickReminderDialog(taskToEdit, this.plugin, true);
             editDialog.show();
         } catch (error) {
             console.error('打开编辑对话框失败:', error);
@@ -7082,9 +7136,13 @@ export class ProjectKanbanView {
                 instanceDate: task.date
             };
 
-            const editDialog = new ReminderEditDialog(instanceData, async () => {
-                await this.loadTasks();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            const editDialog = new QuickReminderDialog({
+                mode: 'edit',
+                reminder: instanceData,
+                onSave: async () => {
+                    await this.loadTasks();
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                }
             });
             editDialog.show();
         } catch (error) {

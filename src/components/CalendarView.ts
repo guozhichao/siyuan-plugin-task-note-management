@@ -5,7 +5,6 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
 import { refreshSql, readReminderData, writeReminderData, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark, openBlock, readProjectData } from "../api";
 import { getLocalDateString, getLocalDateTime, getLocalDateTimeString } from "../utils/dateUtils";
-import { ReminderEditDialog } from "./ReminderEditDialog";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
@@ -976,9 +975,13 @@ export class CalendarView {
                 instanceDate: instanceDate
             };
 
-            const editDialog = new ReminderEditDialog(instanceData, async () => {
-                await this.refreshEvents();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            const editDialog = new QuickReminderDialog({
+                mode: 'edit',
+                reminder: instanceData,
+                onSave: async () => {
+                    await this.refreshEvents();
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                }
             });
             editDialog.show();
         } catch (error) {
@@ -2008,9 +2011,41 @@ export class CalendarView {
                     }
                 }
 
-                // 重置通知状态
+                // 细化重置通知状态：按字段重置（如果事件时间被修改并且新的时间在未来，则重置对应的字段级已提醒）
                 if (shouldResetNotified) {
-                    reminderData[reminderId].notified = false;
+                    try {
+                        const now = new Date();
+                        const r = reminderData[reminderId];
+
+                        if (info.event.allDay) {
+                            // 全日事件，重置时间相关标志
+                            r.notifiedTime = false;
+                        } else {
+                            if (startTimeStr) {
+                                const newDT = new Date(`${startDateStr}T${startTimeStr}`);
+                                if (newDT > now) {
+                                    r.notifiedTime = false;
+                                }
+                            }
+                        }
+
+                        // 重新计算总体 notified
+                        const hasTime = !!r.time;
+                        const hasCustom = !!r.customReminderTime;
+                        const nt = !!r.notifiedTime;
+                        const nc = !!r.notifiedCustomTime;
+                        if (hasTime && hasCustom) {
+                            r.notified = nt && nc;
+                        } else if (hasTime) {
+                            r.notified = nt;
+                        } else if (hasCustom) {
+                            r.notified = nc;
+                        } else {
+                            r.notified = false;
+                        }
+                    } catch (err) {
+                        reminderData[reminderId].notified = false;
+                    }
                 }
 
                 await writeReminderData(reminderData);
@@ -2155,12 +2190,16 @@ export class CalendarView {
             if (reminderData[reminderId]) {
                 const reminder = reminderData[reminderId];
 
-                const editDialog = new ReminderEditDialog(reminder, async () => {
-                    // 刷新日历事件
-                    await this.refreshEvents();
+                const editDialog = new QuickReminderDialog({
+                    mode: 'edit',
+                    reminder: reminder,
+                    onSave: async () => {
+                        // 刷新日历事件
+                        await this.refreshEvents();
 
-                    // 触发全局更新事件
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                        // 触发全局更新事件
+                        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    }
                 });
 
                 editDialog.show();
@@ -2185,12 +2224,16 @@ export class CalendarView {
             if (reminderData[originalId]) {
                 const reminder = reminderData[originalId];
 
-                const editDialog = new ReminderEditDialog(reminder, async () => {
-                    // 刷新日历事件
-                    await this.refreshEvents();
+                const editDialog = new QuickReminderDialog({
+                    mode: 'edit',
+                    reminder: reminder,
+                    onSave: async () => {
+                        // 刷新日历事件
+                        await this.refreshEvents();
 
-                    // 触发全局更新事件
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                        // 触发全局更新事件
+                        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    }
                 });
 
                 editDialog.show();
@@ -3321,8 +3364,12 @@ export class CalendarView {
             };
 
             // 打开编辑对话框
-            const editDialog = new ReminderEditDialog(editData, async (modifiedReminder) => {
-                await this.performSplitOperation(originalReminder, modifiedReminder);
+            const editDialog = new QuickReminderDialog({
+                mode: 'edit',
+                reminder: editData,
+                onSave: async (modifiedReminder) => {
+                    await this.performSplitOperation(originalReminder, modifiedReminder);
+                }
             });
             editDialog.show();
 

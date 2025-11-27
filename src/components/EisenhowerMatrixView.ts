@@ -1,7 +1,6 @@
 import { readReminderData, writeReminderData, getFile, putFile, openBlock, getBlockByID } from "../api";
 import { ProjectManager } from "../utils/projectManager";
 import { CategoryManager } from "../utils/categoryManager";
-import { ReminderEditDialog } from "./ReminderEditDialog";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroManager } from "../utils/pomodoroManager";
@@ -1742,9 +1741,13 @@ export class EisenhowerMatrixView {
             }
         }
 
-        const editDialog = new ReminderEditDialog(taskData, async () => {
-            await this.refresh();
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+        const editDialog = new QuickReminderDialog({
+            mode: 'edit',
+            reminder: taskData,
+            onSave: async () => {
+                await this.refresh();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            }
         });
 
         // 添加项目选择功能到编辑对话框
@@ -4008,9 +4011,13 @@ export class EisenhowerMatrixView {
                 instanceDate: task.date
             };
 
-            const editDialog = new ReminderEditDialog(instanceData, async () => {
-                await this.loadTasks();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            const editDialog = new QuickReminderDialog({
+                mode: 'edit',
+                reminder: instanceData,
+                onSave: async () => {
+                    await this.loadTasks();
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                }
             });
             editDialog.show();
         } catch (error) {
