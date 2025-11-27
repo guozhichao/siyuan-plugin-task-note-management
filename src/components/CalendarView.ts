@@ -39,6 +39,7 @@ export class CalendarView {
     private lastClickTime: number = 0; // 添加双击检测
     private clickTimeout: number | null = null; // 添加单击延迟超时
     private refreshTimeout: number | null = null; // 添加刷新防抖超时
+    private currentCompletionFilter: string = 'all'; // 当前完成状态过滤
 
     // 视图按钮引用
     private monthBtn: HTMLButtonElement;
@@ -172,7 +173,21 @@ export class CalendarView {
 
         // 渲染统一筛选器
         await this.renderUnifiedFilter(unifiedFilterSelect);
-
+        // 添加完成状态筛选
+        const completionFilterSelect = document.createElement('select');
+        completionFilterSelect.className = 'b3-select';
+        completionFilterSelect.style.marginLeft = '4px';
+        completionFilterSelect.innerHTML = `
+            <option value="all">${t("allStatuses") || "全部状态"}</option>
+            <option value="incomplete">${t("incomplete") || "未完成"}</option>
+            <option value="completed">${t("completed") || "已完成"}</option>
+        `;
+        completionFilterSelect.value = this.currentCompletionFilter;
+        completionFilterSelect.addEventListener('change', () => {
+            this.currentCompletionFilter = completionFilterSelect.value;
+            this.refreshEvents();
+        });
+        filterGroup.appendChild(completionFilterSelect);
         // 添加按分类/优先级上色切换
         const colorBySelect = document.createElement('select');
         colorBySelect.className = 'b3-select';
@@ -189,6 +204,8 @@ export class CalendarView {
             this.refreshEvents();
         });
         filterGroup.appendChild(colorBySelect);
+
+
 
         if (this.initialProjectFilter) {
             unifiedFilterSelect.value = `project:${this.initialProjectFilter}`;
@@ -2555,6 +2572,9 @@ export class CalendarView {
                 // 应用项目过滤
                 if (!this.passesProjectFilter(reminder)) continue;
 
+                // 应用完成状态过滤
+                if (!this.passesCompletionFilter(reminder)) continue;
+
                 // 获取文档标题（如果还没有缓存）
                 await this.ensureDocTitle(reminder, docTitleCache);
 
@@ -2706,6 +2726,22 @@ export class CalendarView {
         }
 
         return reminder.projectId === this.currentProjectFilter;
+    }
+
+    passesCompletionFilter(reminder: any): boolean {
+        if (this.currentCompletionFilter === 'all') {
+            return true;
+        }
+
+        if (this.currentCompletionFilter === 'completed') {
+            return reminder.completed === true;
+        }
+
+        if (this.currentCompletionFilter === 'incomplete') {
+            return reminder.completed !== true;
+        }
+
+        return true;
     }
 
     private addEventToList(events: any[], reminder: any, eventId: string, isRepeated: boolean, originalId?: string) {

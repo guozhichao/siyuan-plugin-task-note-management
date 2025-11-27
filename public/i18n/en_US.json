@@ -773,7 +773,7 @@
     "filterByProject": "按项目筛选",
     "createTaskInProject": "在项目中创建任务",
     "filterReminders": "筛选提醒",
-    "allCategoriesAndProjects": "全部",
+    "allCategoriesAndProjects": "全部分类和项目",
     "noCategoryNoProject": "无分类无项目",
     "categories": "分类",
     "projects": "Projects",
@@ -785,5 +785,8 @@
     "weekStartDay": "Week Start Day",
     "weekStartDayDesc": "Set the start day of the week for week view",
     "weekStartMonday": "Monday",
-    "weekStartSunday": "Sunday"
+    "weekStartSunday": "Sunday",
+    "allStatuses": "All Statuses",
+    "incomplete": "Incomplete",
+    "completed": "Completed"
 }
