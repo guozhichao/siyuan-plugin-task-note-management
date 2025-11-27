@@ -19,7 +19,7 @@ export class StatusManageDialog {
             title: t("statusManagement") || "状态管理",
             content: this.createDialogContent(),
             width: "500px",
-            height: "600px"
+            height: "500px"
         });
 
         this.bindEvents();
