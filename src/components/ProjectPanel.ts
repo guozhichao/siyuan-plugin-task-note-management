@@ -19,12 +19,14 @@ export class ProjectPanel {
     private projectsContainer: HTMLElement;
     private filterSelect: HTMLSelectElement;
     private categoryFilterSelect: HTMLSelectElement;
+    private categoryFilterButton: HTMLButtonElement;
     private sortButton: HTMLButtonElement;
     private searchInput: HTMLInputElement;
     private showOnlyWithDoingCheckbox: HTMLInputElement;
     private plugin: any;
     private currentTab: string = 'all';
     private currentCategoryFilter: string = 'all';
+    private selectedCategories: string[] = [];
     private currentSort: string = 'priority';
     private currentSortOrder: 'asc' | 'desc' = 'desc';
     private currentSearchQuery: string = '';
@@ -231,17 +233,21 @@ export class ProjectPanel {
         controls.appendChild(this.filterSelect);
 
         // 分类筛选
-        this.categoryFilterSelect = document.createElement('select');
-        this.categoryFilterSelect.className = 'b3-select';
-        this.categoryFilterSelect.style.cssText = `
-            flex: 1;
-            min-width: 0;
+        this.categoryFilterButton = document.createElement('button');
+        this.categoryFilterButton.className = 'b3-button b3-button--outline';
+        this.categoryFilterButton.style.cssText = `
+            display: inline-block;
+            max-width: 200px;
+            box-sizing: border-box;
+            padding: 0 8px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            vertical-align: middle;
+            text-align: left;
         `;
-        this.categoryFilterSelect.addEventListener('change', () => {
-            this.currentCategoryFilter = this.categoryFilterSelect.value;
-            this.loadProjects();
-        });
-        controls.appendChild(this.categoryFilterSelect);
+        this.categoryFilterButton.addEventListener('click', () => this.showCategorySelectDialog());
+        controls.appendChild(this.categoryFilterButton);
 
         // 添加"只显示进行中>0"复选框
         const doingFilterContainer = document.createElement('label');
@@ -310,7 +316,7 @@ export class ProjectPanel {
         this.container.appendChild(this.projectsContainer);
 
         // 渲染分类过滤器
-        this.renderCategoryFilter();
+        this.updateCategoryFilterButtonText();
         this.updateSortButtonTitle();
     }
 
@@ -337,29 +343,19 @@ export class ProjectPanel {
         }
     }
 
-    private async renderCategoryFilter() {
-        if (!this.categoryFilterSelect) return;
+    private updateCategoryFilterButtonText() {
+        if (!this.categoryFilterButton) return;
 
-        try {
-            const categories = this.categoryManager.getCategories();
-
-            this.categoryFilterSelect.innerHTML = `
-                <option value="all" ${this.currentCategoryFilter === 'all' ? 'selected' : ''}>${t("allCategories") || "全部分类"}</option>
-                <option value="none" ${this.currentCategoryFilter === 'none' ? 'selected' : ''}>${t("noCategory") || "无分类"}</option>
-            `;
-
-            categories.forEach(category => {
-                const optionEl = document.createElement('option');
-                optionEl.value = category.id;
-                const displayText = category.icon ? `${category.icon} ${category.name}` : category.name;
-                optionEl.textContent = displayText;
-                optionEl.selected = this.currentCategoryFilter === category.id;
-                this.categoryFilterSelect.appendChild(optionEl);
+        if (this.selectedCategories.length === 0 || this.selectedCategories.includes('all')) {
+            this.categoryFilterButton.textContent = t("categoryFilter") || "分类筛选";
+        } else {
+            // 显示选中的分类名称
+            const names = this.selectedCategories.map(id => {
+                if (id === 'none') return t("noCategory") || "无分类";
+                const cat = this.categoryManager.getCategoryById(id);
+                return cat ? cat.name : id;
             });
-
-        } catch (error) {
-            console.error('渲染分类过滤器失败:', error);
-            this.categoryFilterSelect.innerHTML = `<option value="all">${t("allCategories") || "全部分类"}</option>`;
+            this.categoryFilterButton.textContent = names.join(', ');
         }
     }
 
@@ -515,15 +511,13 @@ export class ProjectPanel {
     }
 
     private applyCategoryFilter(projects: any[]): any[] {
-        if (this.currentCategoryFilter === 'all') {
+        if (this.selectedCategories.length === 0 || this.selectedCategories.includes('all')) {
             return projects;
         }
 
         return projects.filter(project => {
-            if (this.currentCategoryFilter === 'none') {
-                return !project.categoryId;
-            }
-            return project.categoryId === this.currentCategoryFilter;
+            const categoryId = project.categoryId || 'none';
+            return this.selectedCategories.includes(categoryId);
         });
     }
 
@@ -1661,7 +1655,7 @@ export class ProjectPanel {
     private showCategoryManageDialog() {
         const categoryDialog = new CategoryManageDialog(() => {
             // 分类更新后重新渲染过滤器和项目列表
-            this.renderCategoryFilter();
+            this.updateCategoryFilterButtonText();
             this.loadProjects();
             window.dispatchEvent(new CustomEvent('projectUpdated'));
         });
@@ -1920,5 +1914,98 @@ export class ProjectPanel {
         groupWrapper.appendChild(listContainer);
 
         return groupWrapper;
+    }
+
+    private async showCategorySelectDialog() {
+        const categories = await this.categoryManager.loadCategories();
+
+        const dialog = new Dialog({
+            title: t("selectCategories") || "选择分类",
+            content: this.createCategorySelectContent(categories),
+            width: "400px",
+            height: "250px"
+        });
+
+        // 绑定事件
+        const confirmBtn = dialog.element.querySelector('#categorySelectConfirm') as HTMLButtonElement;
+        const cancelBtn = dialog.element.querySelector('#categorySelectCancel') as HTMLButtonElement;
+        const allCheckbox = dialog.element.querySelector('#categoryAll') as HTMLInputElement;
+        const checkboxes = dialog.element.querySelectorAll('.category-checkbox') as NodeListOf<HTMLInputElement>;
+
+        // 当"全部"改变时
+        allCheckbox.addEventListener('change', () => {
+            if (allCheckbox.checked) {
+                checkboxes.forEach(cb => cb.checked = false);
+            }
+        });
+
+        // 当其他改变时
+        checkboxes.forEach(cb => {
+            cb.addEventListener('change', () => {
+                if (cb.checked) {
+                    allCheckbox.checked = false;
+                }
+            });
+        });
+
+        confirmBtn.addEventListener('click', () => {
+            const selected = [];
+            if (allCheckbox.checked) {
+                selected.push('all');
+            } else {
+                checkboxes.forEach(cb => {
+                    if (cb.checked) {
+                        selected.push(cb.value);
+                    }
+                });
+            }
+            this.selectedCategories = selected;
+            this.updateCategoryFilterButtonText();
+            this.loadProjects();
+            dialog.destroy();
+        });
+
+        cancelBtn.addEventListener('click', () => dialog.destroy());
+    }
+
+    private createCategorySelectContent(categories: any[]): string {
+        let html = `
+            <div class="category-select-dialog">
+                <div class="b3-dialog__content">
+                    <div class="category-option">
+                        <label>
+                            <input type="checkbox" id="categoryAll" value="all" ${this.selectedCategories.includes('all') || this.selectedCategories.length === 0 ? 'checked' : ''}>
+                            ${t("allCategories") || "全部"}
+                        </label>
+                    </div>
+                    <div class="category-option">
+                        <label>
+                            <input type="checkbox" class="category-checkbox" value="none" ${this.selectedCategories.includes('none') ? 'checked' : ''}>
+                            ${t("noCategory") || "无分类"}
+                        </label>
+                    </div>
+        `;
+
+        categories.forEach(cat => {
+            html += `
+                <div class="category-option">
+                    <label>
+                        <input type="checkbox" class="category-checkbox" value="${cat.id}" ${this.selectedCategories.includes(cat.id) ? 'checked' : ''}>
+                        ${cat.icon || ''} ${cat.name}
+                    </label>
+                </div>
+            `;
+        });
+
+        html += `
+                </div>
+                <div class="b3-dialog__action">
+                    <button class="b3-button b3-button--cancel" id="categorySelectCancel">${t("cancel")}</button>
+                    <button class="b3-button b3-button--primary" id="categorySelectConfirm">${t("confirm")}</button>
+                </div>
+            </div>
+        `;
+
+        return html;
     }
 }
