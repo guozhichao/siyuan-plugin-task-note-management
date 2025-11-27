@@ -911,14 +911,20 @@ export class DocumentReminderDialog {
     }
 
     private async editReminder(reminder: any) {
-        const editDialog = new QuickReminderDialog({
-            mode: 'edit',
-            reminder: reminder,
-            onSave: () => {
+        const editDialog = new QuickReminderDialog(
+            undefined,
+            undefined,
+            () => {
                 this.loadReminders();
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            },
+            undefined,
+            {
+                mode: 'edit',
+                reminder: reminder,
+                plugin: this.plugin
             }
-        });
+        );
         editDialog.show();
     }
 
@@ -938,7 +944,14 @@ export class DocumentReminderDialog {
 
     // 添加新建提醒对话框方法
     private showAddReminderDialog() {
-        const dialog = new QuickReminderDialog(this.documentId);
+        const dialog = new QuickReminderDialog(undefined, undefined, () => {
+            this.loadReminders();
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+        }, undefined, {
+            blockId: this.documentId,
+            mode: 'block',
+            plugin: this.plugin
+        });
         dialog.show();
 
         // 监听提醒更新事件以刷新当前对话框

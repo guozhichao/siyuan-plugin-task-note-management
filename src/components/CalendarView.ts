@@ -975,14 +975,22 @@ export class CalendarView {
                 instanceDate: instanceDate
             };
 
-            const editDialog = new QuickReminderDialog({
-                mode: 'edit',
-                reminder: instanceData,
-                onSave: async () => {
-                    await this.refreshEvents();
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            const editDialog = new QuickReminderDialog(
+                instanceData.date,
+                instanceData.time,
+                undefined,
+                undefined,
+                {
+                    reminder: instanceData,
+                    mode: 'edit',
+                    onSaved: async () => {
+                        await this.refreshEvents();
+                        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    },
+                    plugin: this.plugin,
+                    isInstanceEdit: true
                 }
-            });
+            );
             editDialog.show();
         } catch (error) {
             console.error('打开实例编辑对话框失败:', error);
@@ -2196,17 +2204,24 @@ export class CalendarView {
             if (reminderData[reminderId]) {
                 const reminder = reminderData[reminderId];
 
-                const editDialog = new QuickReminderDialog({
-                    mode: 'edit',
-                    reminder: reminder,
-                    onSave: async () => {
-                        // 刷新日历事件
-                        await this.refreshEvents();
+                const editDialog = new QuickReminderDialog(
+                    reminder.date,
+                    reminder.time,
+                    undefined,
+                    undefined,
+                    {
+                        reminder: reminder,
+                        mode: 'edit',
+                        onSaved: async () => {
+                            // 刷新日历事件
+                            await this.refreshEvents();
 
-                        // 触发全局更新事件
-                        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                            // 触发全局更新事件
+                            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                        },
+                        plugin: this.plugin
                     }
-                });
+                );
 
                 editDialog.show();
             } else {
@@ -2230,17 +2245,24 @@ export class CalendarView {
             if (reminderData[originalId]) {
                 const reminder = reminderData[originalId];
 
-                const editDialog = new QuickReminderDialog({
-                    mode: 'edit',
-                    reminder: reminder,
-                    onSave: async () => {
-                        // 刷新日历事件
-                        await this.refreshEvents();
+                const editDialog = new QuickReminderDialog(
+                    reminder.date,
+                    reminder.time,
+                    undefined,
+                    undefined,
+                    {
+                        reminder: reminder,
+                        mode: 'edit',
+                        onSaved: async () => {
+                            // 刷新日历事件
+                            await this.refreshEvents();
 
-                        // 触发全局更新事件
-                        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                            // 触发全局更新事件
+                            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                        },
+                        plugin: this.plugin
                     }
-                });
+                );
 
                 editDialog.show();
             } else {
@@ -3370,13 +3392,20 @@ export class CalendarView {
             };
 
             // 打开编辑对话框
-            const editDialog = new QuickReminderDialog({
-                mode: 'edit',
-                reminder: editData,
-                onSave: async (modifiedReminder) => {
-                    await this.performSplitOperation(originalReminder, modifiedReminder);
+            const editDialog = new QuickReminderDialog(
+                editData.date,
+                editData.time,
+                undefined,
+                undefined,
+                {
+                    reminder: editData,
+                    mode: 'edit',
+                    onSaved: async (modifiedReminder) => {
+                        await this.performSplitOperation(originalReminder, modifiedReminder);
+                    },
+                    plugin: this.plugin
                 }
-            });
+            );
             editDialog.show();
 
         } catch (error) {

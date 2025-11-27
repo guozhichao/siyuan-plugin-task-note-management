@@ -1741,14 +1741,20 @@ export class EisenhowerMatrixView {
             }
         }
 
-        const editDialog = new QuickReminderDialog({
-            mode: 'edit',
-            reminder: taskData,
-            onSave: async () => {
+        const editDialog = new QuickReminderDialog(
+            undefined,
+            undefined,
+            async () => {
                 await this.refresh();
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            },
+            undefined,
+            {
+                mode: 'edit',
+                reminder: taskData,
+                plugin: this.plugin
             }
-        });
+        );
 
         // 添加项目选择功能到编辑对话框
         (editDialog as any).showProjectSelector = () => {
@@ -4011,14 +4017,21 @@ export class EisenhowerMatrixView {
                 instanceDate: task.date
             };
 
-            const editDialog = new QuickReminderDialog({
-                mode: 'edit',
-                reminder: instanceData,
-                onSave: async () => {
+            const editDialog = new QuickReminderDialog(
+                undefined,
+                undefined,
+                async () => {
                     await this.loadTasks();
                     window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                },
+                undefined,
+                {
+                    mode: 'edit',
+                    reminder: instanceData,
+                    plugin: this.plugin,
+                    isInstanceEdit: true
                 }
-            });
+            );
             editDialog.show();
         } catch (error) {
             console.error('打开实例编辑对话框失败:', error);

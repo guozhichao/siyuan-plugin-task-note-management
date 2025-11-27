@@ -1856,13 +1856,18 @@ export class ReminderDialog {
     }
 
     private showTimeEditDialog(reminder: any) {
-        const editDialog = new QuickReminderDialog({
-            mode: 'edit',
-            reminder: reminder,
-            onSave: () => {
+        const editDialog = new QuickReminderDialog(
+            undefined,
+            undefined,
+            () => {
                 this.loadExistingReminder();
+            },
+            undefined,
+            {
+                mode: 'edit',
+                reminder: reminder
             }
-        });
+        );
         editDialog.show();
     }
 

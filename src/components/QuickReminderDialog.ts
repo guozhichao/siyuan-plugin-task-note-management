@@ -1053,7 +1053,7 @@ export class QuickReminderDialog {
                         </div>
                         
                         <!-- 添加重复设置 -->
-                        <div class="b3-form__group">
+                        <div class="b3-form__group" id="repeatSettingsGroup" style="${this.isInstanceEdit ? 'display: none;' : ''}">
                             <label class="b3-form__label">${t("repeatSettings")}</label>
                             <div class="repeat-setting-container">
                                 <button type="button" id="quickRepeatSettingsBtn" class="b3-button b3-button--outline" style="width: 100%;">
@@ -2092,98 +2092,195 @@ export class QuickReminderDialog {
             let reminderId: string;
 
             if (this.mode === 'edit' && this.reminder) {
-                // 编辑模式：更新现有提醒
-                reminderId = this.reminder.id;
-                reminder = { ...this.reminder };
+                // 检查是否是实例编辑
+                if (this.isInstanceEdit && this.reminder.isInstance) {
+                    // 实例编辑：保存实例级别的修改
+                    const instanceModification = {
+                        title: title,
+                        date: date,
+                        endDate: endDate,
+                        time: time,
+                        endTime: endTime,
+                        note: note,
+                        priority: priority,
+                        notified: false // 重置通知状态
+                    };
 
-                // 更新字段
-                reminder.title = title;
-                reminder.blockId = inputId || null;
-                reminder.date = date || undefined;
-                reminder.time = time;
-                reminder.endDate = endDate || undefined;
-                reminder.endTime = endTime;
-                reminder.note = note;
-                reminder.priority = priority;
-                reminder.categoryId = categoryId;
-                reminder.projectId = projectId;
-                reminder.customGroupId = customGroupId;
-                reminder.customReminderTime = customReminderTime;
-                reminder.customReminderPreset = customReminderPreset;
-                reminder.repeat = this.repeatConfig.enabled ? this.repeatConfig : undefined;
+                    // 调用实例修改保存方法
+                    await this.saveInstanceModification({
+                        originalId: this.reminder.originalId,
+                        instanceDate: this.reminder.instanceDate,
+                        ...instanceModification
+                    });
 
-                // 根据任务类型设置看板状态
-                if (termType === 'doing') {
-                    reminder.kanbanStatus = 'doing';
-                } else if (termType === 'long_term') {
-                    reminder.kanbanStatus = 'todo';
-                    reminder.termType = 'long_term';
-                } else if (termType === 'short_term') {
-                    reminder.kanbanStatus = 'todo';
-                    reminder.termType = 'short_term';
-                } else if (termType === 'todo') {
-                    reminder.kanbanStatus = 'todo';
-                    reminder.termType = 'short_term'; // 默认todo为短期待办
-                }
+                    showMessage("实例编辑成功");
 
-                reminder.termType = termType;
-                reminder.updatedAt = new Date().toISOString();
+                    // 触发更新事件
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    // 触发项目更新事件（包含块属性变更）
+                    window.dispatchEvent(new CustomEvent('projectUpdated'));
 
-                // 细化：按字段重置通知状态（因为时间或自定义提醒时间可能改变）
-                try {
-                    const now = new Date();
-
-                    // 解析新的时间的完整 Date 对象（如果有日期）
-                    const newDateTime = date ? new Date(time ? `${date}T${time}` : `${date}T00:00:00`) : null;
-
-                    // 如果任务时间被修改且新的时间在未来，则重置 notifiedTime
-                    if (this.reminder.time !== time) {
-                        if (newDateTime && newDateTime > now) {
-                            reminder.notifiedTime = false;
-                        }
+                    // 调用保存回调（传递原始提醒数据）
+                    if (this.onSaved) {
+                        this.onSaved(this.reminder);
                     }
 
-                    // 如果自定义提醒时间被修改且新的自定义提醒时间在未来，则重置 notifiedCustomTime
-                    if (this.reminder.customReminderTime !== customReminderTime) {
-                        if (customReminderTime) {
-                            // customReminderTime 可能是 datetime-local 或仅 time
-                            let customDateTime: Date | null = null;
-                            try {
-                                if (customReminderTime.includes('T')) {
-                                    customDateTime = new Date(customReminderTime);
-                                } else if (date) {
-                                    customDateTime = new Date(`${date}T${customReminderTime}`);
-                                } else {
-                                    // 没有日期时，默认按当天处理
-                                    const today = getLocalDateString();
-                                    customDateTime = new Date(`${today}T${customReminderTime}`);
+                    this.dialog.destroy();
+                    return;
+                } else {
+                    // 普通编辑：更新现有提醒
+                    reminderId = this.reminder.id;
+                    reminder = { ...this.reminder };
+
+                    // 更新字段
+                    reminder.title = title;
+                    reminder.blockId = inputId || null;
+                    reminder.date = date || undefined;
+                    reminder.time = time;
+                    reminder.endDate = endDate || undefined;
+                    reminder.endTime = endTime;
+                    reminder.note = note;
+                    reminder.priority = priority;
+                    reminder.categoryId = categoryId;
+                    reminder.projectId = projectId;
+                    reminder.customGroupId = customGroupId;
+                    reminder.customReminderTime = customReminderTime;
+                    reminder.customReminderPreset = customReminderPreset;
+                    reminder.repeat = this.repeatConfig.enabled ? this.repeatConfig : undefined;
+
+                    // 根据任务类型设置看板状态
+                    if (termType === 'doing') {
+                        reminder.kanbanStatus = 'doing';
+                    } else if (termType === 'long_term') {
+                        reminder.kanbanStatus = 'todo';
+                        reminder.termType = 'long_term';
+                    } else if (termType === 'short_term') {
+                        reminder.kanbanStatus = 'todo';
+                        reminder.termType = 'short_term';
+                    } else if (termType === 'todo') {
+                        reminder.kanbanStatus = 'todo';
+                        reminder.termType = 'short_term'; // 默认todo为短期待办
+                    }
+
+                    reminder.termType = termType;
+                    reminder.updatedAt = new Date().toISOString();
+
+                    // 细化：按字段重置通知状态（因为时间或自定义提醒时间可能改变）
+                    try {
+                        const now = new Date();
+
+                        // 解析新的时间的完整 Date 对象（如果有日期）
+                        const newDateTime = date ? new Date(time ? `${date}T${time}` : `${date}T00:00:00`) : null;
+
+                        // 如果任务时间被修改且新的时间在未来，则重置 notifiedTime
+                        if (this.reminder.time !== time) {
+                            if (newDateTime && newDateTime > now) {
+                                reminder.notifiedTime = false;
+                            }
+                        }
+
+                        // 如果自定义提醒时间被修改且新的自定义提醒时间在未来，则重置 notifiedCustomTime
+                        if (this.reminder.customReminderTime !== customReminderTime) {
+                            if (customReminderTime) {
+                                // customReminderTime 可能是 datetime-local 或仅 time
+                                let customDateTime: Date | null = null;
+                                try {
+                                    if (customReminderTime.includes('T')) {
+                                        customDateTime = new Date(customReminderTime);
+                                    } else if (date) {
+                                        customDateTime = new Date(`${date}T${customReminderTime}`);
+                                    } else {
+                                        // 没有日期时，默认按当天处理
+                                        const today = getLocalDateString();
+                                        customDateTime = new Date(`${today}T${customReminderTime}`);
+                                    }
+                                } catch (err) {
+                                    customDateTime = null;
                                 }
-                            } catch (err) {
-                                customDateTime = null;
-                            }
 
-                            if (customDateTime && customDateTime > now) {
-                                reminder.notifiedCustomTime = false;
+                                if (customDateTime && customDateTime > now) {
+                                    reminder.notifiedCustomTime = false;
+                                }
                             }
                         }
-                    }
 
-                    // 重新计算总体 notified（如果只有其中之一存在，则以该字段为准）
-                    const hasTime = !!reminder.time;
-                    const hasCustom = !!reminder.customReminderTime;
-                    const nt = !!reminder.notifiedTime;
-                    const nc = !!reminder.notifiedCustomTime;
-                    if (hasTime && hasCustom) {
-                        reminder.notified = nt && nc;
-                    } else if (hasTime) {
-                        reminder.notified = nt;
-                    } else if (hasCustom) {
-                        reminder.notified = nc;
-                    } else {
+                        // 重新计算总体 notified（如果只有其中之一存在，则以该字段为准）
+                        const hasTime = !!reminder.time;
+                        const hasCustom = !!reminder.customReminderTime;
+                        const nt = !!reminder.notifiedTime;
+                        const nc = !!reminder.notifiedCustomTime;
+                        if (hasTime && hasCustom) {
+                            reminder.notified = nt && nc;
+                        } else if (hasTime) {
+                            reminder.notified = nt;
+                        } else if (hasCustom) {
+                            reminder.notified = nc;
+                        } else {
+                            reminder.notified = false;
+                        }
+                    } catch (err) {
                         reminder.notified = false;
                     }
-                } catch (err) {
-                    reminder.notified = false;
+
+                    reminderData[reminderId] = reminder;
+                    await writeReminderData(reminderData);
+
+                    // 将绑定的块添加项目ID属性 custom-task-projectId（支持多项目）
+                    if (reminder.blockId) {
+                        try {
+                            const { addBlockProjectId, setBlockProjectIds } = await import('../api');
+                            if (reminder.projectId) {
+                                await addBlockProjectId(reminder.blockId, reminder.projectId);
+                                console.debug('QuickReminderDialog: addBlockProjectId for block', reminder.blockId, 'projectId', reminder.projectId);
+                            } else {
+                                // 清理属性（设置为空列表）
+                                await setBlockProjectIds(reminder.blockId, []);
+                                console.debug('QuickReminderDialog: cleared custom-task-projectId for block', reminder.blockId);
+                            }
+                        } catch (error) {
+                            console.warn('设置块自定义属性 custom-task-projectId 失败:', error);
+                        }
+                    }
+
+                    // 显示保存成功消息
+                    let successMessage = t("reminderUpdated");
+                    if (date) {
+                        // 只有在有日期时才显示日期信息
+                        if (endDate && endDate !== date) {
+                            // 跨天事件
+                            const startTimeStr = time ? ` ${time}` : '';
+                            const endTimeStr = endTime ? ` ${endTime}` : '';
+                            successMessage += `：${date}${startTimeStr} → ${endDate}${endTimeStr}`;
+                        } else if (endTime && time) {
+                            // 同一天的时间段事件
+                            successMessage += `：${date} ${time} - ${endTime}`;
+                        } else {
+                            // 普通事件
+                            successMessage += `：${date}${time ? ` ${time}` : ''}`;
+                        }
+                    }
+
+                    if (this.repeatConfig.enabled) {
+                        successMessage += `，${getRepeatDescription(this.repeatConfig)}`;
+                    }
+
+                    // 添加分类信息到成功消息
+                    if (categoryId) {
+                        const category = this.categoryManager.getCategoryById(categoryId);
+                        if (category) {
+                            successMessage += `，${t("category")}: ${category.name}`;
+                        }
+                    }
+
+                    // 添加项目信息到成功消息
+                    if (projectId) {
+                        const project = this.projectManager.getProjectById(projectId);
+                        if (project) {
+                            successMessage += `，${t("project")}: ${project.name}`;
+                        }
+                    }
+
+                    showMessage(successMessage);
                 }
             } else {
                 // 创建模式：创建新提醒
@@ -2376,6 +2473,47 @@ export class QuickReminderDialog {
         } catch (error) {
             console.error('保存快速提醒失败:', error);
             showMessage(this.mode === 'edit' ? t("updateReminderFailed") : t("saveReminderFailed"));
+        }
+    }
+
+    /**
+     * 保存重复事件实例的修改
+     */
+    private async saveInstanceModification(instanceData: any) {
+        try {
+            const { readReminderData, writeReminderData } = await import("../api");
+            const originalId = instanceData.originalId;
+            const instanceDate = instanceData.instanceDate;
+
+            const reminderData = await readReminderData();
+
+            if (!reminderData[originalId]) {
+                throw new Error('原始事件不存在');
+            }
+
+            // 初始化实例修改列表
+            if (!reminderData[originalId].repeat.instanceModifications) {
+                reminderData[originalId].repeat.instanceModifications = {};
+            }
+
+            // 保存此实例的修改数据
+            reminderData[originalId].repeat.instanceModifications[instanceDate] = {
+                title: instanceData.title,
+                date: instanceData.date,
+                endDate: instanceData.endDate,
+                time: instanceData.time,
+                endTime: instanceData.endTime,
+                note: instanceData.note,
+                priority: instanceData.priority,
+                notified: instanceData.notified,
+                modifiedAt: new Date().toISOString().split('T')[0]
+            };
+
+            await writeReminderData(reminderData);
+
+        } catch (error) {
+            console.error('保存实例修改失败:', error);
+            throw error;
         }
     }
 }

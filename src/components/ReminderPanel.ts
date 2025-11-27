@@ -4827,14 +4827,20 @@ export class ReminderPanel {
             };
 
             // 打开编辑对话框
-            const editDialog = new QuickReminderDialog({
-                mode: 'edit',
-                reminder: editData,
-                onSave: async (modifiedReminder) => {
+            const editDialog = new QuickReminderDialog(
+                undefined,
+                undefined,
+                async (modifiedReminder) => {
                     // 编辑完成后执行分割逻辑
                     await this.performSplitOperation(originalReminder, modifiedReminder);
+                },
+                undefined,
+                {
+                    mode: 'edit',
+                    reminder: editData,
+                    plugin: this.plugin
                 }
-            });
+            );
             editDialog.show();
 
         } catch (error) {
@@ -4972,16 +4978,22 @@ export class ReminderPanel {
             await writeReminderData(reminderData);
 
             // 5. 打开编辑对话框编辑新系列
-            const editDialog = new QuickReminderDialog({
-                mode: 'edit',
-                reminder: newReminder,
-                onSave: async () => {
+            const editDialog = new QuickReminderDialog(
+                undefined,
+                undefined,
+                async () => {
                     this.loadReminders();
                     window.dispatchEvent(new CustomEvent('reminderUpdated', {
                         detail: { skipPanelRefresh: true }
                     }));
+                },
+                undefined,
+                {
+                    mode: 'edit',
+                    reminder: newReminder,
+                    plugin: this.plugin
                 }
-            });
+            );
             editDialog.show();
 
         } catch (error) {
@@ -5040,7 +5052,8 @@ export class ReminderPanel {
                 {
                     mode: 'edit',
                     reminder: instanceData,
-                    plugin: this.plugin
+                    plugin: this.plugin,
+                    isInstanceEdit: true
                 }
             );
             editDialog.show();

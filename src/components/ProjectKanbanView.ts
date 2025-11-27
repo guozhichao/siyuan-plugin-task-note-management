@@ -4483,7 +4483,12 @@ export class ProjectKanbanView {
                 taskToEdit = originalReminder;
             }
 
-            const editDialog = new QuickReminderDialog(taskToEdit, this.plugin, true);
+            const callback = async () => {
+                await this.loadTasks();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            };
+
+            const editDialog = new QuickReminderDialog(undefined, undefined, callback, undefined, {mode: 'edit', reminder: taskToEdit, onSaved: callback, plugin: this.plugin});
             editDialog.show();
         } catch (error) {
             console.error('打开编辑对话框失败:', error);
@@ -7136,14 +7141,21 @@ export class ProjectKanbanView {
                 instanceDate: task.date
             };
 
-            const editDialog = new QuickReminderDialog({
-                mode: 'edit',
-                reminder: instanceData,
-                onSave: async () => {
+            const editDialog = new QuickReminderDialog(
+                undefined,
+                undefined,
+                async () => {
                     await this.loadTasks();
                     window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                },
+                undefined,
+                {
+                    mode: 'edit',
+                    reminder: instanceData,
+                    plugin: this.plugin,
+                    isInstanceEdit: true
                 }
-            });
+            );
             editDialog.show();
         } catch (error) {
             console.error('打开实例编辑对话框失败:', error);
