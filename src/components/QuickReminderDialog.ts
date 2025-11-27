@@ -2079,6 +2079,12 @@ export class QuickReminderDialog {
             }
         }
 
+        // 如果启用了重复设置，则必须提供起始日期（重复任务需要基准日期）
+        if (this.repeatConfig && this.repeatConfig.enabled && !date) {
+            showMessage(t('pleaseSetStartDateForRepeat') || '请为重复任务设置起始日期');
+            return;
+        }
+
         try {
             const reminderData = await readReminderData();
 

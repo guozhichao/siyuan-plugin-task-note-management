@@ -89,6 +89,7 @@
     "changedToTimed": "已修改为定时事件",
     "pleaseEnterTitle": "请输入事件标题",
     "pleaseSelectDate": "请选择提醒日期",
+    "pleaseSetStartDateForRepeat": "重复任务需要设置起始日期才能创建",
     "endDateCannotBeEarlier": "结束日期不能早于开始日期",
     "endDateAdjusted": "结束日期已自动调整为开始日期",
     "operationFailed": "操作失败，请重试",

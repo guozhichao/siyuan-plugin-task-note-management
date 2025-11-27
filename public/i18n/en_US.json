@@ -86,6 +86,7 @@
     "changedToTimed": "Changed to timed event",
     "pleaseEnterTitle": "Please enter event title",
     "pleaseSelectDate": "Please select reminder date",
+    "pleaseSetStartDateForRepeat": "Please set a start date to create a repeating reminder",
     "endDateCannotBeEarlier": "End date cannot be earlier than start date",
     "endDateAdjusted": "End date has been automatically adjusted to start date",
     "operationFailed": "Operation failed, please try again",
