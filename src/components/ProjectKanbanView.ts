@@ -5262,19 +5262,18 @@ export class ProjectKanbanView {
 
             .project-kanban-container {
                 flex: 1;
-                display: grid;
+                display: flex;
                 gap: 16px;
                 padding: 16px;
+                overflow-x: auto;
                 overflow-y: auto;
                 min-height: 0;
-                /* 自适应列布局：每列最小280px，最大1fr，自动填充 */
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                /* 水平滚动布局：每列固定宽度 */
             }
 
             /* 确保在极窄屏幕上也能正常显示 */
             @media (max-width: 320px) {
                 .project-kanban-container {
-                    grid-template-columns: 1fr;
                     padding: 8px;
                     gap: 8px;
                 }
@@ -5286,7 +5285,7 @@ export class ProjectKanbanView {
                 border: 1px solid var(--b3-theme-border);
                 display: flex;
                 flex-direction: column;
-                min-width: 0; /* 允许网格收缩 */
+                min-width: 280px; /* 固定最小宽度 */
                 max-height: 100%;
             }
 
