@@ -1,6 +1,6 @@
 import { showMessage, Dialog } from "siyuan";
 import { readReminderData, writeReminderData, getBlockByID, getBlockDOM, updateBlockReminderBookmark } from "../api";
-import { getLocalDateString, getLocalTimeString } from "../utils/dateUtils";
+import { getLocalDateString, getLocalTimeString, compareDateStrings } from "../utils/dateUtils";
 import { CategoryManager, Category } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
 import { t } from "../utils/i18n";
@@ -2466,6 +2466,21 @@ export class QuickReminderDialog {
             }
 
             showMessage(successMessage);
+
+            // 如果是新建任务且有日期，且日期为今天或过去，但用户没有显式设置为进行中，提示自动显示为进行中
+            try {
+                const today = getLocalDateString();
+                if (!this.mode || this.mode !== 'edit') {
+                    if (reminder.date && typeof compareDateStrings === 'function') {
+                        const cmp = compareDateStrings(reminder.date, today);
+                        if (cmp <= 0 && reminder.kanbanStatus !== 'doing') {
+                            showMessage('注意：任务日期为今天或过去，系统会将其自动显示在“进行中”列。若需移出，请修改任务的日期/时间。', 5000);
+                        }
+                    }
+                }
+            } catch (err) {
+                // ignore
+            }
 
             // 触发更新事件
             window.dispatchEvent(new CustomEvent('reminderUpdated'));

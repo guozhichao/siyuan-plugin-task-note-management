@@ -4065,6 +4065,41 @@ export class ProjectKanbanView {
 
     private async changeTaskStatus(task: any, newStatus: string) {
         try {
+            // 如果当前是通过拖拽触发的状态变更，并且任务有设置日期且该日期为今天或已过
+            // 则阻止直接把它移出 "进行中"，提示用户需要修改任务时间才能移出。
+            try {
+                const today = getLocalDateString();
+                if (this.isDragging && task && task.date && compareDateStrings(task.date, today) <= 0 && newStatus !== 'doing') {
+                    const dialog = new Dialog({
+                        title: '提示',
+                        content: `
+                            <div class="b3-dialog__content">
+                                <p>该任务的日期为今天或已过，系统会将其自动显示在“进行中”列。</p>
+                                <p>要将任务移出“进行中”，需要修改任务的日期或时间。</p>
+                            </div>
+                            <div class="b3-dialog__action">
+                                <button class="b3-button b3-button--cancel" id="cancelBtn">取消</button>
+                                <button class="b3-button b3-button--primary" id="editBtn">编辑任务时间</button>
+                            </div>
+                        `,
+                        width: "420px"
+                    });
+
+                    const cancelBtn = dialog.element.querySelector('#cancelBtn') as HTMLButtonElement;
+                    const editBtn = dialog.element.querySelector('#editBtn') as HTMLButtonElement;
+
+                    cancelBtn.addEventListener('click', () => dialog.destroy());
+                    editBtn.addEventListener('click', async () => {
+                        dialog.destroy();
+                        // 打开编辑对话框以便用户修改时间
+                        await this.editTask(task);
+                    });
+
+                    return; // 中断后续状态切换
+                }
+            } catch (err) {
+                // ignore parsing errors and continue
+            }
             const reminderData = await readReminderData();
 
             // 对于周期实例，使用 originalId；否则使用 task.id
