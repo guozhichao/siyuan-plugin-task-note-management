@@ -1733,6 +1733,8 @@ export class CalendarView {
             const newEndDateStr = getLocalDateString(untilDate);
 
             // 根据用户反馈，使用 `repeat.endDate` 而不是 `repeat.until` 来终止系列。
+            // 保存原始 series 的原始 endDate（如果有）以便在新系列中保留
+            const originalSeriesEndDate = originalReminder.repeat?.endDate;
             if (!originalReminder.repeat) { originalReminder.repeat = {}; }
             originalReminder.repeat.endDate = newEndDateStr;
 
@@ -1740,8 +1742,12 @@ export class CalendarView {
             const newReminder = JSON.parse(JSON.stringify(originalReminder));
 
             // 清理新提醒以开始新的生命周期。
-            // 它不应从原始事件继承系列结束日期。
-            delete newReminder.repeat.endDate;
+            // 对于新系列，保留原始系列的 endDate（如果有），以避免丢失用户设置的结束日期。
+            if (originalSeriesEndDate) {
+                newReminder.repeat.endDate = originalSeriesEndDate;
+            } else {
+                delete newReminder.repeat.endDate;
+            }
             // 同时清除旧系列的实例特定数据。
             delete newReminder.repeat.excludeDates;
             delete newReminder.repeat.instanceModifications;
@@ -2543,15 +2549,15 @@ export class CalendarView {
                     }
                 }
 
-                // 添加原始事件
-                this.addEventToList(events, reminder, reminder.id, false);
+                // 如果有重复设置，则不显示原始事件（只显示实例）；否则显示原始事件
+                if (!reminder.repeat?.enabled) {
+                    this.addEventToList(events, reminder, reminder.id, false);
+                }
 
                 // 如果有重复设置，生成重复事件实例
                 if (reminder.repeat?.enabled) {
                     const repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
                     repeatInstances.forEach(instance => {
-                        // 跳过与原始事件相同日期的实例
-                        if (instance.date !== reminder.date) {
                             // 检查实例级别的完成状态
                             const completedInstances = reminder.repeat?.completedInstances || [];
                             const isInstanceCompleted = completedInstances.includes(instance.date);
@@ -2584,7 +2590,7 @@ export class CalendarView {
                             // 确保实例ID的唯一性，避免重复
                             const uniqueInstanceId = `${reminder.id}_instance_${instance.date}`;
                             this.addEventToList(events, instanceReminder, uniqueInstanceId, true, instance.originalId);
-                        }
+                        
                     });
                 }
             }
@@ -3402,8 +3408,13 @@ export class CalendarView {
             // 2. 创建新的重复事件系列
             const newReminder = JSON.parse(JSON.stringify(originalReminder));
 
-            // 清理新提醒的重复历史数据
-            delete newReminder.repeat.endDate;
+            // 清理新提醒的重复历史数据，同时保留原始系列的 endDate
+            const originalEndDate = originalReminder.repeat?.endDate;
+            if (originalEndDate) {
+                newReminder.repeat.endDate = originalEndDate;
+            } else {
+                delete newReminder.repeat.endDate;
+            }
             delete newReminder.repeat.excludeDates;
             delete newReminder.repeat.instanceModifications;
             delete newReminder.repeat.completedInstances;
@@ -3425,10 +3436,16 @@ export class CalendarView {
             // 应用重复设置
             if (modifiedReminder.repeat && modifiedReminder.repeat.enabled) {
                 newReminder.repeat = { ...modifiedReminder.repeat };
-                delete newReminder.repeat.endDate;
+                // 如果用户没有在新的重复设置中指定 endDate，则保留原始系列的 endDate（如果有）
+                if (!newReminder.repeat.endDate && originalEndDate) {
+                    newReminder.repeat.endDate = originalEndDate;
+                }
             } else {
                 newReminder.repeat = { ...originalReminder.repeat };
-                delete newReminder.repeat.endDate;
+                // 保留原始系列的 endDate（如果有）
+                if (!newReminder.repeat.endDate && originalEndDate) {
+                    newReminder.repeat.endDate = originalEndDate;
+                }
             }
 
             // 4. 保存修改
