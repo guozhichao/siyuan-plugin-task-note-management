@@ -46,6 +46,8 @@ export class ProjectKanbanView {
     private _groupDropIndicator: HTMLElement | null = null;
     // 拖拽时用于 setDragImage 的克隆元素（用于预览整个 group-item）
     private _groupDragImageEl: HTMLElement | null = null;
+    // 自定义分组列拖拽时的指示器（列间插入指示）
+    private _columnDropIndicator: HTMLElement | null = null;
     private sortButton: HTMLButtonElement;
     private doneSortButton: HTMLButtonElement;
     private isLoading: boolean = false;
@@ -77,6 +79,79 @@ export class ProjectKanbanView {
         this.categoryManager = CategoryManager.getInstance();
         this.customGroupManager = CustomGroupManager.getInstance();
         this.initializeAsync();
+    }
+
+    private async createGroupDialog(container: HTMLElement) {
+        const dialog = new Dialog({
+            title: t('newGroup'),
+            content: `
+                <div class="b3-dialog__content">
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">${t('groupName')}</label>
+                        <input type="text" id="newGroupName" class="b3-text-field" placeholder="${t('pleaseEnterGroupName')}" style="width: 100%;">
+                    </div>
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">${t('groupColor')}</label>
+                        <input type="color" id="newGroupColor" class="b3-text-field" value="#3498db" style="width: 100%;">
+                    </div>
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">${t('iconOptional')}</label>
+                        <input type="text" id="newGroupIcon" class="b3-text-field" placeholder="${t('emojiIconExample')}" style="width: 100%;">
+                    </div>
+                </div>
+                <div class="b3-dialog__action">
+                    <button class="b3-button b3-button--cancel" id="newGroupCancel">${t('cancel')}</button>
+                    <button class="b3-button b3-button--primary" id="newGroupSave">${t('createGroup')}</button>
+                </div>
+            `,
+            width: '420px'
+        });
+
+        const nameInput = dialog.element.querySelector('#newGroupName') as HTMLInputElement;
+        const colorInput = dialog.element.querySelector('#newGroupColor') as HTMLInputElement;
+        const iconInput = dialog.element.querySelector('#newGroupIcon') as HTMLInputElement;
+        const cancelBtn = dialog.element.querySelector('#newGroupCancel') as HTMLButtonElement;
+        const saveBtn = dialog.element.querySelector('#newGroupSave') as HTMLButtonElement;
+
+        cancelBtn.addEventListener('click', () => dialog.destroy());
+
+        saveBtn.addEventListener('click', async () => {
+            const name = nameInput.value.trim();
+            const color = colorInput.value;
+            const icon = iconInput.value.trim();
+
+            if (!name) {
+                showMessage(t('pleaseEnterGroupName') || '请输入分组名称');
+                return;
+            }
+
+            try {
+                const { ProjectManager } = await import('../utils/projectManager');
+                const projectManager = ProjectManager.getInstance();
+                const currentGroups = await projectManager.getProjectCustomGroups(this.projectId);
+
+                const maxSort = currentGroups.reduce((max: number, g: any) => Math.max(max, g.sort || 0), 0);
+                const newGroup = {
+                    id: `group_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                    name,
+                    color,
+                    icon,
+                    sort: maxSort + 10
+                };
+
+                currentGroups.push(newGroup);
+                await projectManager.setProjectCustomGroups(this.projectId, currentGroups);
+
+                await this.loadAndDisplayGroups(container);
+                this.renderKanban();
+
+                showMessage(t('groupCreated'));
+                dialog.destroy();
+            } catch (error) {
+                console.error('创建分组失败:', error);
+                showMessage(t('createGroupFailed') || '创建分组失败');
+            }
+        });
     }
 
     private async initializeAsync() {
@@ -249,20 +324,14 @@ export class ProjectKanbanView {
         // 加载并显示现有分组
         await this.loadAndDisplayGroups(groupsContainer);
 
-        // 新建分组按钮
-        addGroupBtn.addEventListener('click', () => {
-            editingGroupId = null;
-            formTitle.textContent = t('newGroup');
-            groupNameInput.value = '';
-            groupColorInput.value = '#3498db';
-            groupIconInput.value = '';
-            groupForm.style.display = 'block';
-            saveGroupBtn.textContent = t('createGroup');
-
-            // 重置颜色选择器
-            colorPicker.querySelectorAll('.color-option').forEach(opt => {
-                opt.classList.remove('selected');
-            });
+        // 新建分组按钮：改为弹出独立的创建分组对话框（而不是页面内联表单）
+        addGroupBtn.addEventListener('click', async () => {
+            try {
+                await this.createGroupDialog(groupsContainer);
+            } catch (err) {
+                console.error('打开创建分组对话框失败:', err);
+                showMessage(t('openCreateGroupFailed') || '打开创建分组对话框失败');
+            }
         });
 
         // 取消表单
@@ -350,6 +419,8 @@ export class ProjectKanbanView {
             sortedGroups.forEach((group: any) => {
                 const groupItem = document.createElement('div');
                 groupItem.className = 'group-item';
+                // 标记 DOM 节点以便拖拽时可以识别并忽略自身
+                groupItem.dataset.groupId = group.id;
                 groupItem.style.cssText = `
                     display: flex;
                     align-items: center;
@@ -520,21 +591,37 @@ export class ProjectKanbanView {
 
                 container.addEventListener('dragover', (e) => {
                     try {
+                        // 支持从 dataTransfer 或类字段回退获取被拖拽的分组 id
                         const dt = (e as DragEvent).dataTransfer;
-                        if (!dt) return;
-                        const draggedId = dt.getData('text/plain');
+                        if (!dt && !this.draggedGroupId) return;
+                        let draggedId = '';
+                        try {
+                            if (dt) draggedId = dt.getData('text/plain') || '';
+                        } catch (err) {
+                            // dataTransfer 在某些环境可能受限，忽略错误并使用回退值
+                            draggedId = '';
+                        }
+                        if (!draggedId) draggedId = this.draggedGroupId || '';
                         if (!draggedId) return;
 
                         e.preventDefault();
                         dt.dropEffect = 'move';
 
-                        // 清除已有指示器
+                        // 清除旧的临时指示器（但保留对 _groupDropIndicator 的管理，下面会重建）
                         container.querySelectorAll('.group-drop-indicator').forEach(el => el.remove());
 
-                        const children = Array.from(container.querySelectorAll('.group-item')) as HTMLElement[];
+                        // 获取子项并忽略当前被拖拽的项，防止自己影响插入位置计算
+                        let children = Array.from(container.querySelectorAll('.group-item')) as HTMLElement[];
+                        children = children.filter(c => (c.dataset.groupId || '') !== draggedId);
 
                         // 创建静态位置指示器并插入到合适位置
                         const createIndicator = (beforeEl: HTMLElement | null) => {
+                            // 移除已有引用的指示器
+                            if (this._groupDropIndicator && this._groupDropIndicator.parentNode) {
+                                this._groupDropIndicator.parentNode.removeChild(this._groupDropIndicator);
+                                this._groupDropIndicator = null;
+                            }
+
                             const indicator = document.createElement('div');
                             indicator.className = 'group-drop-indicator';
                             indicator.style.cssText = `
@@ -546,6 +633,9 @@ export class ProjectKanbanView {
                             `;
                             if (beforeEl) container.insertBefore(indicator, beforeEl);
                             else container.appendChild(indicator);
+
+                            // 保存引用，方便 dragleave/drop 等处清理或重用
+                            this._groupDropIndicator = indicator;
                         };
 
                         if (children.length === 0) {
@@ -553,7 +643,7 @@ export class ProjectKanbanView {
                             return;
                         }
 
-                        // 根据 mouse Y 判断插入点
+                        // 根据 mouse Y 判断插入点（忽略被拖拽项）
                         const clientY = (e as DragEvent).clientY;
                         let inserted = false;
                         for (const child of children) {
@@ -1817,6 +1907,138 @@ export class ProjectKanbanView {
             icon: '📋'
         };
         this.renderCustomGroupColumnWithFourStatus(ungroupedGroup, ungroupedDoingTasks, ungroupedShortTermTasks, ungroupedLongTermTasks, ungroupedCompletedTasks);
+
+        // 为自定义分组列添加列级拖拽支持（可以直接拖动列头调整分组顺序）
+        try {
+            const kanbanContainer = this.container.querySelector('.project-kanban-container') as HTMLElement;
+            if (kanbanContainer && !kanbanContainer.dataset.hasColumnDropHandlers) {
+                kanbanContainer.dataset.hasColumnDropHandlers = '1';
+
+                kanbanContainer.addEventListener('dragover', (e) => {
+                    try {
+                        const dt = (e as DragEvent).dataTransfer;
+                        if (!dt && !this.draggedGroupId) return;
+
+                        let draggedId = '';
+                        try { if (dt) draggedId = dt.getData('text/plain') || ''; } catch (err) { draggedId = ''; }
+                        if (!draggedId) draggedId = this.draggedGroupId || '';
+                        if (!draggedId) return;
+
+                        e.preventDefault();
+                        if (dt) dt.dropEffect = 'move';
+
+                        // 清除已有指示器（DOM 中的）
+                        if (this._columnDropIndicator && this._columnDropIndicator.parentNode) {
+                            this._columnDropIndicator.parentNode.removeChild(this._columnDropIndicator);
+                            this._columnDropIndicator = null;
+                        }
+
+                        // 获取所有自定义分组列（含未分组），并过滤掉被拖拽的列
+                        let columns = Array.from(kanbanContainer.querySelectorAll('.kanban-column')) as HTMLElement[];
+                        columns = columns.filter(c => !!c.dataset.groupId);
+                        columns = columns.filter(c => (c.dataset.groupId || '') !== draggedId);
+
+                        const createIndicator = (beforeEl: HTMLElement | null) => {
+                            const indicator = document.createElement('div');
+                            indicator.className = 'column-drop-indicator';
+                            indicator.style.cssText = `
+                                width: 6px;
+                                background-color: var(--b3-theme-primary);
+                                border-radius: 3px;
+                                margin: 0 6px;
+                                align-self: stretch;
+                            `;
+                            if (beforeEl) kanbanContainer.insertBefore(indicator, beforeEl);
+                            else kanbanContainer.appendChild(indicator);
+                            this._columnDropIndicator = indicator;
+                        };
+
+                        if (columns.length === 0) {
+                            createIndicator(null);
+                            return;
+                        }
+
+                        const clientX = (e as DragEvent).clientX;
+                        let inserted = false;
+                        for (const col of columns) {
+                            const rect = col.getBoundingClientRect();
+                            const midpoint = rect.left + rect.width / 2;
+                            if (clientX < midpoint) {
+                                createIndicator(col);
+                                inserted = true;
+                                break;
+                            }
+                        }
+
+                        if (!inserted) createIndicator(null);
+                    } catch (err) {
+                        // ignore
+                    }
+                });
+
+                kanbanContainer.addEventListener('dragleave', (e) => {
+                    const related = (e as any).relatedTarget as Node;
+                    if (!related || !kanbanContainer.contains(related)) {
+                        if (this._columnDropIndicator && this._columnDropIndicator.parentNode) {
+                            this._columnDropIndicator.parentNode.removeChild(this._columnDropIndicator);
+                        }
+                        this._columnDropIndicator = null;
+                    }
+                });
+
+                kanbanContainer.addEventListener('drop', async (e) => {
+                    e.preventDefault();
+                    if (this._columnDropIndicator && this._columnDropIndicator.parentNode) {
+                        this._columnDropIndicator.parentNode.removeChild(this._columnDropIndicator);
+                    }
+                    this._columnDropIndicator = null;
+
+                    let draggedId = (e as DragEvent).dataTransfer?.getData('text/plain') || '';
+                    if (!draggedId) draggedId = this.draggedGroupId || '';
+                    if (!draggedId) return;
+
+                    try {
+                        const { ProjectManager } = await import('../utils/projectManager');
+                        const projectManager = ProjectManager.getInstance();
+                        const currentGroups = await projectManager.getProjectCustomGroups(this.projectId);
+
+                        const draggedIndex = currentGroups.findIndex((g: any) => g.id === draggedId);
+                        if (draggedIndex === -1) return;
+
+                        // 基于鼠标位置计算插入索引（忽略被拖拽列）
+                        let columns = Array.from(kanbanContainer.querySelectorAll('.kanban-column')) as HTMLElement[];
+                        columns = columns.filter(c => !!c.dataset.groupId);
+                        // 排除被拖拽的列 DOM
+                        const columnsFiltered = columns.filter(c => (c.dataset.groupId || '') !== draggedId);
+
+                        const clientX = (e as DragEvent).clientX;
+                        let insertIndex = columnsFiltered.length; // 默认末尾
+                        for (let i = 0; i < columnsFiltered.length; i++) {
+                            const rect = columnsFiltered[i].getBoundingClientRect();
+                            const midpoint = rect.left + rect.width / 2;
+                            if (clientX < midpoint) { insertIndex = i; break; }
+                        }
+
+                        // 从原数组移除并插入到目标位置
+                        const draggedGroup = currentGroups.splice(draggedIndex, 1)[0];
+                        currentGroups.splice(insertIndex, 0, draggedGroup);
+
+                        // 重新分配排序值并保存
+                        currentGroups.forEach((g: any, index: number) => { g.sort = index * 10; });
+                        await projectManager.setProjectCustomGroups(this.projectId, currentGroups);
+
+                        // 刷新看板
+                        this.renderKanban();
+                        showMessage('分组顺序已更新');
+                    } catch (error) {
+                        console.error('更新自定义分组顺序失败:', error);
+                        showMessage('更新分组顺序失败');
+                    }
+                });
+            }
+        } catch (err) {
+            // ignore
+        }
     }
 
     private async renderStatusKanban() {
@@ -2395,6 +2617,33 @@ export class ProjectKanbanView {
         headerRight.appendChild(addGroupTaskBtn);
 
         header.appendChild(headerRight);
+
+        // 使列头可以拖拽以调整分组顺序（直接在看板中拖动 header 调整顺序）
+        header.draggable = true;
+        header.dataset.groupId = group.id;
+
+        header.addEventListener('dragstart', (e) => {
+            this.draggedGroupId = group.id;
+            column.style.opacity = '0.5';
+            try {
+                if (e.dataTransfer) {
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', group.id);
+                }
+            } catch (err) {
+                // ignore
+            }
+        });
+
+        header.addEventListener('dragend', () => {
+            this.draggedGroupId = null;
+            column.style.opacity = '';
+            // 清除列插入指示器
+            if (this._columnDropIndicator && this._columnDropIndicator.parentNode) {
+                this._columnDropIndicator.parentNode.removeChild(this._columnDropIndicator);
+            }
+            this._columnDropIndicator = null;
+        });
 
         // 列内容
         const content = document.createElement('div');
