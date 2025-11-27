@@ -4488,7 +4488,7 @@ export class ProjectKanbanView {
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
             };
 
-            const editDialog = new QuickReminderDialog(undefined, undefined, callback, undefined, {mode: 'edit', reminder: taskToEdit, onSaved: callback, plugin: this.plugin});
+            const editDialog = new QuickReminderDialog(undefined, undefined, callback, undefined, { mode: 'edit', reminder: taskToEdit, onSaved: callback, plugin: this.plugin });
             editDialog.show();
         } catch (error) {
             console.error('打开编辑对话框失败:', error);
