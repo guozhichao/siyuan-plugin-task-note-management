@@ -5198,7 +5198,6 @@ export class ProjectKanbanView {
 
             .project-kanban-title {
                 flex: 1;
-                min-width: 200px;
             }
 
             .project-kanban-controls {
@@ -5286,6 +5285,7 @@ export class ProjectKanbanView {
                 display: flex;
                 flex-direction: column;
                 min-width: 280px; /* 固定最小宽度 */
+                flex: 1; /* 均匀分布宽度 */
                 max-height: 100%;
             }
 
