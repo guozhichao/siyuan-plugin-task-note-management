@@ -2427,45 +2427,6 @@ export class QuickReminderDialog {
                 }
             }
 
-            // 显示保存成功消息
-            let successMessage = this.mode === 'edit' ? t("reminderUpdated") : t("reminderSaved");
-            if (date) {
-                // 只有在有日期时才显示日期信息
-                if (endDate && endDate !== date) {
-                    // 跨天事件
-                    const startTimeStr = time ? ` ${time}` : '';
-                    const endTimeStr = endTime ? ` ${endTime}` : '';
-                    successMessage += `：${date}${startTimeStr} → ${endDate}${endTimeStr}`;
-                } else if (endTime && time) {
-                    // 同一天的时间段事件
-                    successMessage += `：${date} ${time} - ${endTime}`;
-                } else {
-                    // 普通事件
-                    successMessage += `：${date}${time ? ` ${time}` : ''}`;
-                }
-            }
-
-            if (this.repeatConfig.enabled) {
-                successMessage += `，${getRepeatDescription(this.repeatConfig)}`;
-            }
-
-            // 添加分类信息到成功消息
-            if (categoryId) {
-                const category = this.categoryManager.getCategoryById(categoryId);
-                if (category) {
-                    successMessage += `，${t("category")}: ${category.name}`;
-                }
-            }
-
-            // 添加项目信息到成功消息
-            if (projectId) {
-                const project = this.projectManager.getProjectById(projectId);
-                if (project) {
-                    successMessage += `，${t("project")}: ${project.name}`;
-                }
-            }
-
-            showMessage(successMessage);
 
             // 如果是新建任务且有日期，且日期为今天或过去，但用户没有显式设置为进行中，提示自动显示为进行中
             try {
