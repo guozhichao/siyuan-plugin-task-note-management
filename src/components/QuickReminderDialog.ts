@@ -74,7 +74,7 @@ export class QuickReminderDialog {
             instanceDate?: string;
         }
     ) {
-        this.initialDate = date || getLocalDateString();
+        this.initialDate = date;
         this.initialTime = time;
         this.isTimeRange = timeRangeOptions?.isTimeRange || false;
         this.initialEndDate = timeRangeOptions?.endDate;
@@ -906,7 +906,7 @@ export class QuickReminderDialog {
         // 初始化分类管理器
         await this.categoryManager.initialize();
 
-        const currentTime = this.initialTime || getLocalTimeString();
+        const currentTime = this.initialTime;
 
         // 如果传入了blockId，尝试获取块内容作为默认标题（优先 DOM 内容；文档根直接使用块/文档标题）
         this.blockContent = '';
@@ -1026,7 +1026,7 @@ export class QuickReminderDialog {
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("reminderDate")} (可选)</label>
                             <div class="reminder-date-container">
-                                <input type="date" id="quickReminderDate" class="b3-text-field" value="${this.initialDate}" max="9999-12-31">
+                                <input type="date" id="quickReminderDate" class="b3-text-field" value="${this.initialDate || ''}" max="9999-12-31">
                                 <span class="reminder-arrow">→</span>
                                 <input type="date" id="quickReminderEndDate" class="b3-text-field reminder-end-date" placeholder="${t("endDateOptional")}" title="${t("spanningEventDesc")}" max="9999-12-31">
                             </div>
@@ -1341,12 +1341,16 @@ export class QuickReminderDialog {
 
             // 如果当前值只有日期，添加默认时间，保留原有日期
             if (startValue && !startValue.includes('T')) {
-                const currentTime = this.initialTime || getLocalTimeString();
-                startDateInput.value = `${startValue}T${currentTime}`;
+                const currentTime = this.initialTime;
+                if (currentTime) {
+                    startDateInput.value = `${startValue}T${currentTime}`;
+                }
             } else if (!startValue) {
                 // 如果没有日期值，设置默认日期和时间
-                const currentTime = this.initialTime || getLocalTimeString();
-                startDateInput.value = `${this.initialDate}T${currentTime}`;
+                const currentTime = this.initialTime;
+                if (currentTime) {
+                    startDateInput.value = `${this.initialDate}T${currentTime}`;
+                }
             } else {
                 // 如果已经有完整的datetime-local格式，直接设置
                 startDateInput.value = startValue;
@@ -1355,15 +1359,19 @@ export class QuickReminderDialog {
             // 处理结束日期输入框
             if (endValue && !endValue.includes('T')) {
                 // 如果结束日期有值但没有时间，添加默认时间
-                const endTime = this.initialEndTime || this.initialTime || getLocalTimeString();
-                endDateInput.value = `${endValue}T${endTime}`;
+                const endTime = this.initialEndTime || this.initialTime;
+                if (endTime) {
+                    endDateInput.value = `${endValue}T${endTime}`;
+                }
             } else if (endValue) {
                 // 如果已经有完整的datetime-local格式，直接设置
                 endDateInput.value = endValue;
             } else if (this.isTimeRange && this.initialEndDate) {
                 // 如果没有当前值但是时间段选择且有初始结束日期和时间，设置初始值
-                const endTime = this.initialEndTime || this.initialTime || getLocalTimeString();
-                endDateInput.value = `${this.initialEndDate}T${endTime}`;
+                const endTime = this.initialEndTime || this.initialTime;
+                if (endTime) {
+                    endDateInput.value = `${this.initialEndDate}T${endTime}`;
+                }
             }
 
             if (dateTimeDesc) {
@@ -1695,7 +1703,7 @@ export class QuickReminderDialog {
 
         // 如果没有设置开始日期，使用初始日期或今天的日期
         if (!startDate) {
-            startDate = this.initialDate || getLocalDateString();
+            startDate = this.initialDate;
         }
 
         // 如果是农历重复类型，需要重新计算农历日期
