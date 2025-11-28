@@ -13,6 +13,9 @@ export class HabitCheckInEmojiDialog {
     private sharedCloseHandler?: (e: MouseEvent) => void;
     private sharedResizeHandler?: () => void;
     private sharedScrollHandler?: () => void;
+    // dragging state for reorder
+    private draggingIndex: number | null = null;
+    private dropBefore: boolean = false;
 
     constructor(habit: Habit, onSave: (emojis: HabitCheckInEmoji[]) => Promise<void>) {
         this.habit = habit;
@@ -70,6 +73,7 @@ export class HabitCheckInEmojiDialog {
             <div style="margin-bottom: 8px; font-size: 14px; font-weight: 600; color: var(--b3-theme-primary);"><strong>✨ 打卡选项说明</strong></div>
             <div style="margin-bottom: 4px; opacity: 0.9;">• <strong>Emoji 圆圈</strong>: 点击圆圈选择打卡时显示的图标</div>
             <div style="opacity: 0.9;">• <strong>含义说明</strong>: 为该打卡选项添加描述文字</div>
+            <div style="opacity: 0.9;">• <strong>拖动排序</strong>: 拖动左侧句柄以重新排序选项</div>
             `;
         container.appendChild(description);
 
@@ -212,6 +216,9 @@ export class HabitCheckInEmojiDialog {
 
     private createEmojiItem(emojiConfig: HabitCheckInEmoji, index: number): HTMLElement {
         const item = document.createElement('div');
+        // store index on DOM and enable HTML5 drag
+        item.dataset.index = String(index);
+        item.setAttribute('draggable', 'true');
         item.style.cssText = `
             display: flex;
             flex-direction: row;
@@ -235,6 +242,16 @@ export class HabitCheckInEmojiDialog {
             item.style.borderColor = 'var(--b3-theme-surface-lighter)';
             item.style.backgroundColor = 'var(--b3-theme-surface)';
         });
+
+        // 拖拽句柄 (用于排序)
+        const dragHandle = document.createElement('div');
+        dragHandle.title = '拖动排序';
+        dragHandle.style.cssText = `
+            width: 28px; height: 28px; display:flex; align-items:center; justify-content:center; margin-right:8px; flex-shrink:0; cursor: grab; border-radius:6px; color:var(--b3-theme-on-surface-light);
+        `;
+        dragHandle.innerHTML = '<svg style="width:14px;height:14px;opacity:0.9;" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 6H14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 12H14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 18H14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        // 插入到 item 前面
+        item.appendChild(dragHandle);
 
         // 删除按钮
         const deleteBtn = document.createElement('button');
@@ -394,11 +411,99 @@ export class HabitCheckInEmojiDialog {
 
         // 把 promptNote 插入到 item，放在含义输入后面
         item.appendChild(emojiContainer);
+
+        // - 放置到 DOM 的同一位置，之后会加入拖拽事件
         item.appendChild(meaningInput);
         item.appendChild(promptNoteWrap);
         item.appendChild(deleteBtn);
 
+        // Drag events: support reordering by dragging an item
+        const onDragStart = (ev: DragEvent) => {
+            try {
+                ev.dataTransfer?.setData('text/plain', String(index));
+                if (ev.dataTransfer) ev.dataTransfer.effectAllowed = 'move';
+            } catch (e) {
+                // ignore for older browsers
+            }
+            this.draggingIndex = index;
+            // hide picker during drag to avoid z-index and focus issues
+            if (this.sharedPicker) this.sharedPicker.style.display = 'none';
+            item.style.opacity = '0.6';
+            dragHandle.style.cursor = 'grabbing';
+        };
+
+        const onDragOver = (ev: DragEvent) => {
+            ev.preventDefault(); // allow drop
+            const rect = item.getBoundingClientRect();
+            const y = ev.clientY || 0;
+            this.dropBefore = y < (rect.top + rect.height / 2);
+            item.style.borderTop = this.dropBefore ? '2px dashed var(--b3-theme-primary)' : '';
+            item.style.borderBottom = !this.dropBefore ? '2px dashed var(--b3-theme-primary)' : '';
+        };
+
+        const onDragEnter = () => {
+            item.style.opacity = '0.9';
+        };
+
+        const onDragLeave = () => {
+            item.style.opacity = '1';
+            item.style.borderTop = '';
+            item.style.borderBottom = '';
+        };
+
+        const onDrop = (ev: DragEvent) => {
+            ev.preventDefault();
+            const data = ev.dataTransfer?.getData('text/plain');
+            const fromIdx = data ? parseInt(data, 10) : (this.draggingIndex ?? -1);
+            const toIdx = Number(item.dataset.index);
+            if (!isNaN(fromIdx) && fromIdx >= 0 && !isNaN(toIdx) && fromIdx !== toIdx) {
+                const insertAt = this.dropBefore ? toIdx : toIdx + 1;
+                this.moveEmoji(fromIdx, insertAt);
+                // re-render list after moving
+                const container = this.dialog.element.querySelector('#checkInEmojiContainer') as HTMLElement;
+                if (container) this.renderEmojiList(container);
+            }
+            this.draggingIndex = null;
+        };
+
+        const onDragEnd = () => {
+            item.style.opacity = '1';
+            dragHandle.style.cursor = 'grab';
+            item.style.borderTop = '';
+            item.style.borderBottom = '';
+            this.draggingIndex = null;
+        };
+
+        item.addEventListener('dragstart', onDragStart);
+        item.addEventListener('dragover', onDragOver);
+        item.addEventListener('dragenter', onDragEnter);
+        item.addEventListener('dragleave', onDragLeave);
+        item.addEventListener('drop', onDrop);
+        item.addEventListener('dragend', onDragEnd);
+
         return item;
+    }
+
+    private moveEmoji(fromIndex: number, toIndex: number) {
+        if (fromIndex < 0 || fromIndex >= this.emojis.length) return;
+        if (toIndex < 0) toIndex = 0;
+        if (toIndex > this.emojis.length) toIndex = this.emojis.length;
+
+        const removed = this.emojis.splice(fromIndex, 1)[0];
+        let insertAt = toIndex;
+        if (fromIndex < toIndex) insertAt = toIndex - 1;
+        this.emojis.splice(insertAt, 0, removed);
+
+        // update activePickerIndex mapping so picker (if active) stays with the emoji
+        if (this.activePickerIndex !== null) {
+            if (this.activePickerIndex === fromIndex) {
+                this.activePickerIndex = insertAt;
+            } else if (fromIndex < this.activePickerIndex && this.activePickerIndex <= insertAt) {
+                this.activePickerIndex = this.activePickerIndex - 1;
+            } else if (insertAt <= this.activePickerIndex && this.activePickerIndex < fromIndex) {
+                this.activePickerIndex = this.activePickerIndex + 1;
+            }
+        }
     }
 
     private addEmoji() {
