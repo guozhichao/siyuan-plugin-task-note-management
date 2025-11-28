@@ -2884,7 +2884,13 @@ export class ReminderPanel {
         const daysDiff = this.calculateReminderDaysDifference(targetDate, today);
 
         // 对于未来事件，daysDiff > 0；对于过期事件，daysDiff < 0
-        if (daysDiff === 0) {
+        // 特殊情况：跨天事件且目标日期为结束日期，且结束日期为今天时，应显示"还剩0天"
+        const isSpanningEvent = !!(reminder.endDate && reminder.endDate !== reminder.date);
+        const isTargetEndForSpanning = isSpanningEvent && targetDate === reminder.endDate;
+        const isInRange = isSpanningEvent && compareDateStrings(reminder.date, today) <= 0 && compareDateStrings(today, reminder.endDate) <= 0;
+
+        if (daysDiff === 0 && !(isTargetEndForSpanning && isInRange)) {
+            // 对于非跨天结束日的 0 天，仍然不显示倒计时（今天事件）
             return null;
         }
 
@@ -2929,12 +2935,12 @@ export class ReminderPanel {
 
                 if (isInRange) {
                     countdownEl.textContent = daysDiff === 1 ?
-                        "还剩1天" :
-                        `还剩${daysDiff}天`;
+                        t("spanningDaysLeftSingle") :
+                        t("spanningDaysLeftPlural", { days: daysDiff.toString() });
                 } else {
                     countdownEl.textContent = daysDiff === 1 ?
-                        "还有1天开始" :
-                        `还有${daysDiff}天开始`;
+                        t("startInDays", { days: daysDiff.toString() }) :
+                        t("startInDays", { days: daysDiff.toString() });
                 }
             } else {
                 countdownEl.textContent = daysDiff === 1 ?

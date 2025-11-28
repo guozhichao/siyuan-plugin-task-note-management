@@ -474,6 +474,8 @@
     "overdueBySingleDay": "Overdue by 1 day",
     "daysLeftPlural": "${days} days left",
     "daysLeftSingle": "1 day left",
+    "spanningDaysLeftPlural": "${days} days remaining",
+    "spanningDaysLeftSingle": "1 day remaining",
     "autoDetectDateTime": "Auto Detect Date Time",
     "autoDetectDateTimeDesc": "Automatically detect date and time information in block content when creating reminders, supports natural language expressions like 'tomorrow 3pm', 'next Friday', etc.",
     "addToProject": "Add to Project",
