@@ -2021,7 +2021,7 @@ export default class ReminderPlugin extends Plugin {
                     const systemNotificationEnabled = await this.getReminderSystemNotificationEnabled();
                     if (systemNotificationEnabled) {
                         const title = `⏰ ${t('habitReminder')}: ${reminderInfo.title}`;
-                        const message = `${reminderInfo.time} ${habit.groupId ? '[' + habit.groupId + ']' : ''}`.trim();
+                        const message = `${reminderInfo.time}`.trim();
                         this.showReminderSystemNotification(title, message, reminderInfo);
                     }
 
