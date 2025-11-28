@@ -42,6 +42,8 @@ export interface Habit {
             entries?: { emoji: string; timestamp: string; note?: string }[]; // 每次单独打卡记录
         };
     };
+    // 每日提醒通知状态 (键为 YYYY-MM-DD -> true/false)
+    hasNotify?: { [date: string]: boolean };
     totalCheckIns: number; // 总打卡次数（保留历史数据，已不在主面板显示）
     createdAt: string;
     updatedAt: string;

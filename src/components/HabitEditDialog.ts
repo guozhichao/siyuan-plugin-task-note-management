@@ -1,7 +1,7 @@
 import { Dialog, showMessage } from "siyuan";
 import { getBlockByID, getBlockDOM } from "../api";
 import { Habit } from "./HabitPanel";
-import { getLocalDateTimeString } from "../utils/dateUtils";
+import { getLocalDateTimeString, getLocalDateString } from "../utils/dateUtils";
 import { HabitGroupManager } from "../utils/habitGroupManager";
 
 export class HabitEditDialog {
@@ -538,6 +538,31 @@ export class HabitEditDialog {
             createdAt: this.habit?.createdAt || now,
             updatedAt: now
         };
+        // 初始化 hasNotify
+        if (!habit.hasNotify) habit.hasNotify = {};
+
+        // 如果是修改已有习惯，并且提醒时间被修改为新的值，且新的提醒时间晚于当前时间，则重置当天 hasNotify 为 false，方便再次提醒
+        if (this.habit && this.habit.reminderTime !== habit.reminderTime && habit.reminderTime) {
+            try {
+                const newTime = habit.reminderTime; // 格式: HH:mm
+                const parts = newTime.split(':');
+                if (parts.length >= 2) {
+                    const hour = parseInt(parts[0], 10);
+                    const minute = parseInt(parts[1], 10);
+                    if (!isNaN(hour) && !isNaN(minute)) {
+                        const now = new Date();
+                        const todayAtReminder = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute);
+                        if (todayAtReminder.getTime() > now.getTime()) {
+                            const todayStr = getLocalDateString();
+                            habit.hasNotify = habit.hasNotify || {};
+                            habit.hasNotify[todayStr] = false;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('判断提醒时间是否晚于当前时间失败', err);
+            }
+        }
 
         // set frequency details
         if (frequencyType === 'daily' || frequencyType === 'yearly') {
