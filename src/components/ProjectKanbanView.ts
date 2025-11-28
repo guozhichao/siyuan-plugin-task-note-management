@@ -1323,8 +1323,9 @@ export class ProjectKanbanView {
     private addCustomGroupDropZoneEvents(element: HTMLElement, groupId: string | null) {
         element.addEventListener('dragover', (e) => {
             if (this.isDragging && this.draggedTask) {
-                // 将 undefined 视为 null，对比当前分组是否与目标一致
-                const currentGroup = (this.draggedTask.customGroupId === undefined) ? null : this.draggedTask.customGroupId;
+                // 将 undefined 或字符串 'ungrouped' 视为 null，对比当前分组是否与目标一致
+                const currentGroupRaw = (this.draggedTask.customGroupId as any);
+                const currentGroup = (currentGroupRaw === undefined || currentGroupRaw === 'ungrouped') ? null : currentGroupRaw;
                 const canSetGroup = currentGroup !== groupId;
 
                 if (canSetGroup) {
@@ -1398,6 +1399,8 @@ export class ProjectKanbanView {
      */
     private async setTaskCustomGroup(task: any, groupId: string | null) {
         try {
+            // 归一化：确保 'ungrouped' 字符串也会被当作 null 处理
+            if (groupId === 'ungrouped') groupId = null;
             const reminderData = await readReminderData();
 
             if (!reminderData[task.id]) {
@@ -1464,6 +1467,12 @@ export class ProjectKanbanView {
 
             const reminderData = await readReminderData();
             const projectTasks = Object.values(reminderData).filter((reminder: any) => reminder && reminder.projectId === this.projectId);
+            // 修复遗留：如果任务中存在 customGroupId === 'ungrouped'，视为未分组（删除该字段）
+            projectTasks.forEach((t: any) => {
+                if (t && t.customGroupId === 'ungrouped') {
+                    delete t.customGroupId;
+                }
+            });
             const taskMap = new Map(projectTasks.map((t: any) => [t.id, { ...t }]));
 
             const getRootStatus = (task: any): string => {
@@ -3765,11 +3774,15 @@ export class ProjectKanbanView {
                 if (this.kanbanMode === 'custom') {
                     const targetSubGroup = taskEl.closest('.custom-status-group') as HTMLElement;
                     const targetStatus = targetSubGroup?.dataset.status;
-                    const targetGroup = targetSubGroup?.dataset.groupId;
+                    // dataset.groupId 可能为 "ungrouped"（字符串），需要归一化为 null
+                    const targetGroupRaw = targetSubGroup?.dataset.groupId;
+                    const targetGroup = (targetGroupRaw === 'ungrouped') ? null : targetGroupRaw;
 
                     if (targetStatus && targetStatus !== 'completed') {
                         const draggedStatus = this.getTaskStatus(this.draggedTask);
-                        const draggedGroup = this.draggedTask.customGroupId === undefined ? null : this.draggedTask.customGroupId;
+                        // 归一化 draggedTask.customGroupId，针对字符串 'ungrouped' 视为 null
+                        const draggedGroupRaw = this.draggedTask.customGroupId as any;
+                        const draggedGroup = (draggedGroupRaw === undefined || draggedGroupRaw === 'ungrouped') ? null : draggedGroupRaw;
 
                         // 检查是否需要改变状态或分组
                         const statusDifferent = draggedStatus !== targetStatus;
