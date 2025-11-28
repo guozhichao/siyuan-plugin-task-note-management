@@ -381,7 +381,7 @@ export default class ReminderPlugin extends Plugin {
             },
             type: "habit_dock",
             init: (dock) => {
-                new HabitPanel(dock.element);
+                new HabitPanel(dock.element, this);
             }
         });
 

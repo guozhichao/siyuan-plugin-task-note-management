@@ -52,6 +52,7 @@ export interface Habit {
 
 export class HabitPanel {
     private container: HTMLElement;
+    private plugin: any;
     private habitsContainer: HTMLElement;
     private filterSelect: HTMLSelectElement;
     private groupFilterButton: HTMLButtonElement;
@@ -65,8 +66,9 @@ export class HabitPanel {
     private habitUpdatedHandler: () => void;
     private collapsedGroups: Set<string> = new Set();
 
-    constructor(container: HTMLElement) {
+    constructor(container: HTMLElement, plugin?: any) {
         this.container = container;
+        this.plugin = plugin;
         this.groupManager = HabitGroupManager.getInstance();
 
         this.habitUpdatedHandler = () => {
@@ -1174,7 +1176,7 @@ export class HabitPanel {
     }
 
     private showCalendarView() {
-        const dialog = new HabitCalendarDialog();
+        const dialog = new HabitCalendarDialog(this.plugin);
         dialog.show();
     }
 

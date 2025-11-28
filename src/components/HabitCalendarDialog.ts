@@ -1,11 +1,17 @@
 import { Dialog } from "siyuan";
 import { readHabitData } from "../api";
 import { Habit } from "./HabitPanel";
+import { DEFAULT_SETTINGS } from "../index";
 
 export class HabitCalendarDialog {
+    private plugin: any;
     private dialog: Dialog;
     private currentView: 'week' | 'month' = 'week';
     private currentDate: Date = new Date();
+
+    constructor(plugin?: any) {
+        this.plugin = plugin;
+    }
 
     show() {
         this.dialog = new Dialog({
@@ -93,9 +99,22 @@ export class HabitCalendarDialog {
             this.renderCalendar(container);
         });
 
+        // 获取weekStartDay设置（默认周一）
+        let weekStartDay = DEFAULT_SETTINGS.weekStartDay ?? 1;
+        try {
+            if (this.plugin && typeof this.plugin.loadSettings === 'function') {
+                const settings = await this.plugin.loadSettings();
+                if (settings && typeof settings.weekStartDay === 'number') {
+                    weekStartDay = settings.weekStartDay;
+                }
+            }
+        } catch (err) {
+            console.warn('获取周开始日配置失败，使用默认值', err);
+        }
+
         const dateLabel = document.createElement('span');
         dateLabel.className = 'habit-calendar-date-label';
-        dateLabel.textContent = this.getDateRangeLabel();
+        dateLabel.textContent = this.getDateRangeLabel(weekStartDay);
 
         navigation.appendChild(prevBtn);
         navigation.appendChild(todayBtn);
@@ -115,7 +134,7 @@ export class HabitCalendarDialog {
         const habits: Habit[] = Object.values(habitData || {});
 
         if (this.currentView === 'week') {
-            this.renderWeekView(calendarContent, habits);
+            this.renderWeekView(calendarContent, habits, weekStartDay);
         } else {
             this.renderMonthView(calendarContent, habits);
         }
@@ -123,10 +142,12 @@ export class HabitCalendarDialog {
         container.appendChild(calendarContent);
     }
 
-    private getDateRangeLabel(): string {
+    private getDateRangeLabel(weekStartDay: number = DEFAULT_SETTINGS.weekStartDay): string {
         if (this.currentView === 'week') {
             const weekStart = new Date(this.currentDate);
-            weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+            // 计算偏移量：当前日期weekday相对于用户配置的周开始日的偏移
+            const offset = (weekStart.getDay() - (weekStartDay ?? DEFAULT_SETTINGS.weekStartDay) + 7) % 7;
+            weekStart.setDate(weekStart.getDate() - offset);
             const weekEnd = new Date(weekStart);
             weekEnd.setDate(weekEnd.getDate() + 6);
             return `${weekStart.getFullYear()}年${weekStart.getMonth() + 1}月${weekStart.getDate()}日 - ${weekEnd.getMonth() + 1}月${weekEnd.getDate()}日`;
@@ -135,7 +156,7 @@ export class HabitCalendarDialog {
         }
     }
 
-    private renderWeekView(container: HTMLElement, habits: Habit[]) {
+    private renderWeekView(container: HTMLElement, habits: Habit[], weekStartDay: number = DEFAULT_SETTINGS.weekStartDay) {
         const grid = document.createElement('div');
         grid.className = 'habit-calendar-grid week-view';
         grid.style.display = 'grid';
@@ -150,7 +171,9 @@ export class HabitCalendarDialog {
         grid.appendChild(habitHeader);
 
         const weekStart = new Date(this.currentDate);
-        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+        // 根据用户设置的周开始日计算本周起始日期
+        const offset = (weekStart.getDay() - (weekStartDay ?? DEFAULT_SETTINGS.weekStartDay) + 7) % 7;
+        weekStart.setDate(weekStart.getDate() - offset);
 
         for (let i = 0; i < 7; i++) {
             const date = new Date(weekStart);
@@ -158,7 +181,9 @@ export class HabitCalendarDialog {
             const th = document.createElement('div');
             th.className = 'grid-header date-header';
             th.contentEditable = 'false';
-            th.textContent = `${['日', '一', '二', '三', '四', '五', '六'][i]} ${date.getMonth() + 1}/${date.getDate()}`;
+            // 计算每列的星期名称，根据 weekStartDay 决定顺序
+            const weekday = (weekStartDay + i) % 7;
+            th.textContent = `${['日', '一', '二', '三', '四', '五', '六'][weekday]} ${date.getMonth() + 1}/${date.getDate()}`;
             grid.appendChild(th);
         }
 
