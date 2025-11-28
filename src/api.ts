@@ -651,14 +651,41 @@ export async function ensureReminderDataFile(): Promise<void> {
 
 const NOTIFY_FILE_PATH = "/data/storage/petal/siyuan-plugin-task-note-management/notify.json";
 
-// 读取通知记录数据
-export async function readNotifyData(): Promise<Record<string, boolean>> {
+// 读取通知记录数据 (仅存储最后一次已提醒的日期)
+export async function readNotifyData(): Promise<{ lastNotified?: string }> {
     try {
         const content = await getFile(NOTIFY_FILE_PATH);
         if (!content || content?.code === 404) {
             return {};
         }
-        return typeof content === 'string' ? JSON.parse(content) : content;
+        const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+        // Migration: if file contains old schema (date->bool mapping), convert to new schema
+        if (parsed && typeof parsed === 'object') {
+            // If it already has lastNotified, just return
+            if (typeof parsed.lastNotified === 'string') {
+                return { lastNotified: parsed.lastNotified };
+            }
+
+            // If parsed is a mapping of date -> boolean, find the (latest) date that was true
+            const dateKeys = Object.keys(parsed).filter(k => /\d{4}-\d{2}-\d{2}/.test(k));
+            if (dateKeys.length > 0) {
+                // Find the latest date key with truthy value
+                const validDates = dateKeys.filter(k => !!parsed[k]);
+                if (validDates.length > 0) {
+                    // Choose the latest date string (lexicographical sort works for YYYY-MM-DD)
+                    const latest = validDates.sort().pop();
+                    const result = { lastNotified: latest };
+                    // Rewrite the file to the new schema to clean up old entries
+                    try {
+                        await writeNotifyData(result);
+                    } catch (err) {
+                        console.warn('迁移通知记录文件到新结构失败:', err);
+                    }
+                    return result;
+                }
+            }
+        }
+        return {};
     } catch (error) {
         console.warn('读取通知记录文件失败:', error);
         return {};
@@ -666,7 +693,7 @@ export async function readNotifyData(): Promise<Record<string, boolean>> {
 }
 
 // 写入通知记录数据
-export async function writeNotifyData(data: Record<string, boolean>): Promise<void> {
+export async function writeNotifyData(data: { lastNotified?: string }): Promise<void> {
     try {
         const content = JSON.stringify(data, null, 2);
         const blob = new Blob([content], { type: 'application/json' });
@@ -677,7 +704,7 @@ export async function writeNotifyData(data: Record<string, boolean>): Promise<vo
     }
 }
 
-// 确保通知记录文件存在
+// 确保通知记录文件存在（仅创建空对象）
 export async function ensureNotifyDataFile(): Promise<void> {
     try {
         // 尝试读取文件
@@ -696,7 +723,8 @@ export async function ensureNotifyDataFile(): Promise<void> {
 export async function hasNotifiedToday(date: string): Promise<boolean> {
     try {
         const notifyData = await readNotifyData();
-        return notifyData[date] === true;
+        // 仅检查最后一次已提醒日期是否等于传入日期
+        return notifyData.lastNotified === date;
     } catch (error) {
         console.warn('检查通知记录失败:', error);
         return false;
@@ -706,9 +734,8 @@ export async function hasNotifiedToday(date: string): Promise<boolean> {
 // 标记某日期已提醒全天事件
 export async function markNotifiedToday(date: string): Promise<void> {
     try {
-        const notifyData = await readNotifyData();
-        notifyData[date] = true;
-        await writeNotifyData(notifyData);
+        // 仅存储最后一次已提醒日期，覆盖此前的数据
+        await writeNotifyData({ lastNotified: date });
     } catch (error) {
         console.error('标记通知记录失败:', error);
     }
