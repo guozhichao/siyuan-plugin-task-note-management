@@ -947,9 +947,10 @@
 }
 
 // 通用 dialog 布局优化
-.checkInEmojiContainer,
-.habitAddSingleEntryContainer,
-.habitEditSingleEntryContainer,
+#habitEditContainer,
+#checkInEmojiContainer,
+#habitAddSingleEntryContainer,
+#habitEditSingleEntryContainer,
 .status-manage-dialog,
 .project-dialog,
 .category-select-dialog,

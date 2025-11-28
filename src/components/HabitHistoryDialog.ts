@@ -107,20 +107,15 @@ export class HabitHistoryDialog {
             header.appendChild(dateDiv);
 
             const previewDiv = document.createElement('div');
+            // Only show emojis as a compact summary; keep meaning in tooltip
             previewDiv.style.cssText = 'display:flex; gap:6px; align-items:center; flex-wrap:wrap;';
             entries.slice(0, 5).forEach(e => {
                 const span = document.createElement('span');
                 span.textContent = e.emoji;
                 span.title = e.meaning || '';
-                span.style.cssText = 'font-size:18px; margin-right:4px;';
-                const meaningSpan = document.createElement('span');
-                meaningSpan.textContent = e.meaning ? ` ${e.meaning}` : '';
-                meaningSpan.style.cssText = 'font-size:12px; color:var(--b3-theme-on-surface-light); margin-right:8px;';
-                const wrapSpan = document.createElement('span');
-                wrapSpan.style.cssText = 'display:flex; gap:6px; align-items:center;';
-                wrapSpan.appendChild(span);
-                wrapSpan.appendChild(meaningSpan);
-                previewDiv.appendChild(wrapSpan);
+                // add a slight right margin for spacing; keep font size prominent
+                span.style.cssText = 'font-size:18px; margin-right:6px;';
+                previewDiv.appendChild(span);
             });
             header.appendChild(previewDiv);
 
@@ -216,7 +211,16 @@ export class HabitHistoryDialog {
 
         const container = dialog.element.querySelector('#habitAddSingleEntryContainer') as HTMLElement;
         if (!container) return;
-        container.style.cssText = 'padding:12px; display:flex; flex-direction:column; gap:8px;';
+
+        // Ensure two child containers: content and action
+        let contentDiv = document.createElement('div');
+        contentDiv.className = 'b3-dialog__content';
+        contentDiv.style.cssText = 'padding:12px; display:flex; flex-direction:column; gap:8px;';
+        container.appendChild(contentDiv);
+        let actionDiv = document.createElement('div');
+        actionDiv.className = 'b3-dialog__action';
+        actionDiv.style.cssText = 'display:flex; justify-content:flex-end; gap:8px; margin-top:8px;';
+        container.appendChild(actionDiv);
 
         const dateRow = document.createElement('div');
         dateRow.style.cssText = 'display:flex; gap:8px; align-items:center;';
@@ -228,7 +232,7 @@ export class HabitHistoryDialog {
         dateInput.style.cssText = 'flex:1;';
         dateRow.appendChild(dateLabel);
         dateRow.appendChild(dateInput);
-        container.appendChild(dateRow);
+        contentDiv.appendChild(dateRow);
 
         const timeRow = document.createElement('div');
         timeRow.style.cssText = 'display:flex; gap:8px; align-items:center;';
@@ -244,12 +248,12 @@ export class HabitHistoryDialog {
         timeInput.style.cssText = 'flex:1;';
         timeRow.appendChild(timeLabel);
         timeRow.appendChild(timeInput);
-        container.appendChild(timeRow);
+        contentDiv.appendChild(timeRow);
 
         const emojiLabel = document.createElement('div');
         emojiLabel.textContent = '打卡状态';
         emojiLabel.style.cssText = 'font-weight:bold;';
-        container.appendChild(emojiLabel);
+        contentDiv.appendChild(emojiLabel);
 
         const wrap = document.createElement('div');
         wrap.style.cssText = 'display:flex; flex-wrap:wrap; gap:8px;';
@@ -270,17 +274,17 @@ export class HabitHistoryDialog {
             });
             wrap.appendChild(btn);
         });
-        container.appendChild(wrap);
+        contentDiv.appendChild(wrap);
 
         const noteLabel = document.createElement('div');
         noteLabel.textContent = '备注（可选）';
-        container.appendChild(noteLabel);
+        contentDiv.appendChild(noteLabel);
         const noteInput = document.createElement('textarea');
         noteInput.style.cssText = 'width:100%; height:80px; box-sizing:border-box; padding:8px; resize:vertical;';
-        container.appendChild(noteInput);
+        contentDiv.appendChild(noteInput);
 
         const btnRow = document.createElement('div');
-        btnRow.style.cssText = 'display:flex; justify-content:flex-end; gap:8px; margin-top:8px;';
+        // we'll append to actionDiv instead
         const cancelBtn = document.createElement('button');
         cancelBtn.className = 'b3-button';
         cancelBtn.textContent = '取消';
@@ -312,7 +316,7 @@ export class HabitHistoryDialog {
         });
         btnRow.appendChild(cancelBtn);
         btnRow.appendChild(saveBtn);
-        container.appendChild(btnRow);
+        actionDiv.appendChild(btnRow);
     }
 
     // 删除整天编辑功能（只支持单条 entry 的编辑和删除）
@@ -344,17 +348,26 @@ export class HabitHistoryDialog {
             title: `编辑 ${dateStr} 第 ${index + 1} 次打卡`,
             content: '<div id="habitEditSingleEntryContainer"></div>',
             width: '360px',
-            height: '280px'
+            height: '330px'
         });
 
         const container = dialog.element.querySelector('#habitEditSingleEntryContainer') as HTMLElement;
         if (!container) return;
-        container.style.cssText = 'padding:12px;';
+
+        // Ensure two child containers: content and action
+        let contentDiv = document.createElement('div');
+        contentDiv.className = 'b3-dialog__content';
+        contentDiv.style.cssText = 'padding:12px;';
+        container.appendChild(contentDiv);
+        let actionDiv = document.createElement('div');
+        actionDiv.className = 'b3-dialog__action';
+        actionDiv.style.cssText = 'display:flex; justify-content:flex-end; gap:8px; margin-top:12px;';
+        container.appendChild(actionDiv);
 
         const label = document.createElement('div');
         label.textContent = '选择新的打卡状态';
         label.style.cssText = 'margin-bottom:8px; color:var(--b3-theme-on-surface-light);';
-        container.appendChild(label);
+        contentDiv.appendChild(label);
 
         const wrap = document.createElement('div');
         wrap.style.cssText = 'display:flex; flex-wrap:wrap; gap:8px;';
@@ -379,24 +392,24 @@ export class HabitHistoryDialog {
             });
             wrap.appendChild(btn);
         });
-        container.appendChild(wrap);
+        contentDiv.appendChild(wrap);
         // 备注输入区
         const noteLabel = document.createElement('div');
         noteLabel.textContent = '备注（可选）';
         noteLabel.style.cssText = 'margin-top:8px; margin-bottom:4px; color:var(--b3-theme-on-surface-light);';
-        container.appendChild(noteLabel);
+        contentDiv.appendChild(noteLabel);
 
         const noteInput = document.createElement('textarea');
         noteInput.style.cssText = 'width:100%; height:80px; box-sizing:border-box; padding:8px; resize:vertical;';
         noteInput.value = entry.note || '';
-        container.appendChild(noteInput);
+        contentDiv.appendChild(noteInput);
 
         const noteDiv = document.createElement('div');
         noteDiv.style.cssText = 'color:var(--b3-theme-on-surface-light); margin-bottom:8px;';
         if (!emojiConfigs || emojiConfigs.length === 0) {
             noteDiv.textContent = '当前习惯没有可用的打卡状态，请先在习惯设置中添加。';
         }
-        container.appendChild(noteDiv);
+        contentDiv.appendChild(noteDiv);
 
         const btnRow = document.createElement('div');
         btnRow.style.cssText = 'display:flex; justify-content:flex-end; gap:8px; margin-top:12px;';
@@ -430,7 +443,7 @@ export class HabitHistoryDialog {
         });
         btnRow.appendChild(cancelBtn);
         btnRow.appendChild(saveBtn);
-        container.appendChild(btnRow);
+        actionDiv.appendChild(btnRow);
     }
 
     private async deleteEntry(dateStr: string, index: number) {

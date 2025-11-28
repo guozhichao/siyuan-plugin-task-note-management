@@ -74,6 +74,8 @@ export class HabitCheckInEmojiDialog {
 
         // Emoji列表 - 使用列表布局
         const listContainer = document.createElement('div');
+        // 设置class
+        listContainer.className = 'b3-dialog__content';
         listContainer.style.cssText = `
             flex: 1; 
             overflow-y: auto; 
@@ -93,6 +95,8 @@ export class HabitCheckInEmojiDialog {
 
         // 底部按钮
         const buttonContainer = document.createElement('div');
+        // 设置class
+        buttonContainer.className = 'b3-dialog__action';
         buttonContainer.style.cssText = 'display: flex; gap: 8px; justify-content: space-between;';
 
         // 添加新选项按钮

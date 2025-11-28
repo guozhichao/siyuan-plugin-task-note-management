@@ -28,12 +28,30 @@ export class HabitEditDialog {
         const container = this.dialog.element.querySelector('#habitEditContainer') as HTMLElement;
         if (!container) return;
 
-        this.renderForm(container, isNew);
+        // Ensure the container has two children: content and action areas.
+        // contentDiv will hold the scrollable form content, actionDiv will hold the action buttons.
+        let contentDiv = container.querySelector('.b3-dialog__content') as HTMLElement;
+        let actionDiv = container.querySelector('.b3-dialog__action') as HTMLElement;
+        if (!contentDiv) {
+            contentDiv = document.createElement('div');
+            contentDiv.className = 'b3-dialog__content';
+            container.appendChild(contentDiv);
+        }
+        if (!actionDiv) {
+            actionDiv = document.createElement('div');
+            actionDiv.className = 'b3-dialog__action';
+            container.appendChild(actionDiv);
+        }
+
+        // delegate the rendering of the form inside the contentDiv and the action area
+        this.renderForm(contentDiv, isNew, actionDiv);
     }
 
-    private renderForm(container: HTMLElement, isNew: boolean) {
-        container.style.cssText = 'padding: 20px; overflow-y: auto; height: 100%;';
-
+    private renderForm(container: HTMLElement, isNew: boolean, actionContainer?: HTMLElement) {
+        // the container here is the content area
+        container.style.cssText = 'padding: 20px; overflow-y: auto; height: calc(100% - 56px);';
+        // 设置class
+        container.className = 'b3-dialog__content';
         const form = document.createElement('form');
         form.style.cssText = 'display: flex; flex-direction: column; gap: 16px;';
 
@@ -121,6 +139,7 @@ export class HabitEditDialog {
         form.appendChild(priorityGroup);
 
         // 按钮
+        // 创建按钮组，不再作为表单内部直接的子元素；它将被放在 actionContainer（dialog action）中
         const buttonGroup = document.createElement('div');
         buttonGroup.style.cssText = 'display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;';
 
@@ -138,7 +157,7 @@ export class HabitEditDialog {
         buttonGroup.appendChild(cancelBtn);
         buttonGroup.appendChild(saveBtn);
 
-        form.appendChild(buttonGroup);
+        // Don't append buttonGroup to the form. It'll be appended to the actionContainer (sibling)
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -213,6 +232,25 @@ export class HabitEditDialog {
         });
 
         container.appendChild(form);
+
+        // insert the action container area and fill with buttons
+        if (actionContainer) {
+            // ensure actionContainer has proper padding/separation
+            actionContainer.style.cssText = 'display:flex; justify-content: flex-end; padding: 12px 20px; border-top: 1px solid rgba(0,0,0,0.04);';
+            // append buttons to actionContainer and keep buttonGroup as wrapper
+            actionContainer.appendChild(buttonGroup);
+        }
+
+        // If save is outside the form, trigger submit programmatically
+        saveBtn.addEventListener('click', () => {
+            // prefer modern API requestSubmit
+            if ((form as any).requestSubmit) {
+                (form as any).requestSubmit();
+            } else {
+                // fallback
+                form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+            }
+        });
     }
 
     private createFormGroup(label: string, type: string, name: string, value: string): HTMLElement {
