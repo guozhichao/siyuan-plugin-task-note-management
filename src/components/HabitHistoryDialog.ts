@@ -226,16 +226,16 @@ export class HabitHistoryDialog {
             wrap.appendChild(btn);
         });
         container.appendChild(wrap);
-    // 备注输入区
-    const noteLabel = document.createElement('div');
-    noteLabel.textContent = '备注（可选）';
-    noteLabel.style.cssText = 'margin-top:8px; margin-bottom:4px; color:var(--b3-theme-on-surface-light);';
-    container.appendChild(noteLabel);
+        // 备注输入区
+        const noteLabel = document.createElement('div');
+        noteLabel.textContent = '备注（可选）';
+        noteLabel.style.cssText = 'margin-top:8px; margin-bottom:4px; color:var(--b3-theme-on-surface-light);';
+        container.appendChild(noteLabel);
 
-    const noteInput = document.createElement('textarea');
-    noteInput.style.cssText = 'width:100%; height:80px; box-sizing:border-box; padding:8px; resize:vertical;';
-    noteInput.value = entry.note || '';
-    container.appendChild(noteInput);
+        const noteInput = document.createElement('textarea');
+        noteInput.style.cssText = 'width:100%; height:80px; box-sizing:border-box; padding:8px; resize:vertical;';
+        noteInput.value = entry.note || '';
+        container.appendChild(noteInput);
 
         const noteDiv = document.createElement('div');
         noteDiv.style.cssText = 'color:var(--b3-theme-on-surface-light); margin-bottom:8px;';
