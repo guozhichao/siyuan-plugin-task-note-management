@@ -1,0 +1,218 @@
+/* 习惯打卡日历样式 */
+
+/* 视图切换按钮样式 */
+.view-toggle-btn {
+    padding: 8px 16px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+    border-radius: 4px;
+}
+
+.view-toggle-btn.active {
+    background: var(--b3-theme-primary);
+    color: var(--b3-theme-on-primary);
+}
+
+.view-toggle-btn:hover {
+    background: var(--b3-theme-surface-lighter);
+}
+
+.view-toggle-btn.active:hover {
+    background: var(--b3-theme-primary);
+}
+
+/* 日期圆形徽章样式 */
+.date-badge {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    align-content: center;
+    width: 100%;
+    max-width: 100%;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    transition: all 0.2s ease;
+    user-select: none;
+    cursor: default;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    gap: 2px;
+    padding: 4px;
+    box-sizing: border-box;
+}
+
+/* 当emoji数量少时，保持正方形 */
+.date-badge.count-2,
+.date-badge.count-3,
+.date-badge:not(.count-4):not(.count-5):not(.count-6):not(.count-many):not(.multi) {
+    aspect-ratio: 1 / 1;
+}
+
+.date-badge:hover {
+    transform: scale(1.05);
+    /* 减小缩放以避免多行时过度放大 */
+    box-shadow: var(--b3-elevation-3, 0 4px 8px rgba(0, 0, 0, 0.15));
+}
+
+.date-badge .emoji {
+    display: inline-block;
+    line-height: 1;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+/* 2-3个emoji时缩小 */
+.date-badge.count-2 .emoji,
+.date-badge.count-3 .emoji {
+    font-size: 16px;
+}
+
+/* 4-6个emoji时更小 */
+.date-badge.count-4 .emoji,
+.date-badge.count-5 .emoji,
+.date-badge.count-6 .emoji {
+    font-size: 12px;
+}
+
+/* 7个或更多emoji时最小 */
+.date-badge.count-many .emoji {
+    font-size: 10px;
+}
+
+/* 兼容旧的 multi 类 */
+.date-badge.multi .emoji {
+    font-size: 12px;
+}
+
+/* 空状态样式 - 灰色圆圈 */
+.date-badge.empty-badge {
+    background: var(--b3-theme-surface-lighter);
+    opacity: 0.3;
+    box-shadow: none;
+}
+
+.date-badge.empty-badge:hover {
+    opacity: 0.8;
+    background: var(--b3-theme-surface-light);
+}
+
+/* Grid 布局样式 */
+.habit-calendar-grid {
+    padding-bottom: 20px;
+    grid-auto-rows: minmax(auto, max-content);
+    /* 确保行高度自适应内容 */
+}
+
+.grid-header {
+    padding: 12px 8px;
+    text-align: center;
+    font-weight: bold;
+    color: var(--b3-theme-on-surface);
+    background: var(--b3-theme-background);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    border-bottom: 1px solid var(--b3-theme-surface-lighter);
+}
+
+.grid-header.habit-header {
+    text-align: left;
+    left: 0;
+    z-index: 20;
+    /* 比普通表头更高，防止滚动时被遮挡 */
+    padding-left: 16px;
+}
+
+.grid-header.date-header {
+    font-size: 12px;
+    color: var(--b3-theme-on-surface-light);
+}
+
+.grid-cell {
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    cursor: default;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.grid-cell.habit-name-cell {
+    justify-content: flex-start;
+    font-weight: 500;
+    position: sticky;
+    left: 0;
+    background: var(--b3-theme-background);
+    z-index: 5;
+    padding-left: 16px;
+    border-right: 1px solid var(--b3-theme-surface-lighter);
+    /* 分隔线 */
+}
+
+.grid-cell.date-cell {
+    min-width: 52px;
+    /* 移除固定高度，让内容决定高度 */
+}
+
+/* 月视图需要更大的最小宽度 */
+.month-view .grid-cell.date-cell {
+    min-width: 60px;
+}
+
+
+/* 日历容器样式 */
+.habit-calendar-container {
+    padding: 20px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--b3-theme-background);
+}
+
+.habit-calendar-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    margin-bottom: 24px;
+    flex-shrink: 0;
+}
+
+.habit-calendar-view-toggle {
+    display: flex;
+    background: var(--b3-theme-surface);
+    padding: 4px;
+    border-radius: 6px;
+    gap: 4px;
+}
+
+.habit-calendar-navigation {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.habit-calendar-date-label {
+    font-weight: bold;
+    min-width: 180px;
+    text-align: center;
+    font-size: 16px;
+}
+
+.habit-calendar-content {
+    flex: 1;
+    overflow: auto;
+    /* 同时支持横向和纵向滚动 */
+    border: 1px solid var(--b3-theme-surface-lighter);
+    border-radius: 8px;
+    background: var(--b3-theme-background);
+}

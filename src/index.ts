@@ -12,10 +12,12 @@ import {
     getBackend,
 } from "siyuan";
 import "./index.scss";
+
 import { QuickReminderDialog } from "./components/QuickReminderDialog";
 import { ReminderPanel } from "./components/ReminderPanel";
+import { HabitPanel } from "./components/HabitPanel";
 import { BatchReminderDialog } from "./components/BatchReminderDialog";
-import { ensureReminderDataFile, updateBlockReminderBookmark, ensureProjectDataFile } from "./api";
+import { ensureReminderDataFile, updateBlockReminderBookmark, ensureProjectDataFile, ensureHabitDataFile, ensureHabitGroupDataFile } from "./api";
 import { CalendarView } from "./components/CalendarView";
 import { EisenhowerMatrixView } from "./components/EisenhowerMatrixView";
 import { CategoryManager } from "./utils/categoryManager";
@@ -122,6 +124,12 @@ export default class ReminderPlugin extends Plugin {
         this.initializeUI();
 
         await ensureReminderDataFile();
+
+        // 初始化习惯数据文件
+        await ensureHabitDataFile();
+
+        // 初始化习惯分组数据文件
+        await ensureHabitGroupDataFile();
 
         try {
             const { ensureNotifyDataFile } = await import("./api");
@@ -352,6 +360,28 @@ export default class ReminderPlugin extends Plugin {
             type: "reminder_dock",
             init: (dock) => {
                 this.reminderPanel = new ReminderPanel(dock.element, this);
+            }
+        });
+
+        // 创建习惯打卡 Dock 面板
+        this.addDock({
+            config: {
+                position: "LeftTop",
+                size: { width: 300, height: 0 },
+                icon: "iconCheck",
+                title: "习惯打卡",
+                hotkey: ""
+            },
+            data: {
+                text: "Habit tracking dock"
+            },
+            resize() {
+            },
+            update() {
+            },
+            type: "habit_dock",
+            init: (dock) => {
+                new HabitPanel(dock.element);
             }
         });
 
@@ -1442,7 +1472,7 @@ export default class ReminderPlugin extends Plugin {
                     const inDateRange = startDate <= today && today <= endDate;
 
                     // 检查 time 提醒（支持跨天：如果 today 在 startDate..endDate 范围内，则每天在该时间提醒）
-                        if (reminderObj.time && inDateRange) {
+                    if (reminderObj.time && inDateRange) {
                         if (this.shouldNotifyNow(reminderObj, today, currentTime, 'time', true)) {
                             console.debug('checkTimeReminders - triggering time reminder', { id: reminderObj.id, date: reminderObj.date, time: reminderObj.time });
                             await this.showTimeReminder(reminderObj, 'time');

@@ -1,3 +1,4 @@
+@use './styles/habit-calendar.scss';
 @use './styles/doc-reminder.scss';
 @use './styles/project-reminder.scss';
 @use './styles/pomodoroTimer.scss';
@@ -719,17 +720,20 @@
     }
 
 }
-
+.habit-panel
+.habit-header,
 .reminder-panel {
     padding: 8px;
     display: flex;
     flex-direction: column;
 }
 
-.reminder-header {
+.habit-panel>.habit-header,
+.reminder-panel> .reminder-header {
     margin-bottom: 12px;
 }
 
+.habit-title,
 .reminder-title {
     display: flex;
     align-items: center;

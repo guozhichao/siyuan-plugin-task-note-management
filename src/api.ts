@@ -954,3 +954,67 @@ export async function getRiffCards(deckID: string): Promise<any> {
     return request(url, data);
 }
 
+// **************************************** Habit Management API ****************************************
+
+export async function writeHabitData(data: any): Promise<any> {
+    const content = JSON.stringify(data, null, 2);
+    const blob = new Blob([content], { type: 'application/json' });
+    return putFile('data/storage/petal/siyuan-plugin-task-note-management/habit.json', false, blob);
+}
+
+export async function readHabitData(): Promise<any> {
+    try {
+        const content = await getFile('data/storage/petal/siyuan-plugin-task-note-management/habit.json');
+        if (!content || content?.code === 404) {
+            await writeHabitData({});
+            return {};
+        }
+        return typeof content === 'string' ? JSON.parse(content) : content;
+    } catch (error) {
+        console.log('habit.json文件不存在，返回空对象');
+        return {};
+    }
+}
+
+export async function ensureHabitDataFile(): Promise<void> {
+    try {
+        await readHabitData();
+    } catch (error) {
+        // 如果文件不存在，创建空的习惯数据文件
+        console.log('创建初始习惯数据文件');
+        await writeHabitData({});
+    }
+}
+
+// **************************************** Habit Group Management API ****************************************
+
+export async function writeHabitGroupData(data: any): Promise<any> {
+    const content = JSON.stringify(data, null, 2);
+    const blob = new Blob([content], { type: 'application/json' });
+    return putFile('data/storage/petal/siyuan-plugin-task-note-management/habitGroup.json', false, blob);
+}
+
+export async function readHabitGroupData(): Promise<any> {
+    try {
+        const content = await getFile('data/storage/petal/siyuan-plugin-task-note-management/habitGroup.json');
+        if (!content || content?.code === 404) {
+            await writeHabitGroupData([]);
+            return [];
+        }
+        return typeof content === 'string' ? JSON.parse(content) : content;
+    } catch (error) {
+        console.log('habitGroup.json文件不存在，返回空数组');
+        return [];
+    }
+}
+
+export async function ensureHabitGroupDataFile(): Promise<void> {
+    try {
+        await readHabitGroupData();
+    } catch (error) {
+        // 如果文件不存在，创建空的习惯分组数据文件
+        console.log('创建初始习惯分组数据文件');
+        await writeHabitGroupData([]);
+    }
+}
+
