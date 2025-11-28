@@ -42,7 +42,7 @@ export interface Habit {
             entries?: { emoji: string; timestamp: string; note?: string }[]; // 每次单独打卡记录
         };
     };
-    totalCheckIns: number; // 总打卡次数
+    totalCheckIns: number; // 总打卡次数（保留历史数据，已不在主面板显示）
     createdAt: string;
     updatedAt: string;
 }
@@ -727,11 +727,12 @@ export class HabitPanel {
             card.appendChild(reminder);
         }
 
-        // 总打卡次数
-        const totalCheckIns = document.createElement('div');
-        totalCheckIns.textContent = `累计打卡: ${habit.totalCheckIns || 0} 次`;
-        totalCheckIns.style.cssText = 'font-size: 12px; color: var(--b3-theme-primary); font-weight: bold;';
-        card.appendChild(totalCheckIns);
+        // 坚持打卡天数（显示打卡天数，替换累计打卡次数）
+        const checkInDaysCount = Object.keys(habit.checkIns || {}).length;
+        const checkInDaysEl = document.createElement('div');
+        checkInDaysEl.textContent = `坚持打卡: ${checkInDaysCount} 天`;
+        checkInDaysEl.style.cssText = 'font-size: 12px; color: var(--b3-theme-primary); font-weight: bold;';
+        card.appendChild(checkInDaysEl);
 
         // 右键菜单
         card.addEventListener('contextmenu', (e) => {
