@@ -1,4 +1,5 @@
-import "emoji-picker-element";
+import { Picker } from "emoji-picker-element";
+import zh_CN from 'emoji-picker-element/i18n/zh_CN';
 import { Dialog, showMessage } from "siyuan";
 import { Habit, HabitCheckInEmoji } from "./HabitPanel";
 export class HabitCheckInEmojiDialog {
@@ -7,7 +8,7 @@ export class HabitCheckInEmojiDialog {
     private onSave: (emojis: HabitCheckInEmoji[]) => Promise<void>;
     private emojis: HabitCheckInEmoji[];
     // single shared picker instance and active selection tracking
-    private sharedPicker: any = null;
+    private sharedPicker: Picker | null = null;
     private activePickerIndex: number | null = null;
     private activeEmojiCircle: HTMLElement | null = null;
     private sharedCloseHandler?: (e: MouseEvent) => void;
@@ -140,9 +141,21 @@ export class HabitCheckInEmojiDialog {
     private initSharedPicker() {
         if (this.sharedPicker) return;
         try {
-            this.sharedPicker = document.createElement('emoji-picker') as any;
+            // Prefer direct class constructor if available for typing and tree-shaking
+            // Fallback to createElement when Picker is undefined (older build/runtime)
+            try {
+                // eslint-disable-next-line new-cap
+                this.sharedPicker = new Picker({
+                    i18n: zh_CN,
+                    locale: 'zh_CN',
+                    dataSource: 'http://127.0.0.1:6806/plugins/siyuan-plugin-task-note-management/assets/emojis_search.json'
+                }
+                ) as Picker;
+            } catch (e) {
+                // @ts-ignore - fall back to DOM creation
+                this.sharedPicker = document.createElement('emoji-picker') as any;
+            }
             this.sharedPicker.style.cssText = 'position: fixed; left: 0; top: 0; z-index: 2147483647; display: none; margin-top: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2); border-radius: 12px; background: var(--b3-theme-surface);';
-            this.sharedPicker.locale = 'zh';
             document.body.appendChild(this.sharedPicker);
 
             // emoji click handler uses activePickerIndex
@@ -659,7 +672,7 @@ export class HabitCheckInEmojiDialog {
                 if (this.sharedScrollHandler) {
                     window.removeEventListener('scroll', this.sharedScrollHandler, true);
                 }
-                if (this.sharedPicker.remove) this.sharedPicker.remove();
+                if (this.sharedPicker && (this.sharedPicker as any).remove) (this.sharedPicker as any).remove();
             } catch (error) {
                 console.error('清理 emoji picker 失败', error);
             }

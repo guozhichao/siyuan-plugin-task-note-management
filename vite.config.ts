@@ -42,6 +42,7 @@ export default defineConfig({
                 { src: "./preview.png", dest: "./" },
                 { src: "./icon.png", dest: "./" },
                 { src: "./audios/*", dest: "./audios/" },
+                { src: "./assets/*", dest: "./assets/" },
             ],
         }),
 
