@@ -13,6 +13,7 @@ export class HabitCheckInEmojiDialog {
     private sharedCloseHandler?: (e: MouseEvent) => void;
     private sharedResizeHandler?: () => void;
     private sharedScrollHandler?: () => void;
+    private sharedEnterHandler?: (e: KeyboardEvent) => void;
     // dragging state for reorder
     private draggingIndex: number | null = null;
     private dropBefore: boolean = false;
@@ -158,6 +159,34 @@ export class HabitCheckInEmojiDialog {
                 this.activeEmojiCircle = null;
             });
 
+            // 当搜索框内容本身是 Emoji 时, 支持按 Enter 直接确定
+            const attachEnterHandler = () => {
+                try {
+                    // 该组件使用 shadow DOM, 所以先尝试 shadowRoot 查询
+                    const searchInput: HTMLInputElement | null = this.sharedPicker.shadowRoot?.querySelector('input') as HTMLInputElement || this.sharedPicker.querySelector('input') as HTMLInputElement;
+                    if (searchInput && !this.sharedEnterHandler) {
+                        this.sharedEnterHandler = (e: KeyboardEvent) => {
+                            if (e.key === 'Enter') {
+                                const val = (e.target as HTMLInputElement).value || '';
+                                if (this.isAllEmoji(val)) {
+                                    // apply emoji and close picker
+                                    this.applyEmojiFromSearch(val);
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                }
+                            }
+                        };
+                        searchInput.addEventListener('keydown', this.sharedEnterHandler);
+                    }
+                } catch (error) {
+                    // ignore
+                }
+            };
+
+            // try to attach immediately; if not present (render delay), attach after a short delay
+            attachEnterHandler();
+            setTimeout(attachEnterHandler, 50);
+
             this.sharedCloseHandler = (e: MouseEvent) => {
                 const target = e.target as Node;
                 if (this.sharedPicker && this.sharedPicker.contains(target)) return;
@@ -179,6 +208,32 @@ export class HabitCheckInEmojiDialog {
         } catch (error) {
             console.error('init shared picker failed', error);
         }
+    }
+
+    private isAllEmoji(str: string) {
+        const s = (str || '').trim();
+        if (!s) return false;
+        try {
+            // Use Unicode property escapes to match emoji sequences, including ZWJ sequences
+            return /^[\p{Extended_Pictographic}\uFE0F\u200D]+$/u.test(s);
+        } catch (e) {
+            // Fallback: check if there's a surrogate pair (basic heuristic)
+            return /[\uD800-\uDFFF]/.test(s);
+        }
+    }
+
+    private applyEmojiFromSearch(val: string) {
+        const emoji = (val || '').trim();
+        if (!emoji) return;
+        if (this.activePickerIndex !== null && this.activePickerIndex >= 0) {
+            this.emojis[this.activePickerIndex].emoji = emoji;
+        }
+        if (this.activeEmojiCircle) {
+            this.activeEmojiCircle.textContent = emoji;
+        }
+        if (this.sharedPicker) this.sharedPicker.style.display = 'none';
+        this.activePickerIndex = null;
+        this.activeEmojiCircle = null;
     }
 
     private positionSharedPicker() {
@@ -587,6 +642,14 @@ export class HabitCheckInEmojiDialog {
     private clearAllPickers() {
         if (this.sharedPicker) {
             try {
+                try {
+                    const searchInput: HTMLInputElement | null = this.sharedPicker.shadowRoot?.querySelector('input') as HTMLInputElement || this.sharedPicker.querySelector('input') as HTMLInputElement;
+                    if (searchInput && this.sharedEnterHandler) {
+                        searchInput.removeEventListener('keydown', this.sharedEnterHandler);
+                    }
+                } catch (e) {
+                    // ignore
+                }
                 if (this.sharedCloseHandler) {
                     document.removeEventListener('click', this.sharedCloseHandler);
                 }
@@ -601,6 +664,7 @@ export class HabitCheckInEmojiDialog {
                 console.error('清理 emoji picker 失败', error);
             }
             this.sharedPicker = null;
+            this.sharedEnterHandler = undefined;
             this.activeEmojiCircle = null;
             this.activePickerIndex = null;
         }
