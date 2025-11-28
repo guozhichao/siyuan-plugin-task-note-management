@@ -538,8 +538,11 @@ export class HabitEditDialog {
             createdAt: this.habit?.createdAt || now,
             updatedAt: now
         };
-        // 初始化 hasNotify
-        if (!habit.hasNotify) habit.hasNotify = {};
+        // 保留已有的 hasNotify 值（编辑时），避免覆盖已有记录
+        if (this.habit && this.habit.hasNotify) {
+            // 复制一份，避免引用同一对象
+            habit.hasNotify = { ...this.habit.hasNotify };
+        }
 
         // 如果是修改已有习惯，并且提醒时间被修改为新的值，且新的提醒时间晚于当前时间，则重置当天 hasNotify 为 false，方便再次提醒
         if (this.habit && this.habit.reminderTime !== habit.reminderTime && habit.reminderTime) {
@@ -552,10 +555,14 @@ export class HabitEditDialog {
                     if (!isNaN(hour) && !isNaN(minute)) {
                         const now = new Date();
                         const todayAtReminder = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute);
+                        // 仅当新的提醒时间是今天并且在当前时间之后，且旧有的 hasNotify 为 true 时，才重置为 false
                         if (todayAtReminder.getTime() > now.getTime()) {
                             const todayStr = getLocalDateString();
-                            habit.hasNotify = habit.hasNotify || {};
-                            habit.hasNotify[todayStr] = false;
+                            // 只有当原来记录为 true 的情况下才把它复位为 false，避免误修改其他默认/未设置值
+                            if (this.habit.hasNotify && this.habit.hasNotify[todayStr] === true) {
+                                habit.hasNotify = habit.hasNotify || {};
+                                habit.hasNotify[todayStr] = false;
+                            }
                         }
                     }
                 }
