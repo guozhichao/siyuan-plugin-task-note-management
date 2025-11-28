@@ -507,11 +507,13 @@ export default class ReminderPlugin extends Plugin {
         // 初始化顶栏徽章和停靠栏徽章
         this.updateBadges();
         this.updateProjectBadges();
+        this.updateHabitBadges();
 
         // 延迟一些时间后再次更新徽章，确保停靠栏已渲染
         setTimeout(() => {
             this.updateBadges();
             this.updateProjectBadges();
+            this.updateHabitBadges();
         }, 2000);
 
         // 监听提醒更新事件，更新徽章
@@ -529,6 +531,11 @@ export default class ReminderPlugin extends Plugin {
         window.addEventListener('projectUpdated', () => {
             this.updateProjectBadges();
             this.addBreadcrumbButtonsToExistingProtyles();
+        });
+
+        // 监听习惯更新事件，更新习惯徽章
+        window.addEventListener('habitUpdated', () => {
+            this.updateHabitBadges();
         });
     }
 
@@ -930,6 +937,195 @@ export default class ReminderPlugin extends Plugin {
             dockIcon.appendChild(badge);
         }
     }
+
+    private async updateHabitBadges() {
+        try {
+            const { readHabitData } = await import("./api");
+            const habitData = await readHabitData();
+
+            if (!habitData || typeof habitData !== 'object') {
+                this.setHabitDockBadge(0);
+                return;
+            }
+
+            const today = getLocalDateString();
+            let pendingCount = 0;
+
+            Object.values(habitData).forEach((habit: any) => {
+                if (!habit || typeof habit !== 'object') {
+                    return;
+                }
+
+                // 检查是否在有效期内
+                if (habit.startDate > today) return;
+                if (habit.endDate && habit.endDate < today) return;
+
+                // 检查今天是否应该打卡
+                if (!this.shouldCheckInOnDate(habit, today)) return;
+
+                // 检查今天是否已完成
+                const checkIn = habit.checkIns?.[today];
+                const currentCount = checkIn?.count || 0;
+                const targetCount = habit.target || 1;
+
+                if (currentCount < targetCount) {
+                    pendingCount++;
+                }
+            });
+
+            this.setHabitDockBadge(pendingCount);
+        } catch (error) {
+            console.error('更新习惯徽章失败:', error);
+            this.setHabitDockBadge(0);
+        }
+    }
+
+    private shouldCheckInOnDate(habit: any, date: string): boolean {
+        const { frequency } = habit;
+        const checkDate = new Date(date);
+        const startDate = new Date(habit.startDate);
+
+        switch (frequency.type) {
+            case 'daily':
+                if (frequency.interval) {
+                    const daysDiff = Math.floor((checkDate.getTime() - startDate.getTime()) / 86400000);
+                    return daysDiff % frequency.interval === 0;
+                }
+                return true;
+
+            case 'weekly':
+                if (frequency.weekdays && frequency.weekdays.length > 0) {
+                    return frequency.weekdays.includes(checkDate.getDay());
+                }
+                if (frequency.interval) {
+                    const weeksDiff = Math.floor((checkDate.getTime() - startDate.getTime()) / (86400000 * 7));
+                    return weeksDiff % frequency.interval === 0 && checkDate.getDay() === startDate.getDay();
+                }
+                return checkDate.getDay() === startDate.getDay();
+
+            case 'monthly':
+                if (frequency.monthDays && frequency.monthDays.length > 0) {
+                    return frequency.monthDays.includes(checkDate.getDate());
+                }
+                if (frequency.interval) {
+                    const monthsDiff = (checkDate.getFullYear() - startDate.getFullYear()) * 12 +
+                        (checkDate.getMonth() - startDate.getMonth());
+                    return monthsDiff % frequency.interval === 0 && checkDate.getDate() === startDate.getDate();
+                }
+                return checkDate.getDate() === startDate.getDate();
+
+            case 'yearly':
+                if (frequency.interval) {
+                    const yearsDiff = checkDate.getFullYear() - startDate.getFullYear();
+                    return yearsDiff % frequency.interval === 0 &&
+                        checkDate.getMonth() === startDate.getMonth() &&
+                        checkDate.getDate() === startDate.getDate();
+                }
+                return checkDate.getMonth() === startDate.getMonth() &&
+                    checkDate.getDate() === startDate.getDate();
+
+            case 'custom':
+                // 自定义频率：如果设置了周重复则按周判断，如果设置了月重复则按月判断；默认返回true
+                if (frequency.weekdays && frequency.weekdays.length > 0) {
+                    return frequency.weekdays.includes(checkDate.getDay());
+                }
+                if (frequency.monthDays && frequency.monthDays.length > 0) {
+                    return frequency.monthDays.includes(checkDate.getDate());
+                }
+                return true;
+
+            default:
+                return true;
+        }
+    }
+
+    private async setHabitDockBadge(count: number) {
+        try {
+            // 等待习惯停靠栏图标出现
+            const dockIcon = await this.whenElementExist('.dock__item[data-type="siyuan-plugin-task-note-managementhabit_dock"]') as HTMLElement;
+
+            // 移除现有徽章
+            const existingBadge = dockIcon.querySelector('.habit-dock-badge');
+            if (existingBadge) {
+                existingBadge.remove();
+            }
+
+            // 如果计数大于0，添加徽章
+            if (count > 0) {
+                const badge = document.createElement('span');
+                badge.className = 'habit-dock-badge';
+                badge.textContent = count.toString();
+                badge.style.cssText = `
+                    position: absolute;
+                    top: 2px;
+                    right: 2px;
+                    background: var(--b3-theme-primary);
+                    color: white;
+                    border-radius: 50%;
+                    min-width: 14px;
+                    height: 14px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 10px;
+                    font-weight: bold;
+                    line-height: 1;
+                    z-index: 1;
+                    pointer-events: none;
+                `;
+
+                // 确保父元素有相对定位
+                dockIcon.style.position = 'relative';
+                dockIcon.appendChild(badge);
+            }
+        } catch (error) {
+            console.warn('设置习惯停靠栏徽章失败:', error);
+            // 如果等待超时或出错，尝试传统方法作为后备
+            this.setHabitDockBadgeFallback(count);
+        }
+    }
+
+    private setHabitDockBadgeFallback(count: number) {
+        // 查找习惯停靠栏图标（传统方法作为后备）
+        const dockIcon = document.querySelector('.dock__item[data-type="siyuan-plugin-task-note-managementhabit_dock"]');
+        if (!dockIcon) return;
+
+        // 移除现有徽章
+        const existingBadge = dockIcon.querySelector('.habit-dock-badge');
+        if (existingBadge) {
+            existingBadge.remove();
+        }
+
+        // 如果计数大于0，添加徽章
+        if (count > 0) {
+            const badge = document.createElement('span');
+            badge.className = 'habit-dock-badge';
+            badge.textContent = count.toString();
+            badge.style.cssText = `
+                position: absolute;
+                top: 2px;
+                right: 2px;
+                background: var(--b3-theme-primary);
+                color: white;
+                border-radius: 50%;
+                min-width: 14px;
+                height: 14px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 10px;
+                font-weight: bold;
+                line-height: 1;
+                z-index: 1;
+                pointer-events: none;
+            `;
+
+            // 确保父元素有相对定位
+            (dockIcon as HTMLElement).style.position = 'relative';
+            dockIcon.appendChild(badge);
+        }
+    }
+
     // 获取自动识别日期时间设置
 
     private handleDocumentTreeMenu({ detail }) {
@@ -1764,7 +1960,7 @@ export default class ReminderPlugin extends Plugin {
     private async checkHabitReminders(today: string, currentTime: string) {
         try {
             const { readHabitData, hasHabitNotified, markHabitNotified } = await import('./api');
-     
+
             const habitData = await readHabitData();
             if (!habitData || typeof habitData !== 'object') return;
 
