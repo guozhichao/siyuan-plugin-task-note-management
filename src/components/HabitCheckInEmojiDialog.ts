@@ -38,7 +38,7 @@ export class HabitCheckInEmojiDialog {
             title: `编辑打卡选项 - ${this.habit.title}`,
             content: '<div id="checkInEmojiContainer"></div>',
             width: "600px",
-            height: "600px"
+            height: "700px"
             , destroyCallback: () => {
                 // clear any floating pickers
                 this.clearAllPickers();
@@ -69,13 +69,6 @@ export class HabitCheckInEmojiDialog {
             border-left: 4px solid var(--b3-theme-primary);
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         `;
-        description.innerHTML = `
-            <div style="margin-bottom: 8px; font-size: 14px; font-weight: 600; color: var(--b3-theme-primary);"><strong>✨ 打卡选项说明</strong></div>
-            <div style="margin-bottom: 4px; opacity: 0.9;">• <strong>Emoji 圆圈</strong>: 点击圆圈选择打卡时显示的图标</div>
-            <div style="opacity: 0.9;">• <strong>含义说明</strong>: 为该打卡选项添加描述文字</div>
-            <div style="opacity: 0.9;">• <strong>拖动排序</strong>: 拖动左侧句柄以重新排序选项</div>
-            `;
-        container.appendChild(description);
 
         // Emoji列表 - 使用列表布局
         const listContainer = document.createElement('div');
@@ -147,7 +140,7 @@ export class HabitCheckInEmojiDialog {
         if (this.sharedPicker) return;
         try {
             this.sharedPicker = document.createElement('emoji-picker') as any;
-            this.sharedPicker.style.cssText = 'position: fixed; left: 0; top: 0; z-index: 2147483647; display: none; width: 320px; height: 400px; margin-top: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2); border-radius: 12px; background: var(--b3-theme-surface);';
+            this.sharedPicker.style.cssText = 'position: fixed; left: 0; top: 0; z-index: 2147483647; display: none; margin-top: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2); border-radius: 12px; background: var(--b3-theme-surface);';
             this.sharedPicker.locale = 'zh';
             document.body.appendChild(this.sharedPicker);
 
