@@ -734,6 +734,36 @@ export class HabitPanel {
         checkInDaysEl.style.cssText = 'font-size: 12px; color: var(--b3-theme-primary); font-weight: bold;';
         card.appendChild(checkInDaysEl);
 
+        // 今日打卡 emoji（只显示当天的）
+        if (checkIn && ((checkIn.entries && checkIn.entries.length > 0) || (checkIn.status && checkIn.status.length > 0))) {
+            const emojiRow = document.createElement('div');
+            emojiRow.style.cssText = 'margin-top:8px; display:flex; gap:6px; align-items:center;';
+
+            const emojiLabel = document.createElement('span');
+            emojiLabel.textContent = '今日打卡:';
+            emojiLabel.style.cssText = 'font-size:12px; color: var(--b3-theme-on-surface-light); margin-right:6px;';
+            emojiRow.appendChild(emojiLabel);
+
+            // Only show today's entries, and display emoji icons (preserve order). Support both "entries" (new) and "status" (legacy).
+            const emojis: string[] = [];
+            if (checkIn.entries && checkIn.entries.length > 0) {
+                checkIn.entries.forEach(entry => emojis.push(entry.emoji));
+            } else if (checkIn.status && checkIn.status.length > 0) {
+                // status may contain repeated emojis; keep the order
+                checkIn.status.forEach(s => emojis.push(s));
+            }
+
+            emojis.forEach((emojiStr) => {
+                const emojiEl = document.createElement('span');
+                emojiEl.textContent = emojiStr;
+                emojiEl.title = emojiStr;
+                emojiEl.style.cssText = 'font-size: 18px; line-height: 1;';
+                emojiRow.appendChild(emojiEl);
+            });
+
+            card.appendChild(emojiRow);
+        }
+
         // 右键菜单
         card.addEventListener('contextmenu', (e) => {
             e.preventDefault();
