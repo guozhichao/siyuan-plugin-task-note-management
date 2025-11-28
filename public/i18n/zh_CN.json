@@ -448,6 +448,7 @@
     "timeReminderNotification": "任务提醒",
     "dailyRemindersNotification": "今日事项提醒",
     "dailyRemindersMessage": "您有 ${overdue} 个过期事项和 ${today} 个今日事项",
+    "habitReminder": "习惯打卡提醒",
     "overdueRemindersMessage": "您有 ${count} 个过期未完成的事项",
     "todayRemindersMessage": "您有 ${count} 个今日事项",
     "setTo": "已设置为",

@@ -1200,6 +1200,13 @@ export default class ReminderPlugin extends Plugin {
             // 检查单个时间提醒（不受每日通知时间限制）
             await this.checkTimeReminders(reminderData, today, currentTime);
 
+            // 检查习惯提醒（当有习惯在今日设置了 reminderTime 时，也应触发提醒）
+            try {
+                await this.checkHabitReminders(today, currentTime);
+            } catch (err) {
+                console.warn('检查习惯提醒失败:', err);
+            }
+
             // 只在设置的时间后进行全天事项的每日汇总提醒检查
             if (currentHour < dailyNotificationHour) {
                 return;
@@ -1684,6 +1691,157 @@ export default class ReminderPlugin extends Plugin {
         const minutes = parseInt(parts[1], 10);
         if (isNaN(hours) || isNaN(minutes)) return 0;
         return hours * 100 + minutes;
+    }
+
+    /**
+     * 检查习惯是否在给定日期应该打卡（基于 HabitPanel 的实现复制）
+     */
+    private shouldCheckHabitOnDate(habit: any, date: string): boolean {
+        const frequency = habit.frequency || { type: 'daily' };
+        const checkDate = new Date(date);
+        const startDate = new Date(habit.startDate);
+
+        switch (frequency.type) {
+            case 'daily':
+                if (frequency.interval) {
+                    const daysDiff = Math.floor((checkDate.getTime() - startDate.getTime()) / 86400000);
+                    return daysDiff % frequency.interval === 0;
+                }
+                return true;
+
+            case 'weekly':
+                if (frequency.weekdays && frequency.weekdays.length > 0) {
+                    return frequency.weekdays.includes(checkDate.getDay());
+                }
+                if (frequency.interval) {
+                    const weeksDiff = Math.floor((checkDate.getTime() - startDate.getTime()) / (86400000 * 7));
+                    return weeksDiff % frequency.interval === 0 && checkDate.getDay() === startDate.getDay();
+                }
+                return checkDate.getDay() === startDate.getDay();
+
+            case 'monthly':
+                if (frequency.monthDays && frequency.monthDays.length > 0) {
+                    return frequency.monthDays.includes(checkDate.getDate());
+                }
+                if (frequency.interval) {
+                    const monthsDiff = (checkDate.getFullYear() - startDate.getFullYear()) * 12 +
+                        (checkDate.getMonth() - startDate.getMonth());
+                    return monthsDiff % frequency.interval === 0 && checkDate.getDate() === startDate.getDate();
+                }
+                return checkDate.getDate() === startDate.getDate();
+
+            case 'yearly':
+                if (frequency.interval) {
+                    const yearsDiff = checkDate.getFullYear() - startDate.getFullYear();
+                    return yearsDiff % frequency.interval === 0 &&
+                        checkDate.getMonth() === startDate.getMonth() &&
+                        checkDate.getDate() === startDate.getDate();
+                }
+                return checkDate.getMonth() === startDate.getMonth() &&
+                    checkDate.getDate() === startDate.getDate();
+
+            case 'custom':
+                if (frequency.weekdays && frequency.weekdays.length > 0) {
+                    return frequency.weekdays.includes(checkDate.getDay());
+                }
+                if (frequency.monthDays && frequency.monthDays.length > 0) {
+                    return frequency.monthDays.includes(checkDate.getDate());
+                }
+                return true;
+
+            default:
+                return true;
+        }
+    }
+
+    private isHabitCompletedOnDate(habit: any, date: string): boolean {
+        const checkIn = habit.checkIns?.[date];
+        if (!checkIn) return false;
+        return (checkIn.count || 0) >= (habit.target || 1);
+    }
+
+    // 检查习惯的时间提醒并触发通知
+    private async checkHabitReminders(today: string, currentTime: string) {
+        try {
+            const { readHabitData, hasHabitNotified, markHabitNotified } = await import('./api');
+     
+            const habitData = await readHabitData();
+            if (!habitData || typeof habitData !== 'object') return;
+
+            const currentNum = this.timeStringToNumber(currentTime);
+            let playSoundOnce = false;
+
+            for (const habit of Object.values(habitData) as any[]) {
+                try {
+                    if (!habit || typeof habit !== 'object') continue;
+
+                    // 需要设置 reminderTime 才会被触发
+                    if (!habit.reminderTime) continue;
+
+                    // 如果不在起止日期内，跳过
+                    if (habit.startDate && habit.startDate > today) continue;
+                    if (habit.endDate && habit.endDate < today) continue;
+
+                    // 频率检查
+                    if (!this.shouldCheckHabitOnDate(habit, today)) continue;
+
+                    // 如果今日已经打卡完成，则不再提醒
+                    if (this.isHabitCompletedOnDate(habit, today)) continue;
+
+                    const parsed = this.extractDateAndTime(habit.reminderTime);
+                    if (parsed.date && parsed.date !== today) continue;
+                    const habitTimeNum = this.timeStringToNumber(habit.reminderTime);
+                    if (habitTimeNum === 0) continue; // 无法解析的时间
+
+                    // 需要现在到或超过提醒时间
+                    if (currentNum < habitTimeNum) continue;
+
+                    const alreadyNotified = await hasHabitNotified(habit.id, today);
+                    if (alreadyNotified) continue;
+
+                    // 触发通知（仅第一次触发时播放音效）
+                    if (!playSoundOnce) {
+                        await this.playNotificationSound();
+                        playSoundOnce = true;
+                    }
+
+                    // 构建提醒信息并显示内部通知对话框
+                    const reminderInfo = {
+                        id: habit.id,
+                        blockId: habit.blockId || '',
+                        title: habit.title || t('unnamedNote'),
+                        note: habit.note || '',
+                        priority: habit.priority || 'none',
+                        categoryId: habit.groupId || undefined,
+                        time: parsed.time || habit.reminderTime,
+                        date: today,
+                        isAllDay: false
+                    };
+
+                    // 显示思源内部通知
+                    NotificationDialog.show(reminderInfo as any);
+
+                    // 显示系统弹窗（如果启用）
+                    const systemNotificationEnabled = await this.getReminderSystemNotificationEnabled();
+                    if (systemNotificationEnabled) {
+                        const title = `⏰ ${t('habitReminder')}: ${reminderInfo.title}`;
+                        const message = `${reminderInfo.time} ${habit.groupId ? '[' + habit.groupId + ']' : ''}`.trim();
+                        this.showReminderSystemNotification(title, message, reminderInfo);
+                    }
+
+                    // 标记已通知，避免重复通知
+                    try {
+                        await markHabitNotified(habit.id, today);
+                    } catch (err) {
+                        console.warn('标记习惯通知失败', habit.id, today, err);
+                    }
+                } catch (err) {
+                    console.warn('处理单个习惯时出错', err);
+                }
+            }
+        } catch (error) {
+            console.error('检查习惯提醒失败:', error);
+        }
     }
     // 显示时间提醒
     private async showTimeReminder(reminder: any, triggerField: 'time' | 'customReminderTime' = 'time') {

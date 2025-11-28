@@ -714,6 +714,53 @@ export async function markNotifiedToday(date: string): Promise<void> {
     }
 }
 
+// 检查某个习惯在特定日期是否已提醒
+export async function hasHabitNotified(habitId: string, date: string): Promise<boolean> {
+    try {
+        const habitData = await readHabitData();
+        if (!habitData || typeof habitData !== 'object') return false;
+
+        const habit = habitData[habitId];
+        if (!habit || typeof habit !== 'object') return false;
+
+        const hasNotify = habit.hasNotify || {};
+        return hasNotify[date] === true;
+    } catch (error) {
+        console.warn('检查习惯通知记录失败:', error);
+        return false;
+    }
+}
+
+// 标记某个习惯在特定日期已提醒
+export async function markHabitNotified(habitId: string, date: string): Promise<void> {
+    try {
+        const habitData = await readHabitData();
+        if (!habitData || typeof habitData !== 'object') {
+            console.warn('习惯数据不存在，无法标记通知');
+            return;
+        }
+
+        const habit = habitData[habitId];
+        if (!habit || typeof habit !== 'object') {
+            console.warn('习惯不存在，无法标记通知:', habitId);
+            return;
+        }
+
+        // 确保 hasNotify 对象存在
+        if (!habit.hasNotify) {
+            habit.hasNotify = {};
+        }
+
+        // 标记该日期已提醒
+        habit.hasNotify[date] = true;
+
+        // 写回习惯数据
+        await writeHabitData(habitData);
+    } catch (error) {
+        console.error('标记习惯通知记录失败:', error);
+    }
+}
+
 // **************************************** Bookmark Management ****************************************
 
 /**
