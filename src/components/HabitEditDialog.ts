@@ -186,7 +186,8 @@ export class HabitEditDialog {
             blockPreview.textContent = '';
         });
 
-        // 输入更改时更新预览（简单实现）
+        // 输入更改时更新预览（简单实现）并尝试自动将引用格式规范化为纯 id
+        let isAutoSettingInput = false;
         blockInput.addEventListener('input', async () => {
             const raw = blockInput.value?.trim();
             if (!raw) {
@@ -197,6 +198,16 @@ export class HabitEditDialog {
             if (!id) {
                 blockPreview.textContent = '';
                 return;
+            }
+            // 如果文本是引用或链接格式，则规范化为纯 id，以便保存时不会保存冗余内容
+            if (!isAutoSettingInput && raw !== id && (raw.includes("((") || raw.includes('siyuan://blocks/') || raw.includes(']('))) {
+                try {
+                    isAutoSettingInput = true;
+                    blockInput.value = id;
+                } finally {
+                    // 使用 setTimeout 以避免阻塞和循环触发
+                    setTimeout(() => { isAutoSettingInput = false; }, 0);
+                }
             }
             await this.updatePreviewForBlock(id, blockPreview);
         });
@@ -501,6 +512,9 @@ export class HabitEditDialog {
         const monthDayChecks = form.querySelectorAll('input[name="monthDay"]') as NodeListOf<HTMLInputElement>;
         monthDayChecks.forEach(cb => { if (cb.checked) monthDays.push(parseInt(cb.value)); });
 
+        const rawBlockVal = (formData.get('blockId') as string) || undefined;
+        const parsedBlockId = rawBlockVal ? (this.extractBlockId(rawBlockVal) || rawBlockVal) : undefined;
+
         const habit: Habit = {
             id: this.habit?.id || `habit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             title: title.trim(),
@@ -511,7 +525,7 @@ export class HabitEditDialog {
             startDate,
             endDate: formData.get('endDate') as string || undefined,
             reminderTime: formData.get('reminderTime') as string || undefined,
-            blockId: formData.get('blockId') as string || undefined,
+            blockId: parsedBlockId || undefined,
             priority: formData.get('priority') as any || 'none',
             groupId: formData.get('groupId') as string === 'none' ? undefined : formData.get('groupId') as string,
             checkInEmojis: this.habit?.checkInEmojis || [

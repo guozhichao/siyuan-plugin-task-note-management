@@ -1547,14 +1547,14 @@ export class QuickReminderDialog {
                     }
                 }
 
-                if (blockId && title) {
+                if (blockId) {
                     const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
                     const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
 
                     if (blockInput) {
                         blockInput.value = blockId;
                     }
-                    if (titleInput) {
+                    if (titleInput && title && (!titleInput.value || titleInput.value.trim().length === 0)) {
                         titleInput.value = title;
                     }
                     showMessage(t('pasteBlockRefSuccess'));
@@ -1566,6 +1566,26 @@ export class QuickReminderDialog {
                 showMessage(t('readClipboardFailed'), 3000, 'error');
             }
         });
+
+        // 规范化 quickBlockInput：当用户直接粘贴 ((id 'title')) 或链接时，自动替换为纯 id
+        const quickBlockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
+        if (quickBlockInput) {
+            let isAutoSetting = false;
+            quickBlockInput.addEventListener('input', async () => {
+                if (isAutoSetting) return;
+                const raw = quickBlockInput.value?.trim();
+                if (!raw) return;
+                const id = this.extractBlockId(raw);
+                if (id && id !== raw && (raw.includes('((') || raw.includes('siyuan://blocks/') || raw.includes(']('))) {
+                    try {
+                        isAutoSetting = true;
+                        quickBlockInput.value = id;
+                    } finally {
+                        setTimeout(() => { isAutoSetting = false; }, 0);
+                    }
+                }
+            });
+        }
 
         // 预设下拉：根据选项快速设置自定义提醒时间（基于任务的起始 datetime）
         const presetSelect = this.dialog.element.querySelector('#quickCustomReminderPreset') as HTMLSelectElement;
@@ -2024,7 +2044,8 @@ export class QuickReminderDialog {
         const customGroupSelector = this.dialog.element.querySelector('#quickCustomGroupSelector') as HTMLSelectElement;
 
         const title = titleInput.value.trim();
-        const inputId = blockInput?.value?.trim() || undefined;
+        const rawBlockVal = blockInput?.value?.trim() || undefined;
+        const inputId = rawBlockVal ? (this.extractBlockId(rawBlockVal) || rawBlockVal) : undefined;
         const note = noteInput.value.trim() || undefined;
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
         const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
@@ -2499,5 +2520,21 @@ export class QuickReminderDialog {
             console.error('保存实例修改失败:', error);
             throw error;
         }
+    }
+
+    private extractBlockId(raw: string): string | null {
+        if (!raw) return null;
+        const blockRefRegex = /\(\(([\w\-]+)\s+'(.*)'\)\)/;
+        const blockLinkRegex = /\[(.*)\]\(siyuan:\/\/blocks\/([\w\-]+)\)/;
+        const match1 = raw.match(blockRefRegex);
+        if (match1) return match1[1];
+        const match2 = raw.match(blockLinkRegex);
+        if (match2) return match2[2];
+        const urlRegex = /siyuan:\/\/blocks\/([\w\-]+)/;
+        const match3 = raw.match(urlRegex);
+        if (match3) return match3[1];
+        const idRegex = /^([a-zA-Z0-9\-]{5,})$/;
+        if (idRegex.test(raw)) return raw;
+        return null;
     }
 }
