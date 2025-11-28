@@ -1,6 +1,6 @@
 import { Dialog, confirm, showMessage } from "siyuan";
 import type { Habit, HabitCheckInEmoji } from "./HabitPanel";
-import { getLocalDateTimeString } from "../utils/dateUtils";
+import { getLocalDateTimeString, getLocalDateString } from "../utils/dateUtils";
 
 export class HabitHistoryDialog {
     private dialog: Dialog;
@@ -56,10 +56,23 @@ export class HabitHistoryDialog {
     private renderList(container: HTMLElement) {
         container.innerHTML = '';
 
+        const titleRow = document.createElement('div');
+        titleRow.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:12px;';
+
         const title = document.createElement('h3');
         title.textContent = '历史打卡记录';
         title.style.marginBottom = '12px';
-        container.appendChild(title);
+        titleRow.appendChild(title);
+
+        // 添加补录按钮
+        const addBtn = document.createElement('button');
+        addBtn.className = 'b3-button b3-button--primary';
+        addBtn.textContent = '添加';
+        addBtn.title = '补录打卡';
+        addBtn.addEventListener('click', () => this.openAddEntryDialog());
+        titleRow.appendChild(addBtn);
+
+        container.appendChild(titleRow);
 
         const checkIns = this.habit.checkIns || {};
         const dates = Object.keys(checkIns).sort().reverse();
@@ -98,8 +111,16 @@ export class HabitHistoryDialog {
             entries.slice(0, 5).forEach(e => {
                 const span = document.createElement('span');
                 span.textContent = e.emoji;
+                span.title = e.meaning || '';
                 span.style.cssText = 'font-size:18px; margin-right:4px;';
-                previewDiv.appendChild(span);
+                const meaningSpan = document.createElement('span');
+                meaningSpan.textContent = e.meaning ? ` ${e.meaning}` : '';
+                meaningSpan.style.cssText = 'font-size:12px; color:var(--b3-theme-on-surface-light); margin-right:8px;';
+                const wrapSpan = document.createElement('span');
+                wrapSpan.style.cssText = 'display:flex; gap:6px; align-items:center;';
+                wrapSpan.appendChild(span);
+                wrapSpan.appendChild(meaningSpan);
+                previewDiv.appendChild(wrapSpan);
             });
             header.appendChild(previewDiv);
 
@@ -107,6 +128,14 @@ export class HabitHistoryDialog {
             countDiv.textContent = `${checkIn.count || 0} 次`;
             countDiv.style.cssText = 'color: var(--b3-theme-on-surface-light); margin-left:auto; width:70px; text-align:right;';
             header.appendChild(countDiv);
+
+            // 添加单日补录按钮（可选快速补录）
+            const addSingleBtn = document.createElement('button');
+            addSingleBtn.className = 'b3-button b3-button--outline';
+            addSingleBtn.style.cssText = 'margin-left:8px;';
+            addSingleBtn.textContent = '添加';
+            addSingleBtn.addEventListener('click', (e) => { e.stopPropagation(); this.openAddEntryDialog(dateStr); });
+            header.appendChild(addSingleBtn);
 
             header.addEventListener('click', () => {
                 if (this.collapsedDates.has(dateStr)) this.collapsedDates.delete(dateStr);
@@ -127,6 +156,9 @@ export class HabitHistoryDialog {
                 const span = document.createElement('span');
                 span.textContent = entry.emoji;
                 span.style.cssText = 'font-size:18px;';
+                const meaningSpan = document.createElement('span');
+                meaningSpan.textContent = entry.meaning ? ` ${entry.meaning}` : '';
+                meaningSpan.style.cssText = 'font-size:12px; color:var(--b3-theme-on-surface-light); margin-left:4px;';
                 const time = document.createElement('span');
                 time.textContent = entry.timestamp ? entry.timestamp.split(' ')[1] : '';
                 time.style.cssText = 'font-size:12px; color:var(--b3-theme-on-surface-light); margin-left:4px;';
@@ -157,6 +189,7 @@ export class HabitHistoryDialog {
                 });
 
                 item.appendChild(span);
+                item.appendChild(meaningSpan);
                 item.appendChild(time);
                 if (noteSpan) item.appendChild(noteSpan);
                 item.appendChild(editEntryBtn);
@@ -171,15 +204,133 @@ export class HabitHistoryDialog {
         });
     }
 
+    private async openAddEntryDialog(dateStr?: string) {
+        const today = getLocalDateString();
+        const defaultDate = dateStr || today;
+        const dialog = new Dialog({
+            title: `补录 ${this.habit.title} 打卡`,
+            content: '<div id="habitAddSingleEntryContainer"></div>',
+            width: '420px',
+            height: '360px'
+        });
+
+        const container = dialog.element.querySelector('#habitAddSingleEntryContainer') as HTMLElement;
+        if (!container) return;
+        container.style.cssText = 'padding:12px; display:flex; flex-direction:column; gap:8px;';
+
+        const dateRow = document.createElement('div');
+        dateRow.style.cssText = 'display:flex; gap:8px; align-items:center;';
+        const dateLabel = document.createElement('label');
+        dateLabel.textContent = '日期';
+        const dateInput = document.createElement('input');
+        dateInput.type = 'date';
+        dateInput.value = defaultDate;
+        dateInput.style.cssText = 'flex:1;';
+        dateRow.appendChild(dateLabel);
+        dateRow.appendChild(dateInput);
+        container.appendChild(dateRow);
+
+        const timeRow = document.createElement('div');
+        timeRow.style.cssText = 'display:flex; gap:8px; align-items:center;';
+        const timeLabel = document.createElement('label');
+        timeLabel.textContent = '时间';
+        const timeInput = document.createElement('input');
+        timeInput.type = 'time';
+        // default to current time
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        timeInput.value = `${hh}:${mm}`;
+        timeInput.style.cssText = 'flex:1;';
+        timeRow.appendChild(timeLabel);
+        timeRow.appendChild(timeInput);
+        container.appendChild(timeRow);
+
+        const emojiLabel = document.createElement('div');
+        emojiLabel.textContent = '打卡状态';
+        emojiLabel.style.cssText = 'font-weight:bold;';
+        container.appendChild(emojiLabel);
+
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'display:flex; flex-wrap:wrap; gap:8px;';
+        const emojiConfigs = this.habit.checkInEmojis || [] as any[];
+        let selectedEmoji: string | undefined = emojiConfigs.length > 0 ? emojiConfigs[0].emoji : undefined;
+        let selectedMeaning: string | undefined = emojiConfigs.length > 0 ? emojiConfigs[0].meaning : undefined;
+        emojiConfigs.forEach(cfg => {
+            const btn = document.createElement('button');
+            btn.className = `b3-button ${cfg.emoji === selectedEmoji ? 'b3-button--primary' : 'b3-button--outline'}`;
+            btn.innerHTML = `<span style="font-size:18px;">${cfg.emoji}</span><span style="font-size:12px; color:var(--b3-theme-on-surface-light); margin-left:6px;">${cfg.meaning || ''}</span>`;
+            btn.addEventListener('click', () => {
+                selectedEmoji = cfg.emoji;
+                selectedMeaning = cfg.meaning;
+                // update styles
+                wrap.querySelectorAll('button').forEach(b => b.className = 'b3-button b3-button--outline');
+                btn.className = 'b3-button b3-button--primary';
+                saveBtn.disabled = false;
+            });
+            wrap.appendChild(btn);
+        });
+        container.appendChild(wrap);
+
+        const noteLabel = document.createElement('div');
+        noteLabel.textContent = '备注（可选）';
+        container.appendChild(noteLabel);
+        const noteInput = document.createElement('textarea');
+        noteInput.style.cssText = 'width:100%; height:80px; box-sizing:border-box; padding:8px; resize:vertical;';
+        container.appendChild(noteInput);
+
+        const btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex; justify-content:flex-end; gap:8px; margin-top:8px;';
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'b3-button';
+        cancelBtn.textContent = '取消';
+        cancelBtn.addEventListener('click', () => dialog.destroy());
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'b3-button b3-button--primary';
+        saveBtn.textContent = '保存';
+        if (!selectedEmoji) saveBtn.disabled = true;
+        saveBtn.addEventListener('click', async () => {
+            if (!selectedEmoji) {
+                showMessage('请选择一个打卡状态', 2000, 'error');
+                return;
+            }
+            const chosenDate = dateInput.value || getLocalDateString();
+            const chosenTime = timeInput.value || `${hh}:${mm}`;
+            const timestamp = `${chosenDate} ${chosenTime}`;
+
+            const checkIn = this.habit.checkIns?.[chosenDate];
+            const entries = this.getEntriesForDate(checkIn);
+            entries.push({ emoji: selectedEmoji!, meaning: selectedMeaning || this.getMeaningForEmoji(selectedEmoji!), timestamp, note: noteInput.value.trim() || undefined });
+            await this.setEntriesForDate(chosenDate, entries);
+            this.habit.totalCheckIns = (this.habit.totalCheckIns || 0) + 1;
+            this.habit.updatedAt = getLocalDateTimeString(new Date());
+            await this.onSave(this.habit);
+            showMessage('补录成功');
+            dialog.destroy();
+            const containerMain = this.dialog.element.querySelector('#habitHistoryContainer') as HTMLElement;
+            if (containerMain) this.renderList(containerMain);
+        });
+        btnRow.appendChild(cancelBtn);
+        btnRow.appendChild(saveBtn);
+        container.appendChild(btnRow);
+    }
+
     // 删除整天编辑功能（只支持单条 entry 的编辑和删除）
 
-    private getEntriesForDate(checkIn: any): { emoji: string; timestamp: string; note?: string }[] {
+    private getEntriesForDate(checkIn: any): { emoji: string; meaning?: string; timestamp: string; note?: string }[] {
         if (!checkIn) return [];
         if (Array.isArray(checkIn.entries) && checkIn.entries.length > 0) {
-            return checkIn.entries.map((e: any) => ({ emoji: e.emoji, timestamp: e.timestamp, note: e.note }));
+            return checkIn.entries.map((e: any) => ({ emoji: e.emoji, meaning: e.meaning || this.getMeaningForEmoji(e.emoji), timestamp: e.timestamp, note: e.note }));
         }
         // fallback to legacy status array
-        return (checkIn.status || []).map((s: string) => ({ emoji: s, timestamp: checkIn.timestamp || '', note: '' }));
+        return (checkIn.status || []).map((s: string) => ({ emoji: s, meaning: this.getMeaningForEmoji(s), timestamp: checkIn.timestamp || '', note: '' }));
+    }
+
+    private getMeaningForEmoji(emoji: string | undefined): string | undefined {
+        if (!emoji) return undefined;
+        const configs = this.habit.checkInEmojis || [] as HabitCheckInEmoji[];
+        const cfg = configs.find(c => c.emoji === emoji);
+        return cfg ? cfg.meaning : undefined;
     }
 
     private async openEditEntryDialog(dateStr: string, index: number) {
@@ -193,7 +344,7 @@ export class HabitHistoryDialog {
             title: `编辑 ${dateStr} 第 ${index + 1} 次打卡`,
             content: '<div id="habitEditSingleEntryContainer"></div>',
             width: '360px',
-            height: '240px'
+            height: '280px'
         });
 
         const container = dialog.element.querySelector('#habitEditSingleEntryContainer') as HTMLElement;
@@ -209,12 +360,15 @@ export class HabitHistoryDialog {
         wrap.style.cssText = 'display:flex; flex-wrap:wrap; gap:8px;';
         const emojiConfigs = this.habit.checkInEmojis || [] as HabitCheckInEmoji[];
         let selectedEmoji: string | undefined = emojiConfigs.find(cfg => cfg.emoji === entry.emoji)?.emoji || (emojiConfigs.length > 0 ? emojiConfigs[0].emoji : undefined);
+        let selectedMeaning: string | undefined = emojiConfigs.find(cfg => cfg.emoji === entry.emoji)?.meaning || (emojiConfigs.length > 0 ? emojiConfigs[0].meaning : undefined);
         emojiConfigs.forEach(cfg => {
             const btn = document.createElement('button');
             btn.className = `b3-button ${cfg.emoji === selectedEmoji ? 'b3-button--primary' : 'b3-button--outline'}`;
-            btn.textContent = cfg.emoji;
+            // show emoji and meaning
+            btn.innerHTML = `<span style="font-size:18px;">${cfg.emoji}</span><span style="font-size:12px; color:var(--b3-theme-on-surface-light); margin-left:6px;">${cfg.meaning || ''}</span>`;
             btn.addEventListener('click', () => {
                 selectedEmoji = cfg.emoji;
+                selectedMeaning = cfg.meaning;
                 // update active classes
                 wrap.querySelectorAll('button').forEach(b => b.className = 'b3-button b3-button--outline');
                 btn.className = 'b3-button b3-button--primary';
@@ -263,6 +417,7 @@ export class HabitHistoryDialog {
             }
             // apply edit
             entries[index].emoji = selectedEmoji!;
+            entries[index].meaning = selectedMeaning || this.getMeaningForEmoji(selectedEmoji!);
             entries[index].timestamp = entries[index].timestamp || getLocalDateTimeString(new Date());
             entries[index].note = noteInput.value.trim() || undefined;
             // persist
@@ -301,7 +456,7 @@ export class HabitHistoryDialog {
         if (containerMain) this.renderList(containerMain);
     }
 
-    private async setEntriesForDate(dateStr: string, entries: { emoji: string; timestamp: string; note?: string }[]) {
+    private async setEntriesForDate(dateStr: string, entries: { emoji: string; meaning?: string; timestamp: string; note?: string }[]) {
         this.habit.checkIns = this.habit.checkIns || {};
         if (!entries || entries.length === 0) {
             delete this.habit.checkIns![dateStr];
