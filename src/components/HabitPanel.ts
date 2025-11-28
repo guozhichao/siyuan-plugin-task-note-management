@@ -3,6 +3,7 @@ import { readHabitData, writeHabitData, getBlockByID, getBlockDOM, openBlock } f
 import { getLocalDateString, getLocalDateTimeString } from "../utils/dateUtils";
 import { HabitGroupManager } from "../utils/habitGroupManager";
 import { HabitCalendarDialog } from "./HabitCalendarDialog";
+import { t } from "../utils/i18n";
 import { HabitEditDialog } from "./HabitEditDialog";
 import { HabitStatsDialog } from "./HabitStatsDialog";
 import { HabitGroupManageDialog } from "./HabitGroupManageDialog";
@@ -59,6 +60,7 @@ export class HabitPanel {
     // 排序选项
     private sortKey: 'priority' | 'title' = 'priority';
     private sortOrder: 'desc' | 'asc' = 'desc';
+    private sortButton: HTMLButtonElement;
     private groupManager: HabitGroupManager;
     private habitUpdatedHandler: () => void;
     private collapsedGroups: Set<string> = new Set();
@@ -79,6 +81,7 @@ export class HabitPanel {
         await this.loadCollapseStates();
 
         this.initUI();
+        this.updateSortButtonTitle();
         this.loadHabits();
 
         window.addEventListener('habitUpdated', this.habitUpdatedHandler);
@@ -93,6 +96,7 @@ export class HabitPanel {
 
     private async loadCollapseStates() {
         try {
+            console.debug('HabitPanel: showSortMenu invoked', { sortKey: this.sortKey, sortOrder: this.sortOrder });
             const states = localStorage.getItem('habit-panel-collapse-states');
             if (states) {
                 this.collapsedGroups = new Set(JSON.parse(states));
@@ -159,6 +163,18 @@ export class HabitPanel {
         });
         actionContainer.appendChild(calendarBtn);
 
+        // 添加排序按钮
+        this.sortButton = document.createElement('button');
+        this.sortButton.className = 'b3-button b3-button--outline';
+        this.sortButton.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconSort"></use></svg>';
+        this.sortButton.title = "排序";
+        this.sortButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.showSortMenu(e);
+        });
+        actionContainer.appendChild(this.sortButton);
+
         // 分组管理按钮
         const groupManageBtn = document.createElement('button');
         groupManageBtn.className = 'b3-button b3-button--outline';
@@ -222,25 +238,6 @@ export class HabitPanel {
         this.groupFilterButton.addEventListener('click', () => this.showGroupSelectDialog());
         controls.appendChild(this.groupFilterButton);
 
-        // 排序选择器
-        const sortSelect = document.createElement('select');
-        sortSelect.className = 'b3-select';
-        sortSelect.style.cssText = 'width: 160px;';
-        sortSelect.innerHTML = `
-            <option value="priority_desc">优先级 ↓</option>
-            <option value="priority_asc">优先级 ↑</option>
-            <option value="title_asc">标题 A-Z</option>
-            <option value="title_desc">标题 Z-A</option>
-        `;
-        sortSelect.value = `${this.sortKey}_${this.sortOrder}`;
-        sortSelect.addEventListener('change', (e) => {
-            const v = (e.target as HTMLSelectElement).value.split('_');
-            this.sortKey = v[0] === 'title' ? 'title' : 'priority';
-            this.sortOrder = v[1] === 'asc' ? 'asc' : 'desc';
-            this.loadHabits();
-        });
-        controls.appendChild(sortSelect);
-
         header.appendChild(controls);
         this.container.appendChild(header);
 
@@ -270,6 +267,76 @@ export class HabitPanel {
             });
             this.groupFilterButton.textContent = names.join(', ');
         }
+    }
+
+    private showSortMenu(event: MouseEvent) {
+        try {
+            const menu = new Menu("habitSortMenu");
+
+            const sortOptions = [
+                { key: 'priority', label: t('sortByPriority') || '按优先级排序', icon: '🎯' },
+                { key: 'title', label: t('sortByTitle') || '按标题排序', icon: '📝' }
+            ];
+
+            sortOptions.forEach(option => {
+                menu.addItem({
+                    iconHTML: option.icon,
+                    label: `${option.label} (${t('ascending') || '升序'})`,
+                    current: this.sortKey === option.key && this.sortOrder === 'asc',
+                    click: () => {
+                        this.setSort(option.key as any, 'asc');
+                    }
+                });
+
+                menu.addItem({
+                    iconHTML: option.icon,
+                    label: `${option.label} (${t('descending') || '降序'})`,
+                    current: this.sortKey === option.key && this.sortOrder === 'desc',
+                    click: () => {
+                        this.setSort(option.key as any, 'desc');
+                    }
+                });
+            });
+
+            // 使用按钮的位置定位菜单（与 ReminderPanel 保持一致）
+            if (this.sortButton) {
+                console.debug('HabitPanel: sortButton rect', this.sortButton.getBoundingClientRect());
+                const rect = this.sortButton.getBoundingClientRect();
+                const menuX = rect.left;
+                const menuY = rect.bottom + 4;
+
+                const maxX = window.innerWidth - 200;
+                const maxY = window.innerHeight - 200;
+
+                menu.open({
+                    x: Math.min(menuX, maxX),
+                    y: Math.min(menuY, maxY)
+                });
+            } else {
+                // 回退：根据事件坐标打开
+                menu.open({ x: event.clientX, y: event.clientY });
+            }
+        } catch (error) {
+            console.error('显示排序菜单失败:', error);
+        }
+    }
+
+    private setSort(key: 'priority' | 'title', order: 'asc' | 'desc') {
+        this.sortKey = key;
+        this.sortOrder = order;
+        this.updateSortButtonTitle();
+        this.loadHabits();
+    }
+
+    private updateSortButtonTitle() {
+        const sortLabels = {
+            'priority_desc': '最高优先',
+            'priority_asc': '最低优先',
+            'title_asc': '标题 A-Z',
+            'title_desc': '标题 Z-A'
+        };
+        const key = `${this.sortKey}_${this.sortOrder}`;
+        this.sortButton.title = `排序: ${sortLabels[key] || '默认'}`;
     }
 
     private async loadHabits() {
