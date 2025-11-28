@@ -6,6 +6,13 @@ export class HabitCheckInEmojiDialog {
     private habit: Habit;
     private onSave: (emojis: HabitCheckInEmoji[]) => Promise<void>;
     private emojis: HabitCheckInEmoji[];
+    // single shared picker instance and active selection tracking
+    private sharedPicker: any = null;
+    private activePickerIndex: number | null = null;
+    private activeEmojiCircle: HTMLElement | null = null;
+    private sharedCloseHandler?: (e: MouseEvent) => void;
+    private sharedResizeHandler?: () => void;
+    private sharedScrollHandler?: () => void;
 
     constructor(habit: Habit, onSave: (emojis: HabitCheckInEmoji[]) => Promise<void>) {
         this.habit = habit;
@@ -29,6 +36,10 @@ export class HabitCheckInEmojiDialog {
             content: '<div id="checkInEmojiContainer"></div>',
             width: "600px",
             height: "600px"
+            , destroyCallback: () => {
+                // clear any floating pickers
+                this.clearAllPickers();
+            }
         });
 
         const container = this.dialog.element.querySelector('#checkInEmojiContainer') as HTMLElement;
@@ -38,6 +49,8 @@ export class HabitCheckInEmojiDialog {
     }
 
     private renderEmojiList(container: HTMLElement) {
+        // Remove any floating pickers from previous render to avoid duplicates and event listeners leak
+        this.clearAllPickers();
         container.innerHTML = '';
         container.style.cssText = 'padding: 20px; display: flex; flex-direction: column; height: 100%;';
 
@@ -124,6 +137,77 @@ export class HabitCheckInEmojiDialog {
         buttonContainer.appendChild(rightButtons);
 
         container.appendChild(buttonContainer);
+    }
+
+    private initSharedPicker() {
+        if (this.sharedPicker) return;
+        try {
+            this.sharedPicker = document.createElement('emoji-picker') as any;
+            this.sharedPicker.style.cssText = 'position: fixed; left: 0; top: 0; z-index: 2147483647; display: none; width: 320px; height: 400px; margin-top: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2); border-radius: 12px; background: var(--b3-theme-surface);';
+            this.sharedPicker.locale = 'zh';
+            document.body.appendChild(this.sharedPicker);
+
+            // emoji click handler uses activePickerIndex
+            this.sharedPicker.addEventListener('emoji-click', (event: any) => {
+                const selectedEmoji = event.detail.emoji.unicode;
+                if (this.activePickerIndex !== null && this.activePickerIndex >= 0) {
+                    this.emojis[this.activePickerIndex].emoji = selectedEmoji;
+                }
+                if (this.activeEmojiCircle) {
+                    this.activeEmojiCircle.textContent = selectedEmoji;
+                }
+                this.sharedPicker.style.display = 'none';
+                this.activePickerIndex = null;
+                this.activeEmojiCircle = null;
+            });
+
+            this.sharedCloseHandler = (e: MouseEvent) => {
+                const target = e.target as Node;
+                if (this.sharedPicker && this.sharedPicker.contains(target)) return;
+                if (this.activeEmojiCircle && this.activeEmojiCircle.contains(target)) return;
+                if (this.sharedPicker) this.sharedPicker.style.display = 'none';
+                this.activePickerIndex = null;
+                this.activeEmojiCircle = null;
+            };
+            document.addEventListener('click', this.sharedCloseHandler);
+
+            this.sharedResizeHandler = () => {
+                if (this.sharedPicker && this.sharedPicker.style.display === 'block') this.positionSharedPicker();
+            };
+            this.sharedScrollHandler = () => {
+                if (this.sharedPicker && this.sharedPicker.style.display === 'block') this.positionSharedPicker();
+            };
+            window.addEventListener('resize', this.sharedResizeHandler);
+            window.addEventListener('scroll', this.sharedScrollHandler, true);
+        } catch (error) {
+            console.error('init shared picker failed', error);
+        }
+    }
+
+    private positionSharedPicker() {
+        try {
+            if (!this.sharedPicker || !this.activeEmojiCircle) return;
+            const rect = this.activeEmojiCircle.getBoundingClientRect();
+            const prevDisplay = this.sharedPicker.style.display;
+            this.sharedPicker.style.display = 'block';
+            this.sharedPicker.style.visibility = 'hidden';
+            const pr = this.sharedPicker.getBoundingClientRect();
+            let top = rect.bottom + 8;
+            if (top + pr.height > window.innerHeight) {
+                top = rect.top - pr.height - 8;
+            }
+            let left = rect.left;
+            if (left + pr.width > window.innerWidth) {
+                left = window.innerWidth - pr.width - 8;
+            }
+            if (left < 8) left = 8;
+            this.sharedPicker.style.left = `${Math.round(left)}px`;
+            this.sharedPicker.style.top = `${Math.round(top)}px`;
+            this.sharedPicker.style.visibility = 'visible';
+            this.sharedPicker.style.display = prevDisplay;
+        } catch (error) {
+            // ignore
+        }
     }
 
     private createEmojiItem(emojiConfig: HabitCheckInEmoji, index: number): HTMLElement {
@@ -228,31 +312,28 @@ export class HabitCheckInEmojiDialog {
             emojiCircle.style.boxShadow = 'none';
         });
 
-        emojiCircle.addEventListener('click', () => {
-            picker.style.display = picker.style.display === 'none' ? 'block' : 'none';
-        });
-
-        // Emoji picker
-        const picker = document.createElement('emoji-picker') as any;
-        picker.style.cssText = 'position: absolute; top: 100%; left: 0; z-index: 1000; display: none; width: 320px; height: 400px; margin-top: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2); border-radius: 12px;';
-        picker.locale = 'zh';
-        picker.addEventListener('emoji-click', (event: any) => {
-            const selectedEmoji = event.detail.emoji.unicode;
-            emojiCircle.textContent = selectedEmoji;
-            this.emojis[index].emoji = selectedEmoji;
-            picker.style.display = 'none';
-        });
-
-        // 点击外部关闭picker
-        const closePickerHandler = (e: MouseEvent) => {
-            if (!emojiContainer.contains(e.target as Node)) {
-                picker.style.display = 'none';
+        // emojiCircle click toggles the shared picker visibility and positions it
+        emojiCircle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // ensure shared picker initialized
+            this.initSharedPicker();
+            this.activePickerIndex = index;
+            this.activeEmojiCircle = emojiCircle;
+            if (!this.sharedPicker) return;
+            const show = this.sharedPicker.style.display === 'none' || this.sharedPicker.style.display === '';
+            if (show) {
+                this.sharedPicker.style.display = 'block';
+                this.positionSharedPicker();
+            } else {
+                this.sharedPicker.style.display = 'none';
+                this.activePickerIndex = null;
+                this.activeEmojiCircle = null;
             }
-        };
-        document.addEventListener('click', closePickerHandler);
+        });
+
+        // No per-item picker is created; shared picker will be used instead
 
         emojiContainer.appendChild(emojiCircle);
-        emojiContainer.appendChild(picker);
 
         // 含义输入
         const meaningInput = document.createElement('input');
@@ -402,6 +483,28 @@ export class HabitCheckInEmojiDialog {
         } catch (error) {
             console.error('保存打卡选项失败:', error);
             showMessage('保存失败', 3000, 'error');
+        }
+    }
+
+    private clearAllPickers() {
+        if (this.sharedPicker) {
+            try {
+                if (this.sharedCloseHandler) {
+                    document.removeEventListener('click', this.sharedCloseHandler);
+                }
+                if (this.sharedResizeHandler) {
+                    window.removeEventListener('resize', this.sharedResizeHandler);
+                }
+                if (this.sharedScrollHandler) {
+                    window.removeEventListener('scroll', this.sharedScrollHandler, true);
+                }
+                if (this.sharedPicker.remove) this.sharedPicker.remove();
+            } catch (error) {
+                console.error('清理 emoji picker 失败', error);
+            }
+            this.sharedPicker = null;
+            this.activeEmojiCircle = null;
+            this.activePickerIndex = null;
         }
     }
 }
