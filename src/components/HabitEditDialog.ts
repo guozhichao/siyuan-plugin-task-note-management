@@ -1,4 +1,5 @@
 import { Dialog, showMessage } from "siyuan";
+import { getBlockByID, getBlockDOM } from "../api";
 import { Habit } from "./HabitPanel";
 import { getLocalDateTimeString } from "../utils/dateUtils";
 import { HabitGroupManager } from "../utils/habitGroupManager";
@@ -65,6 +66,56 @@ export class HabitEditDialog {
         const groupSelect = this.createGroupSelect();
         form.appendChild(groupSelect);
 
+        // 绑定块输入（可选）
+        const blockGroup = document.createElement('div');
+        blockGroup.style.cssText = 'display:flex; flex-direction: column; gap:4px;';
+
+        const blockLabel = document.createElement('label');
+        blockLabel.textContent = '绑定块（可选）';
+        blockLabel.style.cssText = 'font-weight: bold; font-size: 14px;';
+
+        const blockInputRow = document.createElement('div');
+        blockInputRow.style.cssText = 'display:flex; gap:8px; align-items:center;';
+
+        const blockInput = document.createElement('input');
+        blockInput.type = 'text';
+        blockInput.name = 'blockId';
+        blockInput.id = 'habitBlockInput';
+        blockInput.className = 'b3-text-field';
+        blockInput.placeholder = '块或文档 ID（例如：(()) 或 siyuan://blocks/ID）';
+        blockInput.value = this.habit?.blockId || '';
+        blockInput.style.cssText = 'flex: 1;';
+
+        const pasteBtn = document.createElement('button');
+        pasteBtn.type = 'button';
+        pasteBtn.className = 'b3-button b3-button--outline';
+        pasteBtn.title = '粘贴块引用';
+        pasteBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg>';
+
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.className = 'b3-button b3-button--outline';
+        clearBtn.title = '清除';
+        clearBtn.textContent = '清除';
+
+        blockInputRow.appendChild(blockInput);
+        blockInputRow.appendChild(pasteBtn);
+        blockInputRow.appendChild(clearBtn);
+
+        const blockPreview = document.createElement('div');
+        blockPreview.id = 'habitBlockPreview';
+        blockPreview.style.cssText = 'font-size:12px; color:var(--b3-theme-on-surface-light); padding-top:6px;';
+
+        blockGroup.appendChild(blockLabel);
+        blockGroup.appendChild(blockInputRow);
+        blockGroup.appendChild(blockPreview);
+        form.appendChild(blockGroup);
+
+        // initial preview if editing and block exists
+        if (blockInput.value) {
+            this.updatePreviewForBlock(blockInput.value, blockPreview).catch(err => console.warn('初始化块预览失败', err));
+        }
+
         // 优先级
         const priorityGroup = this.createPriorityGroup();
         form.appendChild(priorityGroup);
@@ -92,6 +143,62 @@ export class HabitEditDialog {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             await this.handleSubmit(form, isNew);
+        });
+
+        // 绑定块按钮事件
+        pasteBtn.addEventListener('click', async () => {
+            try {
+                const clipboardText = await navigator.clipboard.readText();
+                if (!clipboardText) return;
+
+                const blockRefRegex = /\(\(([\w\-]+)\s+'(.*)'\)\)/;
+                const blockLinkRegex = /\[(.*)\]\(siyuan:\/\/blocks\/([\w\-]+)\)/;
+
+                let blockId: string | undefined;
+
+                const refMatch = clipboardText.match(blockRefRegex);
+                if (refMatch) {
+                    blockId = refMatch[1];
+                } else {
+                    const linkMatch = clipboardText.match(blockLinkRegex);
+                    if (linkMatch) {
+                        blockId = linkMatch[2];
+                    }
+                }
+
+                if (blockId) {
+                    blockInput.value = blockId;
+                    await this.updatePreviewForBlock(blockId, blockPreview);
+                    showMessage('已粘贴块引用');
+                } else {
+                    showMessage('粘贴内容不是块引用/链接', 3000, 'error');
+                }
+            } catch (error) {
+                console.error('读取剪贴板失败:', error);
+                showMessage('读取剪贴板失败', 3000, 'error');
+            }
+        });
+
+
+        // 清除绑定
+        clearBtn.addEventListener('click', () => {
+            blockInput.value = '';
+            blockPreview.textContent = '';
+        });
+
+        // 输入更改时更新预览（简单实现）
+        blockInput.addEventListener('input', async () => {
+            const raw = blockInput.value?.trim();
+            if (!raw) {
+                blockPreview.textContent = '';
+                return;
+            }
+            const id = this.extractBlockId(raw);
+            if (!id) {
+                blockPreview.textContent = '';
+                return;
+            }
+            await this.updatePreviewForBlock(id, blockPreview);
         });
 
         container.appendChild(form);
@@ -404,6 +511,7 @@ export class HabitEditDialog {
             startDate,
             endDate: formData.get('endDate') as string || undefined,
             reminderTime: formData.get('reminderTime') as string || undefined,
+            blockId: formData.get('blockId') as string || undefined,
             priority: formData.get('priority') as any || 'none',
             groupId: formData.get('groupId') as string === 'none' ? undefined : formData.get('groupId') as string,
             checkInEmojis: this.habit?.checkInEmojis || [
@@ -456,5 +564,55 @@ export class HabitEditDialog {
             console.error('保存习惯失败:', error);
             showMessage('保存失败', 3000, 'error');
         }
+    }
+
+    private async updatePreviewForBlock(blockId: string, previewEl: HTMLElement) {
+        try {
+            const block = await getBlockByID(blockId);
+            if (!block) {
+                previewEl.textContent = '块不存在';
+                return;
+            }
+
+            let snippet = '';
+            if (block.type === 'd') {
+                snippet = block.content || '';
+            } else {
+                try {
+                    const domString = await getBlockDOM(blockId);
+                    const parser = new DOMParser();
+                    const dom = parser.parseFromString(domString.dom, 'text/html');
+                    const element = dom.querySelector('div[data-type="NodeParagraph"]');
+                    if (element) {
+                        const attrElement = element.querySelector('div.protyle-attr');
+                        if (attrElement) attrElement.remove();
+                    }
+                    snippet = (element ? (element.textContent || '') : (block.fcontent || block.content || '')) || '';
+                } catch (e) {
+                    snippet = block.fcontent || block.content || '';
+                }
+            }
+
+            previewEl.textContent = snippet ? snippet.trim().slice(0, 200) : '';
+        } catch (err) {
+            console.error('获取块预览失败:', err);
+            previewEl.textContent = '获取块信息失败';
+        }
+    }
+
+    private extractBlockId(raw: string): string | null {
+        if (!raw) return null;
+        const blockRefRegex = /\(\(([\w\-]+)\s+'(.*)'\)\)/;
+        const blockLinkRegex = /\[(.*)\]\(siyuan:\/\/blocks\/([\w\-]+)\)/;
+        const match1 = raw.match(blockRefRegex);
+        if (match1) return match1[1];
+        const match2 = raw.match(blockLinkRegex);
+        if (match2) return match2[2];
+        const urlRegex = /siyuan:\/\/blocks\/([\w\-]+)/;
+        const match3 = raw.match(urlRegex);
+        if (match3) return match3[1];
+        const idRegex = /^([a-zA-Z0-9\-]{5,})$/;
+        if (idRegex.test(raw)) return raw;
+        return null;
     }
 }

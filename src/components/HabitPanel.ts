@@ -1,5 +1,5 @@
 import { showMessage, Dialog, Menu, confirm } from "siyuan";
-import { readHabitData, writeHabitData } from "../api";
+import { readHabitData, writeHabitData, getBlockByID, getBlockDOM, openBlock } from "../api";
 import { getLocalDateString, getLocalDateTimeString } from "../utils/dateUtils";
 import { HabitGroupManager } from "../utils/habitGroupManager";
 import { HabitCalendarDialog } from "./HabitCalendarDialog";
@@ -536,6 +536,73 @@ export class HabitPanel {
         title.style.cssText = 'flex: 1; font-weight: bold; font-size: 14px;';
         titleRow.appendChild(title);
 
+        // 如果绑定了块，显示链接图标并支持悬浮预览与点击打开
+        if (habit.blockId) {
+            const blockIcon = document.createElement('span');
+            blockIcon.className = 'habit-block-icon';
+            blockIcon.textContent = '🔗';
+            blockIcon.title = '打开绑定块/文档';
+            blockIcon.style.cssText = 'cursor:pointer; margin-left: 6px; font-size: 14px;';
+
+            // 点击打开块
+            blockIcon.addEventListener('click', (e) => {
+                e.stopPropagation();
+                try {
+                    openBlock(habit.blockId!);
+                } catch (err) {
+                    console.error('打开块失败:', err);
+                    showMessage('打开块失败', 3000, 'error');
+                }
+            });
+
+            // 悬浮预览 (延迟加载)
+            let tooltipEl: HTMLElement | null = null;
+            const showTooltip = async (ev: MouseEvent) => {
+                try {
+                    if (tooltipEl) return;
+                    tooltipEl = document.createElement('div');
+                    tooltipEl.className = 'habit-block-tooltip';
+                    tooltipEl.style.cssText = `
+                        position: fixed;
+                        z-index: 9999;
+                        max-width: 360px;
+                        background: var(--b3-theme-surface);
+                        color: var(--b3-theme-on-surface);
+                        border: 1px solid var(--b3-theme-surface-lighter);
+                        border-radius: 6px;
+                        padding: 8px;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+                        font-size: 12px;
+                    `;
+                    document.body.appendChild(tooltipEl);
+
+                    // 计算位置
+                    const x = ev.clientX + 12;
+                    const y = ev.clientY + 12;
+                    tooltipEl.style.left = x + 'px';
+                    tooltipEl.style.top = y + 'px';
+
+                    // 加载块内容并显示
+                    const preview = await this.getBlockPreview(habit.blockId!);
+                    tooltipEl.innerHTML = `<div style="font-weight:bold; margin-bottom:6px">绑定块</div><div>${preview}</div>`;
+                } catch (e) {
+                    console.warn('加载块预览失败', e);
+                }
+            };
+
+            const hideTooltip = () => {
+                if (tooltipEl && tooltipEl.parentElement) {
+                    tooltipEl.parentElement.removeChild(tooltipEl);
+                }
+                tooltipEl = null;
+            };
+
+            blockIcon.addEventListener('mouseenter', (ev) => showTooltip(ev as MouseEvent));
+            blockIcon.addEventListener('mouseleave', hideTooltip);
+
+            titleRow.appendChild(blockIcon);
+        }
+
         card.appendChild(titleRow);
 
         // 打卡信息
@@ -654,6 +721,33 @@ export class HabitPanel {
         }
     }
 
+    private async getBlockPreview(blockId: string): Promise<string> {
+        try {
+            const block = await getBlockByID(blockId);
+            if (!block) return '块不存在';
+            if (block.type === 'd') {
+                return block.content || '';
+            }
+            try {
+                const domString = await getBlockDOM(blockId);
+                const parser = new DOMParser();
+                const dom = parser.parseFromString(domString.dom, 'text/html');
+                const element = dom.querySelector('div[data-type="NodeParagraph"]');
+                if (element) {
+                    const attrElement = element.querySelector('div.protyle-attr');
+                    if (attrElement) attrElement.remove();
+                }
+                const snippet = element ? (element.textContent || '') : (block.fcontent || block.content || '');
+                return (snippet || '').trim().slice(0, 300);
+            } catch (err) {
+                return (block.fcontent || block.content || '').slice(0, 300);
+            }
+        } catch (error) {
+            console.error('获取块预览失败', error);
+            return '获取块信息失败';
+        }
+    }
+
     private async renderCompletedHabitsSection(excludeIds?: Set<string>) {
         const today = getLocalDateString();
         const habitData = await readHabitData();
@@ -744,6 +838,22 @@ export class HabitPanel {
                 this.showEditHabitDialog(habit);
             }
         });
+
+        // 打开绑定块（如果存在）
+        if (habit.blockId) {
+            menu.addItem({
+                label: "打开绑定块",
+                icon: "iconOpen",
+                click: () => {
+                    try {
+                        openBlock(habit.blockId!);
+                    } catch (err) {
+                        console.error('打开块失败', err);
+                        showMessage('打开块失败', 3000, 'error');
+                    }
+                }
+            });
+        }
 
         // 删除习惯
         menu.addItem({
