@@ -54,6 +54,9 @@ export class HabitPanel {
     private groupFilterButton: HTMLButtonElement;
     private currentTab: string = 'today';
     private selectedGroups: string[] = [];
+    // 排序选项
+    private sortKey: 'priority' | 'title' = 'priority';
+    private sortOrder: 'desc' | 'asc' = 'desc';
     private groupManager: HabitGroupManager;
     private habitUpdatedHandler: () => void;
     private collapsedGroups: Set<string> = new Set();
@@ -216,6 +219,25 @@ export class HabitPanel {
         this.groupFilterButton.textContent = "分组筛选";
         this.groupFilterButton.addEventListener('click', () => this.showGroupSelectDialog());
         controls.appendChild(this.groupFilterButton);
+
+        // 排序选择器
+        const sortSelect = document.createElement('select');
+        sortSelect.className = 'b3-select';
+        sortSelect.style.cssText = 'width: 160px;';
+        sortSelect.innerHTML = `
+            <option value="priority_desc">优先级 ↓</option>
+            <option value="priority_asc">优先级 ↑</option>
+            <option value="title_asc">标题 A-Z</option>
+            <option value="title_desc">标题 Z-A</option>
+        `;
+        sortSelect.value = `${this.sortKey}_${this.sortOrder}`;
+        sortSelect.addEventListener('change', (e) => {
+            const v = (e.target as HTMLSelectElement).value.split('_');
+            this.sortKey = v[0] === 'title' ? 'title' : 'priority';
+            this.sortOrder = v[1] === 'asc' ? 'asc' : 'desc';
+            this.loadHabits();
+        });
+        controls.appendChild(sortSelect);
 
         header.appendChild(controls);
         this.container.appendChild(header);
@@ -485,7 +507,9 @@ export class HabitPanel {
             const groupContent = document.createElement('div');
             groupContent.className = 'habit-group__content';
 
-            habits.forEach(habit => {
+            // 对分组内的习惯进行排序
+            const sortedHabits = this.sortHabitsInGroup(habits);
+            sortedHabits.forEach(habit => {
                 const habitCard = this.createHabitCard(habit);
                 groupContent.appendChild(habitCard);
             });
@@ -494,6 +518,39 @@ export class HabitPanel {
         }
 
         this.habitsContainer.appendChild(groupContainer);
+    }
+
+    private sortHabitsInGroup(habits: Habit[]): Habit[] {
+        const priorityVal = (p?: string) => {
+            switch (p) {
+                case 'high': return 3;
+                case 'medium': return 2;
+                case 'low': return 1;
+                default: return 0;
+            }
+        };
+
+        const compare = (a: Habit, b: Habit) => {
+            if (this.sortKey === 'priority') {
+                const pa = priorityVal(a.priority);
+                const pb = priorityVal(b.priority);
+                if (pa !== pb) return pa - pb;
+                // fallback by title
+                return (a.title || '').localeCompare(b.title || '', 'zh-CN', { sensitivity: 'base' });
+            }
+            // title
+            const res = (a.title || '').localeCompare(b.title || '', 'zh-CN', { sensitivity: 'base' });
+            if (res !== 0) return res;
+            // fallback by priority
+            return priorityVal(a.priority) - priorityVal(b.priority);
+        };
+
+        const copy = [...habits];
+        copy.sort((a, b) => {
+            const r = compare(a, b);
+            return this.sortOrder === 'asc' ? r : -r;
+        });
+        return copy;
     }
 
     private createHabitCard(habit: Habit): HTMLElement {
@@ -791,7 +848,8 @@ export class HabitPanel {
 
         separator.appendChild(completedTitle);
 
-        completedHabits.forEach(habit => {
+        const sortedCompleted = this.sortHabitsInGroup(completedHabits);
+        sortedCompleted.forEach(habit => {
             const habitCard = this.createHabitCard(habit);
             habitCard.style.opacity = '0.7';
             separator.appendChild(habitCard);
