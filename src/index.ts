@@ -206,7 +206,6 @@ export default class ReminderPlugin extends Plugin {
                     };
                     this.preloadedAudio.volume = 1; // 恢复正常音量
                     this.audioEnabled = true;
-                    console.log('音频播放已启用');
                 }
             } catch (error) {
                 console.warn('音频预加载失败，将使用静音模式:', error);
@@ -326,12 +325,10 @@ export default class ReminderPlugin extends Plugin {
         try {
             const soundPath = await this.getNotificationSound();
             if (!soundPath) {
-                console.log('通知声音路径为空，静音模式');
                 return;
             }
 
             if (!this.audioEnabled) {
-                console.log('音频未启用，需要用户交互后才能播放声音');
                 return;
             }
             // 如果已经在播放提示音，则避免重复播放
@@ -381,7 +378,6 @@ export default class ReminderPlugin extends Plugin {
 
             // 如果是权限错误，提示用户
             if (error.name === 'NotAllowedError') {
-                console.log('提示：点击页面任意位置后，音频通知将自动启用');
             }
         }
     }
@@ -521,11 +517,6 @@ export default class ReminderPlugin extends Plugin {
                     return;
                 }
 
-                console.log('番茄钟Tab初始化', {
-                    isStandaloneWindow,
-                    windowId: this.windowId,
-                    tabId: tab.id
-                });
 
                 // 动态导入PomodoroTimer避免循环依赖
                 import("./components/PomodoroTimer").then(({ PomodoroTimer }) => {
@@ -535,15 +526,12 @@ export default class ReminderPlugin extends Plugin {
                     const standardTabId = this.name + POMODORO_TAB_TYPE;
                     this.tabViews.set(standardTabId, pomodoroTimer);
 
-                    console.log('番茄钟实例已保存到tabViews, key:', standardTabId);
 
                     // 如果这是一个独立窗口，延迟通知其他窗口（确保广播通道已建立）
                     if (isStandaloneWindow) {
-                        console.log('番茄钟在独立窗口中打开，延迟通知其他窗口...');
 
                         // 延迟发送，确保广播通道已建立
                         setTimeout(() => {
-                            console.log('发送番茄钟窗口打开通知', this.windowId);
                             this.broadcastMessage("pomodoro_window_opened", {
                                 windowId: this.windowId
                             }, true);  // 强制发送
@@ -553,17 +541,14 @@ export default class ReminderPlugin extends Plugin {
             }) as any,
             destroy: (() => {
                 // 当番茄钟Tab关闭时，清除标记并通知其他窗口
-                console.log('番茄钟Tab销毁');
 
                 // 清理tabViews中的引用
                 const standardTabId = this.name + POMODORO_TAB_TYPE;
                 if (this.tabViews.has(standardTabId)) {
-                    console.log('清理tabViews中的番茄钟实例, key:', standardTabId);
                     this.tabViews.delete(standardTabId);
                 }
 
                 if (this.pomodoroWindowId === this.windowId) {
-                    console.log('清除番茄钟窗口标记');
                     this.pomodoroWindowId = null;
                     // 通知其他窗口番茄钟窗口已关闭
                     this.broadcastMessage("pomodoro_window_closed", {
@@ -1299,7 +1284,6 @@ export default class ReminderPlugin extends Plugin {
         if (!elements || !elements.length) {
             return;
         }
-        console.log(t("handleDocumentTreeMenuLog"), elements);
         // 获取所有选中的文档ID
         const documentIds = Array.from(elements)
             .map((element: Element) => element.getAttribute("data-node-id"))
@@ -2973,7 +2957,6 @@ export default class ReminderPlugin extends Plugin {
     }
 
     onunload() {
-        console.log("Reminder Plugin unloaded");
 
         // 清理广播通信
         this.cleanupBroadcastChannel();
@@ -3027,9 +3010,8 @@ export default class ReminderPlugin extends Plugin {
                     const enableNotification = async () => {
                         const permission = await Notification.requestPermission();
                         if (permission === 'granted') {
-                            console.log('系统通知权限已获取');
                         } else {
-                            console.log('系统通知权限被拒绝');
+                            console.error('系统通知权限被拒绝');
                         }
 
                         // 移除事件监听器
@@ -3095,7 +3077,6 @@ export default class ReminderPlugin extends Plugin {
         try {
             // 先检查是否已有独立窗口
             if (this.pomodoroWindowId) {
-                console.log('检测到已存在番茄钟独立窗口，尝试更新状态...', this.pomodoroWindowId);
 
                 // 通过广播更新已有窗口的番茄钟状态
                 // 如果没有提供inheritState，设置标志让独立窗口继承自己当前的状态
@@ -3112,7 +3093,6 @@ export default class ReminderPlugin extends Plugin {
             }
 
             // 如果没有独立窗口，则打开新窗口
-            console.log('没有检测到独立窗口，准备打开新窗口...');
             const tabId = this.name + POMODORO_TAB_TYPE;
 
             // 创建tab
@@ -3139,7 +3119,6 @@ export default class ReminderPlugin extends Plugin {
                 tab: await tab,
             });
 
-            console.log('新窗口已打开');
 
         } catch (error) {
             console.error('打开独立窗口失败:', error);
@@ -3159,7 +3138,6 @@ export default class ReminderPlugin extends Plugin {
         // 订阅广播频道
         await this.subscribeToBroadcastChannel();
 
-        console.log('Broadcast Channel has been initialized, Window ID:', this.windowId);
 
         // 发送初始化消息到其他窗口（用于发现其他窗口）
         this.broadcastMessage("window_online", {
@@ -3170,7 +3148,6 @@ export default class ReminderPlugin extends Plugin {
         // 等待一小段时间，让其他窗口响应
         await new Promise(resolve => setTimeout(resolve, 100));
 
-        console.log('广播通道初始化完成，已发现窗口数:', this.otherWindowIds.size);
 
         // 监听页面卸载事件，确保窗口关闭时发送下线通知
         window.addEventListener("beforeunload", () => {
@@ -3193,7 +3170,6 @@ export default class ReminderPlugin extends Plugin {
 
                 // 监听连接打开
                 this.websocket.onopen = () => {
-                    console.log("Broadcast channel connected");
                     this.clearReconnectTimer();
                     resolve();
                 };
@@ -3217,7 +3193,6 @@ export default class ReminderPlugin extends Plugin {
 
                 // 监听连接关闭
                 this.websocket.onclose = (event) => {
-                    console.log("Broadcast channel connection closed:", event.code, event.reason);
                     this.scheduleReconnect();
                 };
 
@@ -3235,7 +3210,6 @@ export default class ReminderPlugin extends Plugin {
     private scheduleReconnect() {
         this.clearReconnectTimer();
         this.reconnectTimer = window.setTimeout(() => {
-            console.log("Attempting to reconnect to broadcast channel...");
             this.subscribeToBroadcastChannel().catch(error => {
                 console.error("Failed to reconnect to broadcast channel:", error);
             });
@@ -3256,16 +3230,13 @@ export default class ReminderPlugin extends Plugin {
      * 处理窗口下线通知
      */
     private handleWindowOffline(windowId: string) {
-        console.log("收到窗口下线通知:", windowId);
         this.otherWindowIds.delete(windowId);
 
         // 如果是番茄钟窗口下线，清除标记
         if (this.pomodoroWindowId === windowId) {
-            console.log("番茄钟窗口下线，清除标记:", windowId);
             this.pomodoroWindowId = null;
         }
 
-        console.log("窗口下线处理完成，当前其他窗口数:", this.otherWindowIds.size, "番茄钟窗口ID:", this.pomodoroWindowId);
     }
 
     /**
@@ -3305,11 +3276,9 @@ export default class ReminderPlugin extends Plugin {
      * 处理来自其他窗口的广播消息
      */
     private async handleBroadcastMessage(data: any) {
-        console.log("Received broadcast message:", data);
 
         // 忽略来自当前窗口的消息
         if (data.windowId === this.windowId) {
-            console.log("Ignoring message from current window:", data.windowId);
             return;
         }
 
@@ -3318,7 +3287,6 @@ export default class ReminderPlugin extends Plugin {
 
         switch (data.type) {
             case "window_online":
-                console.log("New window detected:", data.windowId);
                 // 向新上线的窗口发送反馈，告知自己的存在
                 this.broadcastMessage("window_online_feedback", {
                     windowId: this.windowId,
@@ -3332,7 +3300,6 @@ export default class ReminderPlugin extends Plugin {
                 }
                 break;
             case "window_online_feedback":
-                console.log("Received online feedback from:", data.windowId);
                 this.otherWindowIds.add(data.windowId);
                 break;
             case "window_offline":
@@ -3340,24 +3307,19 @@ export default class ReminderPlugin extends Plugin {
                 break;
             case "pomodoro_window_opened":
                 // 记录番茄钟窗口ID
-                console.log("收到番茄钟窗口打开通知，窗口ID:", data.windowId);
                 this.pomodoroWindowId = data.windowId;
-                console.log("Pomodoro window opened in another window:", data.windowId);
                 break;
             case "pomodoro_window_closed":
                 // 清除番茄钟窗口ID
                 if (this.pomodoroWindowId === data.windowId) {
-                    console.log("番茄钟窗口已关闭，清除标记:", data.windowId);
                     this.pomodoroWindowId = null;
                 }
                 break;
             case "pomodoro_update":
                 // 如果当前是番茄钟独立窗口，更新番茄钟状态
-                console.log("收到番茄钟更新请求");
                 await this.updatePomodoroState(data);
                 break;
             default:
-                console.log("Unknown broadcast message type:", data.type);
         }
     }
 
@@ -3368,46 +3330,26 @@ export default class ReminderPlugin extends Plugin {
         try {
             const { reminder, settings, isCountUp, inheritState, shouldInheritCurrentState } = data;
 
-            console.log('尝试更新番茄钟状态:', {
-                reminder: reminder?.title,
-                isCountUp,
-                hasInheritState: !!inheritState,
-                shouldInheritCurrentState: !!shouldInheritCurrentState
-            });
 
             // 查找当前窗口的番茄钟Tab
             const tabId = this.name + POMODORO_TAB_TYPE;
-            console.log('查找番茄钟Tab, ID:', tabId);
-            console.log('当前tabViews:', Array.from(this.tabViews.keys()));
 
             const pomodoroView = this.tabViews.get(tabId);
 
             if (pomodoroView) {
-                console.log('找到番茄钟视图，类型:', pomodoroView.constructor.name);
 
                 // 如果需要继承当前状态，先获取当前状态
                 let finalInheritState = inheritState;
                 if (shouldInheritCurrentState && typeof pomodoroView.getCurrentState === 'function') {
-                    console.log('需要继承当前状态，调用 getCurrentState()');
                     finalInheritState = pomodoroView.getCurrentState();
-                    console.log('获取到的当前状态:', {
-                        isRunning: finalInheritState.isRunning,
-                        isWorkPhase: finalInheritState.isWorkPhase,
-                        timeElapsed: finalInheritState.timeElapsed,
-                        timeLeft: finalInheritState.timeLeft,
-                        completedPomodoros: finalInheritState.completedPomodoros
-                    });
+
                 } else if (inheritState) {
-                    console.log('使用提供的 inheritState');
                 } else {
-                    console.log('没有继承状态，将重置番茄钟');
                 }
 
                 if (typeof pomodoroView.updateState === 'function') {
                     // 如果番茄钟视图有更新状态的方法，调用它
-                    console.log('调用updateState方法，finalInheritState:', !!finalInheritState);
                     await pomodoroView.updateState(reminder, settings, isCountUp, finalInheritState);
-                    console.log('✓ 番茄钟状态已成功更新');
                 } else {
                     console.warn('番茄钟视图不支持updateState方法，尝试重新创建');
                     // 如果视图不支持更新，销毁并重建
@@ -3421,7 +3363,6 @@ export default class ReminderPlugin extends Plugin {
                 }
             } else {
                 // 如果没有现有的番茄钟视图，尝试创建新的
-                console.log('未找到番茄钟视图，尝试创建新的');
                 await this.recreatePomodoroTimer(tabId, reminder, settings, isCountUp, inheritState);
             }
         } catch (error) {
@@ -3441,7 +3382,6 @@ export default class ReminderPlugin extends Plugin {
         inheritState?: any
     ) {
         try {
-            console.log('开始重新创建番茄钟');
 
             // 动态导入PomodoroTimer
             const { PomodoroTimer } = await import("./components/PomodoroTimer");
@@ -3452,11 +3392,9 @@ export default class ReminderPlugin extends Plugin {
                 console.error('未找到番茄钟容器, tabId:', tabId);
                 // 尝试其他方式查找容器
                 const allContainers = document.querySelectorAll('[data-type="' + POMODORO_TAB_TYPE + '"]');
-                console.log('找到的所有番茄钟类型容器:', allContainers.length);
 
                 if (allContainers.length > 0) {
                     const targetContainer = allContainers[0] as HTMLElement;
-                    console.log('使用第一个找到的容器');
 
                     // 清空容器
                     targetContainer.innerHTML = '';
@@ -3472,14 +3410,12 @@ export default class ReminderPlugin extends Plugin {
                     );
 
                     this.tabViews.set(tabId, pomodoroTimer);
-                    console.log('✓ 番茄钟已成功重新创建（使用备用容器）');
                 } else {
                     console.error('完全找不到番茄钟容器');
                 }
                 return;
             }
 
-            console.log('找到番茄钟容器');
 
             // 清空容器
             container.innerHTML = '';
@@ -3495,7 +3431,6 @@ export default class ReminderPlugin extends Plugin {
             );
 
             this.tabViews.set(tabId, pomodoroTimer);
-            console.log('✓ 番茄钟已成功重新创建');
         } catch (error) {
             console.error('重新创建番茄钟失败:', error);
             throw error;
@@ -3508,7 +3443,6 @@ export default class ReminderPlugin extends Plugin {
     private broadcastMessage(type: string, data: any = {}, force = false) {
         // 如果不是强制发送且不存在其他窗口，则跳过广播
         if (!force && this.otherWindowIds.size === 0) {
-            console.log("跳过广播（无其他窗口）:", type, "force:", force, "otherWindows:", this.otherWindowIds.size);
             return;
         }
 
@@ -3521,7 +3455,6 @@ export default class ReminderPlugin extends Plugin {
 
         // 通过 WebSocket 连接发送消息
         this.postBroadcastMessage(JSON.stringify(message));
-        console.log("发送跨窗口消息:", type, "windowId:", this.windowId, "otherWindows:", this.otherWindowIds.size);
     }
 
     /**

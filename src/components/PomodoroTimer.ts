@@ -437,7 +437,6 @@ export class PomodoroTimer {
             const randomIndex = Math.floor(Math.random() * this.randomNotificationSounds.length);
             const selectedAudio = this.randomNotificationSounds[randomIndex];
 
-            console.log(`准备播放随机提示音 ${randomIndex + 1}/${this.randomNotificationSounds.length}`);
 
             // 等待音频加载完成
             if (selectedAudio.readyState < 3) {

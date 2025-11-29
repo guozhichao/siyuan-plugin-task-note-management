@@ -1,3 +1,11 @@
+## v3.3.4 / 20251129
+
+- 🎨设置新增侧栏设置Tab，支持开关任务管理、项目管理、习惯管理侧栏 [#145](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/145)
+- 🎨 全天提醒的时间设置优化，支持设置具体时间点，比如09:00  [#144](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/144)
+- 🐛四象限面板勾选任务不会自动移除 [#142](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/142)
+- 🎨尝试修复「提示音不断重复」 [#133](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/133)
+- 🐛 fix(提醒): 修复习惯提醒消息格式
+- 🐛 随机提示音失效尝试修复 [#30](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/30)
 
 ## v3.3.3 / 20251128
 
