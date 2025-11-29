@@ -442,7 +442,7 @@
     "reminderSystemNotification": "任务提醒系统弹窗",
     "reminderSystemNotificationDesc": "任务提醒时显示系统弹窗通知，支持点击跳转到相关块",
     "dailyNotificationTime": "每日通知时间",
-    "dailyNotificationTimeDesc": "设置每天几点（HH:MM）后进行全天事项通知（支持如 '09:00'，向后兼容旧的整数小时），默认上午08:00",
+    "dailyNotificationTimeDesc": "设置每天几点（HH:MM）后进行全天事项通知，默认上午08:00",
     "dailyNotificationEnabled": "启用每日统一通知",
     "dailyNotificationEnabledDesc": "每天在指定时间统一显示全天事项的汇总通知，关闭后将不再进行通知",
     "timeReminderNotification": "任务提醒",
