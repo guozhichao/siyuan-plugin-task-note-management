@@ -1,4 +1,4 @@
-import { showMessage } from "siyuan";
+import { showMessage, confirm } from "siyuan";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
 import { readReminderData, writeReminderData, getBlockByID, openBlock } from "../api";
 import { t } from "../utils/i18n";
@@ -598,10 +598,8 @@ export class PomodoroTimer {
         this.visibilityChangeHandler = () => {
             if (document.hidden) {
                 // 页面进入后台
-                console.log('番茄钟: 页面进入后台');
             } else {
                 // 页面从后台恢复
-                console.log('番茄钟: 页面从后台恢复');
 
                 // 检查随机提示音定时器是否需要触发
                 if (this.randomNotificationEnabled &&
@@ -3223,23 +3221,39 @@ export class PomodoroTimer {
     }
 
     private async resetTimer() {
-        // 如果是正计时工作模式下手动停止，并且有专注时间，则记录总的专注时间
-        if (this.isCountUp && this.isWorkPhase && this.timeElapsed > 0) {
-            // 每个实例使用自己的ID来记录番茄钟（重复实例也独立记录）
-            const eventId = this.reminder.id;
-            const eventTitle = this.reminder.title || '番茄专注';
+        // 如果在工作阶段中途停止（正计时或倒计时都有可能），询问用户是否将已用时间记录为一次番茄计时
+        if (this.isWorkPhase) {
+            // 计算已用秒数：正计时直接使用 timeElapsed，倒计时使用 totalTime - timeLeft
+            const elapsedSeconds = this.isCountUp ? this.timeElapsed : (this.totalTime - this.timeLeft);
+            if (elapsedSeconds > 0) {
+                const minutes = Math.floor(elapsedSeconds / 60);
+                const eventId = this.reminder.id;
+                const eventTitle = this.reminder.title || '番茄专注';
 
-            // 正计时模式：记录总的实际专注时间（不按番茄单位划分）
-            await this.recordManager.recordWorkSession(
-                Math.floor(this.timeElapsed / 60), // 记录总的专注分钟数
-                eventId,
-                eventTitle,
-                this.currentPhaseOriginalDuration,
-                false // isCompleted - false 因为是手动停止
-            );
-            // 更新统计显示
-            this.updateStatsDisplay();
+                // 显示思源 confirm 弹窗，用户确认则保存记录
+                await confirm(
+                    t('pomodoroStopConfirmTitle') || '中断番茄钟',
+                    (t('pomodoroStopConfirmContent', { minutes }) || `检测到你已专注 ${minutes} 分钟，是否将此次专注记录为番茄？`),
+                    async () => {
+                        try {
+                            await this.recordManager.recordWorkSession(
+                                Math.max(1, minutes),
+                                eventId,
+                                eventTitle,
+                                this.currentPhaseOriginalDuration,
+                                false
+                            );
+                            this.updateStatsDisplay();
+                            showMessage(t('pomodoroRecorded') || '已记录此次专注', 2000);
+                        } catch (err) {
+                            console.error('记录番茄专注失败:', err);
+                            showMessage(t('pomodoroRecordFailed') || '记录失败', 3000);
+                        }
+                    }
+                );
+            }
         }
+
         this.isRunning = false;
         this.isPaused = false;
         this.isWorkPhase = true;
