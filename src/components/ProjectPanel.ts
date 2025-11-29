@@ -712,8 +712,8 @@ export class ProjectPanel {
             this.showProjectContextMenu(e, project);
         });
 
-        // 添加双击打开项目看板支持
-        projectEl.addEventListener('dblclick', (e) => {
+        // 添加单击打开项目看板支持
+        projectEl.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
             this.openProjectKanban(project);
