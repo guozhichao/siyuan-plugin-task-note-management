@@ -627,26 +627,6 @@ export class HabitPanel {
     private createHabitCard(habit: Habit): HTMLElement {
         const card = document.createElement('div');
         card.className = 'habit-card';
-        card.style.cssText = `
-            background: var(--b3-theme-background);
-            border: 1px solid var(--b3-theme-surface-lighter);
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 8px;
-            cursor: pointer;
-            transition: all 0.2s;
-        `;
-
-        card.addEventListener('mouseenter', () => {
-            card.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-            card.style.borderColor = 'var(--b3-theme-primary)';
-        });
-
-        card.addEventListener('mouseleave', () => {
-            card.style.boxShadow = 'none';
-            card.style.borderColor = 'var(--b3-theme-surface-lighter)';
-        });
-
         // 标题和优先级
         const titleRow = document.createElement('div');
         titleRow.style.cssText = 'display: flex; align-items: center; gap: 8px; margin-bottom: 8px;';
@@ -756,13 +736,13 @@ export class HabitPanel {
         const checkInDaysEl = document.createElement('div');
         checkInDaysEl.textContent = `坚持打卡: ${checkInDaysCount} 天`;
         checkInDaysEl.style.cssText = 'font-size: 12px; color: var(--b3-theme-primary); font-weight: bold;';
-        card.appendChild(checkInDaysEl);
 
         // 今日打卡 emoji（只显示当天的）
         if (checkIn && ((checkIn.entries && checkIn.entries.length > 0) || (checkIn.status && checkIn.status.length > 0))) {
             const emojiRow = document.createElement('div');
             emojiRow.style.cssText = 'margin-top:8px; display:flex; gap:6px; align-items:center;';
 
+            
             const emojiLabel = document.createElement('span');
             emojiLabel.textContent = '今日打卡:';
             emojiLabel.style.cssText = 'font-size:12px; color: var(--b3-theme-on-surface-light); margin-right:6px;';
@@ -785,7 +765,63 @@ export class HabitPanel {
                 emojiRow.appendChild(emojiEl);
             });
 
+            
             card.appendChild(emojiRow);
+        }
+        // 底部操作行：左侧显示坚持天数，右侧放打卡按钮（两者在一行）
+        try {
+            const footerRow = document.createElement('div');
+            footerRow.style.cssText = 'display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:8px;';
+
+            // 左侧：坚持打卡天数
+            const leftWrap = document.createElement('div');
+            leftWrap.style.cssText = 'flex:1;';
+            leftWrap.appendChild(checkInDaysEl);
+
+            // 右侧：按钮集合（当前仅一个打卡按钮）
+            const actionRow = document.createElement('div');
+            actionRow.style.cssText = 'display:flex; justify-content:flex-end; gap:8px;';
+
+            const checkInBtn = document.createElement('button');
+            checkInBtn.className = 'b3-button b3-button--outline b3-button--small';
+            checkInBtn.innerHTML = '打卡';
+
+            checkInBtn.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                try {
+                    const menu = new Menu('habitCardCheckInMenu');
+                    const submenu = this.createCheckInSubmenu(habit);
+                    // submenu may contain separators (type:'separator') or items
+                    submenu.forEach((it: any) => {
+                        if (it && it.type === 'separator') {
+                            menu.addSeparator();
+                        } else if (it) {
+                            menu.addItem(it);
+                        }
+                    });
+
+                    // 根据按钮位置打开菜单（向上偏移一些以避免覆盖）
+                    const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+                    const menuX = rect.left;
+                    const menuY = rect.top - 4;
+
+                    const maxX = window.innerWidth - 200;
+                    const maxY = window.innerHeight - 200;
+
+                    menu.open({ x: Math.min(menuX, maxX), y: Math.max(0, Math.min(menuY, maxY)) });
+                } catch (err) {
+                    console.error('打开卡片打卡菜单失败', err);
+                    showMessage('打开打卡菜单失败', 2000, 'error');
+                }
+            });
+
+            actionRow.appendChild(checkInBtn);
+            footerRow.appendChild(leftWrap);
+            footerRow.appendChild(actionRow);
+            card.appendChild(footerRow);
+        } catch (err) {
+            console.warn('添加底部操作行失败', err);
         }
 
         // 右键菜单

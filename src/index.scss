@@ -728,6 +728,39 @@
     flex-direction: column;
 }
 
+/* 习惯卡片：淡色渐变背景，更现代的视觉效果 */
+.habit-card {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.6), rgba(240, 248, 255, 0.6));
+    border: 2px solid var(--b3-theme-primary-light);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+    backdrop-filter: blur(4px);
+}
+
+.b3-theme-dark .habit-card {
+    background: linear-gradient(135deg, rgba(40, 44, 52, 0.6), rgba(30, 34, 40, 0.6));
+}
+
+.habit-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    border-color: var(--b3-theme-primary);
+}
+
+.habit-card:active {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+/* 已完成区域的卡片视觉上稍淡化但仍保持可读 */
+.habit-completed-section .habit-card {
+    opacity: 0.78;
+    transform: none;
+}
+
 .habit-panel>.habit-header,
 .reminder-panel>.reminder-header {
     margin-bottom: 12px;
