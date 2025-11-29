@@ -191,11 +191,11 @@ export default class ReminderPlugin extends Plugin {
                     const pomodoroSettings = await this.getPomodoroSettings();
                     const prev = this.lastPomodoroSettings || {};
                     const next = pomodoroSettings || {};
-            const relevantFields = [
-                'workDuration', 'breakDuration', 'longBreakDuration', 'longBreakInterval', 'autoMode', 'backgroundVolume',
-                'randomNotificationEnabled', 'randomNotificationMinInterval', 'randomNotificationMaxInterval', 'randomNotificationBreakDuration',
-                'randomNotificationSounds', 'randomNotificationEndSound', 'dailyFocusGoal'
-            ];                    let relevantChanged = false;
+                    const relevantFields = [
+                        'workDuration', 'breakDuration', 'longBreakDuration', 'longBreakInterval', 'autoMode', 'backgroundVolume',
+                        'randomNotificationEnabled', 'randomNotificationMinInterval', 'randomNotificationMaxInterval', 'randomNotificationBreakDuration',
+                        'randomNotificationSounds', 'randomNotificationEndSound', 'dailyFocusGoal'
+                    ]; let relevantChanged = false;
                     for (const f of relevantFields) {
                         const pv = prev[f];
                         const nv = next[f];
