@@ -76,6 +76,16 @@ export const DEFAULT_SETTINGS = {
     newDocNotebook: '', // 新增：新建文档的笔记本ID
     newDocPath: '/{{now | date "2006-01-02"}}/', // 新增：新建文档的路径模板，支持sprig语法
     weekStartDay: 1, // 新增：周视图的一周开始日 (0=周日, 1=周一，默认周一)
+    // 控制侧边栏显示
+    enableReminderDock: true, // 侧边栏：提醒（任务管理）
+    enableProjectDock: true, // 侧边栏：项目管理
+    enableHabitDock: true, // 侧边栏：习惯管理
+    // 停靠栏徽章显示控制
+    enableDockBadge: true, // 是否在停靠栏显示数字徽章
+    // 单独控制每个侧栏是否显示徽章（优先级高于 enableDockBadge）
+    enableReminderDockBadge: true,
+    enableProjectDockBadge: true,
+    enableHabitDockBadge: true,
 };
 
 export default class ReminderPlugin extends Plugin {
@@ -124,7 +134,7 @@ export default class ReminderPlugin extends Plugin {
 
 
         // 添加dock栏和顶栏按钮
-        this.initializeUI();
+        await this.initializeUI();
 
         await ensureReminderDataFile();
 
@@ -156,6 +166,22 @@ export default class ReminderPlugin extends Plugin {
 
         // 初始化广播通信
         await this.initBroadcastChannel();
+
+        // 监听设置变更，动态显示/隐藏侧边停靠栏
+        window.addEventListener('reminderSettingsUpdated', async () => {
+            try {
+                const settings = await this.loadSettings();
+                this.toggleDockVisibility('project_dock', settings.enableProjectDock !== false);
+                this.toggleDockVisibility('reminder_dock', settings.enableReminderDock !== false);
+                this.toggleDockVisibility('habit_dock', settings.enableHabitDock !== false);
+                // 同步刷新徽章（显示/隐藏数字）
+                this.updateBadges();
+                this.updateProjectBadges();
+                this.updateHabitBadges();
+            } catch (err) {
+                console.warn('处理设置变更失败:', err);
+            }
+        });
 
         // 监听文档树右键菜单事件
         this.eventBus.on('open-menu-doctree', this.handleDocumentTreeMenu.bind(this));
@@ -359,7 +385,7 @@ export default class ReminderPlugin extends Plugin {
             }
         }
     }
-    private initializeUI() {
+    private async initializeUI() {
         // 添加顶栏按钮
         // this.topBarElement = this.addTopBar({
         //     icon: "iconClock",
@@ -367,6 +393,9 @@ export default class ReminderPlugin extends Plugin {
         //     position: "left",
         //     callback: () => this.openReminderFloatPanel()
         // });
+        // 加载设置（用于初始显示/隐藏某些停靠栏）
+        const settings = await this.loadSettings();
+
         // 创建项目管理 Dock 面板
         this.addDock({
             config: {
@@ -543,6 +572,15 @@ export default class ReminderPlugin extends Plugin {
                 }
             }) as any
         });
+
+        // 根据设置隐藏或显示停靠栏图标
+        try {
+            this.toggleDockVisibility('project_dock', settings.enableProjectDock !== false);
+            this.toggleDockVisibility('reminder_dock', settings.enableReminderDock !== false);
+            this.toggleDockVisibility('habit_dock', settings.enableHabitDock !== false);
+        } catch (err) {
+            console.warn('初始化停靠栏可见性失败:', err);
+        }
 
         // 文档块标添加菜单
         this.eventBus.on('click-editortitleicon', this.handleDocumentMenu.bind(this));
@@ -814,6 +852,16 @@ export default class ReminderPlugin extends Plugin {
     }
 
     private async setDockBadge(count: number) {
+        const settings = await this.loadSettings();
+        const showBadge = settings.enableDockBadge !== false && (settings.enableReminderDockBadge !== false);
+        if (!showBadge) {
+            // Remove existing badge if present
+            const existingBadge = document.querySelector('.dock__item[data-type="siyuan-plugin-task-note-managementreminder_dock"]')?.querySelector('.reminder-dock-badge');
+            if (existingBadge) {
+                existingBadge.remove();
+            }
+            return;
+        }
         try {
             // 等待停靠栏图标出现
             const dockIcon = await this.whenElementExist('.dock__item[data-type="siyuan-plugin-task-note-managementreminder_dock"]') as HTMLElement;
@@ -855,11 +903,21 @@ export default class ReminderPlugin extends Plugin {
         } catch (error) {
             console.warn('设置停靠栏徽章失败:', error);
             // 如果等待超时或出错，尝试传统方法作为后备
-            this.setDockBadgeFallback(count);
+            await this.setDockBadgeFallback(count);
         }
     }
 
-    private setDockBadgeFallback(count: number) {
+    private async setDockBadgeFallback(count: number) {
+        // check settings sync - fallback removal
+        const settings = await this.loadSettings();
+        const showBadge = settings.enableDockBadge !== false && (settings.enableReminderDockBadge !== false);
+        if (!showBadge) {
+            const dockIcon = document.querySelector('.dock__item[data-type="siyuan-plugin-task-note-managementreminder_dock"]');
+            if (!dockIcon) return;
+            const existingBadge = dockIcon.querySelector('.reminder-dock-badge');
+            if (existingBadge) existingBadge.remove();
+            return;
+        }
         // 查找停靠栏图标（传统方法作为后备）
         const dockIcon = document.querySelector('.dock__item[data-type="siyuan-plugin-task-note-managementreminder_dock"]');
         if (!dockIcon) return;
@@ -901,6 +959,15 @@ export default class ReminderPlugin extends Plugin {
     }
 
     private async setProjectDockBadge(count: number) {
+        const settings = await this.loadSettings();
+        const showBadge = settings.enableDockBadge !== false && (settings.enableProjectDockBadge !== false);
+        if (!showBadge) {
+            const existingBadge = document.querySelector('.dock__item[data-type="siyuan-plugin-task-note-managementproject_dock"]')?.querySelector('.project-dock-badge');
+            if (existingBadge) {
+                existingBadge.remove();
+            }
+            return;
+        }
         try {
             // 等待项目停靠栏图标出现
             const dockIcon = await this.whenElementExist('.dock__item[data-type="siyuan-plugin-task-note-managementproject_dock"]') as HTMLElement;
@@ -942,11 +1009,20 @@ export default class ReminderPlugin extends Plugin {
         } catch (error) {
             console.warn('设置项目停靠栏徽章失败:', error);
             // 如果等待超时或出错，尝试传统方法作为后备
-            this.setProjectDockBadgeFallback(count);
+            await this.setProjectDockBadgeFallback(count);
         }
     }
 
-    private setProjectDockBadgeFallback(count: number) {
+    private async setProjectDockBadgeFallback(count: number) {
+        const settings = await this.loadSettings();
+        const showBadge = settings.enableDockBadge !== false && (settings.enableProjectDockBadge !== false);
+        if (!showBadge) {
+            const dockIcon = document.querySelector('.dock__item[data-type="siyuan-plugin-task-note-managementproject_dock"]');
+            if (!dockIcon) return;
+            const existingBadge = dockIcon.querySelector('.project-dock-badge');
+            if (existingBadge) existingBadge.remove();
+            return;
+        }
         // 查找项目停靠栏图标（传统方法作为后备）
         const dockIcon = document.querySelector('.dock__item[data-type="siyuan-plugin-task-note-managementproject_dock"]');
         if (!dockIcon) return;
@@ -1089,6 +1165,15 @@ export default class ReminderPlugin extends Plugin {
     }
 
     private async setHabitDockBadge(count: number) {
+        const settings = await this.loadSettings();
+        const showBadge = settings.enableDockBadge !== false && (settings.enableHabitDockBadge !== false);
+        if (!showBadge) {
+            const existingBadge = document.querySelector('.dock__item[data-type="siyuan-plugin-task-note-managementhabit_dock"]')?.querySelector('.habit-dock-badge');
+            if (existingBadge) {
+                existingBadge.remove();
+            }
+            return;
+        }
         try {
             // 等待习惯停靠栏图标出现
             const dockIcon = await this.whenElementExist('.dock__item[data-type="siyuan-plugin-task-note-managementhabit_dock"]') as HTMLElement;
@@ -1130,11 +1215,43 @@ export default class ReminderPlugin extends Plugin {
         } catch (error) {
             console.warn('设置习惯停靠栏徽章失败:', error);
             // 如果等待超时或出错，尝试传统方法作为后备
-            this.setHabitDockBadgeFallback(count);
+            await this.setHabitDockBadgeFallback(count);
+            return;
         }
     }
 
-    private setHabitDockBadgeFallback(count: number) {
+    // 控制停靠栏可见性：通过隐藏停靠栏图标实现启用/禁用（不注销注册）
+    private async toggleDockVisibility(dockKey: string, visible: boolean) {
+        try {
+            const selector = `.dock__item[data-type="siyuan-plugin-task-note-management${dockKey}"]`;
+            const dockIcon = await this.whenElementExist(selector) as HTMLElement;
+            if (!dockIcon) return;
+            dockIcon.style.display = visible ? '' : 'none';
+            // 如果隐藏时面板处于打开状态，尝试关闭相关面板节点
+            if (!visible) {
+                // 关闭面板的最简单方法：尝试触发一次点击事件（如果存在）以收起
+                try {
+                    const btn = dockIcon.querySelector('button');
+                    if (btn) (btn as HTMLElement).click();
+                } catch (err) {
+                    // ignore
+                }
+            }
+        } catch (err) {
+            // ignore if not exist yet
+        }
+    }
+
+    private async setHabitDockBadgeFallback(count: number) {
+        const settings = await this.loadSettings();
+        const showBadge = settings.enableDockBadge !== false && (settings.enableHabitDockBadge !== false);
+        if (!showBadge) {
+            const dockIcon = document.querySelector('.dock__item[data-type="siyuan-plugin-task-note-managementhabit_dock"]');
+            if (!dockIcon) return;
+            const existingBadge = dockIcon.querySelector('.habit-dock-badge');
+            if (existingBadge) existingBadge.remove();
+            return;
+        }
         // 查找习惯停靠栏图标（传统方法作为后备）
         const dockIcon = document.querySelector('.dock__item[data-type="siyuan-plugin-task-note-managementhabit_dock"]');
         if (!dockIcon) return;

@@ -19,7 +19,63 @@
     }
 
     // 定义设置分组
-    let groups: ISettingGroup[] = [
+    let groups: ISettingGroup[] = [        
+        {
+            name: t('sidebarSettings'),
+            items: [
+                {
+                    key: 'enableReminderDock',
+                    value: settings.enableReminderDock,
+                    type: 'checkbox',
+                    title: t('enableReminderDock'),
+                    description: t('enableReminderDockDesc')
+                },
+                {
+                    key: 'enableProjectDock',
+                    value: settings.enableProjectDock,
+                    type: 'checkbox',
+                    title: t('enableProjectDock'),
+                    description: t('enableProjectDockDesc')
+                },
+                {
+                    key: 'enableHabitDock',
+                    value: settings.enableHabitDock,
+                    type: 'checkbox',
+                    title: t('enableHabitDock'),
+                    description: t('enableHabitDockDesc')
+                }
+                ,
+                {
+                    key: 'enableDockBadge',
+                    value: settings.enableDockBadge,
+                    type: 'checkbox',
+                    title: t('enableDockBadge'),
+                    description: t('enableDockBadgeDesc')
+                }
+                ,
+                {
+                    key: 'enableReminderDockBadge',
+                    value: settings.enableReminderDockBadge,
+                    type: 'checkbox',
+                    title: t('enableReminderDockBadge'),
+                    description: t('enableReminderDockBadgeDesc')
+                },
+                {
+                    key: 'enableProjectDockBadge',
+                    value: settings.enableProjectDockBadge,
+                    type: 'checkbox',
+                    title: t('enableProjectDockBadge'),
+                    description: t('enableProjectDockBadgeDesc')
+                },
+                {
+                    key: 'enableHabitDockBadge',
+                    value: settings.enableHabitDockBadge,
+                    type: 'checkbox',
+                    title: t('enableHabitDockBadge'),
+                    description: t('enableHabitDockBadgeDesc')
+                }
+            ]
+        },
         {
             name: t('notificationReminder'),
             items: [
