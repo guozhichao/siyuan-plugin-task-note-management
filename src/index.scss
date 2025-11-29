@@ -720,8 +720,8 @@
     }
 
 }
-.habit-panel
-.habit-header,
+
+.habit-panel .habit-header,
 .reminder-panel {
     padding: 8px;
     display: flex;
@@ -729,7 +729,7 @@
 }
 
 .habit-panel>.habit-header,
-.reminder-panel> .reminder-header {
+.reminder-panel>.reminder-header {
     margin-bottom: 12px;
 }
 

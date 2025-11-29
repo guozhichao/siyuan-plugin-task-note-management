@@ -659,22 +659,19 @@ export class HabitPanel {
             titleRow.appendChild(priority);
         }
 
-        const title = document.createElement('div');
+        const title = document.createElement('span');
+        title.setAttribute('data-type', 'a');
+        if (habit.blockId) {
+            title.setAttribute('data-href', `siyuan://blocks/${habit.blockId}`);
+        }
         title.textContent = habit.title;
         title.style.cssText = 'flex: 1; font-weight: bold; font-size: 14px;';
-        titleRow.appendChild(title);
-
-        // 如果绑定了块，显示链接图标并支持悬浮预览与点击打开
         if (habit.blockId) {
-            const blockIcon = document.createElement('span');
-            blockIcon.className = 'habit-block-icon';
-            blockIcon.textContent = '🔗';
-            blockIcon.title = '打开绑定块/文档';
-            blockIcon.style.cssText = 'cursor:pointer; margin-left: 6px; font-size: 14px;';
-
-            // 点击打开块
-            blockIcon.addEventListener('click', (e) => {
-                e.stopPropagation();
+            title.style.cursor = 'pointer';
+            title.style.color = 'var(--b3-theme-primary)';
+            title.style.textDecoration = 'underline dotted';
+            title.addEventListener('click', (ev) => {
+                ev.stopPropagation();
                 try {
                     openBlock(habit.blockId!);
                 } catch (err) {
@@ -682,54 +679,10 @@ export class HabitPanel {
                     showMessage('打开块失败', 3000, 'error');
                 }
             });
-
-            // 悬浮预览 (延迟加载)
-            let tooltipEl: HTMLElement | null = null;
-            const showTooltip = async (ev: MouseEvent) => {
-                try {
-                    if (tooltipEl) return;
-                    tooltipEl = document.createElement('div');
-                    tooltipEl.className = 'habit-block-tooltip';
-                    tooltipEl.style.cssText = `
-                        position: fixed;
-                        z-index: 9999;
-                        max-width: 360px;
-                        background: var(--b3-theme-surface);
-                        color: var(--b3-theme-on-surface);
-                        border: 1px solid var(--b3-theme-surface-lighter);
-                        border-radius: 6px;
-                        padding: 8px;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-                        font-size: 12px;
-                    `;
-                    document.body.appendChild(tooltipEl);
-
-                    // 计算位置
-                    const x = ev.clientX + 12;
-                    const y = ev.clientY + 12;
-                    tooltipEl.style.left = x + 'px';
-                    tooltipEl.style.top = y + 'px';
-
-                    // 加载块内容并显示
-                    const preview = await this.getBlockPreview(habit.blockId!);
-                    tooltipEl.innerHTML = `<div style="font-weight:bold; margin-bottom:6px">绑定块</div><div>${preview}</div>`;
-                } catch (e) {
-                    console.warn('加载块预览失败', e);
-                }
-            };
-
-            const hideTooltip = () => {
-                if (tooltipEl && tooltipEl.parentElement) {
-                    tooltipEl.parentElement.removeChild(tooltipEl);
-                }
-                tooltipEl = null;
-            };
-
-            blockIcon.addEventListener('mouseenter', (ev) => showTooltip(ev as MouseEvent));
-            blockIcon.addEventListener('mouseleave', hideTooltip);
-
-            titleRow.appendChild(blockIcon);
         }
+        titleRow.appendChild(title);
+
+        // 绑定块的图标已移除，点击和 data-href 在标题 `span` 上处理。
 
         card.appendChild(titleRow);
 
