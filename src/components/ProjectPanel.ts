@@ -701,9 +701,45 @@ export class ProjectPanel {
         projectEl.dataset.projectId = project.id;
         projectEl.dataset.priority = priority;
 
+        // 创建拖拽手柄
+        const dragHandle = document.createElement('div');
+        dragHandle.className = 'drag-handle';
+        dragHandle.innerHTML = '⋮⋮';
+        dragHandle.style.cssText = `
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            cursor: grab;
+            padding: 4px 8px;
+            color: var(--b3-theme-on-surface);
+            opacity: 0;
+            font-size: 12px;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--b3-theme-surface);
+            border-radius: 4px;
+            border: 1px solid var(--b3-border-color);
+            transition: opacity 0.2s ease;
+            z-index: 10;
+        `;
+        dragHandle.title = t("dragToReorder") || "拖拽排序";
+
+        // 添加hover效果
+        projectEl.addEventListener('mouseenter', () => {
+            dragHandle.style.opacity = '1';
+        });
+        projectEl.addEventListener('mouseleave', () => {
+            dragHandle.style.opacity = '0';
+        });
+
+        // 将拖拽手柄添加到project-item
+        projectEl.appendChild(dragHandle);
+
         // 在优先级排序模式下添加拖拽功能
         if (this.currentSort === 'priority') {
-            this.addDragFunctionality(projectEl, project);
+            this.addDragFunctionality(projectEl, dragHandle, project);
         }
 
         // 添加右键菜单支持
@@ -714,6 +750,7 @@ export class ProjectPanel {
 
         // 添加单击打开项目看板支持
         projectEl.addEventListener('click', (e) => {
+            if (e.target.closest('.drag-handle')) return;
             e.preventDefault();
             e.stopPropagation();
             this.openProjectKanban(project);
@@ -1050,49 +1087,49 @@ export class ProjectPanel {
         return totalPomodoro;
     }
     // 新增：添加拖拽功能
-    private addDragFunctionality(element: HTMLElement, project: any) {
-        element.draggable = true;
-        element.style.cursor = 'grab';
+    private addDragFunctionality(projectEl: HTMLElement, handle: HTMLElement, project: any) {
+        handle.draggable = true;
+        handle.style.cursor = 'grab';
 
-        element.addEventListener('dragstart', (e) => {
+        handle.addEventListener('dragstart', (e) => {
             this.isDragging = true;
-            this.draggedElement = element;
+            this.draggedElement = projectEl;
             this.draggedProject = project;
-            element.style.opacity = '0.5';
-            element.style.cursor = 'grabbing';
+            projectEl.style.opacity = '0.5';
+            handle.style.cursor = 'grabbing';
 
             if (e.dataTransfer) {
                 e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/html', element.outerHTML);
+                e.dataTransfer.setData('text/html', projectEl.outerHTML);
             }
         });
 
-        element.addEventListener('dragend', () => {
+        handle.addEventListener('dragend', () => {
             this.isDragging = false;
             this.draggedElement = null;
             this.draggedProject = null;
-            element.style.opacity = '';
-            element.style.cursor = 'grab';
+            projectEl.style.opacity = '';
+            handle.style.cursor = 'grab';
         });
 
-        element.addEventListener('dragover', (e) => {
-            if (this.isDragging && this.draggedElement !== element) {
+        projectEl.addEventListener('dragover', (e) => {
+            if (this.isDragging && this.draggedElement !== projectEl) {
                 e.preventDefault();
 
-                const targetProject = this.getProjectFromElement(element);
+                const targetProject = this.getProjectFromElement(projectEl);
                 // 只允许同优先级内的拖拽
                 if (targetProject && this.canDropHere(this.draggedProject, targetProject)) {
                     e.dataTransfer.dropEffect = 'move';
-                    this.showDropIndicator(element, e);
+                    this.showDropIndicator(projectEl, e);
                 }
             }
         });
 
-        element.addEventListener('drop', (e) => {
-            if (this.isDragging && this.draggedElement !== element) {
+        projectEl.addEventListener('drop', (e) => {
+            if (this.isDragging && this.draggedElement !== projectEl) {
                 e.preventDefault();
 
-                const targetProject = this.getProjectFromElement(element);
+                const targetProject = this.getProjectFromElement(projectEl);
                 if (targetProject && this.canDropHere(this.draggedProject, targetProject)) {
                     this.handleDrop(this.draggedProject, targetProject, e);
                 }
@@ -1100,7 +1137,7 @@ export class ProjectPanel {
             this.hideDropIndicator();
         });
 
-        element.addEventListener('dragleave', () => {
+        projectEl.addEventListener('dragleave', () => {
             this.hideDropIndicator();
         });
     }
