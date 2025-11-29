@@ -1426,6 +1426,9 @@ export class EisenhowerMatrixView {
                         this.updateParentProgressUI((task as any).parentId);
                     }
                 }
+
+                // 广播更新事件以便其他组件和自身刷新视图（例如在“进行中任务”筛选下，已完成的任务会被移除）
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
             }
         } catch (error) {
             console.error('更新任务状态失败:', error);
