@@ -40,7 +40,8 @@
                 {
                     key: 'dailyNotificationTime',
                     value: settings.dailyNotificationTime,
-                    type: 'number',
+                    type: 'textinput',
+                    placeholder: '09:00',
                     title: t('dailyNotificationTime'),
                     description: t('dailyNotificationTimeDesc'),
                 },
@@ -299,6 +300,24 @@
             if (detail.key === 'weekStartDay' && typeof detail.value === 'string') {
                 const parsed = parseInt(detail.value, 10);
                 settings[detail.key] = isNaN(parsed) ? DEFAULT_SETTINGS.weekStartDay : parsed;
+            } else if (detail.key === 'dailyNotificationTime') {
+                // 允许用户输入 HH:MM，也兼容数字（小时）或单个小时字符串
+                let v = detail.value;
+                if (typeof v === 'number') {
+                    const h = Math.max(0, Math.min(23, Math.floor(v)));
+                    v = (h < 10 ? '0' : '') + h.toString() + ':00';
+                } else if (typeof v === 'string') {
+                    const m = v.match(/^(\d{1,2})(?::(\d{1,2}))?$/);
+                    if (m) {
+                        const h = Math.max(0, Math.min(23, parseInt(m[1], 10) || 0));
+                        const min = Math.max(0, Math.min(59, parseInt(m[2] || '0', 10) || 0));
+                        v = (h < 10 ? '0' : '') + h.toString() + ':' + (min < 10 ? '0' : '') + min.toString();
+                    } else {
+                        // 如果无法解析，回退到默认
+                        v = DEFAULT_SETTINGS.dailyNotificationTime;
+                    }
+                }
+                settings[detail.key] = v;
             } else {
                 settings[detail.key] = detail.value;
             }

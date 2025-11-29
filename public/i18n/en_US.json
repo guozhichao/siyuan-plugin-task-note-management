@@ -439,7 +439,7 @@
     "reminderSystemNotification": "Reminder System Notification",
     "reminderSystemNotificationDesc": "Show system notification popup when events are due, supports clicking to jump to related blocks",
     "dailyNotificationTime": "Daily Notification Time",
-    "dailyNotificationTimeDesc": "Set the time of day to show daily reminders (0-24 hours), default is 8 AM",
+    "dailyNotificationTimeDesc": "Set the time of day (HH:MM) to show daily reminders (e.g., '09:00'); accepts legacy integer hours, default is 08:00",
     "dailyNotificationEnabled": "Enable Daily Unified Notification",
     "dailyNotificationEnabledDesc": "Show a unified daily summary notification of all-day items at the specified time. When disabled, daily reminder notifications will not be displayed",
     "timeReminderNotification": "Time Reminder",

@@ -61,7 +61,8 @@ export const DEFAULT_SETTINGS = {
     pomodoroBreakEndSound: '/plugins/siyuan-plugin-task-note-management/audios/end_music.mp3',
     pomodoroSystemNotification: true, // 新增：番茄结束后系统弹窗
     reminderSystemNotification: true, // 新增：事件到期提醒系统弹窗
-    dailyNotificationTime: 8, // 新增：每日通知时间，默认8点
+    // 支持 HH:MM 格式，例如 '09:00'，向后兼容旧的数字（如 8 -> '08:00'）
+    dailyNotificationTime: '08:00', // 新增：每日通知时间，默认08:00
     dailyNotificationEnabled: true, // 新增：是否启用每日统一通知
     randomNotificationEnabled: false,
     randomNotificationMinInterval: 3,
@@ -233,6 +234,24 @@ export default class ReminderPlugin extends Plugin {
         if (typeof settings.weekStartDay === 'string') {
             const parsed = parseInt(settings.weekStartDay, 10);
             settings.weekStartDay = isNaN(parsed) ? DEFAULT_SETTINGS.weekStartDay : parsed;
+        }
+        // 兼容旧设置中使用数字 hour 的情况，将其转换为 HH:MM 格式字符串
+        if (typeof settings.dailyNotificationTime === 'number') {
+            const hours = Math.max(0, Math.min(23, Math.floor(settings.dailyNotificationTime)));
+            settings.dailyNotificationTime = (hours < 10 ? '0' : '') + hours.toString() + ':00';
+        }
+        if (typeof settings.dailyNotificationTime === 'string') {
+            // Normalize formats like '8' -> '08:00', '8:5' -> '08:05'
+            const raw = settings.dailyNotificationTime;
+            const m = raw.match(/^(\d{1,2})(?::(\d{1,2}))?$/);
+            if (m) {
+                const h = Math.max(0, Math.min(23, parseInt(m[1], 10) || 0));
+                const min = Math.max(0, Math.min(59, parseInt(m[2] || '0', 10) || 0));
+                settings.dailyNotificationTime = (h < 10 ? '0' : '') + h.toString() + ':' + (min < 10 ? '0' : '') + min.toString();
+            } else {
+                // 如果无法解析，则回退到默认字符串
+                settings.dailyNotificationTime = DEFAULT_SETTINGS.dailyNotificationTime as any;
+            }
         }
         return settings;
     }
@@ -1417,11 +1436,12 @@ export default class ReminderPlugin extends Plugin {
             }
 
             const today = getLocalDateString();
-            const currentTime = getLocalTimeString();
-            const currentHour = parseInt(currentTime.split(':')[0]);
+                    const currentTime = getLocalTimeString();
+                    const currentTimeNumber = this.timeStringToNumber(currentTime);
 
-            // 获取用户设置的每日通知时间
-            const dailyNotificationHour = await this.getDailyNotificationTime();
+            // 获取用户设置的每日通知时间（HH:MM）并解析为数字（HHMM）以便比较
+            const dailyNotificationTime = await this.getDailyNotificationTime();
+            const dailyNotificationTimeNumber = this.timeStringToNumber(dailyNotificationTime);
 
             // 检查单个时间提醒（不受每日通知时间限制）
             await this.checkTimeReminders(reminderData, today, currentTime);
@@ -1434,7 +1454,7 @@ export default class ReminderPlugin extends Plugin {
             }
 
             // 只在设置的时间后进行全天事项的每日汇总提醒检查
-            if (currentHour < dailyNotificationHour) {
+            if (currentTimeNumber < dailyNotificationTimeNumber) {
                 return;
             }
 
@@ -2913,11 +2933,26 @@ export default class ReminderPlugin extends Plugin {
     }
 
     // 获取每日通知时间设置
-    async getDailyNotificationTime(): Promise<number> {
+    async getDailyNotificationTime(): Promise<string> {
         const settings = await this.loadSettings();
-        const time = settings.dailyNotificationTime;
-        // 确保时间在0-24范围内
-        return Math.max(0, Math.min(24, typeof time === 'number' ? time : DEFAULT_SETTINGS.dailyNotificationTime));
+        let time = settings.dailyNotificationTime;
+        // 如果是数字形式的旧配置，转换为 HH:MM 字符串
+        if (typeof time === 'number') {
+            const h = Math.max(0, Math.min(23, Math.floor(time)));
+            time = (h < 10 ? '0' : '') + h + ':00';
+        }
+        // 如果不是字符串或格式不正确，使用默认
+        if (typeof time !== 'string') {
+            time = DEFAULT_SETTINGS.dailyNotificationTime as any;
+        }
+        // 规范化为 HH:MM
+        const m = (time as string).match(/^(\d{1,2})(?::(\d{1,2}))?$/);
+        if (m) {
+            const h = Math.max(0, Math.min(23, parseInt(m[1], 10) || 0));
+            const min = Math.max(0, Math.min(59, parseInt(m[2] || '0', 10) || 0));
+            return (h < 10 ? '0' : '') + h.toString() + ':' + (min < 10 ? '0' : '') + min.toString();
+        }
+        return DEFAULT_SETTINGS.dailyNotificationTime as any;
     }
 
     // 获取每日通知启用状态
