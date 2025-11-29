@@ -1452,41 +1452,50 @@ export default class ReminderPlugin extends Plugin {
                     return;
                 }
 
-                // 添加原始事件
-                allReminders.push(reminder);
+                // 对于重复事件，不再添加原始事件（避免与生成的实例产生重复并错误识别为过期）
+                if (!reminder.repeat?.enabled) {
+                    allReminders.push(reminder);
+                }
 
                 // 如果有重复设置，生成重复事件实例
                 if (reminder.repeat?.enabled) {
                     const repeatInstances = generateRepeatInstances(reminder, today, today);
                     repeatInstances.forEach(instance => {
-                        // 跳过与原始事件相同日期的实例
-                        if (instance.date !== reminder.date) {
-                            // 检查实例级别的完成状态
-                            const completedInstances = reminder.repeat?.completedInstances || [];
-                            const isInstanceCompleted = completedInstances.includes(instance.date);
+                        // 为生成的实例创建独立的呈现对象（包含 instance 级别的修改）
+                        // 检查实例级别的完成状态
+                        const completedInstances = reminder.repeat?.completedInstances || [];
+                        let isInstanceCompleted = completedInstances.includes(instance.date);
 
-                            // 检查实例级别的修改（包括备注）
-                            const instanceModifications = reminder.repeat?.instanceModifications || {};
-                            const instanceMod = instanceModifications[instance.date];
+                        // 检查实例级别的修改（包括备注、优先级、分类等）
+                        const instanceModifications = reminder.repeat?.instanceModifications || {};
+                        const instanceMod = instanceModifications[instance.date];
 
-                            const instanceReminder = {
-                                ...reminder,
-                                id: instance.instanceId,
-                                date: instance.date,
-                                endDate: instance.endDate,
-                                time: instance.time,
-                                endTime: instance.endTime,
-                                isRepeatInstance: true,
-                                originalId: instance.originalId,
-                                completed: isInstanceCompleted,
-                                note: instanceMod?.note || ''
-                            };
+                        // 如果原始任务在每日完成记录中标记了今天已完成（跨天标记），则该实例应视为已完成
+                        if (!isInstanceCompleted && reminder.dailyCompletions && reminder.dailyCompletions[instance.date]) {
+                            isInstanceCompleted = true;
+                        }
 
-                            const key = `${reminder.id}_${instance.date}`;
-                            if (!repeatInstancesMap.has(key) ||
-                                compareDateStrings(instance.date, repeatInstancesMap.get(key).date) < 0) {
-                                repeatInstancesMap.set(key, instanceReminder);
-                            }
+                        const instanceReminder = {
+                            ...reminder,
+                            id: instance.instanceId,
+                            date: instance.date,
+                            endDate: instance.endDate,
+                            customReminderTime: instance.customReminderTime || reminder.customReminderTime,
+                            time: instance.time,
+                            endTime: instance.endTime,
+                            isRepeatInstance: true,
+                            originalId: instance.originalId,
+                            completed: isInstanceCompleted,
+                            note: instanceMod?.note || reminder.note,
+                            priority: instanceMod?.priority !== undefined ? instanceMod.priority : reminder.priority,
+                            categoryId: instanceMod?.categoryId !== undefined ? instanceMod.categoryId : reminder.categoryId,
+                            projectId: instanceMod?.projectId !== undefined ? instanceMod.projectId : reminder.projectId
+                        };
+
+                        const key = `${reminder.id}_${instance.date}`;
+                        if (!repeatInstancesMap.has(key) ||
+                            compareDateStrings(instance.date, repeatInstancesMap.get(key).date) < 0) {
+                            repeatInstancesMap.set(key, instanceReminder);
                         }
                     });
                 }
@@ -1500,6 +1509,12 @@ export default class ReminderPlugin extends Plugin {
             // 筛选今日提醒 - 进行分类和排序
             const todayReminders = allReminders.filter((reminder: any) => {
                 if (reminder.completed) return false;
+
+                // 如果是跨天事件并且已经标记了今日已完成，则不加入今日提醒
+                // 对非重复事件直接检查 dailyCompletions；重复实例在生成时已处理并设置 completed
+                if (reminder.endDate && reminder.dailyCompletions && reminder.dailyCompletions[today]) {
+                    return false;
+                }
 
                 if (reminder.endDate) {
                     // 跨天事件：只要今天在事件的时间范围内就显示，或者事件已过期但结束日期在今天之前
