@@ -633,7 +633,6 @@ export class PomodoroTimer {
         };
 
         document.addEventListener('visibilitychange', this.visibilityChangeHandler);
-        console.log('已初始化页面可见性监听器');
     }
 
     /**
@@ -643,7 +642,6 @@ export class PomodoroTimer {
         if (this.visibilityChangeHandler) {
             document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
             this.visibilityChangeHandler = null;
-            console.log('已移除页面可见性监听器');
         }
     }
 
