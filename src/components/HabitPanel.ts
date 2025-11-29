@@ -742,7 +742,7 @@ export class HabitPanel {
             const emojiRow = document.createElement('div');
             emojiRow.style.cssText = 'margin-top:8px; display:flex; gap:6px; align-items:center;';
 
-            
+
             const emojiLabel = document.createElement('span');
             emojiLabel.textContent = '今日打卡:';
             emojiLabel.style.cssText = 'font-size:12px; color: var(--b3-theme-on-surface-light); margin-right:6px;';
@@ -765,7 +765,7 @@ export class HabitPanel {
                 emojiRow.appendChild(emojiEl);
             });
 
-            
+
             card.appendChild(emojiRow);
         }
         // 底部操作行：左侧显示坚持天数，右侧放打卡按钮（两者在一行）
