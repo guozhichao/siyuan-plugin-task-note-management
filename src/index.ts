@@ -89,6 +89,8 @@ export default class ReminderPlugin extends Plugin {
     private batchReminderDialog: BatchReminderDialog;
     private audioEnabled: boolean = false;
     private preloadedAudio: HTMLAudioElement | null = null;
+    // Guard to prevent overlapping notification sounds
+    private isPlayingNotificationSound: boolean = false;
     private projectPanel: ProjectPanel;
     private projectDockElement: HTMLElement;
     // Set used to track blocks currently being processed to avoid duplicate work and race conditions
@@ -171,6 +173,10 @@ export default class ReminderPlugin extends Plugin {
                     await this.preloadedAudio.play();
                     this.preloadedAudio.pause();
                     this.preloadedAudio.currentTime = 0;
+                    // 在预加载音频上设置 ended 处理，确保状态能被正确重置
+                    this.preloadedAudio.onended = () => {
+                        this.isPlayingNotificationSound = false;
+                    };
                     this.preloadedAudio.volume = 1; // 恢复正常音量
                     this.audioEnabled = true;
                     console.log('音频播放已启用');
@@ -283,12 +289,23 @@ export default class ReminderPlugin extends Plugin {
                 console.log('音频未启用，需要用户交互后才能播放声音');
                 return;
             }
-
+            // 如果已经在播放提示音，则避免重复播放
+            if (this.isPlayingNotificationSound) {
+                console.debug('playNotificationSound - already playing, skip');
+                return;
+            }
             // 优先使用预加载的音频
             if (this.preloadedAudio && this.preloadedAudio.src.includes(soundPath)) {
                 try {
+                    this.isPlayingNotificationSound = true;
                     this.preloadedAudio.currentTime = 0;
                     await this.preloadedAudio.play();
+                    // 尝试监听 ended 事件以便清理状态
+                    this.preloadedAudio.onended = () => {
+                        this.isPlayingNotificationSound = false;
+                    };
+                    // 作为保险，10s后强制清除播放状态，防止意外情况导致状态未被清除
+                    setTimeout(() => { this.isPlayingNotificationSound = false; }, 10000);
                     return;
                 } catch (error) {
                     console.warn('预加载音频播放失败，尝试创建新音频:', error);
@@ -296,9 +313,22 @@ export default class ReminderPlugin extends Plugin {
             }
 
             // 如果预加载音频不可用，创建新的音频实例
+            // 创建新的音频实例并播放
             const audio = new Audio(soundPath);
             audio.volume = 1;
-            await audio.play();
+            this.isPlayingNotificationSound = true;
+            audio.addEventListener('ended', () => {
+                this.isPlayingNotificationSound = false;
+            });
+            // 10s超时清理防止某些浏览器/环境不触发 ended
+            const clearTimer = setTimeout(() => {
+                this.isPlayingNotificationSound = false;
+            }, 10000);
+            try {
+                await audio.play();
+            } finally {
+                clearTimeout(clearTimer);
+            }
 
         } catch (error) {
             // 不再显示错误消息，只记录到控制台
@@ -1792,6 +1822,12 @@ export default class ReminderPlugin extends Plugin {
         // 如果提醒时间包含日期并且不是今天，则不触发
         if (parsed.date && parsed.date !== today) {
             console.debug('shouldNotifyNow - date does not match today, skip', parsed.date, 'today:', today, 'id:', reminder.id, 'field:', timeField);
+            return false;
+        }
+
+        // 如果没有有效的 time 部分（比如只有日期，或解析失败），则视为非时间提醒，不触发此函数
+        if (!parsed.time) {
+            console.debug('shouldNotifyNow - no valid time component, skip', rawReminderTime, 'id:', reminder.id);
             return false;
         }
 
