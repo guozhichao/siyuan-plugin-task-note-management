@@ -66,7 +66,7 @@ export const DEFAULT_SETTINGS = {
     dailyNotificationEnabled: true, // 新增：是否启用每日统一通知
     randomNotificationEnabled: false,
     randomNotificationMinInterval: 3,
-    randomNotificationMaxInterval: 10,
+    randomNotificationMaxInterval: 5,
     randomNotificationBreakDuration: 10,
     randomNotificationSounds: '/plugins/siyuan-plugin-task-note-management/audios/random_start.mp3',
     randomNotificationEndSound: '/plugins/siyuan-plugin-task-note-management/audios/random_end.mp3',

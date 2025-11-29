@@ -308,7 +308,7 @@
     "randomNotificationMinInterval": "Random Notification Min Interval (minutes)",
     "randomNotificationMinIntervalDesc": "Set the minimum interval for random notification sounds, default 3 minutes",
     "randomNotificationMaxInterval": "Random Notification Max Interval (minutes)",
-    "randomNotificationMaxIntervalDesc": "Set the maximum interval for random notification sounds, default 10 minutes",
+    "randomNotificationMaxIntervalDesc": "Set the maximum interval for random notification sounds, default 5 minutes",
     "randomNotificationBreakDuration": "Micro Break Duration (seconds)",
     "randomNotificationBreakDurationDesc": "Micro break time after random notification sound, end notification plays after this time, default 10 seconds",
     "randomNotificationSounds": "Random Notification Start Sound",
