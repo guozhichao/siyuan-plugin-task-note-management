@@ -72,6 +72,7 @@ export class PomodoroTimer {
     private audioUnlockHandler: ((event: Event) => void) | null = null;
 
     private isWindowClosed: boolean = false; // 新增：窗口关闭状态标记
+    private pendingSettings: any = null; // pending settings when update skipped due to running
 
     // 随机提示音相关
     private randomNotificationTimer: number = null;
@@ -390,7 +391,6 @@ export class PomodoroTimer {
                 }
             });
 
-            console.log(`已初始化 ${this.randomNotificationSounds.length} 个随机提示音文件`);
         } catch (error) {
             console.warn('初始化随机提示音失败:', error);
         }
@@ -414,7 +414,6 @@ export class PomodoroTimer {
                 });
 
 
-                console.log('已初始化随机提示音结束声音');
             }
         } catch (error) {
             console.warn('无法创建随机提示音结束声音:', error);
@@ -1471,7 +1470,6 @@ export class PomodoroTimer {
             statusIcon.style.opacity = '0.3';
 
             if (!this.isRunning) {
-                // 未运行状态：显示开始按钮
                 this.startPauseBtn.style.opacity = '1';
                 this.startPauseBtn.style.transform = 'translate(-50%, -50%)';
                 this.stopBtn.style.opacity = '0';
@@ -3000,7 +2998,7 @@ export class PomodoroTimer {
         // 更新显示
         this.updateDisplay();
     }
-    private pauseTimer() {
+    private async pauseTimer() {
         this.isPaused = true;
 
         if (this.timer) {
@@ -3296,6 +3294,18 @@ export class PomodoroTimer {
                 this.updateStatsDisplay();
             }, 100);
         }
+
+        // 如果有 pending 设置（在运行时跳过的设置更新），现在应用它们
+        if (this.pendingSettings) {
+            await this.updateState(
+                this.pendingSettings.reminder,
+                this.pendingSettings.settings,
+                this.pendingSettings.isCountUp,
+                this.pendingSettings.inheritState,
+                false, // 不强制，因为现在已经停止了
+                false  // 显示通知
+            );
+        }
     }
 
     /**
@@ -3309,7 +3319,6 @@ export class PomodoroTimer {
         try {
             // 动态导入node-notifier，避免在不支持的环境中报错
             if (typeof require !== 'undefined') {
-                console.log('系统弹窗功能已启用');
             }
         } catch (error) {
             console.warn('初始化系统弹窗失败，将禁用此功能:', error);
@@ -3391,6 +3400,8 @@ export class PomodoroTimer {
                 this.updateStatsDisplay();
             }, 100);
 
+            // 清理 pending 设置
+            this.pendingSettings = null;
             // 倒计时模式：记录完成的工作番茄（每个实例独立记录）
             const eventId = this.reminder.id;
             const eventTitle = this.reminder.title || '番茄专注';
@@ -3635,6 +3646,18 @@ export class PomodoroTimer {
             setTimeout(() => {
                 this.updateStatsDisplay();
             }, 100);
+        }
+
+        // 如果有 pending 设置（在运行时跳过的设置更新），现在应用它们
+        if (this.pendingSettings) {
+            await this.updateState(
+                this.pendingSettings.reminder,
+                this.pendingSettings.settings,
+                this.pendingSettings.isCountUp,
+                this.pendingSettings.inheritState,
+                false, // 不强制，因为现在已经停止了
+                false  // 显示通知
+            );
         }
     }
     /**
@@ -4105,6 +4128,8 @@ export class PomodoroTimer {
         if (this.container && this.container.parentNode) {
             this.container.parentNode.removeChild(this.container);
         }
+        // 清理 pending 设置
+        this.pendingSettings = null;
     }
 
     destroy() {
@@ -4152,23 +4177,19 @@ export class PomodoroTimer {
      * @param isCountUp 是否正计时
      * @param inheritState 要继承的状态
      */
-    public async updateState(reminder: any, settings: any, isCountUp: boolean, inheritState?: any) {
-        console.log('PomodoroTimer: 开始更新状态', {
-            oldReminder: this.reminder.title,
-            newReminder: reminder.title,
-            hasInheritState: !!inheritState,
-            inheritState: inheritState ? {
-                isRunning: inheritState.isRunning,
-                isWorkPhase: inheritState.isWorkPhase,
-                timeElapsed: inheritState.timeElapsed,
-                timeLeft: inheritState.timeLeft,
-                completedPomodoros: inheritState.completedPomodoros
-            } : null
-        });
+    public async updateState(reminder: any, settings: any, isCountUp: boolean, inheritState?: any, force: boolean = false, suppressNotification: boolean = false) {
+
+        // 如果正在运行且未暂停，且没有强制更新标记，则跳过更新（避免影响正在运行的计时器）
+        if (!force && this.isRunning && !this.isPaused) {
+            // Don't modify the current instance settings while it is running.
+            // Store pendingSettings indicator if caller or plugin needs to know about it.
+            this.pendingSettings = { reminder, settings, isCountUp, inheritState, timestamp: Date.now() };
+            return;
+        }
 
         // 停止当前计时器
         if (this.isRunning) {
-            this.pauseTimer();
+            await this.pauseTimer();
         }
 
         // 停止所有音频
@@ -4178,14 +4199,61 @@ export class PomodoroTimer {
         this.reminder = reminder;
         this.settings = settings;
         this.isCountUp = isCountUp;
+        // 已经应用了新的设置，清理 pending 状态
+        this.pendingSettings = null;
+        // 更新音频/随机提示相关设置
+        try {
+            this.isBackgroundAudioMuted = (settings.backgroundAudioMuted || false);
+            this.backgroundVolume = Math.max(0, Math.min(1, settings.backgroundVolume || 0.5));
+            this.systemNotificationEnabled = settings.pomodoroSystemNotification !== false;
+            this.randomNotificationEnabled = settings.randomNotificationEnabled || false;
+            this.randomNotificationSystemNotificationEnabled = settings.randomNotificationSystemNotification !== false;
+            this.autoMode = settings.autoMode || false;
+            this.longBreakInterval = Math.max(1, settings.longBreakInterval || 4);
+        } catch (e) {
+            console.warn('更新番茄钟设置时解析新设置失败:', e);
+        }
 
         // 重新初始化音频（如果设置改变）
         this.initAudio();
+        // 更新音量状态
+        this.updateAudioVolume();
 
         // 如果有继承状态，应用它
         if (inheritState) {
-            console.log('PomodoroTimer: 应用继承状态');
             this.applyInheritedState(inheritState);
+            // 根据新的设置和继承的状态重新计算 totalTime / timeLeft / breakTimeLeft
+            try {
+                if (!this.isCountUp) {
+                    if (this.isWorkPhase) {
+                        const oldTotal = (inheritState.currentPhaseOriginalDuration || this.currentPhaseOriginalDuration) * 60;
+                        const elapsed = typeof inheritState.timeElapsed === 'number' ? inheritState.timeElapsed : (oldTotal - (inheritState.timeLeft || oldTotal));
+                        const newTotal = (settings.workDuration || this.settings.workDuration) * 60;
+                        this.totalTime = newTotal;
+                        const newLeft = Math.max(0, newTotal - elapsed);
+                        this.timeLeft = newLeft;
+                    } else {
+                        // 休息阶段
+                        const oldBreakTotal = (inheritState.currentPhaseOriginalDuration || (this.isLongBreak ? this.settings.longBreakDuration : this.settings.breakDuration)) * 60;
+                        const breakElapsed = (typeof inheritState.breakTimeLeft === 'number') ? Math.max(0, oldBreakTotal - inheritState.breakTimeLeft) : 0;
+                        const newBreakTotal = (this.isLongBreak ? (settings.longBreakDuration || this.settings.longBreakDuration) : (settings.breakDuration || this.settings.breakDuration)) * 60;
+                        this.totalTime = newBreakTotal;
+                        const newBreakLeft = Math.max(0, newBreakTotal - breakElapsed);
+                        this.breakTimeLeft = newBreakLeft;
+                    }
+                } else {
+                    // 正计时模式：更新时间计数器的原始时长以便统计/界面显示
+                    if (this.isWorkPhase) {
+                        this.currentPhaseOriginalDuration = settings.workDuration || this.currentPhaseOriginalDuration;
+                    } else if (this.isLongBreak) {
+                        this.currentPhaseOriginalDuration = settings.longBreakDuration || this.currentPhaseOriginalDuration;
+                    } else {
+                        this.currentPhaseOriginalDuration = settings.breakDuration || this.currentPhaseOriginalDuration;
+                    }
+                }
+            } catch (e) {
+                console.warn('更新继承状态时重新计算时间失败:', e);
+            }
         } else {
             // 否则重置为初始状态
             console.log('PomodoroTimer: 重置为初始状态（没有继承状态）');
@@ -4203,10 +4271,6 @@ export class PomodoroTimer {
         // 更新事件标题显示（在更新其他显示之前）
         const eventTitle = this.container.querySelector('.pomodoro-event-title') as HTMLElement;
         if (eventTitle) {
-            console.log('PomodoroTimer: 更新标题', {
-                old: eventTitle.textContent,
-                new: reminder.title || "未命名笔记"
-            });
             eventTitle.textContent = reminder.title || "未命名笔记";
             eventTitle.title = "打开笔记: " + (reminder.title || "未命名笔记");
         } else {
@@ -4214,7 +4278,6 @@ export class PomodoroTimer {
         }
 
         // 更新显示
-        console.log('PomodoroTimer: 更新时间显示');
         this.updateDisplay();
         this.updateStatsDisplay();
 
@@ -4224,8 +4287,32 @@ export class PomodoroTimer {
             await this.resumeTimer();
         }
 
-        console.log('PomodoroTimer: 状态更新完成');
-        showMessage('番茄钟已更新', 1500);
+        // 根据随机提示音开关，重新启动或停止随机提示音定时器
+        if (this.randomNotificationEnabled) {
+            if (this.isWorkPhase && this.isRunning && !this.isPaused) {
+                this.startRandomNotificationTimer();
+            }
+        } else {
+            this.stopRandomNotificationTimer();
+        }
+
+        // 同步更新音量滑块UI（如果存在）
+        if (this.volumeSlider) {
+            try {
+                this.volumeSlider.value = (this.backgroundVolume || 0).toString();
+                const volumePercent = this.volumeContainer?.querySelector('span:last-child');
+                if (volumePercent) {
+                    volumePercent.textContent = Math.round((this.backgroundVolume || 0) * 100) + '%';
+                }
+            } catch (e) {
+                console.warn('更新音量滑块UI失败:', e);
+            }
+        }
+
+        // 当 updateState 被动触发（如广播、跨窗口同步）或在 caller 需要禁止提示时，传入 suppressNotification=true
+        if (!suppressNotification) {
+            showMessage('番茄钟已更新', 1500);
+        }
     }
 
     /**
@@ -4282,7 +4369,7 @@ export class PomodoroTimer {
         // 创建退出全屏按钮
         this.exitFullscreenBtn = document.createElement('button');
         this.exitFullscreenBtn.className = 'pomodoro-exit-fullscreen';
-        this.exitFullscreenBtn.textContent = t('exitFullscreen') || '退出全屏';
+        this.exitFullscreenBtn.textContent = '退出全屏';
         this.exitFullscreenBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();

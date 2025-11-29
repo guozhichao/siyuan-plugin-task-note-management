@@ -114,6 +114,7 @@ export default class ReminderPlugin extends Plugin {
     private reconnectTimer: number | null = null;
     private otherWindowIds: Set<string> = new Set();
     private pomodoroWindowId: string | null = null; // 存储番茄钟独立窗口的ID
+    private lastPomodoroSettings: any | null = null; // 存储上一次的番茄钟设置用于比较
 
     async onload() {
         await this.loadData(STORAGE_NAME);
@@ -167,6 +168,13 @@ export default class ReminderPlugin extends Plugin {
         // 初始化广播通信
         await this.initBroadcastChannel();
 
+        // 初始化 lastPomodoroSettings 用于后续判断
+        try {
+            this.lastPomodoroSettings = await this.getPomodoroSettings();
+        } catch (err) {
+            this.lastPomodoroSettings = null;
+        }
+
         // 监听设置变更，动态显示/隐藏侧边停靠栏
         window.addEventListener('reminderSettingsUpdated', async () => {
             try {
@@ -178,6 +186,75 @@ export default class ReminderPlugin extends Plugin {
                 this.updateBadges();
                 this.updateProjectBadges();
                 this.updateHabitBadges();
+                // 更新所有打开的番茄钟实例，使其应用新的番茄钟设置
+                try {
+                    const pomodoroSettings = await this.getPomodoroSettings();
+                    const prev = this.lastPomodoroSettings || {};
+                    const next = pomodoroSettings || {};
+            const relevantFields = [
+                'workDuration', 'breakDuration', 'longBreakDuration', 'longBreakInterval', 'autoMode', 'backgroundVolume',
+                'randomNotificationEnabled', 'randomNotificationMinInterval', 'randomNotificationMaxInterval', 'randomNotificationBreakDuration',
+                'randomNotificationSounds', 'randomNotificationEndSound', 'dailyFocusGoal'
+            ];                    let relevantChanged = false;
+                    for (const f of relevantFields) {
+                        const pv = prev[f];
+                        const nv = next[f];
+                        if (String(pv) !== String(nv)) { relevantChanged = true; break; }
+                    }
+
+                    // 检查是否存在番茄钟实例（任何状态：运行/暂停/停止）
+                    let anyInstanceExists = false;
+                    const currentPomodoro = PomodoroManager.getInstance().getCurrentPomodoroTimer();
+                    if (currentPomodoro) {
+                        anyInstanceExists = true;
+                    } else {
+                        for (const [, view] of this.tabViews) {
+                            if (view && typeof view.updateState === 'function' && typeof view.getCurrentState === 'function') {
+                                anyInstanceExists = true; break;
+                            }
+                        }
+                    }
+
+                    if (!relevantChanged) {
+                        // 仅更新时间缓存，不做实例更新或广播
+                        this.lastPomodoroSettings = pomodoroSettings;
+                        return;
+                    }
+
+                    // 有实例且相关设置发生改变，进行更新并广播
+                    let updatedCount = 0;
+                    if (currentPomodoro && typeof currentPomodoro.getCurrentState === 'function' && typeof currentPomodoro.updateState === 'function') {
+                        const state = currentPomodoro.getCurrentState();
+                        // 强制更新，即使正在运行
+                        const reminder = { id: state.reminderId, title: state.reminderTitle };
+                        await currentPomodoro.updateState(reminder, pomodoroSettings, state.isCountUp, state, true, true);
+                        updatedCount++;
+                    }
+
+                    for (const [, view] of this.tabViews) {
+                        if (view && typeof view.updateState === 'function' && typeof view.getCurrentState === 'function') {
+                            try {
+                                const state = view.getCurrentState();
+                                // 强制更新，即使正在运行
+                                const reminder = { id: state.reminderId, title: state.reminderTitle };
+                                await view.updateState(reminder, pomodoroSettings, state.isCountUp, state, true, true);
+                                updatedCount++;
+                            } catch (e) {
+                                console.warn('更新 tab 中番茄钟设置失败:', e);
+                            }
+                        }
+                    }
+
+                    // 向其他窗口广播：广播中其他窗口也会判断并跳过正在运行的计时器
+                    this.broadcastMessage('pomodoro_settings_updated', { settings: pomodoroSettings }, true);
+                    this.lastPomodoroSettings = pomodoroSettings;
+                    // 仅在至少有一个实例实际被更新时提示用户（跳过运行中计时器时不提示）
+                    if (updatedCount > 0) {
+                        try { showMessage(t('pomodoroSettingsApplied') || '番茄钟设置已应用到打开的计时器', 1500); } catch (e) { }
+                    }
+                } catch (err2) {
+                    console.warn('更新番茄钟设置时发生错误:', err2);
+                }
             } catch (err) {
                 console.warn('处理设置变更失败:', err);
             }
@@ -3319,6 +3396,42 @@ export default class ReminderPlugin extends Plugin {
                 // 如果当前是番茄钟独立窗口，更新番茄钟状态
                 await this.updatePomodoroState(data);
                 break;
+            case "pomodoro_settings_updated":
+                // 其他窗口广播番茄钟设置更新，更新本窗口的所有番茄钟实例
+                try {
+                    const newSettings = data.settings;
+                    // 更新通过 PomodoroManager 管理的当前番茄钟
+                    const currentPomodoro = PomodoroManager.getInstance().getCurrentPomodoroTimer();
+                    let updatedCount = 0;
+                    if (currentPomodoro && typeof currentPomodoro.getCurrentState === 'function' && typeof currentPomodoro.updateState === 'function') {
+                        const state = currentPomodoro.getCurrentState();
+                        if (!(state.isRunning && !state.isPaused)) {
+                            const reminder = { id: state.reminderId, title: state.reminderTitle };
+                            await currentPomodoro.updateState(reminder, newSettings, state.isCountUp, state, false, true);
+                            updatedCount++;
+                        }
+                    }
+
+                    // 更新 tabViews 中的所有番茄钟视图
+                    for (const [tabId, view] of this.tabViews) {
+                        if (view && typeof view.updateState === 'function' && typeof view.getCurrentState === 'function') {
+                            try {
+                                const state = view.getCurrentState();
+                                if (state.isRunning && !state.isPaused) continue;
+                                const reminder = { id: state.reminderId, title: state.reminderTitle };
+                                await view.updateState(reminder, newSettings, state.isCountUp, state, false, true);
+                                updatedCount++;
+                            } catch (e) {
+                                console.warn('广播更新番茄钟设置到 tab 失败:', e);
+                            }
+                        }
+                    }
+                    // 更新本窗口 lastPomodoroSettings
+                    this.lastPomodoroSettings = newSettings;
+                } catch (err) {
+                    console.warn('处理pomodoro_settings_updated广播时出错:', err);
+                }
+                break;
             default:
         }
     }
@@ -3348,8 +3461,8 @@ export default class ReminderPlugin extends Plugin {
                 }
 
                 if (typeof pomodoroView.updateState === 'function') {
-                    // 如果番茄钟视图有更新状态的方法，调用它
-                    await pomodoroView.updateState(reminder, settings, isCountUp, finalInheritState);
+                    // 如果番茄钟视图有更新状态的方法，调用它（强制更新，覆盖运行状态，用于任务切换等跨窗口同步）
+                    await pomodoroView.updateState(reminder, settings, isCountUp, finalInheritState, true, true);
                 } else {
                     console.warn('番茄钟视图不支持updateState方法，尝试重新创建');
                     // 如果视图不支持更新，销毁并重建

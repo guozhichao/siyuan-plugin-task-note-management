@@ -3911,7 +3911,6 @@ export class ReminderPanel {
             }
         } else {
             // 没有独立窗口，在当前窗口显示番茄钟 Dialog（默认行为）
-            console.log('没有独立窗口，在当前窗口显示番茄钟 Dialog');
 
             // 如果已经有活动的番茄钟，先关闭它
             this.pomodoroManager.closeCurrentTimer();
@@ -4002,7 +4001,7 @@ export class ReminderPanel {
             }
         } else {
             // 没有独立窗口，在当前窗口显示番茄钟 Dialog（默认行为）
-            console.log('没有独立窗口，在当前窗口显示番茄钟 Dialog（正计时模式）');
+            console.log('（正计时模式）');
 
             // 如果已经有活动的番茄钟，先关闭它
             this.pomodoroManager.closeCurrentTimer();

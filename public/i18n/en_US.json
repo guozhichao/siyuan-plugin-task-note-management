@@ -479,6 +479,7 @@
     "openedInNewWindow": "Opened in new window",
     "openWindowFailed": "Failed to open window",
     "pomodoroWindowUpdated": "Pomodoro timer updated in standalone window",
+    "pomodoroSettingsApplied": "Pomodoro settings applied to open timers",
     "openPomodoroWindowFailed": "Failed to open Pomodoro window",
     "daysRemaining": "${days} days remaining",
     "overdueDays": "Overdue by ${days} days",

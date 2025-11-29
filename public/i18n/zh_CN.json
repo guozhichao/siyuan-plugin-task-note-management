@@ -467,6 +467,7 @@
     "openedInNewWindow": "已在新窗口中打开",
     "openWindowFailed": "打开窗口失败",
     "pomodoroWindowUpdated": "已更新独立窗口中的番茄钟",
+    "pomodoroSettingsApplied": "番茄钟设置已应用到打开的计时器",
     "openPomodoroWindowFailed": "打开番茄钟窗口失败",
     "daysRemaining": "还剩${days}天",
     "overdueDays": "已过期${days}天",
