@@ -60,7 +60,8 @@
                     description: t('autoDetectDateTimeDesc'),
                 },
             ],
-        },        {
+        },
+        {
             name: t('calendarSettings'),
             items: [
                 {
@@ -311,7 +312,12 @@
                     if (m) {
                         const h = Math.max(0, Math.min(23, parseInt(m[1], 10) || 0));
                         const min = Math.max(0, Math.min(59, parseInt(m[2] || '0', 10) || 0));
-                        v = (h < 10 ? '0' : '') + h.toString() + ':' + (min < 10 ? '0' : '') + min.toString();
+                        v =
+                            (h < 10 ? '0' : '') +
+                            h.toString() +
+                            ':' +
+                            (min < 10 ? '0' : '') +
+                            min.toString();
                     } else {
                         // 如果无法解析，回退到默认
                         v = DEFAULT_SETTINGS.dailyNotificationTime;

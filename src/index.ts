@@ -1436,8 +1436,8 @@ export default class ReminderPlugin extends Plugin {
             }
 
             const today = getLocalDateString();
-                    const currentTime = getLocalTimeString();
-                    const currentTimeNumber = this.timeStringToNumber(currentTime);
+            const currentTime = getLocalTimeString();
+            const currentTimeNumber = this.timeStringToNumber(currentTime);
 
             // 获取用户设置的每日通知时间（HH:MM）并解析为数字（HHMM）以便比较
             const dailyNotificationTime = await this.getDailyNotificationTime();
