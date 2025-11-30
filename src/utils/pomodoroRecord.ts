@@ -569,55 +569,41 @@ export class PomodoroRecordManager {
     }
 
     /**
-     * 获取统计信息
+     * 删除指定的会话记录
      */
-    getStatistics(startDate?: string, endDate?: string) {
-        let sessions: PomodoroSession[];
-
-        if (startDate && endDate) {
-            sessions = this.getDateRangeSessions(startDate, endDate);
-        } else {
-            sessions = this.getTodaySessions();
+    async deleteSession(sessionId: string): Promise<boolean> {
+        // 确保已初始化
+        if (!this.isInitialized) {
+            await this.initialize();
         }
 
-        const workSessions = sessions.filter(s => s.type === 'work' && s.completed);
-        const breakSessions = sessions.filter(s => s.type !== 'work');
+        for (const date in this.records) {
+            const record = this.records[date];
+            if (!record || !record.sessions) continue;
 
-        // 按事件分组统计
-        const eventStats = new Map<string, {
-            eventTitle: string;
-            pomodoroCount: number;
-            totalWorkTime: number;
-            totalBreakTime: number;
-        }>();
+            const sessionIndex = record.sessions.findIndex(session => session.id === sessionId);
+            if (sessionIndex !== -1) {
+                const session = record.sessions[sessionIndex];
 
-        sessions.forEach(session => {
-            if (!eventStats.has(session.eventId)) {
-                eventStats.set(session.eventId, {
-                    eventTitle: session.eventTitle,
-                    pomodoroCount: 0,
-                    totalWorkTime: 0,
-                    totalBreakTime: 0
-                });
-            }
+                // 从数组中删除会话
+                record.sessions.splice(sessionIndex, 1);
 
-            const stats = eventStats.get(session.eventId);
-            if (session.type === 'work') {
-                if (session.completed) {
-                    stats.pomodoroCount++;
+                // 更新统计数据
+                if (session.type === 'work') {
+                    if (session.completed) {
+                        record.workSessions = Math.max(0, record.workSessions - 1);
+                    }
+                    record.totalWorkTime = Math.max(0, record.totalWorkTime - session.duration);
+                } else {
+                    record.totalBreakTime = Math.max(0, record.totalBreakTime - session.duration);
                 }
-                stats.totalWorkTime += session.duration;
-            } else {
-                stats.totalBreakTime += session.duration;
-            }
-        });
 
-        return {
-            totalWorkSessions: workSessions.length,
-            totalWorkTime: workSessions.reduce((sum, s) => sum + s.duration, 0),
-            totalBreakTime: breakSessions.reduce((sum, s) => sum + s.duration, 0),
-            eventStats: Object.fromEntries(eventStats),
-            sessions
-        };
+                // 保存更改
+                await this.saveRecords();
+                return true;
+            }
+        }
+
+        return false; // 未找到会话
     }
 }

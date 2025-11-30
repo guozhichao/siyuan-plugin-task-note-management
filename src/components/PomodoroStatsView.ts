@@ -1,4 +1,6 @@
 import { Dialog } from "siyuan";
+import { showMessage } from "siyuan";
+import { confirm } from "siyuan";
 import { PomodoroRecordManager, PomodoroSession } from "../utils/pomodoroRecord";
 import { t } from "../utils/i18n";
 import { getLocalDateString } from "../utils/dateUtils";
@@ -363,6 +365,9 @@ export class PomodoroStatsView {
                         <span class="record-duration">${session.duration}${t("minutes")}</span>
                         ${session.completed ? '<span class="record-completed">✅</span>' : '<span class="record-incomplete">⏸</span>'}
                     </div>
+                </div>
+                <div class="record-actions">
+                    <button class="delete-btn" data-session-id="${session.id}" title="${t("delete")}">🗑️</button>
                 </div>
             </div>
         `;
@@ -1524,6 +1529,49 @@ export class PomodoroStatsView {
             const action = target.dataset.action;
             this.handleNavigation(action);
         }
+
+        if (target.classList.contains('delete-btn')) {
+            const sessionId = target.dataset.sessionId;
+            if (sessionId) {
+                this.handleDeleteSession(sessionId);
+            }
+        }
+    }
+
+    private async handleDeleteSession(sessionId: string) {
+        // 显示确认对话框
+        const confirmed = await this.showDeleteConfirmation();
+        if (!confirmed) return;
+
+        try {
+            const success = await this.recordManager.deleteSession(sessionId);
+            if (success) {
+                // 重新加载数据并更新视图
+                await this.recordManager.refreshData();
+                this.updateContent();
+                showMessage(t("deleteSuccess"));
+            } else {
+                showMessage(t("deleteFailed"), 3000, "error");
+            }
+        } catch (error) {
+            console.error('删除会话失败:', error);
+            showMessage(t("deleteFailed"), 3000, "error");
+        }
+    }
+
+    private showDeleteConfirmation(): Promise<boolean> {
+        return new Promise((resolve) => {
+            confirm(
+                "删除番茄记录",
+                "确定要删除此记录吗？此操作无法撤销",
+                () => {
+                    resolve(true);
+                },
+                () => {
+                    resolve(false);
+                }
+            );
+        });
     }
 
     private handleNavigation(action: string) {
