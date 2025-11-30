@@ -1038,16 +1038,23 @@ export class ReminderPanel {
                             if (cachedInfo) {
                                 const pomEl = el.querySelector('.reminder-item__pomodoro-count') as HTMLElement | null;
                                 if (pomEl) {
-                                    const tomatoEmojis = `🍅 ${cachedInfo.pomodoroCount || 0}`;
+                                    const totalCount = cachedInfo.pomodoroCount || 0;
+                                    const todayCount = cachedInfo.todayPomodoroCount || 0;
                                     const focusTimeMinutes = cachedInfo.focusTime || 0;
+                                    const todayFocusMinutes = cachedInfo.todayFocusTime || 0;
                                     const formatMinutesToString = (minutes: number) => {
                                         const hours = Math.floor(minutes / 60);
                                         const mins = Math.floor(minutes % 60);
                                         if (hours > 0) return `${hours}h ${mins}m`;
                                         return `${mins}m`;
                                     };
+                                    const totalFocusText = focusTimeMinutes > 0 ? ` ⏱ ${formatMinutesToString(focusTimeMinutes)}` : '';
+                                    const todayFocusText = (todayFocusMinutes > 0 || totalCount > 0) ? ` ⏱ ${formatMinutesToString(todayFocusMinutes)}` : '';
+                                    const totalLine = (totalCount > 0 || focusTimeMinutes > 0) ? `<span title="累计完成的番茄钟: ${totalCount}">🍅 ${totalCount}</span><span title="总专注时长: ${focusTimeMinutes} 分钟" style="margin-left:8px; opacity:0.9;">${totalFocusText}</span>` : '';
+                                    const todayLine = (todayCount > 0 || todayFocusMinutes > 0 || totalCount > 0) ? `<div style="margin-top:6px; font-size:12px; opacity:0.95;"><span title='今日完成的番茄钟: ${todayCount}'>今日: 🍅 ${todayCount}</span><span title='今日专注时长: ${todayFocusMinutes} 分钟' style='margin-left:8px'>${todayFocusText}</span></div>` : '';
+
                                     const focusTimeText = focusTimeMinutes > 0 ? ` ⏱ ${formatMinutesToString(focusTimeMinutes)}` : '';
-                                    pomEl.innerHTML = `<span title="完成的番茄钟数量: ${cachedInfo.pomodoroCount}">${tomatoEmojis}</span><span title="总专注时长: ${focusTimeMinutes} 分钟" style="margin-left:8px; opacity:0.9;">${focusTimeText}</span>`;
+                                    pomEl.innerHTML = `${totalLine}${todayLine}`;
                                 }
                             }
                         } catch (updateErr) {
@@ -1064,7 +1071,9 @@ export class ReminderPanel {
                             try {
                                 const count = await this.getReminderPomodoroCount(child.id, child, this.allRemindersMap || undefined);
                                 const focusTime = await this.getReminderFocusTime(child.id, child, this.allRemindersMap || undefined);
-                                asyncCache.set(child.id, { pomodoroCount: count, focusTime: focusTime || 0, project: null });
+                                const todayCount = await this.getReminderTodayPomodoroCount(child.id, child, this.allRemindersMap || undefined, child.date);
+                                const todayFocus = await this.getReminderTodayFocusTime(child.id, child, this.allRemindersMap || undefined, child.date);
+                                asyncCache.set(child.id, { pomodoroCount: count, focusTime: focusTime || 0, todayPomodoroCount: todayCount || 0, todayFocusTime: todayFocus || 0, project: null });
                                 // keep in instance cache as well
                                 this.asyncDataCache.set(child.id, asyncCache.get(child.id));
                             } catch (e) {
@@ -1277,10 +1286,13 @@ export class ReminderPanel {
                 const count = await this.getReminderPomodoroCount(reminder.id, reminder, fullData);
                 // focusTime in minutes
                 const focusTime = await this.getReminderFocusTime(reminder.id, reminder, fullData);
-                return { id: reminder.id, pomodoroCount: count, focusTime };
+                // 今日番茄钟计数（按事件/实例的日期计算）
+                const todayCount = await this.getReminderTodayPomodoroCount(reminder.id, reminder, fullData, reminder.date);
+                const todayFocus = await this.getReminderTodayFocusTime(reminder.id, reminder, fullData, reminder.date);
+                return { id: reminder.id, pomodoroCount: count, focusTime, todayPomodoroCount: todayCount, todayFocusTime: todayFocus };
             } catch (error) {
                 console.warn(`获取任务 ${reminder.id} 的番茄钟计数失败:`, error);
-                return { id: reminder.id, pomodoroCount: 0, focusTime: 0 };
+                return { id: reminder.id, pomodoroCount: 0, focusTime: 0, todayPomodoroCount: 0, todayFocusTime: 0 };
             }
         });
 
@@ -1309,6 +1321,8 @@ export class ReminderPanel {
             asyncDataCache.set(result.id, {
                 pomodoroCount: result.pomodoroCount,
                 focusTime: result.focusTime || 0,
+                todayPomodoroCount: result.todayPomodoroCount || 0,
+                todayFocusTime: result.todayFocusTime || 0,
                 project: null
             });
         });
@@ -1319,6 +1333,8 @@ export class ReminderPanel {
             } else {
                 asyncDataCache.set(result.id, {
                     pomodoroCount: 0,
+                    todayPomodoroCount: 0,
+                    todayFocusTime: 0,
                     project: result.project
                 });
             }
@@ -1610,7 +1626,7 @@ export class ReminderPanel {
 
         // 添加番茄钟计数显示（使用预处理的缓存数据），同时显示总专注时长
         const cachedData = asyncDataCache.get(reminder.id);
-        if (cachedData && ((cachedData.pomodoroCount && cachedData.pomodoroCount > 0) || (cachedData.focusTime && cachedData.focusTime > 0))) {
+        if (cachedData && ((cachedData.pomodoroCount && cachedData.pomodoroCount > 0) || (cachedData.todayPomodoroCount && cachedData.todayPomodoroCount > 0) || (cachedData.focusTime && cachedData.focusTime > 0) || (cachedData.todayFocusTime && cachedData.todayFocusTime > 0))) {
             const pomodoroDisplay = document.createElement('div');
             pomodoroDisplay.className = 'reminder-item__pomodoro-count';
             pomodoroDisplay.style.cssText = `
@@ -1624,7 +1640,12 @@ export class ReminderPanel {
                 width: fit-content;
             `;
 
-            const tomatoEmojis = `🍅 ${cachedData.pomodoroCount || 0}`;
+            const totalCount = cachedData.pomodoroCount || 0;
+            const todayCount = cachedData.todayPomodoroCount || 0;
+            const totalFocus = cachedData.focusTime || 0;
+            const todayFocus = cachedData.todayFocusTime || 0;
+            // totals should be displayed with aggregated numbers
+            const formattedTotalTomato = `🍅 ${totalCount}`;
             const focusTimeMinutes = cachedData.focusTime || 0;
             const formatMinutesToString = (minutes: number) => {
                 const hours = Math.floor(minutes / 60);
@@ -1635,10 +1656,15 @@ export class ReminderPanel {
             const focusTimeText = focusTimeMinutes > 0 ? ` ⏱ ${formatMinutesToString(focusTimeMinutes)}` : '';
             const extraCount = '';
 
-            pomodoroDisplay.innerHTML = `
-                <span title="完成的番茄钟数量: ${cachedData.pomodoroCount}">${tomatoEmojis}${extraCount}</span>
-                <span title="总专注时长: ${focusTimeMinutes} 分钟" style="margin-left:8px; opacity:0.9;">${focusTimeText}</span>
-            `;
+            const totalFocusText = totalFocus > 0 ? ` ⏱ ${formatMinutesToString(totalFocus)}` : '';
+            const todayFocusText = (todayFocus > 0 || totalCount > 0) ? ` ⏱ ${formatMinutesToString(todayFocus)}` : '';
+
+            // 第一行：累计/总计
+            const totalLine = (totalCount > 0 || totalFocus > 0) ? `<span title="累计完成的番茄钟: ${totalCount}">${formattedTotalTomato}${extraCount}</span><span title="总专注时长: ${totalFocus} 分钟" style="margin-left:8px; opacity:0.9;">${totalFocusText}</span>` : '';
+            // 第二行：今日数据（单独一行）
+            const todayLine = (todayCount > 0 || todayFocus > 0 || totalCount > 0) ? `<div style="margin-top:6px; font-size:12px; opacity:0.95;"><span title='今日完成的番茄钟: ${todayCount}'>今日: 🍅 ${todayCount}</span><span title='今日专注时长: ${todayFocus} 分钟' style='margin-left:8px'>${todayFocusText}</span></div>` : '';
+
+            pomodoroDisplay.innerHTML = `${totalLine}${todayLine}`;
 
             // 将番茄计数添加到 timeContainer 后面
             infoEl.appendChild(pomodoroDisplay);
@@ -6396,6 +6422,190 @@ export class ReminderPanel {
             return 0;
         } catch (error) {
             console.error('获取番茄钟总专注时长失败:', error);
+            return 0;
+        }
+    }
+
+    /**
+     * 获取指定提醒及其所有子任务在指定日期（默认为今日）的番茄数量
+     * @param reminderId 提醒 ID（可能是实例 ID）
+     * @param reminder 提醒对象（可选）
+     * @param reminderData 全量提醒数据（可选）
+     * @param date 指定日期（YYYY-MM-DD），如果传空则使用今日
+     */
+    private async getReminderTodayPomodoroCount(reminderId: string, reminder?: any, reminderData?: any, date?: string): Promise<number> {
+        try {
+            const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
+            const pomodoroManager = PomodoroRecordManager.getInstance();
+
+            const targetDate = date || getLocalDateString();
+
+            // If it's a repeat instance or an instance id (contains date), try direct event count
+            if (reminder && reminder.isRepeatInstance) {
+                if (typeof pomodoroManager.getEventPomodoroCount === 'function') {
+                    return pomodoroManager.getEventPomodoroCount(reminderId, targetDate);
+                }
+                return 0;
+            }
+
+            // Build a set of event ids: root id + descendants + per-instance ids that match target date
+            const idsToQuery = new Set<string>();
+
+            // Add root
+            idsToQuery.add(reminderId);
+
+            // Build reminderData map if needed
+            const raw = reminderData;
+            let dataMap: Map<string, any> | null = null;
+            if (raw instanceof Map) {
+                dataMap = raw;
+            } else if (raw && typeof raw === 'object') {
+                dataMap = new Map(Object.values(raw).map((r: any) => [r.id, r]));
+            } else {
+                try {
+                    const { readReminderData } = await import("../api");
+                    const rd = await readReminderData();
+                    dataMap = new Map(Object.values(rd || {}).map((r: any) => [r.id, r]));
+                } catch (e) {
+                    dataMap = null;
+                }
+            }
+
+            if (dataMap) {
+                // Add descendants
+                try {
+                    const descendantIds = this.getAllDescendantIds(reminderId, dataMap);
+                    descendantIds.forEach(id => idsToQuery.add(id));
+                } catch (e) {
+                    // ignore
+                }
+
+                // Also include per-instance IDs that match the target date (e.g. originalId_YYYY-MM-DD)
+                try {
+                    const suffix = `_${targetDate}`;
+                    dataMap.forEach((r, k) => {
+                        // if reminder is repeat enabled and belongs to our root, add constructed instance id
+                        if (r && r.repeat && r.repeat.enabled) {
+                            const constructed = `${k}_${targetDate}`;
+                            try {
+                                const originalId = k;
+                                if (originalId === reminderId || this.getAllAncestorIds && this.getAllAncestorIds(k, dataMap).includes(reminderId)) {
+                                    idsToQuery.add(constructed);
+                                }
+                            } catch (e) { }
+                        }
+                        if (k.endsWith(suffix)) {
+                            // check whether this instance belongs to our reminder (originalId prefix)
+                            const parts = k.split('_');
+                            // remove trailing date to get original id
+                            const originalId = parts.slice(0, -1).join('_');
+                            if (originalId === reminderId || this.getAllAncestorIds && this.getAllAncestorIds(k, dataMap).includes(reminderId)) {
+                                idsToQuery.add(k);
+                            }
+                        }
+                    });
+                } catch (e) {
+                    // ignore
+                }
+            }
+
+            // Sum event counts for the target date
+            let total = 0;
+            for (const id of idsToQuery) {
+                try {
+                    if (typeof pomodoroManager.getEventPomodoroCount === 'function') {
+                        total += pomodoroManager.getEventPomodoroCount(id, targetDate) || 0;
+                    }
+                } catch (e) {
+                    // ignore per-id errors
+                }
+            }
+
+            return total;
+        } catch (error) {
+            console.error('获取今日番茄计数失败:', error);
+            return 0;
+        }
+    }
+
+    /**
+     * 获取指定提醒及其所有子任务在指定日期（默认为今日）的专注时长（分钟）
+     */
+    private async getReminderTodayFocusTime(reminderId: string, reminder?: any, reminderData?: any, date?: string): Promise<number> {
+        try {
+            const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
+            const pomodoroManager = PomodoroRecordManager.getInstance();
+            const targetDate = date || getLocalDateString();
+
+            // If it's a repeat instance, use event-specific focus time
+            if (reminder && reminder.isRepeatInstance) {
+                if (typeof pomodoroManager.getEventFocusTime === 'function') {
+                    return pomodoroManager.getEventFocusTime(reminderId, targetDate);
+                }
+                return 0;
+            }
+
+            // Build a set of ids to query: root + descendants + instance ids of the date
+            const idsToQuery = new Set<string>();
+            idsToQuery.add(reminderId);
+
+            let dataMap: Map<string, any> | null = null;
+            const raw = reminderData;
+            if (raw instanceof Map) {
+                dataMap = raw;
+            } else if (raw && typeof raw === 'object') {
+                dataMap = new Map(Object.values(raw).map((r: any) => [r.id, r]));
+            } else {
+                try {
+                    const { readReminderData } = await import("../api");
+                    const rd = await readReminderData();
+                    dataMap = new Map(Object.values(rd || {}).map((r: any) => [r.id, r]));
+                } catch (e) {
+                    dataMap = null;
+                }
+            }
+
+            if (dataMap) {
+                try {
+                    const descendantIds = this.getAllDescendantIds(reminderId, dataMap);
+                    descendantIds.forEach(id => idsToQuery.add(id));
+                } catch (e) { }
+
+                try {
+                    const suffix = `_${targetDate}`;
+                    dataMap.forEach((r, k) => {
+                        if (r && r.repeat && r.repeat.enabled) {
+                            const constructed = `${k}_${targetDate}`;
+                            try {
+                                const originalId = k;
+                                if (originalId === reminderId || this.getAllAncestorIds && this.getAllAncestorIds(k, dataMap).includes(reminderId)) {
+                                    idsToQuery.add(constructed);
+                                }
+                            } catch (e) { }
+                        }
+                        if (k.endsWith(suffix)) {
+                            const parts = k.split('_');
+                            const originalId = parts.slice(0, -1).join('_');
+                            if (originalId === reminderId || this.getAllAncestorIds && this.getAllAncestorIds(k, dataMap).includes(reminderId)) {
+                                idsToQuery.add(k);
+                            }
+                        }
+                    });
+                } catch (e) { }
+            }
+
+            let total = 0;
+            for (const id of idsToQuery) {
+                try {
+                    if (typeof pomodoroManager.getEventFocusTime === 'function') {
+                        total += pomodoroManager.getEventFocusTime(id, targetDate) || 0;
+                    }
+                } catch (e) { }
+            }
+
+            return total;
+        } catch (error) {
+            console.error('获取今日专注时长失败:', error);
             return 0;
         }
     }
