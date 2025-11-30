@@ -144,7 +144,7 @@ export class HabitHistoryDialog {
             const entriesContainer = document.createElement('div');
             entriesContainer.style.cssText = 'padding: 8px 12px; margin-top:6px; margin-left: 28px; display:' + (isCollapsed ? 'none' : 'block') + ';';
             const entriesWrap = document.createElement('div');
-            entriesWrap.style.cssText = 'display:flex; gap:6px; align-items:center; flex-wrap:wrap;';
+            entriesWrap.style.cssText = 'display:flex; flex-direction:column; gap:6px; align-items:stretch;';
             entries.forEach((entry, idx) => {
                 const item = document.createElement('div');
                 item.style.cssText = 'display:flex; gap:6px; align-items:center; padding:4px 6px; background:var(--b3-theme-surface); border-radius:6px;';
