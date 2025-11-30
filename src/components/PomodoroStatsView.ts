@@ -175,7 +175,7 @@ export class PomodoroStatsView {
 
     private renderRecords(): string {
         const recentSessions = this.getRecentSessions(7);
-        
+
         return `
             <div class="records-container">
                 <div class="records-header">
@@ -280,7 +280,7 @@ export class PomodoroStatsView {
         const todayTime = this.recordManager.getTodayFocusTime();
         const todaySessions = this.recordManager.getTodaySessions();
         const workSessions = todaySessions.filter(s => s.type === 'work' && s.completed);
-        
+
         return `
             <div class="progress-info">
                 <div class="progress-item">
@@ -300,31 +300,31 @@ export class PomodoroStatsView {
         const maxTime = Math.max(...last7Days.map(d => d.value));
         const minHeight = 3; // 最小高度15%，确保可见性
         const maxHeight = 85; // 最大高度85%，留出空间显示标签
-        
+
         return `
             <div class="trend-chart">
                 ${last7Days.map(day => {
-                    let height;
-                    if (maxTime === 0) {
-                        // 所有数据都为0时，显示最小高度
-                        height = minHeight;
-                    } else if (day.value === 0) {
-                        // 当前数据为0时，显示更小的高度以区分
-                        height = minHeight;
-                    } else {
-                        // 按比例计算高度，确保在最小和最大高度之间
-                        const ratio = day.value / maxTime;
-                        height = minHeight + (maxHeight - minHeight) * ratio;
-                    }
-                    
-                    return `
+            let height;
+            if (maxTime === 0) {
+                // 所有数据都为0时，显示最小高度
+                height = minHeight;
+            } else if (day.value === 0) {
+                // 当前数据为0时，显示更小的高度以区分
+                height = minHeight;
+            } else {
+                // 按比例计算高度，确保在最小和最大高度之间
+                const ratio = day.value / maxTime;
+                height = minHeight + (maxHeight - minHeight) * ratio;
+            }
+
+            return `
                         <div class="trend-day">
                             <div class="trend-bar" style="height: ${height}%"></div>
                             <div class="trend-label">${day.label}</div>
                             <div class="trend-value">${this.recordManager.formatTime(day.value)}</div>
                         </div>
                     `;
-                }).join('')}
+        }).join('')}
             </div>
         `;
     }
@@ -332,7 +332,7 @@ export class PomodoroStatsView {
     private renderTaskCategoryChart(): string {
         const stats = this.getTaskCategoryStats();
         const total = Object.values(stats).reduce((sum: number, value: any) => sum + value.time, 0);
-        
+
         if (total === 0) {
             return `<div class="no-data">${t("noData")}</div>`;
         }
@@ -351,7 +351,7 @@ export class PomodoroStatsView {
         const date = new Date(session.startTime);
         const dateStr = date.toLocaleDateString('zh-CN');
         const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-        
+
         return `
             <div class="record-item ${session.type}">
                 <div class="record-icon">
@@ -378,32 +378,32 @@ export class PomodoroStatsView {
         const maxValue = Math.max(...data.map(d => d.value));
         const minHeight = 3; // 最小高度15%，确保可见性
         const maxHeight = 85; // 最大高度85%，留出空间显示标签
-        
+
         return `
             <div class="trends-chart-container">
                 <div class="chart-bars">
                     ${data.map(item => {
-                        let height;
-                        if (maxValue === 0) {
-                            // 所有数据都为0时，显示最小高度
-                            height = minHeight;
-                        } else if (item.value === 0) {
-                            // 当前数据为0时，显示更小的高度以区分
-                            height = minHeight;
-                        } else {
-                            // 按比例计算高度，确保在最小和最大高度之间
-                            const ratio = item.value / maxValue;
-                            height = minHeight + (maxHeight - minHeight) * ratio;
-                        }
-                        
-                        return `
+            let height;
+            if (maxValue === 0) {
+                // 所有数据都为0时，显示最小高度
+                height = minHeight;
+            } else if (item.value === 0) {
+                // 当前数据为0时，显示更小的高度以区分
+                height = minHeight;
+            } else {
+                // 按比例计算高度，确保在最小和最大高度之间
+                const ratio = item.value / maxValue;
+                height = minHeight + (maxHeight - minHeight) * ratio;
+            }
+
+            return `
                             <div class="chart-bar-container">
                                 <div class="chart-bar" style="height: ${height}%"></div>
                                 <div class="chart-label">${item.label}</div>
                                 <div class="chart-value">${this.recordManager.formatTime(item.value)}</div>
                             </div>
                         `;
-                    }).join('')}
+        }).join('')}
                 </div>
             </div>
         `;
@@ -412,7 +412,7 @@ export class PomodoroStatsView {
     private renderTimelineChart(): string {
         // 生成唯一的图表ID
         const chartId = `timeline-chart-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        
+
         return `
             <div class="timeline-echarts-container">
                 <div id="${chartId}" class="echarts-timeline-chart" style="width: 100%; height: 600px;"></div>
@@ -423,7 +423,7 @@ export class PomodoroStatsView {
     private renderHeatmapChart(): string {
         // 生成唯一的图表ID
         const chartId = `heatmap-chart-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        
+
         return `
             <div class="heatmap-echarts-container">
                 <div id="${chartId}" class="echarts-heatmap-chart" style="width: 100%; height: 500px;"></div>
@@ -436,13 +436,13 @@ export class PomodoroStatsView {
         // 获取所有记录的总专注时间
         let totalTime = 0;
         const allRecords = (this.recordManager as any).records || {};
-        
+
         Object.values(allRecords).forEach((record: any) => {
             if (record && record.totalWorkTime) {
                 totalTime += record.totalWorkTime;
             }
         });
-        
+
         return totalTime;
     }
 
@@ -460,20 +460,20 @@ export class PomodoroStatsView {
         // 获取所有记录的总番茄钟数量
         let totalCount = 0;
         const allRecords = (this.recordManager as any).records || {};
-        
+
         Object.values(allRecords).forEach((record: any) => {
             if (record && record.workSessions) {
                 totalCount += record.workSessions;
             }
         });
-        
+
         return totalCount;
     }
 
-    private getLast7DaysData(): Array<{label: string, value: number}> {
+    private getLast7DaysData(): Array<{ label: string, value: number }> {
         const data = [];
         const today = new Date();
-        
+
         for (let i = 6; i >= 0; i--) {
             const date = new Date(today);
             date.setDate(today.getDate() - i);
@@ -482,19 +482,19 @@ export class PomodoroStatsView {
             const value = sessions
                 .filter(s => s.type === 'work')
                 .reduce((sum, s) => sum + s.duration, 0);
-            
+
             data.push({
                 label: i === 0 ? t("today") : date.toLocaleDateString('zh-CN', { weekday: 'short' }),
                 value
             });
         }
-        
+
         return data;
     }
 
-    private getTaskCategoryStats(): Record<string, {time: number, count: number}> {
+    private getTaskCategoryStats(): Record<string, { time: number, count: number }> {
         let sessions: PomodoroSession[] = [];
-        
+
         // 根据当前时间范围和偏移量获取会话数据
         switch (this.currentTimeRange) {
             case 'today':
@@ -512,9 +512,9 @@ export class PomodoroStatsView {
             default:
                 sessions = this.recordManager.getTodaySessions();
         }
-        
-        const stats: Record<string, {time: number, count: number}> = {};
-        
+
+        const stats: Record<string, { time: number, count: number }> = {};
+
         sessions.filter(s => s.type === 'work').forEach(session => {
             const category = session.eventTitle || t("uncategorized");
             if (!stats[category]) {
@@ -525,7 +525,7 @@ export class PomodoroStatsView {
                 stats[category].count++;
             }
         });
-        
+
         return stats;
     }
 
@@ -540,38 +540,38 @@ export class PomodoroStatsView {
     private getWeekSessionsWithOffset(): PomodoroSession[] {
         const sessions = [];
         const today = new Date();
-        
+
         // 计算目标周的开始日期（星期一）
         const startOfWeek = new Date(today);
         const dayOfWeek = today.getDay();
         // 计算到星期一的偏移量：如果是星期日(0)，则偏移-6；否则偏移1-dayOfWeek
         const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
         startOfWeek.setDate(today.getDate() + mondayOffset + (this.currentWeekOffset * 7));
-        
+
         for (let i = 0; i < 7; i++) {
             const date = new Date(startOfWeek);
             date.setDate(startOfWeek.getDate() + i);
             const dateStr = getLocalDateString(date);
             sessions.push(...this.recordManager.getDateSessions(dateStr));
         }
-        
+
         return sessions;
     }
 
     private getMonthSessionsWithOffset(): PomodoroSession[] {
         const sessions = [];
         const today = new Date();
-        
+
         // 计算目标月份
         const targetDate = new Date(today.getFullYear(), today.getMonth() + this.currentMonthOffset, 1);
         const daysInMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0).getDate();
-        
+
         for (let day = 1; day <= daysInMonth; day++) {
             const date = new Date(targetDate.getFullYear(), targetDate.getMonth(), day);
             const dateStr = getLocalDateString(date);
             sessions.push(...this.recordManager.getDateSessions(dateStr));
         }
-        
+
         return sessions;
     }
 
@@ -579,7 +579,7 @@ export class PomodoroStatsView {
         const sessions = [];
         const today = new Date();
         const targetYear = today.getFullYear() + this.currentYearOffset;
-        
+
         // 获取整年的数据
         for (let month = 0; month < 12; month++) {
             const daysInMonth = new Date(targetYear, month + 1, 0).getDate();
@@ -589,25 +589,25 @@ export class PomodoroStatsView {
                 sessions.push(...this.recordManager.getDateSessions(dateStr));
             }
         }
-        
+
         return sessions;
     }
 
     private getRecentSessions(days: number): PomodoroSession[] {
         const sessions = [];
         const today = new Date();
-        
+
         for (let i = 0; i < days; i++) {
             const date = new Date(today);
             date.setDate(today.getDate() - i);
             const dateStr = getLocalDateString(date);
             sessions.push(...this.recordManager.getDateSessions(dateStr));
         }
-        
+
         return sessions.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
     }
 
-    private getTrendsData(): Array<{label: string, value: number}> {
+    private getTrendsData(): Array<{ label: string, value: number }> {
         // 根据当前时间范围返回趋势数据
         switch (this.currentTimeRange) {
             case 'week':
@@ -621,17 +621,17 @@ export class PomodoroStatsView {
         }
     }
 
-    private getWeeklyTrendsData(): Array<{label: string, value: number}> {
+    private getWeeklyTrendsData(): Array<{ label: string, value: number }> {
         const data = [];
         const today = new Date();
-        
+
         // 计算目标周的开始日期（星期一）
         const startOfWeek = new Date(today);
         const dayOfWeek = today.getDay();
         // 计算到星期一的偏移量：如果是星期日(0)，则偏移-6；否则偏移1-dayOfWeek
         const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
         startOfWeek.setDate(today.getDate() + mondayOffset + (this.currentWeekOffset * 7));
-        
+
         for (let i = 0; i < 7; i++) {
             const date = new Date(startOfWeek);
             date.setDate(startOfWeek.getDate() + i);
@@ -640,25 +640,25 @@ export class PomodoroStatsView {
             const value = sessions
                 .filter(s => s.type === 'work')
                 .reduce((sum, s) => sum + s.duration, 0);
-            
+
             data.push({
                 label: date.toLocaleDateString('zh-CN', { weekday: 'short' }),
                 value
             });
         }
-        
+
         return data;
     }
 
-    private getMonthlyTrendsData(): Array<{label: string, value: number}> {
+    private getMonthlyTrendsData(): Array<{ label: string, value: number }> {
         // 实现月度趋势数据获取
         const data = [];
         const today = new Date();
-        
+
         // 计算目标月份
         const targetDate = new Date(today.getFullYear(), today.getMonth() + this.currentMonthOffset, 1);
         const daysInMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0).getDate();
-        
+
         for (let day = 1; day <= daysInMonth; day++) {
             const date = new Date(targetDate.getFullYear(), targetDate.getMonth(), day);
             const dateStr = getLocalDateString(date);
@@ -666,27 +666,27 @@ export class PomodoroStatsView {
             const time = sessions
                 .filter(s => s.type === 'work')
                 .reduce((sum, s) => sum + s.duration, 0);
-            
+
             data.push({
                 label: day.toString(),
                 value: time
             });
         }
-        
+
         return data;
     }
 
-    private getYearlyTrendsData(): Array<{label: string, value: number}> {
+    private getYearlyTrendsData(): Array<{ label: string, value: number }> {
         // 实现年度趋势数据获取
         const data = [];
         const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
         const today = new Date();
         const targetYear = today.getFullYear() + this.currentYearOffset;
-        
+
         months.forEach((month, index) => {
             let monthlyTime = 0;
             const daysInMonth = new Date(targetYear, index + 1, 0).getDate();
-            
+
             // 计算该月的总专注时间
             for (let day = 1; day <= daysInMonth; day++) {
                 const date = new Date(targetYear, index, day);
@@ -696,21 +696,21 @@ export class PomodoroStatsView {
                     .filter(s => s.type === 'work')
                     .reduce((sum, s) => sum + s.duration, 0);
             }
-            
+
             data.push({
                 label: month,
                 value: monthlyTime
             });
         });
-        
+
         return data;
     }
 
-    private getTimelineData(): Array<{date: string, sessions: Array<{type: string, title: string, duration: number, startPercent: number, widthPercent: number}>}> {
+    private getTimelineData(): Array<{ date: string, sessions: Array<{ type: string, title: string, duration: number, startPercent: number, widthPercent: number }> }> {
         // 实现时间线数据获取
         const data = [];
         const today = new Date();
-        
+
         // 根据当前时间范围和偏移量计算数据
         switch (this.currentTimeRange) {
             case 'week':
@@ -720,24 +720,24 @@ export class PomodoroStatsView {
                 // 计算到星期一的偏移量：如果是星期日(0)，则偏移-6；否则偏移1-dayOfWeek
                 const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
                 startOfWeek.setDate(today.getDate() + mondayOffset + (this.currentWeekOffset * 7));
-                
+
                 for (let i = 0; i < 7; i++) {
                     const date = new Date(startOfWeek);
                     date.setDate(startOfWeek.getDate() + i);
                     data.push(this.getTimelineDataForDate(date));
                 }
                 break;
-                
+
             case 'month':
                 // 显示本月所有天的平均专注时间分布
                 data.push(this.getAverageTimelineDataForMonth());
                 break;
-                
+
             case 'year':
                 // 显示本年所有天的平均专注时间分布
                 data.push(this.getAverageTimelineDataForYear());
                 break;
-                
+
             default:
                 // 默认显示最近7天
                 for (let i = 6; i >= 0; i--) {
@@ -746,19 +746,19 @@ export class PomodoroStatsView {
                     data.push(this.getTimelineDataForDate(date));
                 }
         }
-        
+
         return data;
     }
 
-    private getTimelineDataForDate(date: Date): {date: string, sessions: Array<{type: string, title: string, duration: number, startPercent: number, widthPercent: number}>} {
+    private getTimelineDataForDate(date: Date): { date: string, sessions: Array<{ type: string, title: string, duration: number, startPercent: number, widthPercent: number }> } {
         const dateStr = getLocalDateString(date);
         const sessions = this.recordManager.getDateSessions(dateStr);
-        
+
         const timelineSessions = sessions.map(session => {
             const startTime = new Date(session.startTime);
             const startPercent = (startTime.getHours() * 60 + startTime.getMinutes()) / (24 * 60) * 100;
             const widthPercent = session.duration / (24 * 60) * 100;
-            
+
             return {
                 type: session.type,
                 title: session.eventTitle,
@@ -767,28 +767,28 @@ export class PomodoroStatsView {
                 widthPercent
             };
         });
-        
+
         return {
             date: date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }),
             sessions: timelineSessions
         };
     }
 
-    private getAverageTimelineDataForMonth(): {date: string, sessions: Array<{type: string, title: string, duration: number, startPercent: number, widthPercent: number}>} {
+    private getAverageTimelineDataForMonth(): { date: string, sessions: Array<{ type: string, title: string, duration: number, startPercent: number, widthPercent: number }> } {
         const today = new Date();
         const targetDate = new Date(today.getFullYear(), today.getMonth() + this.currentMonthOffset, 1);
         const daysInMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0).getDate();
-        
+
         // 创建24小时的时间段统计数组，按小时统计
         const hourlyStats = new Array(24).fill(0); // 24个小时
         let totalDays = 0;
-        
+
         // 收集整个月的数据
         for (let day = 1; day <= daysInMonth; day++) {
             const date = new Date(targetDate.getFullYear(), targetDate.getMonth(), day);
             const dateStr = getLocalDateString(date);
             const sessions = this.recordManager.getDateSessions(dateStr);
-            
+
             let hasData = false;
             sessions.filter(s => s.type === 'work').forEach(session => {
                 hasData = true;
@@ -796,31 +796,31 @@ export class PomodoroStatsView {
                 const startHour = startTime.getHours();
                 const startMinute = startTime.getMinutes();
                 const duration = session.duration;
-                
+
                 // 将专注时间分布到对应的小时中
                 let remainingDuration = duration;
                 let currentHour = startHour;
                 let currentMinute = startMinute;
-                
+
                 while (remainingDuration > 0 && currentHour < 24) {
                     // 计算当前小时内剩余的分钟数
                     const minutesLeftInHour = 60 - currentMinute;
                     const durationInThisHour = Math.min(remainingDuration, minutesLeftInHour);
-                    
+
                     hourlyStats[currentHour] += durationInThisHour;
                     remainingDuration -= durationInThisHour;
-                    
+
                     // 移动到下一个小时
                     currentHour++;
                     currentMinute = 0;
                 }
             });
-            
+
             if (hasData) {
                 totalDays++;
             }
         }
-        
+
         // 计算平均值并转换为时间线格式
         const sessions = [];
         if (totalDays > 0) {
@@ -829,7 +829,7 @@ export class PomodoroStatsView {
                 if (avgDuration > 1) { // 只显示平均时长超过1分钟的小时
                     const startPercent = (hour * 60) / (24 * 60) * 100;
                     const widthPercent = 60 / (24 * 60) * 100; // 1小时
-                    
+
                     sessions.push({
                         type: 'work',
                         title: `${hour}:00-${hour + 1}:00 平均专注 ${avgDuration.toFixed(1)}分钟`,
@@ -840,7 +840,7 @@ export class PomodoroStatsView {
                 }
             }
         }
-        
+
         const monthName = targetDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' });
         return {
             date: `${monthName}平均分布`,
@@ -848,14 +848,14 @@ export class PomodoroStatsView {
         };
     }
 
-    private getAverageTimelineDataForYear(): {date: string, sessions: Array<{type: string, title: string, duration: number, startPercent: number, widthPercent: number}>} {
+    private getAverageTimelineDataForYear(): { date: string, sessions: Array<{ type: string, title: string, duration: number, startPercent: number, widthPercent: number }> } {
         const today = new Date();
         const targetYear = today.getFullYear() + this.currentYearOffset;
-        
+
         // 创建24小时的时间段统计数组，按小时统计
         const hourlyStats = new Array(24).fill(0); // 24个小时
         let totalDays = 0;
-        
+
         // 收集整年的数据
         for (let month = 0; month < 12; month++) {
             const daysInMonth = new Date(targetYear, month + 1, 0).getDate();
@@ -863,7 +863,7 @@ export class PomodoroStatsView {
                 const date = new Date(targetYear, month, day);
                 const dateStr = getLocalDateString(date);
                 const sessions = this.recordManager.getDateSessions(dateStr);
-                
+
                 let hasData = false;
                 sessions.filter(s => s.type === 'work').forEach(session => {
                     hasData = true;
@@ -871,32 +871,32 @@ export class PomodoroStatsView {
                     const startHour = startTime.getHours();
                     const startMinute = startTime.getMinutes();
                     const duration = session.duration;
-                    
+
                     // 将专注时间分布到对应的小时中
                     let remainingDuration = duration;
                     let currentHour = startHour;
                     let currentMinute = startMinute;
-                    
+
                     while (remainingDuration > 0 && currentHour < 24) {
                         // 计算当前小时内剩余的分钟数
                         const minutesLeftInHour = 60 - currentMinute;
                         const durationInThisHour = Math.min(remainingDuration, minutesLeftInHour);
-                        
+
                         hourlyStats[currentHour] += durationInThisHour;
                         remainingDuration -= durationInThisHour;
-                        
+
                         // 移动到下一个小时
                         currentHour++;
                         currentMinute = 0;
                     }
                 });
-                
+
                 if (hasData) {
                     totalDays++;
                 }
             }
         }
-        
+
         // 计算平均值并转换为时间线格式
         const sessions = [];
         if (totalDays > 0) {
@@ -905,7 +905,7 @@ export class PomodoroStatsView {
                 if (avgDuration > 1) { // 只显示平均时长超过1分钟的小时
                     const startPercent = (hour * 60) / (24 * 60) * 100;
                     const widthPercent = 60 / (24 * 60) * 100; // 1小时
-                    
+
                     sessions.push({
                         type: 'work',
                         title: `${hour}:00-${hour + 1}:00 平均专注 ${avgDuration.toFixed(1)}分钟`,
@@ -916,39 +916,39 @@ export class PomodoroStatsView {
                 }
             }
         }
-        
+
         return {
             date: `${targetYear}年平均分布`,
             sessions
         };
     }
 
-    private getHeatmapData(year: number): Array<{date: string, time: number, level: number}> {
+    private getHeatmapData(year: number): Array<{ date: string, time: number, level: number }> {
         const data = [];
         const startDate = new Date(year, 0, 1);
         const endDate = new Date(year, 11, 31);
-        
+
         for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
             const dateStr = getLocalDateString(date);
             const sessions = this.recordManager.getDateSessions(dateStr);
             const time = sessions
                 .filter(s => s.type === 'work')
                 .reduce((sum, s) => sum + s.duration, 0);
-            
+
             // 根据时间计算热力图等级 (0-4)
             let level = 0;
             if (time > 0) level = 1;
             if (time > 60) level = 2;
             if (time > 120) level = 3;
             if (time > 240) level = 4;
-            
+
             data.push({
                 date: dateStr,
                 time,
                 level
             });
         }
-        
+
         return data;
     }
 
@@ -959,13 +959,13 @@ export class PomodoroStatsView {
 
     private getCurrentDateRangeText(): string {
         const today = new Date();
-        
+
         switch (this.currentTimeRange) {
             case 'today':
                 const targetDate = new Date(today);
                 targetDate.setDate(today.getDate() + this.currentWeekOffset); // 复用weekOffset作为日偏移
                 return targetDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
-                
+
             case 'week':
                 const startOfWeek = new Date(today);
                 const dayOfWeek = today.getDay();
@@ -974,17 +974,17 @@ export class PomodoroStatsView {
                 startOfWeek.setDate(today.getDate() + mondayOffset + (this.currentWeekOffset * 7));
                 const endOfWeek = new Date(startOfWeek);
                 endOfWeek.setDate(startOfWeek.getDate() + 6);
-                
+
                 return `${startOfWeek.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })} - ${endOfWeek.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}`;
-                
+
             case 'month':
                 const targetMonth = new Date(today.getFullYear(), today.getMonth() + this.currentMonthOffset, 1);
                 return `${targetMonth.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })}`;
-                
+
             case 'year':
                 const targetYear = today.getFullYear() + this.currentYearOffset;
                 return `${targetYear}年`;
-                
+
             default:
                 return '';
         }
@@ -1006,12 +1006,12 @@ export class PomodoroStatsView {
 
             const stats = this.getTaskCategoryStats();
             const total = Object.values(stats).reduce((sum: number, value: any) => sum + value.time, 0);
-            
+
             if (total === 0) return;
 
             // 初始化echarts实例
             const chart = echarts.init(chartElement);
-            
+
             // 准备数据
             const data = Object.entries(stats).map(([category, data]: [string, any], index) => ({
                 name: category,
@@ -1126,7 +1126,7 @@ export class PomodoroStatsView {
             }
 
             const heatmapData = this.getHeatmapData(this.currentYear);
-            
+
             if (heatmapData.length === 0) {
                 chartElement.innerHTML = `<div class="no-data" style="text-align: center; padding: 50px;">${t("noData")}</div>`;
                 return;
@@ -1134,29 +1134,29 @@ export class PomodoroStatsView {
 
             // 初始化echarts实例
             const chart = echarts.init(chartElement);
-            
+
             // 准备热力图数据
             const startDate = new Date(this.currentYear, 0, 1);
             const endDate = new Date(this.currentYear, 11, 31);
-            
+
             // 计算一年中的所有日期
             const dateList = [];
             const dataList = [];
-            
+
             for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
                 const localDateStr = getLocalDateString(date);
-                
+
                 // 查找对应的数据
                 const dayData = heatmapData.find(d => d.date === localDateStr);
                 const time = dayData ? dayData.time : 0;
-                
+
                 dateList.push(localDateStr);
                 dataList.push([localDateStr, time]);
             }
 
             // 计算最大值用于颜色映射
             const maxValue = Math.max(...dataList.map(d => d[1] as number));
-            
+
             // 配置选项
             const option = {
                 title: {
@@ -1217,7 +1217,7 @@ export class PomodoroStatsView {
                     yearLabel: { show: false },
                     monthLabel: {
                         nameMap: ['1月', '2月', '3月', '4月', '5月', '6月',
-                                 '7月', '8月', '9月', '10月', '11月', '12月'],
+                            '7月', '8月', '9月', '10月', '11月', '12月'],
                         fontSize: 12
                     },
                     dayLabel: {
@@ -1257,7 +1257,7 @@ export class PomodoroStatsView {
             }
 
             const timelineData = this.getTimelineData();
-            
+
             if (timelineData.length === 0) {
                 chartElement.innerHTML = `<div class="no-data" style="text-align: center; padding: 50px;">${t("noData")}</div>`;
                 return;
@@ -1265,24 +1265,24 @@ export class PomodoroStatsView {
 
             // 初始化echarts实例
             const chart = echarts.init(chartElement);
-            
+
             // 准备时间线数据
             const dates = timelineData.map(d => d.date);
             const series = [];
-            
+
             // 检查是否是平均分布数据（只有一行数据且包含"平均分布"）
             const isAverageData = timelineData.length === 1 && timelineData[0].date.includes('平均分布');
-            
+
             if (isAverageData) {
                 // 平均分布数据的处理
                 const dayData = timelineData[0];
                 const data = [];
-                
+
                 dayData.sessions.forEach(session => {
                     const startHour = session.startPercent / 100 * 24;
                     const endHour = startHour + (session.widthPercent / 100 * 24);
                     const avgDuration = session.duration;
-                    
+
                     data.push([
                         startHour,  // x轴：开始时间
                         0,          // y轴：固定为0（只有一行）
@@ -1291,7 +1291,7 @@ export class PomodoroStatsView {
                         avgDuration
                     ]);
                 });
-                
+
                 if (data.length > 0) {
                     series.push({
                         name: '平均专注时间',
@@ -1303,13 +1303,13 @@ export class PomodoroStatsView {
                             const y = api.coord([0, 0])[1];
                             const startX = api.coord([start, 0])[0];
                             const endX = api.coord([end, 0])[0];
-                            
+
                             // 根据平均专注时长调整颜色深度和高度
                             const maxDuration = Math.max(...data.map(d => d[4]));
                             const intensity = duration / maxDuration;
                             const height = 30 + intensity * 20; // 基础高度30px，最大增加20px
                             const opacity = 0.6 + intensity * 0.4; // 透明度从0.6到1.0
-                            
+
                             return {
                                 type: 'rect',
                                 shape: {
@@ -1350,17 +1350,17 @@ export class PomodoroStatsView {
                     'shortBreak': '#4CAF50',
                     'longBreak': '#2196F3'
                 };
-                
+
                 sessionTypes.forEach(type => {
                     const data = [];
-                    
+
                     timelineData.forEach((dayData, dayIndex) => {
                         dayData.sessions.forEach(session => {
                             if (session.type === type) {
                                 // 计算开始时间和结束时间（以小时为单位）
                                 const startHour = session.startPercent / 100 * 24;
                                 const endHour = startHour + (session.widthPercent / 100 * 24);
-                                
+
                                 data.push([
                                     startHour,  // x轴：开始时间
                                     dayIndex,   // y轴：日期索引
@@ -1371,7 +1371,7 @@ export class PomodoroStatsView {
                             }
                         });
                     });
-                    
+
                     if (data.length > 0) {
                         series.push({
                             name: typeNames[type],
@@ -1383,7 +1383,7 @@ export class PomodoroStatsView {
                                 const startX = api.coord([start, 0])[0];
                                 const endX = api.coord([end, 0])[0];
                                 const height = 20;
-                                
+
                                 return {
                                     type: 'rect',
                                     shape: {
@@ -1413,12 +1413,12 @@ export class PomodoroStatsView {
                     }
                 });
             }
-            
+
             // 配置选项
             const chartTitle = isAverageData ?
                 (timelineData[0].date.includes('月') ? '月度平均专注时间分布' : '年度平均专注时间分布') :
                 '专注时间线';
-                
+
             const option = {
                 title: {
                     text: chartTitle,
@@ -1495,12 +1495,12 @@ export class PomodoroStatsView {
 
     private handleClick(event: Event) {
         const target = event.target as HTMLElement;
-        
+
         if (target.classList.contains('nav-btn')) {
             const view = target.dataset.view as any;
             if (view && view !== this.currentView) {
                 this.currentView = view;
-                
+
                 // 当切换到专注趋势或专注时间线Tab时，默认设置为本周并重置偏移量
                 if (view === 'trends' || view === 'timeline') {
                     this.currentTimeRange = 'week';
@@ -1508,11 +1508,11 @@ export class PomodoroStatsView {
                     this.currentMonthOffset = 0;
                     this.currentYearOffset = 0;
                 }
-                
+
                 this.updateContent();
             }
         }
-        
+
         if (target.classList.contains('range-btn')) {
             const range = target.dataset.range as any;
             if (range) {
@@ -1524,7 +1524,7 @@ export class PomodoroStatsView {
                 this.updateContent();
             }
         }
-        
+
         if (target.classList.contains('nav-arrow')) {
             const action = target.dataset.action;
             this.handleNavigation(action);
@@ -1632,18 +1632,18 @@ export class PomodoroStatsView {
     private updateContent() {
         // 清理之前的echarts实例
         this.cleanupCharts();
-        
+
         const contentElement = this.dialog.element.querySelector('.stats-content');
         if (contentElement) {
             contentElement.innerHTML = this.renderCurrentView();
         }
-        
+
         // 更新导航按钮状态
         this.dialog.element.querySelectorAll('.nav-btn').forEach(btn => {
             const element = btn as HTMLElement;
             element.classList.toggle('active', element.dataset.view === this.currentView);
         });
-        
+
         // 更新时间范围按钮状态
         this.dialog.element.querySelectorAll('.range-btn').forEach(btn => {
             const element = btn as HTMLElement;
@@ -1657,7 +1657,7 @@ export class PomodoroStatsView {
                 this.initPieChart(chartElement.id);
             }
         }
-        
+
         // 如果当前是热力图视图，初始化热力图
         if (this.currentView === 'heatmap') {
             const heatmapElement = this.dialog.element.querySelector('.echarts-heatmap-chart') as HTMLElement;
@@ -1665,7 +1665,7 @@ export class PomodoroStatsView {
                 this.initHeatmapChart(heatmapElement.id);
             }
         }
-        
+
         // 如果当前是时间线视图，初始化时间线图表
         if (this.currentView === 'timeline') {
             const timelineElement = this.dialog.element.querySelector('.echarts-timeline-chart') as HTMLElement;
