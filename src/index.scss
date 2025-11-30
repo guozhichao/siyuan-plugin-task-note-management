@@ -720,7 +720,10 @@
     }
 
 }
-
+.habit-panel{
+    display: flex;
+    flex-direction: column;
+}
 .habit-panel .habit-header,
 .reminder-panel {
     padding: 8px;
