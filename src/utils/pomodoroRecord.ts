@@ -275,6 +275,86 @@ export class PomodoroRecordManager {
     }
 
     /**
+     * 获取指定提醒及其所有子任务的累计番茄数量
+     */
+    async getAggregatedReminderPomodoroCount(reminderId: string): Promise<number> {
+        try {
+            const { readReminderData } = await import("../api");
+            const reminderData = await readReminderData();
+
+            if (!reminderData) return 0;
+
+            // Helper to detect instance id format
+            const isInstanceId = (id: string) => {
+                if (!id.includes('_')) return false;
+                const parts = id.split('_');
+                const lastPart = parts[parts.length - 1];
+                return /^\d{4}-\d{2}-\d{2}$/.test(lastPart);
+            };
+
+            // Determine starting id (convert instance id to original id if needed)
+            let rootId = reminderId;
+            if (isInstanceId(reminderId)) {
+                const parts = reminderId.split('_');
+                rootId = parts.slice(0, -1).join('_');
+            }
+
+            // BFS traversal to collect all descendant IDs
+            const visited = new Set<string>();
+            const queue: string[] = [rootId];
+            let total = 0;
+
+            while (queue.length > 0) {
+                const current = queue.shift()!;
+                if (visited.has(current)) continue;
+                visited.add(current);
+
+                // accumulate count for this id
+                if (isInstanceId(current)) {
+                    // Instance id: find original reminder and count via repeat.instancePomodoroCount
+                    const parts = current.split('_');
+                    const original = parts.slice(0, -1).join('_');
+                    const originalReminder = reminderData[original];
+                    if (originalReminder?.repeat?.instancePomodoroCount) {
+                        total += originalReminder.repeat.instancePomodoroCount[current] || 0;
+                    }
+                } else {
+                    if (reminderData[current]) {
+                        total += reminderData[current].pomodoroCount || 0;
+                        // If this reminder has per-instance counts, include those as well
+                        if (reminderData[current].repeat && reminderData[current].repeat.instancePomodoroCount) {
+                            const obj = reminderData[current].repeat.instancePomodoroCount;
+                            Object.keys(obj).forEach(k => {
+                                try {
+                                    const v = obj[k];
+                                    if (typeof v === 'number') total += v;
+                                } catch (e) {}
+                            });
+                        }
+                    }
+                }
+
+                // enqueue direct children
+                Object.keys(reminderData).forEach(k => {
+                    try {
+                        const r = reminderData[k];
+                        if (r && r.parentId === current) {
+                            queue.push(k);
+                        }
+                    } catch (e) {
+                        // ignore malformed entries
+                    }
+                });
+            }
+
+            return total;
+        } catch (error) {
+            console.error('获取提醒及子任务累计番茄数量失败:', error);
+            return 0;
+        }
+    }
+
+    /**
      * 获取今日所有提醒的总番茄数
      */
     async getTodayTotalPomodoroCount(): Promise<number> {

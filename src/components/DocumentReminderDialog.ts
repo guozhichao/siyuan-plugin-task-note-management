@@ -679,27 +679,46 @@ export class DocumentReminderDialog {
             this.getOriginalReminder(reminder.originalId) || reminder :
             reminder;
 
-        if (targetReminder.pomodoroCount && targetReminder.pomodoroCount > 0) {
-            const pomodoroDisplay = document.createElement('div');
-            pomodoroDisplay.className = 'doc-reminder-pomodoro-count';
-            pomodoroDisplay.style.cssText = `
-                font-size: 12px;
-                display: inline-flex;
-                align-items: center;
-                gap: 2px;
-                margin-top: 2px;
-            `;
+        // 默认创建一个占位容器；异步获取累计番茄数（包括子任务）并在获取后显示
+        const pomodoroDisplay = document.createElement('div');
+        pomodoroDisplay.className = 'doc-reminder-pomodoro-count';
+        pomodoroDisplay.style.cssText = `
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            margin-top: 2px;
+        `;
+        // 先隐藏，避免闪烁
+        pomodoroDisplay.style.display = 'none';
+        infoEl.appendChild(pomodoroDisplay);
 
-            // 生成番茄emoji
-            const tomatoEmojis = `🍅 ${targetReminder.pomodoroCount}`;
-            const extraCount = '';
-
-            pomodoroDisplay.innerHTML = `
-                <span title="${t("completedPomodoroCount")}: ${targetReminder.pomodoroCount}">${tomatoEmojis}${extraCount}</span>
-            `;
-
-            infoEl.appendChild(pomodoroDisplay);
-        }
+        (async () => {
+            try {
+                const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
+                const pomodoroManager = PomodoroRecordManager.getInstance();
+                let count = 0;
+                if (typeof pomodoroManager.getAggregatedReminderPomodoroCount === 'function') {
+                    count = await pomodoroManager.getAggregatedReminderPomodoroCount(targetReminder.id);
+                } else {
+                    count = await pomodoroManager.getReminderPomodoroCount(targetReminder.id);
+                }
+                if (count && count > 0) {
+                    const tomatoEmojis = `🍅 ${count}`;
+                    const extraCount = '';
+                    pomodoroDisplay.innerHTML = `
+                        <span title="${t("completedPomodoroCount")}: ${count}">${tomatoEmojis}${extraCount}</span>
+                    `;
+                    pomodoroDisplay.style.display = '';
+                } else {
+                    // 没有计数，则移除占位
+                    if (pomodoroDisplay.parentNode) pomodoroDisplay.parentNode.removeChild(pomodoroDisplay);
+                }
+            } catch (e) {
+                console.warn('获取提醒及子任务的番茄钟总数失败', e);
+                if (pomodoroDisplay.parentNode) pomodoroDisplay.parentNode.removeChild(pomodoroDisplay);
+            }
+        })();
 
         // 备注
         if (reminder.note) {

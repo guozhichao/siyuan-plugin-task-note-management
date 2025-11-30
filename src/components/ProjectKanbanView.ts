@@ -1796,6 +1796,10 @@ export class ProjectKanbanView {
         try {
             const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
             const pomodoroManager = PomodoroRecordManager.getInstance();
+            // Use aggregated count: will return sum of this task and all subtasks
+            if (typeof pomodoroManager.getAggregatedReminderPomodoroCount === 'function') {
+                return await pomodoroManager.getAggregatedReminderPomodoroCount(reminderId);
+            }
             return await pomodoroManager.getReminderPomodoroCount(reminderId);
         } catch (error) {
             console.error('获取番茄钟计数失败:', error);

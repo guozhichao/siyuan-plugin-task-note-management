@@ -460,6 +460,9 @@ export class EisenhowerMatrixView {
         try {
             const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
             const pomodoroManager = PomodoroRecordManager.getInstance();
+            if (typeof pomodoroManager.getAggregatedReminderPomodoroCount === 'function') {
+                return await pomodoroManager.getAggregatedReminderPomodoroCount(reminderId);
+            }
             return await pomodoroManager.getReminderPomodoroCount(reminderId);
         } catch (error) {
             console.error('获取番茄钟计数失败:', error);
