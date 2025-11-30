@@ -31,7 +31,7 @@ export default defineConfig({
         svelte(),
 
         vitePluginYamlI18n({
-            inDir: 'public/i18n',
+            inDir: 'i18n',
             outDir: `${outputDir}/i18n`
         }),
 
@@ -90,7 +90,7 @@ export default defineConfig({
                         name: 'watch-external',
                         async buildStart() {
                             const files = await fg([
-                                'public/i18n/**',
+                                './i18n/**',
                                 './README*.md',
                                 './plugin.json'
                             ]);
