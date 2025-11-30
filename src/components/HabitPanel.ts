@@ -48,6 +48,7 @@ export interface Habit {
     totalCheckIns: number; // 总打卡次数（保留历史数据，已不在主面板显示）
     createdAt: string;
     updatedAt: string;
+    hideCheckedToday?: boolean; // 如果设置为true，今天已打卡的选项不显示在菜单中
 }
 
 export class HabitPanel {
@@ -1028,8 +1029,23 @@ export class HabitPanel {
     private createCheckInSubmenu(habit: Habit): any[] {
         const submenu: any[] = [];
 
+        const today = getLocalDateString();
+        const todayCheckIn = habit.checkIns?.[today];
+        const checkedEmojisToday = new Set<string>();
+
+        if (todayCheckIn?.entries) {
+            todayCheckIn.entries.forEach(entry => checkedEmojisToday.add(entry.emoji));
+        } else if (todayCheckIn?.status) {
+            todayCheckIn.status.forEach(emoji => checkedEmojisToday.add(emoji));
+        }
+
         // 添加默认的打卡emoji选项
         habit.checkInEmojis.forEach(emojiConfig => {
+            // 如果设置了隐藏今天已打卡的选项，且该选项今天已打卡，则跳过
+            if (habit.hideCheckedToday && checkedEmojisToday.has(emojiConfig.emoji)) {
+                return;
+            }
+
             submenu.push({
                 label: `${emojiConfig.emoji} ${emojiConfig.meaning}`,
                 click: () => {

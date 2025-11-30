@@ -59,6 +59,35 @@ export class HabitCheckInEmojiDialog {
         container.innerHTML = '';
         container.style.cssText = 'padding: 20px; display: flex; flex-direction: column; height: 100%;';
 
+        // 全局设置：隐藏今天已打卡的选项
+        const globalSettings = document.createElement('div');
+        globalSettings.style.cssText = `
+            margin-bottom: 20px; 
+            padding: 16px 20px; 
+            background: linear-gradient(135deg, var(--b3-theme-primary-lightest) 0%, var(--b3-theme-surface) 100%);
+            border-radius: 12px; 
+            font-size: 13px; 
+            color: var(--b3-theme-on-surface);
+            border-left: 4px solid var(--b3-theme-primary);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        `;
+
+        const hideCheckedLabel = document.createElement('label');
+        hideCheckedLabel.style.cssText = 'display: flex; align-items: center; gap: 8px; cursor: pointer;';
+        const hideCheckedCheckbox = document.createElement('input');
+        hideCheckedCheckbox.type = 'checkbox';
+        hideCheckedCheckbox.checked = !!this.habit.hideCheckedToday;
+        hideCheckedCheckbox.addEventListener('change', () => {
+            this.habit.hideCheckedToday = hideCheckedCheckbox.checked;
+        });
+        const hideCheckedText = document.createElement('span');
+        hideCheckedText.textContent = '今天已打卡的选项不显示在菜单中';
+        hideCheckedLabel.appendChild(hideCheckedCheckbox);
+        hideCheckedLabel.appendChild(hideCheckedText);
+        globalSettings.appendChild(hideCheckedLabel);
+
+        container.appendChild(globalSettings);
+
         // 说明文字
         const description = document.createElement('div');
         description.style.cssText = `
@@ -72,7 +101,9 @@ export class HabitCheckInEmojiDialog {
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         `;
 
-        // Emoji列表 - 使用列表布局
+        description.textContent = '配置打卡时可选择的emoji选项，每个选项可以设置含义和是否在打卡时询问备注。';
+
+        container.appendChild(description);
         const listContainer = document.createElement('div');
         // 设置class
         listContainer.className = 'b3-dialog__content';
