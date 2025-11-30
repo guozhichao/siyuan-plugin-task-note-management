@@ -328,7 +328,7 @@ export class PomodoroRecordManager {
                                 try {
                                     const v = obj[k];
                                     if (typeof v === 'number') total += v;
-                                } catch (e) {}
+                                } catch (e) { }
                             });
                         }
                     }
