@@ -74,18 +74,15 @@ export class PomodoroTimer {
     private isWindowClosed: boolean = false; // 新增：窗口关闭状态标记
     private pendingSettings: any = null; // pending settings when update skipped due to running
 
-    // 随机提示音相关
+    // 随机提示音相关（改为定期检查机制，类似index.ts）
     private randomNotificationSounds: HTMLAudioElement[] = [];
     private randomNotificationEnabled: boolean = false;
     private randomNotificationEndSound: HTMLAudioElement = null;
     private randomNotificationEndSoundTimer: number = null; // 结束声音定时器
     private randomNotificationCount: number = 0; // 随机提示音完成计数
-
-    // 基于时间戳的调度（满足一次工作阶段内的所有随机提示音时间点）
-    private randomNotificationSchedule: number[] = [];
-    private randomNotificationIndex: number = 0; // 下一个待触发的调度索引
-    private randomNotificationPendingTimer: number | null = null; // 当前用于触发下一个调度的定时器
-    private visibilityChangeHandler: (() => void) | null = null; // 页面可见性变化监听器
+    private randomNotificationCheckTimer: number = null; // 定期检查定时器
+    private randomNotificationLastCheckTime: number = 0; // 上次检查时间
+    private randomNotificationNextTriggerTime: number = 0; // 下次触发时间
 
     private systemNotificationEnabled: boolean = true; // 新增：系统弹窗开关
     private randomNotificationSystemNotificationEnabled: boolean = true; // 新增：随机提示音系统通知开关
@@ -126,8 +123,7 @@ export class PomodoroTimer {
         // 初始化系统弹窗功能
         this.initSystemNotification();
 
-        // 初始化页面可见性监听（处理后台节流问题）
-        this.initVisibilityChangeListener();
+
 
         // 在用户首次交互时解锁音频播放
         this.attachAudioUnlockListeners();
@@ -435,11 +431,20 @@ export class PomodoroTimer {
                 console.log('音频未初始化，开始初始化...');
                 await this.initializeAudioPlayback();
             }
-
             // 随机选择一个提示音
             const randomIndex = Math.floor(Math.random() * this.randomNotificationSounds.length);
             const selectedAudio = this.randomNotificationSounds[randomIndex];
 
+            // 日志：输出触发信息，便于调试遗漏问题
+            try {
+                console.log('[PomodoroTimer] 随机提示音触发', {
+                    time: new Date().toLocaleString(),
+                    index: randomIndex,
+                    src: selectedAudio && selectedAudio.src ? selectedAudio.src : null
+                });
+            } catch (e) {
+                // ignore
+            }
 
             // 等待音频加载完成
             if (selectedAudio.readyState < 3) {
@@ -450,16 +455,51 @@ export class PomodoroTimer {
             // 确保音量设置正确（不受背景音静音影响）
             selectedAudio.volume = 1;
 
-            // 直接使用已初始化的音频元素播放，避免 autoplay policy 问题
-            // 不使用 playOneShotAudio，因为它会创建新的 Audio 对象
-            // 使用 safePlayAudio 以在权限不足时先尝试初始化并优雅处理错误
-            const played = await this.safePlayAudio(selectedAudio);
-            if (played) {
-            } else {
-                console.warn('随机提示音播放失败或被阻止');
-                // safePlayAudio 已经会在 NotAllowedError 时尝试初始化或附加解锁监听器
-                this.audioInitialized = false;
-                this.attachAudioUnlockListeners();
+            // 与全局提示音播放机制对齐：避免与 index.ts 中的提示音冲突
+            const pluginAny = this.plugin as any;
+            // 如果插件实例存在且正在播放通知，则等待短暂重试，最多几次
+            if (pluginAny && pluginAny.isPlayingNotificationSound) {
+                let retried = 0;
+                const maxRetries = 5;
+                while (pluginAny.isPlayingNotificationSound && retried < maxRetries) {
+                    await new Promise(res => setTimeout(res, 200));
+                    retried++;
+                }
+                if (pluginAny.isPlayingNotificationSound) {
+                    console.warn('[PomodoroTimer] 检测到已有全局提示音在播放，跳过本次随机提示音以避免重叠');
+                    return;
+                }
+            }
+
+            // 标记全局为正在播放（与 index.ts 的行为一致）
+            let clearGlobalFlagTimer: any = null;
+            try {
+                if (pluginAny) {
+                    try { pluginAny.isPlayingNotificationSound = true; } catch { }
+                    // 作为保险，10s 后清理该标志，防止死锁
+                    clearGlobalFlagTimer = setTimeout(() => {
+                        try { pluginAny.isPlayingNotificationSound = false; } catch { }
+                    }, 10000);
+                }
+
+                // 直接使用已初始化的音频元素播放，避免 autoplay policy 问题
+                // 不使用 playOneShotAudio，因为它会创建新的 Audio 对象
+                // 使用 safePlayAudio 以在权限不足时先尝试初始化并优雅处理错误
+                const played = await this.safePlayAudio(selectedAudio);
+                if (!played) {
+                    console.warn('随机提示音播放失败或被阻止');
+                    // safePlayAudio 已经会在 NotAllowedError 时尝试初始化或附加解锁监听器
+                    this.audioInitialized = false;
+                    this.attachAudioUnlockListeners();
+                }
+            } finally {
+                // 清理全局播放标志
+                if (pluginAny) {
+                    try { pluginAny.isPlayingNotificationSound = false; } catch { }
+                }
+                if (clearGlobalFlagTimer) {
+                    clearTimeout(clearGlobalFlagTimer);
+                }
             }
 
             // 显示系统通知
@@ -538,223 +578,90 @@ export class PomodoroTimer {
     }
 
     /**
-     * 基于时间戳的随机提示音调度。
-     * 若已有调度（如在暂停/后台期间保留），则不会重新生成，
-     * 只会安排下一个待触发项；若需要强制重新生成（新的工作阶段），请传入 true。
+     * 启动随机提示音的定期检查机制（类似index.ts的定时任务提醒）
+     * 每30秒检查一次是否需要播放随机提示音，确保不会遗漏
      */
-    private startRandomNotificationTimer(forceRecompute: boolean = false) {
+    private startRandomNotificationTimer() {
         if (!this.randomNotificationEnabled || !this.isWorkPhase) {
+            this.stopRandomNotificationTimer();
             return;
         }
 
-        // 如果需要强制重新生成调度（例如新的工作阶段开始），清空已有调度
-        if (forceRecompute) {
-            this.clearRandomNotificationSchedule();
-        }
+        // 如果已经在运行，先停止
+        this.stopRandomNotificationTimer();
 
-        // 如果尚未生成调度，则基于当前剩余工作时间生成整个阶段内的时间戳列表
-        if (this.randomNotificationSchedule.length === 0) {
-            // 使用设置中的时间间隔范围（毫秒）
-            const minInterval = (Number(this.settings.randomNotificationMinInterval) || 1) * 60 * 1000;
-            const maxInterval = (Number(this.settings.randomNotificationMaxInterval) || 1) * 60 * 1000;
-            const actualMaxInterval = Math.max(minInterval, maxInterval);
+        // 初始化下次触发时间
+        this.randomNotificationLastCheckTime = Date.now();
+        this.randomNotificationNextTriggerTime = this.calculateNextRandomNotificationTime();
 
-            // 计算当前工作阶段剩余时间（毫秒）
-            let remainingMs = 0;
-            const now = Date.now();
-            if (this.isCountUp) {
-                // 正计时：剩余时间 = 原始设置 - 已用
-                const totalWorkMs = (this.currentPhaseOriginalDuration || this.settings.workDuration) * 60 * 1000;
-                const usedMs = (this.timeElapsed || 0) * 1000;
-                remainingMs = Math.max(0, totalWorkMs - usedMs);
-            } else {
-                // 倒计时：timeLeft 为秒数
-                remainingMs = Math.max(0, (this.timeLeft || this.settings.workDuration * 60) * 1000);
-            }
+        // 启动定期检查定时器（每30秒检查一次，类似index.ts）
+        this.randomNotificationCheckTimer = window.setInterval(() => {
+            this.checkRandomNotificationTrigger();
+        }, 30000);
 
-            // 生成时间戳序列
-            if (this.isCountUp) {
-                // 正计时模式：每次生成固定数量的时间点（20 个），并在最后一个触发后重新生成新的 20 个
-                const COUNT = 20;
-                const endTime = now + Math.max(0, remainingMs);
-                if (endTime > now) {
-                    const temps: number[] = [];
-                    for (let i = 0; i < COUNT; i++) {
-                        // 在 [now, endTime) 区间内随机分布
-                        const rand = Math.random();
-                        const ts = now + Math.floor(rand * (endTime - now));
-                        temps.push(ts);
-                    }
-                    // 升序并去重（若出现相同时间点，微调保证严格递增）
-                    temps.sort((a, b) => a - b);
-                    let last = now - 1;
-                    temps.forEach((ts, idx) => {
-                        let tval = ts;
-                        if (tval <= last) {
-                            tval = last + 1; // 保证严格递增（毫秒级）
-                        }
-                        // 不超过阶段结束时间
-                        if (tval < endTime) {
-                            this.randomNotificationSchedule.push(tval);
-                            last = tval;
-                        }
-                    });
-                }
-            } else {
-                // 倒计时模式：按最小/最大间隔随机累加，直到阶段结束
-                let t = now;
-                while (true) {
-                    const randomInterval = minInterval + Math.random() * (actualMaxInterval - minInterval);
-                    t += randomInterval;
-                    if (t - now >= remainingMs) break;
-                    this.randomNotificationSchedule.push(t);
-                }
-            }
-
-            // 打印生成的调度（用于调试和验证）
-            try {
-                const human = this.randomNotificationSchedule.map(ts => ({
-                    ts,
-                    local: new Date(ts).toLocaleString(),
-                    secondsFromNow: Math.round((ts - now) / 1000)
-                }));
-                console.log('随机提示音调度（可读）:', human);
-            } catch (e) {
-                console.warn('打印随机提示音调度失败:', e);
-            }
-
-            this.randomNotificationIndex = 0;
-        }
-
-        // 清理已有的挂起定时器（如果有）并安排下一个
-        if (this.randomNotificationPendingTimer) {
-            clearTimeout(this.randomNotificationPendingTimer);
-            this.randomNotificationPendingTimer = null;
-        }
-
-        this.scheduleNextRandomNotification();
+        // 立即执行一次检查
+        this.checkRandomNotificationTrigger();
     }
 
-    // 安排调度数组中索引处的下一次触发
-    private scheduleNextRandomNotification() {
-        // 清理可能的结束声音定时器（不影响schedule本身）
-        if (this.randomNotificationIndex >= this.randomNotificationSchedule.length) {
-            // 没有更多项
-            this.randomNotificationPendingTimer = null;
-            // 对于正计时模式：若仍在工作阶段且正在运行，则生成新的批次并继续调度
-            if (this.isCountUp && this.randomNotificationEnabled && this.isWorkPhase && this.isRunning && !this.isPaused) {
-                this.clearRandomNotificationSchedule();
-                // 重新生成并开始（forceRecompute 确保新的批次被创建）
-                this.startRandomNotificationTimer(true);
-                return;
-            }
+    /**
+     * 计算下次随机提示音的触发时间
+     */
+    private calculateNextRandomNotificationTime(): number {
+        const minInterval = (Number(this.settings.randomNotificationMinInterval) || 1) * 60 * 1000;
+        const maxInterval = (Number(this.settings.randomNotificationMaxInterval) || 1) * 60 * 1000;
+        const actualMaxInterval = Math.max(minInterval, maxInterval);
+
+        // 在最小和最大间隔之间随机选择
+        const randomInterval = minInterval + Math.random() * (actualMaxInterval - minInterval);
+        // 提示音响起具体时间
+        console.log(`下次随机提示音将在 ${new Date(Date.now() + randomInterval).toLocaleTimeString()} 触发`);
+        return Date.now() + randomInterval;
+    }
+
+    /**
+     * 检查是否需要触发随机提示音（定期检查机制）
+     */
+    private checkRandomNotificationTrigger() {
+        if (!this.randomNotificationEnabled || !this.isWorkPhase || !this.isRunning || this.isPaused) {
             return;
         }
 
         const now = Date.now();
 
-        // 跳过所有已过期的时间点（不触发），只安排下一个在将来时间点的触发器
-        while (this.randomNotificationIndex < this.randomNotificationSchedule.length &&
-            this.randomNotificationSchedule[this.randomNotificationIndex] <= now) {
-            this.randomNotificationIndex++;
+        // 如果当前时间已达到或超过下次触发时间，则播放提示音
+        if (now >= this.randomNotificationNextTriggerTime) {
+            // 播放随机提示音
+            this.playRandomNotificationSound().catch(error => {
+                console.warn('播放随机提示音失败:', error);
+            });
+
+            // 计算下次触发时间
+            this.randomNotificationNextTriggerTime = this.calculateNextRandomNotificationTime();
         }
 
-        if (this.randomNotificationIndex >= this.randomNotificationSchedule.length) {
-            this.randomNotificationPendingTimer = null;
-            if (this.isCountUp && this.randomNotificationEnabled && this.isWorkPhase && this.isRunning && !this.isPaused) {
-                this.clearRandomNotificationSchedule();
-                this.startRandomNotificationTimer(true);
-                return;
-            }
-            return;
-        }
-
-        const nextTs = this.randomNotificationSchedule[this.randomNotificationIndex];
-        const delay = Math.max(0, nextTs - now);
-
-        // 使用单个定时器指向下一个时间点；如果被浏览器后台节流，visibilitychange 恢复时会处理错过的项
-        this.randomNotificationPendingTimer = window.setTimeout(async () => {
-            // 触发当前项
-            try {
-                await this.playRandomNotificationSound();
-            } catch (e) {
-                console.warn('播放随机提示音时出错（schedule）:', e);
-            } finally {
-                // 标记为已触发并安排下一项
-                this.randomNotificationIndex++;
-                this.randomNotificationPendingTimer = null;
-                this.scheduleNextRandomNotification();
-            }
-        }, delay);
+        // 更新最后检查时间
+        this.randomNotificationLastCheckTime = now;
     }
 
     /**
-     * 停止当前挂起的随机提示音触发器。
-     * 默认会清除整个调度（适用于阶段切换），但在暂停/后台恢复等场景下可保留已生成的调度（传入 clearSchedule=false）。
+     * 停止随机提示音的定期检查机制
      */
-    private stopRandomNotificationTimer(clearSchedule: boolean = true) {
-        if (this.randomNotificationPendingTimer) {
-            clearTimeout(this.randomNotificationPendingTimer);
-            this.randomNotificationPendingTimer = null;
+    private stopRandomNotificationTimer() {
+        if (this.randomNotificationCheckTimer) {
+            clearInterval(this.randomNotificationCheckTimer);
+            this.randomNotificationCheckTimer = null;
         }
         // 清理结束声音定时器
         if (this.randomNotificationEndSoundTimer) {
             clearTimeout(this.randomNotificationEndSoundTimer);
             this.randomNotificationEndSoundTimer = null;
         }
-
-        if (clearSchedule) {
-            this.clearRandomNotificationSchedule();
-        }
     }
 
-    // 清空预生成的调度（仅在阶段结束或需要重建时调用）
-    private clearRandomNotificationSchedule() {
-        this.randomNotificationSchedule = [];
-        this.randomNotificationIndex = 0;
-        if (this.randomNotificationPendingTimer) {
-            clearTimeout(this.randomNotificationPendingTimer);
-            this.randomNotificationPendingTimer = null;
-        }
-    }
 
-    /**
-     * 初始化页面可见性变化监听器
-     * 用于处理浏览器后台节流导致的定时器失效问题
-     */
-    private initVisibilityChangeListener() {
-        if (this.visibilityChangeHandler) {
-            return; // 已经初始化过了
-        }
 
-        this.visibilityChangeHandler = async () => {
-            if (document.hidden) {
-                // 页面进入后台：不修改已生成的调度，仅停止挂起定时器以避免资源占用
-                if (this.randomNotificationPendingTimer) {
-                    clearTimeout(this.randomNotificationPendingTimer);
-                    this.randomNotificationPendingTimer = null;
-                }
-            } else {
-                // 页面从后台恢复：基于已生成的时间戳调度处理错过的项，且不重新生成或改变后续时间点
-                if (this.randomNotificationEnabled && this.isWorkPhase && this.isRunning && !this.isPaused) {
-                    // 不触发已错过的时间点，直接跳过并安排下一个将来时间点
-                    this.scheduleNextRandomNotification();
-                }
-            }
-        };
 
-        document.addEventListener('visibilitychange', this.visibilityChangeHandler);
-    }
 
-    /**
-     * 移除页面可见性变化监听器
-     */
-    private removeVisibilityChangeListener() {
-        if (this.visibilityChangeHandler) {
-            document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
-            this.visibilityChangeHandler = null;
-        }
-    }
 
     private async initializeAudioPlayback(force: boolean = false) {
         if (this.audioInitialized && !force) {
@@ -4280,7 +4187,6 @@ export class PomodoroTimer {
 
         this.stopAllAudio();
         this.stopRandomNotificationTimer(); // 停止随机提示音
-        this.removeVisibilityChangeListener(); // 移除页面可见性监听器
         this.detachAudioUnlockListeners();
 
         if (this.isFullscreen) {
