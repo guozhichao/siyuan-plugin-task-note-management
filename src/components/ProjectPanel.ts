@@ -1008,7 +1008,7 @@ export class ProjectPanel {
             }
 
             const counts = this.countTopLevelKanbanStatus(projectId, reminderData);
-            const totalPomodoro = this.countProjectTotalPomodoro(projectId, reminderData);
+            const totalPomodoro = await this.countProjectTotalPomodoro(projectId, reminderData);
 
             todoEl.textContent = `${t("todo") || '待办'}: ${counts.todo}`;
             doingEl.textContent = `${t("doing") || '进行中'}: ${counts.doing}`;
@@ -1016,7 +1016,15 @@ export class ProjectPanel {
 
             // 更新番茄钟总数显示
             if (pomodoroEl) {
-                pomodoroEl.textContent = `🍅 总计: ${totalPomodoro}`;
+                // 同时计算总专注时长（所有任务总和）
+                const totalFocus = await this.countProjectTotalFocusTime(projectId, reminderData);
+                const formatMinutesToString = (minutes: number) => {
+                    const hours = Math.floor(minutes / 60);
+                    const mins = Math.floor(minutes % 60);
+                    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+                };
+                const focusText = totalFocus > 0 ? ` ⏱ ${formatMinutesToString(totalFocus)}` : '';
+                pomodoroEl.textContent = `🍅 总计: ${totalPomodoro}${focusText}`;
             }
 
             // 计算进度： done / (todo + doing + done)
@@ -1072,19 +1080,77 @@ export class ProjectPanel {
     /**
      * 计算给定项目中所有任务的番茄钟总数（包括子任务）
      */
-    private countProjectTotalPomodoro(projectId: string, reminderData: any): number {
+    private async countProjectTotalPomodoro(projectId: string, reminderData: any): Promise<number> {
         const allReminders = reminderData && typeof reminderData === 'object' ? Object.values(reminderData) : [];
         let totalPomodoro = 0;
+        try {
+            const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
+            const pomodoroManager = PomodoroRecordManager.getInstance();
+            const reminderMap = new Map(allReminders.map((r: any) => [r.id, r]));
+            // Only sum aggregated count for top-level reminders in the project to avoid double counting
+            const topLevelReminders = allReminders.filter((r: any) => {
+                if (!r || typeof r !== 'object') return false;
+                if (r.projectId !== projectId) return false;
+                // top-level if parentId is falsy or parent is not within reminderMap
+                if (!r.parentId) return true;
+                return !reminderMap.has(r.parentId);
+            });
 
-        allReminders.forEach((r: any) => {
-            if (!r || typeof r !== 'object') return;
-            // 统计属于该项目的所有任务（包括子任务）的番茄钟数量
-            if (r.projectId === projectId && r.pomodoroCount && typeof r.pomodoroCount === 'number') {
-                totalPomodoro += r.pomodoroCount;
+            for (const r of topLevelReminders) {
+                if (!r || typeof r !== 'object') continue;
+                if (typeof pomodoroManager.getAggregatedReminderPomodoroCount === 'function') {
+                    totalPomodoro += await pomodoroManager.getAggregatedReminderPomodoroCount(r.id);
+                } else if (typeof pomodoroManager.getReminderPomodoroCount === 'function') {
+                    totalPomodoro += await pomodoroManager.getReminderPomodoroCount(r.id);
+                }
             }
-        });
-
+        } catch (e) {
+            console.warn('计算项目总番茄数失败，回退到直接累加:', e);
+            // Fallback: sum per-event pomodoroCount provided in reminder data (if any)
+            allReminders.forEach((r: any) => {
+                if (!r || typeof r !== 'object') return;
+                if (r.projectId === projectId && r.pomodoroCount && typeof r.pomodoroCount === 'number') {
+                    totalPomodoro += r.pomodoroCount;
+                }
+            });
+        }
         return totalPomodoro;
+    }
+
+    private async countProjectTotalFocusTime(projectId: string, reminderData: any): Promise<number> {
+        let totalMinutes = 0;
+        try {
+            const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
+            const pomodoroManager = PomodoroRecordManager.getInstance();
+            if (!pomodoroManager) return 0;
+            if ((pomodoroManager as any).initialize && typeof (pomodoroManager as any).initialize === 'function') {
+                await (pomodoroManager as any).initialize();
+            }
+            // Build set of ids to include
+            const ids = new Set<string>();
+            Object.values(reminderData).forEach((r: any) => {
+                if (r && r.projectId === projectId) {
+                    ids.add(r.id);
+                    if (r.repeat && r.repeat.instancePomodoroCount) {
+                        Object.keys(r.repeat.instancePomodoroCount).forEach(k => ids.add(k));
+                    }
+                }
+            });
+
+            // Sum durations across all sessions in records
+            for (const date in pomodoroManager['records']) {
+                const record = pomodoroManager['records'][date];
+                if (!record || !record.sessions) continue;
+                for (const session of record.sessions) {
+                    if (session && session.type === 'work' && session.completed && ids.has(session.eventId)) {
+                        totalMinutes += session.duration || 0;
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('计算项目总专注时长失败:', e);
+        }
+        return totalMinutes;
     }
     // 新增：添加拖拽功能
     private addDragFunctionality(projectEl: HTMLElement, handle: HTMLElement, project: any) {

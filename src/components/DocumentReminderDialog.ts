@@ -698,16 +698,24 @@ export class DocumentReminderDialog {
                 const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
                 const pomodoroManager = PomodoroRecordManager.getInstance();
                 let count = 0;
+                let focusMinutes = 0;
                 if (typeof pomodoroManager.getAggregatedReminderPomodoroCount === 'function') {
                     count = await pomodoroManager.getAggregatedReminderPomodoroCount(targetReminder.id);
                 } else {
                     count = await pomodoroManager.getReminderPomodoroCount(targetReminder.id);
                 }
-                if (count && count > 0) {
+                if (typeof pomodoroManager.getAggregatedReminderFocusTime === 'function') {
+                    focusMinutes = await pomodoroManager.getAggregatedReminderFocusTime(targetReminder.id);
+                } else if (typeof pomodoroManager.getEventFocusTime === 'function') {
+                    focusMinutes = pomodoroManager.getEventFocusTime(targetReminder.id);
+                }
+                if ((count && count > 0) || (focusMinutes && focusMinutes > 0)) {
                     const tomatoEmojis = `🍅 ${count}`;
                     const extraCount = '';
+                    const focusText = focusMinutes > 0 ? ` ⏱ ${pomodoroManager.formatTime(focusMinutes)}` : '';
                     pomodoroDisplay.innerHTML = `
                         <span title="${t("completedPomodoroCount")}: ${count}">${tomatoEmojis}${extraCount}</span>
+                        <span title="总专注时长: ${focusMinutes} 分钟" style="margin-left:8px; opacity:0.9;">${focusText}</span>
                     `;
                     pomodoroDisplay.style.display = '';
                 } else {

@@ -355,6 +355,77 @@ export class PomodoroRecordManager {
     }
 
     /**
+     * 获取指定提醒及其所有子任务的累计专注时长（分钟）
+     */
+    async getAggregatedReminderFocusTime(reminderId: string): Promise<number> {
+        try {
+            // Ensure records loaded
+            if (!this.isInitialized) {
+                await this.initialize();
+            }
+            const { readReminderData } = await import("../api");
+            const reminderData = await readReminderData();
+            if (!reminderData) return 0;
+
+            const isInstanceId = (id: string) => {
+                if (!id.includes('_')) return false;
+                const parts = id.split('_');
+                const lastPart = parts[parts.length - 1];
+                return /^\d{4}-\d{2}-\d{2}$/.test(lastPart);
+            };
+
+            let rootId = reminderId;
+            if (isInstanceId(reminderId)) {
+                const parts = reminderId.split('_');
+                rootId = parts.slice(0, -1).join('_');
+            }
+
+            // Collect all related ids (root + descendants + per-instance ids)
+            const idsToInclude = new Set<string>();
+            const queue = [rootId];
+            while (queue.length > 0) {
+                const current = queue.shift()!;
+                if (idsToInclude.has(current)) continue;
+                idsToInclude.add(current);
+                // include instance keys
+                try {
+                    const r = reminderData[current];
+                    if (r && r.repeat && r.repeat.instancePomodoroCount) {
+                        Object.keys(r.repeat.instancePomodoroCount).forEach(k => idsToInclude.add(k));
+                    }
+                } catch (e) { }
+                // add children
+                Object.keys(reminderData).forEach(k => {
+                    try {
+                        const r = reminderData[k];
+                        if (r && r.parentId === current) {
+                            queue.push(k);
+                        }
+                    } catch (e) { }
+                });
+            }
+
+            // Sum durations across all stored sessions whose eventId is in idsToInclude
+            let totalMinutes = 0;
+            for (const date in this.records) {
+                const record = this.records[date];
+                if (!record || !record.sessions) continue;
+                for (const session of record.sessions) {
+                    if (session && session.type === 'work' && session.completed) {
+                        if (idsToInclude.has(session.eventId)) {
+                            totalMinutes += session.duration || 0;
+                        }
+                    }
+                }
+            }
+            return totalMinutes;
+        } catch (error) {
+            console.error('获取提醒及子任务累计专注时长失败:', error);
+            return 0;
+        }
+    }
+
+    /**
      * 获取今日所有提醒的总番茄数
      */
     async getTodayTotalPomodoroCount(): Promise<number> {
@@ -441,6 +512,23 @@ export class PomodoroRecordManager {
         return sessions
             .filter(session => session.eventId === eventId && session.type === 'work')
             .reduce((total, session) => total + session.duration, 0);
+    }
+
+    /**
+     * 获取指定事件在所有日期内的总专注时长（分钟）
+     */
+    getEventTotalFocusTime(eventId: string): number {
+        let total = 0;
+        for (const date in this.records) {
+            const record = this.records[date];
+            if (!record || !record.sessions) continue;
+            for (const session of record.sessions) {
+                if (session && session.type === 'work' && session.completed && session.eventId === eventId) {
+                    total += session.duration || 0;
+                }
+            }
+        }
+        return total;
     }
 
     /**

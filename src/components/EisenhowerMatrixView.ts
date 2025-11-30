@@ -26,6 +26,7 @@ interface QuadrantTask {
     quadrant?: 'important-urgent' | 'important-not-urgent' | 'not-important-urgent' | 'not-important-not-urgent';
     parentId?: string; // 父任务ID
     pomodoroCount?: number; // 番茄钟数量
+    focusTime?: number; // 专注时长（分钟）
     sort?: number; // 排序值
     createdTime?: string; // 创建时间
     endDate?: string; // 结束日期
@@ -430,7 +431,8 @@ export class EisenhowerMatrixView {
                     extendedProps: reminder,
                     quadrant,
                     parentId: reminder?.parentId,
-                    pomodoroCount: await this.getReminderPomodoroCount(reminder.id),
+                    pomodoroCount: await this.getReminderPomodoroCount(reminder.id, reminder, reminderData),
+                    focusTime: await this.getReminderFocusTime(reminder.id, reminder, reminderData),
                     sort: reminder?.sort || 0,
                     createdTime: reminder?.createdTime,
                     endDate: reminder?.endDate,
@@ -456,16 +458,94 @@ export class EisenhowerMatrixView {
      * @param reminderId 提醒ID
      * @returns 番茄钟计数
      */
-    private async getReminderPomodoroCount(reminderId: string): Promise<number> {
+    private async getReminderPomodoroCount(reminderId: string, reminder?: any, reminderData?: any): Promise<number> {
         try {
             const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
             const pomodoroManager = PomodoroRecordManager.getInstance();
+            if (reminder && reminder.isRepeatInstance) {
+                return await pomodoroManager.getReminderPomodoroCount(reminderId);
+            }
+
+            let hasDescendants = false;
+            if (reminder && this.getAllDescendantIds) {
+                try {
+                    let rawData = reminderData;
+                    if (!rawData) {
+                        const { readReminderData } = await import("../api");
+                        rawData = await readReminderData();
+                    }
+                    const reminderMap = rawData instanceof Map ? rawData : new Map(Object.values(rawData || {}).map((r: any) => [r.id, r]));
+                    hasDescendants = this.getAllDescendantIds(reminder.id, reminderMap).length > 0;
+                } catch (e) {
+                    hasDescendants = false;
+                }
+            }
+
+            if (hasDescendants) {
+                if (typeof pomodoroManager.getAggregatedReminderPomodoroCount === 'function') {
+                    return await pomodoroManager.getAggregatedReminderPomodoroCount(reminderId);
+                }
+                return await pomodoroManager.getReminderPomodoroCount(reminderId);
+            }
+
+            const isSubtask = reminder && reminder.parentId;
+            if (isSubtask) {
+                return await pomodoroManager.getReminderPomodoroCount(reminderId);
+            }
             if (typeof pomodoroManager.getAggregatedReminderPomodoroCount === 'function') {
                 return await pomodoroManager.getAggregatedReminderPomodoroCount(reminderId);
             }
             return await pomodoroManager.getReminderPomodoroCount(reminderId);
         } catch (error) {
             console.error('获取番茄钟计数失败:', error);
+            return 0;
+        }
+    }
+
+    private async getReminderFocusTime(reminderId: string, reminder?: any, reminderData?: any): Promise<number> {
+        try {
+            const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
+            const pomodoroManager = PomodoroRecordManager.getInstance();
+            if (reminder && reminder.isRepeatInstance) {
+                if (typeof pomodoroManager.getEventTotalFocusTime === 'function') {
+                    return pomodoroManager.getEventTotalFocusTime(reminderId);
+                }
+                if (typeof pomodoroManager.getEventFocusTime === 'function') {
+                    return pomodoroManager.getEventFocusTime(reminderId);
+                }
+                return 0;
+            }
+
+            let hasDescendants = false;
+            if (reminder && this.getAllDescendantIds) {
+                try {
+                    let rawData = reminderData;
+                    if (!rawData) {
+                        const { readReminderData } = await import('../api');
+                        rawData = await readReminderData();
+                    }
+                    const reminderMap = rawData instanceof Map ? rawData : new Map(Object.values(rawData || {}).map((r: any) => [r.id, r]));
+                    hasDescendants = this.getAllDescendantIds(reminder.id, reminderMap).length > 0;
+                } catch (e) {
+                    hasDescendants = false;
+                }
+            }
+
+            if (hasDescendants) {
+                if (typeof pomodoroManager.getAggregatedReminderFocusTime === 'function') {
+                    return await pomodoroManager.getAggregatedReminderFocusTime(reminderId);
+                }
+                if (typeof pomodoroManager.getEventTotalFocusTime === 'function') {
+                    return pomodoroManager.getEventTotalFocusTime(reminderId);
+                }
+            }
+
+            if (typeof pomodoroManager.getEventTotalFocusTime === 'function') {
+                return pomodoroManager.getEventTotalFocusTime(reminderId);
+            }
+            return 0;
+        } catch (error) {
+            console.error('获取番茄钟总专注时长失败:', error);
             return 0;
         }
     }
@@ -1048,11 +1128,18 @@ export class EisenhowerMatrixView {
             }
         }
 
-        // 番茄钟数量
-        if (task.pomodoroCount && task.pomodoroCount > 0) {
+        // 番茄钟数量 + 总专注时长
+        if ((task.pomodoroCount && task.pomodoroCount > 0) || (typeof task.focusTime === 'number' && task.focusTime > 0)) {
             const pomodoroSpan = document.createElement('span');
             pomodoroSpan.className = 'task-pomodoro-count';
-            pomodoroSpan.textContent = `🍅 ${task.pomodoroCount}`;
+            const focusMinutes = task.focusTime || 0;
+            const formatMinutesToString = (minutes: number) => {
+                const hours = Math.floor(minutes / 60);
+                const mins = Math.floor(minutes % 60);
+                return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+            };
+            const focusText = focusMinutes > 0 ? ` ⏱ ${formatMinutesToString(focusMinutes)}` : '';
+            pomodoroSpan.textContent = `🍅 ${task.pomodoroCount || 0}${focusText}`;
             pomodoroSpan.style.cssText = `
                 display: inline-flex;
                 align-items: center;
@@ -1601,16 +1688,27 @@ export class EisenhowerMatrixView {
 
         const getChildren = (currentParentId: string) => {
             if (visited.has(currentParentId)) {
-                return; // 避免循环引用
+                return; // avoid cycles
             }
             visited.add(currentParentId);
 
-            Object.values(reminderData).forEach((task: any) => {
+            // Normalize reminderData into an iterable array of tasks
+            let values: any[] = [];
+            try {
+                if (!reminderData) values = [];
+                else if (reminderData instanceof Map) values = Array.from(reminderData.values());
+                else if (Array.isArray(reminderData)) values = reminderData;
+                else values = Object.values(reminderData);
+            } catch (e) {
+                values = [];
+            }
+
+            for (const task of values) {
                 if (task && task.parentId === currentParentId) {
                     result.push(task.id);
-                    getChildren(task.id); // 递归获取子任务的子任务
+                    getChildren(task.id); // deep recursion
                 }
-            });
+            }
         };
 
         getChildren(parentId);
