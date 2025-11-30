@@ -3034,7 +3034,7 @@ export default class ReminderPlugin extends Plugin {
     }
 
     onunload() {
-
+        console.log('插件禁用，开始清理资源...');
         // 清理广播通信
         this.cleanupBroadcastChannel();
 

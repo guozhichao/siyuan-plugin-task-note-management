@@ -2943,7 +2943,6 @@ export class EisenhowerMatrixView {
                 });
 
                 await writeReminderData(reminderData);
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
                 await this.refresh();
             }
         } catch (error) {
