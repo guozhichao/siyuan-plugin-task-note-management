@@ -198,7 +198,7 @@ export class HabitCalendarDialog {
             for (let i = 0; i < 7; i++) {
                 const date = new Date(weekStart);
                 date.setDate(date.getDate() + i);
-                const dateStr = date.toISOString().split('T')[0];
+                const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
                 const cell = document.createElement('div');
                 cell.className = 'grid-cell date-cell';
@@ -285,7 +285,7 @@ export class HabitCalendarDialog {
 
             for (let day = 1; day <= daysInMonth; day++) {
                 const date = new Date(year, month, day);
-                const dateStr = date.toISOString().split('T')[0];
+                const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
                 const cell = document.createElement('div');
                 cell.className = 'grid-cell date-cell';
