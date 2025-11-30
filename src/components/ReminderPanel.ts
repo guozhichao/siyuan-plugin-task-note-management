@@ -1004,7 +1004,7 @@ export class ReminderPanel {
     /**
      * 展示指定父任务的直接子项，并递归展示那些用户已手动展开的子树
      */
-    private showChildrenRecursively(parentId: string) {
+    private async showChildrenRecursively(parentId: string) {
         // 防护：如果未传入 parentId（意外调用），直接返回，避免 ReferenceError
         if (!parentId) return;
         try {
@@ -1029,15 +1029,48 @@ export class ReminderPanel {
             for (const child of children) {
                 let el = this.remindersContainer.querySelector(`[data-reminder-id="${child.id}"]`) as HTMLElement | null;
 
-                if (el) {
-                    // 如果元素存在，显示出来
-                    el.style.display = '';
-                } else {
+                    if (el) {
+                        // 如果元素存在，显示出来
+                        el.style.display = '';
+                        // 如果异步数据已缓存，更新元素中的番茄钟显示，避免需刷新才能看到数据
+                        try {
+                            const cachedInfo = this.asyncDataCache && this.asyncDataCache.get(child.id);
+                            if (cachedInfo) {
+                                const pomEl = el.querySelector('.reminder-item__pomodoro-count') as HTMLElement | null;
+                                if (pomEl) {
+                                    const tomatoEmojis = `🍅 ${cachedInfo.pomodoroCount || 0}`;
+                                    const focusTimeMinutes = cachedInfo.focusTime || 0;
+                                    const formatMinutesToString = (minutes: number) => {
+                                        const hours = Math.floor(minutes / 60);
+                                        const mins = Math.floor(minutes % 60);
+                                        if (hours > 0) return `${hours}h ${mins}m`;
+                                        return `${mins}m`;
+                                    };
+                                    const focusTimeText = focusTimeMinutes > 0 ? ` ⏱ ${formatMinutesToString(focusTimeMinutes)}` : '';
+                                    pomEl.innerHTML = `<span title="完成的番茄钟数量: ${cachedInfo.pomodoroCount}">${tomatoEmojis}</span><span title="总专注时长: ${focusTimeMinutes} 分钟" style="margin-left:8px; opacity:0.9;">${focusTimeText}</span>`;
+                                }
+                            }
+                        } catch (updateErr) {
+                            // ignore DOM update errors
+                        }
+                    } else {
                     // 元素不存在：尝试基于所有可见提醒和默认数据创建元素（缺省 asyncDataCache）
                     try {
                         const today = getLocalDateString();
-                        const asyncCache = new Map<string, any>();
+                        const asyncCache = this.asyncDataCache && this.asyncDataCache.size > 0 ? this.asyncDataCache : new Map<string, any>();
                         const allVisible = this.currentRemindersCache.concat(children);
+                        // 如果 asyncCache 中没有 child 的数据，提前加载以避免闪烁
+                        if (!asyncCache.has(child.id)) {
+                            try {
+                                const count = await this.getReminderPomodoroCount(child.id, child, this.allRemindersMap || undefined);
+                                const focusTime = await this.getReminderFocusTime(child.id, child, this.allRemindersMap || undefined);
+                                asyncCache.set(child.id, { pomodoroCount: count, focusTime: focusTime || 0, project: null });
+                                // keep in instance cache as well
+                                this.asyncDataCache.set(child.id, asyncCache.get(child.id));
+                            } catch (e) {
+                                // ignore
+                            }
+                        }
                         el = this.createReminderElementOptimized(child, asyncCache, today, parentLevel + 1, allVisible);
 
                         // 插入到 DOM：在 insertAfterEl 之后
@@ -1068,7 +1101,7 @@ export class ReminderPanel {
 
                 // 如果用户手动展开了该 child，则继续展示其子项（递归）
                 if (this.userExpandedTasks.has(child.id)) {
-                    this.showChildrenRecursively(child.id);
+                    await this.showChildrenRecursively(child.id);
                 }
             }
         } catch (e) {
@@ -1190,6 +1223,8 @@ export class ReminderPanel {
 
             // 5. 预处理异步数据以提高渲染性能（传入完整 reminderData 以便准确检测子代）
             const asyncDataCache = await this.preprocessAsyncData(displayReminders, reminderData);
+            // 保存到实例级缓存，供动态展开子任务时复用
+            this.asyncDataCache = asyncDataCache;
 
             // 6. 清理之前的内容并渲染新内容
             this.remindersContainer.innerHTML = '';
@@ -1467,7 +1502,7 @@ export class ReminderPanel {
             collapseBtn.className = 'b3-button b3-button--text collapse-btn';
             collapseBtn.innerHTML = isCollapsed ? '<svg><use xlink:href="#iconRight"></use></svg>' : '<svg><use xlink:href="#iconDown"></use></svg>';
             collapseBtn.title = isCollapsed ? t("expand") : t("collapse");
-            collapseBtn.addEventListener('click', (e) => {
+            collapseBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
 
                 // 使用统一方法判断当前状态
@@ -1479,7 +1514,7 @@ export class ReminderPanel {
                     this.collapsedTasks.delete(reminder.id);
                     this.userExpandedTasks.add(reminder.id);
                     // 递归显示子任务
-                    this.showChildrenRecursively(reminder.id);
+                    await this.showChildrenRecursively(reminder.id);
                     // 更新按钮图标与标题
                     collapseBtn.innerHTML = '<svg><use xlink:href="#iconDown"></use></svg>';
                     collapseBtn.title = t("collapse");
@@ -2125,6 +2160,8 @@ export class ReminderPanel {
         }
     }
     private originalRemindersCache: { [id: string]: any } = {};
+    // 缓存异步加载数据（番茄数、专注时长、项目等）以减少重复请求
+    private asyncDataCache: Map<string, any> = new Map();
     private async editOriginalReminder(originalId: string) {
         try {
             const reminderData = await readReminderData();
