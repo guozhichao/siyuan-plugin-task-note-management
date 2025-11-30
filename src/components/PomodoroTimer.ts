@@ -79,6 +79,7 @@ export class PomodoroTimer {
     private randomNotificationEnabled: boolean = false;
     private randomNotificationEndSound: HTMLAudioElement = null;
     private randomNotificationEndSoundTimer: number = null; // 结束声音定时器
+    private randomNotificationCount: number = 0; // 随机提示音完成计数
 
     // 基于时间戳的调度（满足一次工作阶段内的所有随机提示音时间点）
     private randomNotificationSchedule: number[] = [];
@@ -492,6 +493,14 @@ export class PomodoroTimer {
                         // safePlayAudio 应不会抛出，但以防万一记录警告
                         console.warn('播放随机提示音结束声音时发生异常:', error);
                     } finally {
+                        // 随机提示音微休息结束，增加计数并持久化
+                        try {
+                            // 随机提示音计数仅在内存中维护
+                            this.randomNotificationCount++;
+                            this.updateDisplay();
+                        } catch (err) {
+                            console.warn('更新随机提示音计数失败:', err);
+                        }
                         // 无论音频是否播放成功，都显示系统通知
                         if (this.randomNotificationSystemNotificationEnabled) {
                             this.showSystemNotification(
@@ -507,6 +516,14 @@ export class PomodoroTimer {
                 const breakDuration = Math.max(0, breakDurationSeconds * 1000);
 
                 this.randomNotificationEndSoundTimer = window.setTimeout(() => {
+                    // 随机提示音微休息结束，增加计数并持久化
+                    try {
+                        // 随机提示音计数仅在内存中维护
+                        this.randomNotificationCount++;
+                        this.updateDisplay();
+                    } catch (err) {
+                        console.warn('更新随机提示音计数失败:', err);
+                    }
                     this.showSystemNotification(
                         t('randomNotificationSettings'),
                         t('randomRestComplete') || '微休息时间结束，可以继续专注工作了！'
@@ -1682,7 +1699,43 @@ export class PomodoroTimer {
             align-items: center;
             gap: 4px;
         `;
-        pomodoroCountLeft.innerHTML = `🍅 <span id="pomodoroCount">${this.completedPomodoros}</span>`;
+        // 番茄图标与计数
+        pomodoroCountLeft.innerHTML = '';
+        const pomodoroIcon = document.createElement('span');
+        pomodoroIcon.textContent = '🍅';
+        pomodoroIcon.style.cssText = `font-size:14px;`;
+        const pomodoroCountSpan = document.createElement('span');
+        pomodoroCountSpan.id = 'pomodoroCount';
+        pomodoroCountSpan.textContent = this.completedPomodoros.toString();
+        pomodoroCountSpan.style.cssText = `font-weight:600; margin-left:4px;`;
+        pomodoroCountLeft.appendChild(pomodoroIcon);
+        pomodoroCountLeft.appendChild(pomodoroCountSpan);
+
+        // 随机提示音启用时显示骰子图标（靠右，紧邻番茄计数）
+        const diceEl = document.createElement('span');
+        diceEl.className = 'pomodoro-dice';
+        diceEl.textContent = '🎲';
+        diceEl.title = (t('randomNotificationSettings') || '随机提示音');
+        diceEl.style.cssText = `
+            margin-left:8px;
+            font-size:14px;
+            cursor:default;
+            opacity:0.9;
+            display: ${this.randomNotificationEnabled ? 'inline' : 'none'};
+        `;
+        pomodoroCountLeft.appendChild(diceEl);
+
+        // 随机提示音计数显示（紧邻骰子）
+        const randomCountEl = document.createElement('span');
+        randomCountEl.id = 'randomNotificationCount';
+        randomCountEl.textContent = this.randomNotificationCount.toString();
+        randomCountEl.style.cssText = `
+            margin-left:4px;
+            font-size:12px;
+            color: var(--b3-theme-on-surface-variant);
+            display: ${this.randomNotificationEnabled ? 'inline' : 'none'};
+        `;
+        pomodoroCountLeft.appendChild(randomCountEl);
 
         // 音量控制容器（右侧）
         const volumeControlContainer = document.createElement('div');
@@ -2917,6 +2970,25 @@ export class PomodoroTimer {
         if (pomodoroCountElement) {
             pomodoroCountElement.textContent = this.completedPomodoros.toString();
         }
+        // 同步骰子图标显示状态
+        const diceEl = this.container.querySelector('.pomodoro-dice') as HTMLElement | null;
+        if (diceEl) {
+            try {
+                diceEl.style.display = this.randomNotificationEnabled ? 'inline' : 'none';
+            } catch (e) {
+                // 忽略DOM更新错误
+            }
+        }
+        // 更新随机提示音计数显示
+        const randomCountEl = this.container.querySelector('#randomNotificationCount') as HTMLElement | null;
+        if (randomCountEl) {
+            try {
+                randomCountEl.textContent = this.randomNotificationCount.toString();
+                randomCountEl.style.display = this.randomNotificationEnabled ? 'inline' : 'none';
+            } catch (e) {
+                // 忽略DOM更新错误
+            }
+        }
 
         // 更新按钮状态和位置
         if (!this.isRunning) {
@@ -3951,7 +4023,6 @@ export class PomodoroTimer {
                 await writeReminderData(reminderData);
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
-                console.log(`重复实例 ${targetId} 的番茄数量已更新为: ${originalReminder.repeat.instancePomodoroCount[targetId]}`);
             } else {
                 // 普通任务直接保存
                 if (reminderData[targetId]) {
@@ -3963,7 +4034,6 @@ export class PomodoroTimer {
                     await writeReminderData(reminderData);
                     window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
-                    console.log(`提醒 ${targetId} 的番茄数量已更新为: ${reminderData[targetId].pomodoroCount}`);
                 } else {
                     console.warn('未找到对应的提醒项:', targetId);
                 }
