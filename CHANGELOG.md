@@ -1,3 +1,14 @@
+## v3.3.6 / 20251130
+
+- 🎨习惯侧栏改进：顶部需要sticky [#156](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/156)
+- 🎨习惯统计优化 [#158](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/158)
+- 🎨历史打卡需要一行一个展示 [#155](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/155)
+- 🎨番茄钟记录支持删除 [#159](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/159)
+- 🎨番茄钟计数优化：显示总番茄数和今日番茄数 [#119](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/119)
+- 🎨任务侧栏渲染bug：展开子任务不显示子任务番茄数，目前需要在展开状态下刷新才显示  [#157](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/157)
+- 🎨随机提示音提醒优化 [#154](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/154)
+- 🎨如果开启了随机提示音，界面要出现一个骰子🎲图标，在番茄计数右边添加，每次随机提示音休息响起都+1 [#153](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/153)
+
 ## v3.3.5 /20251130
 - 🎨习惯打卡面板改进
   - 添加打卡按钮
