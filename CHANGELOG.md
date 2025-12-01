@@ -1,3 +1,12 @@
+## v3.3.7 / 20251201
+
+- 🐛 打包缺失i18n文件 [#169](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/169)
+- 🎨随机提示音系统通知自动关闭 [#163](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/163)
+- 🎨 习惯提醒支持设置多个时间提醒 [#161](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/161)
+- 🎨任务支持设置多个提醒时间 [#162](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/162)
+- 🎨习惯统计优化 [#158](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/158)
+
+
 ## v3.3.6 / 20251130
 
 - 🎨习惯侧栏改进：顶部需要sticky [#156](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/156)
