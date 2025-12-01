@@ -40,6 +40,9 @@ export class CalendarView {
     private clickTimeout: number | null = null; // 添加单击延迟超时
     private refreshTimeout: number | null = null; // 添加刷新防抖超时
     private currentCompletionFilter: string = 'all'; // 当前完成状态过滤
+    
+    // 性能优化：颜色缓存
+    private colorCache: Map<string, { backgroundColor: string; borderColor: string }> = new Map();
 
     // 视图按钮引用
     private monthBtn: HTMLButtonElement;
@@ -201,6 +204,8 @@ export class CalendarView {
         colorBySelect.addEventListener('change', async () => {
             this.colorBy = colorBySelect.value as 'category' | 'priority' | 'project';
             await this.calendarConfigManager.setColorBy(this.colorBy);
+            // 清除颜色缓存
+            this.colorCache.clear();
             this.refreshEvents();
         });
         filterGroup.appendChild(colorBySelect);
@@ -362,7 +367,7 @@ export class CalendarView {
                 }
             },
             // 添加视图切换和日期变化的监听
-            datesSet: (info) => {
+            datesSet: () => {
                 // 当视图的日期范围改变时（包括切换前后时间），刷新事件
                 this.refreshEvents();
             }
@@ -373,10 +378,7 @@ export class CalendarView {
         // 更新视图按钮状态
         this.updateViewButtonStates();
 
-        // 初始加载事件 - 延迟执行避免与 datesSet 冲突
-        setTimeout(() => {
-            this.refreshEvents();
-        }, 50);
+        // datesSet 会在 render 后自动触发，无需额外调用 refreshEvents
 
         // 添加自定义样式
         this.addCustomStyles();
@@ -2524,10 +2526,10 @@ export class CalendarView {
                 this.calendar.removeAllEvents();
                 this.calendar.removeAllEventSources();
 
-                // 添加新事件 - 逐个添加确保不重复
-                events.forEach(event => {
-                    this.calendar.addEvent(event);
-                });
+                // 批量添加事件（比逐个添加更高效）
+                if (events.length > 0) {
+                    this.calendar.addEventSource(events);
+                }
 
                 // 强制重新渲染日历并更新大小
                 if (this.isCalendarVisible()) {
@@ -2543,7 +2545,6 @@ export class CalendarView {
     private async getEvents() {
         try {
             const reminderData = await readReminderData();
-
             const events = [];
 
             // 获取当前视图的日期范围
@@ -2560,80 +2561,68 @@ export class CalendarView {
                 endDate = getLocalDateString(monthEnd);
             }
 
-            // 预加载文档标题缓存
-            const docTitleCache = new Map<string, string>();
+            // 转换为数组并过滤
+            const allReminders = Object.values(reminderData) as any[];
+            const filteredReminders = allReminders.filter(reminder => {
+                if (!reminder || typeof reminder !== 'object') return false;
+                if (!this.passesCategoryFilter(reminder)) return false;
+                if (!this.passesProjectFilter(reminder)) return false;
+                if (!this.passesCompletionFilter(reminder)) return false;
+                return true;
+            });
 
-            for (const reminder of Object.values(reminderData) as any[]) {
-                if (!reminder || typeof reminder !== 'object') continue;
+            // 批量预加载所有需要的文档标题
+            await this.batchLoadDocTitles(filteredReminders);
 
-                // 应用分类过滤
-                if (!this.passesCategoryFilter(reminder)) continue;
-
-                // 应用项目过滤
-                if (!this.passesProjectFilter(reminder)) continue;
-
-                // 应用完成状态过滤
-                if (!this.passesCompletionFilter(reminder)) continue;
-
-                // 获取文档标题（如果还没有缓存）
-                await this.ensureDocTitle(reminder, docTitleCache);
-
-
-
-                // 如果有父任务，注入父任务的标题信息，用于在提示框中显示
+            // 预处理父任务信息映射（一次性构建，避免重复查找）
+            const parentInfoMap = new Map<string, { title: string; blockId: string }>();
+            for (const reminder of filteredReminders) {
                 if (reminder.parentId && reminderData[reminder.parentId]) {
-                    try {
-                        const parentReminder = reminderData[reminder.parentId];
-                        reminder.parentTitle = parentReminder?.title || '';
-                        reminder.parentBlockId = parentReminder?.blockId || parentReminder?.id;
-                    } catch (err) {
-                        console.warn('注入父任务信息失败:', err);
-                    }
+                    const parentReminder = reminderData[reminder.parentId];
+                    parentInfoMap.set(reminder.parentId, {
+                        title: parentReminder?.title || '',
+                        blockId: parentReminder?.blockId || parentReminder?.id
+                    });
+                }
+            }
+
+            // 处理提醒数据
+            for (const reminder of filteredReminders) {
+                // 注入父任务信息
+                if (reminder.parentId && parentInfoMap.has(reminder.parentId)) {
+                    const parentInfo = parentInfoMap.get(reminder.parentId);
+                    reminder.parentTitle = parentInfo.title;
+                    reminder.parentBlockId = parentInfo.blockId;
                 }
 
                 // 如果有重复设置，则不显示原始事件（只显示实例）；否则显示原始事件
                 if (!reminder.repeat?.enabled) {
                     this.addEventToList(events, reminder, reminder.id, false);
-                }
-
-                // 如果有重复设置，生成重复事件实例
-                if (reminder.repeat?.enabled) {
+                } else {
+                    // 生成重复事件实例
                     const repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
-                    repeatInstances.forEach(instance => {
-                            // 检查实例级别的完成状态
-                            const completedInstances = reminder.repeat?.completedInstances || [];
-                            const isInstanceCompleted = completedInstances.includes(instance.date);
+                    const completedInstances = reminder.repeat?.completedInstances || [];
+                    const instanceModifications = reminder.repeat?.instanceModifications || {};
+                    
+                    // 批量处理实例，减少重复计算
+                    for (const instance of repeatInstances) {
+                        const isInstanceCompleted = completedInstances.includes(instance.date);
+                        const instanceMod = instanceModifications[instance.date];
 
-                            // 检查实例级别的修改
-                            const instanceModifications = reminder.repeat?.instanceModifications || {};
-                            const instanceMod = instanceModifications[instance.date];
+                        const instanceReminder = {
+                            ...reminder,
+                            date: instance.date,
+                            endDate: instance.endDate,
+                            time: instance.time,
+                            endTime: instance.endTime,
+                            completed: isInstanceCompleted,
+                            note: instanceMod?.note || ''
+                            // docTitle, parentTitle, parentBlockId 已经在原 reminder 中
+                        };
 
-                            const instanceReminder = {
-                                ...reminder,
-                                date: instance.date,
-                                endDate: instance.endDate,
-                                time: instance.time,
-                                endTime: instance.endTime,
-                                completed: isInstanceCompleted,
-                                note: instanceMod?.note || '',
-                                docTitle: reminder.docTitle // 保持文档标题
-                            };
-                            // 如果实例所在的提醒有父任务，注入父任务标题信息
-                            if (instanceReminder.parentId && reminderData[instanceReminder.parentId]) {
-                                try {
-                                    const parentReminder = reminderData[instanceReminder.parentId];
-                                    instanceReminder.parentTitle = parentReminder?.title || '';
-                                    instanceReminder.parentBlockId = parentReminder?.blockId || parentReminder?.id;
-                                } catch (err) {
-                                    console.warn('注入父任务信息失败:', err);
-                                }
-                            }
-
-                            // 确保实例ID的唯一性，避免重复
-                            const uniqueInstanceId = `${reminder.id}_instance_${instance.date}`;
-                            this.addEventToList(events, instanceReminder, uniqueInstanceId, true, instance.originalId);
-                        
-                    });
+                        const uniqueInstanceId = `${reminder.id}_instance_${instance.date}`;
+                        this.addEventToList(events, instanceReminder, uniqueInstanceId, true, instance.originalId);
+                    }
                 }
             }
 
@@ -2646,7 +2635,94 @@ export class CalendarView {
     }
 
     /**
-     * 确保提醒对象包含文档标题
+     * 批量加载文档标题（性能优化版本）
+     */
+    private async batchLoadDocTitles(reminders: any[]) {
+        try {
+            // 收集所有需要查询的blockId和docId
+            const blockIdsToQuery = new Set<string>();
+            const docIdsToQuery = new Set<string>();
+            
+            for (const reminder of reminders) {
+                if (reminder.docTitle) continue; // 已有标题，跳过
+                
+                const blockId = reminder.blockId || reminder.id;
+                const docId = reminder.docId;
+                
+                // 收集需要查询docId的blockId
+                if (!docId && blockId) {
+                    blockIdsToQuery.add(blockId);
+                } else if (docId && docId !== blockId) {
+                    docIdsToQuery.add(docId);
+                }
+            }
+
+            // 批量查询获取docId（如果需要）
+            const blockIdToDocId = new Map<string, string>();
+            if (blockIdsToQuery.size > 0) {
+                const promises = Array.from(blockIdsToQuery).map(async (blockId) => {
+                    try {
+                        const blockInfo = await getBlockByID(blockId);
+                        if (blockInfo && blockInfo.root_id && blockInfo.root_id !== blockId) {
+                            blockIdToDocId.set(blockId, blockInfo.root_id);
+                            docIdsToQuery.add(blockInfo.root_id);
+                        }
+                    } catch (err) {
+                        console.warn(`获取块 ${blockId} 的文档ID失败:`, err);
+                    }
+                });
+                await Promise.all(promises);
+            }
+
+            // 批量查询文档标题
+            const docIdToTitle = new Map<string, string>();
+            if (docIdsToQuery.size > 0) {
+                const promises = Array.from(docIdsToQuery).map(async (docId) => {
+                    try {
+                        const docBlock = await getBlockByID(docId);
+                        if (docBlock && docBlock.content) {
+                            docIdToTitle.set(docId, docBlock.content.trim());
+                        }
+                    } catch (err) {
+                        console.warn(`获取文档 ${docId} 的标题失败:`, err);
+                    }
+                });
+                await Promise.all(promises);
+            }
+
+            // 应用结果到reminders
+            for (const reminder of reminders) {
+                if (reminder.docTitle) continue;
+                
+                const blockId = reminder.blockId || reminder.id;
+                let docId = reminder.docId;
+                
+                // 如果没有docId，从映射中获取
+                if (!docId && blockId && blockIdToDocId.has(blockId)) {
+                    docId = blockIdToDocId.get(blockId);
+                    reminder.docId = docId;
+                }
+                
+                // 设置文档标题
+                if (docId && docId !== blockId && docIdToTitle.has(docId)) {
+                    reminder.docTitle = docIdToTitle.get(docId);
+                } else {
+                    reminder.docTitle = '';
+                }
+            }
+        } catch (error) {
+            console.warn('批量加载文档标题失败:', error);
+            // 失败时设置空标题，避免后续重复尝试
+            for (const reminder of reminders) {
+                if (!reminder.docTitle) {
+                    reminder.docTitle = '';
+                }
+            }
+        }
+    }
+
+    /**
+     * 确保提醒对象包含文档标题（保留用于单个调用场景）
      */
     private async ensureDocTitle(reminder: any, docTitleCache: Map<string, string>) {
         if (reminder.docTitle) {
@@ -2746,71 +2822,73 @@ export class CalendarView {
 
     private addEventToList(events: any[], reminder: any, eventId: string, isRepeated: boolean, originalId?: string) {
         const priority = reminder.priority || 'none';
-        let backgroundColor, borderColor;
-
-        if (this.colorBy === 'project') {
-            if (reminder.projectId) {
-                const color = this.projectManager.getProjectColor(reminder.projectId);
-                backgroundColor = color;
-                borderColor = color;
-            } else {
-                backgroundColor = '#95a5a6';
-                borderColor = '#7f8c8d';
-            }
-        } else if (this.colorBy === 'category') {
-            if (reminder.categoryId) {
-                const categoryStyle = this.categoryManager.getCategoryStyle(reminder.categoryId);
-                backgroundColor = categoryStyle.backgroundColor;
-                borderColor = categoryStyle.borderColor;
-            } else {
-                // No category, use grey
-                backgroundColor = '#95a5a6';
-                borderColor = '#7f8c8d';
-            }
-        } else { // colorBy === 'priority'
-            // 根据优先级设置颜色
-            switch (priority) {
-                case 'high':
-                    backgroundColor = '#e74c3c';
-                    borderColor = '#c0392b';
-                    break;
-                case 'medium':
-                    backgroundColor = '#f39c12';
-                    borderColor = '#e67e22';
-                    break;
-                case 'low':
-                    backgroundColor = '#3498db';
-                    borderColor = '#2980b9';
-                    break;
-                default:
+        
+        // 使用缓存获取颜色，避免重复计算
+        const cacheKey = `${this.colorBy}-${reminder.projectId || ''}-${reminder.categoryId || ''}-${priority}`;
+        let colors = this.colorCache.get(cacheKey);
+        
+        if (!colors) {
+            let backgroundColor: string;
+            let borderColor: string;
+            
+            if (this.colorBy === 'project') {
+                if (reminder.projectId) {
+                    const color = this.projectManager.getProjectColor(reminder.projectId);
+                    backgroundColor = color;
+                    borderColor = color;
+                } else {
                     backgroundColor = '#95a5a6';
                     borderColor = '#7f8c8d';
-                    break;
+                }
+            } else if (this.colorBy === 'category') {
+                if (reminder.categoryId) {
+                    const categoryStyle = this.categoryManager.getCategoryStyle(reminder.categoryId);
+                    backgroundColor = categoryStyle.backgroundColor;
+                    borderColor = categoryStyle.borderColor;
+                } else {
+                    backgroundColor = '#95a5a6';
+                    borderColor = '#7f8c8d';
+                }
+            } else { // colorBy === 'priority'
+                switch (priority) {
+                    case 'high':
+                        backgroundColor = '#e74c3c';
+                        borderColor = '#c0392b';
+                        break;
+                    case 'medium':
+                        backgroundColor = '#f39c12';
+                        borderColor = '#e67e22';
+                        break;
+                    case 'low':
+                        backgroundColor = '#3498db';
+                        borderColor = '#2980b9';
+                        break;
+                    default:
+                        backgroundColor = '#95a5a6';
+                        borderColor = '#7f8c8d';
+                        break;
+                }
             }
+            
+            colors = { backgroundColor, borderColor };
+            this.colorCache.set(cacheKey, colors);
         }
 
-        // 检查完成状态
-        let isCompleted = false;
-        if (isRepeated && originalId) {
-            isCompleted = reminder.completed || false;
-        } else {
-            isCompleted = reminder.completed || false;
-        }
+        // 检查完成状态（简化逻辑）
+        const isCompleted = reminder.completed || false;
 
-        // 构建 className，包含已完成状态和绑定状态
-        const classNames = [
-            `reminder-priority-${priority}`,
-            isRepeated ? 'reminder-repeated' : '',
-            isCompleted ? 'completed' : '', // 将 completed 类添加到 FullCalendar 事件元素上
-            // 添加绑定状态类名，用于设置透明度
-            (!reminder.blockId || reminder.isQuickReminder) ? 'no-block-binding' : 'has-block-binding'
-        ].filter(Boolean).join(' ');
+        // 构建 className（优化：减少数组分配，直接字符串拼接）
+        let classNames = `reminder-priority-${priority}`;
+        if (isRepeated) classNames += ' reminder-repeated';
+        if (isCompleted) classNames += ' completed';
+        classNames += (!reminder.blockId || reminder.isQuickReminder) ? ' no-block-binding' : ' has-block-binding';
 
-        let eventObj: any = {
+        // 构建事件对象（优化：直接使用colors.backgroundColor和colors.borderColor）
+        const eventObj: any = {
             id: eventId,
             title: reminder.title || t("unnamedNote"),
-            backgroundColor: backgroundColor,
-            borderColor: borderColor,
+            backgroundColor: colors.backgroundColor,
+            borderColor: colors.borderColor,
             textColor: isCompleted ? '#ffffffcc' : '#ffffff',
             className: classNames,
             extendedProps: {
@@ -2824,15 +2902,15 @@ export class CalendarView {
                 categoryId: reminder.categoryId,
                 projectId: reminder.projectId,
                 blockId: reminder.blockId || reminder.id,
-                docId: reminder.docId, // 添加docId
-                docTitle: reminder.docTitle, // 添加文档标题
+                docId: reminder.docId,
+                docTitle: reminder.docTitle,
                 parentId: reminder.parentId || null,
                 parentTitle: reminder.parentTitle || null,
                 parentBlockId: reminder.parentBlockId || null,
                 isRepeated: isRepeated,
                 originalId: originalId || reminder.id,
                 repeat: reminder.repeat,
-                isQuickReminder: reminder.isQuickReminder || false // 添加快速提醒标记
+                isQuickReminder: reminder.isQuickReminder || false
             }
         };
 
@@ -2998,101 +3076,68 @@ export class CalendarView {
 
     private async buildTooltipContent(calendarEvent: any): Promise<string> {
         const reminder = calendarEvent.extendedProps;
-        const parts: string[] = [];
+        
+        // 优化：使用数组收集HTML片段，最后一次性join，减少字符串拼接开销
+        const htmlParts: string[] = [];
 
         try {
             // 1. 文档标题（只有当docId不等于blockId时才显示）
-            let docTitleAdded = false;
-
-            // 只有当docId存在且不等于blockId时才显示文档标题
-            if (reminder.docTitle &&
-                reminder.docId &&
-                reminder.blockId &&
-                reminder.docId !== reminder.blockId) {
-                parts.push(`<div style="color: var(--b3-theme-on-background); font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-align: left;">
-                    <span>📄</span>
-                    <span title="${t("belongsToDocument")}">${this.escapeHtml(reminder.docTitle)}</span>
-                </div>`);
-                docTitleAdded = true;
+            if (reminder.docTitle && reminder.docId && reminder.blockId && reminder.docId !== reminder.blockId) {
+                htmlParts.push(
+                    `<div style="color: var(--b3-theme-on-background); font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-align: left;">`,
+                    `<span>📄</span>`,
+                    `<span title="${t("belongsToDocument")}">${this.escapeHtml(reminder.docTitle)}</span>`,
+                    `</div>`
+                );
             }
 
-            // 如果还没有文档标题且有blockId，尝试获取（这是一个备用逻辑）
-            if (!docTitleAdded && reminder.blockId) {
-                try {
-                    const blockInfo = await getBlockByID(reminder.blockId);
-                    if (blockInfo && blockInfo.root_id && blockInfo.root_id !== reminder.blockId) {
-                        // 获取根文档的信息
-                        const rootBlock = await getBlockByID(blockInfo.root_id);
-                        if (rootBlock && rootBlock.content) {
-                            parts.push(`<div style="color: var(--b3-theme-on-background); font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-align: left;">
-                                <span>📄</span>
-                                <span title="${t("belongsToDocument")}">${this.escapeHtml(rootBlock.content)}</span>
-                            </div>`);
-                            docTitleAdded = true;
-                        }
-                    }
-                } catch (error) {
-                    console.warn('获取块父文档标题失败:', error);
-                }
-            }
-
-            // 2. 事项名称 - 明确设置居左显示
+            // 2. 事项名称
             let eventTitle = calendarEvent.title || t("unnamedNote");
-
-            // 移除分类图标前缀（如果存在）
             if (reminder.categoryId) {
                 const category = this.categoryManager.getCategoryById(reminder.categoryId);
-                if (category && category.icon) {
+                if (category?.icon) {
                     const iconPrefix = `${category.icon} `;
                     if (eventTitle.startsWith(iconPrefix)) {
                         eventTitle = eventTitle.substring(iconPrefix.length);
                     }
                 }
             }
-
-            parts.push(`<div style="font-weight: 600; color: var(--b3-theme-on-surface); margin-bottom: 8px; font-size: 14px; text-align: left; width: 100%;">
-                ${this.escapeHtml(eventTitle)}
-            </div>`);
+            htmlParts.push(
+                `<div style="font-weight: 600; color: var(--b3-theme-on-surface); margin-bottom: 8px; font-size: 14px; text-align: left; width: 100%;">`,
+                this.escapeHtml(eventTitle),
+                `</div>`
+            );
 
             // 3. 日期时间信息
             const dateTimeInfo = this.formatEventDateTime(reminder);
             if (dateTimeInfo) {
-                parts.push(`<div style="color: var(--b3-theme-on-surface); margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
-                    <span style="opacity: 0.7;">🕐</span>
-                    <span>${dateTimeInfo}</span>
-                </div>`);
+                htmlParts.push(
+                    `<div style="color: var(--b3-theme-on-surface); margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">`,
+                    `<span style="opacity: 0.7;">🕐</span>`,
+                    `<span>${dateTimeInfo}</span>`,
+                    `</div>`
+                );
             }
 
-            // 3.1 父任务信息（如果存在）
-            if (reminder.parentId) {
-                // 如果 parentTitle 未注入，则尝试实时获取
-                if (!reminder.parentTitle) {
-                    try {
-                        const data = await readReminderData();
-                        const parent = data[reminder.parentId];
-                        if (parent) {
-                            reminder.parentTitle = parent.title || '';
-                            reminder.parentBlockId = parent.blockId || parent.id;
-                        }
-                    } catch (err) {
-                        // ignore
-                    }
-                }
-
-                const parentTitleSafe = this.escapeHtml(reminder.parentTitle || '');
-                parts.push(`<div style="color: var(--b3-theme-on-surface); margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
-                    <span style="opacity: 0.7;">↪️</span>
-                    <span style="font-size: 13px;">${t("parentTask") || '父任务'}: ${parentTitleSafe}</span>
-                </div>`);
+            // 3.1 父任务信息
+            if (reminder.parentId && reminder.parentTitle) {
+                htmlParts.push(
+                    `<div style="color: var(--b3-theme-on-surface); margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">`,
+                    `<span style="opacity: 0.7;">↪️</span>`,
+                    `<span style="font-size: 13px;">${t("parentTask") || '父任务'}: ${this.escapeHtml(reminder.parentTitle)}</span>`,
+                    `</div>`
+                );
             }
 
             // 4. 优先级信息
             if (reminder.priority && reminder.priority !== 'none') {
                 const priorityInfo = this.formatPriorityInfo(reminder.priority);
                 if (priorityInfo) {
-                    parts.push(`<div style="color: var(--b3-theme-on-surface); margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
-                        ${priorityInfo}
-                    </div>`);
+                    htmlParts.push(
+                        `<div style="color: var(--b3-theme-on-surface); margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">`,
+                        priorityInfo,
+                        `</div>`
+                    );
                 }
             }
 
@@ -3100,38 +3145,50 @@ export class CalendarView {
             if (reminder.categoryId) {
                 const category = this.categoryManager.getCategoryById(reminder.categoryId);
                 if (category) {
-                    parts.push(`<div style="color: var(--b3-theme-on-surface); margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
-                        <span style="opacity: 0.7;">🏷️</span>
-                        <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; background-color: ${category.color}; border-radius: 4px; color: white; font-size: 11px;">
-                            ${category.icon ? `<span style="font-size: 12px;">${category.icon}</span>` : ''}
-                            <span>${this.escapeHtml(category.name)}</span>
-                        </span>
-                    </div>`);
+                    htmlParts.push(
+                        `<div style="color: var(--b3-theme-on-surface); margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">`,
+                        `<span style="opacity: 0.7;">🏷️</span>`,
+                        `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; background-color: ${category.color}; border-radius: 4px; color: white; font-size: 11px;">`
+                    );
+                    if (category.icon) {
+                        htmlParts.push(`<span style="font-size: 12px;">${category.icon}</span>`);
+                    }
+                    htmlParts.push(
+                        `<span>${this.escapeHtml(category.name)}</span>`,
+                        `</span>`,
+                        `</div>`
+                    );
                 }
             }
 
             // 6. 重复信息
             if (reminder.isRepeated) {
-                parts.push(`<div style="color: var(--b3-theme-on-surface-light); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; font-size: 12px;">
-                    <span>🔄</span>
-                    <span>${t("repeatInstance")}</span>
-                </div>`);
+                htmlParts.push(
+                    `<div style="color: var(--b3-theme-on-surface-light); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; font-size: 12px;">`,
+                    `<span>🔄</span>`,
+                    `<span>${t("repeatInstance")}</span>`,
+                    `</div>`
+                );
             } else if (reminder.repeat?.enabled) {
                 const repeatDescription = this.getRepeatDescription(reminder.repeat);
                 if (repeatDescription) {
-                    parts.push(`<div style="color: var(--b3-theme-on-surface-light); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; font-size: 12px;">
-                        <span>🔁</span>
-                        <span>${repeatDescription}</span>
-                    </div>`);
+                    htmlParts.push(
+                        `<div style="color: var(--b3-theme-on-surface-light); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; font-size: 12px;">`,
+                        `<span>🔁</span>`,
+                        `<span>${repeatDescription}</span>`,
+                        `</div>`
+                    );
                 }
             }
 
             // 7. 备注信息
-            if (reminder.note && reminder.note.trim()) {
-                parts.push(`<div style="color: var(--b3-theme-on-surface-light); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--b3-theme-border); font-size: 12px;">
-                    <div style="margin-bottom: 4px; opacity: 0.7;">${t("note")}:</div>
-                    <div>${this.escapeHtml(reminder.note)}</div>
-                </div>`);
+            if (reminder.note?.trim()) {
+                htmlParts.push(
+                    `<div style="color: var(--b3-theme-on-surface-light); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--b3-theme-border); font-size: 12px;">`,
+                    `<div style="margin-bottom: 4px; opacity: 0.7;">${t("note")}:</div>`,
+                    `<div>${this.escapeHtml(reminder.note)}</div>`,
+                    `</div>`
+                );
             }
 
             // 8. 完成状态和完成时间
@@ -3145,11 +3202,11 @@ export class CalendarView {
                     if (reminder.isRepeated) {
                         // 重复事件实例的完成时间
                         const originalReminder = reminderData[reminder.originalId];
-                        if (originalReminder && originalReminder.repeat?.completedTimes) {
+                        if (originalReminder?.repeat?.completedTimes) {
                             completedTime = originalReminder.repeat.completedTimes[reminder.date];
                         }
                     } else {
-                        // 普通事件的完成时间 - 从最新的 reminderData 中获取
+                        // 普通事件的完成时间
                         const currentReminder = reminderData[calendarEvent.id];
                         if (currentReminder) {
                             completedTime = currentReminder.completedTime;
@@ -3159,21 +3216,22 @@ export class CalendarView {
                     console.error('获取完成时间失败:', error);
                 }
 
-                let completedInfo = `<div style="color: var(--b3-theme-success); margin-top: 6px; display: flex; align-items: center; gap: 4px; font-size: 12px;">
-                    <span>✅</span>
-                    <span>${t("completed")}</span>`;
+                htmlParts.push(
+                    `<div style="color: var(--b3-theme-success); margin-top: 6px; display: flex; align-items: center; gap: 4px; font-size: 12px;">`,
+                    `<span>✅</span>`,
+                    `<span>${t("completed")}</span>`
+                );
 
-                // 如果有完成时间，添加完成时间显示
                 if (completedTime) {
                     const formattedCompletedTime = this.formatCompletedTimeForTooltip(completedTime);
-                    completedInfo += `<span style="margin-left: 8px; opacity: 0.7;">${formattedCompletedTime}</span>`;
+                    htmlParts.push(`<span style="margin-left: 8px; opacity: 0.7;">${formattedCompletedTime}</span>`);
                 }
 
-                completedInfo += `</div>`;
-                parts.push(completedInfo);
+                htmlParts.push(`</div>`);
             }
 
-            return parts.join('');
+            // 使用join一次性拼接所有HTML片段，比多次字符串拼接更高效
+            return htmlParts.join('');
 
         } catch (error) {
             console.error('构建提示框内容失败:', error);
@@ -3375,6 +3433,9 @@ export class CalendarView {
             this.tooltip.remove();
             this.tooltip = null;
         }
+        
+        // 清理缓存
+        this.colorCache.clear();
 
         // 调用清理函数
         const cleanup = (this.container as any)._calendarCleanup;
