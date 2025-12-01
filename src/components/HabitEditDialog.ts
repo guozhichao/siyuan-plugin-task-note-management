@@ -76,8 +76,62 @@ export class HabitEditDialog {
         const endDateGroup = this.createFormGroup('结束日期（可选）', 'date', 'endDate', this.habit?.endDate || '');
         form.appendChild(endDateGroup);
 
-        // 提醒时间
-        const reminderGroup = this.createFormGroup('提醒时间（可选）', 'time', 'reminderTime', this.habit?.reminderTime || '');
+        // 提醒时间（支持多个）
+        const reminderGroup = document.createElement('div');
+        reminderGroup.style.cssText = 'display:flex; flex-direction: column; gap:4px;';
+        const reminderLabel = document.createElement('label');
+        reminderLabel.textContent = '提醒时间（可选）';
+        reminderLabel.style.cssText = 'font-weight: bold; font-size: 14px;';
+        reminderGroup.appendChild(reminderLabel);
+
+        // container for dynamic time inputs
+        const reminderTimesContainer = document.createElement('div');
+        reminderTimesContainer.id = 'habitReminderTimesContainer';
+        reminderTimesContainer.style.cssText = 'display:flex; flex-direction: column; gap:8px;';
+
+        const addTimeBtn = document.createElement('button');
+        addTimeBtn.type = 'button';
+        addTimeBtn.className = 'b3-button b3-button--outline';
+        addTimeBtn.textContent = '添加提醒时间';
+        addTimeBtn.style.cssText = 'align-self:flex-start;';
+
+        const addTimeInput = (timeVal: string = '') => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex; gap:8px; align-items:center;';
+            const input = document.createElement('input');
+            input.type = 'time';
+            input.name = 'reminderTimes';
+            input.className = 'b3-text-field';
+            input.value = timeVal;
+            input.style.cssText = 'width: 120px;';
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'b3-button b3-button--outline';
+            removeBtn.textContent = '移除';
+            removeBtn.addEventListener('click', () => {
+                row.remove();
+            });
+
+            row.appendChild(input);
+            row.appendChild(removeBtn);
+            reminderTimesContainer.appendChild(row);
+        };
+
+        // initialize existing times
+        if (this.habit?.reminderTimes && Array.isArray(this.habit.reminderTimes) && this.habit.reminderTimes.length > 0) {
+            this.habit.reminderTimes.forEach((t) => addTimeInput(t));
+        } else if (this.habit?.reminderTime) {
+            addTimeInput(this.habit.reminderTime);
+        }
+
+        addTimeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            addTimeInput('');
+        });
+
+        reminderGroup.appendChild(reminderTimesContainer);
+        reminderGroup.appendChild(addTimeBtn);
         form.appendChild(reminderGroup);
 
         // 分组选择
@@ -562,7 +616,8 @@ export class HabitEditDialog {
             },
             startDate,
             endDate: formData.get('endDate') as string || undefined,
-            reminderTime: formData.get('reminderTime') as string || undefined,
+            reminderTime: undefined, // deprecated: will keep first value for compatibility below
+            reminderTimes: [],
             blockId: parsedBlockId || undefined,
             priority: formData.get('priority') as any || 'none',
             groupId: formData.get('groupId') as string === 'none' ? undefined : formData.get('groupId') as string,
@@ -582,30 +637,57 @@ export class HabitEditDialog {
             habit.hasNotify = { ...this.habit.hasNotify };
         }
 
-        // 如果是修改已有习惯，并且提醒时间被修改为新的值，且新的提醒时间晚于当前时间，则重置当天 hasNotify 为 false，方便再次提醒
-        if (this.habit && this.habit.reminderTime !== habit.reminderTime && habit.reminderTime) {
-            try {
-                const newTime = habit.reminderTime; // 格式: HH:mm
-                const parts = newTime.split(':');
-                if (parts.length >= 2) {
-                    const hour = parseInt(parts[0], 10);
-                    const minute = parseInt(parts[1], 10);
-                    if (!isNaN(hour) && !isNaN(minute)) {
-                        const now = new Date();
-                        const todayAtReminder = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute);
-                        // 仅当新的提醒时间是今天并且在当前时间之后，且旧有的 hasNotify 为 true 时，才重置为 false
-                        if (todayAtReminder.getTime() > now.getTime()) {
-                            const todayStr = getLocalDateString();
-                            // 只有当原来记录为 true 的情况下才把它复位为 false，避免误修改其他默认/未设置值
-                            if (this.habit.hasNotify && this.habit.hasNotify[todayStr] === true) {
-                                habit.hasNotify = habit.hasNotify || {};
-                                habit.hasNotify[todayStr] = false;
+        // 从表单中收集 reminderTimes
+        const timesInputs = form.querySelectorAll('input[name="reminderTimes"]') as NodeListOf<HTMLInputElement>;
+        const reminderTimesArr: string[] = [];
+        timesInputs.forEach(i => { const v = i.value?.trim(); if (v) reminderTimesArr.push(v); });
+        if (reminderTimesArr.length > 0) {
+            habit.reminderTimes = reminderTimesArr;
+            habit.reminderTime = reminderTimesArr[0];
+        } else {
+            habit.reminderTimes = [];
+            habit.reminderTime = undefined;
+        }
+
+        // 如果是修改已有习惯，并且提醒时间被修改为新的值（或多个提醒时间发生变化），且新的提醒时间晚于当前时间，则重置当天 hasNotify 以便再次提醒
+        if (this.habit) {
+            // 比较旧旧/new times
+            const oldTimes = (this.habit.reminderTimes && Array.isArray(this.habit.reminderTimes) ? this.habit.reminderTimes : (this.habit.reminderTime ? [this.habit.reminderTime] : [])).map(String);
+            const newTimes = (habit.reminderTimes && Array.isArray(habit.reminderTimes) ? habit.reminderTimes : (habit.reminderTime ? [habit.reminderTime] : [])).map(String);
+            const timesChanged = JSON.stringify(oldTimes.sort()) !== JSON.stringify(newTimes.sort());
+            if (timesChanged && newTimes.length > 0) {
+                try {
+                    const now = new Date();
+                    const todayStr = getLocalDateString();
+                    // 如果新的某个提醒时间在今日，且晚于当前时间，则清理当天的 hasNotify 中该时间/条目，或者清空当天记录
+                    const laterThanNow = newTimes.some(t => {
+                        try {
+                            const parts = (t || '').split(':');
+                            if (parts.length >= 2) {
+                                const hour = parseInt(parts[0], 10);
+                                const minute = parseInt(parts[1], 10);
+                                if (!isNaN(hour) && !isNaN(minute)) {
+                                    const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute);
+                                    return dt.getTime() > now.getTime();
+                                }
                             }
+                        } catch (err) {
+                            return false;
+                        }
+                        return false;
+                    });
+                    if (laterThanNow && habit.hasNotify && habit.hasNotify[todayStr]) {
+                        // 如果存在多时间结构，清除当天的 per-time flags
+                        if (typeof habit.hasNotify[todayStr] === 'object') {
+                            delete habit.hasNotify[todayStr];
+                        } else if (habit.hasNotify[todayStr] === true) {
+                            // 清除整体标记
+                            delete habit.hasNotify[todayStr];
                         }
                     }
+                } catch (err) {
+                    console.warn('判断提醒时间是否晚于当前时间失败', err);
                 }
-            } catch (err) {
-                console.warn('判断提醒时间是否晚于当前时间失败', err);
             }
         }
 

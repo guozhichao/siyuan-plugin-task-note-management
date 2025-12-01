@@ -31,7 +31,8 @@ export interface Habit {
     };
     startDate: string;
     endDate?: string;
-    reminderTime?: string; // 提醒时间
+    reminderTime?: string; // (向后兼容) 单个提醒时间
+    reminderTimes?: string[]; // 支持多个提醒时间
     groupId?: string; // 分组ID
     priority?: 'high' | 'medium' | 'low' | 'none';
     checkInEmojis: HabitCheckInEmoji[]; // 打卡emoji配置
@@ -43,8 +44,9 @@ export interface Habit {
             entries?: { emoji: string; timestamp: string; note?: string }[]; // 每次单独打卡记录
         };
     };
-    // 每日提醒通知状态 (键为 YYYY-MM-DD -> true/false)
-    hasNotify?: { [date: string]: boolean };
+    // 每日提醒通知状态 (键为 YYYY-MM-DD -> true/false 或键->(time->true))
+    // 例如： { '2025-12-01': true } 或 { '2025-12-01': { '08:00': true, '20:00': true } }
+    hasNotify?: { [date: string]: boolean | { [time: string]: boolean } };
     totalCheckIns: number; // 总打卡次数（保留历史数据，已不在主面板显示）
     createdAt: string;
     updatedAt: string;
@@ -724,10 +726,11 @@ export class HabitPanel {
         timeRange.style.cssText = 'font-size: 12px; color: var(--b3-theme-on-surface-light); margin-bottom: 4px;';
         card.appendChild(timeRange);
 
-        // 提醒时间
-        if (habit.reminderTime) {
+        // 提醒时间（支持多个）
+        const timesList = Array.isArray(habit.reminderTimes) && habit.reminderTimes.length > 0 ? habit.reminderTimes : (habit.reminderTime ? [habit.reminderTime] : []);
+        if (timesList && timesList.length > 0) {
             const reminder = document.createElement('div');
-            reminder.textContent = `提醒: ${habit.reminderTime}`;
+            reminder.textContent = `提醒: ${timesList.join(', ')}`;
             reminder.style.cssText = 'font-size: 12px; color: var(--b3-theme-on-surface-light); margin-bottom: 4px;';
             card.appendChild(reminder);
         }

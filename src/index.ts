@@ -2220,8 +2220,14 @@ export default class ReminderPlugin extends Plugin {
                 try {
                     if (!habit || typeof habit !== 'object') continue;
 
-                    // 需要设置 reminderTime 才会被触发
-                    if (!habit.reminderTime) continue;
+                    // 需要设置 reminder times 才会被触发（兼容旧属性 reminderTime）
+                    const times: string[] = [];
+                    if (Array.isArray(habit.reminderTimes) && habit.reminderTimes.length > 0) {
+                        times.push(...habit.reminderTimes);
+                    } else if (habit.reminderTime) {
+                        times.push(habit.reminderTime);
+                    }
+                    if (times.length === 0) continue;
 
                     // 如果不在起止日期内，跳过
                     if (habit.startDate && habit.startDate > today) continue;
@@ -2233,35 +2239,37 @@ export default class ReminderPlugin extends Plugin {
                     // 如果今日已经打卡完成，则不再提醒
                     if (this.isHabitCompletedOnDate(habit, today)) continue;
 
-                    const parsed = this.extractDateAndTime(habit.reminderTime);
-                    if (parsed.date && parsed.date !== today) continue;
-                    const habitTimeNum = this.timeStringToNumber(habit.reminderTime);
-                    if (habitTimeNum === 0) continue; // 无法解析的时间
 
-                    // 需要现在到或超过提醒时间
-                    if (currentNum < habitTimeNum) continue;
+                    // 对每个提醒时间进行判断（可能为时间或带日期的时间）
+                    for (const rt of times) {
+                        const parsed = this.extractDateAndTime(rt);
+                        if (parsed.date && parsed.date !== today) continue;
+                        const habitTimeNum = this.timeStringToNumber(rt);
+                        if (habitTimeNum === 0) continue; // 无法解析的时间
+                        // 需要现在到或超过提醒时间
+                        if (currentNum < habitTimeNum) continue;
 
-                    const alreadyNotified = await hasHabitNotified(habit.id, today);
-                    if (alreadyNotified) continue;
+                        const alreadyNotified = await hasHabitNotified(habit.id, today, parsed.time || rt);
+                        if (alreadyNotified) continue;
 
-                    // 触发通知（仅第一次触发时播放音效）
-                    if (!playSoundOnce) {
-                        await this.playNotificationSound();
-                        playSoundOnce = true;
-                    }
+                        // 触发通知（仅第一次触发时播放音效）
+                        if (!playSoundOnce) {
+                            await this.playNotificationSound();
+                            playSoundOnce = true;
+                        }
 
-                    // 构建提醒信息并显示内部通知对话框
-                    const reminderInfo = {
-                        id: habit.id,
-                        blockId: habit.blockId || '',
-                        title: habit.title || t('unnamedNote'),
-                        note: habit.note || '',
-                        priority: habit.priority || 'none',
-                        categoryId: habit.groupId || undefined,
-                        time: parsed.time || habit.reminderTime,
-                        date: today,
-                        isAllDay: false
-                    };
+                        // 构建提醒信息并显示内部通知对话框
+                        const reminderInfo = {
+                            id: habit.id,
+                            blockId: habit.blockId || '',
+                            title: habit.title || t('unnamedNote'),
+                            note: habit.note || '',
+                            priority: habit.priority || 'none',
+                            categoryId: habit.groupId || undefined,
+                            time: parsed.time || rt,
+                            date: today,
+                            isAllDay: false
+                        };
 
                     // 显示思源内部通知
                     NotificationDialog.show(reminderInfo as any);
@@ -2274,11 +2282,12 @@ export default class ReminderPlugin extends Plugin {
                         this.showReminderSystemNotification(title, message, reminderInfo);
                     }
 
-                    // 标记已通知，避免重复通知
-                    try {
-                        await markHabitNotified(habit.id, today);
-                    } catch (err) {
-                        console.warn('标记习惯通知失败', habit.id, today, err);
+                        // 标记已通知，避免重复通知（按时间标记）
+                        try {
+                            await markHabitNotified(habit.id, today, parsed.time || rt);
+                        } catch (err) {
+                            console.warn('标记习惯通知失败', habit.id, today, parsed.time || rt, err);
+                        }
                     }
                 } catch (err) {
                     console.warn('处理单个习惯时出错', err);
