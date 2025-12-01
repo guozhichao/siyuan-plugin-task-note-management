@@ -737,27 +737,6 @@ export default class ReminderPlugin extends Plugin {
         });
     }
 
-    private openReminderFloatPanel() {
-        // 创建悬浮窗口
-        const dialog = new Dialog({
-            title: t("timeReminder"),
-            content: '<div id="floatReminderPanel" style="height: 600px;"></div>',
-            width: "400px",
-            height: "600px",
-            destroyCallback: () => {
-                // 悬浮窗口关闭时清理
-            }
-        });
-
-        // 在悬浮窗口中创建提醒面板
-        const floatContainer = dialog.element.querySelector('#floatReminderPanel') as HTMLElement;
-        if (floatContainer) {
-            // 传递关闭对话框的回调函数
-            new ReminderPanel(floatContainer, this, () => {
-                dialog.destroy();
-            });
-        }
-    }
 
     private async updateBadges() {
         try {
