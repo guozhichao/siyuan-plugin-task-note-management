@@ -2379,18 +2379,44 @@ export class QuickReminderDialog {
                     reminderData[reminderId] = reminder;
                     await writeReminderData(reminderData);
 
+                    // 处理块绑定变更
+                    const oldBlockId = this.reminder.blockId;
+                    const newBlockId = reminder.blockId;
+
+                    // 如果原来有绑定块，但编辑后删除了绑定，需要更新原块的书签状态
+                    if (oldBlockId && !newBlockId) {
+                        try {
+                            await updateBlockReminderBookmark(oldBlockId);
+                            console.debug('QuickReminderDialog: 已移除原块的书签绑定', oldBlockId);
+                        } catch (error) {
+                            console.warn('更新原块书签状态失败:', error);
+                        }
+                    }
+
+                    // 如果原来绑定了块A，现在改绑块B，需要同时更新两个块
+                    if (oldBlockId && newBlockId && oldBlockId !== newBlockId) {
+                        try {
+                            await updateBlockReminderBookmark(oldBlockId);
+                            console.debug('QuickReminderDialog: 已更新原块的书签状态', oldBlockId);
+                        } catch (error) {
+                            console.warn('更新原块书签状态失败:', error);
+                        }
+                    }
+
                     // 将绑定的块添加项目ID属性 custom-task-projectId（支持多项目）
-                    if (reminder.blockId) {
+                    if (newBlockId) {
                         try {
                             const { addBlockProjectId, setBlockProjectIds } = await import('../api');
                             if (reminder.projectId) {
-                                await addBlockProjectId(reminder.blockId, reminder.projectId);
-                                console.debug('QuickReminderDialog: addBlockProjectId for block', reminder.blockId, 'projectId', reminder.projectId);
+                                await addBlockProjectId(newBlockId, reminder.projectId);
+                                console.debug('QuickReminderDialog: addBlockProjectId for block', newBlockId, 'projectId', reminder.projectId);
                             } else {
                                 // 清理属性（设置为空列表）
-                                await setBlockProjectIds(reminder.blockId, []);
-                                console.debug('QuickReminderDialog: cleared custom-task-projectId for block', reminder.blockId);
+                                await setBlockProjectIds(newBlockId, []);
+                                console.debug('QuickReminderDialog: cleared custom-task-projectId for block', newBlockId);
                             }
+                            // 为绑定块添加⏰书签
+                            await updateBlockReminderBookmark(newBlockId);
                         } catch (error) {
                             console.warn('设置块自定义属性 custom-task-projectId 失败:', error);
                         }
@@ -2569,6 +2595,8 @@ export class QuickReminderDialog {
                         await setBlockProjectIds(reminder.blockId, []);
                         console.debug('QuickReminderDialog: cleared custom-task-projectId for block', reminder.blockId);
                     }
+                    // 为绑定块添加⏰书签
+                    await updateBlockReminderBookmark(reminder.blockId);
                 } catch (error) {
                     console.warn('设置块自定义属性 custom-task-projectId 失败:', error);
                 }
