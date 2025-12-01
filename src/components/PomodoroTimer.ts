@@ -86,6 +86,8 @@ export class PomodoroTimer {
 
     private systemNotificationEnabled: boolean = true; // 新增：系统弹窗开关
     private randomNotificationSystemNotificationEnabled: boolean = true; // 新增：随机提示音系统通知开关
+    private randomNotificationAutoClose: boolean = true // 新增：随机提示音系统通知自动关闭
+    private randomNotificationAutoCloseDelay: number = 5; // 新增：随机提示音系统通知自动关闭延迟
 
     private isFullscreen: boolean = false; // 新增：全屏模式状态
     private escapeKeyHandler: ((e: KeyboardEvent) => void) | null = null; // 新增：ESC键监听器
@@ -115,6 +117,8 @@ export class PomodoroTimer {
         // 初始化随机提示音设置
         this.randomNotificationEnabled = settings.randomNotificationEnabled || false;
         this.randomNotificationSystemNotificationEnabled = settings.randomNotificationSystemNotification !== false; // 新增
+        this.randomNotificationAutoClose = true; 
+        this.randomNotificationAutoCloseDelay = 5; 
 
         // 初始化自动模式设置
         this.autoMode = settings.autoMode || false;
@@ -506,7 +510,8 @@ export class PomodoroTimer {
             if (this.randomNotificationSystemNotificationEnabled) {
                 this.showSystemNotification(
                     t('randomNotificationSettings'),
-                    t('randomRest', { duration: this.settings.randomNotificationBreakDuration })
+                    t('randomRest', { duration: this.settings.randomNotificationBreakDuration }),
+                    this.randomNotificationAutoClose ? this.randomNotificationAutoCloseDelay : undefined
                 );
             }
 
@@ -545,7 +550,8 @@ export class PomodoroTimer {
                         if (this.randomNotificationSystemNotificationEnabled) {
                             this.showSystemNotification(
                                 t('randomNotificationSettings'),
-                                t('randomRestComplete') || '微休息时间结束，可以继续专注工作了！'
+                                t('randomRestComplete') || '微休息时间结束，可以继续专注工作了！',
+                                this.randomNotificationAutoClose ? this.randomNotificationAutoCloseDelay : undefined
                             );
                         }
                         this.randomNotificationEndSoundTimer = null;
@@ -3403,7 +3409,7 @@ export class PomodoroTimer {
     /**
      * 显示系统弹窗通知
      */
-    private showSystemNotification(title: string, message: string) {
+    private showSystemNotification(title: string, message: string, autoCloseDelay?: number) {
         if (!this.systemNotificationEnabled) {
             return;
         }
@@ -3413,7 +3419,7 @@ export class PomodoroTimer {
                 // 使用浏览器通知作为备选方案
                 const notification = new Notification(title, {
                     body: message,
-                    requireInteraction: true,
+                    requireInteraction: !autoCloseDelay, // 如果有自动关闭延迟，则不需要用户交互
                     silent: false// 使用我们自己的音频
                 });
 
@@ -3423,6 +3429,12 @@ export class PomodoroTimer {
                     notification.close();
                 };
 
+                // 如果设置了自动关闭延迟
+                if (autoCloseDelay && autoCloseDelay > 0) {
+                    setTimeout(() => {
+                        notification.close();
+                    }, autoCloseDelay * 1000);
+                }
             }
         } catch (error) {
             console.warn('显示系统弹窗失败:', error);
@@ -4279,6 +4291,8 @@ export class PomodoroTimer {
             this.systemNotificationEnabled = settings.pomodoroSystemNotification !== false;
             this.randomNotificationEnabled = settings.randomNotificationEnabled || false;
             this.randomNotificationSystemNotificationEnabled = settings.randomNotificationSystemNotification !== false;
+            this.randomNotificationAutoClose = false; // 新增
+            this.randomNotificationAutoCloseDelay =  5; // 新增
             this.autoMode = settings.autoMode || false;
             this.longBreakInterval = Math.max(1, settings.longBreakInterval || 4);
         } catch (e) {
