@@ -1943,6 +1943,35 @@ export default class ReminderPlugin extends Plugin {
                         }
                     }
 
+                    // 检查 reminderTimes 提醒
+                    if (reminderObj.reminderTimes && Array.isArray(reminderObj.reminderTimes)) {
+                        for (const rtItem of reminderObj.reminderTimes) {
+                            const rt = typeof rtItem === 'string' ? rtItem : rtItem.time;
+                            const note = typeof rtItem === 'string' ? '' : rtItem.note;
+
+                            const parsed = this.extractDateAndTime(rt);
+                            const hasDate = !!parsed.date;
+                            const shouldCheck = hasDate ? (parsed.date === today) : inDateRange;
+                            
+                            if (shouldCheck) {
+                                const notifiedKey = rt;
+                                if (reminderObj.notifiedTimes && reminderObj.notifiedTimes[notifiedKey]) continue;
+
+                                const currentNum = this.timeStringToNumber(currentTime);
+                                const reminderNum = this.timeStringToNumber(rt);
+                                if (currentNum >= reminderNum) {
+                                    console.debug('checkTimeReminders - triggering reminderTimes reminder', { id: reminderObj.id, rt });
+                                    const tempReminder = { ...reminderObj, customReminderTime: rt, note: note ? (reminderObj.note ? reminderObj.note + '\n' + note : note) : reminderObj.note }; 
+                                    await this.showTimeReminder(tempReminder, 'customReminderTime');
+                                    
+                                    if (!reminderObj.notifiedTimes) reminderObj.notifiedTimes = {};
+                                    reminderObj.notifiedTimes[notifiedKey] = true;
+                                    dataChanged = true;
+                                }
+                            }
+                        }
+                    }
+
                     // 更新总体的 notified 标志（仅在非重复任务上使用），只有在所有应被提醒的时间都已提醒且都已过时，才设为 true
                     const overallChanged = this.updateOverallNotifiedFlag(reminderObj, today, currentTime);
                     if (overallChanged) dataChanged = true;
@@ -1978,6 +2007,35 @@ export default class ReminderPlugin extends Plugin {
                                     if (!notifiedInstances.includes(instanceKey)) {
                                         console.debug('checkTimeReminders - triggering repeat instance customReminderTime reminder', { id: instance.id, date: instance.date, customReminderTime: instance.customReminderTime });
                                         await this.showTimeReminder(instance, 'customReminderTime');
+                                        if (!reminderObj.repeat) reminderObj.repeat = {};
+                                        if (!reminderObj.repeat.notifiedInstances) reminderObj.repeat.notifiedInstances = [];
+                                        reminderObj.repeat.notifiedInstances.push(instanceKey);
+                                        dataChanged = true;
+                                    }
+                                }
+                            }
+                        }
+
+                        // reminderTimes 实例提醒
+                        if (instance.reminderTimes && Array.isArray(instance.reminderTimes)) {
+                            for (const rtItem of instance.reminderTimes) {
+                                const rt = typeof rtItem === 'string' ? rtItem : rtItem.time;
+                                const note = typeof rtItem === 'string' ? '' : rtItem.note;
+
+                                const parsed = this.extractDateAndTime(rt);
+                                if (parsed.date && parsed.date !== instance.date) continue;
+                                
+                                const currentNum = this.timeStringToNumber(currentTime);
+                                const reminderNum = this.timeStringToNumber(rt);
+                                
+                                if (currentNum >= reminderNum) {
+                                    const notifiedInstances = reminderObj.repeat?.notifiedInstances || [];
+                                    const instanceKey = `${instance.date}_${rt}`;
+                                    if (!notifiedInstances.includes(instanceKey)) {
+                                        console.debug('checkTimeReminders - triggering repeat instance reminderTimes reminder', { id: instance.id, rt });
+                                        const tempInstance = { ...instance, customReminderTime: rt, note: note ? (instance.note ? instance.note + '\n' + note : note) : instance.note };
+                                        await this.showTimeReminder(tempInstance, 'customReminderTime');
+                                        
                                         if (!reminderObj.repeat) reminderObj.repeat = {};
                                         if (!reminderObj.repeat.notifiedInstances) reminderObj.repeat.notifiedInstances = [];
                                         reminderObj.repeat.notifiedInstances.push(instanceKey);
@@ -2058,6 +2116,7 @@ export default class ReminderPlugin extends Plugin {
 
         const hasTime = !!reminder.time;
         const hasCustom = !!reminder.customReminderTime;
+        const hasReminderTimes = reminder.reminderTimes && Array.isArray(reminder.reminderTimes) && reminder.reminderTimes.length > 0;
 
         const currentNum = this.timeStringToNumber(currentTime);
 
@@ -2080,23 +2139,37 @@ export default class ReminderPlugin extends Plugin {
             return currentNum >= fieldTimeNum;
         };
 
-        if (hasTime && hasCustom) {
-            const timeNum = this.timeStringToNumber(reminder.time || '00:00');
-            const customNum = this.timeStringToNumber(reminder.customReminderTime || '00:00');
-            const timeNotified = !!reminder.notifiedTime;
-            const customNotified = !!reminder.notifiedCustomTime;
-            if (timeNotified && customNotified && checkPassed('time') && checkPassed('customReminderTime')) {
-                now = true;
-            } else {
-                now = false;
+        // Check reminderTimes
+        let reminderTimesAllNotified = true;
+        if (hasReminderTimes) {
+            for (const rtItem of reminder.reminderTimes) {
+                const rt = typeof rtItem === 'string' ? rtItem : rtItem.time;
+                const parsed = this.extractDateAndTime(rt);
+                const fieldTimeNum = this.timeStringToNumber(rt || '00:00');
+                let passed = false;
+                if (parsed.date) {
+                    const dateCompare = compareDateStrings(parsed.date, today);
+                    if (dateCompare < 0) passed = true;
+                    else if (dateCompare > 0) passed = false;
+                    else passed = currentNum >= fieldTimeNum;
+                } else {
+                    passed = currentNum >= fieldTimeNum;
+                }
+                
+                const notified = reminder.notifiedTimes && reminder.notifiedTimes[rt];
+                if (!notified || !passed) {
+                    reminderTimesAllNotified = false;
+                    break;
+                }
             }
-        } else if (hasTime) {
-            const timeNum = this.timeStringToNumber(reminder.time || '00:00');
-            const timePassed = checkPassed('time');
-            now = !!reminder.notifiedTime && timePassed;
-        } else if (hasCustom) {
-            const customPassed = checkPassed('customReminderTime');
-            now = !!reminder.notifiedCustomTime && customPassed;
+        }
+
+        if (hasTime || hasCustom || hasReminderTimes) {
+             const timeOk = !hasTime || (!!reminder.notifiedTime && checkPassed('time'));
+             const customOk = !hasCustom || (!!reminder.notifiedCustomTime && checkPassed('customReminderTime'));
+             const reminderTimesOk = !hasReminderTimes || reminderTimesAllNotified;
+             
+             now = timeOk && customOk && reminderTimesOk;
         } else {
             now = false;
         }
@@ -2271,16 +2344,16 @@ export default class ReminderPlugin extends Plugin {
                             isAllDay: false
                         };
 
-                    // 显示思源内部通知
-                    NotificationDialog.show(reminderInfo as any);
+                        // 显示思源内部通知
+                        NotificationDialog.show(reminderInfo as any);
 
-                    // 显示系统弹窗（如果启用）
-                    const systemNotificationEnabled = await this.getReminderSystemNotificationEnabled();
-                    if (systemNotificationEnabled) {
-                        const title = `⏰ ${t('habitReminder')}: ${reminderInfo.title}`;
-                        const message = `${reminderInfo.time}`.trim();
-                        this.showReminderSystemNotification(title, message, reminderInfo);
-                    }
+                        // 显示系统弹窗（如果启用）
+                        const systemNotificationEnabled = await this.getReminderSystemNotificationEnabled();
+                        if (systemNotificationEnabled) {
+                            const title = `⏰ ${t('habitReminder')}: ${reminderInfo.title}`;
+                            const message = `${reminderInfo.time}`.trim();
+                            this.showReminderSystemNotification(title, message, reminderInfo);
+                        }
 
                         // 标记已通知，避免重复通知（按时间标记）
                         try {

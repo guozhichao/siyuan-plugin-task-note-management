@@ -2687,51 +2687,84 @@ export class ReminderPanel {
         }
 
         // 如果存在 customReminderTime，按规则显示：
-        // - custom 包含日期部分则以其为准，否则以 reminder.date 为准
-        // - 如果目标日期 < 今天（过去）则不显示 customReminderTime
-        // - 如果目标日期 == 今天 则仅显示时间
-        // - 如果目标日期 > 今天 则显示日期 + 时间
+        // 如果存在 reminderTimes，显示多个时间
         try {
-            const custom = reminder?.customReminderTime;
-            if (custom) {
-                let s = String(custom).trim();
-                let datePart: string | null = null;
-                let timePart: string | null = null;
+            if (reminder?.reminderTimes && Array.isArray(reminder.reminderTimes) && reminder.reminderTimes.length > 0) {
+                const times = reminder.reminderTimes.map((rtItem: any) => {
+                    if (!rtItem) return '';
+                    const rt = typeof rtItem === 'string' ? rtItem : rtItem.time;
+                    if (!rt) return '';
+                    let s = String(rt).trim();
+                    let datePart: string | null = null;
+                    let timePart: string | null = null;
 
-                if (s.includes('T')) {
-                    const parts = s.split('T');
-                    datePart = parts[0];
-                    timePart = parts[1] || null;
-                } else if (s.includes(' ')) {
-                    const parts = s.split(' ');
-                    if (/^\d{4}-\d{2}-\d{2}$/.test(parts[0])) {
+                    if (s.includes('T')) {
+                        const parts = s.split('T');
                         datePart = parts[0];
-                        timePart = parts.slice(1).join(' ') || null;
+                        timePart = parts[1] || null;
                     } else {
-                        timePart = parts.slice(-1)[0] || null;
+                        timePart = s;
                     }
-                } else if (/^\d{2}:\d{2}$/.test(s)) {
-                    timePart = s;
-                } else if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-                    datePart = s;
-                } else {
-                    timePart = s;
+                    
+                    const targetDate = datePart || date || today;
+                    
+                    if (compareDateStrings(targetDate, today) < 0) return ''; // 过去的不显示
+                    
+                    if (compareDateStrings(targetDate, today) === 0) {
+                        return timePart ? timePart.substring(0, 5) : '';
+                    } else {
+                        // 未来：显示日期 + 时间
+                        const d = new Date(targetDate + 'T00:00:00');
+                        const ds = d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+                        return `${ds}${timePart ? ' ' + timePart.substring(0, 5) : ''}`;
+                    }
+                }).filter(Boolean).join(', ');
+                
+                if (times) {
+                    result += ` ⏰${times}`;
                 }
+            } else {
+                const custom = reminder?.customReminderTime;
+                if (custom) {
+                    let s = String(custom).trim();
+                    let datePart: string | null = null;
+                    let timePart: string | null = null;
 
-                const targetDate = datePart || date || today;
-
-                if (compareDateStrings(targetDate, today) < 0) {
-                    // 过去：不显示 customReminderTime
-                } else if (compareDateStrings(targetDate, today) === 0) {
-                    if (timePart) {
-                        const showTime = timePart.substring(0, 5);
-                        result = `${result} ⏰${showTime}`;
+                    if (s.includes('T')) {
+                        const parts = s.split('T');
+                        datePart = parts[0];
+                        timePart = parts[1] || null;
+                    } else if (s.includes(' ')) {
+                        const parts = s.split(' ');
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(parts[0])) {
+                            datePart = parts[0];
+                            timePart = parts.slice(1).join(' ') || null;
+                        } else {
+                            timePart = parts.slice(-1)[0] || null;
+                        }
+                    } else if (/^\d{2}:\d{2}$/.test(s)) {
+                        timePart = s;
+                    } else if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+                        datePart = s;
+                    } else {
+                        timePart = s;
                     }
-                } else {
-                    // 未来：显示日期 + 时间（如果有）
-                    const showDate = targetDate;
-                    const showTime = timePart ? ` ${timePart.substring(0, 5)}` : '';
-                    result = `${result} ⏰${showDate}${showTime}`;
+
+                    const targetDate = datePart || date || today;
+
+                    if (compareDateStrings(targetDate, today) < 0) {
+                        // 过去：不显示 customReminderTime
+                    } else if (compareDateStrings(targetDate, today) === 0) {
+                        if (timePart) {
+                            const showTime = timePart.substring(0, 5);
+                            result = `${result} ⏰${showTime}`;
+                        }
+                    } else {
+                        // 未来：显示日期 + 时间（如果有）
+                        const showDate = targetDate;
+                        const showTime = timePart ? ` ${timePart.substring(0, 5)}` : '';
+                        result = `${result} ⏰${showDate}${showTime}`;
+                    }
                 }
             }
         } catch (e) {
