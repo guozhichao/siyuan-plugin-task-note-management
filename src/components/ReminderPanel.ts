@@ -1071,8 +1071,8 @@ export class ReminderPanel {
                             try {
                                 const count = await this.getReminderPomodoroCount(child.id, child, this.allRemindersMap || undefined);
                                 const focusTime = await this.getReminderFocusTime(child.id, child, this.allRemindersMap || undefined);
-                                const todayCount = await this.getReminderTodayPomodoroCount(child.id, child, this.allRemindersMap || undefined, child.date);
-                                const todayFocus = await this.getReminderTodayFocusTime(child.id, child, this.allRemindersMap || undefined, child.date);
+                                const todayCount = await this.getReminderTodayPomodoroCount(child.id, child, this.allRemindersMap || undefined);
+                                const todayFocus = await this.getReminderTodayFocusTime(child.id, child, this.allRemindersMap || undefined);
                                 asyncCache.set(child.id, { pomodoroCount: count, focusTime: focusTime || 0, todayPomodoroCount: todayCount || 0, todayFocusTime: todayFocus || 0, project: null });
                                 // keep in instance cache as well
                                 this.asyncDataCache.set(child.id, asyncCache.get(child.id));
@@ -1286,9 +1286,9 @@ export class ReminderPanel {
                 const count = await this.getReminderPomodoroCount(reminder.id, reminder, fullData);
                 // focusTime in minutes
                 const focusTime = await this.getReminderFocusTime(reminder.id, reminder, fullData);
-                // 今日番茄钟计数（按事件/实例的日期计算）
-                const todayCount = await this.getReminderTodayPomodoroCount(reminder.id, reminder, fullData, reminder.date);
-                const todayFocus = await this.getReminderTodayFocusTime(reminder.id, reminder, fullData, reminder.date);
+                // 今日番茄钟计数（使用今天的日期，而不是任务的截止日期）
+                const todayCount = await this.getReminderTodayPomodoroCount(reminder.id, reminder, fullData);
+                const todayFocus = await this.getReminderTodayFocusTime(reminder.id, reminder, fullData);
                 return { id: reminder.id, pomodoroCount: count, focusTime, todayPomodoroCount: todayCount, todayFocusTime: todayFocus };
             } catch (error) {
                 console.warn(`获取任务 ${reminder.id} 的番茄钟计数失败:`, error);
