@@ -348,7 +348,7 @@ export class HabitHistoryDialog {
             title: `编辑 ${dateStr} 第 ${index + 1} 次打卡`,
             content: '<div id="habitEditSingleEntryContainer"></div>',
             width: '360px',
-            height: '330px'
+            height: '380px'
         });
 
         const container = dialog.element.querySelector('#habitEditSingleEntryContainer') as HTMLElement;
@@ -393,6 +393,22 @@ export class HabitHistoryDialog {
             wrap.appendChild(btn);
         });
         contentDiv.appendChild(wrap);
+
+        // 添加时间编辑
+        const timeRow = document.createElement('div');
+        timeRow.style.cssText = 'display:flex; gap:8px; align-items:center; margin-top:8px;';
+        const timeLabel = document.createElement('label');
+        timeLabel.textContent = '时间';
+        const timeInput = document.createElement('input');
+        timeInput.type = 'time';
+        // 预填当前条目的时间
+        const currentTime = entry.timestamp ? entry.timestamp.split(' ')[1] : '';
+        timeInput.value = currentTime;
+        timeInput.style.cssText = 'flex:1;';
+        timeRow.appendChild(timeLabel);
+        timeRow.appendChild(timeInput);
+        contentDiv.appendChild(timeRow);
+
         // 备注输入区
         const noteLabel = document.createElement('div');
         noteLabel.textContent = '备注（可选）';
@@ -431,7 +447,9 @@ export class HabitHistoryDialog {
             // apply edit
             entries[index].emoji = selectedEmoji!;
             entries[index].meaning = selectedMeaning || this.getMeaningForEmoji(selectedEmoji!);
-            entries[index].timestamp = entries[index].timestamp || getLocalDateTimeString(new Date());
+            // 更新时间
+            const newTime = timeInput.value || currentTime;
+            entries[index].timestamp = `${dateStr} ${newTime}`;
             entries[index].note = noteInput.value.trim() || undefined;
             // persist
             await this.setEntriesForDate(dateStr, entries);
