@@ -3419,8 +3419,8 @@ export class PomodoroTimer {
                 // 使用浏览器通知作为备选方案
                 const notification = new Notification(title, {
                     body: message,
-                    requireInteraction: !autoCloseDelay, // 如果有自动关闭延迟，则不需要用户交互
-                    silent: false// 使用我们自己的音频
+                    requireInteraction: true, 
+                    silent: false
                 });
 
                 // 点击通知时的处理
