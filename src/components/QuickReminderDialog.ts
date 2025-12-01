@@ -44,7 +44,7 @@ export class QuickReminderDialog {
     private defaultBlockId?: string;
     private defaultParentId?: string;
     private plugin?: any; // 插件实例
-    private customTimes: Array<{time: string, note?: string}> = []; // 自定义提醒时间列表
+    private customTimes: Array<{ time: string, note?: string }> = []; // 自定义提醒时间列表
 
     constructor(
         date?: string,
@@ -1435,14 +1435,14 @@ export class QuickReminderDialog {
                 cursor: pointer;
             `;
             tag.title = "点击编辑";
-            
+
             // 格式化显示
             let displayTime = item.time;
             if (item.time.includes('T')) {
                 const [d, t] = item.time.split('T');
                 displayTime = `${d} ${t}`;
             }
-            
+
             const noteText = item.note ? ` (${item.note})` : '';
 
             tag.innerHTML = `
@@ -1459,13 +1459,13 @@ export class QuickReminderDialog {
             tag.addEventListener('click', (e) => {
                 // 如果点击的是删除按钮，不触发编辑
                 if ((e.target as HTMLElement).classList.contains('remove-time-btn')) return;
-                
+
                 const timeInput = this.dialog.element.querySelector('#quickCustomReminderTime') as HTMLInputElement;
                 const noteInput = this.dialog.element.querySelector('#quickCustomReminderNote') as HTMLInputElement;
-                
+
                 if (timeInput) timeInput.value = item.time;
                 if (noteInput) noteInput.value = item.note || '';
-                
+
                 // 移除当前项
                 this.customTimes.splice(index, 1);
                 this.renderCustomTimeList();
@@ -1520,7 +1520,7 @@ export class QuickReminderDialog {
         const addCustomTimeBtn = this.dialog.element.querySelector('#quickAddCustomTimeBtn') as HTMLButtonElement;
         const customReminderInput = this.dialog.element.querySelector('#quickCustomReminderTime') as HTMLInputElement;
         const customReminderNoteInput = this.dialog.element.querySelector('#quickCustomReminderNote') as HTMLInputElement;
-        
+
         addCustomTimeBtn?.addEventListener('click', () => {
             const time = customReminderInput.value;
             const note = customReminderNoteInput?.value?.trim();
