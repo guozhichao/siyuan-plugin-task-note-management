@@ -1,3 +1,7 @@
+## v3.3.8 / 20251201
+
+- 🐛创建提醒时，没有给块成功添加书签⏰ [#171](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/171)
+
 ## v3.3.7 / 20251201
 
 - 🐛 打包缺失i18n文件 [#169](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/169)
