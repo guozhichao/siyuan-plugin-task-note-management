@@ -40,7 +40,7 @@ export class CalendarView {
     private clickTimeout: number | null = null; // 添加单击延迟超时
     private refreshTimeout: number | null = null; // 添加刷新防抖超时
     private currentCompletionFilter: string = 'all'; // 当前完成状态过滤
-    
+
     // 性能优化：颜色缓存
     private colorCache: Map<string, { backgroundColor: string; borderColor: string }> = new Map();
 
@@ -2603,7 +2603,7 @@ export class CalendarView {
                     const repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
                     const completedInstances = reminder.repeat?.completedInstances || [];
                     const instanceModifications = reminder.repeat?.instanceModifications || {};
-                    
+
                     // 批量处理实例，减少重复计算
                     for (const instance of repeatInstances) {
                         const isInstanceCompleted = completedInstances.includes(instance.date);
@@ -2642,13 +2642,13 @@ export class CalendarView {
             // 收集所有需要查询的blockId和docId
             const blockIdsToQuery = new Set<string>();
             const docIdsToQuery = new Set<string>();
-            
+
             for (const reminder of reminders) {
                 if (reminder.docTitle) continue; // 已有标题，跳过
-                
+
                 const blockId = reminder.blockId || reminder.id;
                 const docId = reminder.docId;
-                
+
                 // 收集需要查询docId的blockId
                 if (!docId && blockId) {
                     blockIdsToQuery.add(blockId);
@@ -2693,16 +2693,16 @@ export class CalendarView {
             // 应用结果到reminders
             for (const reminder of reminders) {
                 if (reminder.docTitle) continue;
-                
+
                 const blockId = reminder.blockId || reminder.id;
                 let docId = reminder.docId;
-                
+
                 // 如果没有docId，从映射中获取
                 if (!docId && blockId && blockIdToDocId.has(blockId)) {
                     docId = blockIdToDocId.get(blockId);
                     reminder.docId = docId;
                 }
-                
+
                 // 设置文档标题
                 if (docId && docId !== blockId && docIdToTitle.has(docId)) {
                     reminder.docTitle = docIdToTitle.get(docId);
@@ -2822,15 +2822,15 @@ export class CalendarView {
 
     private addEventToList(events: any[], reminder: any, eventId: string, isRepeated: boolean, originalId?: string) {
         const priority = reminder.priority || 'none';
-        
+
         // 使用缓存获取颜色，避免重复计算
         const cacheKey = `${this.colorBy}-${reminder.projectId || ''}-${reminder.categoryId || ''}-${priority}`;
         let colors = this.colorCache.get(cacheKey);
-        
+
         if (!colors) {
             let backgroundColor: string;
             let borderColor: string;
-            
+
             if (this.colorBy === 'project') {
                 if (reminder.projectId) {
                     const color = this.projectManager.getProjectColor(reminder.projectId);
@@ -2869,7 +2869,7 @@ export class CalendarView {
                         break;
                 }
             }
-            
+
             colors = { backgroundColor, borderColor };
             this.colorCache.set(cacheKey, colors);
         }
@@ -3076,7 +3076,7 @@ export class CalendarView {
 
     private async buildTooltipContent(calendarEvent: any): Promise<string> {
         const reminder = calendarEvent.extendedProps;
-        
+
         // 优化：使用数组收集HTML片段，最后一次性join，减少字符串拼接开销
         const htmlParts: string[] = [];
 
@@ -3433,7 +3433,7 @@ export class CalendarView {
             this.tooltip.remove();
             this.tooltip = null;
         }
-        
+
         // 清理缓存
         this.colorCache.clear();
 
