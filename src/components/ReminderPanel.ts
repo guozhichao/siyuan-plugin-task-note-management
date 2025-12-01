@@ -1029,38 +1029,38 @@ export class ReminderPanel {
             for (const child of children) {
                 let el = this.remindersContainer.querySelector(`[data-reminder-id="${child.id}"]`) as HTMLElement | null;
 
-                    if (el) {
-                        // 如果元素存在，显示出来
-                        el.style.display = '';
-                        // 如果异步数据已缓存，更新元素中的番茄钟显示，避免需刷新才能看到数据
-                        try {
-                            const cachedInfo = this.asyncDataCache && this.asyncDataCache.get(child.id);
-                            if (cachedInfo) {
-                                const pomEl = el.querySelector('.reminder-item__pomodoro-count') as HTMLElement | null;
-                                if (pomEl) {
-                                    const totalCount = cachedInfo.pomodoroCount || 0;
-                                    const todayCount = cachedInfo.todayPomodoroCount || 0;
-                                    const focusTimeMinutes = cachedInfo.focusTime || 0;
-                                    const todayFocusMinutes = cachedInfo.todayFocusTime || 0;
-                                    const formatMinutesToString = (minutes: number) => {
-                                        const hours = Math.floor(minutes / 60);
-                                        const mins = Math.floor(minutes % 60);
-                                        if (hours > 0) return `${hours}h ${mins}m`;
-                                        return `${mins}m`;
-                                    };
-                                    const totalFocusText = focusTimeMinutes > 0 ? ` ⏱ ${formatMinutesToString(focusTimeMinutes)}` : '';
-                                    const todayFocusText = (todayFocusMinutes > 0 || totalCount > 0) ? ` ⏱ ${formatMinutesToString(todayFocusMinutes)}` : '';
-                                    const totalLine = (totalCount > 0 || focusTimeMinutes > 0) ? `<span title="累计完成的番茄钟: ${totalCount}">🍅 ${totalCount}</span><span title="总专注时长: ${focusTimeMinutes} 分钟" style="margin-left:8px; opacity:0.9;">${totalFocusText}</span>` : '';
-                                    const todayLine = (todayCount > 0 || todayFocusMinutes > 0 || totalCount > 0) ? `<div style="margin-top:6px; font-size:12px; opacity:0.95;"><span title='今日完成的番茄钟: ${todayCount}'>今日: 🍅 ${todayCount}</span><span title='今日专注时长: ${todayFocusMinutes} 分钟' style='margin-left:8px'>${todayFocusText}</span></div>` : '';
+                if (el) {
+                    // 如果元素存在，显示出来
+                    el.style.display = '';
+                    // 如果异步数据已缓存，更新元素中的番茄钟显示，避免需刷新才能看到数据
+                    try {
+                        const cachedInfo = this.asyncDataCache && this.asyncDataCache.get(child.id);
+                        if (cachedInfo) {
+                            const pomEl = el.querySelector('.reminder-item__pomodoro-count') as HTMLElement | null;
+                            if (pomEl) {
+                                const totalCount = cachedInfo.pomodoroCount || 0;
+                                const todayCount = cachedInfo.todayPomodoroCount || 0;
+                                const focusTimeMinutes = cachedInfo.focusTime || 0;
+                                const todayFocusMinutes = cachedInfo.todayFocusTime || 0;
+                                const formatMinutesToString = (minutes: number) => {
+                                    const hours = Math.floor(minutes / 60);
+                                    const mins = Math.floor(minutes % 60);
+                                    if (hours > 0) return `${hours}h ${mins}m`;
+                                    return `${mins}m`;
+                                };
+                                const totalFocusText = focusTimeMinutes > 0 ? ` ⏱ ${formatMinutesToString(focusTimeMinutes)}` : '';
+                                const todayFocusText = (todayFocusMinutes > 0 || totalCount > 0) ? ` ⏱ ${formatMinutesToString(todayFocusMinutes)}` : '';
+                                const totalLine = (totalCount > 0 || focusTimeMinutes > 0) ? `<span title="累计完成的番茄钟: ${totalCount}">🍅 ${totalCount}</span><span title="总专注时长: ${focusTimeMinutes} 分钟" style="margin-left:8px; opacity:0.9;">${totalFocusText}</span>` : '';
+                                const todayLine = (todayCount > 0 || todayFocusMinutes > 0 || totalCount > 0) ? `<div style="margin-top:6px; font-size:12px; opacity:0.95;"><span title='今日完成的番茄钟: ${todayCount}'>今日: 🍅 ${todayCount}</span><span title='今日专注时长: ${todayFocusMinutes} 分钟' style='margin-left:8px'>${todayFocusText}</span></div>` : '';
 
-                                    const focusTimeText = focusTimeMinutes > 0 ? ` ⏱ ${formatMinutesToString(focusTimeMinutes)}` : '';
-                                    pomEl.innerHTML = `${totalLine}${todayLine}`;
-                                }
+                                const focusTimeText = focusTimeMinutes > 0 ? ` ⏱ ${formatMinutesToString(focusTimeMinutes)}` : '';
+                                pomEl.innerHTML = `${totalLine}${todayLine}`;
                             }
-                        } catch (updateErr) {
-                            // ignore DOM update errors
                         }
-                    } else {
+                    } catch (updateErr) {
+                        // ignore DOM update errors
+                    }
+                } else {
                     // 元素不存在：尝试基于所有可见提醒和默认数据创建元素（缺省 asyncDataCache）
                     try {
                         const today = getLocalDateString();
@@ -2705,11 +2705,11 @@ export class ReminderPanel {
                     } else {
                         timePart = s;
                     }
-                    
+
                     const targetDate = datePart || date || today;
-                    
+
                     if (compareDateStrings(targetDate, today) < 0) return ''; // 过去的不显示
-                    
+
                     if (compareDateStrings(targetDate, today) === 0) {
                         return timePart ? timePart.substring(0, 5) : '';
                     } else {
@@ -2719,7 +2719,7 @@ export class ReminderPanel {
                         return `${ds}${timePart ? ' ' + timePart.substring(0, 5) : ''}`;
                     }
                 }).filter(Boolean).join(', ');
-                
+
                 if (times) {
                     result += ` ⏰${times}`;
                 }
