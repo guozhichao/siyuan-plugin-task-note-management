@@ -21,6 +21,7 @@ export interface HabitCheckInEmoji {
 export interface Habit {
     id: string;
     title: string;
+    note?: string; // 提醒备注
     blockId?: string; // 绑定的块ID
     target: number; // 每次打卡需要打卡x次
     frequency: {
@@ -32,7 +33,7 @@ export interface Habit {
     startDate: string;
     endDate?: string;
     reminderTime?: string; // (向后兼容) 单个提醒时间
-    reminderTimes?: string[]; // 支持多个提醒时间
+    reminderTimes?: (string | { time: string; note?: string })[]; // 支持多个提醒时间
     groupId?: string; // 分组ID
     priority?: 'high' | 'medium' | 'low' | 'none';
     checkInEmojis: HabitCheckInEmoji[]; // 打卡emoji配置
@@ -730,7 +731,9 @@ export class HabitPanel {
         const timesList = Array.isArray(habit.reminderTimes) && habit.reminderTimes.length > 0 ? habit.reminderTimes : (habit.reminderTime ? [habit.reminderTime] : []);
         if (timesList && timesList.length > 0) {
             const reminder = document.createElement('div');
-            reminder.textContent = `提醒: ${timesList.join(', ')}`;
+            // 提取时间字符串，如果是对象则取 time 属性
+            const displayTimes = timesList.map(t => typeof t === 'string' ? t : t.time);
+            reminder.textContent = `提醒: ${displayTimes.join(', ')}`;
             reminder.style.cssText = 'font-size: 12px; color: var(--b3-theme-on-surface-light); margin-bottom: 4px;';
             card.appendChild(reminder);
         }

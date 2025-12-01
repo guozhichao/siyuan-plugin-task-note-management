@@ -2294,11 +2294,17 @@ export default class ReminderPlugin extends Plugin {
                     if (!habit || typeof habit !== 'object') continue;
 
                     // 需要设置 reminder times 才会被触发（兼容旧属性 reminderTime）
-                    const times: string[] = [];
+                    const times: { time: string; note?: string }[] = [];
                     if (Array.isArray(habit.reminderTimes) && habit.reminderTimes.length > 0) {
-                        times.push(...habit.reminderTimes);
+                        habit.reminderTimes.forEach((rt: any) => {
+                            if (typeof rt === 'string') {
+                                times.push({ time: rt });
+                            } else if (typeof rt === 'object' && rt.time) {
+                                times.push(rt);
+                            }
+                        });
                     } else if (habit.reminderTime) {
-                        times.push(habit.reminderTime);
+                        times.push({ time: habit.reminderTime });
                     }
                     if (times.length === 0) continue;
 
@@ -2314,7 +2320,8 @@ export default class ReminderPlugin extends Plugin {
 
 
                     // 对每个提醒时间进行判断（可能为时间或带日期的时间）
-                    for (const rt of times) {
+                    for (const rtObj of times) {
+                        const rt = rtObj.time;
                         const parsed = this.extractDateAndTime(rt);
                         if (parsed.date && parsed.date !== today) continue;
                         const habitTimeNum = this.timeStringToNumber(rt);
@@ -2336,7 +2343,7 @@ export default class ReminderPlugin extends Plugin {
                             id: habit.id,
                             blockId: habit.blockId || '',
                             title: habit.title || t('unnamedNote'),
-                            note: habit.note || '',
+                            note: rtObj.note || habit.note || '',
                             priority: habit.priority || 'none',
                             categoryId: habit.groupId || undefined,
                             time: parsed.time || rt,
@@ -2351,7 +2358,10 @@ export default class ReminderPlugin extends Plugin {
                         const systemNotificationEnabled = await this.getReminderSystemNotificationEnabled();
                         if (systemNotificationEnabled) {
                             const title = `⏰ ${t('habitReminder')}: ${reminderInfo.title}`;
-                            const message = `${reminderInfo.time}`.trim();
+                            let message = `${reminderInfo.time}`.trim();
+                            if (reminderInfo.note) {
+                                message += `\n📝 ${reminderInfo.note}`;
+                            }
                             this.showReminderSystemNotification(title, message, reminderInfo);
                         }
 

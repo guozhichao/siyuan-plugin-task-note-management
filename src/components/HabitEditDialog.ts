@@ -95,15 +95,27 @@ export class HabitEditDialog {
         addTimeBtn.textContent = '添加提醒时间';
         addTimeBtn.style.cssText = 'align-self:flex-start;';
 
-        const addTimeInput = (timeVal: string = '') => {
+        const addTimeInput = (timeVal: string | { time: string; note?: string } = '') => {
             const row = document.createElement('div');
             row.style.cssText = 'display:flex; gap:8px; align-items:center;';
+            
+            const timeStr = typeof timeVal === 'string' ? timeVal : timeVal.time;
+            const noteStr = typeof timeVal === 'object' ? timeVal.note || '' : '';
+
             const input = document.createElement('input');
             input.type = 'time';
-            input.name = 'reminderTimes';
+            input.name = 'reminderTimeValue';
             input.className = 'b3-text-field';
-            input.value = timeVal;
+            input.value = timeStr;
             input.style.cssText = 'width: 120px;';
+
+            const noteInput = document.createElement('input');
+            noteInput.type = 'text';
+            noteInput.name = 'reminderTimeNote';
+            noteInput.className = 'b3-text-field';
+            noteInput.placeholder = '备注';
+            noteInput.value = noteStr;
+            noteInput.style.cssText = 'flex: 1; min-width: 100px;';
 
             const removeBtn = document.createElement('button');
             removeBtn.type = 'button';
@@ -114,6 +126,7 @@ export class HabitEditDialog {
             });
 
             row.appendChild(input);
+            row.appendChild(noteInput);
             row.appendChild(removeBtn);
             reminderTimesContainer.appendChild(row);
         };
@@ -610,6 +623,7 @@ export class HabitEditDialog {
         const habit: Habit = {
             id: this.habit?.id || `habit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             title: title.trim(),
+            // note: (formData.get('note') as string)?.trim() || undefined, // 移除全局备注
             target: parseInt(formData.get('target') as string) || 1,
             frequency: {
                 type: frequencyType
@@ -638,12 +652,28 @@ export class HabitEditDialog {
         }
 
         // 从表单中收集 reminderTimes
-        const timesInputs = form.querySelectorAll('input[name="reminderTimes"]') as NodeListOf<HTMLInputElement>;
-        const reminderTimesArr: string[] = [];
-        timesInputs.forEach(i => { const v = i.value?.trim(); if (v) reminderTimesArr.push(v); });
+        const timeInputs = form.querySelectorAll('input[name="reminderTimeValue"]') as NodeListOf<HTMLInputElement>;
+        const noteInputs = form.querySelectorAll('input[name="reminderTimeNote"]') as NodeListOf<HTMLInputElement>;
+        
+        const reminderTimesArr: (string | { time: string; note?: string })[] = [];
+        
+        timeInputs.forEach((input, index) => {
+            const time = input.value?.trim();
+            if (time) {
+                const note = noteInputs[index]?.value?.trim();
+                if (note) {
+                    reminderTimesArr.push({ time, note });
+                } else {
+                    reminderTimesArr.push(time);
+                }
+            }
+        });
+
         if (reminderTimesArr.length > 0) {
             habit.reminderTimes = reminderTimesArr;
-            habit.reminderTime = reminderTimesArr[0];
+            // 兼容旧字段，取第一个时间
+            const first = reminderTimesArr[0];
+            habit.reminderTime = typeof first === 'string' ? first : first.time;
         } else {
             habit.reminderTimes = [];
             habit.reminderTime = undefined;
@@ -652,8 +682,8 @@ export class HabitEditDialog {
         // 如果是修改已有习惯，并且提醒时间被修改为新的值（或多个提醒时间发生变化），且新的提醒时间晚于当前时间，则重置当天 hasNotify 以便再次提醒
         if (this.habit) {
             // 比较旧旧/new times
-            const oldTimes = (this.habit.reminderTimes && Array.isArray(this.habit.reminderTimes) ? this.habit.reminderTimes : (this.habit.reminderTime ? [this.habit.reminderTime] : [])).map(String);
-            const newTimes = (habit.reminderTimes && Array.isArray(habit.reminderTimes) ? habit.reminderTimes : (habit.reminderTime ? [habit.reminderTime] : [])).map(String);
+            const oldTimes = (this.habit.reminderTimes && Array.isArray(this.habit.reminderTimes) ? this.habit.reminderTimes : (this.habit.reminderTime ? [this.habit.reminderTime] : [])).map(t => typeof t === 'string' ? t : t.time);
+            const newTimes = (habit.reminderTimes && Array.isArray(habit.reminderTimes) ? habit.reminderTimes : (habit.reminderTime ? [habit.reminderTime] : [])).map(t => typeof t === 'string' ? t : t.time);
             const timesChanged = JSON.stringify(oldTimes.sort()) !== JSON.stringify(newTimes.sort());
             if (timesChanged && newTimes.length > 0) {
                 try {
