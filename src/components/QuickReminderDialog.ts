@@ -1531,33 +1531,6 @@ export class QuickReminderDialog {
             }
         });
 
-        // 标题输入自动识别
-        titleInput?.addEventListener('blur', () => {
-            const title = titleInput.value.trim();
-            if (title) {
-                const autoDetected = this.autoDetectDateTimeFromTitle(title);
-                if (autoDetected.date && autoDetected.date !== this.initialDate) {
-                    // 如果识别到不同的日期，询问是否应用
-                    const dateStr = new Date(autoDetected.date + 'T00:00:00').toLocaleDateString('zh-CN');
-                    if (confirm(`检测到日期：${dateStr}${autoDetected.time ? ` ${autoDetected.time}` : ''}，是否应用？`)) {
-                        if (autoDetected.hasTime && autoDetected.time) {
-                            // 有时间信息：先设置复选框状态，再切换输入框类型，最后设置值
-                            noTimeCheckbox.checked = false;
-                            this.toggleDateTimeInputs(false);
-                            startDateInput.value = `${autoDetected.date}T${autoDetected.time}`;
-                        } else {
-                            // 只有日期信息：先设置复选框状态，再切换输入框类型，最后设置值
-                            noTimeCheckbox.checked = true;
-                            this.toggleDateTimeInputs(true);
-                            startDateInput.value = autoDetected.date;
-                        }
-                        if (autoDetected.cleanTitle && autoDetected.cleanTitle !== title) {
-                            titleInput.value = autoDetected.cleanTitle;
-                        }
-                    }
-                }
-            }
-        });
 
         // 优先级选择事件
         prioritySelector?.addEventListener('click', (e) => {
