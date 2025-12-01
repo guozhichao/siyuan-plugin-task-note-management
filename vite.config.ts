@@ -8,7 +8,6 @@ import fg from 'fast-glob';
 import fs from 'fs';
 import { execSync } from 'child_process';
 
-import vitePluginYamlI18n from './yaml-plugin';
 
 const env = process.env;
 const isSrcmap = env.VITE_SOURCEMAP === 'inline';
@@ -30,11 +29,6 @@ export default defineConfig({
     plugins: [
         svelte(),
 
-        vitePluginYamlI18n({
-            inDir: 'i18n',
-            outDir: `${outputDir}/i18n`
-        }),
-
         viteStaticCopy({
             targets: [
                 { src: "./README*.md", dest: "./" },
@@ -43,6 +37,7 @@ export default defineConfig({
                 { src: "./icon.png", dest: "./" },
                 { src: "./audios/*", dest: "./audios/" },
                 { src: "./assets/*", dest: "./assets/" },
+                { src: "./i18n/*", dest: "./i18n/" },
             ],
         }),
 
