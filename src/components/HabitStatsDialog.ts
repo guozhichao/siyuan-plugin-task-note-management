@@ -491,7 +491,6 @@ export class HabitStatsDialog {
                 return `${targetYear}年`;
             }
         }
-        return '';
     }
 
     private getWeekStart(date: Date): Date {
