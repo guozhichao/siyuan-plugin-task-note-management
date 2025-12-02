@@ -98,7 +98,7 @@ export class HabitEditDialog {
         const addTimeInput = (timeVal: string | { time: string; note?: string } = '') => {
             const row = document.createElement('div');
             row.style.cssText = 'display:flex; gap:8px; align-items:center;';
-            
+
             const timeStr = typeof timeVal === 'string' ? timeVal : timeVal.time;
             const noteStr = typeof timeVal === 'object' ? timeVal.note || '' : '';
 
@@ -654,9 +654,9 @@ export class HabitEditDialog {
         // 从表单中收集 reminderTimes
         const timeInputs = form.querySelectorAll('input[name="reminderTimeValue"]') as NodeListOf<HTMLInputElement>;
         const noteInputs = form.querySelectorAll('input[name="reminderTimeNote"]') as NodeListOf<HTMLInputElement>;
-        
+
         const reminderTimesArr: (string | { time: string; note?: string })[] = [];
-        
+
         timeInputs.forEach((input, index) => {
             const time = input.value?.trim();
             if (time) {
