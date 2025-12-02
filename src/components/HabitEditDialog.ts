@@ -707,12 +707,74 @@ export class HabitEditDialog {
                         return false;
                     });
                     if (laterThanNow && habit.hasNotify && habit.hasNotify[todayStr]) {
-                        // 如果存在多时间结构，清除当天的 per-time flags
-                        if (typeof habit.hasNotify[todayStr] === 'object') {
-                            delete habit.hasNotify[todayStr];
-                        } else if (habit.hasNotify[todayStr] === true) {
-                            // 清除整体标记
-                            delete habit.hasNotify[todayStr];
+                        try {
+                            // 目标：只重置/移除与「将来提醒时间」对应的标记，保留今天已发生的过去提醒记录。
+                            const entry = habit.hasNotify[todayStr];
+                            // 计算今天的旧提醒时间数组（从旧习惯数据中推导）
+                            const oldTimes = (this.habit?.reminderTimes && Array.isArray(this.habit.reminderTimes) ? this.habit.reminderTimes : (this.habit?.reminderTime ? [this.habit.reminderTime] : [])).map((t: any) => typeof t === 'string' ? t : t.time);
+
+                            // 确定哪些 newTimes 是今天且晚于当前时间
+                            const now = new Date();
+                            const futureTimes = newTimes.filter((t: string) => {
+                                try {
+                                    const parts = (t || '').split(':');
+                                    if (parts.length >= 2) {
+                                        const hour = parseInt(parts[0], 10);
+                                        const minute = parseInt(parts[1], 10);
+                                        if (!isNaN(hour) && !isNaN(minute)) {
+                                            const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute);
+                                            return dt.getTime() > now.getTime();
+                                        }
+                                    }
+                                } catch (err) {
+                                    return false;
+                                }
+                                return false;
+                            });
+
+                            if (typeof entry === 'object') {
+                                // 对象形式：逐个删除未来时间的标记（使其未被标记过，能够再次提醒）
+                                futureTimes.forEach((ft: string) => {
+                                    if ((entry as any)[ft]) {
+                                        delete (entry as any)[ft];
+                                    }
+                                });
+                                // 如果对象变为空，则删除当天的 entry
+                                if (Object.keys(entry as any).length === 0) {
+                                    delete habit.hasNotify[todayStr];
+                                }
+                            } else if (entry === true) {
+                                // 旧的 boolean 表示当天已被全量标记。我们尽量保留已发生的过去提醒并允许将来的提醒重新触发。
+                                // 将其转换为按时间的对象：把已知的旧提醒时间中发生在现在之前的标记为 true，未来时间保持未标记。
+                                const obj: any = {};
+                                const nowDate = new Date();
+                                oldTimes.forEach((ot: string) => {
+                                    try {
+                                        const parts = (ot || '').split(':');
+                                        if (parts.length >= 2) {
+                                            const hour = parseInt(parts[0], 10);
+                                            const minute = parseInt(parts[1], 10);
+                                            if (!isNaN(hour) && !isNaN(minute)) {
+                                                const dt = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate(), hour, minute);
+                                                if (dt.getTime() <= nowDate.getTime()) {
+                                                    obj[ot] = true; // 保留过去已提醒标记
+                                                }
+                                            }
+                                        }
+                                    } catch (err) {
+                                        // ignore parse error
+                                    }
+                                });
+                                // 如果 obj 为空（没有过去时间可标记），则不设置当天 entry；否则写回对象形式
+                                if (Object.keys(obj).length > 0) {
+                                    habit.hasNotify[todayStr] = obj;
+                                } else {
+                                    // 没有可保留的过去标记，删除当天条目以允许未来提醒
+                                    delete habit.hasNotify[todayStr];
+                                }
+                            }
+                        } catch (err) {
+                            console.warn('调整当天 hasNotify 失败:', err);
                         }
                     }
                 } catch (err) {
