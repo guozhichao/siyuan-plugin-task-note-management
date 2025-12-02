@@ -10,6 +10,7 @@ export class HabitStatsDialog {
     private currentTab: 'overview' | 'time' = 'overview';
     private currentTimeView: 'week' | 'month' | 'year' = 'week';
     private timeViewOffset: number = 0; // 用于周/月/年视图的偏移
+    private yearViewOffset: number = 0; // 用于年度视图的偏移
     private chartInstances: echarts.ECharts[] = [];
 
     constructor(habit: Habit) {
@@ -150,7 +151,9 @@ export class HabitStatsDialog {
         this.renderMonthlyView(monthlyContainer);
 
         // 年度视图
-        this.renderYearlyView(container);
+        const yearlyContainer = document.createElement('div');
+        container.appendChild(yearlyContainer);
+        this.renderYearlyView(yearlyContainer);
     }
 
     private calculateStreak(): number {
@@ -335,24 +338,67 @@ export class HabitStatsDialog {
 
     private renderYearlyView(container: HTMLElement) {
         const section = document.createElement('div');
+        section.style.cssText = 'margin-bottom: 24px;';
+
+        // 年视图工具栏
+        const toolbar = document.createElement('div');
+        toolbar.style.cssText = 'display:flex; gap:8px; align-items:center; margin-bottom:8px; justify-content:center;';
+
+        const prevBtn = document.createElement('button');
+        prevBtn.className = 'b3-button';
+        prevBtn.textContent = '◀';
+        prevBtn.addEventListener('click', () => {
+            this.yearViewOffset--;
+            this.rerenderYearlyView(container);
+        });
+
+        const todayBtn = document.createElement('button');
+        todayBtn.className = 'b3-button';
+        todayBtn.textContent = t("today");
+        todayBtn.addEventListener('click', () => {
+            this.yearViewOffset = 0;
+            this.rerenderYearlyView(container);
+        });
+
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'b3-button';
+        nextBtn.textContent = '▶';
+        nextBtn.addEventListener('click', () => {
+            this.yearViewOffset++;
+            this.rerenderYearlyView(container);
+        });
+
+        const now = new Date();
+        const year = now.getFullYear() + this.yearViewOffset;
+
+        const dateLabel = document.createElement('span');
+        dateLabel.style.cssText = 'font-weight:bold; margin-left:8px;';
+        dateLabel.textContent = `${year}${t("year")}`;
+
+        toolbar.appendChild(prevBtn);
+        toolbar.appendChild(todayBtn);
+        toolbar.appendChild(nextBtn);
+        toolbar.appendChild(dateLabel);
 
         const title = document.createElement('h3');
-        title.textContent = '年度打卡视图';
-        title.style.marginBottom = '12px';
-        section.appendChild(title);
+        title.textContent = t("habitYearlyView");
+        title.style.cssText = 'margin:0;';
+
+        const titleRow = document.createElement('div');
+        titleRow.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;';
+        titleRow.appendChild(title);
+        titleRow.appendChild(toolbar);
+        section.appendChild(titleRow);
 
         const yearGrid = document.createElement('div');
         yearGrid.style.cssText = 'display: grid; grid-template-columns: repeat(12, 1fr); gap: 8px;';
-
-        const now = this.currentMonthDate || new Date();
-        const year = now.getFullYear();
 
         for (let month = 0; month < 12; month++) {
             const monthCard = document.createElement('div');
             monthCard.style.cssText = 'padding: 8px; background: var(--b3-theme-surface); border-radius: 4px;';
 
             const monthName = document.createElement('div');
-            monthName.textContent = `${month + 1}月`;
+            monthName.textContent = `${month + 1}${t("month")}`;
             monthName.style.cssText = 'font-size: 12px; font-weight: bold; margin-bottom: 4px; text-align: center;';
             monthCard.appendChild(monthName);
 
@@ -368,7 +414,7 @@ export class HabitStatsDialog {
             }
 
             const countDiv = document.createElement('div');
-            countDiv.textContent = `${checkInCount}天`;
+            countDiv.textContent = `${checkInCount}${t("habitDays")}`;
             countDiv.style.cssText = 'font-size: 16px; font-weight: bold; text-align: center; color: var(--b3-theme-primary);';
             monthCard.appendChild(countDiv);
 
@@ -377,6 +423,127 @@ export class HabitStatsDialog {
 
         section.appendChild(yearGrid);
         container.appendChild(section);
+
+        // 热力图容器
+        const heatmapSection = document.createElement('div');
+        heatmapSection.style.cssText = 'margin-top: 24px;';
+
+        const heatmapTitle = document.createElement('h3');
+        heatmapTitle.textContent = t("habitYearlyHeatmap");
+        heatmapTitle.style.marginBottom = '12px';
+        heatmapSection.appendChild(heatmapTitle);
+
+        const heatmapContainer = document.createElement('div');
+        heatmapContainer.style.cssText = 'width: 100%; height: 180px;';
+        heatmapContainer.id = 'habitYearlyHeatmap';
+        heatmapSection.appendChild(heatmapContainer);
+
+        container.appendChild(heatmapSection);
+
+        // 渲染热力图
+        setTimeout(() => {
+            this.renderYearlyHeatmap(heatmapContainer, year);
+        }, 100);
+    }
+
+    private rerenderYearlyView(container: HTMLElement) {
+        // 清空容器并重新渲染
+        container.innerHTML = '';
+        this.destroyCharts();
+        this.renderYearlyView(container);
+    }
+
+    private renderYearlyHeatmap(container: HTMLElement, year: number) {
+        const chart = echarts.init(container);
+        this.chartInstances.push(chart);
+
+        // 准备热力图数据
+        const heatmapData: Array<[string, number]> = [];
+        const yearStart = new Date(year, 0, 1);
+        const yearEnd = new Date(year, 11, 31);
+
+        for (let d = new Date(yearStart); d <= yearEnd; d.setDate(d.getDate() + 1)) {
+            const dateStr = this.formatLocalDate(new Date(d));
+            const checkIn = this.habit.checkIns?.[dateStr];
+            const count = checkIn ? (checkIn.status?.length || 1) : 0;
+            heatmapData.push([dateStr, count]);
+        }
+
+        // 计算最大值用于颜色映射
+        const maxCount = Math.max(...heatmapData.map(d => d[1]), 1);
+
+        const option: echarts.EChartsOption = {
+            tooltip: {
+                trigger: 'item',
+                formatter: (params: any) => {
+                    const date = params.data[0];
+                    const count = params.data[1];
+                    const dateObj = new Date(date);
+                    const formattedDate = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+                    if (count === 0) {
+                        return `${formattedDate}<br/>${t("habitNoCheckIn")}`;
+                    }
+                    return `${formattedDate}<br/>${t("habitCheckInCount")}: ${count}`;
+                }
+            },
+            visualMap: {
+                min: 0,
+                max: maxCount,
+                calculable: false,
+                orient: 'horizontal',
+                left: 'center',
+                bottom: 0,
+                itemWidth: 13,
+                itemHeight: 13,
+                inRange: {
+                    color: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39']
+                },
+                text: [t("more"), t("less")],
+                textStyle: {
+                    fontSize: 12
+                }
+            },
+            calendar: {
+                top: 20,
+                left: 40,
+                right: 20,
+                bottom: 40,
+                cellSize: 13,
+                range: year,
+                itemStyle: {
+                    borderWidth: 2,
+                    borderColor: 'transparent',
+                    borderRadius: 2
+                },
+                yearLabel: { show: false },
+                dayLabel: {
+                    firstDay: 1,
+                    nameMap: 'ZH',
+                    fontSize: 10
+                },
+                monthLabel: {
+                    nameMap: 'ZH',
+                    fontSize: 11
+                },
+                splitLine: {
+                    show: false
+                }
+            },
+            series: [{
+                type: 'heatmap',
+                coordinateSystem: 'calendar',
+                data: heatmapData,
+                itemStyle: {
+                    borderRadius: 2
+                }
+            }]
+        };
+
+        chart.setOption(option);
+
+        // 响应式
+        const resizeObserver = new ResizeObserver(() => chart.resize());
+        resizeObserver.observe(container);
     }
 
     // ==================== 时间统计 Tab ====================

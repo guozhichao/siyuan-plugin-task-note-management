@@ -830,5 +830,9 @@
     "habitCheckInTime": "Check-in Time",
     "habitAvgTime": "Average Time",
     "habitCheckInItemLabel": "Check-in Item",
-    "habitCheckInCount": "Check-in Count"
+    "habitCheckInCount": "Check-in Count",
+    "habitYearlyView": "Yearly Check-in View",
+    "habitYearlyHeatmap": "Yearly Heatmap",
+    "habitNoCheckIn": "No Check-in",
+    "habitDays": " days"
 }

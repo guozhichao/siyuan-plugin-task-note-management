@@ -829,5 +829,9 @@
     "habitCheckInTime": "打卡时间",
     "habitAvgTime": "平均时间",
     "habitCheckInItemLabel": "打卡项",
-    "habitCheckInCount": "打卡次数"
+    "habitCheckInCount": "打卡次数",
+    "habitYearlyView": "年度打卡视图",
+    "habitYearlyHeatmap": "年度热力图",
+    "habitNoCheckIn": "未打卡",
+    "habitDays": "天"
 }
