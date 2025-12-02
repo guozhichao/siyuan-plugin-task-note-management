@@ -1417,68 +1417,78 @@ export class QuickReminderDialog {
     private renderCustomTimeList() {
         const container = this.dialog.element.querySelector('#quickCustomTimeList') as HTMLElement;
         if (!container) return;
-
+        // 渲染为多行可编辑输入：每行包含 datetime-local 输入、备注输入、移除按钮
         container.innerHTML = '';
         this.customTimes.forEach((item, index) => {
-            if (!item || !item.time) return; // 安全检查
+            if (!item) return;
 
-            const tag = document.createElement('div');
-            tag.className = 'custom-time-tag';
-            tag.style.cssText = `
+            const row = document.createElement('div');
+            row.className = 'custom-time-row';
+            row.style.cssText = `
                 display: flex;
+                gap: 8px;
                 align-items: center;
-                background: var(--b3-theme-surface);
-                border: 1px solid var(--b3-theme-surface-lighter);
-                border-radius: 4px;
-                padding: 2px 6px;
-                font-size: 12px;
-                cursor: pointer;
-            `;
-            tag.title = "点击编辑";
-
-            // 格式化显示
-            let displayTime = item.time;
-            if (item.time.includes('T')) {
-                const [d, t] = item.time.split('T');
-                displayTime = `${d} ${t}`;
-            }
-
-            const noteText = item.note ? ` (${item.note})` : '';
-
-            tag.innerHTML = `
-                <span>${displayTime}${noteText}</span>
-                <span class="remove-time-btn" data-index="${index}" style="
-                    margin-left: 6px;
-                    cursor: pointer;
-                    opacity: 0.6;
-                    font-weight: bold;
-                ">×</span>
+                width: 100%;
             `;
 
-            // 点击标签编辑
-            tag.addEventListener('click', (e) => {
-                // 如果点击的是删除按钮，不触发编辑
-                if ((e.target as HTMLElement).classList.contains('remove-time-btn')) return;
+            const timeInput = document.createElement('input');
+            timeInput.type = 'datetime-local';
+            timeInput.className = 'b3-text-field';
+            timeInput.style.cssText = 'flex: 1; min-width: 180px;';
+            timeInput.value = item.time || '';
 
-                const timeInput = this.dialog.element.querySelector('#quickCustomReminderTime') as HTMLInputElement;
-                const noteInput = this.dialog.element.querySelector('#quickCustomReminderNote') as HTMLInputElement;
+            const noteInput = document.createElement('input');
+            noteInput.type = 'text';
+            noteInput.className = 'b3-text-field';
+            noteInput.placeholder = '备注';
+            noteInput.style.cssText = 'width: 160px;';
+            noteInput.value = item.note || '';
 
-                if (timeInput) timeInput.value = item.time;
-                if (noteInput) noteInput.value = item.note || '';
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'b3-button b3-button--outline';
+            removeBtn.textContent = '移除';
 
-                // 移除当前项
+            // 绑定事件：更新模型并避免空时间项
+            timeInput.addEventListener('change', () => {
+                const v = timeInput.value?.trim();
+                if (!v) {
+                    // 如果时间被清空，则移除该项
+                    this.customTimes.splice(index, 1);
+                    this.renderCustomTimeList();
+                    return;
+                }
+                this.customTimes[index] = { time: v, note: this.customTimes[index]?.note || '' };
+            });
+
+            noteInput.addEventListener('input', () => {
+                const v = noteInput.value?.trim();
+                if (!this.customTimes[index]) {
+                    this.customTimes[index] = { time: timeInput.value || '', note: v };
+                } else {
+                    this.customTimes[index].note = v;
+                }
+            });
+
+            removeBtn.addEventListener('click', () => {
                 this.customTimes.splice(index, 1);
                 this.renderCustomTimeList();
             });
 
-            tag.querySelector('.remove-time-btn')?.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.customTimes.splice(index, 1);
-                this.renderCustomTimeList();
-            });
+            row.appendChild(timeInput);
+            row.appendChild(noteInput);
+            row.appendChild(removeBtn);
 
-            container.appendChild(tag);
+            container.appendChild(row);
         });
+
+        // 如果列表为空，则显示占位说明
+        if (this.customTimes.length === 0) {
+            const hint = document.createElement('div');
+            hint.style.cssText = 'color: var(--b3-theme-on-surface-light); font-size: 12px; width:100%;';
+            hint.textContent = '尚未添加自定义提醒时间；使用上方输入框或快速设置添加。';
+            container.appendChild(hint);
+        }
     }
 
     // 添加自定义时间
@@ -2270,7 +2280,7 @@ export class QuickReminderDialog {
                     reminder.categoryId = categoryId;
                     reminder.projectId = projectId;
                     reminder.customGroupId = customGroupId;
-                    reminder.customReminderTime = customReminderTime;
+                    // 不再使用旧的 `customReminderTime` 存储；所有自定义提醒统一保存到 `reminderTimes`
                     reminder.customReminderPreset = customReminderPreset;
                     reminder.reminderTimes = this.customTimes.length > 0 ? [...this.customTimes] : undefined;
                     reminder.repeat = this.repeatConfig.enabled ? this.repeatConfig : undefined;
@@ -2292,62 +2302,9 @@ export class QuickReminderDialog {
                     reminder.termType = termType;
                     reminder.updatedAt = new Date().toISOString();
 
-                    // 细化：按字段重置通知状态（因为时间或自定义提醒时间可能改变）
-                    try {
-                        const now = new Date();
-
-                        // 解析新的时间的完整 Date 对象（如果有日期）
-                        const newDateTime = date ? new Date(time ? `${date}T${time}` : `${date}T00:00:00`) : null;
-
-                        // 如果任务时间被修改且新的时间在未来，则重置 notifiedTime
-                        if (this.reminder.time !== time) {
-                            if (newDateTime && newDateTime > now) {
-                                reminder.notifiedTime = false;
-                            }
-                        }
-
-                        // 如果自定义提醒时间被修改且新的自定义提醒时间在未来，则重置 notifiedCustomTime
-                        if (this.reminder.customReminderTime !== customReminderTime) {
-                            if (customReminderTime) {
-                                // customReminderTime 可能是 datetime-local 或仅 time
-                                let customDateTime: Date | null = null;
-                                try {
-                                    if (customReminderTime.includes('T')) {
-                                        customDateTime = new Date(customReminderTime);
-                                    } else if (date) {
-                                        customDateTime = new Date(`${date}T${customReminderTime}`);
-                                    } else {
-                                        // 没有日期时，默认按当天处理
-                                        const today = getLocalDateString();
-                                        customDateTime = new Date(`${today}T${customReminderTime}`);
-                                    }
-                                } catch (err) {
-                                    customDateTime = null;
-                                }
-
-                                if (customDateTime && customDateTime > now) {
-                                    reminder.notifiedCustomTime = false;
-                                }
-                            }
-                        }
-
-                        // 重新计算总体 notified（如果只有其中之一存在，则以该字段为准）
-                        const hasTime = !!reminder.time;
-                        const hasCustom = !!reminder.customReminderTime;
-                        const nt = !!reminder.notifiedTime;
-                        const nc = !!reminder.notifiedCustomTime;
-                        if (hasTime && hasCustom) {
-                            reminder.notified = nt && nc;
-                        } else if (hasTime) {
-                            reminder.notified = nt;
-                        } else if (hasCustom) {
-                            reminder.notified = nc;
-                        } else {
-                            reminder.notified = false;
-                        }
-                    } catch (err) {
-                        reminder.notified = false;
-                    }
+                    // 不在编辑时修改已提醒标志（notifiedTime / notifiedCustomTime）。
+                    // 过去的提醒无需在编辑时处理，未来的提醒将在未来正常触发，
+                    // 所以这里保留原有的 notified 字段值，不做重置或计算。
 
                     reminderData[reminderId] = reminder;
                     await writeReminderData(reminderData);
@@ -2455,7 +2412,7 @@ export class QuickReminderDialog {
                     isQuickReminder: true, // 标记为快速创建的提醒
                     quadrant: this.defaultQuadrant, // 添加象限信息
                     termType: termType, // 添加任务类型（短期/长期）
-                    customReminderTime: customReminderTime,
+                    // 旧字段 `customReminderTime` 不再写入，新提醒统一保存到 `reminderTimes`
                     reminderTimes: this.customTimes.length > 0 ? [...this.customTimes] : undefined
                 };
 
