@@ -3127,11 +3127,6 @@ export default class ReminderPlugin extends Plugin {
         });
         this.tabViews.clear();
 
-        // 清理项目面板实例
-        if (this.projectPanel && typeof this.projectPanel.destroy === 'function') {
-            this.projectPanel.destroy();
-        }
-
         // 清理所有面包屑和块按钮
         document.querySelectorAll('.view-reminder-breadcrumb-btn, .project-breadcrumb-btn, .block-project-btn').forEach(btn => {
             btn.remove();
