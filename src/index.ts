@@ -3136,17 +3136,6 @@ export default class ReminderPlugin extends Plugin {
         document.querySelectorAll('.view-reminder-breadcrumb-btn, .project-breadcrumb-btn, .block-project-btn').forEach(btn => {
             btn.remove();
         });
-
-        // 断开所有protyle的MutationObserver
-        document.querySelectorAll('.protyle').forEach(protyleElement => {
-            const wysiwyg = protyleElement.querySelector('.protyle-wysiwyg');
-            if (wysiwyg && (wysiwyg as any).__projectObserver) {
-                try {
-                    (wysiwyg as any).__projectObserver.disconnect();
-                } catch (err) { }
-                delete (wysiwyg as any).__projectObserver;
-            }
-        });
     }    /**
      * 初始化系统通知权限
      */
