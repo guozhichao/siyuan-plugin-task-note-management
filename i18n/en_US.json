@@ -815,5 +815,20 @@
     "weekStartMonday": "Monday",
     "weekStartSunday": "Sunday",
     "allStatuses": "All Statuses",
-    "incomplete": "Incomplete"
+    "incomplete": "Incomplete",
+    "habitStats": "Statistics",
+    "habitOverviewTab": "Check-in Overview",
+    "habitTimeTab": "Time Statistics",
+    "habitTimeWeekView": "Week View",
+    "habitTimeMonthView": "Month View",
+    "habitTimeYearView": "Year View",
+    "habitTimeWeekChartTitle": "Weekly Check-in Time Distribution",
+    "habitTimeMonthChartTitle": "Monthly Average Check-in Time",
+    "habitTimeYearChartTitle": "Yearly Average Check-in Time",
+    "habitTimeAxisLabel": "Time",
+    "habitDateAxisLabel": "Date",
+    "habitCheckInTime": "Check-in Time",
+    "habitAvgTime": "Average Time",
+    "habitCheckInItemLabel": "Check-in Item",
+    "habitCheckInCount": "Check-in Count"
 }

@@ -814,5 +814,20 @@
     "weekStartMonday": "周一",
     "weekStartSunday": "周日",
     "allStatuses": "全部状态",
-    "incomplete": "未完成"
+    "incomplete": "未完成",
+    "habitStats": "统计信息",
+    "habitOverviewTab": "打卡概览",
+    "habitTimeTab": "时间统计",
+    "habitTimeWeekView": "周视图",
+    "habitTimeMonthView": "月视图",
+    "habitTimeYearView": "年视图",
+    "habitTimeWeekChartTitle": "本周打卡时间分布",
+    "habitTimeMonthChartTitle": "本月打卡平均时间",
+    "habitTimeYearChartTitle": "本年打卡平均时间",
+    "habitTimeAxisLabel": "时间",
+    "habitDateAxisLabel": "日期",
+    "habitCheckInTime": "打卡时间",
+    "habitAvgTime": "平均时间",
+    "habitCheckInItemLabel": "打卡项",
+    "habitCheckInCount": "打卡次数"
 }

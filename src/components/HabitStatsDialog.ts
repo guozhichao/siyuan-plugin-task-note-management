@@ -1,10 +1,16 @@
 import { Dialog } from "siyuan";
 import { Habit } from "./HabitPanel";
+import * as echarts from 'echarts';
+import { t } from "../utils/i18n";
 
 export class HabitStatsDialog {
     private dialog: Dialog;
     private habit: Habit;
     private currentMonthDate: Date = new Date();
+    private currentTab: 'overview' | 'time' = 'overview';
+    private currentTimeView: 'week' | 'month' | 'year' = 'week';
+    private timeViewOffset: number = 0; // 用于周/月/年视图的偏移
+    private chartInstances: echarts.ECharts[] = [];
 
     constructor(habit: Habit) {
         this.habit = habit;
@@ -12,21 +18,73 @@ export class HabitStatsDialog {
 
     show() {
         this.dialog = new Dialog({
-            title: `${this.habit.title} - 统计信息`,
+            title: `${this.habit.title} - ${t("habitStats")}`,
             content: '<div id="habitStatsContainer"></div>',
-            width: "800px",
-            height: "800px"
+            width: "900px",
+            height: "850px",
+            destroyCallback: () => {
+                this.destroyCharts();
+            }
         });
 
         const container = this.dialog.element.querySelector('#habitStatsContainer') as HTMLElement;
         if (!container) return;
 
         this.currentMonthDate = new Date();
-        this.renderStats(container);
+        this.renderContainer(container);
+    }
+
+    private destroyCharts() {
+        this.chartInstances.forEach(chart => {
+            if (chart && !chart.isDisposed()) {
+                chart.dispose();
+            }
+        });
+        this.chartInstances = [];
+    }
+
+    private renderContainer(container: HTMLElement) {
+        container.style.cssText = 'padding: 20px; overflow-y: auto; height: 100%;';
+        container.innerHTML = '';
+
+        // Tab 导航
+        const tabNav = document.createElement('div');
+        tabNav.style.cssText = 'display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--b3-theme-surface-lighter); padding-bottom: 12px;';
+
+        const overviewTab = document.createElement('button');
+        overviewTab.className = `b3-button ${this.currentTab !== 'overview' ? 'b3-button--outline' : ''}`;
+        overviewTab.textContent = t("habitOverviewTab");
+        overviewTab.style.cssText = this.currentTab === 'overview' ? 'font-weight: bold;' : '';
+        overviewTab.addEventListener('click', () => {
+            this.currentTab = 'overview';
+            this.renderContainer(container);
+        });
+
+        const timeTab = document.createElement('button');
+        timeTab.className = `b3-button ${this.currentTab !== 'time' ? 'b3-button--outline' : ''}`;
+        timeTab.textContent = t("habitTimeTab");
+        timeTab.style.cssText = this.currentTab === 'time' ? 'font-weight: bold;' : '';
+        timeTab.addEventListener('click', () => {
+            this.currentTab = 'time';
+            this.renderContainer(container);
+        });
+
+        tabNav.appendChild(overviewTab);
+        tabNav.appendChild(timeTab);
+        container.appendChild(tabNav);
+
+        // 内容区域
+        const contentArea = document.createElement('div');
+        container.appendChild(contentArea);
+
+        if (this.currentTab === 'overview') {
+            this.renderStats(contentArea);
+        } else {
+            this.renderTimeStats(contentArea);
+        }
     }
 
     private renderStats(container: HTMLElement) {
-        container.style.cssText = 'padding: 20px; overflow-y: auto; height: 100%;';
 
         // 注意：月份切换工具栏已移动到 renderMonthlyView 内部以便只在月度视图显示
 
@@ -319,5 +377,643 @@ export class HabitStatsDialog {
 
         section.appendChild(yearGrid);
         container.appendChild(section);
+    }
+
+    // ==================== 时间统计 Tab ====================
+
+    private renderTimeStats(container: HTMLElement) {
+        // 销毁之前的图表实例
+        this.destroyCharts();
+
+        // 视图切换按钮
+        const viewSelector = document.createElement('div');
+        viewSelector.style.cssText = 'display: flex; gap: 8px; margin-bottom: 16px; align-items: center;';
+
+        const views: Array<{ key: 'week' | 'month' | 'year', label: string }> = [
+            { key: 'week', label: t("habitTimeWeekView") },
+            { key: 'month', label: t("habitTimeMonthView") },
+            { key: 'year', label: t("habitTimeYearView") }
+        ];
+
+        views.forEach(view => {
+            const btn = document.createElement('button');
+            btn.className = `b3-button ${this.currentTimeView !== view.key ? 'b3-button--outline' : ''}`;
+            btn.textContent = view.label;
+            btn.style.cssText = this.currentTimeView === view.key ? 'font-weight: bold;' : '';
+            btn.addEventListener('click', () => {
+                this.currentTimeView = view.key;
+                this.timeViewOffset = 0;
+                this.renderTimeStats(container);
+            });
+            viewSelector.appendChild(btn);
+        });
+
+        // 导航按钮
+        const navContainer = document.createElement('div');
+        navContainer.style.cssText = 'display: flex; gap: 8px; margin-left: auto; align-items: center;';
+
+        const prevBtn = document.createElement('button');
+        prevBtn.className = 'b3-button';
+        prevBtn.textContent = '◀';
+        prevBtn.addEventListener('click', () => {
+            this.timeViewOffset--;
+            this.renderTimeStats(container);
+        });
+
+        const todayBtn = document.createElement('button');
+        todayBtn.className = 'b3-button';
+        todayBtn.textContent = t("today");
+        todayBtn.addEventListener('click', () => {
+            this.timeViewOffset = 0;
+            this.renderTimeStats(container);
+        });
+
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'b3-button';
+        nextBtn.textContent = '▶';
+        nextBtn.addEventListener('click', () => {
+            this.timeViewOffset++;
+            this.renderTimeStats(container);
+        });
+
+        const dateRangeLabel = document.createElement('span');
+        dateRangeLabel.style.cssText = 'font-weight: bold; margin-left: 8px;';
+        dateRangeLabel.textContent = this.getTimeViewDateRange();
+
+        navContainer.appendChild(prevBtn);
+        navContainer.appendChild(todayBtn);
+        navContainer.appendChild(nextBtn);
+        navContainer.appendChild(dateRangeLabel);
+
+        viewSelector.appendChild(navContainer);
+        container.innerHTML = '';
+        container.appendChild(viewSelector);
+
+        // 图表容器
+        const chartContainer = document.createElement('div');
+        chartContainer.style.cssText = 'width: 100%; height: 500px; margin-top: 16px;';
+        chartContainer.id = 'habitTimeChart';
+        container.appendChild(chartContainer);
+
+        // 根据视图渲染图表
+        setTimeout(() => {
+            switch (this.currentTimeView) {
+                case 'week':
+                    this.renderWeekTimeChart(chartContainer);
+                    break;
+                case 'month':
+                    this.renderMonthTimeChart(chartContainer);
+                    break;
+                case 'year':
+                    this.renderYearTimeChart(chartContainer);
+                    break;
+            }
+        }, 100);
+    }
+
+    private getTimeViewDateRange(): string {
+        const now = new Date();
+
+        switch (this.currentTimeView) {
+            case 'week': {
+                const weekStart = this.getWeekStart(now);
+                weekStart.setDate(weekStart.getDate() + this.timeViewOffset * 7);
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekEnd.getDate() + 6);
+                return `${this.formatLocalDate(weekStart)} ~ ${this.formatLocalDate(weekEnd)}`;
+            }
+            case 'month': {
+                const targetMonth = new Date(now.getFullYear(), now.getMonth() + this.timeViewOffset, 1);
+                return `${targetMonth.getFullYear()}年${targetMonth.getMonth() + 1}月`;
+            }
+            case 'year': {
+                const targetYear = now.getFullYear() + this.timeViewOffset;
+                return `${targetYear}年`;
+            }
+        }
+        return '';
+    }
+
+    private getWeekStart(date: Date): Date {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1); // 周一为一周开始
+        d.setDate(diff);
+        d.setHours(0, 0, 0, 0);
+        return d;
+    }
+
+    private getCheckInTimeData(): Array<{ date: string; emoji: string; time: string; hour: number }> {
+        const data: Array<{ date: string; emoji: string; time: string; hour: number }> = [];
+
+        Object.entries(this.habit.checkIns || {}).forEach(([dateStr, checkIn]) => {
+            // 优先使用 entries（详细记录）
+            if (checkIn.entries && checkIn.entries.length > 0) {
+                checkIn.entries.forEach(entry => {
+                    if (entry.timestamp) {
+                        const time = this.extractTimeFromTimestamp(entry.timestamp);
+                        if (time) {
+                            data.push({
+                                date: dateStr,
+                                emoji: entry.emoji,
+                                time: time,
+                                hour: parseInt(time.split(':')[0])
+                            });
+                        }
+                    }
+                });
+            } else if (checkIn.timestamp && checkIn.status && checkIn.status.length > 0) {
+                // 兼容旧格式：只有一个时间戳
+                const time = this.extractTimeFromTimestamp(checkIn.timestamp);
+                if (time) {
+                    checkIn.status.forEach(emoji => {
+                        data.push({
+                            date: dateStr,
+                            emoji: emoji,
+                            time: time,
+                            hour: parseInt(time.split(':')[0])
+                        });
+                    });
+                }
+            }
+        });
+
+        return data;
+    }
+
+    private extractTimeFromTimestamp(timestamp: string): string | null {
+        // 支持格式: "2024-12-01 10:30:45" 或 "2024-12-01T10:30:45" 或 ISO格式
+        const match = timestamp.match(/(\d{2}):(\d{2})/);
+        if (match) {
+            return `${match[1]}:${match[2]}`;
+        }
+        return null;
+    }
+
+    private renderWeekTimeChart(container: HTMLElement) {
+        const chart = echarts.init(container);
+        this.chartInstances.push(chart);
+
+        const now = new Date();
+        const weekStart = this.getWeekStart(now);
+        weekStart.setDate(weekStart.getDate() + this.timeViewOffset * 7);
+
+        // 获取本周日期
+        const weekDates: string[] = [];
+        const weekLabels: string[] = [];
+        const dayNames = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(weekStart);
+            d.setDate(d.getDate() + i);
+            weekDates.push(this.formatLocalDate(d));
+            weekLabels.push(`${dayNames[i]}\n${d.getMonth() + 1}/${d.getDate()}`);
+        }
+
+        // 获取打卡数据
+        const allData = this.getCheckInTimeData();
+        const weekData = allData.filter(d => weekDates.includes(d.date));
+
+        // 获取所有emoji及其颜色
+        const emojiSet = new Set<string>();
+        weekData.forEach(d => emojiSet.add(d.emoji));
+        const emojis = Array.from(emojiSet);
+        const colors = this.generateColors(emojis.length);
+
+        // 构建散点数据: [x时间(小时), y日期索引, emoji索引]
+        const seriesData: Array<{ emoji: string; data: Array<[number, number, string]> }> = emojis.map((emoji) => ({
+            emoji,
+            data: weekData
+                .filter(d => d.emoji === emoji)
+                .map(d => {
+                    const dateIdx = weekDates.indexOf(d.date);
+                    const timeParts = d.time.split(':');
+                    const hour = parseInt(timeParts[0]) + parseInt(timeParts[1]) / 60;
+                    return [hour, dateIdx, d.time] as [number, number, string];
+                })
+        }));
+
+        const option: echarts.EChartsOption = {
+            title: {
+                text: t("habitTimeWeekChartTitle"),
+                left: 'center',
+                top: 10
+            },
+            tooltip: {
+                trigger: 'item',
+                formatter: (params: any) => {
+                    const dateLabel = weekLabels[params.data[1]];
+                    const time = params.data[2];
+                    const meaning = this.getEmojiMeaning(params.seriesName);
+                    return `${params.seriesName} ${meaning}<br/>${dateLabel.replace('\n', ' ')}<br/>${t("habitCheckInTime")}: ${time}`;
+                }
+            },
+            legend: {
+                data: emojis,
+                bottom: 10,
+                type: 'scroll',
+                formatter: (name: string) => `${name} ${this.getEmojiMeaning(name)}`
+            },
+            grid: {
+                left: 80,
+                right: 40,
+                top: 60,
+                bottom: 60
+            },
+            xAxis: {
+                type: 'value',
+                name: t("habitTimeAxisLabel"),
+                min: 0,
+                max: 24,
+                interval: 2,
+                axisLabel: {
+                    formatter: (value: number) => `${Math.floor(value)}:00`
+                }
+            },
+            yAxis: {
+                type: 'category',
+                data: weekLabels,
+                inverse: true
+            },
+            series: seriesData.map((s, idx) => ({
+                name: s.emoji,
+                type: 'scatter',
+                symbolSize: 20,
+                data: s.data,
+                itemStyle: {
+                    color: 'transparent'
+                },
+                label: {
+                    show: true,
+                    formatter: s.emoji,
+                    position: 'inside',
+                    fontSize: 16,
+                    color: colors[idx]
+                }
+            }))
+        };
+
+        chart.setOption(option);
+
+        // 响应式
+        const resizeObserver = new ResizeObserver(() => chart.resize());
+        resizeObserver.observe(container);
+    }
+
+    private renderMonthTimeChart(container: HTMLElement) {
+        const chart = echarts.init(container);
+        this.chartInstances.push(chart);
+
+        const now = new Date();
+        const targetMonth = new Date(now.getFullYear(), now.getMonth() + this.timeViewOffset, 1);
+        const year = targetMonth.getFullYear();
+        const month = targetMonth.getMonth();
+
+        // 获取本月所有日期
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const monthDates: string[] = [];
+        for (let d = 1; d <= daysInMonth; d++) {
+            monthDates.push(this.formatLocalDate(new Date(year, month, d)));
+        }
+
+        // 获取打卡数据
+        const allData = this.getCheckInTimeData();
+        const monthData = allData.filter(d => monthDates.includes(d.date));
+
+        // 按emoji分组，统计每个小时的打卡次数
+        const emojiSet = new Set<string>();
+        monthData.forEach(d => emojiSet.add(d.emoji));
+        const emojis = Array.from(emojiSet);
+
+        if (emojis.length === 0) {
+            container.innerHTML = `<div style="text-align: center; padding: 100px; color: var(--b3-theme-on-surface-light);">${t("noData")}</div>`;
+            return;
+        }
+
+        // 统计每个emoji在每个小时的打卡次数
+        const emojiHourlyStats: Record<string, number[]> = {};
+        const emojiTotalCount: Record<string, number> = {};
+        emojis.forEach(emoji => {
+            emojiHourlyStats[emoji] = new Array(24).fill(0);
+            emojiTotalCount[emoji] = 0;
+        });
+
+        monthData.forEach(d => {
+            const hour = parseInt(d.time.split(':')[0]);
+            if (hour >= 0 && hour < 24) {
+                emojiHourlyStats[d.emoji][hour]++;
+            }
+            emojiTotalCount[d.emoji]++;
+        });
+
+        // 构建 custom series 数据
+        const series: any[] = [];
+        const colors = this.generateColors(emojis.length);
+
+        emojis.forEach((emoji, emojiIdx) => {
+            const data: Array<[number, number, number, number, string]> = [];
+
+            for (let hour = 0; hour < 24; hour++) {
+                const count = emojiHourlyStats[emoji][hour];
+                if (count > 0) {
+                    data.push([
+                        hour,       // x轴：开始小时
+                        emojiIdx,   // y轴：emoji索引
+                        hour + 1,   // 结束小时
+                        count,      // 总次数
+                        emoji       // emoji
+                    ]);
+                }
+            }
+
+            if (data.length > 0) {
+                // 计算该emoji的最大次数用于颜色深度
+                const maxCount = Math.max(...data.map(d => d[3]));
+
+                series.push({
+                    name: emoji,
+                    type: 'custom',
+                    renderItem: (_params: any, api: any) => {
+                        const start = api.value(0);
+                        const end = api.value(2);
+                        const count = api.value(3);
+                        const yIndex = api.value(1);
+                        const y = api.coord([0, yIndex])[1];
+                        const startX = api.coord([start, 0])[0];
+                        const endX = api.coord([end, 0])[0];
+
+                        // 根据打卡次数调整高度和透明度
+                        const intensity = count / maxCount;
+                        const height = 20 + intensity * 15;
+                        const opacity = 0.5 + intensity * 0.5;
+
+                        return {
+                            type: 'rect',
+                            shape: {
+                                x: startX,
+                                y: y - height / 2,
+                                width: Math.max(endX - startX - 2, 4),
+                                height: height
+                            },
+                            style: {
+                                fill: colors[emojiIdx],
+                                opacity: opacity
+                            }
+                        };
+                    },
+                    data: data,
+                    tooltip: {
+                        formatter: (params: any) => {
+                            const hour = params.value[0];
+                            const count = params.value[3];
+                            const emoji = params.value[4];
+                            const meaning = this.getEmojiMeaning(emoji);
+                            return `${emoji} ${meaning}<br/>${hour}:00 - ${hour + 1}:00<br/>${t("habitCheckInCount")}: ${count}`;
+                        }
+                    }
+                });
+            }
+        });
+
+        const option: echarts.EChartsOption = {
+            title: {
+                text: t("habitTimeMonthChartTitle"),
+                left: 'center',
+                top: 10
+            },
+            tooltip: {
+                trigger: 'item'
+            },
+            legend: {
+                data: emojis,
+                bottom: 5,
+                type: 'scroll',
+                formatter: (name: string) => `${name} ${this.getEmojiMeaning(name)}`
+            },
+            grid: {
+                left: 60,
+                right: 40,
+                top: 60,
+                bottom: 80
+            },
+            xAxis: {
+                type: 'value',
+                min: 0,
+                max: 24,
+                interval: 2,
+                axisLabel: {
+                    formatter: (value: number) => `${value}:00`
+                },
+                name: t("habitTimeAxisLabel"),
+                nameLocation: 'middle',
+                nameGap: 25
+            },
+            yAxis: {
+                type: 'category',
+                data: emojis,
+                axisLabel: {
+                    fontSize: 14,
+                    formatter: (value: string) => `${value} (${emojiTotalCount[value] || 0})`
+                },
+                axisTick: {
+                    length: 0
+                }
+            },
+            series: series
+        };
+
+        chart.setOption(option);
+
+        // 响应式
+        const resizeObserver = new ResizeObserver(() => chart.resize());
+        resizeObserver.observe(container);
+    }
+
+    private renderYearTimeChart(container: HTMLElement) {
+        const chart = echarts.init(container);
+        this.chartInstances.push(chart);
+
+        const now = new Date();
+        const targetYear = now.getFullYear() + this.timeViewOffset;
+
+        // 获取本年所有日期
+        const yearStart = new Date(targetYear, 0, 1);
+        const yearEnd = new Date(targetYear, 11, 31);
+        const yearDates: string[] = [];
+        for (let d = new Date(yearStart); d <= yearEnd; d.setDate(d.getDate() + 1)) {
+            yearDates.push(this.formatLocalDate(new Date(d)));
+        }
+
+        // 获取打卡数据
+        const allData = this.getCheckInTimeData();
+        const yearData = allData.filter(d => yearDates.includes(d.date));
+
+        // 按emoji分组，统计每个小时的打卡次数
+        const emojiSet = new Set<string>();
+        yearData.forEach(d => emojiSet.add(d.emoji));
+        const emojis = Array.from(emojiSet);
+
+        if (emojis.length === 0) {
+            container.innerHTML = `<div style="text-align: center; padding: 100px; color: var(--b3-theme-on-surface-light);">${t("noData")}</div>`;
+            return;
+        }
+
+        // 统计每个emoji在每个小时的打卡次数
+        const emojiHourlyStats: Record<string, number[]> = {};
+        const emojiTotalCount: Record<string, number> = {};
+        emojis.forEach(emoji => {
+            emojiHourlyStats[emoji] = new Array(24).fill(0);
+            emojiTotalCount[emoji] = 0;
+        });
+
+        yearData.forEach(d => {
+            const hour = parseInt(d.time.split(':')[0]);
+            if (hour >= 0 && hour < 24) {
+                emojiHourlyStats[d.emoji][hour]++;
+            }
+            emojiTotalCount[d.emoji]++;
+        });
+
+        // 构建 custom series 数据
+        const series: any[] = [];
+        const colors = this.generateColors(emojis.length);
+
+        emojis.forEach((emoji, emojiIdx) => {
+            const data: Array<[number, number, number, number, string]> = [];
+
+            for (let hour = 0; hour < 24; hour++) {
+                const count = emojiHourlyStats[emoji][hour];
+                if (count > 0) {
+                    data.push([
+                        hour,       // x轴：开始小时
+                        emojiIdx,   // y轴：emoji索引
+                        hour + 1,   // 结束小时
+                        count,      // 总次数
+                        emoji       // emoji
+                    ]);
+                }
+            }
+
+            if (data.length > 0) {
+                // 计算该emoji的最大次数用于颜色深度
+                const maxCount = Math.max(...data.map(d => d[3]));
+
+                series.push({
+                    name: emoji,
+                    type: 'custom',
+                    renderItem: (_params: any, api: any) => {
+                        const start = api.value(0);
+                        const end = api.value(2);
+                        const count = api.value(3);
+                        const yIndex = api.value(1);
+                        const y = api.coord([0, yIndex])[1];
+                        const startX = api.coord([start, 0])[0];
+                        const endX = api.coord([end, 0])[0];
+
+                        // 根据打卡次数调整高度和透明度
+                        const intensity = count / maxCount;
+                        const height = 20 + intensity * 15;
+                        const opacity = 0.5 + intensity * 0.5;
+
+                        return {
+                            type: 'rect',
+                            shape: {
+                                x: startX,
+                                y: y - height / 2,
+                                width: Math.max(endX - startX - 2, 4),
+                                height: height
+                            },
+                            style: {
+                                fill: colors[emojiIdx],
+                                opacity: opacity
+                            }
+                        };
+                    },
+                    data: data,
+                    tooltip: {
+                        formatter: (params: any) => {
+                            const hour = params.value[0];
+                            const count = params.value[3];
+                            const emoji = params.value[4];
+                            const meaning = this.getEmojiMeaning(emoji);
+                            return `${emoji} ${meaning}<br/>${hour}:00 - ${hour + 1}:00<br/>${t("habitCheckInCount")}: ${count}`;
+                        }
+                    }
+                });
+            }
+        });
+
+        const option: echarts.EChartsOption = {
+            title: {
+                text: t("habitTimeYearChartTitle"),
+                left: 'center',
+                top: 10
+            },
+            tooltip: {
+                trigger: 'item'
+            },
+            legend: {
+                data: emojis,
+                bottom: 5,
+                type: 'scroll',
+                formatter: (name: string) => `${name} ${this.getEmojiMeaning(name)}`
+            },
+            grid: {
+                left: 60,
+                right: 40,
+                top: 60,
+                bottom: 80
+            },
+            xAxis: {
+                type: 'value',
+                min: 0,
+                max: 24,
+                interval: 2,
+                axisLabel: {
+                    formatter: (value: number) => `${value}:00`
+                },
+                name: t("habitTimeAxisLabel"),
+                nameLocation: 'middle',
+                nameGap: 25
+            },
+            yAxis: {
+                type: 'category',
+                data: emojis,
+                axisLabel: {
+                    fontSize: 14,
+                    formatter: (value: string) => `${value} (${emojiTotalCount[value] || 0})`
+                },
+                axisTick: {
+                    length: 0
+                }
+            },
+            series: series
+        };
+
+        chart.setOption(option);
+
+        // 响应式
+        const resizeObserver = new ResizeObserver(() => chart.resize());
+        resizeObserver.observe(container);
+    }
+
+    private generateColors(count: number): string[] {
+        const baseColors = [
+            '#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de',
+            '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc', '#48b8d0',
+            '#ff9f7f', '#87c4ff', '#ffb980', '#d4a5a5', '#a5d4a5'
+        ];
+
+        const colors: string[] = [];
+        for (let i = 0; i < count; i++) {
+            colors.push(baseColors[i % baseColors.length]);
+        }
+        return colors;
+    }
+
+    // 根据emoji获取其含义
+    private getEmojiMeaning(emoji: string): string {
+        const emojiConfig = this.habit.checkInEmojis.find(e => e.emoji === emoji);
+        return emojiConfig?.meaning || emoji;
     }
 }
