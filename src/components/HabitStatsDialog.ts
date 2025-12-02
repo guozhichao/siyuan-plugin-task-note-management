@@ -15,7 +15,7 @@ export class HabitStatsDialog {
             title: `${this.habit.title} - 统计信息`,
             content: '<div id="habitStatsContainer"></div>',
             width: "800px",
-            height: "600px"
+            height: "800px"
         });
 
         const container = this.dialog.element.querySelector('#habitStatsContainer') as HTMLElement;
