@@ -1049,6 +1049,9 @@ export class QuickReminderDialog {
 
                         <div class="b3-form__group">
                             <label class="b3-form__label">自定义提醒时间 (可选，支持多个)</label>
+                            <div id="quickCustomTimeList" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+                                <!-- Added times will be shown here -->
+                            </div>
                             <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
                                 <input type="datetime-local" id="quickCustomReminderTime" class="b3-text-field" style="flex: 1;">
                                 <input type="text" id="quickCustomReminderNote" class="b3-text-field" placeholder="备注" style="width: 120px;">
@@ -1056,9 +1059,7 @@ export class QuickReminderDialog {
                                     <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
                                 </button>
                             </div>
-                            <div id="quickCustomTimeList" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
-                                <!-- Added times will be shown here -->
-                            </div>
+
                             <div style="width: 100%;">
                                 <label class="b3-form__label" style="font-size: 12px;">快速设置</label>
                                 <select id="quickCustomReminderPreset" class="b3-select" style="width: 100%;">
