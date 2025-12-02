@@ -426,7 +426,7 @@ export class PomodoroStatsView {
 
         return `
             <div class="heatmap-echarts-container">
-                <div id="${chartId}" class="echarts-heatmap-chart" style="width: 100%; height: 500px;"></div>
+                <div id="${chartId}" class="echarts-heatmap-chart" style="width: 100%; height: 180px;"></div>
             </div>
         `;
     }
@@ -1106,7 +1106,9 @@ export class PomodoroStatsView {
 
             // 响应式调整
             const resizeObserver = new ResizeObserver(() => {
-                chart.resize();
+                if (chart && !chart.isDisposed()) {
+                    chart.resize();
+                }
             });
             resizeObserver.observe(chartElement);
 
@@ -1157,7 +1159,7 @@ export class PomodoroStatsView {
             // 计算最大值用于颜色映射
             const maxValue = Math.max(...dataList.map(d => d[1] as number));
 
-            // 配置选项
+            // 配置选项 - GitHub风格热力图
             const option = {
                 title: {
                     text: `${this.currentYear}年专注时间热力图`,
@@ -1169,7 +1171,7 @@ export class PomodoroStatsView {
                     }
                 },
                 tooltip: {
-                    position: 'top',
+                    trigger: 'item',
                     formatter: (params: any) => {
                         const date = new Date(params.data[0]);
                         const dateStr = date.toLocaleDateString('zh-CN', {
@@ -1178,57 +1180,64 @@ export class PomodoroStatsView {
                             day: 'numeric'
                         });
                         const time = params.data[1];
+                        if (time === 0) {
+                            return `${dateStr}<br/>无专注记录`;
+                        }
                         const timeStr = this.recordManager.formatTime(time);
                         return `${dateStr}<br/>专注时间: ${timeStr}`;
                     }
                 },
                 visualMap: {
                     min: 0,
-                    max: maxValue || 600, // 默认最大值10小时
-                    type: 'piecewise',
+                    max: maxValue || 240,
+                    calculable: false,
+                    hoverLink: false,
                     orient: 'horizontal',
-                    calculable: true,    // 允许交互（点击色块切换）
                     left: 'center',
-                    bottom: 20,
-                    pieces: [
-                        { min: 0, max: 0, color: '#ebedf0', label: '无' },
-                        { min: 1, max: 60, color: '#7bc96f', label: '1小时内' },
-                        { min: 61, max: 120, color: '#c6e48b', label: '1-2小时' },
-                        { min: 121, max: 240, color: '#60d377ff', label: '2-4小时' },
-                        { min: 241, max: 360, color: '#2da344ff', label: '4-6小时' },
-                        { min: 361, max: 480, color: '#196127', label: '6-8小时' },
-                        { min: 481, color: '#003500', label: '8小时以上' }
-                    ],
+                    bottom: 10,
+                    itemWidth: 13,
+                    itemHeight: 80,
+                    inRange: {
+                        color: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39']
+                    },
+                    text: [t("more"), t("less")],
                     textStyle: {
                         fontSize: 12
                     }
                 },
                 calendar: {
-                    top: 60,
-                    left: 50,
-                    right: 50,
-                    bottom: 80,
-                    cellSize: ['auto', 4],
+                    top: 50,
+                    left: 40,
+                    right: 20,
+                    bottom: 60,
+                    cellSize: 13,
                     range: this.currentYear,
                     itemStyle: {
-                        borderWidth: 0.5,
-                        borderColor: '#fff'
+                        borderWidth: 2,
+                        borderColor: 'transparent',
+                        borderRadius: 2
                     },
                     yearLabel: { show: false },
                     monthLabel: {
-                        nameMap: ['1月', '2月', '3月', '4月', '5月', '6月',
-                            '7月', '8月', '9月', '10月', '11月', '12月'],
-                        fontSize: 12
+                        nameMap: 'ZH',
+                        fontSize: 11
                     },
                     dayLabel: {
-                        nameMap: ['日', '一', '二', '三', '四', '五', '六'],
-                        fontSize: 12
+                        firstDay: 1,
+                        nameMap: 'ZH',
+                        fontSize: 10
+                    },
+                    splitLine: {
+                        show: false
                     }
                 },
                 series: [{
                     type: 'heatmap',
                     coordinateSystem: 'calendar',
-                    data: dataList
+                    data: dataList,
+                    itemStyle: {
+                        borderRadius: 2
+                    }
                 }]
             };
 
@@ -1237,7 +1246,9 @@ export class PomodoroStatsView {
 
             // 响应式调整
             const resizeObserver = new ResizeObserver(() => {
-                chart.resize();
+                if (chart && !chart.isDisposed()) {
+                    chart.resize();
+                }
             });
             resizeObserver.observe(chartElement);
 
@@ -1474,7 +1485,9 @@ export class PomodoroStatsView {
 
             // 响应式调整
             const resizeObserver = new ResizeObserver(() => {
-                chart.resize();
+                if (chart && !chart.isDisposed()) {
+                    chart.resize();
+                }
             });
             resizeObserver.observe(chartElement);
 

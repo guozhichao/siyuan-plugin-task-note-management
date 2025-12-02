@@ -12,6 +12,7 @@ export class HabitStatsDialog {
     private timeViewOffset: number = 0; // 用于周/月/年视图的偏移
     private yearViewOffset: number = 0; // 用于年度视图的偏移
     private chartInstances: echarts.ECharts[] = [];
+    private resizeObservers: ResizeObserver[] = [];
 
     constructor(habit: Habit) {
         this.habit = habit;
@@ -36,6 +37,13 @@ export class HabitStatsDialog {
     }
 
     private destroyCharts() {
+        // 先断开所有 ResizeObserver
+        this.resizeObservers.forEach(observer => {
+            observer.disconnect();
+        });
+        this.resizeObservers = [];
+
+        // 再销毁图表实例
         this.chartInstances.forEach(chart => {
             if (chart && !chart.isDisposed()) {
                 chart.dispose();
@@ -490,11 +498,12 @@ export class HabitStatsDialog {
                 min: 0,
                 max: maxCount,
                 calculable: false,
+                hoverLink: false,
                 orient: 'horizontal',
                 left: 'center',
                 bottom: 0,
                 itemWidth: 13,
-                itemHeight: 13,
+                itemHeight: 80,
                 inRange: {
                     color: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39']
                 },
@@ -542,8 +551,13 @@ export class HabitStatsDialog {
         chart.setOption(option);
 
         // 响应式
-        const resizeObserver = new ResizeObserver(() => chart.resize());
+        const resizeObserver = new ResizeObserver(() => {
+            if (chart && !chart.isDisposed()) {
+                chart.resize();
+            }
+        });
         resizeObserver.observe(container);
+        this.resizeObservers.push(resizeObserver);
     }
 
     // ==================== 时间统计 Tab ====================
@@ -822,8 +836,13 @@ export class HabitStatsDialog {
         chart.setOption(option);
 
         // 响应式
-        const resizeObserver = new ResizeObserver(() => chart.resize());
+        const resizeObserver = new ResizeObserver(() => {
+            if (chart && !chart.isDisposed()) {
+                chart.resize();
+            }
+        });
         resizeObserver.observe(container);
+        this.resizeObservers.push(resizeObserver);
     }
 
     private renderMonthTimeChart(container: HTMLElement) {
@@ -991,8 +1010,13 @@ export class HabitStatsDialog {
         chart.setOption(option);
 
         // 响应式
-        const resizeObserver = new ResizeObserver(() => chart.resize());
+        const resizeObserver = new ResizeObserver(() => {
+            if (chart && !chart.isDisposed()) {
+                chart.resize();
+            }
+        });
         resizeObserver.observe(container);
+        this.resizeObservers.push(resizeObserver);
     }
 
     private renderYearTimeChart(container: HTMLElement) {
@@ -1159,8 +1183,13 @@ export class HabitStatsDialog {
         chart.setOption(option);
 
         // 响应式
-        const resizeObserver = new ResizeObserver(() => chart.resize());
+        const resizeObserver = new ResizeObserver(() => {
+            if (chart && !chart.isDisposed()) {
+                chart.resize();
+            }
+        });
         resizeObserver.observe(container);
+        this.resizeObservers.push(resizeObserver);
     }
 
     private generateColors(count: number): string[] {
