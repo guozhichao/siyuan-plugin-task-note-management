@@ -347,6 +347,9 @@ export class HabitPanel {
 
     private async loadHabits() {
         try {
+            // 保存滚动位置
+            const scrollTop = this.habitsContainer?.scrollTop || 0;
+
             const habitData = await readHabitData();
             const habits: Habit[] = Object.values(habitData || {});
 
@@ -355,6 +358,14 @@ export class HabitPanel {
             filteredHabits = this.applyGroupFilter(filteredHabits);
 
             this.renderHabits(filteredHabits);
+
+            // 恢复滚动位置
+            if (this.habitsContainer && scrollTop > 0) {
+                // 使用 requestAnimationFrame 确保 DOM 已更新
+                requestAnimationFrame(() => {
+                    this.habitsContainer.scrollTop = scrollTop;
+                });
+            }
         } catch (error) {
             console.error('加载习惯失败:', error);
             this.habitsContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--b3-theme-error);">加载习惯失败</div>';
