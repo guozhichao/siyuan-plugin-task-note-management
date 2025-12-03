@@ -514,6 +514,7 @@ export async function removeFile(path: string) {
         path: path
     }
     let url = '/api/file/removeFile';
+    // "path": "/data/20210808180117-6v0mkxr/20200923234011-ieuun1p.sy"
     return request(url, data);
 }
 

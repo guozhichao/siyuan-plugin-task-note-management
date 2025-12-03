@@ -1,4 +1,4 @@
-import { readReminderData, writeReminderData, getFile, putFile, openBlock, getBlockByID } from "../api";
+import { readReminderData, writeReminderData, getFile, putFile, openBlock, getBlockByID, removeFile } from "../api";
 import { ProjectManager } from "../utils/projectManager";
 import { CategoryManager } from "../utils/categoryManager";
 import { QuickReminderDialog } from "./QuickReminderDialog";
@@ -3190,15 +3190,30 @@ export class EisenhowerMatrixView {
 
     private async loadProjectSortOrder() {
         try {
-            const content = await getFile('data/storage/petal/siyuan-plugin-task-note-management/project-sort.json');
-            if (content) {
-                const data = typeof content === 'string' ? JSON.parse(content) : content;
-                this.projectSortOrder = data.projectSortOrder || [];
-                this.currentProjectSortMode = data.currentProjectSortMode || 'custom'; // 默认改为custom
-            } else {
-                this.projectSortOrder = [];
-                this.currentProjectSortMode = 'custom'; // 默认改为custom
+            const settings = await this.plugin.loadData('reminder-settings.json') || {};
+
+            // 检查是否存在旧的 project-sort.json 文件，如果存在则导入并删除
+            try {
+                const oldSortContent = await getFile('data/storage/petal/siyuan-plugin-task-note-management/project-sort.json');
+                if (oldSortContent && oldSortContent.code !== 404) {
+                    const oldSort = typeof oldSortContent === 'string' ? JSON.parse(oldSortContent) : oldSortContent;
+                    if (oldSort && typeof oldSort === 'object') {
+                        // 合并旧的项目排序配置到新的 settings
+                        if (oldSort.projectSortOrder) settings.projectSortOrder = oldSort.projectSortOrder;
+                        if (oldSort.currentProjectSortMode) settings.projectSortMode = oldSort.currentProjectSortMode;
+                        await this.plugin.saveData('reminder-settings.json', settings);
+                        // 删除旧文件
+                        await removeFile('data/storage/petal/siyuan-plugin-task-note-management/project-sort.json');
+                        console.log('成功导入并删除旧的 project-sort.json 文件');
+                    }
+                }
+            } catch (error) {
+                // 如果文件不存在或其他错误，忽略
+                console.log('旧的 project-sort.json 文件不存在或已处理');
             }
+
+            this.projectSortOrder = settings.projectSortOrder || [];
+            this.currentProjectSortMode = settings.projectSortMode || 'custom'; // 默认改为custom
         } catch (error) {
             this.projectSortOrder = [];
             this.currentProjectSortMode = 'custom'; // 默认改为custom
@@ -3207,13 +3222,32 @@ export class EisenhowerMatrixView {
 
     private async loadCriteriaSettings() {
         try {
-            const data = await getFile('data/storage/petal/siyuan-plugin-task-note-management/four-quadrant-settings.json');
-            if (data) {
-                this.criteriaSettings = {
-                    importanceThreshold: data.importanceThreshold || 'medium',
-                    urgencyDays: data.urgencyDays || 3
-                };
+            const settings = await this.plugin.loadData('reminder-settings.json') || {};
+
+            // 检查是否存在旧的 four-quadrant-settings.json 文件，如果存在则导入并删除
+            try {
+                const oldQuadrantContent = await getFile('data/storage/petal/siyuan-plugin-task-note-management/four-quadrant-settings.json');
+                if (oldQuadrantContent && oldQuadrantContent.code !== 404) {
+                    const oldQuadrant = typeof oldQuadrantContent === 'string' ? JSON.parse(oldQuadrantContent) : oldQuadrantContent;
+                    if (oldQuadrant && typeof oldQuadrant === 'object') {
+                        // 合并旧的四象限设置到新的 settings
+                        if (oldQuadrant.importanceThreshold) settings.eisenhowerImportanceThreshold = oldQuadrant.importanceThreshold;
+                        if (oldQuadrant.urgencyDays) settings.eisenhowerUrgencyDays = oldQuadrant.urgencyDays;
+                        await this.plugin.saveData('reminder-settings.json', settings);
+                        // 删除旧文件
+                        await removeFile('data/storage/petal/siyuan-plugin-task-note-management/four-quadrant-settings.json');
+                        console.log('成功导入并删除旧的 four-quadrant-settings.json 文件');
+                    }
+                }
+            } catch (error) {
+                // 如果文件不存在或其他错误，忽略
+                console.log('旧的 four-quadrant-settings.json 文件不存在或已处理');
             }
+
+            this.criteriaSettings = {
+                importanceThreshold: settings.eisenhowerImportanceThreshold || 'medium',
+                urgencyDays: settings.eisenhowerUrgencyDays || 3
+            };
         } catch (error) {
             this.criteriaSettings = {
                 importanceThreshold: 'medium',
@@ -3224,14 +3258,10 @@ export class EisenhowerMatrixView {
 
     private async saveCriteriaSettings() {
         try {
-            const data = {
-                importanceThreshold: this.criteriaSettings.importanceThreshold,
-                urgencyDays: this.criteriaSettings.urgencyDays
-            };
-
-            const content = JSON.stringify(data, null, 2);
-            const blob = new Blob([content], { type: 'application/json' });
-            await putFile('data/storage/petal/siyuan-plugin-task-note-management/four-quadrant-settings.json', false, blob);
+            const settings = await this.plugin.loadData('reminder-settings.json') || {};
+            settings.eisenhowerImportanceThreshold = this.criteriaSettings.importanceThreshold;
+            settings.eisenhowerUrgencyDays = this.criteriaSettings.urgencyDays;
+            await this.plugin.saveData('reminder-settings.json', settings);
         } catch (error) {
             console.error('保存标准设置失败:', error);
         }
@@ -3239,14 +3269,10 @@ export class EisenhowerMatrixView {
 
     private async saveProjectSortOrder() {
         try {
-            const data = {
-                projectSortOrder: this.projectSortOrder,
-                currentProjectSortMode: this.currentProjectSortMode
-            };
-
-            const content = JSON.stringify(data, null, 2);
-            const blob = new Blob([content], { type: 'application/json' });
-            await putFile('data/storage/petal/siyuan-plugin-task-note-management/project-sort.json', false, blob);
+            const settings = await this.plugin.loadData('reminder-settings.json') || {};
+            settings.projectSortOrder = this.projectSortOrder;
+            settings.projectSortMode = this.currentProjectSortMode;
+            await this.plugin.saveData('reminder-settings.json', settings);
         } catch (error) {
             console.error('保存项目排序失败:', error);
         }

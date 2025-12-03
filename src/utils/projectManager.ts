@@ -1,4 +1,4 @@
-import { getFile, putFile, readProjectData } from '../api';
+import { getFile, putFile, readProjectData, writeProjectData, removeFile } from '../api';
 import { StatusManager } from './statusManager';
 
 const PROJECT_COLOR_CONFIG_FILE = 'data/storage/petal/siyuan-plugin-task-note-management/project_colors.json';
@@ -37,15 +37,9 @@ export class ProjectManager {
 
     private async saveProjectColors() {
         try {
-            const content = JSON.stringify(this.projectColors, null, 2);
-            const blob = new Blob([content], { type: 'application/json' });
-            const response = await putFile(PROJECT_COLOR_CONFIG_FILE, false, blob);
-
-            // 检查响应是否包含错误信息
-            if (response && typeof response === 'object' && 'code' in response && response.code !== 0) {
-                console.error('Failed to save project colors - API error:', response);
-                throw new Error(`API error: ${response.msg || 'Unknown error'}`);
-            }
+            const projectData = await readProjectData();
+            projectData._colors = this.projectColors;
+            await writeProjectData(projectData);
         } catch (error) {
             console.error('Failed to save project colors:', error);
             throw error;
@@ -54,31 +48,31 @@ export class ProjectManager {
 
     private async loadProjectColors() {
         try {
-            const content = await getFile(PROJECT_COLOR_CONFIG_FILE);
-            if (content) {
-                const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+            const projectData = await readProjectData();
+            this.projectColors = projectData._colors || {};
 
-                // 检查解析的内容是否包含错误响应，如果是则忽略
-                if (parsed && typeof parsed === 'object' && 'code' in parsed && 'msg' in parsed) {
-                    console.warn('Project colors file contains error response, resetting to empty');
-                    this.projectColors = {};
-                    // 清理损坏的文件并重新保存
-                    await this.saveProjectColors();
-                } else {
-                    this.projectColors = parsed || {};
+            // 检查是否存在旧的 project_colors.json 文件，如果存在则导入并删除
+            try {
+                const oldColorsContent = await getFile(PROJECT_COLOR_CONFIG_FILE);
+                if (oldColorsContent && oldColorsContent.code !== 404) {
+                    const oldColors = typeof oldColorsContent === 'string' ? JSON.parse(oldColorsContent) : oldColorsContent;
+                    if (oldColors && typeof oldColors === 'object') {
+                        // 合并旧颜色数据到新的 projectData._colors
+                        Object.assign(this.projectColors, oldColors);
+                        projectData._colors = this.projectColors;
+                        await writeProjectData(projectData);
+                        // 删除旧文件
+                        await removeFile(PROJECT_COLOR_CONFIG_FILE);
+                        console.log('成功导入并删除旧的 project_colors.json 文件');
+                    }
                 }
-            } else {
-                this.projectColors = {};
+            } catch (error) {
+                // 如果文件不存在或其他错误，忽略
+                console.log('旧的 project_colors.json 文件不存在或已处理');
             }
         } catch (error) {
             console.warn('Failed to load project colors, using defaults:', error);
             this.projectColors = {};
-            // 尝试重新创建文件
-            try {
-                await this.saveProjectColors();
-            } catch (saveError) {
-                console.error('Failed to create initial project colors file:', saveError);
-            }
         }
     }
 
@@ -88,10 +82,16 @@ export class ProjectManager {
     }
 
     public getProjectColor(projectId: string): string {
+        if (!projectId) {
+            return '#cccccc'; // 默认颜色
+        }
         return this.projectColors[projectId] || this.generateColorFromId(projectId);
     }
 
     private generateColorFromId(id: string): string {
+        if (!id) {
+            return '#cccccc'; // 默认颜色
+        }
         let hash = 0;
         for (let i = 0; i < id.length; i++) {
             hash = id.charCodeAt(i) + ((hash << 5) - hash);
@@ -106,11 +106,13 @@ export class ProjectManager {
         try {
             const projectData = await readProjectData();
             if (projectData && typeof projectData === 'object') {
-                this.projects = Object.values(projectData).map((p: any) => ({
-                    id: p.id,
-                    name: p.title,
-                    status: p.status || 'doing'
-                }));
+                this.projects = Object.values(projectData)
+                    .filter((p: any) => p && p.id) // 过滤掉无效的项目
+                    .map((p: any) => ({
+                        id: p.id,
+                        name: p.title || '未命名项目',
+                        status: p.status || 'doing'
+                    }));
             } else {
                 this.projects = [];
             }

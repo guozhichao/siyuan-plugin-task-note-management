@@ -85,6 +85,18 @@ export const DEFAULT_SETTINGS = {
     enableReminderDockBadge: true,
     enableProjectDockBadge: true,
     enableHabitDockBadge: true,
+    // 排序配置
+    sortMethod: 'time',
+    sortOrder: 'asc',
+    // 日历配置
+    calendarColorBy: 'project',
+    calendarViewMode: 'timeGridWeek',
+    // 四象限设置
+    eisenhowerImportanceThreshold: 'medium',
+    eisenhowerUrgencyDays: 3,
+    // 项目排序配置
+    projectSortOrder: [],
+    projectSortMode: 'custom'
 };
 
 export default class ReminderPlugin extends Plugin {

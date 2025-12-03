@@ -139,7 +139,7 @@ export class ReminderPanel {
     // 加载排序配置
     private async loadSortConfig() {
         try {
-            const config = await loadSortConfig();
+            const config = await loadSortConfig(this.plugin);
             this.currentSort = config.method;
             this.currentSortOrder = config.order;
             this.updateSortButtonTitle();
@@ -668,7 +668,7 @@ export class ReminderPanel {
                             this.currentSort = option.key;
                             this.currentSortOrder = 'asc';
                             this.updateSortButtonTitle();
-                            await saveSortConfig(option.key, 'asc');
+                            await saveSortConfig(this.plugin, option.key, 'asc');
                             // 重置分页状态
                             this.currentPage = 1;
                             this.totalPages = 1;
@@ -691,7 +691,7 @@ export class ReminderPanel {
                             this.currentSort = option.key;
                             this.currentSortOrder = 'desc';
                             this.updateSortButtonTitle();
-                            await saveSortConfig(option.key, 'desc');
+                            await saveSortConfig(this.plugin, option.key, 'desc');
                             // 重置分页状态
                             this.currentPage = 1;
                             this.totalPages = 1;

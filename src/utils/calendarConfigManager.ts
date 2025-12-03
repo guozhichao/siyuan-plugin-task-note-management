@@ -1,4 +1,5 @@
-import { getFile, putFile } from '../api';
+import { Plugin } from "siyuan";
+import { getFile, removeFile } from "../api";
 
 const CALENDAR_CONFIG_FILE = 'data/storage/petal/siyuan-plugin-task-note-management/calendar-config.json';
 
@@ -10,17 +11,19 @@ export interface CalendarConfig {
 export class CalendarConfigManager {
     private static instance: CalendarConfigManager;
     private config: CalendarConfig;
+    private plugin: Plugin;
 
-    private constructor() {
+    private constructor(plugin: Plugin) {
+        this.plugin = plugin;
         this.config = {
             colorBy: 'project', // 默认按项目上色
             viewMode: 'timeGridWeek' // 默认周视图
         };
     }
 
-    public static getInstance(): CalendarConfigManager {
+    public static getInstance(plugin: Plugin): CalendarConfigManager {
         if (!CalendarConfigManager.instance) {
-            CalendarConfigManager.instance = new CalendarConfigManager();
+            CalendarConfigManager.instance = new CalendarConfigManager(plugin);
         }
         return CalendarConfigManager.instance;
     }
@@ -31,14 +34,10 @@ export class CalendarConfigManager {
 
     private async saveConfig() {
         try {
-            const content = JSON.stringify(this.config, null, 2);
-            const blob = new Blob([content], { type: 'application/json' });
-            const response = await putFile(CALENDAR_CONFIG_FILE, false, blob);
-
-            if (response && typeof response === 'object' && 'code' in response && response.code !== 0) {
-                console.error('Failed to save calendar config - API error:', response);
-                throw new Error(`API error: ${response.msg || 'Unknown error'}`);
-            }
+            const settings = await this.plugin.loadData('reminder-settings.json') || {};
+            settings.calendarColorBy = this.config.colorBy;
+            settings.calendarViewMode = this.config.viewMode;
+            await this.plugin.saveData('reminder-settings.json', settings);
         } catch (error) {
             console.error('Failed to save calendar config:', error);
             throw error;
@@ -47,32 +46,39 @@ export class CalendarConfigManager {
 
     private async loadConfig() {
         try {
-            const content = await getFile(CALENDAR_CONFIG_FILE);
-            if (content) {
-                const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+            const settings = await this.plugin.loadData('reminder-settings.json') || {};
 
-                // 检查解析的内容是否包含错误响应，如果是则忽略
-                if (parsed && typeof parsed === 'object' && 'code' in parsed && 'msg' in parsed) {
-                    console.warn('Calendar config file contains error response, using defaults');
-                    this.config = { colorBy: 'project', viewMode: 'timeGridWeek' };
-                    await this.saveConfig();
-                } else {
-                    this.config = {
-                        colorBy: parsed?.colorBy || 'project',
-                        viewMode: parsed?.viewMode || 'timeGridWeek'
-                    };
+            // 检查是否存在旧的 calendar-config.json 文件，如果存在则导入并删除
+            try {
+                const oldCalendarContent = await getFile(CALENDAR_CONFIG_FILE);
+                if (oldCalendarContent && oldCalendarContent.code !== 404) {
+                    const oldCalendar = typeof oldCalendarContent === 'string' ? JSON.parse(oldCalendarContent) : oldCalendarContent;
+                    if (oldCalendar && typeof oldCalendar === 'object') {
+                        // 合并旧日历配置到新的 settings
+                        if (oldCalendar.colorBy) settings.calendarColorBy = oldCalendar.colorBy;
+                        if (oldCalendar.viewMode) settings.calendarViewMode = oldCalendar.viewMode;
+                        await this.plugin.saveData('reminder-settings.json', settings);
+                        // 删除旧文件
+                        await removeFile(CALENDAR_CONFIG_FILE);
+                        console.log('成功导入并删除旧的 calendar-config.json 文件');
+                    }
                 }
-            } else {
-                this.config = { colorBy: 'project', viewMode: 'timeGridWeek' };
-                await this.saveConfig();
+            } catch (error) {
+                // 如果文件不存在或其他错误，忽略
+                console.log('旧的 calendar-config.json 文件不存在或已处理');
             }
+
+            this.config = {
+                colorBy: settings.calendarColorBy || 'project',
+                viewMode: settings.calendarViewMode || 'timeGridWeek'
+            };
         } catch (error) {
             console.warn('Failed to load calendar config, using defaults:', error);
             this.config = { colorBy: 'project', viewMode: 'timeGridWeek' };
             try {
                 await this.saveConfig();
             } catch (saveError) {
-                console.error('Failed to create initial calendar config file:', saveError);
+                console.error('Failed to create initial calendar config:', saveError);
             }
         }
     }
