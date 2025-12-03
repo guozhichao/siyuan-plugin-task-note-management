@@ -835,5 +835,6 @@
     "habitYearlyHeatmap": "Yearly Heatmap",
     "habitNoCheckIn": "No Check-in",
     "habitDays": " days",
+    "habitComplete": "Completed",
     "category": "Category"
 }

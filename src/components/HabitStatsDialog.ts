@@ -119,7 +119,10 @@ export class HabitStatsDialog {
         summary.style.cssText = 'margin-bottom: 24px;';
 
         const totalCheckIns = this.habit.totalCheckIns || 0;
-        const checkInDays = Object.keys(this.habit.checkIns || {}).length;
+        // 只统计达标的打卡天数
+        const checkInDays = Object.keys(this.habit.checkIns || {}).filter(dateStr => 
+            this.isCheckInComplete(dateStr)
+        ).length;
 
         summary.innerHTML = `
             <h3 style="margin-bottom: 12px;">打卡统计</h3>
@@ -189,13 +192,21 @@ export class HabitStatsDialog {
             return 0;
         }
 
-        const dates = Object.keys(this.habit.checkIns).sort().reverse();
-        const today = this.formatLocalDate(new Date());
+        // 只统计达标的日期
+        const completedDates = Object.keys(this.habit.checkIns)
+            .filter(dateStr => this.isCheckInComplete(dateStr))
+            .sort()
+            .reverse();
+        
+        if (completedDates.length === 0) {
+            return 0;
+        }
 
+        const today = this.formatLocalDate(new Date());
         let streak = 0;
         let currentDate = new Date(today);
 
-        for (const dateStr of dates) {
+        for (const dateStr of completedDates) {
             const checkDate = new Date(dateStr);
             const dayDiff = Math.floor((currentDate.getTime() - checkDate.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -214,6 +225,19 @@ export class HabitStatsDialog {
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
+    }
+
+    /**
+     * 判断某天的打卡是否完成（达标）
+     * @param dateStr 日期字符串 YYYY-MM-DD
+     * @returns true表示达标，false表示未达标或未打卡
+     */
+    private isCheckInComplete(dateStr: string): boolean {
+        const checkIn = this.habit.checkIns?.[dateStr];
+        if (!checkIn) return false;
+        const count = checkIn.count || 0;
+        const target = this.habit.target || 1;
+        return count >= target;
     }
 
     private calculateEmojiStats(): Array<{ emoji: string; count: number; percentage: number }> {
@@ -299,6 +323,13 @@ export class HabitStatsDialog {
             const date = new Date(year, month, day);
             const dateStr = this.formatLocalDate(date);
             const checkIn = this.habit.checkIns?.[dateStr];
+            const isComplete = this.isCheckInComplete(dateStr);
+
+            // 根据打卡状态设置背景色：达标为绿色，未达标为橙色，未打卡为默认
+            let backgroundColor = 'var(--b3-theme-surface)';
+            if (checkIn) {
+                backgroundColor = isComplete ? 'var(--b3-theme-primary-lighter)' : 'rgba(250, 200, 88, 0.3)';
+            }
 
             const dayCell = document.createElement('div');
             dayCell.style.cssText = `
@@ -308,7 +339,7 @@ export class HabitStatsDialog {
                 justify-content: center;
                 border-radius: 4px;
                 font-size: 12px;
-                background: ${checkIn ? 'var(--b3-theme-primary-lighter)' : 'var(--b3-theme-surface)'};
+                background: ${backgroundColor};
                 border: 1px solid var(--b3-theme-surface-lighter);
             `;
 
@@ -343,7 +374,10 @@ export class HabitStatsDialog {
                 });
 
                 contentWrap.appendChild(emojiContainer);
-                dayCell.title = `${day}日: ${statuses.join(' ')}`;
+                const checkInCount = checkIn.count || 0;
+                const target = this.habit.target || 1;
+                const statusText = isComplete ? t("habitComplete") : `${checkInCount}/${target}`;
+                dayCell.title = `${day}日: ${statuses.join(' ')}\n${statusText}`;
             } else {
                 const emptyPlaceholder = document.createElement('div');
                 emptyPlaceholder.style.cssText = 'width:12px; height:12px; border-radius:50%; background:var(--b3-theme-surface); margin-top:4px;';
@@ -436,7 +470,8 @@ export class HabitStatsDialog {
             for (let day = 1; day <= daysInMonth; day++) {
                 const date = new Date(year, month, day);
                 const dateStr = this.formatLocalDate(date);
-                if (this.habit.checkIns?.[dateStr]) {
+                // 只统计达标的打卡天数
+                if (this.isCheckInComplete(dateStr)) {
                     checkInCount++;
                 }
             }
@@ -493,7 +528,9 @@ export class HabitStatsDialog {
         for (let d = new Date(yearStart); d <= yearEnd; d.setDate(d.getDate() + 1)) {
             const dateStr = this.formatLocalDate(new Date(d));
             const checkIn = this.habit.checkIns?.[dateStr];
-            const count = checkIn ? (checkIn.status?.length || 1) : 0;
+            // 只有达标的打卡才计入热力图（未达标显示为0）
+            const isComplete = this.isCheckInComplete(dateStr);
+            const count = isComplete ? (checkIn.status?.length || 1) : 0;
             heatmapData.push([dateStr, count]);
         }
 
