@@ -3,7 +3,8 @@
     import SettingPanel from '@/libs/components/setting-panel.svelte';
     import { t } from './utils/i18n';
     import { DEFAULT_SETTINGS, SETTINGS_FILE } from './index';
-    import { lsNotebooks } from './api';
+    import { lsNotebooks, pushErrMsg } from './api';
+    import { Constants } from 'siyuan';
 
     export let plugin;
 
@@ -17,6 +18,19 @@
         name: string;
         items: ISettingItem[];
     }
+
+    export const useShell = async (cmd: 'showItemInFolder' | 'openPath', filePath: string) => {
+        try{
+            const { ipcRenderer } = window.require('electron');
+            ipcRenderer.send(Constants.SIYUAN_CMD, {
+                cmd,
+                filePath: filePath,
+            });
+        } catch (error) {
+            await pushErrMsg('当前客户端不支持打开插件数据文件夹');
+        }
+
+    };
 
     // 定义设置分组
     let groups: ISettingGroup[] = [
@@ -334,6 +348,22 @@
                     type: 'hint',
                     title: t('dataStorageLocationTitle'),
                     description: t('dataStorageLocationDesc'),
+                },
+                {
+                    key: 'openDataFolder',
+                    value: '',
+                    type: 'button',
+                    title: '打开数据文件夹',
+                    description: '',
+                    button: {
+                        label: '打开数据文件夹',
+                        callback: async () => {
+                            const path =
+                                window.siyuan.config.system.dataDir +
+                                '/storage/petal/siyuan-plugin-task-note-management';
+                            await useShell('openPath', path);
+                        },
+                    },
                 },
             ],
         },
