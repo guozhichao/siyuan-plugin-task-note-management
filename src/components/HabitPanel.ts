@@ -1108,45 +1108,88 @@ export class HabitPanel {
             const checkIn = habit.checkIns[today];
             // 询问备注（如果配置了 promptNote）
             let note: string | undefined = undefined;
+            let customTimestamp: string = now; // 默认使用当前时间
+            let cancelled = false; // 标记用户是否取消了打卡
             if (emojiConfig.promptNote) {
-                // 弹窗输入备注 —— 使用标准 dialog footer（.b3-dialog__action）放置按钮以保证样式与位置正确
+                // 弹窗输入备注和打卡时间 —— 使用标准 dialog footer（.b3-dialog__action）放置按钮以保证样式与位置正确
                 let resolveFn: (() => void) | null = null;
                 const promise = new Promise<void>((resolve) => { resolveFn = resolve; });
+                
+                // 格式化当前时间为 datetime-local 输入框所需的格式 (YYYY-MM-DDTHH:mm)
+                const nowDate = new Date();
+                const datetimeLocalValue = nowDate.getFullYear() + '-' +
+                    String(nowDate.getMonth() + 1).padStart(2, '0') + '-' +
+                    String(nowDate.getDate()).padStart(2, '0') + 'T' +
+                    String(nowDate.getHours()).padStart(2, '0') + ':' +
+                    String(nowDate.getMinutes()).padStart(2, '0');
+                
                 const inputDialog = new Dialog({
-                    title: '输入打卡备注',
-                    content: `<div class="b3-dialog__content"><div class="ft__breakword" style="padding:12px"><textarea id=\"__habits_note_input\" style=\"width:100%;height:120px;box-sizing:border-box;resize:vertical;\"></textarea></div></div><div class="b3-dialog__action"><button class="b3-button b3-button--cancel">取消</button><div class="fn__space"></div><button class="b3-button b3-button--text" id="__habits_note_confirm">保存</button></div>`,
+                    title: '打卡信息',
+                    content: `<div class="b3-dialog__content"><div class="ft__breakword" style="padding:12px">
+                        <div style="margin-bottom:12px;">
+                            <label style="display:block;margin-bottom:4px;font-weight:bold;">打卡时间:</label>
+                            <input type="datetime-local" id="__habits_time_input" value="${datetimeLocalValue}" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid var(--b3-theme-surface-lighter);border-radius:4px;background:var(--b3-theme-background);" />
+                        </div>
+                        <div>
+                            <label style="display:block;margin-bottom:4px;font-weight:bold;">备注:</label>
+                            <textarea id="__habits_note_input" placeholder="可选,输入备注信息..." style="width:100%;height:100px;box-sizing:border-box;resize:vertical;padding:8px;border:1px solid var(--b3-theme-surface-lighter);border-radius:4px;background:var(--b3-theme-background);"></textarea>
+                        </div>
+                    </div></div><div class="b3-dialog__action"><button class="b3-button b3-button--cancel">取消</button><div class="fn__space"></div><button class="b3-button b3-button--text" id="__habits_note_confirm">保存</button></div>`,
                     width: '520px',
-                    height: '260px',
+                    height: '360px',
                     destroyCallback: () => {
                         if (resolveFn) resolveFn();
                     }
                 });
 
-                const inputEl = inputDialog.element.querySelector('#__habits_note_input') as HTMLTextAreaElement;
+                const timeInputEl = inputDialog.element.querySelector('#__habits_time_input') as HTMLInputElement;
+                const noteInputEl = inputDialog.element.querySelector('#__habits_note_input') as HTMLTextAreaElement;
                 const cancelBtn = inputDialog.element.querySelector('.b3-button.b3-button--cancel') as HTMLButtonElement;
                 const okBtn = inputDialog.element.querySelector('#__habits_note_confirm') as HTMLButtonElement;
 
-                // 点击保存时取值, 点击取消则无备注
+                // 点击保存时取值
                 okBtn.addEventListener('click', () => {
-                    note = inputEl.value.trim();
+                    note = noteInputEl.value.trim();
+                    // 将 datetime-local 的值转换为本地时间字符串 (YYYY-MM-DD HH:mm:ss)
+                    const timeValue = timeInputEl.value;
+                    if (timeValue) {
+                        const selectedDate = new Date(timeValue);
+                        customTimestamp = getLocalDateTimeString(selectedDate);
+                    }
+                    cancelled = false;
                     inputDialog.destroy();
                 });
+                // 点击取消时标记为取消
                 cancelBtn.addEventListener('click', () => {
-                    note = undefined;
+                    cancelled = true;
                     inputDialog.destroy();
                 });
+                
+                // 按 ESC 键取消
+                const escHandler = (e: KeyboardEvent) => {
+                    if (e.key === 'Escape') {
+                        cancelled = true;
+                        inputDialog.destroy();
+                    }
+                };
+                inputDialog.element.addEventListener('keydown', escHandler);
 
                 // 等待用户点击保存或取消或直接关闭对话框
                 await promise;
+                
+                // 如果用户取消了，直接返回，不保存打卡
+                if (cancelled) {
+                    return;
+                }
             }
 
-            // Append an entry for this check-in
+            // Append an entry for this check-in, using custom timestamp if provided
             checkIn.entries = checkIn.entries || [];
-            checkIn.entries.push({ emoji: emojiConfig.emoji, timestamp: now, note });
+            checkIn.entries.push({ emoji: emojiConfig.emoji, timestamp: customTimestamp, note });
             // Keep status/count/timestamp fields in sync for backward compatibility
             checkIn.count = (checkIn.count || 0) + 1;
             checkIn.status = (checkIn.status || []).concat([emojiConfig.emoji]);
-            checkIn.timestamp = now;
+            checkIn.timestamp = customTimestamp;
 
             habit.totalCheckIns = (habit.totalCheckIns || 0) + 1;
             habit.updatedAt = now;
