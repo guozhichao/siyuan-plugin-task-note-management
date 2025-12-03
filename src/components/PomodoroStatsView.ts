@@ -385,11 +385,11 @@ export class PomodoroStatsView {
                     ${data.map(item => {
             let height;
             if (maxValue === 0) {
-                // 所有数据都为0时，显示最小高度
-                height = minHeight;
+                // 所有数据都为0时，显示0高度
+                height = 0;
             } else if (item.value === 0) {
-                // 当前数据为0时，显示更小的高度以区分
-                height = minHeight;
+                // 当前数据为0时，不显示高度
+                height = 0;
             } else {
                 // 按比例计算高度，确保在最小和最大高度之间
                 const ratio = item.value / maxValue;
