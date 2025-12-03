@@ -32,7 +32,6 @@ import { DocumentReminderDialog } from "./components/DocumentReminderDialog";
 import { ProjectDialog } from "./components/ProjectDialog";
 import { ProjectPanel } from "./components/ProjectPanel";
 import { ProjectKanbanView } from "./components/ProjectKanbanView";
-import { AddToProjectDialog } from "./components/AddToProjectDialog";
 import { PomodoroManager } from "./utils/pomodoroManager";
 import SettingPanelComponent from "./SettingPanel.svelte";
 

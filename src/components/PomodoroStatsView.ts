@@ -4,8 +4,25 @@ import { confirm } from "siyuan";
 import { PomodoroRecordManager, PomodoroSession } from "../utils/pomodoroRecord";
 import { t } from "../utils/i18n";
 import { getLocalDateString } from "../utils/dateUtils";
-import * as echarts from 'echarts';
+import { init, use, EChartsType } from 'echarts/core';
+import { PieChart, HeatmapChart, CustomChart } from 'echarts/charts';
+import { TooltipComponent, VisualMapComponent, GridComponent, TitleComponent, LegendComponent, CalendarComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
 import { formatDate } from "@fullcalendar/core";
+
+// 注册 ECharts 组件
+use([
+    PieChart,
+    HeatmapChart,
+    CustomChart,
+    TooltipComponent,
+    VisualMapComponent,
+    GridComponent,
+    TitleComponent,
+    LegendComponent,
+    CalendarComponent,
+    CanvasRenderer
+]);
 
 export class PomodoroStatsView {
     private dialog: Dialog;
@@ -1010,7 +1027,7 @@ export class PomodoroStatsView {
             if (total === 0) return;
 
             // 初始化echarts实例
-            const chart = echarts.init(chartElement);
+            const chart = init(chartElement);
 
             // 准备数据
             const data = Object.entries(stats).map(([category, data]: [string, any], index) => ({
@@ -1135,7 +1152,7 @@ export class PomodoroStatsView {
             }
 
             // 初始化echarts实例
-            const chart = echarts.init(chartElement);
+            const chart = init(chartElement);
 
             // 准备热力图数据
             const startDate = new Date(this.currentYear, 0, 1);
@@ -1275,7 +1292,7 @@ export class PomodoroStatsView {
             }
 
             // 初始化echarts实例
-            const chart = echarts.init(chartElement);
+            const chart = init(chartElement);
 
             // 准备时间线数据
             const dates = timelineData.map(d => d.date);

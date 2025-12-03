@@ -20,7 +20,7 @@
     }
 
     export const useShell = async (cmd: 'showItemInFolder' | 'openPath', filePath: string) => {
-        try{
+        try {
             const { ipcRenderer } = window.require('electron');
             ipcRenderer.send(Constants.SIYUAN_CMD, {
                 cmd,
@@ -29,7 +29,6 @@
         } catch (error) {
             await pushErrMsg('当前客户端不支持打开插件数据文件夹');
         }
-
     };
 
     // 定义设置分组

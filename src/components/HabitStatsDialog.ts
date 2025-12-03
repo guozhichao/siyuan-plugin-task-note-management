@@ -1,7 +1,24 @@
 import { Dialog } from "siyuan";
 import { Habit } from "./HabitPanel";
-import * as echarts from 'echarts';
+import { init, use, EChartsType } from 'echarts/core';
+import { HeatmapChart, ScatterChart, CustomChart } from 'echarts/charts';
+import { TooltipComponent, VisualMapComponent, GridComponent, TitleComponent, LegendComponent, CalendarComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
 import { t } from "../utils/i18n";
+
+// 注册 ECharts 组件
+use([
+    HeatmapChart,
+    ScatterChart,
+    CustomChart,
+    TooltipComponent,
+    VisualMapComponent,
+    GridComponent,
+    TitleComponent,
+    LegendComponent,
+    CalendarComponent,
+    CanvasRenderer
+]);
 
 export class HabitStatsDialog {
     private dialog: Dialog;
@@ -11,7 +28,7 @@ export class HabitStatsDialog {
     private currentTimeView: 'week' | 'month' | 'year' = 'week';
     private timeViewOffset: number = 0; // 用于周/月/年视图的偏移
     private yearViewOffset: number = 0; // 用于年度视图的偏移
-    private chartInstances: echarts.ECharts[] = [];
+    private chartInstances: EChartsType[] = [];
     private resizeObservers: ResizeObserver[] = [];
 
     constructor(habit: Habit) {
@@ -465,7 +482,7 @@ export class HabitStatsDialog {
     }
 
     private renderYearlyHeatmap(container: HTMLElement, year: number) {
-        const chart = echarts.init(container);
+        const chart = init(container);
         this.chartInstances.push(chart);
 
         // 准备热力图数据
@@ -734,7 +751,7 @@ export class HabitStatsDialog {
     }
 
     private renderWeekTimeChart(container: HTMLElement) {
-        const chart = echarts.init(container);
+        const chart = init(container);
         this.chartInstances.push(chart);
 
         const now = new Date();
@@ -849,7 +866,7 @@ export class HabitStatsDialog {
     }
 
     private renderMonthTimeChart(container: HTMLElement) {
-        const chart = echarts.init(container);
+        const chart = init(container);
         this.chartInstances.push(chart);
 
         const now = new Date();
@@ -1023,7 +1040,7 @@ export class HabitStatsDialog {
     }
 
     private renderYearTimeChart(container: HTMLElement) {
-        const chart = echarts.init(container);
+        const chart = init(container);
         this.chartInstances.push(chart);
 
         const now = new Date();
