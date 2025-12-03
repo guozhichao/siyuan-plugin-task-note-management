@@ -145,19 +145,19 @@ export class HabitHistoryDialog {
             entriesContainer.style.cssText = 'padding: 8px 12px; margin-top:6px; margin-left: 28px; display:' + (isCollapsed ? 'none' : 'block') + ';';
             const entriesWrap = document.createElement('div');
             entriesWrap.style.cssText = 'display:flex; flex-direction:column; gap:6px; align-items:stretch;';
-            
+
             // 按时间排序 entries (从早到晚)
             const sortedEntries = [...entries].sort((a, b) => {
                 const timeA = a.timestamp || '';
                 const timeB = b.timestamp || '';
                 return timeA.localeCompare(timeB);
             });
-            
+
             sortedEntries.forEach((entry, idx) => {
                 // 找到该 entry 在原始数组中的索引，用于编辑和删除
-                const originalIndex = entries.findIndex(e => 
-                    e.emoji === entry.emoji && 
-                    e.timestamp === entry.timestamp && 
+                const originalIndex = entries.findIndex(e =>
+                    e.emoji === entry.emoji &&
+                    e.timestamp === entry.timestamp &&
                     e.note === entry.note
                 );
                 const item = document.createElement('div');
