@@ -1,20 +1,20 @@
-import {Dialog, showMessage, Menu} from "siyuan";
+import { Dialog, showMessage, Menu } from "siyuan";
 import { t } from "../utils/i18n";
 import { getLocalDateString } from "../utils/dateUtils";
 import { ProjectManager } from "../utils/projectManager";
-import {readReminderData} from "@/api";
-import {generateRepeatInstances} from "@/utils/repeatUtils";
-import {CalendarView} from "@/components/CalendarView";
+import { readReminderData } from "@/api";
+import { generateRepeatInstances } from "@/utils/repeatUtils";
+import { CalendarView } from "@/components/CalendarView";
 
 export class TaskSummaryDialog {
-    private calendarView: CalendarView;
-    private projectManager: ProjectManager;
-    private calendar: any;
+  private calendarView: CalendarView;
+  private projectManager: ProjectManager;
+  private calendar: any;
 
-    constructor(calendar?: any, plugin?: any) {
-        this.projectManager = ProjectManager.getInstance(plugin);
-        this.calendar = calendar;
-    }
+  constructor(calendar?: any, plugin?: any) {
+    this.projectManager = ProjectManager.getInstance(plugin);
+    this.calendar = calendar;
+  }
 
   /**
    * 显示任务摘要弹窗
@@ -281,11 +281,11 @@ export class TaskSummaryDialog {
         const eventEnd = event.extendedProps.endDate;
         const rangeStart = dateRange.start;
         const rangeEnd = dateRange.end;
-        
+
         // 如果事件开始日期在范围内，或者事件结束日期在范围内，或者事件包含整个范围
         return (eventStart >= rangeStart && eventStart <= rangeEnd) ||
-               (eventEnd >= rangeStart && eventEnd <= rangeEnd) ||
-               (eventStart <= rangeStart && eventEnd >= rangeEnd);
+          (eventEnd >= rangeStart && eventEnd <= rangeEnd) ||
+          (eventStart <= rangeStart && eventEnd >= rangeEnd);
       }
       return eventDate >= dateRange.start && eventDate <= dateRange.end;
     });
@@ -337,8 +337,8 @@ export class TaskSummaryDialog {
       const endDate = event.extendedProps.endDate;
       const projectId = event.extendedProps.projectId || 'no-project';
       const projectName = projectId === 'no-project' ?
-          (t("noProject") || "无项目") :
-          this.projectManager.getProjectName(projectId) || projectId;
+        (t("noProject") || "无项目") :
+        this.projectManager.getProjectName(projectId) || projectId;
 
       const taskData = {
         title: event.originalTitle || event.title,
@@ -395,19 +395,19 @@ export class TaskSummaryDialog {
   /**
      * 设置日历实例
      */
-    public setCalendar(calendar: any) {
-        this.calendar = calendar;
-    }
-
-  setCategoryManager(calendarView: any) {
-this.calendarView = calendarView;
+  public setCalendar(calendar: any) {
+    this.calendar = calendar;
   }
 
-    /**
-     * 生成摘要内容HTML
-     */
-    public generateSummaryContent(groupedTasks: Map<string, Map<string, any[]>>, dateRange?: { start: string, end: string }): string {
-      let html = `
+  setCategoryManager(calendarView: any) {
+    this.calendarView = calendarView;
+  }
+
+  /**
+   * 生成摘要内容HTML
+   */
+  public generateSummaryContent(groupedTasks: Map<string, Map<string, any[]>>, dateRange?: { start: string, end: string }): string {
+    let html = `
             <div class="task-summary-container">
                 <div class="task-summary-header" style="
                     display: flex;
@@ -436,60 +436,60 @@ this.calendarView = calendarView;
                 </div>
                 <div class="task-summary-content" id="summary-content">
         `;
-        
-        // 按日期排序
-        const sortedDates = Array.from(groupedTasks.keys()).sort();
-        
-        // 检查当前是否为日视图
-        const isDayView = this.calendar && this.calendar.view.type === 'timeGridDay';
-        
-        // 在日视图下，只显示当前日期的任务
-        const datesToShow = isDayView && dateRange ? [dateRange.start] : sortedDates;
-        
-        datesToShow.forEach(date => {
-            // 在日视图下，确保只处理存在的日期
-            if (isDayView && !groupedTasks.has(date)) {
-                return;
-            }
-            const dateProjects = groupedTasks.get(date);
-            const dateObj = new Date(date);
-            const formattedDate = dateObj.toLocaleDateString('zh-CN', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                weekday: 'long'
-            });
-            
-            html += `<div class="task-date-group">`;
-            html += `<h3 class="task-date-title">${formattedDate}</h3>`;
-            
-            // 按项目分组
-            dateProjects.forEach((tasks, projectName) => {
-                html += `<div class="task-project-group">`;
-                html += `<h4 class="task-project-title">${projectName}</h4>`;
-                html += `<ul class="task-list">`;
-                
-                tasks.forEach(task => {
-                    const completedClass = task.completed ? 'completed' : '';
-                    const priorityClass = `priority-${task.priority}`;
-                    const timeStr = task.time ? ` (${task.time})` : '';
-                    
-                    html += `
+
+    // 按日期排序
+    const sortedDates = Array.from(groupedTasks.keys()).sort();
+
+    // 检查当前是否为日视图
+    const isDayView = this.calendar && this.calendar.view.type === 'timeGridDay';
+
+    // 在日视图下，只显示当前日期的任务
+    const datesToShow = isDayView && dateRange ? [dateRange.start] : sortedDates;
+
+    datesToShow.forEach(date => {
+      // 在日视图下，确保只处理存在的日期
+      if (isDayView && !groupedTasks.has(date)) {
+        return;
+      }
+      const dateProjects = groupedTasks.get(date);
+      const dateObj = new Date(date);
+      const formattedDate = dateObj.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long'
+      });
+
+      html += `<div class="task-date-group">`;
+      html += `<h3 class="task-date-title">${formattedDate}</h3>`;
+
+      // 按项目分组
+      dateProjects.forEach((tasks, projectName) => {
+        html += `<div class="task-project-group">`;
+        html += `<h4 class="task-project-title">${projectName}</h4>`;
+        html += `<ul class="task-list">`;
+
+        tasks.forEach(task => {
+          const completedClass = task.completed ? 'completed' : '';
+          const priorityClass = `priority-${task.priority}`;
+          const timeStr = task.time ? ` (${task.time})` : '';
+
+          html += `
                         <li class="task-item ${completedClass} ${priorityClass}">
                             <span class="task-checkbox">${task.completed ? '✅' : '⬜'}</span>
                             <span class="task-title">${task.title}${timeStr}</span>
                             ${task.note ? `<div class="task-note">${task.note}</div>` : ''}
                         </li>
                     `;
-                });
-                
-                html += `</ul></div>`;
-            });
-            
-            html += `</div>`;
         });
-        
-        html += `
+
+        html += `</ul></div>`;
+      });
+
+      html += `</div>`;
+    });
+
+    html += `
                 </div>
             </div>
             <style>
@@ -564,295 +564,295 @@ this.calendarView = calendarView;
                 }
             </style>
         `;
-        
-        // 添加更多菜单功能
-        setTimeout(() => {
-            this.bindMoreMenuEvents(groupedTasks);
-        }, 100);
-        
-        return html;
-    }
 
-    /**
-     * 绑定更多菜单事件
-     */
-    private bindMoreMenuEvents(groupedTasks: Map<string, Map<string, any[]>>) {
-        const moreMenuBtn = document.getElementById('more-menu-btn');
-        const copyRichTextBtn = document.getElementById('copy-rich-text-btn');
-        
-        if (!moreMenuBtn) return;
-        
-        moreMenuBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            this.showMoreMenu(e as MouseEvent, groupedTasks);
+    // 添加更多菜单功能
+    setTimeout(() => {
+      this.bindMoreMenuEvents(groupedTasks);
+    }, 100);
+
+    return html;
+  }
+
+  /**
+   * 绑定更多菜单事件
+   */
+  private bindMoreMenuEvents(groupedTasks: Map<string, Map<string, any[]>>) {
+    const moreMenuBtn = document.getElementById('more-menu-btn');
+    const copyRichTextBtn = document.getElementById('copy-rich-text-btn');
+
+    if (!moreMenuBtn) return;
+
+    moreMenuBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.showMoreMenu(e as MouseEvent, groupedTasks);
+    });
+
+    // 添加复制富文本按钮事件监听器
+    if (copyRichTextBtn) {
+      copyRichTextBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.executeCopy('rich', groupedTasks);
+      });
+    }
+  }
+
+  /**
+   * 显示更多菜单
+   */
+  private showMoreMenu(event: MouseEvent, groupedTasks: Map<string, Map<string, any[]>>) {
+    try {
+      const menu = new Menu("taskSummaryMoreMenu");
+
+      // 添加复制富文本选项
+      menu.addItem({
+        icon: 'iconCopy',
+        label: t("copyRichText") || "复制富文本",
+        click: () => this.executeCopy('rich', groupedTasks)
+      });
+
+      // 添加复制 Markdown 选项
+      menu.addItem({
+        icon: 'iconCopy',
+        label: t("copyAll") || "复制 Markdown",
+        click: () => this.executeCopy('markdown', groupedTasks)
+      });
+
+      // 添加复制纯文本选项
+      menu.addItem({
+        icon: 'iconCopy',
+        label: t("copyPlainText") || "复制纯文本",
+        click: () => this.executeCopy('plain', groupedTasks)
+      });
+
+      // 显示菜单
+      if (event.target instanceof HTMLElement) {
+        const rect = event.target.getBoundingClientRect();
+        menu.open({
+          x: rect.left,
+          y: rect.bottom + 4
+        });
+      } else {
+        menu.open({
+          x: event.clientX,
+          y: event.clientY
+        });
+      }
+    } catch (error) {
+      console.error('显示更多菜单失败:', error);
+    }
+  }
+
+  /**
+   * 复制任务摘要到剪贴板
+   */
+  public copyTaskSummary(groupedTasks: Map<string, Map<string, any[]>>) {
+    let text = '';
+
+    const sortedDates = Array.from(groupedTasks.keys()).sort();
+
+    sortedDates.forEach(date => {
+      const dateProjects = groupedTasks.get(date);
+      const dateObj = new Date(date);
+      const formattedDate = dateObj.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long'
+      });
+
+      // 非日视图时才添加日期标题
+      if (this.calendar && this.calendar.view.type !== 'timeGridDay') {
+        text += `## ${formattedDate}
+
+`;
+      }
+
+      dateProjects.forEach((tasks, projectName) => {
+        text += `### ${projectName}
+
+`;
+
+        tasks.forEach(task => {
+          const checkbox = task.completed ? '- [x]' : '- [ ]';
+          const timeStr = task.time ? ` (${task.time})` : '';
+
+          text += `${checkbox} ${task.title}${timeStr}
+`;
+          if (task.note) {
+            text += `  > ${task.note}
+`;
+          }
         });
 
-        // 添加复制富文本按钮事件监听器
-        if (copyRichTextBtn) {
-            copyRichTextBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                this.executeCopy('rich', groupedTasks);
-            });
-        }
-    }
-
-    /**
-     * 显示更多菜单
-     */
-    private showMoreMenu(event: MouseEvent, groupedTasks: Map<string, Map<string, any[]>>) {
-        try {
-            const menu = new Menu("taskSummaryMoreMenu");
-
-            // 添加复制富文本选项
-            menu.addItem({
-                icon: 'iconCopy',
-                label: t("copyRichText") || "复制富文本",
-                click: () => this.executeCopy('rich', groupedTasks)
-            });
-
-            // 添加复制 Markdown 选项
-            menu.addItem({
-                icon: 'iconCopy',
-                label: t("copyAll") || "复制 Markdown",
-                click: () => this.executeCopy('markdown', groupedTasks)
-            });
-
-            // 添加复制纯文本选项
-            menu.addItem({
-                icon: 'iconCopy',
-                label: t("copyPlainText") || "复制纯文本",
-                click: () => this.executeCopy('plain', groupedTasks)
-            });
-
-            // 显示菜单
-            if (event.target instanceof HTMLElement) {
-                const rect = event.target.getBoundingClientRect();
-                menu.open({
-                    x: rect.left,
-                    y: rect.bottom + 4
-                });
-            } else {
-                menu.open({
-                    x: event.clientX,
-                    y: event.clientY
-                });
-            }
-        } catch (error) {
-            console.error('显示更多菜单失败:', error);
-        }
-    }
-
-    /**
-     * 复制任务摘要到剪贴板
-     */
-    public copyTaskSummary(groupedTasks: Map<string, Map<string, any[]>>) {
-        let text = '';
-
-        const sortedDates = Array.from(groupedTasks.keys()).sort();
-
-        sortedDates.forEach(date => {
-            const dateProjects = groupedTasks.get(date);
-            const dateObj = new Date(date);
-            const formattedDate = dateObj.toLocaleDateString('zh-CN', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                weekday: 'long'
-            });
-
-            // 非日视图时才添加日期标题
-            if (this.calendar && this.calendar.view.type !== 'timeGridDay') {
-                text += `## ${formattedDate}
-
+        text += `
 `;
-            }
+      });
 
-            dateProjects.forEach((tasks, projectName) => {
-                text += `### ${projectName}
-
+      text += `
 `;
+    });
 
-                tasks.forEach(task => {
-                    const checkbox = task.completed ? '- [x]' : '- [ ]';
-                    const timeStr = task.time ? ` (${task.time})` : '';
+    navigator.clipboard.writeText(text).then(() => {
+      showMessage(t("copiedToClipboard") || "已复制到剪贴板");
+    }).catch(err => {
+      console.error('复制失败:', err);
+      showMessage(t("copyFailed") || "复制失败");
+    });
+  }
 
-                    text += `${checkbox} ${task.title}${timeStr}
-`;
-                    if (task.note) {
-                        text += `  > ${task.note}
-`;
-                    }
-                });
+  /**
+   * 复制任务摘要纯文本到剪贴板（带编号）
+   */
+  public copyTaskSummaryPlainText(groupedTasks: Map<string, Map<string, any[]>>) {
+    let text = '';
 
-                text += `
-`;
-            });
+    const sortedDates = Array.from(groupedTasks.keys()).sort();
 
-            text += `
-`;
-        });
+    sortedDates.forEach(date => {
+      const dateProjects = groupedTasks.get(date);
+      const dateObj = new Date(date);
+      const formattedDate = dateObj.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long'
+      });
 
-        navigator.clipboard.writeText(text).then(() => {
-            showMessage(t("copiedToClipboard") || "已复制到剪贴板");
-        }).catch(err => {
-            console.error('复制失败:', err);
-            showMessage(t("copyFailed") || "复制失败");
-        });
-    }
-
-    /**
-     * 复制任务摘要纯文本到剪贴板（带编号）
-     */
-    public copyTaskSummaryPlainText(groupedTasks: Map<string, Map<string, any[]>>) {
-        let text = '';
-        
-        const sortedDates = Array.from(groupedTasks.keys()).sort();
-        
-        sortedDates.forEach(date => {
-            const dateProjects = groupedTasks.get(date);
-            const dateObj = new Date(date);
-            const formattedDate = dateObj.toLocaleDateString('zh-CN', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                weekday: 'long'
-            });
-            
-            // 非日视图时才添加日期标题
-            if (this.calendar && this.calendar.view.type !== 'timeGridDay') {
-                text += `${formattedDate}
+      // 非日视图时才添加日期标题
+      if (this.calendar && this.calendar.view.type !== 'timeGridDay') {
+        text += `${formattedDate}
 ${'-'.repeat(formattedDate.length)}
 
 `;
-            }
-            
-            dateProjects.forEach((tasks, projectName) => {
-                text += `【${projectName}】
+      }
+
+      dateProjects.forEach((tasks, projectName) => {
+        text += `【${projectName}】
 `;
 
-                let taskNumber = 1; // 全局任务编号
-                tasks.forEach(task => {
-                    const timeStr = task.time ? ` (${task.time})` : '';
-                    
-                    text += `${taskNumber}.  ${task.title}
+        let taskNumber = 1; // 全局任务编号
+        tasks.forEach(task => {
+          const timeStr = task.time ? ` (${task.time})` : '';
+
+          text += `${taskNumber}.  ${task.title}
 `;
-                    taskNumber++;
-                });
-                
-                text += `
+          taskNumber++;
+        });
+
+        text += `
 `;
-            });
-            
-            text += `
+      });
+
+      text += `
 `;
-        });
-        
-        navigator.clipboard.writeText(text).then(() => {
-            showMessage(t("copiedToClipboard") || "已复制到剪贴板");
-        }).catch(err => {
-            console.error('复制失败:', err);
-            showMessage(t("copyFailed") || "复制失败");
-        });
-    }
+    });
 
-    /**
-     * 复制任务摘要富文本到剪贴板（带编号，HTML格式）
-     */
-    public copyTaskSummaryRichText(groupedTasks: Map<string, Map<string, any[]>>) {
-        let html = '';
-        
-        const sortedDates = Array.from(groupedTasks.keys()).sort();
-        
-        html += '<div style="font-family: Arial, sans-serif; line-height: 1.6;">';
-        
-        sortedDates.forEach(date => {
-            const dateProjects = groupedTasks.get(date);
-            const dateObj = new Date(date);
-            const formattedDate = dateObj.toLocaleDateString('zh-CN', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                weekday: 'long'
-            });
-            
-            // 非日视图时才添加日期标题
-            if (this.calendar && this.calendar.view.type !== 'timeGridDay') {
-                html += `<h2 style="color: #1976D2; margin: 20px 0 12px 0; font-size: 18px; border-bottom: 2px solid #1976D2; padding-bottom: 4px;">${formattedDate}</h2>`;
-            }
-            
-            dateProjects.forEach((tasks, projectName) => {
-                html += `<h3 style="color: #2196F3; margin: 16px 0 8px 0; font-size: 16px;">【${projectName}】</h3>`;
-                html += '<ol style="margin: 0 0 16px 0; padding-left: 20px;">';
+    navigator.clipboard.writeText(text).then(() => {
+      showMessage(t("copiedToClipboard") || "已复制到剪贴板");
+    }).catch(err => {
+      console.error('复制失败:', err);
+      showMessage(t("copyFailed") || "复制失败");
+    });
+  }
 
-                tasks.forEach(task => {
-                    // const timeStr = task.time ? ` <span style="color: #666; font-size: 12px;">(${task.time})</span>` : '';
-                    
-                    html += `<li style="margin: 4px 0; color: #333;">${task.title}</li>`;
-                });
-                
-                html += '</ol>';
-            });
-            
-            html += '<br>';
+  /**
+   * 复制任务摘要富文本到剪贴板（带编号，HTML格式）
+   */
+  public copyTaskSummaryRichText(groupedTasks: Map<string, Map<string, any[]>>) {
+    let html = '';
+
+    const sortedDates = Array.from(groupedTasks.keys()).sort();
+
+    html += '<div style="font-family: Arial, sans-serif; line-height: 1.6;">';
+
+    sortedDates.forEach(date => {
+      const dateProjects = groupedTasks.get(date);
+      const dateObj = new Date(date);
+      const formattedDate = dateObj.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long'
+      });
+
+      // 非日视图时才添加日期标题
+      if (this.calendar && this.calendar.view.type !== 'timeGridDay') {
+        html += `<h2 style="color: #1976D2; margin: 20px 0 12px 0; font-size: 18px; border-bottom: 2px solid #1976D2; padding-bottom: 4px;">${formattedDate}</h2>`;
+      }
+
+      dateProjects.forEach((tasks, projectName) => {
+        html += `<h3 style="color: #2196F3; margin: 16px 0 8px 0; font-size: 16px;">【${projectName}】</h3>`;
+        html += '<ol style="margin: 0 0 16px 0; padding-left: 20px;">';
+
+        tasks.forEach(task => {
+          // const timeStr = task.time ? ` <span style="color: #666; font-size: 12px;">(${task.time})</span>` : '';
+
+          html += `<li style="margin: 4px 0; color: #333;">${task.title}</li>`;
         });
-        
-        html += '</div>';
-        
-        // 创建一个临时的 ClipboardItem 来复制富文本
-        const blob = new Blob([html], { type: 'text/html' });
-        const clipboardItem = new ClipboardItem({ 'text/html': blob });
-        
-        navigator.clipboard.write([clipboardItem]).then(() => {
-            showMessage(t("copiedToClipboard") || "已复制到剪贴板");
-        }).catch(err => {
-            console.error('富文本复制失败:', err);
-            // 如果富文本复制失败，尝试复制纯文本版本
-            const plainText = html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ');
-            navigator.clipboard.writeText(plainText).then(() => {
-                showMessage(t("copiedToClipboard") || "已复制到剪贴板（纯文本格式）");
-            }).catch(err2 => {
-                console.error('纯文本复制也失败:', err2);
-                showMessage(t("copyFailed") || "复制失败");
-            });
-        });
-    }
 
-    /**
-     * 执行复制操作
-     */
-    public executeCopy(copyType: string, groupedTasks: Map<string, Map<string, any[]>>) {
-        switch (copyType) {
-            case 'rich':
-                this.copyTaskSummaryRichText(groupedTasks);
-                break;
-            case 'markdown':
-                this.copyTaskSummary(groupedTasks);
-                break;
-            case 'plain':
-                this.copyTaskSummaryPlainText(groupedTasks);
-                break;
-            default:
-                this.copyTaskSummaryRichText(groupedTasks);
-        }
-    }
+        html += '</ol>';
+      });
 
-    /**
-     * 复制当前视图的富文本任务摘要
-     */
-    public async copyCurrentViewRichText() {
-        try {
-            const events = await this.getEvents();
-            const dateRange = this.getCurrentViewDateRange();
-            const filteredEvents = this.filterEventsByDateRange(events, dateRange);
-            const groupedTasks = this.groupTasksByDateAndProject(filteredEvents, dateRange);
-            
-            this.executeCopy('rich', groupedTasks);
-        } catch (error) {
-            console.error('复制富文本失败:', error);
-            showMessage(t("copyFailed") || "复制失败");
-        }
+      html += '<br>';
+    });
+
+    html += '</div>';
+
+    // 创建一个临时的 ClipboardItem 来复制富文本
+    const blob = new Blob([html], { type: 'text/html' });
+    const clipboardItem = new ClipboardItem({ 'text/html': blob });
+
+    navigator.clipboard.write([clipboardItem]).then(() => {
+      showMessage(t("copiedToClipboard") || "已复制到剪贴板");
+    }).catch(err => {
+      console.error('富文本复制失败:', err);
+      // 如果富文本复制失败，尝试复制纯文本版本
+      const plainText = html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ');
+      navigator.clipboard.writeText(plainText).then(() => {
+        showMessage(t("copiedToClipboard") || "已复制到剪贴板（纯文本格式）");
+      }).catch(err2 => {
+        console.error('纯文本复制也失败:', err2);
+        showMessage(t("copyFailed") || "复制失败");
+      });
+    });
+  }
+
+  /**
+   * 执行复制操作
+   */
+  public executeCopy(copyType: string, groupedTasks: Map<string, Map<string, any[]>>) {
+    switch (copyType) {
+      case 'rich':
+        this.copyTaskSummaryRichText(groupedTasks);
+        break;
+      case 'markdown':
+        this.copyTaskSummary(groupedTasks);
+        break;
+      case 'plain':
+        this.copyTaskSummaryPlainText(groupedTasks);
+        break;
+      default:
+        this.copyTaskSummaryRichText(groupedTasks);
     }
+  }
+
+  /**
+   * 复制当前视图的富文本任务摘要
+   */
+  public async copyCurrentViewRichText() {
+    try {
+      const events = await this.getEvents();
+      const dateRange = this.getCurrentViewDateRange();
+      const filteredEvents = this.filterEventsByDateRange(events, dateRange);
+      const groupedTasks = this.groupTasksByDateAndProject(filteredEvents, dateRange);
+
+      this.executeCopy('rich', groupedTasks);
+    } catch (error) {
+      console.error('复制富文本失败:', error);
+      showMessage(t("copyFailed") || "复制失败");
+    }
+  }
 
 }
