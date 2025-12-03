@@ -141,6 +141,11 @@ export class CalendarView {
         // 添加统一过滤器
         const filterGroup = document.createElement('div');
         filterGroup.className = 'reminder-calendar-filter-group';
+        filterGroup.style.display = 'flex';
+        filterGroup.style.justifyContent = 'flex-end';
+        filterGroup.style.alignItems = 'center';
+        filterGroup.style.flexWrap = 'wrap';
+        filterGroup.style.gap = '8px';
         toolbar.appendChild(filterGroup);
 
         // 筛选图标
@@ -152,8 +157,7 @@ export class CalendarView {
         // 创建统一的筛选下拉框
         const unifiedFilterSelect = document.createElement('select');
         unifiedFilterSelect.className = 'b3-select';
-        // 设置最大width
-        unifiedFilterSelect.style.maxWidth = '200px';
+        unifiedFilterSelect.style.width = '15%';
         unifiedFilterSelect.title = t("filterReminders") || "筛选提醒";
         unifiedFilterSelect.addEventListener('change', () => {
             const selectedValue = unifiedFilterSelect.value;
@@ -179,7 +183,7 @@ export class CalendarView {
         // 添加完成状态筛选
         const completionFilterSelect = document.createElement('select');
         completionFilterSelect.className = 'b3-select';
-        completionFilterSelect.style.marginLeft = '4px';
+        completionFilterSelect.style.width = '15%';
         completionFilterSelect.innerHTML = `
             <option value="all">${t("allStatuses") || "全部状态"}</option>
             <option value="incomplete">${t("incomplete") || "未完成"}</option>
@@ -194,7 +198,7 @@ export class CalendarView {
         // 添加按分类/优先级上色切换
         const colorBySelect = document.createElement('select');
         colorBySelect.className = 'b3-select';
-        colorBySelect.style.marginLeft = '4px';
+        colorBySelect.style.width = '15%';
         colorBySelect.innerHTML = `
             <option value="project">${t("colorByProject")}</option>
             <option value="category">${t("colorByCategory")}</option>
@@ -219,7 +223,6 @@ export class CalendarView {
         // 刷新按钮
         const refreshBtn = document.createElement('button');
         refreshBtn.className = 'b3-button b3-button--outline';
-        refreshBtn.style.marginLeft = '4px';
         refreshBtn.style.padding = '6px';
         refreshBtn.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconRefresh"></use></svg>';
         refreshBtn.title = t("refresh");
@@ -240,7 +243,6 @@ export class CalendarView {
         // 分类管理按钮
         const categoryManageBtn = document.createElement('button');
         categoryManageBtn.className = 'b3-button b3-button--outline';
-        categoryManageBtn.style.marginLeft = '4px';
         categoryManageBtn.style.padding = '6px';
         categoryManageBtn.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconTags"></use></svg>';
         categoryManageBtn.title = t("manageCategories");
@@ -252,7 +254,6 @@ export class CalendarView {
         // 项目颜色管理按钮
         const projectColorManageBtn = document.createElement('button');
         projectColorManageBtn.className = 'b3-button b3-button--outline';
-        projectColorManageBtn.style.marginLeft = '4px';
         projectColorManageBtn.style.padding = '6px';
         projectColorManageBtn.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconProject"></use></svg>';
         projectColorManageBtn.title = t("manageProjectColors");
@@ -261,22 +262,9 @@ export class CalendarView {
         });
         filterGroup.appendChild(projectColorManageBtn);
 
-        // 复制富文本按钮
-        const copyRichTextBtn = document.createElement('button');
-        copyRichTextBtn.className = 'b3-button b3-button--outline';
-        copyRichTextBtn.style.marginLeft = '4px';
-        copyRichTextBtn.style.padding = '6px';
-        copyRichTextBtn.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconCopy"></use></svg>';
-        copyRichTextBtn.title = t("copyRichText") || "复制富文本";
-        copyRichTextBtn.addEventListener('click', () => {
-            this.taskSummaryDialog.copyCurrentViewRichText();
-        });
-        filterGroup.appendChild(copyRichTextBtn);
-
         // 摘要按钮
         const summaryBtn = document.createElement('button');
         summaryBtn.className = 'b3-button b3-button--outline';
-        summaryBtn.style.marginLeft = '4px';
         summaryBtn.style.padding = '6px';
         summaryBtn.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconList"></use></svg>';
         summaryBtn.title = t("taskSummary") || "任务摘要";

@@ -233,6 +233,7 @@
     "skipThisOccurrence": "跳过此次发生",
     "categoryFilter": "分类筛选",
     "eventCategory": "事件分类",
+    "categoryManagement": "分类管理",
     "selectCategories": "选择分类",
     "manageCategories": "管理分类",
     "addCategory": "添加新分类",
