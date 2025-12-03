@@ -1942,7 +1942,7 @@ export default class ReminderPlugin extends Plugin {
                             const parsed = this.extractDateAndTime(rt);
                             const hasDate = !!parsed.date;
                             const shouldCheck = hasDate ? (parsed.date === today) : inDateRange;
-                            
+
                             if (shouldCheck) {
                                 const notifiedKey = rt;
                                 if (reminderObj.notifiedTimes && reminderObj.notifiedTimes[notifiedKey]) continue;
@@ -1951,9 +1951,9 @@ export default class ReminderPlugin extends Plugin {
                                 const reminderNum = this.timeStringToNumber(rt);
                                 if (currentNum >= reminderNum) {
                                     console.debug('checkTimeReminders - triggering reminderTimes reminder', { id: reminderObj.id, rt });
-                                    const tempReminder = { ...reminderObj, customReminderTime: rt, note: note ? (reminderObj.note ? reminderObj.note + '\n' + note : note) : reminderObj.note }; 
+                                    const tempReminder = { ...reminderObj, customReminderTime: rt, note: note ? (reminderObj.note ? reminderObj.note + '\n' + note : note) : reminderObj.note };
                                     await this.showTimeReminder(tempReminder, 'customReminderTime');
-                                    
+
                                     if (!reminderObj.notifiedTimes) reminderObj.notifiedTimes = {};
                                     reminderObj.notifiedTimes[notifiedKey] = true;
                                     dataChanged = true;
@@ -2014,10 +2014,10 @@ export default class ReminderPlugin extends Plugin {
 
                                 const parsed = this.extractDateAndTime(rt);
                                 if (parsed.date && parsed.date !== instance.date) continue;
-                                
+
                                 const currentNum = this.timeStringToNumber(currentTime);
                                 const reminderNum = this.timeStringToNumber(rt);
-                                
+
                                 if (currentNum >= reminderNum) {
                                     const notifiedInstances = reminderObj.repeat?.notifiedInstances || [];
                                     const instanceKey = `${instance.date}_${rt}`;
@@ -2025,7 +2025,7 @@ export default class ReminderPlugin extends Plugin {
                                         console.debug('checkTimeReminders - triggering repeat instance reminderTimes reminder', { id: instance.id, rt });
                                         const tempInstance = { ...instance, customReminderTime: rt, note: note ? (instance.note ? instance.note + '\n' + note : note) : instance.note };
                                         await this.showTimeReminder(tempInstance, 'customReminderTime');
-                                        
+
                                         if (!reminderObj.repeat) reminderObj.repeat = {};
                                         if (!reminderObj.repeat.notifiedInstances) reminderObj.repeat.notifiedInstances = [];
                                         reminderObj.repeat.notifiedInstances.push(instanceKey);
@@ -2145,7 +2145,7 @@ export default class ReminderPlugin extends Plugin {
                 } else {
                     passed = currentNum >= fieldTimeNum;
                 }
-                
+
                 const notified = reminder.notifiedTimes && reminder.notifiedTimes[rt];
                 if (!notified || !passed) {
                     reminderTimesAllNotified = false;
@@ -2155,11 +2155,11 @@ export default class ReminderPlugin extends Plugin {
         }
 
         if (hasTime || hasCustom || hasReminderTimes) {
-             const timeOk = !hasTime || (!!reminder.notifiedTime && checkPassed('time'));
-             const customOk = !hasCustom || (!!reminder.notifiedCustomTime && checkPassed('customReminderTime'));
-             const reminderTimesOk = !hasReminderTimes || reminderTimesAllNotified;
-             
-             now = timeOk && customOk && reminderTimesOk;
+            const timeOk = !hasTime || (!!reminder.notifiedTime && checkPassed('time'));
+            const customOk = !hasCustom || (!!reminder.notifiedCustomTime && checkPassed('customReminderTime'));
+            const reminderTimesOk = !hasReminderTimes || reminderTimesAllNotified;
+
+            now = timeOk && customOk && reminderTimesOk;
         } else {
             now = false;
         }
