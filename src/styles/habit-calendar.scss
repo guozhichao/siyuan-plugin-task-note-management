@@ -107,6 +107,10 @@
     padding-bottom: 20px;
     grid-auto-rows: minmax(auto, max-content);
     /* 确保行高度自适应内容 */
+    position: relative;
+    /* 为sticky定位提供参考 */
+    min-width: min-content;
+    /* 确保grid不会被压缩，允许水平滚动 */
 }
 
 .grid-header {
@@ -124,8 +128,8 @@
 .grid-header.habit-header {
     text-align: left;
     left: 0;
-    z-index: 20;
-    /* 比普通表头更高，防止滚动时被遮挡 */
+    z-index: 30;
+    /* 比普通表头和普通单元格更高，防止滚动时被遮挡 */
     padding-left: 16px;
 }
 
@@ -152,7 +156,8 @@
     position: sticky;
     left: 0;
     background: var(--b3-theme-background);
-    z-index: 5;
+    z-index: 15;
+    /* 比普通表头高，但比习惯表头低 */
     padding-left: 16px;
     border-right: 1px solid var(--b3-theme-surface-lighter);
     /* 分隔线 */
@@ -176,7 +181,8 @@
     display: flex;
     flex-direction: column;
     background: var(--b3-theme-background);
-    overflow: hidden; /* 防止容器滚动，让内容区域滚动 */
+    overflow: hidden;
+    /* 防止容器滚动，让内容区域滚动 */
 }
 
 .habit-calendar-toolbar {
@@ -185,11 +191,14 @@
     align-items: center;
     margin-bottom: 24px;
     flex-shrink: 0;
-    position: sticky; /* 固定工具栏在顶部 */
+    position: sticky;
+    /* 固定工具栏在顶部 */
     top: 0;
     z-index: 10;
-    background: var(--b3-theme-background); /* 确保背景不透明 */
-    padding: 10px 0; /* 添加内边距避免内容重叠 */
+    background: var(--b3-theme-background);
+    /* 确保背景不透明 */
+    padding: 10px 0;
+    /* 添加内边距避免内容重叠 */
 }
 
 .habit-calendar-view-toggle {
@@ -220,4 +229,6 @@
     border: 1px solid var(--b3-theme-surface-lighter);
     border-radius: 8px;
     background: var(--b3-theme-background);
+    position: relative;
+    /* 为内部sticky元素提供滚动上下文 */
 }

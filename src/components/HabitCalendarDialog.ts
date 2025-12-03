@@ -17,8 +17,8 @@ export class HabitCalendarDialog {
         this.dialog = new Dialog({
             title: "打卡日历",
             content: '<div id="habitCalendarContainer"></div>',
-            width: "900px",
-            height: "700px"
+            width: "1100px",
+            height: "81vh"
         });
 
         const container = this.dialog.element.querySelector('#habitCalendarContainer') as HTMLElement;
