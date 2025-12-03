@@ -145,7 +145,21 @@ export class HabitHistoryDialog {
             entriesContainer.style.cssText = 'padding: 8px 12px; margin-top:6px; margin-left: 28px; display:' + (isCollapsed ? 'none' : 'block') + ';';
             const entriesWrap = document.createElement('div');
             entriesWrap.style.cssText = 'display:flex; flex-direction:column; gap:6px; align-items:stretch;';
-            entries.forEach((entry, idx) => {
+            
+            // 按时间排序 entries (从早到晚)
+            const sortedEntries = [...entries].sort((a, b) => {
+                const timeA = a.timestamp || '';
+                const timeB = b.timestamp || '';
+                return timeA.localeCompare(timeB);
+            });
+            
+            sortedEntries.forEach((entry, idx) => {
+                // 找到该 entry 在原始数组中的索引，用于编辑和删除
+                const originalIndex = entries.findIndex(e => 
+                    e.emoji === entry.emoji && 
+                    e.timestamp === entry.timestamp && 
+                    e.note === entry.note
+                );
                 const item = document.createElement('div');
                 item.style.cssText = 'display:flex; gap:6px; align-items:center; padding:4px 6px; background:var(--b3-theme-surface); border-radius:6px;';
                 const span = document.createElement('span');
@@ -170,7 +184,7 @@ export class HabitHistoryDialog {
                 editEntryBtn.className = 'b3-button b3-button--outline';
                 editEntryBtn.style.cssText = 'padding:2px 6px; margin-left:8px;';
                 editEntryBtn.textContent = '编辑';
-                editEntryBtn.addEventListener('click', (e) => { e.stopPropagation(); this.openEditEntryDialog(dateStr, idx); });
+                editEntryBtn.addEventListener('click', (e) => { e.stopPropagation(); this.openEditEntryDialog(dateStr, originalIndex); });
 
                 const deleteEntryBtn = document.createElement('button');
                 deleteEntryBtn.className = 'b3-button b3-button--danger';
@@ -178,8 +192,8 @@ export class HabitHistoryDialog {
                 deleteEntryBtn.textContent = '删除';
                 deleteEntryBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    confirm('确认删除', `确定要删除 ${this.habit.title} 在 ${dateStr} 的第 ${idx + 1} 次打卡吗？`, async () => {
-                        await this.deleteEntry(dateStr, idx);
+                    confirm('确认删除', `确定要删除 ${this.habit.title} 在 ${dateStr} 的第 ${originalIndex + 1} 次打卡吗？`, async () => {
+                        await this.deleteEntry(dateStr, originalIndex);
                     });
                 });
 

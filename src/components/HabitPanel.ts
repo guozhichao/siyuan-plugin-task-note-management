@@ -1114,7 +1114,7 @@ export class HabitPanel {
                 // 弹窗输入备注和打卡时间 —— 使用标准 dialog footer（.b3-dialog__action）放置按钮以保证样式与位置正确
                 let resolveFn: (() => void) | null = null;
                 const promise = new Promise<void>((resolve) => { resolveFn = resolve; });
-                
+
                 // 格式化当前时间为 datetime-local 输入框所需的格式 (YYYY-MM-DDTHH:mm)
                 const nowDate = new Date();
                 const datetimeLocalValue = nowDate.getFullYear() + '-' +
@@ -1122,7 +1122,7 @@ export class HabitPanel {
                     String(nowDate.getDate()).padStart(2, '0') + 'T' +
                     String(nowDate.getHours()).padStart(2, '0') + ':' +
                     String(nowDate.getMinutes()).padStart(2, '0');
-                
+
                 const inputDialog = new Dialog({
                     title: '打卡信息',
                     content: `<div class="b3-dialog__content"><div class="ft__breakword" style="padding:12px">
@@ -1164,7 +1164,7 @@ export class HabitPanel {
                     cancelled = true;
                     inputDialog.destroy();
                 });
-                
+
                 // 按 ESC 键取消
                 const escHandler = (e: KeyboardEvent) => {
                     if (e.key === 'Escape') {
@@ -1176,7 +1176,7 @@ export class HabitPanel {
 
                 // 等待用户点击保存或取消或直接关闭对话框
                 await promise;
-                
+
                 // 如果用户取消了，直接返回，不保存打卡
                 if (cancelled) {
                     return;
