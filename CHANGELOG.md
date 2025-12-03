@@ -1,3 +1,23 @@
+## v3.4.0 /20251203
+
+- 🚀 日历视图加载性能优化 [#170](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/170)
+- 🎨日历视图顶栏按钮优化 [#181](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/181)
+- 🎨习惯统计优化年度打卡视图 [#175](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/175)
+- 🎨 改进习惯的时间提醒编辑：如果编辑的时间是未来时间，而不要把今天其他过去提醒给删除，不处理就行，这样未来时间就能提醒。
+- 🎨编辑习惯打卡支持编辑打卡时间点
+- 🎨习惯打卡的查看统计图标设置为iconSparkles
+- 🎨习惯打卡打卡状态分布统计根据百分比填充绿色 [#180](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/180)
+- 🎨习惯日历统计界面优化 [#185](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/185)
+- 🎨番茄钟专注趋势：专注为0m，不应该显示高度 [#179](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/179)
+- ⚙设置添加一个打开插件数据文件夹按钮和删除文件夹按钮
+- ⚙数据保存优化，精简保存的文件 [#107](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/107)
+在index.js用常量的方式罗列所有要保存的数据文件名
+- 🎨状态管理、分类图标使用emoji picker [#182](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/182)
+- 🎨优化任务提醒时间编辑和新增
+- 🎨batchReminderDialog的编辑调用quickerReminderDialog [#183](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/183)
+- 🔥编辑任务删除标题blur自动识别日期功能
+- 🎨编辑任务不设置具体时间取消勾选需要保留原来的日期 [#184](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/184)
+
 ## v3.3.8 / 20251201
 
 - 🐛创建提醒时，没有给块成功添加书签⏰ [#171](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/171)
