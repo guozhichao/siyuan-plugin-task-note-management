@@ -183,7 +183,7 @@ export class HabitCheckInEmojiDialog {
                 this.sharedPicker = new Picker({
                     i18n: zh_CN,
                     locale: 'zh_CN',
-                    dataSource: 'http://127.0.0.1:6806/plugins/siyuan-plugin-task-note-management/assets/emojis_search.json'
+                    dataSource: window.siyuan.config.system.dataDir+'/plugins/siyuan-plugin-task-note-management/assets/emojis_search.json'
                 }
                 ) as Picker;
             } catch (e) {
