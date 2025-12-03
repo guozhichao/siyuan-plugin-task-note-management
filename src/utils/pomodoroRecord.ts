@@ -1,4 +1,4 @@
-import { putFile, getFile } from "../api";
+import { POMODORO_RECORD_DATA_FILE } from "../index";
 
 // 单个番茄钟会话记录
 export interface PomodoroSession {
@@ -27,10 +27,15 @@ export class PomodoroRecordManager {
     private isLoading: boolean = false;
     private isSaving: boolean = false;
     private isInitialized: boolean = false;
+    private plugin: any;
 
-    static getInstance(): PomodoroRecordManager {
+    private constructor(plugin: any) {
+        this.plugin = plugin;
+    }
+
+    static getInstance(plugin?: any): PomodoroRecordManager {
         if (!PomodoroRecordManager.instance) {
-            PomodoroRecordManager.instance = new PomodoroRecordManager();
+            PomodoroRecordManager.instance = new PomodoroRecordManager(plugin);
         }
         return PomodoroRecordManager.instance;
     }
@@ -50,13 +55,10 @@ export class PomodoroRecordManager {
         this.isLoading = true;
 
         try {
-            const content = await getFile('/data/storage/petal/siyuan-plugin-task-note-management/pomodoro_record.json');
+            const content = await this.plugin.loadData(POMODORO_RECORD_DATA_FILE);
             // 检查返回的内容是否是有效的记录数据
-            if (content && typeof content === 'object' && !content.code) {
+            if (content) {
                 this.records = content;
-            } else if (content && typeof content === 'string' && !content.includes('"code"')) {
-                const parsedContent = JSON.parse(content);
-                this.records = parsedContent;
             } else {
                 // 如果返回的是错误对象或包含错误信息，则初始化为空记录
                 console.log('番茄钟记录文件不存在或格式错误，初始化空记录');
@@ -86,19 +88,9 @@ export class PomodoroRecordManager {
         this.isSaving = true;
 
         try {
-            const content = JSON.stringify(this.records, null, 2);
-            const blob = new Blob([content], { type: 'application/json' });
-            await putFile('/data/storage/petal/siyuan-plugin-task-note-management/pomodoro_record.json', false, blob);
+            await this.plugin.saveData(POMODORO_RECORD_DATA_FILE, this.records);
         } catch (error) {
             console.error('保存番茄钟记录失败:', error);
-            // 如果保存失败，可能是目录不存在，尝试创建目录后再保存
-            try {
-                const content = JSON.stringify(this.records, null, 2);
-                const blob = new Blob([content], { type: 'application/json' });
-                await putFile('/data/storage/petal/siyuan-plugin-task-note-management/pomodoro_record.json', true, blob);
-            } catch (retryError) {
-                console.error('重试保存番茄钟记录仍然失败:', retryError);
-            }
         } finally {
             this.isSaving = false;
         }

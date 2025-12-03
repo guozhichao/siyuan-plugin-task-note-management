@@ -1,4 +1,5 @@
 import { readReminderData, writeReminderData, getFile, putFile, openBlock, getBlockByID, removeFile } from "../api";
+import { SETTINGS_FILE } from "../index";
 import { ProjectManager } from "../utils/projectManager";
 import { CategoryManager } from "../utils/categoryManager";
 import { QuickReminderDialog } from "./QuickReminderDialog";
@@ -73,7 +74,7 @@ export class EisenhowerMatrixView {
         this.container = container;
         this.plugin = plugin;
         this.projectManager = ProjectManager.getInstance(plugin);
-        this.categoryManager = CategoryManager.getInstance();
+        this.categoryManager = CategoryManager.getInstance(plugin);
         this.initQuadrants();
         // 引用方法以避免编译器提示未使用（此方法通过动态绑定使用）
         // 读取属性作为引用，不执行调用
@@ -3190,7 +3191,7 @@ export class EisenhowerMatrixView {
 
     private async loadProjectSortOrder() {
         try {
-            const settings = await this.plugin.loadData('reminder-settings.json') || {};
+            const settings = await this.plugin.loadData(SETTINGS_FILE) || {};
 
             // 检查是否存在旧的 project-sort.json 文件，如果存在则导入并删除
             try {
@@ -3201,7 +3202,7 @@ export class EisenhowerMatrixView {
                         // 合并旧的项目排序配置到新的 settings
                         if (oldSort.projectSortOrder) settings.projectSortOrder = oldSort.projectSortOrder;
                         if (oldSort.currentProjectSortMode) settings.projectSortMode = oldSort.currentProjectSortMode;
-                        await this.plugin.saveData('reminder-settings.json', settings);
+                        await this.plugin.saveData(SETTINGS_FILE, settings);
                         // 删除旧文件
                         await removeFile('data/storage/petal/siyuan-plugin-task-note-management/project-sort.json');
                         console.log('成功导入并删除旧的 project-sort.json 文件');
@@ -3222,7 +3223,7 @@ export class EisenhowerMatrixView {
 
     private async loadCriteriaSettings() {
         try {
-            const settings = await this.plugin.loadData('reminder-settings.json') || {};
+            const settings = await this.plugin.loadData(SETTINGS_FILE) || {};
 
             // 检查是否存在旧的 four-quadrant-settings.json 文件，如果存在则导入并删除
             try {
@@ -3233,7 +3234,7 @@ export class EisenhowerMatrixView {
                         // 合并旧的四象限设置到新的 settings
                         if (oldQuadrant.importanceThreshold) settings.eisenhowerImportanceThreshold = oldQuadrant.importanceThreshold;
                         if (oldQuadrant.urgencyDays) settings.eisenhowerUrgencyDays = oldQuadrant.urgencyDays;
-                        await this.plugin.saveData('reminder-settings.json', settings);
+                        await this.plugin.saveData(SETTINGS_FILE, settings);
                         // 删除旧文件
                         await removeFile('data/storage/petal/siyuan-plugin-task-note-management/four-quadrant-settings.json');
                         console.log('成功导入并删除旧的 four-quadrant-settings.json 文件');
@@ -3258,10 +3259,10 @@ export class EisenhowerMatrixView {
 
     private async saveCriteriaSettings() {
         try {
-            const settings = await this.plugin.loadData('reminder-settings.json') || {};
+            const settings = await this.plugin.loadData(SETTINGS_FILE) || {};
             settings.eisenhowerImportanceThreshold = this.criteriaSettings.importanceThreshold;
             settings.eisenhowerUrgencyDays = this.criteriaSettings.urgencyDays;
-            await this.plugin.saveData('reminder-settings.json', settings);
+            await this.plugin.saveData(SETTINGS_FILE, settings);
         } catch (error) {
             console.error('保存标准设置失败:', error);
         }
@@ -3269,10 +3270,10 @@ export class EisenhowerMatrixView {
 
     private async saveProjectSortOrder() {
         try {
-            const settings = await this.plugin.loadData('reminder-settings.json') || {};
+            const settings = await this.plugin.loadData(SETTINGS_FILE) || {};
             settings.projectSortOrder = this.projectSortOrder;
             settings.projectSortMode = this.currentProjectSortMode;
-            await this.plugin.saveData('reminder-settings.json', settings);
+            await this.plugin.saveData(SETTINGS_FILE, settings);
         } catch (error) {
             console.error('保存项目排序失败:', error);
         }

@@ -17,16 +17,14 @@ import { QuickReminderDialog } from "./components/QuickReminderDialog";
 import { ReminderPanel } from "./components/ReminderPanel";
 import { HabitPanel } from "./components/HabitPanel";
 import { BatchReminderDialog } from "./components/BatchReminderDialog";
-import { ensureReminderDataFile, updateBlockReminderBookmark, ensureProjectDataFile, ensureHabitDataFile, ensureHabitGroupDataFile } from "./api";
+import { ensureReminderDataFile, ensureHabitDataFile, ensureHabitGroupDataFile } from "./api";
 import { CalendarView } from "./components/CalendarView";
 import { EisenhowerMatrixView } from "./components/EisenhowerMatrixView";
 import { CategoryManager } from "./utils/categoryManager";
 import { getLocalDateString, getLocalTimeString, compareDateStrings } from "./utils/dateUtils";
 import { t, setPluginInstance } from "./utils/i18n";
-import { RepeatConfig } from "./components/RepeatSettingsDialog";
 import { SettingUtils } from "./libs/setting-utils";
 import { PomodoroRecordManager } from "./utils/pomodoroRecord";
-import { RepeatSettingsDialog } from "./components/RepeatSettingsDialog";
 import { NotificationDialog } from "./components/NotificationDialog";
 import { DocumentReminderDialog } from "./components/DocumentReminderDialog";
 import { ProjectDialog } from "./components/ProjectDialog";
@@ -36,6 +34,14 @@ import { PomodoroManager } from "./utils/pomodoroManager";
 import SettingPanelComponent from "./SettingPanel.svelte";
 
 export const SETTINGS_FILE = "reminder-settings.json";
+export const PROJECT_DATA_FILE = "project.json";
+export const CATEGORIES_DATA_FILE = "categories.json";
+export const REMINDER_DATA_FILE = "reminder.json";
+export const HABIT_DATA_FILE = "habit.json";
+export const NOTIFY_DATA_FILE = "notify.json";
+export const POMODORO_RECORD_DATA_FILE = "pomodoro_record.json";
+export const HABIT_GROUP_DATA_FILE = "habitGroup.json";
+export const STATUSES_DATA_FILE = "statuses.json";
 
 
 
@@ -166,10 +172,10 @@ export default class ReminderPlugin extends Plugin {
             console.warn('初始化通知记录文件失败:', error);
         }
 
-        const pomodoroRecordManager = PomodoroRecordManager.getInstance();
+        const pomodoroRecordManager = PomodoroRecordManager.getInstance(this);
         await pomodoroRecordManager.initialize();
 
-        this.categoryManager = CategoryManager.getInstance();
+        this.categoryManager = CategoryManager.getInstance(this);
         await this.categoryManager.initialize();
 
 
@@ -1439,7 +1445,7 @@ export default class ReminderPlugin extends Plugin {
                 } else {
                     // 循环传递所有id
                     for (const docId of documentIds) {
-                        const dialog = new ProjectDialog(docId);
+                        const dialog = new ProjectDialog(docId, this);
                         dialog.show();
                     }
                 }
@@ -1509,7 +1515,7 @@ export default class ReminderPlugin extends Plugin {
                             projectData[documentId].title
                         );
                     } else {
-                        const dialog = new ProjectDialog(documentId);
+                        const dialog = new ProjectDialog(documentId, this);
                         dialog.show();
                     }
                 }
@@ -3105,7 +3111,7 @@ export default class ReminderPlugin extends Plugin {
                             projectData[documentId].title
                         );
                     } else {
-                        const dialog = new ProjectDialog(documentId);
+                        const dialog = new ProjectDialog(documentId, this);
                         dialog.show();
                     }
                 }

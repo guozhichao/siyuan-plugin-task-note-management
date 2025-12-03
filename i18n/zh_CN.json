@@ -834,5 +834,6 @@
     "habitYearlyView": "年度打卡视图",
     "habitYearlyHeatmap": "年度热力图",
     "habitNoCheckIn": "未打卡",
-    "habitDays": "天"
+    "habitDays": "天",
+    "category": "分类"
 }

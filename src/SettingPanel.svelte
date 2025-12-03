@@ -2,8 +2,19 @@
     import { onMount } from 'svelte';
     import SettingPanel from '@/libs/components/setting-panel.svelte';
     import { t } from './utils/i18n';
-    import { DEFAULT_SETTINGS, SETTINGS_FILE } from './index';
-    import { lsNotebooks, pushErrMsg } from './api';
+    import {
+        DEFAULT_SETTINGS,
+        SETTINGS_FILE,
+        PROJECT_DATA_FILE,
+        CATEGORIES_DATA_FILE,
+        REMINDER_DATA_FILE,
+        HABIT_DATA_FILE,
+        NOTIFY_DATA_FILE,
+        POMODORO_RECORD_DATA_FILE,
+        HABIT_GROUP_DATA_FILE,
+        STATUSES_DATA_FILE,
+    } from './index';
+    import { lsNotebooks, pushErrMsg, removeFile } from './api';
     import { Constants } from 'siyuan';
 
     export let plugin;
@@ -361,6 +372,46 @@
                                 window.siyuan.config.system.dataDir +
                                 '/storage/petal/siyuan-plugin-task-note-management';
                             await useShell('openPath', path);
+                        },
+                    },
+                },
+                {
+                    key: 'deletePluginData',
+                    value: '',
+                    type: 'button',
+                    title: '删除插件数据',
+                    description: '删除所有插件数据文件，此操作不可逆',
+                    button: {
+                        label: '删除数据',
+                        callback: async () => {
+                            const confirmed = confirm('确定要删除所有插件数据吗？此操作不可逆！');
+                            if (confirmed) {
+                                const dataDir =
+                                    'data/storage/petal/siyuan-plugin-task-note-management/';
+                                const files = [
+                                    SETTINGS_FILE,
+                                    PROJECT_DATA_FILE,
+                                    CATEGORIES_DATA_FILE,
+                                    REMINDER_DATA_FILE,
+                                    HABIT_DATA_FILE,
+                                    NOTIFY_DATA_FILE,
+                                    POMODORO_RECORD_DATA_FILE,
+                                    HABIT_GROUP_DATA_FILE,
+                                    STATUSES_DATA_FILE,
+                                ];
+                                let successCount = 0;
+                                for (const file of files) {
+                                    try {
+                                        await removeFile(dataDir + file);
+                                        successCount++;
+                                    } catch (e) {
+                                        console.error('删除文件失败:', file, e);
+                                    }
+                                }
+                                pushErrMsg(`数据删除完成，已删除 ${successCount} 个文件`);
+                                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                                
+                            }
                         },
                     },
                 },

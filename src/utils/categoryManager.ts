@@ -1,5 +1,5 @@
 import { t } from "./i18n";
-import { getFile, putFile } from "../api";
+import { CATEGORIES_DATA_FILE } from "../index";
 
 export interface Category {
     id: string;
@@ -14,17 +14,18 @@ const DEFAULT_CATEGORIES: Category[] = [
     { id: 'life', name: '娱乐', color: '#27ae60', icon: '☘️' }
 ];
 
-const CATEGORIES_FILE_PATH = 'data/storage/petal/siyuan-plugin-task-note-management/categories.json';
-
 export class CategoryManager {
     private static instance: CategoryManager;
     private categories: Category[] = [];
+    private plugin: any;
 
-    private constructor() { }
+    private constructor(plugin: any) {
+        this.plugin = plugin;
+    }
 
-    public static getInstance(): CategoryManager {
+    public static getInstance(plugin?: any): CategoryManager {
         if (!CategoryManager.instance) {
-            CategoryManager.instance = new CategoryManager();
+            CategoryManager.instance = new CategoryManager(plugin);
         }
         return CategoryManager.instance;
     }
@@ -48,7 +49,7 @@ export class CategoryManager {
      */
     public async loadCategories(): Promise<Category[]> {
         try {
-            const content = await getFile(CATEGORIES_FILE_PATH);
+            const content = await this.plugin.loadData(CATEGORIES_DATA_FILE);
             if (!content) {
                 console.log('分类文件不存在，创建默认分类');
                 this.categories = [...DEFAULT_CATEGORIES];
@@ -56,7 +57,7 @@ export class CategoryManager {
                 return this.categories;
             }
 
-            const categoriesData = typeof content === 'string' ? JSON.parse(content) : content;
+            const categoriesData = content;
 
             // 验证加载的数据是否为有效的分类数组
             if (Array.isArray(categoriesData) && categoriesData.length > 0) {
@@ -80,9 +81,7 @@ export class CategoryManager {
      */
     public async saveCategories(): Promise<void> {
         try {
-            const content = JSON.stringify(this.categories, null, 2);
-            const blob = new Blob([content], { type: 'application/json' });
-            await putFile(CATEGORIES_FILE_PATH, false, blob);
+            await this.plugin.saveData(CATEGORIES_DATA_FILE, this.categories);
         } catch (error) {
             console.error('保存分类失败:', error);
             throw error;

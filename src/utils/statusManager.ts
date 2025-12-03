@@ -1,4 +1,4 @@
-import { getFile, putFile } from "../api";
+import { STATUSES_DATA_FILE } from "../index";
 
 export interface Status {
     id: string;
@@ -13,17 +13,18 @@ const DEFAULT_STATUSES: Status[] = [
     { id: 'archived', name: '已归档', icon: '📥', isArchived: true }
 ];
 
-const STATUS_FILE_PATH = 'data/storage/petal/siyuan-plugin-task-note-management/statuses.json';
-
 export class StatusManager {
     private static instance: StatusManager;
     private statuses: Status[] = [];
+    private plugin: any;
 
-    private constructor() { }
+    private constructor(plugin: any) {
+        this.plugin = plugin;
+    }
 
-    public static getInstance(): StatusManager {
+    public static getInstance(plugin?: any): StatusManager {
         if (!StatusManager.instance) {
-            StatusManager.instance = new StatusManager();
+            StatusManager.instance = new StatusManager(plugin);
         }
         return StatusManager.instance;
     }
@@ -40,7 +41,7 @@ export class StatusManager {
 
     public async loadStatuses(): Promise<Status[]> {
         try {
-            const content = await getFile(STATUS_FILE_PATH);
+            const content = await this.plugin.loadData(STATUSES_DATA_FILE);
             if (!content) {
                 console.log('状态文件不存在，创建默认状态');
                 this.statuses = [...DEFAULT_STATUSES];
@@ -48,7 +49,7 @@ export class StatusManager {
                 return this.statuses;
             }
 
-            const statusesData = typeof content === 'string' ? JSON.parse(content) : content;
+            const statusesData = content;
 
             if (Array.isArray(statusesData) && statusesData.length > 0) {
                 this.statuses = statusesData;
@@ -68,9 +69,7 @@ export class StatusManager {
 
     public async saveStatuses(): Promise<void> {
         try {
-            const content = JSON.stringify(this.statuses, null, 2);
-            const blob = new Blob([content], { type: 'application/json' });
-            await putFile(STATUS_FILE_PATH, false, blob);
+            await this.plugin.saveData(STATUSES_DATA_FILE, this.statuses);
         } catch (error) {
             console.error('保存状态失败:', error);
             throw error;

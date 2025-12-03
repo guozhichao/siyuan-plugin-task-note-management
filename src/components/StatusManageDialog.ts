@@ -8,9 +8,11 @@ export class StatusManageDialog {
     private onUpdated?: () => void;
     private draggedElement: HTMLElement | null = null;
     private draggedStatus: Status | null = null;
+    private plugin?: any;
 
-    constructor(onUpdated?: () => void) {
-        this.statusManager = StatusManager.getInstance();
+    constructor(plugin?: any, onUpdated?: () => void) {
+        this.plugin = plugin;
+        this.statusManager = StatusManager.getInstance(this.plugin);
         this.onUpdated = onUpdated;
     }
 

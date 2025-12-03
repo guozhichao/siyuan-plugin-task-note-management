@@ -11,7 +11,7 @@ export class ProjectColorDialog {
 
     constructor(onSave: () => void, plugin?: any) {
         this.projectManager = ProjectManager.getInstance(plugin);
-        this.statusManager = StatusManager.getInstance();
+        this.statusManager = StatusManager.getInstance(plugin);
         this.onSave = onSave;
     }
 

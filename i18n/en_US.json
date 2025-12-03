@@ -834,5 +834,6 @@
     "habitYearlyView": "Yearly Check-in View",
     "habitYearlyHeatmap": "Yearly Heatmap",
     "habitNoCheckIn": "No Check-in",
-    "habitDays": " days"
+    "habitDays": " days",
+    "category": "Category"
 }

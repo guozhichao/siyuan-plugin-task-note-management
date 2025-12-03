@@ -56,9 +56,9 @@ export class CalendarView {
     constructor(container: HTMLElement, plugin: any, data?: { projectFilter?: string }) {
         this.container = container;
         this.plugin = plugin;
-        this.categoryManager = CategoryManager.getInstance(); // 初始化分类管理器
+        this.categoryManager = CategoryManager.getInstance(plugin); // 初始化分类管理器
         this.projectManager = ProjectManager.getInstance(this.plugin);
-        this.statusManager = StatusManager.getInstance();
+        this.statusManager = StatusManager.getInstance(plugin);
         this.calendarConfigManager = CalendarConfigManager.getInstance(this.plugin);
         this.taskSummaryDialog = new TaskSummaryDialog(undefined, plugin);
         if (data?.projectFilter) {
@@ -556,7 +556,7 @@ export class CalendarView {
     }
 
     private async showCategoryManageDialog() {
-        const categoryDialog = new CategoryManageDialog(async () => {
+        const categoryDialog = new CategoryManageDialog(this.plugin, async () => {
             // 分类更新后重新渲染统一筛选器和事件
             const unifiedFilterSelect = this.container.querySelector('.reminder-calendar-filter-group select') as HTMLSelectElement;
             if (unifiedFilterSelect) {
@@ -4412,7 +4412,6 @@ export class CalendarView {
         try {
             const settings = await this.plugin.loadSettings();
             let weekStartDay = settings.weekStartDay;
-            console.log('Raw weekStartDay from settings:', weekStartDay);
 
             // 如果以字符串形式存储（如"1"），尝试转换为数字
             if (typeof weekStartDay === 'string') {
@@ -4444,10 +4443,6 @@ export class CalendarView {
             const weekStartDay = await this.getWeekStartDay();
             // 更新日历的firstDay设置
             this.calendar.setOption('firstDay', weekStartDay);
-            // 更友好的日志信息（使用翻译后的星期名）
-            const weekDayNames = [t('sunday'), t('monday'), t('tuesday'), t('wednesday'), t('thursday'), t('friday'), t('saturday')];
-            const dayName = (weekStartDay >= 0 && weekStartDay <= 6) ? weekDayNames[weekStartDay] : t('monday');
-            console.log('周开始日已设置为:', dayName);
         } catch (error) {
             console.error('应用周开始日设置失败:', error);
         }

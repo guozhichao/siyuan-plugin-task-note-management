@@ -116,7 +116,7 @@ export class QuickReminderDialog {
             throw new Error('块绑定模式需要提供blockId参数');
         }
 
-        this.categoryManager = CategoryManager.getInstance();
+        this.categoryManager = CategoryManager.getInstance(this.plugin);
         this.projectManager = ProjectManager.getInstance(this.plugin);
         this.repeatConfig = this.reminder?.repeat || {
             enabled: false,
@@ -1858,7 +1858,7 @@ export class QuickReminderDialog {
     }
 
     private showCategoryManageDialog() {
-        const categoryDialog = new CategoryManageDialog(() => {
+        const categoryDialog = new CategoryManageDialog(this.plugin, () => {
             // 分类更新后重新渲染分类选择器
             this.renderCategorySelector();
         });

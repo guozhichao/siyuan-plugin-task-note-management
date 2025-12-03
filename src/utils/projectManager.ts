@@ -1,7 +1,6 @@
 import { getFile, putFile, removeFile } from '../api';
+import { PROJECT_DATA_FILE } from '../index';
 import { StatusManager } from './statusManager';
-
-const PROJECT_DATA_FILE = 'project.json';
 
 export interface Project {
     id: string;
@@ -21,7 +20,7 @@ export class ProjectManager {
 
     private constructor(plugin: any) {
         this.plugin = plugin;
-        this.statusManager = StatusManager.getInstance();
+        this.statusManager = StatusManager.getInstance(this.plugin);
     }
 
     public static getInstance(plugin?: any): ProjectManager {

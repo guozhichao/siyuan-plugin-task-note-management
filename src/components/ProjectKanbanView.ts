@@ -85,7 +85,7 @@ export class ProjectKanbanView {
         this.container = container;
         this.plugin = plugin;
         this.projectId = projectId;
-        this.categoryManager = CategoryManager.getInstance();
+        this.categoryManager = CategoryManager.getInstance(this.plugin);
         this.initializeAsync();
     }
 

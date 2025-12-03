@@ -47,8 +47,8 @@ export class ProjectPanel {
     constructor(container: HTMLElement, plugin?: any) {
         this.container = container;
         this.plugin = plugin;
-        this.categoryManager = CategoryManager.getInstance();
-        this.statusManager = StatusManager.getInstance();
+        this.categoryManager = CategoryManager.getInstance(this.plugin);
+        this.statusManager = StatusManager.getInstance(this.plugin);
 
         this.projectUpdatedHandler = () => {
             this.loadProjects();
@@ -720,7 +720,7 @@ export class ProjectPanel {
             transition: opacity 0.2s ease;
             z-index: 10;
         `;
-        dragHandle.title = t("dragToReorder") || "拖拽排序";
+        dragHandle.title = "拖拽排序";
 
         // 添加hover效果
         projectEl.addEventListener('mouseenter', () => {
@@ -1620,7 +1620,7 @@ export class ProjectPanel {
     }
 
     private editProject(project: any) {
-        const dialog = new ProjectDialog(project.id);
+        const dialog = new ProjectDialog(project.id, this.plugin);
         dialog.show();
     }
 
@@ -1752,7 +1752,7 @@ export class ProjectPanel {
     }
 
     private showCategoryManageDialog() {
-        const categoryDialog = new CategoryManageDialog(() => {
+        const categoryDialog = new CategoryManageDialog(this.plugin, () => {
             // 分类更新后重新渲染过滤器和项目列表
             this.updateCategoryFilterButtonText();
             this.loadProjects();
@@ -1762,7 +1762,7 @@ export class ProjectPanel {
     }
 
     private showStatusManageDialog() {
-        const statusDialog = new StatusManageDialog(() => {
+        const statusDialog = new StatusManageDialog(this.plugin, () => {
             // 状态更新后重新渲染过滤器和项目列表
             this.renderStatusFilter();
             this.loadProjects();
@@ -1782,7 +1782,7 @@ export class ProjectPanel {
     }
 
     private createQuickProject() {
-        const dialog = new ProjectDialog();
+        const dialog = new ProjectDialog(undefined, this.plugin);
         dialog.show();
     }
 

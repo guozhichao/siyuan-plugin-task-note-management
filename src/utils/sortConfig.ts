@@ -1,6 +1,7 @@
 import { Plugin } from "siyuan";
 import { t } from "./i18n";
 import { getFile, removeFile } from "../api";
+import { SETTINGS_FILE } from "../index";
 
 const SORT_CONFIG_FILE = 'data/storage/petal/siyuan-plugin-task-note-management/sort_config.json';
 
@@ -11,7 +12,7 @@ export interface SortConfig {
 
 export async function loadSortConfig(plugin: Plugin): Promise<SortConfig> {
     try {
-        const settings = await plugin.loadData('reminder-settings.json') || {};
+        const settings = await plugin.loadData(SETTINGS_FILE) || {};
 
         // 检查是否存在旧的 sort_config.json 文件，如果存在则导入并删除
         try {
@@ -45,10 +46,10 @@ export async function loadSortConfig(plugin: Plugin): Promise<SortConfig> {
 
 export async function saveSortConfig(plugin: Plugin, method: string, order: 'asc' | 'desc' = 'asc'): Promise<void> {
     try {
-        const settings = await plugin.loadData('reminder-settings.json') || {};
+        const settings = await plugin.loadData(SETTINGS_FILE) || {};
         settings.sortMethod = method;
         settings.sortOrder = order;
-        await plugin.saveData('reminder-settings.json', settings);
+        await plugin.saveData(SETTINGS_FILE, settings);
 
         console.log('排序配置保存成功:', { method, order });
 

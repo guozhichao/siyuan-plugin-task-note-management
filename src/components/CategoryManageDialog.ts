@@ -8,9 +8,11 @@ export class CategoryManageDialog {
     private onUpdated?: () => void;
     private draggedElement: HTMLElement | null = null;
     private draggedCategory: Category | null = null;
+    private plugin?: any;
 
-    constructor(onUpdated?: () => void) {
-        this.categoryManager = CategoryManager.getInstance();
+    constructor(plugin?: any, onUpdated?: () => void) {
+        this.plugin = plugin;
+        this.categoryManager = CategoryManager.getInstance(this.plugin);
         this.onUpdated = onUpdated;
     }
 

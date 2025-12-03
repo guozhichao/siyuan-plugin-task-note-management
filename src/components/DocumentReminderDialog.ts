@@ -11,6 +11,7 @@ export class DocumentReminderDialog {
     private container: HTMLElement;
     private documentId: string;
     private categoryManager: CategoryManager;
+    private plugin?: any;
 
     // 筛选和排序状态
     private currentFilter: 'all' | 'completed' | 'uncompleted' = 'all';
@@ -26,9 +27,10 @@ export class DocumentReminderDialog {
     private remindersContainer: HTMLElement;
     private countDisplay: HTMLElement;
 
-    constructor(documentId: string) {
+    constructor(documentId: string, plugin?: any) {
         this.documentId = documentId;
-        this.categoryManager = CategoryManager.getInstance();
+        this.plugin = plugin;
+        this.categoryManager = CategoryManager.getInstance(this.plugin);
         this.createDialog();
     }
 

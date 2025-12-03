@@ -10,11 +10,13 @@ export class ProjectDialog {
     private blockId: string;
     private categoryManager: CategoryManager;
     private statusManager: StatusManager;
+    private plugin?: any;
 
-    constructor(blockId?: string) {
+    constructor(blockId?: string, plugin?: any) {
         this.blockId = blockId;
-        this.categoryManager = CategoryManager.getInstance();
-        this.statusManager = StatusManager.getInstance();
+        this.plugin = plugin;
+        this.categoryManager = CategoryManager.getInstance(this.plugin);
+        this.statusManager = StatusManager.getInstance(this.plugin);
     }
 
     async show() {

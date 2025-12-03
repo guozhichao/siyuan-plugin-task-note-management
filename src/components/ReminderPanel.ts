@@ -60,7 +60,7 @@ export class ReminderPanel {
         this.container = container;
         this.plugin = plugin;
         this.closeCallback = closeCallback;
-        this.categoryManager = CategoryManager.getInstance(); // 初始化分类管理器
+        this.categoryManager = CategoryManager.getInstance(this.plugin); // 初始化分类管理器
 
         // 创建事件处理器
         this.reminderUpdatedHandler = (event?: CustomEvent) => {
@@ -469,7 +469,7 @@ export class ReminderPanel {
     }
 
     private showCategoryManageDialog() {
-        const categoryDialog = new CategoryManageDialog(() => {
+        const categoryDialog = new CategoryManageDialog(this.plugin, () => {
             // 分类更新后重新渲染过滤器
             this.updateCategoryFilterButtonText();
         });

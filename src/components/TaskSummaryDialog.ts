@@ -23,17 +23,14 @@ export class TaskSummaryDialog {
     try {
       const events = await this.getEvents();
 
-      console.log('所有任务:', events);
 
       // 获取当前日历视图的日期范围
       const dateRange = this.getCurrentViewDateRange();
 
-      console.log('当前视图的日期范围:', dateRange);
 
       // 过滤在当前视图范围内的任务
       const filteredEvents = this.filterEventsByDateRange(events, dateRange);
 
-      console.log('过滤后的任务:', filteredEvents);
 
       // 按日期和项目分组任务
       const groupedTasks = this.groupTasksByDateAndProject(filteredEvents, dateRange);

@@ -1,5 +1,6 @@
 import { Plugin } from "siyuan";
 import { getFile, removeFile } from "../api";
+import { SETTINGS_FILE } from "../index";
 
 const CALENDAR_CONFIG_FILE = 'data/storage/petal/siyuan-plugin-task-note-management/calendar-config.json';
 
@@ -34,10 +35,10 @@ export class CalendarConfigManager {
 
     private async saveConfig() {
         try {
-            const settings = await this.plugin.loadData('reminder-settings.json') || {};
+            const settings = await this.plugin.loadData(SETTINGS_FILE) || {};
             settings.calendarColorBy = this.config.colorBy;
             settings.calendarViewMode = this.config.viewMode;
-            await this.plugin.saveData('reminder-settings.json', settings);
+            await this.plugin.saveData(SETTINGS_FILE, settings);
         } catch (error) {
             console.error('Failed to save calendar config:', error);
             throw error;
@@ -46,7 +47,7 @@ export class CalendarConfigManager {
 
     private async loadConfig() {
         try {
-            const settings = await this.plugin.loadData('reminder-settings.json') || {};
+            const settings = await this.plugin.loadData(SETTINGS_FILE) || {};
 
             // 检查是否存在旧的 calendar-config.json 文件，如果存在则导入并删除
             try {
@@ -57,7 +58,7 @@ export class CalendarConfigManager {
                         // 合并旧日历配置到新的 settings
                         if (oldCalendar.colorBy) settings.calendarColorBy = oldCalendar.colorBy;
                         if (oldCalendar.viewMode) settings.calendarViewMode = oldCalendar.viewMode;
-                        await this.plugin.saveData('reminder-settings.json', settings);
+                        await this.plugin.saveData(SETTINGS_FILE, settings);
                         // 删除旧文件
                         await removeFile(CALENDAR_CONFIG_FILE);
                         console.log('成功导入并删除旧的 calendar-config.json 文件');
