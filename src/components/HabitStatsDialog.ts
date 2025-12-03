@@ -120,7 +120,7 @@ export class HabitStatsDialog {
 
         const totalCheckIns = this.habit.totalCheckIns || 0;
         // 只统计达标的打卡天数
-        const checkInDays = Object.keys(this.habit.checkIns || {}).filter(dateStr => 
+        const checkInDays = Object.keys(this.habit.checkIns || {}).filter(dateStr =>
             this.isCheckInComplete(dateStr)
         ).length;
 
@@ -197,7 +197,7 @@ export class HabitStatsDialog {
             .filter(dateStr => this.isCheckInComplete(dateStr))
             .sort()
             .reverse();
-        
+
         if (completedDates.length === 0) {
             return 0;
         }
