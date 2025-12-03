@@ -975,12 +975,76 @@ class SmartBatchDialog {
         const setting = this.blockSettings.get(blockId);
         if (!setting) return;
 
-        const blockEditDialog = new BlockEditDialog(this.plugin, setting, (updatedSetting: BlockSetting) => {
-            this.blockSettings.set(blockId, updatedSetting);
-            this.updateBlockDisplay(parentDialog, blockId);
-        });
+        // 创建临时的 reminder 对象用于 QuickReminderDialog
+        const tempReminder = {
+            id: `temp_${blockId}_${Date.now()}`,
+            blockId: setting.blockId,
+            content: setting.content,
+            title: setting.cleanTitle,
+            date: setting.date,
+            time: setting.hasTime ? setting.time : undefined,
+            priority: setting.priority,
+            categoryId: setting.categoryId || undefined,
+            projectId: setting.projectId || undefined,
+            note: setting.note,
+            repeat: setting.repeatConfig?.enabled ? setting.repeatConfig : undefined,
+            completed: false,
+            pomodoroCount: 0,
+            createdAt: new Date().toISOString()
+        };
 
-        blockEditDialog.show();
+        const quickReminderDialog = new QuickReminderDialog(
+            setting.date,
+            setting.hasTime ? setting.time : undefined,
+            (modifiedReminder) => {
+                // 将修改后的 reminder 映射回 BlockSetting
+                if (modifiedReminder) {
+                    setting.cleanTitle = modifiedReminder.title || setting.cleanTitle;
+                    setting.date = modifiedReminder.date || setting.date;
+                    setting.time = modifiedReminder.time || '';
+                    setting.hasTime = !!modifiedReminder.time;
+                    setting.priority = modifiedReminder.priority || 'none';
+                    setting.categoryId = modifiedReminder.categoryId || '';
+                    setting.projectId = modifiedReminder.projectId || '';
+                    setting.note = modifiedReminder.note || '';
+                    setting.repeatConfig = modifiedReminder.repeat || {
+                        enabled: false,
+                        type: 'daily',
+                        interval: 1,
+                        endType: 'never'
+                    };
+                }
+                this.updateBlockDisplay(parentDialog, blockId);
+            },
+            undefined, // timeRangeOptions
+            {
+                mode: 'batch_edit',
+                reminder: tempReminder,
+                onSaved: (modifiedReminder) => {
+                    // 将修改后的 reminder 映射回 BlockSetting
+                    if (modifiedReminder) {
+                        setting.cleanTitle = modifiedReminder.title || setting.cleanTitle;
+                        setting.date = modifiedReminder.date || setting.date;
+                        setting.time = modifiedReminder.time || '';
+                        setting.hasTime = !!modifiedReminder.time;
+                        setting.priority = modifiedReminder.priority || 'none';
+                        setting.categoryId = modifiedReminder.categoryId || '';
+                        setting.projectId = modifiedReminder.projectId || '';
+                        setting.note = modifiedReminder.note || '';
+                        setting.repeatConfig = modifiedReminder.repeat || {
+                            enabled: false,
+                            type: 'daily',
+                            interval: 1,
+                            endType: 'never'
+                        };
+                    }
+                    this.updateBlockDisplay(parentDialog, blockId);
+                },
+                plugin: this.plugin
+            }
+        );
+
+        quickReminderDialog.show();
     }
 
     private async renderBatchCategorySelector(dialog: Dialog) {

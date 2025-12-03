@@ -15,7 +15,7 @@ export class QuickReminderDialog {
     private blockId?: string;
     private reminder?: any;
     private onSaved?: (modifiedReminder?: any) => void;
-    private mode: 'quick' | 'block' | 'edit' = 'quick'; // 模式：快速创建、块绑定创建、编辑
+    private mode: 'quick' | 'block' | 'edit' | 'batch_edit' = 'quick'; // 模式：快速创建、块绑定创建、编辑、批量编辑
     private blockContent: string = '';
     private documentId: string = '';
     private reminderUpdatedHandler: () => void;
@@ -55,7 +55,7 @@ export class QuickReminderDialog {
             blockId?: string;
             reminder?: any;
             onSaved?: (modifiedReminder?: any) => void;
-            mode?: 'quick' | 'block' | 'edit';
+            mode?: 'quick' | 'block' | 'edit' | 'batch_edit';
             autoDetectDateTime?: boolean;
             defaultProjectId?: string;
             showKanbanStatus?: 'todo' | 'term' | 'none';
@@ -114,6 +114,11 @@ export class QuickReminderDialog {
         // 如果是块绑定模式，确保有blockId
         if (this.mode === 'block' && !this.blockId) {
             throw new Error('块绑定模式需要提供blockId参数');
+        }
+
+        // 如果是批量编辑模式，设置块内容
+        if (this.mode === 'batch_edit' && this.reminder) {
+            this.blockContent = this.reminder.content || '';
         }
 
         this.categoryManager = CategoryManager.getInstance(this.plugin);
@@ -923,8 +928,8 @@ export class QuickReminderDialog {
         const currentTime = this.initialTime;
 
         // 如果传入了blockId，尝试获取块内容作为默认标题（优先 DOM 内容；文档根直接使用块/文档标题）
-        this.blockContent = '';
-        if (this.blockId) {
+        // 对于batch_edit模式，块内容已从reminder中设置
+        if (this.mode !== 'batch_edit' && this.blockId) {
             try {
                 const block = await getBlockByID(this.blockId);
                 if (!block) {
@@ -2219,6 +2224,35 @@ export class QuickReminderDialog {
         // 如果启用了重复设置，则必须提供起始日期（重复任务需要基准日期）
         if (this.repeatConfig && this.repeatConfig.enabled && !date) {
             showMessage(t('pleaseSetStartDateForRepeat') || '请为重复任务设置起始日期');
+            return;
+        }
+
+        // 批量编辑模式：不保存，只传递数据给回调
+        if (this.mode === 'batch_edit') {
+            const reminderData = {
+                title: title,
+                blockId: inputId || this.defaultBlockId || null,
+                date: date || undefined,
+                time: time,
+                endDate: endDate || undefined,
+                endTime: endTime,
+                note: note,
+                priority: priority,
+                categoryId: categoryId,
+                projectId: projectId,
+                customGroupId: customGroupId,
+                termType: termType,
+                reminderTimes: this.customTimes.length > 0 ? [...this.customTimes] : undefined,
+                customReminderPreset: customReminderPreset,
+                repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined,
+                quadrant: this.defaultQuadrant
+            };
+
+            if (this.onSaved) {
+                this.onSaved(reminderData);
+            }
+
+            this.dialog.destroy();
             return;
         }
 
