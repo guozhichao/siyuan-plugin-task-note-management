@@ -1366,29 +1366,37 @@ export class QuickReminderDialog {
             startDateInput.max = '9999-12-31T23:59';
             endDateInput.max = '9999-12-31T23:59';
 
-            // 如果当前值只有日期，添加默认时间，保留原有日期
-            if (startValue && !startValue.includes('T')) {
-                const currentTime = this.initialTime;
-                if (currentTime) {
-                    startDateInput.value = `${startValue}T${currentTime}`;
-                }
-            } else if (!startValue) {
-                // 如果没有日期值，设置默认日期和时间
-                const currentTime = this.initialTime;
-                if (currentTime) {
-                    startDateInput.value = `${this.initialDate}T${currentTime}`;
-                }
-            } else {
-                // 如果已经有完整的datetime-local格式，直接设置
-                startDateInput.value = startValue;
-            }
-
-            // 处理结束日期输入框
+    // 如果当前值只有日期，添加默认时间，保留原有日期
+    if (startValue && !startValue.includes('T')) {
+        const currentTime = this.initialTime;
+        if (currentTime) {
+            startDateInput.value = `${startValue}T${currentTime}`;
+        } else {
+            // 如果没有初始时间，使用当前时间
+            const now = new Date();
+            const currentTimeStr = now.toTimeString().slice(0, 5); // HH:MM
+            startDateInput.value = `${startValue}T${currentTimeStr}`;
+        }
+    } else if (!startValue) {
+        // 如果没有日期值，设置默认日期和时间
+        const currentTime = this.initialTime;
+        if (currentTime) {
+            startDateInput.value = `${this.initialDate}T${currentTime}`;
+        }
+    } else {
+        // 如果已经有完整的datetime-local格式，直接设置
+        startDateInput.value = startValue;
+    }            // 处理结束日期输入框
             if (endValue && !endValue.includes('T')) {
                 // 如果结束日期有值但没有时间，添加默认时间
                 const endTime = this.initialEndTime || this.initialTime;
                 if (endTime) {
                     endDateInput.value = `${endValue}T${endTime}`;
+                } else {
+                    // 如果没有初始时间，使用当前时间
+                    const now = new Date();
+                    const currentTimeStr = now.toTimeString().slice(0, 5); // HH:MM
+                    endDateInput.value = `${endValue}T${currentTimeStr}`;
                 }
             } else if (endValue) {
                 // 如果已经有完整的datetime-local格式，直接设置
