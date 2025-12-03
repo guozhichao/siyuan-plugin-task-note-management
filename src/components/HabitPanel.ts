@@ -982,7 +982,7 @@ export class HabitPanel {
         // 查看统计
         menu.addItem({
             label: "查看统计",
-            icon: "iconChart",
+            icon: "#iconSparkles",
             click: () => {
                 this.showHabitStats(habit);
             }
