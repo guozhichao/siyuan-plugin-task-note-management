@@ -140,11 +140,14 @@ export class HabitStatsDialog {
 
             emojiStats.forEach(stat => {
                 const card = document.createElement('div');
-                card.style.cssText = 'padding: 12px; background: var(--b3-theme-surface); border-radius: 8px; text-align: center;';
+                card.style.cssText = 'padding: 12px; background: var(--b3-theme-surface); border-radius: 8px; text-align: center; display: flex; flex-direction: column; align-items: center;';
                 card.innerHTML = `
                     <div style="font-size: 32px; margin-bottom: 8px;">${stat.emoji}</div>
-                    <div style="font-size: 14px; font-weight: bold;">${stat.count}次</div>
-                    <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">${stat.percentage.toFixed(1)}%</div>
+                    <div style="font-size: 14px; font-weight: bold; margin-bottom: 4px;">${stat.count}次</div>
+                    <div style="font-size: 12px; color: var(--b3-theme-on-surface-light); margin-bottom: 8px;">${stat.percentage.toFixed(1)}%</div>
+                    <div style="width: 60px; height: 80px; background: var(--b3-theme-surface-lighter); border-radius: 4px; position: relative; margin-top: auto;">
+                        <div style="width: 100%; height: ${stat.percentage}%; background: #40c463; border-radius: 4px; position: absolute; bottom: 0; transition: height 0.3s ease;"></div>
+                    </div>
                 `;
                 emojiGrid.appendChild(card);
             });
