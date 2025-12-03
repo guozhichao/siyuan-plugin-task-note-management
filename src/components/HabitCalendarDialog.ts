@@ -8,9 +8,12 @@ export class HabitCalendarDialog {
     private dialog: Dialog;
     private currentView: 'week' | 'month' = 'week';
     private currentDate: Date = new Date();
+    private draggedHabitId: string | null = null;
+    private habitOrder: string[] = [];
 
     constructor(plugin?: any) {
         this.plugin = plugin;
+        this.loadHabitOrder();
     }
 
     show() {
@@ -33,6 +36,18 @@ export class HabitCalendarDialog {
     private async renderCalendar(container: HTMLElement) {
         container.innerHTML = ''; // 清空容器以避免累积内容
         container.className = 'habit-calendar-container';
+
+        // 读取习惯数据和排序
+        const habitData = await readHabitData();
+        const habits: Habit[] = Object.values(habitData || {});
+
+        // 初始化或更新习惯顺序
+        if (this.habitOrder.length === 0 || this.habitOrder.length !== habits.length) {
+            this.habitOrder = habits.map(h => h.id);
+        }
+
+        // 按照保存的顺序排序习惯
+        const sortedHabits = this.sortHabitsByOrder(habits);
 
         // 工具栏
         const toolbar = document.createElement('div');
@@ -130,13 +145,10 @@ export class HabitCalendarDialog {
         const calendarContent = document.createElement('div');
         calendarContent.className = 'habit-calendar-content';
 
-        const habitData = await readHabitData();
-        const habits: Habit[] = Object.values(habitData || {});
-
         if (this.currentView === 'week') {
-            this.renderWeekView(calendarContent, habits, weekStartDay);
+            this.renderWeekView(calendarContent, sortedHabits, weekStartDay);
         } else {
-            this.renderMonthView(calendarContent, habits);
+            this.renderMonthView(calendarContent, sortedHabits);
         }
 
         container.appendChild(calendarContent);
@@ -188,11 +200,18 @@ export class HabitCalendarDialog {
         }
 
         // 表体
-        habits.forEach(habit => {
+        habits.forEach((habit, habitIndex) => {
             const nameCell = document.createElement('div');
             nameCell.className = 'grid-cell habit-name-cell';
             nameCell.contentEditable = 'false';
             nameCell.textContent = habit.title;
+            nameCell.draggable = true;
+            nameCell.dataset.habitId = habit.id;
+            nameCell.dataset.habitIndex = String(habitIndex);
+
+            // 拖拽事件
+            this.addDragListeners(nameCell, habit);
+
             grid.appendChild(nameCell);
 
             for (let i = 0; i < 7; i++) {
@@ -276,11 +295,18 @@ export class HabitCalendarDialog {
         }
 
         // 表体
-        habits.forEach(habit => {
+        habits.forEach((habit, habitIndex) => {
             const nameCell = document.createElement('div');
             nameCell.className = 'grid-cell habit-name-cell';
             nameCell.contentEditable = 'false';
             nameCell.textContent = habit.title;
+            nameCell.draggable = true;
+            nameCell.dataset.habitId = habit.id;
+            nameCell.dataset.habitIndex = String(habitIndex);
+
+            // 拖拽事件
+            this.addDragListeners(nameCell, habit);
+
             grid.appendChild(nameCell);
 
             for (let day = 1; day <= daysInMonth; day++) {
@@ -332,5 +358,157 @@ export class HabitCalendarDialog {
         });
 
         container.appendChild(grid);
+    }
+
+    /**
+     * 按照保存的顺序排序习惯
+     */
+    private sortHabitsByOrder(habits: Habit[]): Habit[] {
+        if (!this.habitOrder || this.habitOrder.length === 0) {
+            return habits;
+        }
+
+        const sorted = [];
+        const habitMap = new Map(habits.map(h => [h.id, h]));
+
+        // 先按保存的顺序添加
+        for (const id of this.habitOrder) {
+            if (habitMap.has(id)) {
+                sorted.push(habitMap.get(id)!);
+                habitMap.delete(id);
+            }
+        }
+
+        // 添加新增的习惯（不在顺序列表中的）
+        for (const habit of habitMap.values()) {
+            sorted.push(habit);
+        }
+
+        return sorted;
+    }
+
+    /**
+     * 添加拖拽监听器
+     */
+    private addDragListeners(element: HTMLElement, habit: Habit) {
+        element.addEventListener('dragstart', (e: DragEvent) => {
+            this.draggedHabitId = habit.id;
+            element.classList.add('dragging');
+            if (e.dataTransfer) {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', habit.id);
+            }
+        });
+
+        element.addEventListener('dragend', () => {
+            element.classList.remove('dragging');
+            this.draggedHabitId = null;
+            // 移除所有drop-target类
+            const container = this.dialog.element.querySelector('.habit-calendar-content');
+            if (container) {
+                container.querySelectorAll('.drop-target-top, .drop-target-bottom').forEach(el => {
+                    el.classList.remove('drop-target-top', 'drop-target-bottom');
+                });
+            }
+        });
+
+        element.addEventListener('dragover', (e: DragEvent) => {
+            e.preventDefault();
+            if (this.draggedHabitId && this.draggedHabitId !== habit.id) {
+                // 计算鼠标在元素中的相对位置
+                const rect = element.getBoundingClientRect();
+                const mouseY = e.clientY;
+                const elementMiddle = rect.top + rect.height / 2;
+
+                // 移除之前的类
+                element.classList.remove('drop-target-top', 'drop-target-bottom');
+
+                // 根据鼠标位置添加不同的类
+                if (mouseY < elementMiddle) {
+                    element.classList.add('drop-target-top');
+                } else {
+                    element.classList.add('drop-target-bottom');
+                }
+
+                if (e.dataTransfer) {
+                    e.dataTransfer.dropEffect = 'move';
+                }
+            }
+        });
+
+        element.addEventListener('dragleave', () => {
+            element.classList.remove('drop-target-top', 'drop-target-bottom');
+        });
+
+        element.addEventListener('drop', async (e: DragEvent) => {
+            e.preventDefault();
+            element.classList.remove('drop-target-top', 'drop-target-bottom');
+
+            if (!this.draggedHabitId || this.draggedHabitId === habit.id) {
+                return;
+            }
+
+            // 计算鼠标在元素中的相对位置
+            const rect = element.getBoundingClientRect();
+            const mouseY = e.clientY;
+            const elementMiddle = rect.top + rect.height / 2;
+            const insertBefore = mouseY < elementMiddle;
+
+            // 更新习惯顺序
+            const draggedIndex = this.habitOrder.indexOf(this.draggedHabitId);
+            let targetIndex = this.habitOrder.indexOf(habit.id);
+
+            if (draggedIndex !== -1 && targetIndex !== -1) {
+                // 移除被拖拽的项
+                const [draggedId] = this.habitOrder.splice(draggedIndex, 1);
+
+                // 重新计算目标索引（因为移除可能改变了索引）
+                targetIndex = this.habitOrder.indexOf(habit.id);
+
+                // 根据鼠标位置决定插入位置
+                if (insertBefore) {
+                    // 插入到目标之前
+                    this.habitOrder.splice(targetIndex, 0, draggedId);
+                } else {
+                    // 插入到目标之后
+                    this.habitOrder.splice(targetIndex + 1, 0, draggedId);
+                }
+
+                // 保存新的顺序
+                await this.saveHabitOrder();
+
+                // 重新渲染 - 获取正确的容器元素
+                const container = this.dialog.element.querySelector('#habitCalendarContainer') as HTMLElement;
+                if (container) {
+                    this.renderCalendar(container);
+                }
+            }
+        });
+    }
+
+    /**
+     * 保存习惯顺序到localStorage
+     */
+    private async saveHabitOrder() {
+        try {
+            localStorage.setItem('habit-calendar-order', JSON.stringify(this.habitOrder));
+        } catch (err) {
+            console.error('保存习惯顺序失败:', err);
+        }
+    }
+
+    /**
+     * 从localStorage加载习惯顺序
+     */
+    private loadHabitOrder() {
+        try {
+            const saved = localStorage.getItem('habit-calendar-order');
+            if (saved) {
+                this.habitOrder = JSON.parse(saved);
+            }
+        } catch (err) {
+            console.error('加载习惯顺序失败:', err);
+            this.habitOrder = [];
+        }
     }
 }
