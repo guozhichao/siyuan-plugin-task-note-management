@@ -1,7 +1,7 @@
 import { Dialog, showMessage, confirm } from "siyuan";
 import { StatusManager, Status } from "../utils/statusManager";
 import { t } from "../utils/i18n";
-
+import { Picker } from "emoji-picker-element";
 export class StatusManageDialog {
     private dialog: Dialog;
     private statusManager: StatusManager;
@@ -9,6 +9,12 @@ export class StatusManageDialog {
     private draggedElement: HTMLElement | null = null;
     private draggedStatus: Status | null = null;
     private plugin?: any;
+    private sharedPicker: any = null;
+    private activeIconDisplay: HTMLElement | null = null;
+    private sharedCloseHandler?: (e: MouseEvent) => void;
+    private sharedResizeHandler?: () => void;
+    private sharedScrollHandler?: () => void;
+    private sharedEnterHandler?: (e: KeyboardEvent) => void;
 
     constructor(plugin?: any, onUpdated?: () => void) {
         this.plugin = plugin;
@@ -333,22 +339,68 @@ export class StatusManageDialog {
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("statusIcon") || "状态图标"}</label>
-                            <input type="text" id="statusIcon" class="b3-text-field" value="${status?.icon || ''}" placeholder="${t("pleaseEnterEmoji") || "请输入emoji图标 (可选)"}">
+                            <div id="statusIcon" class="status-icon-display">${status?.icon || '📝'}</div>
                         </div>
                     </div>
                     <div class="b3-dialog__action">
                         <button class="b3-button b3-button--cancel" id="editCancelBtn">${t("cancel") || "取消"}</button>
                         <button class="b3-button b3-button--primary" id="editConfirmBtn">${t("save") || "保存"}</button>
                     </div>
+                    <style>
+                        .status-icon-display {
+                            width: 40px;
+                            height: 40px;
+                            border-radius: 50%;
+                            background: var(--b3-theme-surface-lighter);
+                            border: 2px solid var(--b3-theme-primary-lighter);
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 20px;
+                            cursor: pointer;
+                            transition: all 0.2s;
+                            user-select: none;
+                        }
+                        .status-icon-display:hover {
+                            transform: scale(1.1);
+                            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                        }
+                    </style>
                 </div>
             `,
             width: "400px",
+            destroyCallback: () => {
+                this.clearAllPickers();
+            }
         });
 
         const nameInput = editDialog.element.querySelector('#statusName') as HTMLInputElement;
-        const iconInput = editDialog.element.querySelector('#statusIcon') as HTMLInputElement;
+        const iconDisplay = editDialog.element.querySelector('#statusIcon') as HTMLElement;
         const cancelBtn = editDialog.element.querySelector('#editCancelBtn') as HTMLButtonElement;
         const confirmBtn = editDialog.element.querySelector('#editConfirmBtn') as HTMLButtonElement;
+
+        // 设置初始图标
+        if (status?.icon) {
+            iconDisplay.textContent = status.icon;
+        } else {
+            iconDisplay.textContent = '📝';
+        }
+
+        // 绑定图标点击事件
+        iconDisplay?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.initSharedPicker();
+            this.activeIconDisplay = iconDisplay;
+            if (!this.sharedPicker) return;
+            const show = this.sharedPicker.style.display === 'none' || this.sharedPicker.style.display === '';
+            if (show) {
+                this.sharedPicker.style.display = 'block';
+                this.positionSharedPicker(iconDisplay);
+            } else {
+                this.sharedPicker.style.display = 'none';
+                this.activeIconDisplay = null;
+            }
+        });
 
         cancelBtn?.addEventListener('click', () => {
             editDialog.destroy();
@@ -356,7 +408,7 @@ export class StatusManageDialog {
 
         confirmBtn?.addEventListener('click', async () => {
             const name = nameInput.value.trim();
-            const icon = iconInput.value.trim();
+            const icon = iconDisplay.textContent || '';
 
             if (!name) {
                 showMessage(t("pleaseEnterStatusName") || "请输入状态名称");
@@ -418,5 +470,159 @@ export class StatusManageDialog {
                 }
             }
         );
+    }
+
+    private initSharedPicker() {
+        if (this.sharedPicker) return;
+        try {
+            // Prefer direct class constructor if available for typing and tree-shaking
+            // Fallback to createElement when Picker is undefined (older build/runtime)
+            try {
+                // eslint-disable-next-line new-cap
+                this.sharedPicker = new Picker({
+                    i18n: zh_CN,
+                    locale: 'zh_CN',
+                    dataSource: window.siyuan.config.system.dataDir + '/plugins/siyuan-plugin-task-note-management/assets/emojis_search.json'
+                });
+            } catch (e) {
+                // @ts-ignore - fall back to DOM creation
+                this.sharedPicker = document.createElement('emoji-picker') as any;
+                if (this.sharedPicker) {
+                    // Set attributes for DOM-created picker
+                    this.sharedPicker.setAttribute('locale', 'zh_CN');
+                    this.sharedPicker.setAttribute('data-source', window.siyuan.config.system.dataDir + '/plugins/siyuan-plugin-task-note-management/assets/emojis_search.json');
+                }
+            }
+            this.sharedPicker.style.cssText = 'position: fixed; left: 0; top: 0; z-index: 2147483647; display: none; margin-top: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2); border-radius: 12px; background: var(--b3-theme-surface);';
+            document.body.appendChild(this.sharedPicker);
+
+            this.sharedPicker.addEventListener('emoji-click', (event: any) => {
+                const selectedEmoji = event.detail.emoji.unicode;
+                if (this.activeIconDisplay) {
+                    this.activeIconDisplay.textContent = selectedEmoji;
+                }
+                this.sharedPicker.style.display = 'none';
+                this.activeIconDisplay = null;
+            });
+
+            // 当搜索框内容本身是 Emoji 时, 支持按 Enter 直接确定
+            const attachEnterHandler = () => {
+                try {
+                    const searchInput = this.sharedPicker.shadowRoot?.querySelector('input[type="search"]') as HTMLInputElement;
+                    if (searchInput) {
+                        this.sharedEnterHandler = (e: KeyboardEvent) => {
+                            if (e.key === 'Enter') {
+                                const val = searchInput.value.trim();
+                                if (this.isAllEmoji(val)) {
+                                    this.applyEmojiFromSearch(val);
+                                }
+                            }
+                        };
+                        searchInput.addEventListener('keydown', this.sharedEnterHandler);
+                    }
+                } catch (error) {
+                    // ignore
+                }
+            };
+
+            // try to attach immediately; if not present (render delay), attach after a short delay
+            attachEnterHandler();
+            setTimeout(attachEnterHandler, 50);
+
+            this.sharedCloseHandler = (e: MouseEvent) => {
+                const target = e.target as Node;
+                if (this.sharedPicker && !this.sharedPicker.contains(target) && this.activeIconDisplay && !this.activeIconDisplay.contains(target)) {
+                    this.sharedPicker.style.display = 'none';
+                    this.activeIconDisplay = null;
+                }
+            };
+            document.addEventListener('click', this.sharedCloseHandler);
+
+            this.sharedResizeHandler = () => {
+                if (this.sharedPicker && this.sharedPicker.style.display === 'block') this.positionSharedPicker(this.activeIconDisplay);
+            };
+            window.addEventListener('resize', this.sharedResizeHandler);
+
+            this.sharedScrollHandler = () => {
+                if (this.sharedPicker && this.sharedPicker.style.display === 'block') this.positionSharedPicker(this.activeIconDisplay);
+            };
+            window.addEventListener('scroll', this.sharedScrollHandler, true);
+        } catch (error) {
+            console.error('init shared picker failed', error);
+        }
+    }
+
+    private positionSharedPicker(target: HTMLElement | null) {
+        if (!this.sharedPicker || !target) return;
+        const rect = target.getBoundingClientRect();
+        const prevDisplay = this.sharedPicker.style.display;
+        this.sharedPicker.style.display = 'block';
+        this.sharedPicker.style.visibility = 'hidden';
+        const pr = this.sharedPicker.getBoundingClientRect();
+        let top = rect.bottom + 8;
+        if (top + pr.height > window.innerHeight) {
+            top = rect.top - pr.height - 8;
+        }
+        let left = rect.left;
+        if (left + pr.width > window.innerWidth) {
+            left = window.innerWidth - pr.width - 8;
+        }
+        if (left < 8) left = 8;
+        this.sharedPicker.style.left = `${Math.round(left)}px`;
+        this.sharedPicker.style.top = `${Math.round(top)}px`;
+        this.sharedPicker.style.visibility = 'visible';
+        this.sharedPicker.style.display = prevDisplay;
+    }
+
+    private isAllEmoji(str: string) {
+        const s = (str || '').trim();
+        if (!s) return false;
+        try {
+            // Use Unicode property escapes to match emoji sequences, including ZWJ sequences
+            return /^[\p{Extended_Pictographic}\uFE0F\u200D]+$/u.test(s);
+        } catch (e) {
+            // Fallback: check if there's a surrogate pair (basic heuristic)
+            return /[\uD800-\uDFFF]/.test(s);
+        }
+    }
+
+    private applyEmojiFromSearch(val: string) {
+        const emoji = (val || '').trim();
+        if (!emoji) return;
+        if (this.activeIconDisplay) {
+            this.activeIconDisplay.textContent = emoji;
+        }
+        if (this.sharedPicker) this.sharedPicker.style.display = 'none';
+        this.activeIconDisplay = null;
+    }
+
+    private clearAllPickers() {
+        if (this.sharedPicker) {
+            try {
+                if (this.sharedCloseHandler) document.removeEventListener('click', this.sharedCloseHandler);
+                if (this.sharedResizeHandler) window.removeEventListener('resize', this.sharedResizeHandler);
+                if (this.sharedScrollHandler) window.removeEventListener('scroll', this.sharedScrollHandler, true);
+                if (this.sharedEnterHandler) {
+                    // Try to remove from search input
+                    try {
+                        const searchInput = this.sharedPicker.shadowRoot?.querySelector('input[type="search"]') as HTMLInputElement;
+                        if (searchInput) {
+                            searchInput.removeEventListener('keydown', this.sharedEnterHandler);
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+                }
+                document.body.removeChild(this.sharedPicker);
+            } catch (error) {
+                console.error('clear picker failed', error);
+            }
+            this.sharedPicker = null;
+            this.sharedCloseHandler = undefined;
+            this.sharedResizeHandler = undefined;
+            this.sharedScrollHandler = undefined;
+            this.sharedEnterHandler = undefined;
+            this.activeIconDisplay = null;
+        }
     }
 }
