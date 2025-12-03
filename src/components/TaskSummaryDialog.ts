@@ -11,8 +11,8 @@ export class TaskSummaryDialog {
     private projectManager: ProjectManager;
     private calendar: any;
 
-    constructor(calendar?: any) {
-        this.projectManager = ProjectManager.getInstance();
+    constructor(calendar?: any, plugin?: any) {
+        this.projectManager = ProjectManager.getInstance(plugin);
         this.calendar = calendar;
     }
 

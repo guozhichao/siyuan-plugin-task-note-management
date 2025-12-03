@@ -36,6 +36,9 @@ import { PomodoroManager } from "./utils/pomodoroManager";
 import SettingPanelComponent from "./SettingPanel.svelte";
 
 export const SETTINGS_FILE = "reminder-settings.json";
+
+
+
 const TAB_TYPE = "reminder_calendar_tab";
 const EISENHOWER_TAB_TYPE = "reminder_eisenhower_tab";
 export const PROJECT_KANBAN_TAB_TYPE = "project_kanban_tab";
@@ -96,7 +99,7 @@ export const DEFAULT_SETTINGS = {
     eisenhowerUrgencyDays: 3,
     // 项目排序配置
     projectSortOrder: [],
-    projectSortMode: 'custom'
+    projectSortMode: 'custom',
 };
 
 export default class ReminderPlugin extends Plugin {

@@ -437,7 +437,7 @@ class SmartBatchDialog {
         this.blockIds = blockIds;
         this.autoDetectedData = autoDetectedData;
         this.categoryManager = CategoryManager.getInstance();
-        this.projectManager = ProjectManager.getInstance();
+        this.projectManager = ProjectManager.getInstance(this.plugin);
 
         // 初始化每个块的设置
         this.initializeBlockSettings();
@@ -1339,7 +1339,7 @@ class BlockEditDialog {
         this.setting = { ...setting }; // 创建副本
         this.onSave = onSave;
         this.categoryManager = CategoryManager.getInstance();
-        this.projectManager = ProjectManager.getInstance();
+        this.projectManager = ProjectManager.getInstance(this.plugin);
 
         // 初始化chrono解析器，配置中文支持
         this.chronoParser = chrono.zh.casual.clone();

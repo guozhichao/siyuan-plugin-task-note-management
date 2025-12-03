@@ -7,7 +7,6 @@ import { readProjectData, writeProjectData, getBlockByID, openBlock, readReminde
 import { getLocalDateString, compareDateStrings } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { StatusManager } from "../utils/statusManager";
-import { CustomGroupManager } from "../utils/customGroupManager";
 import { ProjectDialog } from "./ProjectDialog";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { StatusManageDialog } from "./StatusManageDialog";
@@ -33,7 +32,6 @@ export class ProjectPanel {
     private showOnlyWithDoingTasks: boolean = false;
     private categoryManager: CategoryManager;
     private statusManager: StatusManager;
-    private customGroupManager: CustomGroupManager;
     private projectUpdatedHandler: () => void;
     private reminderUpdatedHandler: () => void;
     // 添加拖拽相关属性
@@ -51,7 +49,6 @@ export class ProjectPanel {
         this.plugin = plugin;
         this.categoryManager = CategoryManager.getInstance();
         this.statusManager = StatusManager.getInstance();
-        this.customGroupManager = CustomGroupManager.getInstance();
 
         this.projectUpdatedHandler = () => {
             this.loadProjects();
@@ -71,7 +68,6 @@ export class ProjectPanel {
     private async initializeAsync() {
         await this.categoryManager.initialize();
         await this.statusManager.initialize();
-        await this.customGroupManager.initialize();
         this.initUI();
         this.loadProjects();
 

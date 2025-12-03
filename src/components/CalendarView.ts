@@ -57,10 +57,10 @@ export class CalendarView {
         this.container = container;
         this.plugin = plugin;
         this.categoryManager = CategoryManager.getInstance(); // 初始化分类管理器
-        this.projectManager = ProjectManager.getInstance();
+        this.projectManager = ProjectManager.getInstance(this.plugin);
         this.statusManager = StatusManager.getInstance();
         this.calendarConfigManager = CalendarConfigManager.getInstance(this.plugin);
-        this.taskSummaryDialog = new TaskSummaryDialog();
+        this.taskSummaryDialog = new TaskSummaryDialog(undefined, plugin);
         if (data?.projectFilter) {
             this.initialProjectFilter = data.projectFilter;
         }

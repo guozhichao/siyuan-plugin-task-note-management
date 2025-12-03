@@ -117,7 +117,7 @@ export class QuickReminderDialog {
         }
 
         this.categoryManager = CategoryManager.getInstance();
-        this.projectManager = ProjectManager.getInstance();
+        this.projectManager = ProjectManager.getInstance(this.plugin);
         this.repeatConfig = this.reminder?.repeat || {
             enabled: false,
             type: 'daily',
@@ -1943,7 +1943,7 @@ export class QuickReminderDialog {
             // 检查项目是否有自定义分组
             try {
                 const { ProjectManager } = await import('../utils/projectManager');
-                const projectManager = ProjectManager.getInstance();
+                const projectManager = ProjectManager.getInstance(this.plugin);
                 const projectGroups = await projectManager.getProjectCustomGroups(projectId);
 
                 if (projectGroups.length > 0) {
@@ -1973,7 +1973,7 @@ export class QuickReminderDialog {
 
         try {
             const { ProjectManager } = await import('../utils/projectManager');
-            const projectManager = ProjectManager.getInstance();
+            const projectManager = ProjectManager.getInstance(this.plugin);
             const projectGroups = await projectManager.getProjectCustomGroups(projectId);
 
             // 清空并重新构建分组选择器

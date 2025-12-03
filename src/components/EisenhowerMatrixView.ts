@@ -72,7 +72,7 @@ export class EisenhowerMatrixView {
     constructor(container: HTMLElement, plugin: any) {
         this.container = container;
         this.plugin = plugin;
-        this.projectManager = ProjectManager.getInstance();
+        this.projectManager = ProjectManager.getInstance(plugin);
         this.categoryManager = CategoryManager.getInstance();
         this.initQuadrants();
         // 引用方法以避免编译器提示未使用（此方法通过动态绑定使用）

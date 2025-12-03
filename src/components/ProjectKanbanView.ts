@@ -4,7 +4,6 @@ import { refreshSql, readReminderData, writeReminderData, readProjectData, getBl
 import { t } from "../utils/i18n";
 import { getLocalDateString, getLocalDateTimeString, compareDateStrings } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
-import { CustomGroupManager } from "../utils/customGroupManager";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroManager } from "../utils/pomodoroManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
@@ -29,7 +28,6 @@ export class ProjectKanbanView {
     private projectId: string;
     private project: any;
     private categoryManager: CategoryManager;
-    private customGroupManager: CustomGroupManager;
     private currentSort: string = 'priority';
     private kanbanMode: 'status' | 'custom' = 'status';
     private currentSortOrder: 'asc' | 'desc' = 'desc';
@@ -88,7 +86,6 @@ export class ProjectKanbanView {
         this.plugin = plugin;
         this.projectId = projectId;
         this.categoryManager = CategoryManager.getInstance();
-        this.customGroupManager = CustomGroupManager.getInstance();
         this.initializeAsync();
     }
 
@@ -138,7 +135,7 @@ export class ProjectKanbanView {
 
             try {
                 const { ProjectManager } = await import('../utils/projectManager');
-                const projectManager = ProjectManager.getInstance();
+                const projectManager = ProjectManager.getInstance(this.plugin);
                 const currentGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
                 const maxSort = currentGroups.reduce((max: number, g: any) => Math.max(max, g.sort || 0), 0);
@@ -167,7 +164,6 @@ export class ProjectKanbanView {
 
     private async initializeAsync() {
         await this.categoryManager.initialize();
-        await this.customGroupManager.initialize();
         await this.loadProject();
         await this.loadKanbanMode();
         this.initUI();
@@ -194,7 +190,7 @@ export class ProjectKanbanView {
         try {
             // 使用项目管理器的方法来获取看板模式
             const { ProjectManager } = await import('../utils/projectManager');
-            const projectManager = ProjectManager.getInstance();
+            const projectManager = ProjectManager.getInstance(this.plugin);
             this.kanbanMode = await projectManager.getProjectKanbanMode(this.projectId);
         } catch (error) {
             console.error('加载看板模式失败:', error);
@@ -209,7 +205,7 @@ export class ProjectKanbanView {
 
             // 使用项目管理器保存看板模式
             const { ProjectManager } = await import('../utils/projectManager');
-            const projectManager = ProjectManager.getInstance();
+            const projectManager = ProjectManager.getInstance(this.plugin);
             await projectManager.setProjectKanbanMode(this.projectId, newMode);
 
             // 更新下拉选择框选中状态
@@ -365,7 +361,7 @@ export class ProjectKanbanView {
             try {
                 // 获取当前项目的分组列表
                 const { ProjectManager } = await import('../utils/projectManager');
-                const projectManager = ProjectManager.getInstance();
+                const projectManager = ProjectManager.getInstance(this.plugin);
                 const currentGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
                 let newGroup;
@@ -410,7 +406,7 @@ export class ProjectKanbanView {
     private async loadAndDisplayGroups(container: HTMLElement) {
         try {
             const { ProjectManager } = await import('../utils/projectManager');
-            const projectManager = ProjectManager.getInstance();
+            const projectManager = ProjectManager.getInstance(this.plugin);
             const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
             container.innerHTML = '';
@@ -700,7 +696,7 @@ export class ProjectKanbanView {
 
                     try {
                         const { ProjectManager } = await import('../utils/projectManager');
-                        const projectManager = ProjectManager.getInstance();
+                        const projectManager = ProjectManager.getInstance(this.plugin);
                         const currentGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
                         const draggedIndex = currentGroups.findIndex((g: any) => g.id === draggedGroupId);
@@ -788,7 +784,7 @@ export class ProjectKanbanView {
             try {
                 // 获取当前项目的分组列表
                 const { ProjectManager } = await import('../utils/projectManager');
-                const projectManager = ProjectManager.getInstance();
+                const projectManager = ProjectManager.getInstance(this.plugin);
                 const currentGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
                 // 更新分组信息
@@ -816,7 +812,7 @@ export class ProjectKanbanView {
     private async deleteGroup(groupId: string, _groupItem: HTMLElement, container: HTMLElement) {
         // 获取分组信息用于显示名称
         const { ProjectManager } = await import('../utils/projectManager');
-        const projectManager = ProjectManager.getInstance();
+        const projectManager = ProjectManager.getInstance(this.plugin);
         const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
         const groupToDelete = projectGroups.find((g: any) => g.id === groupId);
 
@@ -1044,7 +1040,7 @@ export class ProjectKanbanView {
         const calendarBtn = document.createElement('button');
         calendarBtn.className = 'b3-button b3-button--outline';
         calendarBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconCalendar"></use></svg>';
-        calendarBtn.title = t('openCalendarView') || '打开日历视图';
+        calendarBtn.title = '打开日历视图';
         calendarBtn.addEventListener('click', () => this.openCalendarForProject());
         controlsGroup.appendChild(calendarBtn);
 
@@ -1649,8 +1645,6 @@ export class ProjectKanbanView {
                 console.warn('设置默认折叠任务失败:', err);
             }
 
-            console.log('任务加载完成');
-            console.log('任务排序方式:', this.currentSort, this.currentSortOrder);
 
             // 重置分页索引，防止页码超出范围
             try {
@@ -2080,7 +2074,7 @@ export class ProjectKanbanView {
     private async renderCustomGroupKanban() {
         // 使用项目管理器获取自定义分组
         const { ProjectManager } = await import('../utils/projectManager');
-        const projectManager = ProjectManager.getInstance();
+        const projectManager = ProjectManager.getInstance(this.plugin);
         const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
         if (projectGroups.length === 0) {
@@ -2224,7 +2218,7 @@ export class ProjectKanbanView {
 
                     try {
                         const { ProjectManager } = await import('../utils/projectManager');
-                        const projectManager = ProjectManager.getInstance();
+                        const projectManager = ProjectManager.getInstance(this.plugin);
                         const currentGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
                         const draggedIndex = currentGroups.findIndex((g: any) => g.id === draggedId);
@@ -2472,7 +2466,7 @@ export class ProjectKanbanView {
     private async hasProjectCustomGroups(): Promise<boolean> {
         try {
             const { ProjectManager } = await import('../utils/projectManager');
-            const projectManager = ProjectManager.getInstance();
+            const projectManager = ProjectManager.getInstance(this.plugin);
             const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
             return projectGroups.length > 0;
         } catch (error) {
@@ -2504,7 +2498,7 @@ export class ProjectKanbanView {
     private async renderTasksGroupedByCustomGroupInStableContainer(groupsContainer: HTMLElement, tasks: any[], status: string) {
         // 获取项目自定义分组
         const { ProjectManager } = await import('../utils/projectManager');
-        const projectManager = ProjectManager.getInstance();
+        const projectManager = ProjectManager.getInstance(this.plugin);
         const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
         // 获取对应的状态分组容器
@@ -3131,7 +3125,7 @@ export class ProjectKanbanView {
 
         // 获取项目自定义分组
         const { ProjectManager } = await import('../utils/projectManager');
-        const projectManager = ProjectManager.getInstance();
+        const projectManager = ProjectManager.getInstance(this.plugin);
         const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
         if (projectGroups.length === 0) {
@@ -4309,7 +4303,7 @@ export class ProjectKanbanView {
         // 设置分组子菜单（仅在项目有自定义分组时显示）
         try {
             const { ProjectManager } = await import('../utils/projectManager');
-            const projectManager = ProjectManager.getInstance();
+            const projectManager = ProjectManager.getInstance(this.plugin);
             const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
             if (projectGroups.length > 0) {
@@ -7946,7 +7940,7 @@ export class ProjectKanbanView {
 
             try {
                 const { ProjectManager } = await import('../utils/projectManager');
-                const projectManager = ProjectManager.getInstance();
+                const projectManager = ProjectManager.getInstance(this.plugin);
                 const currentGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
                 const draggedIndex = currentGroups.findIndex((g: any) => g.id === draggedId);
