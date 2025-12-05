@@ -35,54 +35,21 @@ export class ProjectManager {
 
     async initialize() {
         await this.statusManager.initialize();
-        await this.loadProjectColors();
         await this.loadProjects();
     }
 
-    private async saveProjectColors() {
+    public async setProjectColor(projectId: string, color: string) {
         try {
             const projectData = await this.plugin.loadData(PROJECT_DATA_FILE) || {};
-            projectData._colors = this.projectColors;
-            await this.plugin.saveData(PROJECT_DATA_FILE, projectData);
+            if (projectData[projectId]) {
+                projectData[projectId].color = color;
+                await this.plugin.saveData(PROJECT_DATA_FILE, projectData);
+            }
+            this.projectColors[projectId] = color;
         } catch (error) {
-            console.error('Failed to save project colors:', error);
+            console.error('Failed to set project color:', error);
             throw error;
         }
-    }
-
-    private async loadProjectColors() {
-        try {
-            const projectData = await this.plugin.loadData(PROJECT_DATA_FILE) || {};
-            this.projectColors = projectData._colors || {};
-
-            // 检查是否存在旧的 project_colors.json 文件，如果存在则导入并删除
-            try {
-                const oldColorsContent = await getFile('data/storage/petal/siyuan-plugin-task-note-management/project_colors.json');
-                if (oldColorsContent && oldColorsContent.code !== 404) {
-                    const oldColors = typeof oldColorsContent === 'string' ? JSON.parse(oldColorsContent) : oldColorsContent;
-                    if (oldColors && typeof oldColors === 'object') {
-                        // 合并旧颜色数据到新的 projectData._colors
-                        Object.assign(this.projectColors, oldColors);
-                        projectData._colors = this.projectColors;
-                        await this.plugin.saveData(PROJECT_DATA_FILE, projectData);
-                        // 删除旧文件
-                        await removeFile('data/storage/petal/siyuan-plugin-task-note-management/project_colors.json');
-                        console.log('成功导入并删除旧的 project_colors.json 文件');
-                    }
-                }
-            } catch (error) {
-                // 如果文件不存在或其他错误，忽略
-                console.log('旧的 project_colors.json 文件不存在或已处理');
-            }
-        } catch (error) {
-            console.warn('Failed to load project colors, using defaults:', error);
-            this.projectColors = {};
-        }
-    }
-
-    public async setProjectColor(projectId: string, color: string) {
-        this.projectColors[projectId] = color;
-        await this.saveProjectColors();
     }
 
     public getProjectColor(projectId: string): string {
@@ -110,20 +77,66 @@ export class ProjectManager {
         try {
             const projectData = await this.plugin.loadData(PROJECT_DATA_FILE) || {};
             if (projectData && typeof projectData === 'object') {
-                // 排除_colors等内部属性，只处理项目数据
+                // 迁移旧的 _colors 到项目中
+                if (projectData._colors) {
+                    Object.entries(projectData._colors).forEach(([id, color]) => {
+                        if (projectData[id] && typeof color === 'string') {
+                            projectData[id].color = color;
+                        }
+                    });
+                    delete projectData._colors;
+                    await this.plugin.saveData(PROJECT_DATA_FILE, projectData);
+                    console.log('成功迁移 _colors 到项目对象中');
+                }
+
+                // 检查是否存在旧的 project_colors.json 文件，如果存在则导入并删除
+                try {
+                    const oldColorsContent = await getFile('data/storage/petal/siyuan-plugin-task-note-management/project_colors.json');
+                    if (oldColorsContent && oldColorsContent.code !== 404) {
+                        const oldColors = typeof oldColorsContent === 'string' ? JSON.parse(oldColorsContent) : oldColorsContent;
+                        if (oldColors && typeof oldColors === 'object') {
+                            // 合并旧颜色数据到项目中
+                            Object.entries(oldColors).forEach(([id, color]) => {
+                                if (projectData[id] && typeof color === 'string') {
+                                    projectData[id].color = color;
+                                }
+                            });
+                            await this.plugin.saveData(PROJECT_DATA_FILE, projectData);
+                            // 删除旧文件
+                            await removeFile('data/storage/petal/siyuan-plugin-task-note-management/project_colors.json');
+                            console.log('成功导入并删除旧的 project_colors.json 文件');
+                        }
+                    }
+                } catch (error) {
+                    // 如果文件不存在或其他错误，忽略
+                    console.log('旧的 project_colors.json 文件不存在或已处理');
+                }
+
+                // 排除内部属性，只处理项目数据
                 const projectEntries = Object.entries(projectData).filter(([key]) => !key.startsWith('_'));
                 this.projects = projectEntries
                     .map(([id, project]: [string, any]) => ({
                         id: id,
                         name: project.title || '未命名项目',
-                        status: project.status || 'doing'
+                        status: project.status || 'doing',
+                        color: project.color
                     }));
+
+                // 从项目中提取颜色到 projectColors
+                this.projectColors = {};
+                projectEntries.forEach(([id, project]: [string, any]) => {
+                    if (project.color) {
+                        this.projectColors[id] = project.color;
+                    }
+                });
             } else {
                 this.projects = [];
+                this.projectColors = {};
             }
         } catch (error) {
             console.error('Failed to load projects:', error);
             this.projects = [];
+            this.projectColors = {};
         }
     }
 

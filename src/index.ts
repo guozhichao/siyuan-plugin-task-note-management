@@ -835,16 +835,19 @@ export default class ReminderPlugin extends Plugin {
             }
 
             // 统计正在进行的项目数量
+            // 过滤内部属性（以 '_' 开头，如 _colors），只统计真实项目条目
             let activeCount = 0;
-            Object.values(projectData).forEach((project: any) => {
-                if (project && typeof project === 'object') {
-                    // 数据迁移：处理旧的 archived 字段
-                    const status = project.status || (project.archived ? 'archived' : 'active');
-                    if (status === 'active') {
-                        activeCount++;
+            Object.entries(projectData)
+                .filter(([key]) => !key.startsWith('_'))
+                .forEach(([, project]: [string, any]) => {
+                    if (project && typeof project === 'object') {
+                        // 数据迁移：处理旧的 archived 字段
+                        const status = project.status || (project.archived ? 'archived' : 'active');
+                        if (status === 'active') {
+                            activeCount++;
+                        }
                     }
-                }
-            });
+                });
 
             this.setProjectDockBadge(activeCount);
         } catch (error) {
