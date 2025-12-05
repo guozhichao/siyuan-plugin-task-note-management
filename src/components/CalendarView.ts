@@ -373,6 +373,11 @@ export class CalendarView {
 
         // 监听提醒更新事件
         window.addEventListener('reminderUpdated', () => this.refreshEvents());
+        // 监听项目颜色更新事件
+        window.addEventListener('projectColorUpdated', () => {
+            this.colorCache.clear();
+            this.refreshEvents();
+        });
         // 监听设置更新事件（如：周开始日）
         window.addEventListener('reminderSettingsUpdated', () => this.applyWeekStartDay());
 
@@ -3433,6 +3438,10 @@ export class CalendarView {
 
         // 移除事件监听器
         window.removeEventListener('reminderUpdated', () => this.refreshEvents());
+        window.removeEventListener('projectColorUpdated', () => {
+            this.colorCache.clear();
+            this.refreshEvents();
+        });
 
         // 销毁日历实例
         if (this.calendar) {

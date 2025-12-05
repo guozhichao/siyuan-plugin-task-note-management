@@ -46,6 +46,8 @@ export class ProjectManager {
                 await this.plugin.saveData(PROJECT_DATA_FILE, projectData);
             }
             this.projectColors[projectId] = color;
+            // 触发项目颜色更新事件，通知日历视图等组件更新颜色缓存
+            window.dispatchEvent(new CustomEvent('projectColorUpdated'));
         } catch (error) {
             console.error('Failed to set project color:', error);
             throw error;
