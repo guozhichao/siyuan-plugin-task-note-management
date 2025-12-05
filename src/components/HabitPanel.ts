@@ -8,7 +8,6 @@ import { HabitEditDialog } from "./HabitEditDialog";
 import { HabitStatsDialog } from "./HabitStatsDialog";
 import { HabitGroupManageDialog } from "./HabitGroupManageDialog";
 import { HabitCheckInEmojiDialog } from "./HabitCheckInEmojiDialog";
-import { HabitHistoryDialog } from "./HabitHistoryDialog";
 
 export interface HabitCheckInEmoji {
     emoji: string;
@@ -1137,14 +1136,6 @@ export class HabitPanel {
             }
         });
 
-        // 历史打卡管理
-        menu.addItem({
-            label: "管理历史打卡",
-            icon: "iconClock",
-            click: () => {
-                this.showHabitHistory(habit);
-            }
-        });
 
         // 编辑习惯
         menu.addItem({
@@ -1395,17 +1386,14 @@ export class HabitPanel {
     }
 
     private showHabitStats(habit: Habit) {
-        const dialog = new HabitStatsDialog(habit);
-        dialog.show();
-    }
-
-    private showHabitHistory(habit: Habit) {
-        const dialog = new HabitHistoryDialog(habit, async (updatedHabit) => {
+        const dialog = new HabitStatsDialog(habit, async (updatedHabit) => {
             await this.saveHabit(updatedHabit);
             this.loadHabits();
         });
         dialog.show();
     }
+
+
 
     private showGroupManageDialog() {
         const dialog = new HabitGroupManageDialog(() => {

@@ -1,7 +1,6 @@
 import { Dialog } from "siyuan";
-import { Habit } from "./HabitPanel";
-import { HabitHistoryDialog } from "./HabitHistoryDialog";
-import { readHabitData, writeHabitData } from "../api";
+import type { Habit } from "./HabitPanel";
+import { HabitDayDialog } from "./HabitDayDialog";
 import { init, use, EChartsType } from 'echarts/core';
 import { HeatmapChart, ScatterChart, CustomChart } from 'echarts/charts';
 import { TooltipComponent, VisualMapComponent, GridComponent, TitleComponent, LegendComponent, CalendarComponent } from 'echarts/components';
@@ -33,8 +32,11 @@ export class HabitStatsDialog {
     private chartInstances: EChartsType[] = [];
     private resizeObservers: ResizeObserver[] = [];
 
-    constructor(habit: Habit) {
+    private onSave?: (habit: Habit) => Promise<void>;
+
+    constructor(habit: Habit, onSave?: (habit: Habit) => Promise<void>) {
         this.habit = habit;
+        this.onSave = onSave;
     }
 
     show() {
@@ -418,6 +420,20 @@ export class HabitStatsDialog {
             }
 
             dayCell.appendChild(contentWrap);
+
+            // 单击进入该日的历史打卡管理（快速添加/编辑）
+            dayCell.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const dayDialog = new HabitDayDialog(this.habit, dateStr, async (updatedHabit) => {
+                    if (this.onSave) {
+                        await this.onSave(updatedHabit);
+                    } else {
+                        this.habit = updatedHabit;
+                    }
+                    this.renderMonthlyView(container);
+                });
+                dayDialog.show();
+            });
 
             monthGrid.appendChild(dayCell);
         }

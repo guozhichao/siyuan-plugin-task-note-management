@@ -6,11 +6,13 @@ export class HabitHistoryDialog {
     private dialog: Dialog;
     private habit: Habit;
     private onSave: (habit: Habit) => Promise<void>;
+    private initialDate?: string;
     private collapsedDates: Set<string> = new Set();
 
-    constructor(habit: Habit, onSave: (habit: Habit) => Promise<void>) {
+    constructor(habit: Habit, onSave: (habit: Habit) => Promise<void>, initialDate?: string) {
         this.habit = habit;
         this.onSave = onSave;
+        this.initialDate = initialDate;
     }
 
     show() {
@@ -27,6 +29,13 @@ export class HabitHistoryDialog {
         container.style.cssText = 'padding: 16px; overflow-y: auto; height: 100%; box-sizing: border-box;';
         this.loadCollapsedDates();
         this.renderList(container);
+        // 如果传入了 initialDate，则直接打开补录对话框以便快速编辑/添加
+        if (this.initialDate) {
+            // 等待短暂时间，确保 DOM 已渲染完毕
+            setTimeout(() => {
+                this.openAddEntryDialog(this.initialDate);
+            }, 50);
+        }
     }
 
     private loadCollapsedDates() {
