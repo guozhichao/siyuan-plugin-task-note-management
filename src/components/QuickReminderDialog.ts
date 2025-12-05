@@ -677,7 +677,7 @@ export class QuickReminderDialog {
             // 处理农历日期格式（例如：八月廿一、正月初一、农历七月十三）
             // 如果文本包含“农历”关键字，则强制以农历解析（例如“农历7月13”、“农历七月二十”等）
             if (/农历/.test(text) || /农历/.test(processedText)) {
-                const lunarDate = parseLunarDateText(processedText); 
+                const lunarDate = parseLunarDateText(processedText);
                 if (lunarDate) {
                     // 如果只识别到日期（month === 0），使用当前月作为默认月
                     if (lunarDate.month === 0) {
