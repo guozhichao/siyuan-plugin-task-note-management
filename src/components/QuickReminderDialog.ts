@@ -2269,7 +2269,10 @@ export class QuickReminderDialog {
                         endTime: endTime,
                         note: note,
                         priority: priority,
-                        notified: false // 重置通知状态
+                        notified: false, // 重置通知状态
+                        // 提醒时间相关字段
+                        reminderTimes: this.customTimes.length > 0 ? [...this.customTimes] : undefined,
+                        customReminderPreset: customReminderPreset
                     };
 
                     // 调用实例修改保存方法
@@ -2615,8 +2618,27 @@ export class QuickReminderDialog {
                 reminderData[originalId].repeat.instanceModifications = {};
             }
 
-            // 保存此实例的修改数据
-            reminderData[originalId].repeat.instanceModifications[instanceDate] = {
+            const modifications = reminderData[originalId].repeat.instanceModifications;
+
+            // 如果修改了日期，需要清理可能存在的中间修改记录
+            // 例如：原始日期 12-01 改为 12-03，再改为 12-06
+            // 应该只保留 12-01 的修改记录，删除 12-03 的记录
+            if (instanceData.date !== instanceDate) {
+                // 查找所有可能的中间修改记录
+                const keysToDelete: string[] = [];
+                for (const key in modifications) {
+                    // 如果某个修改记录的日期指向当前实例的新日期，且该键不是原始实例日期
+                    // 说明这是之前修改产生的中间记录，需要删除
+                    if (key !== instanceDate && modifications[key]?.date === instanceData.date) {
+                        keysToDelete.push(key);
+                    }
+                }
+                // 删除中间修改记录
+                keysToDelete.forEach(key => delete modifications[key]);
+            }
+
+            // 保存此实例的修改数据（始终使用原始实例日期作为键）
+            modifications[instanceDate] = {
                 title: instanceData.title,
                 date: instanceData.date,
                 endDate: instanceData.endDate,
@@ -2625,6 +2647,9 @@ export class QuickReminderDialog {
                 note: instanceData.note,
                 priority: instanceData.priority,
                 notified: instanceData.notified,
+                // 提醒时间相关字段
+                reminderTimes: instanceData.reminderTimes,
+                customReminderPreset: instanceData.customReminderPreset,
                 modifiedAt: new Date().toISOString().split('T')[0]
             };
 

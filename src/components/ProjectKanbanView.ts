@@ -1512,9 +1512,11 @@ export class ProjectKanbanView {
                     let pastCompletedList: any[] = [];
 
                     repeatInstances.forEach(instance => {
+                        const instanceIdStr = (instance as any).instanceId || `${reminder.id}_${instance.date}`;
+                        const originalKey = instanceIdStr.split('_').pop() || instance.date;
                         // 对于所有重复事件，只添加实例，不添加原始任务
-                        const isInstanceCompleted = completedInstances.includes(instance.date);
-                        const instanceMod = instanceModifications[instance.date];
+                        const isInstanceCompleted = completedInstances.includes(originalKey);
+                        const instanceMod = instanceModifications[originalKey];
 
                         const instanceTask = {
                             ...reminder,
@@ -7644,9 +7646,12 @@ export class ProjectKanbanView {
                 return;
             }
 
+            // 从 instanceId (格式: originalId_YYYY-MM-DD) 中提取原始生成日期
+            const originalInstanceDate = task.id ? task.id.split('_').pop() : task.date;
+
             // 检查实例级别的修改（包括备注）
             const instanceModifications = originalReminder.repeat?.instanceModifications || {};
-            const instanceMod = instanceModifications[task.date];
+            const instanceMod = instanceModifications[originalInstanceDate];
 
             // 创建实例数据，包含当前实例的特定信息
             const instanceData = {
@@ -7659,7 +7664,7 @@ export class ProjectKanbanView {
                 note: instanceMod?.note || originalReminder.note || '',  // 复用原始事件备注，实例修改优先
                 isInstance: true,
                 originalId: task.originalId,
-                instanceDate: task.date
+                instanceDate: originalInstanceDate  // 使用原始生成日期而非当前显示日期
             };
 
             const editDialog = new QuickReminderDialog(
@@ -7785,10 +7790,11 @@ export class ProjectKanbanView {
             repeatInstances = generateRepeatInstances(reminder, startDate, endDate, maxInstances);
 
             // 检查是否有未完成的未来实例（关键修复：不仅要是未来的，还要是未完成的）
-            hasUncompletedFutureInstance = repeatInstances.some(instance =>
-                compareDateStrings(instance.date, today) > 0 &&
-                !completedInstances.includes(instance.date)
-            );
+            hasUncompletedFutureInstance = repeatInstances.some(instance => {
+                const instanceIdStr = (instance as any).instanceId || `${reminder.id}_${instance.date}`;
+                const originalKey = instanceIdStr.split('_').pop() || instance.date;
+                return compareDateStrings(instance.date, today) > 0 && !completedInstances.includes(originalKey);
+            });
 
             if (!hasUncompletedFutureInstance) {
                 // 如果没有找到未完成的未来实例，扩展范围

@@ -274,11 +274,14 @@ export class DocumentReminderDialog {
                     const instances = this.generateInstancesWithFutureGuarantee(reminder, today, isLunarRepeat);
                     instances.forEach(instance => {
                         if (instance.date !== reminder.date) {
+                            const instanceIdStr = (instance as any).instanceId || `${reminder.id}_${instance.date}`;
+                            const originalKey = instanceIdStr.split('_').pop() || instance.date;
+
                             const completedInstances = reminder.repeat?.completedInstances || [];
-                            const isInstanceCompleted = completedInstances.includes(instance.date);
+                            const isInstanceCompleted = completedInstances.includes(originalKey);
 
                             const instanceModifications = reminder.repeat?.instanceModifications || {};
-                            const instanceMod = instanceModifications[instance.date];
+                            const instanceMod = instanceModifications[originalKey];
 
                             const instanceReminder = {
                                 ...reminder,
@@ -1251,10 +1254,11 @@ export class DocumentReminderDialog {
             repeatInstances = generateRepeatInstances(reminder, startDate, endDate, maxInstances);
 
             // 检查是否有未完成的未来实例（关键修复：不仅要是未来的，还要是未完成的）
-            hasUncompletedFutureInstance = repeatInstances.some(instance =>
-                compareDateStrings(instance.date, today) > 0 &&
-                !completedInstances.includes(instance.date)
-            );
+            hasUncompletedFutureInstance = repeatInstances.some(instance => {
+                const instanceIdStr = (instance as any).instanceId || `${reminder.id}_${instance.date}`;
+                const originalKey = instanceIdStr.split('_').pop() || instance.date;
+                return compareDateStrings(instance.date, today) > 0 && !completedInstances.includes(originalKey);
+            });
 
             if (!hasUncompletedFutureInstance) {
                 // 如果没有找到未完成的未来实例，扩展范围

@@ -822,10 +822,11 @@ export default class ReminderPlugin extends Plugin {
 
                     repeatInstances = generateRepeatInstances(reminder, startDate, endDate, maxInstances);
 
-                    hasUncompletedFutureInstance = repeatInstances.some(instance =>
-                        compareDateStrings(instance.date, today) > 0 &&
-                        !completedInstances.includes(instance.date)
-                    );
+                    hasUncompletedFutureInstance = repeatInstances.some(instance => {
+                        const instanceIdStr = (instance as any).instanceId || `${reminder.id}_${instance.date}`;
+                        const originalKey = instanceIdStr.split('_').pop() || instance.date;
+                        return compareDateStrings(instance.date, today) > 0 && !completedInstances.includes(originalKey);
+                    });
 
                     if (!hasUncompletedFutureInstance) {
                         if (reminder.repeat.type === 'yearly') {
@@ -860,8 +861,10 @@ export default class ReminderPlugin extends Plugin {
                     let futureIncompleteList: any[] = [];
 
                     repeatInstances.forEach(instance => {
-                        const isInstanceCompleted = completedInstances.includes(instance.date);
-                        const instanceMod = instanceModifications[instance.date];
+                        const instanceIdStr = (instance as any).instanceId || `${reminder.id}_${instance.date}`;
+                        const originalKey = instanceIdStr.split('_').pop() || instance.date;
+                        const isInstanceCompleted = completedInstances.includes(originalKey);
+                        const instanceMod = instanceModifications[originalKey];
 
                         const instanceTask = {
                             ...reminder,
@@ -1800,16 +1803,19 @@ export default class ReminderPlugin extends Plugin {
                     const repeatInstances = generateRepeatInstances(reminder, today, today);
                     repeatInstances.forEach(instance => {
                         // 为生成的实例创建独立的呈现对象（包含 instance 级别的修改）
+                        // 从 instanceId (格式: originalId_YYYY-MM-DD) 中提取原始生成日期
+                        const originalInstanceDate = instance.instanceId.split('_').pop() || instance.date;
+
                         // 检查实例级别的完成状态
                         const completedInstances = reminder.repeat?.completedInstances || [];
-                        let isInstanceCompleted = completedInstances.includes(instance.date);
+                        let isInstanceCompleted = completedInstances.includes(originalInstanceDate);
 
                         // 检查实例级别的修改（包括备注、优先级、分类等）
                         const instanceModifications = reminder.repeat?.instanceModifications || {};
-                        const instanceMod = instanceModifications[instance.date];
+                        const instanceMod = instanceModifications[originalInstanceDate];
 
                         // 如果原始任务在每日完成记录中标记了今天已完成（跨天标记），则该实例应视为已完成
-                        if (!isInstanceCompleted && reminder.dailyCompletions && reminder.dailyCompletions[instance.date]) {
+                        if (!isInstanceCompleted && reminder.dailyCompletions && reminder.dailyCompletions[originalInstanceDate]) {
                             isInstanceCompleted = true;
                         }
 
@@ -1819,6 +1825,8 @@ export default class ReminderPlugin extends Plugin {
                             date: instance.date,
                             endDate: instance.endDate,
                             customReminderTime: instance.customReminderTime || reminder.customReminderTime,
+                            reminderTimes: instanceMod?.reminderTimes !== undefined ? instanceMod.reminderTimes : instance.reminderTimes,
+                            customReminderPreset: instanceMod?.customReminderPreset !== undefined ? instanceMod.customReminderPreset : instance.customReminderPreset,
                             time: instance.time,
                             endTime: instance.endTime,
                             isRepeatInstance: true,
@@ -2087,7 +2095,57 @@ export default class ReminderPlugin extends Plugin {
                     if (overallChanged) dataChanged = true;
                 } else {
                     // 处理重复提醒
-                    const instances = generateRepeatInstances(reminderObj, today, today);
+                    let instances = generateRepeatInstances(reminderObj, today, today);
+
+                    // 额外处理：如果存在 instanceModifications，将那些被修改后日期为今天的实例也加入检查。
+                    // 情形：原始实例键（例如 2025-12-01）被修改为另一个日期（例如 2025-12-05），当今天为 2025-12-05 时
+                    // generateRepeatInstances 可能不会基于原始键生成该实例，因此需要显式加入由 instanceModifications 指定并移动到今天的实例。
+                    try {
+                        const mods = reminderObj.repeat?.instanceModifications || {};
+                        for (const [origKey, mod] of Object.entries(mods)) {
+                            try {
+                                if (!mod || typeof mod !== 'object') continue;
+                                if (mod.date !== today) continue; // 只关心被改到今天的实例
+                                const instanceId = `${reminderObj.id}_${origKey}`;
+                                const exists = instances.some((it: any) => it.instanceId === instanceId);
+                                if (exists) continue;
+
+                                const constructed = {
+                                    title: mod.title || reminderObj.title || t('unnamedNote'),
+                                    date: mod.date || today,
+                                    time: mod.time || reminderObj.time,
+                                    endDate: mod.endDate || reminderObj.endDate,
+                                    endTime: mod.endTime || reminderObj.endTime,
+                                    customReminderTime: mod.customReminderTime || reminderObj.customReminderTime,
+                                    reminderTimes: mod.reminderTimes !== undefined ? mod.reminderTimes : reminderObj.reminderTimes,
+                                    customReminderPreset: mod.customReminderPreset !== undefined ? mod.customReminderPreset : reminderObj.customReminderPreset,
+                                    instanceId: instanceId,
+                                    originalId: reminderObj.id,
+                                    isRepeatedInstance: true,
+                                    completed: (reminderObj.repeat?.completedInstances || []).includes(origKey),
+                                    note: mod.note || reminderObj.note,
+                                    priority: mod.priority !== undefined ? mod.priority : reminderObj.priority,
+                                    categoryId: mod.categoryId !== undefined ? mod.categoryId : reminderObj.categoryId,
+                                    projectId: mod.projectId !== undefined ? mod.projectId : reminderObj.projectId
+                                };
+
+                                instances.push(constructed as any);
+                            } catch (e) {
+                                console.warn('处理 instanceModifications 时出错', e);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('处理重复实例的 instanceModifications 时发生错误:', e);
+                    }
+
+                    // 将生成的实例与原始 reminderObj 合并，确保实例包含 title、note、priority 等字段
+                    instances = instances.map((inst: any) => ({
+                        ...reminderObj,
+                        ...inst,
+                        id: inst.instanceId,
+                        isRepeatInstance: true,
+                        originalId: inst.originalId || reminderObj.id
+                    }));
 
                     for (const instance of instances) {
                         // 检查实例是否需要提醒（对于重复实例，不依赖 reminderObj 的 notified 字段，而使用 repeat.notifiedInstances 去重）
@@ -2096,7 +2154,7 @@ export default class ReminderPlugin extends Plugin {
                             const notifiedInstances = reminderObj.repeat?.notifiedInstances || [];
                             const instanceKey = `${instance.date}_${instance.time}`;
                             if (!notifiedInstances.includes(instanceKey)) {
-                                console.debug('checkTimeReminders - triggering repeat instance time reminder', { id: instance.id, date: instance.date, time: instance.time });
+                                console.debug('checkTimeReminders - triggering repeat instance time reminder', { id: instance.instanceId, date: instance.date, time: instance.time });
                                 await this.showTimeReminder(instance, 'time');
                                 if (!reminderObj.repeat) reminderObj.repeat = {};
                                 if (!reminderObj.repeat.notifiedInstances) reminderObj.repeat.notifiedInstances = [];
@@ -2115,7 +2173,7 @@ export default class ReminderPlugin extends Plugin {
                                     const notifiedInstances = reminderObj.repeat?.notifiedInstances || [];
                                     const instanceKey = `${instance.date}_${instance.customReminderTime}`;
                                     if (!notifiedInstances.includes(instanceKey)) {
-                                        console.debug('checkTimeReminders - triggering repeat instance customReminderTime reminder', { id: instance.id, date: instance.date, customReminderTime: instance.customReminderTime });
+                                        console.debug('checkTimeReminders - triggering repeat instance customReminderTime reminder', { id: instance.instanceId, date: instance.date, customReminderTime: instance.customReminderTime });
                                         await this.showTimeReminder(instance, 'customReminderTime');
                                         if (!reminderObj.repeat) reminderObj.repeat = {};
                                         if (!reminderObj.repeat.notifiedInstances) reminderObj.repeat.notifiedInstances = [];
@@ -2142,8 +2200,8 @@ export default class ReminderPlugin extends Plugin {
                                     const notifiedInstances = reminderObj.repeat?.notifiedInstances || [];
                                     const instanceKey = `${instance.date}_${rt}`;
                                     if (!notifiedInstances.includes(instanceKey)) {
-                                        console.debug('checkTimeReminders - triggering repeat instance reminderTimes reminder', { id: instance.id, rt });
-                                        const tempInstance = { ...instance, customReminderTime: rt, note: note ? (instance.note ? instance.note + '\n' + note : note) : instance.note };
+                                        console.debug('checkTimeReminders - triggering repeat instance reminderTimes reminder', { id: instance.instanceId, rt });
+                                        const tempInstance = { ...instance, customReminderTime: rt };
                                         await this.showTimeReminder(tempInstance, 'customReminderTime');
 
                                         if (!reminderObj.repeat) reminderObj.repeat = {};

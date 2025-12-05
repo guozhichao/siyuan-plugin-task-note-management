@@ -957,7 +957,10 @@ export class CalendarView {
     private async showInstanceEditDialog(calendarEvent: any) {
         // 为重复事件实例显示编辑对话框
         const originalId = calendarEvent.extendedProps.originalId;
-        const instanceDate = calendarEvent.extendedProps.date;
+        // 事件 id 使用格式: <reminder.id>_instance_<originalKey>
+        // 以 id 的最后一段作为实例的原始键，用于查找 instanceModifications
+        const instanceIdStr = calendarEvent.id || '';
+        const instanceDate = instanceIdStr.split('_').pop() || calendarEvent.extendedProps.date;
 
         try {
             const reminderData = await readReminderData();
@@ -1018,7 +1021,9 @@ export class CalendarView {
             async () => {
                 try {
                     const originalId = calendarEvent.extendedProps.originalId;
-                    const instanceDate = calendarEvent.extendedProps.date;
+                    // 从 event.id 提取原始实例键，优先使用它作为排除键
+                    const instanceIdStr = calendarEvent.id || '';
+                    const instanceDate = instanceIdStr.split('_').pop() || calendarEvent.extendedProps.date;
 
                     await this.addExcludedDate(originalId, instanceDate);
 
@@ -1384,7 +1389,8 @@ export class CalendarView {
             if (event.extendedProps.isRepeated) {
                 // 处理重复事件实例
                 const originalId = event.extendedProps.originalId;
-                const instanceDate = event.extendedProps.date;
+                const instanceIdStr = event.id || '';
+                const instanceDate = instanceIdStr.split('_').pop() || event.extendedProps.date;
 
                 if (reminderData[originalId]) {
                     // 初始化已完成实例列表
@@ -1891,7 +1897,8 @@ export class CalendarView {
     private async updateSingleInstance(info) {
         try {
             const originalId = info.event.extendedProps.originalId;
-            const instanceDate = info.event.extendedProps.date;
+            // 从 instanceId 提取原始日期（格式：originalId_YYYY-MM-DD）
+            const originalInstanceDate = info.event.id ? info.event.id.split('_').pop() : info.event.extendedProps.date;
             const newStartDate = info.event.start;
             const newEndDate = info.event.end;
 
@@ -1951,7 +1958,7 @@ export class CalendarView {
             // 保存实例修改
             await this.saveInstanceModification({
                 originalId,
-                instanceDate,
+                instanceDate: originalInstanceDate, // 使用从 instanceId 提取的原始日期
                 ...instanceModification
             });
 
@@ -2128,8 +2135,27 @@ export class CalendarView {
                 reminderData[originalId].repeat.instanceModifications = {};
             }
 
-            // 保存此实例的修改数据
-            reminderData[originalId].repeat.instanceModifications[instanceDate] = {
+            const modifications = reminderData[originalId].repeat.instanceModifications;
+
+            // 如果修改了日期，需要清理可能存在的中间修改记录
+            // 例如：原始日期 12-01 改为 12-03，再改为 12-06
+            // 应该只保留 12-01 的修改记录，删除 12-03 的记录
+            if (instanceData.date !== instanceDate) {
+                // 查找所有可能的中间修改记录
+                const keysToDelete: string[] = [];
+                for (const key in modifications) {
+                    // 如果某个修改记录的日期指向当前实例的新日期，且该键不是原始实例日期
+                    // 说明这是之前修改产生的中间记录，需要删除
+                    if (key !== instanceDate && modifications[key]?.date === instanceData.date) {
+                        keysToDelete.push(key);
+                    }
+                }
+                // 删除中间修改记录
+                keysToDelete.forEach(key => delete modifications[key]);
+            }
+
+            // 保存此实例的修改数据（始终使用原始实例日期作为键）
+            modifications[instanceDate] = {
                 title: instanceData.title,
                 date: instanceData.date,
                 endDate: instanceData.endDate,
@@ -2599,8 +2625,14 @@ export class CalendarView {
 
                     // 批量处理实例，减少重复计算
                     for (const instance of repeatInstances) {
-                        const isInstanceCompleted = completedInstances.includes(instance.date);
-                        const instanceMod = instanceModifications[instance.date];
+                        // 使用 instance.instanceId（由 generateRepeatInstances 生成，格式为 <reminder.id>_YYYY-MM-DD）
+                        // 从中提取原始实例日期键 originalKey，用于查找完成状态和 instanceModifications。
+                        const instanceIdStr = (instance as any).instanceId || `${reminder.id}_${instance.date}`;
+                        const originalKey = instanceIdStr.split('_').pop() || instance.date;
+
+                        // completedInstances 和 instanceModifications 都以原始实例日期键为索引
+                        const isInstanceCompleted = completedInstances.includes(originalKey);
+                        const instanceMod = instanceModifications[originalKey];
 
                         const instanceReminder = {
                             ...reminder,
@@ -2610,10 +2642,10 @@ export class CalendarView {
                             endTime: instance.endTime,
                             completed: isInstanceCompleted,
                             note: instanceMod?.note || ''
-                            // docTitle, parentTitle, parentBlockId 已经在原 reminder 中
                         };
 
-                        const uniqueInstanceId = `${reminder.id}_instance_${instance.date}`;
+                        // 事件 id 应使用原始实例键，以便后续的拖拽/保存逻辑能够基于原始实例键进行修改，避免产生重复的 instanceModifications 条目
+                        const uniqueInstanceId = `${reminder.id}_instance_${originalKey}`;
                         this.addEventToList(events, instanceReminder, uniqueInstanceId, true, instance.originalId);
                     }
                 }

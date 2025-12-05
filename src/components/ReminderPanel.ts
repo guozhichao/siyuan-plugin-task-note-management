@@ -1898,8 +1898,10 @@ export class ReminderPanel {
 
                 repeatInstances.forEach(instance => {
                     // 对于所有重复事件，添加所有生成的实例（包括与原始日期相同的实例）
-                    const isInstanceCompleted = completedInstances.includes(instance.date);
-                    const instanceMod = instanceModifications[instance.date];
+                    // 从 instanceId (格式: originalId_YYYY-MM-DD) 中提取原始生成日期
+                    const originalInstanceDate = instance.instanceId.split('_').pop() || instance.date;
+                    const isInstanceCompleted = completedInstances.includes(originalInstanceDate);
+                    const instanceMod = instanceModifications[originalInstanceDate];
 
                     // 使用展开运算符复制原始提醒的所有属性（包括 projectId、categoryId、priority 等）
                     // 然后覆盖实例特定的属性（id、date、time 等）
@@ -1921,6 +1923,9 @@ export class ReminderPanel {
                         customGroupId: instanceMod?.customGroupId !== undefined ? instanceMod.customGroupId : reminder.customGroupId,
                         termType: instanceMod?.termType !== undefined ? instanceMod.termType : reminder.termType,
                         kanbanStatus: instanceMod?.kanbanStatus !== undefined ? instanceMod.kanbanStatus : reminder.kanbanStatus,
+                        // 提醒时间相关字段
+                        reminderTimes: instanceMod?.reminderTimes !== undefined ? instanceMod.reminderTimes : reminder.reminderTimes,
+                        customReminderPreset: instanceMod?.customReminderPreset !== undefined ? instanceMod.customReminderPreset : reminder.customReminderPreset,
                         // 为已完成的实例添加完成时间（用于排序）
                         completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined
                     };
@@ -5116,9 +5121,12 @@ export class ReminderPanel {
                 return;
             }
 
+            // 从 instanceId 提取原始日期（格式：originalId_YYYY-MM-DD）
+            const originalInstanceDate = reminder.id ? reminder.id.split('_').pop() : reminder.date;
+
             // 检查实例级别的修改（包括备注）
             const instanceModifications = originalReminder.repeat?.instanceModifications || {};
-            const instanceMod = instanceModifications[reminder.date];
+            const instanceMod = instanceModifications[originalInstanceDate];
 
             // 创建实例数据，包含当前实例的特定信息
             const instanceData = {
@@ -5136,9 +5144,12 @@ export class ReminderPanel {
                 customGroupId: instanceMod?.customGroupId !== undefined ? instanceMod.customGroupId : originalReminder.customGroupId,
                 termType: instanceMod?.termType !== undefined ? instanceMod.termType : originalReminder.termType,
                 kanbanStatus: instanceMod?.kanbanStatus !== undefined ? instanceMod.kanbanStatus : originalReminder.kanbanStatus,
+                // 提醒时间相关字段
+                reminderTimes: instanceMod?.reminderTimes !== undefined ? instanceMod.reminderTimes : originalReminder.reminderTimes,
+                customReminderPreset: instanceMod?.customReminderPreset !== undefined ? instanceMod.customReminderPreset : originalReminder.customReminderPreset,
                 isInstance: true,
                 originalId: reminder.originalId,
-                instanceDate: reminder.date
+                instanceDate: originalInstanceDate // 使用从 instanceId 提取的原始日期
 
             };
 
@@ -6687,10 +6698,11 @@ export class ReminderPanel {
             repeatInstances = generateRepeatInstances(reminder, startDate, endDate, maxInstances);
 
             // 检查是否有未完成的未来实例（关键修复：不仅要是未来的，还要是未完成的）
-            hasUncompletedFutureInstance = repeatInstances.some(instance =>
-                compareDateStrings(instance.date, today) > 0 &&
-                !completedInstances.includes(instance.date)
-            );
+            hasUncompletedFutureInstance = repeatInstances.some(instance => {
+                const instanceIdStr = (instance as any).instanceId || `${reminder.id}_${instance.date}`;
+                const originalKey = instanceIdStr.split('_').pop() || instance.date;
+                return compareDateStrings(instance.date, today) > 0 && !completedInstances.includes(originalKey);
+            });
 
             if (!hasUncompletedFutureInstance) {
                 // 如果没有找到未完成的未来实例，扩展范围

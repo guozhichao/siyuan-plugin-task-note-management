@@ -86,13 +86,16 @@ export class TaskSummaryDialog {
           repeatInstances.forEach(instance => {
             // 跳过与原始事件相同日期的实例
             if (instance.date !== reminder.date) {
+              const instanceIdStr = (instance as any).instanceId || `${reminder.id}_${instance.date}`;
+              const originalKey = instanceIdStr.split('_').pop() || instance.date;
+
               // 检查实例级别的完成状态
               const completedInstances = reminder.repeat?.completedInstances || [];
-              const isInstanceCompleted = completedInstances.includes(instance.date);
+              const isInstanceCompleted = completedInstances.includes(originalKey);
 
               // 检查实例级别的修改
               const instanceModifications = reminder.repeat?.instanceModifications || {};
-              const instanceMod = instanceModifications[instance.date];
+              const instanceMod = instanceModifications[originalKey];
 
               const instanceReminder = {
                 ...reminder,
@@ -105,8 +108,8 @@ export class TaskSummaryDialog {
                 docTitle: reminder.docTitle // 保持文档标题
               };
 
-              // 确保实例ID的唯一性，避免重复
-              const uniqueInstanceId = `${reminder.id}_instance_${instance.date}`;
+              // 确保实例ID的唯一性，避免重复 — 使用原始实例键作为 id 的后缀
+              const uniqueInstanceId = `${reminder.id}_instance_${originalKey}`;
               this.addEventToList(events, instanceReminder, uniqueInstanceId, true, instance.originalId);
             }
           });
