@@ -765,60 +765,206 @@ export default class ReminderPlugin extends Plugin {
             const reminderData = await readReminderData();
 
             if (!reminderData || typeof reminderData !== 'object') {
-                this.setTopBarBadge(0);
                 this.setDockBadge(0);
                 return;
             }
 
             const today = getLocalDateString();
-            let uncompletedCount = 0;
 
-            Object.values(reminderData).forEach((reminder: any) => {
-                if (!reminder || typeof reminder !== 'object' || reminder.completed) {
-                    return;
+            // ========== 第一步：生成所有任务（包括重复实例），参照 generateAllRemindersWithInstances ==========
+            const allReminders: any[] = [];
+            const reminderMap = new Map<string, any>();
+
+            // 辅助函数：检查是否有子任务
+            const hasChildren = (reminderId: string): boolean => {
+                return Object.values(reminderData).some((r: any) =>
+                    r && r.parentId === reminderId
+                );
+            };
+
+            // 过滤有效的任务
+            const reminders = Object.values(reminderData).filter((reminder: any) => {
+                return reminder && typeof reminder === 'object' && reminder.id &&
+                    (reminder.date || reminder.parentId || hasChildren(reminder.id) || reminder.completed);
+            });
+
+            // 生成重复实例的辅助函数（参照 generateInstancesWithFutureGuarantee）
+            const generateInstancesWithFutureGuarantee = (reminder: any): any[] => {
+                const isLunarRepeat = reminder.repeat?.type === 'lunar-monthly' || reminder.repeat?.type === 'lunar-yearly';
+
+                let monthsToAdd = 2;
+                if (isLunarRepeat) {
+                    monthsToAdd = 14;
+                } else if (reminder.repeat.type === 'yearly') {
+                    monthsToAdd = 14;
+                } else if (reminder.repeat.type === 'monthly') {
+                    monthsToAdd = 3;
                 }
 
-                // 处理非重复事件
-                if (!reminder.repeat?.enabled) {
-                    let shouldCount = false;
-                    if (reminder.endDate) {
-                        shouldCount = (compareDateStrings(reminder.date, today) <= 0 &&
-                            compareDateStrings(today, reminder.endDate) <= 0) ||
-                            compareDateStrings(reminder.endDate, today) < 0;
+                let repeatInstances: any[] = [];
+                let hasUncompletedFutureInstance = false;
+                const maxAttempts = 5;
+                let attempts = 0;
+                const completedInstances = reminder.repeat?.completedInstances || [];
 
-                        // 检查跨天事件是否已标记"今日已完成"
-                        if (shouldCount && reminder.dailyCompletions && reminder.dailyCompletions[today]) {
-                            shouldCount = false;
+                while (!hasUncompletedFutureInstance && attempts < maxAttempts) {
+                    const monthStart = new Date();
+                    monthStart.setDate(1);
+                    monthStart.setMonth(monthStart.getMonth() - 1);
+
+                    const monthEnd = new Date();
+                    monthEnd.setMonth(monthEnd.getMonth() + monthsToAdd);
+                    monthEnd.setDate(0);
+
+                    const startDate = getLocalDateString(monthStart);
+                    const endDate = getLocalDateString(monthEnd);
+                    const maxInstances = monthsToAdd * 50;
+
+                    repeatInstances = generateRepeatInstances(reminder, startDate, endDate, maxInstances);
+
+                    hasUncompletedFutureInstance = repeatInstances.some(instance =>
+                        compareDateStrings(instance.date, today) > 0 &&
+                        !completedInstances.includes(instance.date)
+                    );
+
+                    if (!hasUncompletedFutureInstance) {
+                        if (reminder.repeat.type === 'yearly') {
+                            monthsToAdd += 12;
+                        } else if (isLunarRepeat) {
+                            monthsToAdd += 12;
+                        } else {
+                            monthsToAdd += 6;
                         }
-                    } else {
-                        shouldCount = reminder.date === today || compareDateStrings(reminder.date, today) < 0;
+                        attempts++;
                     }
+                }
 
-                    if (shouldCount) {
-                        uncompletedCount++;
-                    }
+                return repeatInstances;
+            };
+
+            // 遍历所有任务，生成实例
+            reminders.forEach((reminder: any) => {
+                reminderMap.set(reminder.id, reminder);
+
+                if (!reminder.repeat?.enabled) {
+                    // 非重复任务直接添加
+                    allReminders.push(reminder);
                 } else {
-                    // 处理重复事件：生成今日的所有重复实例
-                    const instances = generateRepeatInstances(reminder, today, today);
+                    // 重复任务：生成实例
+                    const repeatInstances = generateInstancesWithFutureGuarantee(reminder);
+                    const completedInstances = reminder.repeat?.completedInstances || [];
+                    const instanceModifications = reminder.repeat?.instanceModifications || {};
 
-                    // 统计未完成的实例数量
-                    instances.forEach(instance => {
-                        if (!instance.completed) {
-                            // 检查重复事件实例是否已标记"今日已完成"（用于跨天重复事件）
-                            if (reminder.dailyCompletions && reminder.dailyCompletions[instance.date]) {
-                                return; // 跳过已标记今日已完成的跨天重复事件实例
+                    let pastIncompleteList: any[] = [];
+                    let todayIncompleteList: any[] = [];
+                    let futureIncompleteList: any[] = [];
+
+                    repeatInstances.forEach(instance => {
+                        const isInstanceCompleted = completedInstances.includes(instance.date);
+                        const instanceMod = instanceModifications[instance.date];
+
+                        const instanceTask = {
+                            ...reminder,
+                            id: instance.instanceId,
+                            date: instance.date,
+                            endDate: instance.endDate,
+                            time: instance.time,
+                            endTime: instance.endTime,
+                            isRepeatInstance: true,
+                            originalId: instance.originalId,
+                            completed: isInstanceCompleted,
+                            note: instanceMod?.note !== undefined ? instanceMod.note : reminder.note,
+                            priority: instanceMod?.priority !== undefined ? instanceMod.priority : reminder.priority,
+                            categoryId: instanceMod?.categoryId !== undefined ? instanceMod.categoryId : reminder.categoryId,
+                            projectId: instanceMod?.projectId !== undefined ? instanceMod.projectId : reminder.projectId,
+                        };
+
+                        // 同时将实例添加到 reminderMap 以便父子关系查找
+                        reminderMap.set(instanceTask.id, instanceTask);
+
+                        const dateComparison = compareDateStrings(instance.date, today);
+
+                        if (dateComparison < 0) {
+                            if (!isInstanceCompleted) {
+                                pastIncompleteList.push(instanceTask);
                             }
-                            uncompletedCount++;
+                        } else if (dateComparison === 0) {
+                            if (!isInstanceCompleted) {
+                                todayIncompleteList.push(instanceTask);
+                            }
+                        } else {
+                            if (!isInstanceCompleted) {
+                                futureIncompleteList.push(instanceTask);
+                            }
                         }
                     });
+
+                    // 添加过去的未完成实例
+                    allReminders.push(...pastIncompleteList);
+
+                    // 添加今天的未完成实例
+                    allReminders.push(...todayIncompleteList);
+
+                    // 添加未来的第一个未完成实例（如果今天没有）
+                    if (futureIncompleteList.length > 0 && todayIncompleteList.length === 0) {
+                        allReminders.push(futureIncompleteList[0]);
+                    }
                 }
             });
 
-            this.setTopBarBadge(uncompletedCount);
+            // ========== 第二步：筛选今日任务，参照 filterRemindersByTab 的 'today' 逻辑 ==========
+            // 辅助函数：检查跨天事件是否已标记"今日已完成"
+            const isSpanningEventTodayCompleted = (reminder: any): boolean => {
+                if (reminder.isRepeatInstance) {
+                    const originalReminder = reminderMap.get(reminder.originalId);
+                    if (originalReminder && originalReminder.dailyCompletions) {
+                        return originalReminder.dailyCompletions[today] === true;
+                    }
+                } else {
+                    return reminder.dailyCompletions && reminder.dailyCompletions[today] === true;
+                }
+                return false;
+            };
+
+            // 辅助函数：检查是否有效完成
+            const isEffectivelyCompleted = (reminder: any): boolean => {
+                if (reminder.completed) return true;
+                if (reminder.endDate && compareDateStrings(reminder.date, today) <= 0 && compareDateStrings(today, reminder.endDate) <= 0) {
+                    return isSpanningEventTodayCompleted(reminder);
+                }
+                return false;
+            };
+
+            // 筛选今日任务（包括逾期任务）
+            const todayReminders = allReminders.filter(r => {
+                if (isEffectivelyCompleted(r) || !r.date) return false;
+                const startDate = r.date;
+                const endDate = r.endDate || r.date;
+                // 今日范围内 或 已逾期
+                return (compareDateStrings(startDate, today) <= 0 && compareDateStrings(today, endDate) <= 0) ||
+                    compareDateStrings(endDate, today) < 0;
+            });
+
+            // ========== 第三步：父子任务合并，只统计顶层任务 ==========
+            // 构建今日任务ID集合
+            const todayTaskIds = new Set(todayReminders.map(r => r.id));
+
+            let uncompletedCount = 0;
+            todayReminders.forEach(reminder => {
+                // 如果任务有父任务
+                if (reminder.parentId) {
+                    // 检查父任务是否在今日任务中（使用原始父任务ID或实例ID）
+                    const parent = reminderMap.get(reminder.parentId);
+                    if (parent && !parent.completed && todayTaskIds.has(reminder.parentId)) {
+                        return; // 父任务会被统计，子任务不重复计数
+                    }
+                }
+                uncompletedCount++;
+            });
+
             this.setDockBadge(uncompletedCount);
         } catch (error) {
             console.error('更新徽章失败:', error);
-            this.setTopBarBadge(0);
             this.setDockBadge(0);
         }
     }
@@ -853,44 +999,6 @@ export default class ReminderPlugin extends Plugin {
         } catch (error) {
             console.error('更新项目徽章失败:', error);
             this.setProjectDockBadge(0);
-        }
-    }
-
-    private setTopBarBadge(count: number) {
-        if (!this.topBarElement) return;
-
-        // 移除现有徽章
-        const existingBadge = this.topBarElement.querySelector('.reminder-badge');
-        if (existingBadge) {
-            existingBadge.remove();
-        }
-
-        // 如果计数大于0，添加徽章
-        if (count > 0) {
-            const badge = document.createElement('span');
-            badge.className = 'reminder-badge';
-            badge.textContent = count.toString();
-            badge.style.cssText = `
-                position: absolute;
-                top: -2px;
-                right: -2px;
-                background: var(--b3-theme-error);
-                color: white;
-                border-radius: 50%;
-                min-width: 16px;
-                height: 16px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 11px;
-                font-weight: bold;
-                line-height: 1;
-                z-index: 1;
-            `;
-
-            // 确保父元素有相对定位
-            this.topBarElement.style.position = 'relative';
-            this.topBarElement.appendChild(badge);
         }
     }
 
