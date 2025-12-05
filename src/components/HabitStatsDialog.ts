@@ -1,5 +1,7 @@
 import { Dialog } from "siyuan";
 import { Habit } from "./HabitPanel";
+import { HabitHistoryDialog } from "./HabitHistoryDialog";
+import { readHabitData, writeHabitData } from "../api";
 import { init, use, EChartsType } from 'echarts/core';
 import { HeatmapChart, ScatterChart, CustomChart } from 'echarts/charts';
 import { TooltipComponent, VisualMapComponent, GridComponent, TitleComponent, LegendComponent, CalendarComponent } from 'echarts/components';
@@ -352,9 +354,12 @@ export class HabitStatsDialog {
             dateSpan.style.cssText = 'font-size:12px; color: var(--b3-theme-on-surface-light); width:100%; text-align:center;';
             contentWrap.appendChild(dateSpan);
 
-            if (checkIn && checkIn.status && checkIn.status.length > 0) {
-                const statuses = checkIn.status.filter(Boolean);
+            if (checkIn) {
+                // 优先使用 entries（包含时间与备注），否则回退到旧的 status 数组
+                const entries = checkIn.entries && checkIn.entries.length > 0 ? checkIn.entries : undefined;
+                const statuses = entries ? entries.map(e => e.emoji).filter(Boolean) : (checkIn.status || []).filter(Boolean);
                 const count = statuses.length;
+
                 // 根据 emoji 数量计算字体大小
                 let fontSize = 18;
                 if (count > 12) fontSize = 10;
@@ -365,19 +370,47 @@ export class HabitStatsDialog {
                 const emojiContainer = document.createElement('div');
                 emojiContainer.style.cssText = `display:flex; flex-wrap:wrap; gap:2px; justify-content:center; align-items:center; width:100%;`;
 
-                statuses.forEach(s => {
-                    const span = document.createElement('span');
-                    span.textContent = s;
-                    span.title = s;
-                    span.style.cssText = `font-size:${fontSize}px; line-height:1;`; // 自动换行
-                    emojiContainer.appendChild(span);
-                });
+                if (entries) {
+                    // 每条 entry 都可能包含备注 note 与 timestamp
+                    entries.forEach(entry => {
+                        const span = document.createElement('span');
+                        span.textContent = entry.emoji || '';
+                        const timeText = entry.timestamp ? entry.timestamp : '';
+                        const noteText = entry.note ? entry.note : '';
+                        const titleParts = [] as string[];
+                        if (timeText) titleParts.push(timeText);
+                        if (noteText) titleParts.push(noteText);
+                        span.title = titleParts.length > 0 ? `${entry.emoji || ''} - ${titleParts.join(' / ')}` : (entry.emoji || '');
+                        span.style.cssText = `font-size:${fontSize}px; line-height:1;`; // 自动换行
+                        emojiContainer.appendChild(span);
+                    });
 
-                contentWrap.appendChild(emojiContainer);
-                const checkInCount = checkIn.count || 0;
-                const target = this.habit.target || 1;
-                const statusText = isComplete ? t("habitComplete") : `${checkInCount}/${target}`;
-                dayCell.title = `${day}日: ${statuses.join(' ')}\n${statusText}`;
+                    contentWrap.appendChild(emojiContainer);
+                    const checkInCount = checkIn.count || 0;
+                    const target = this.habit.target || 1;
+                    const statusText = isComplete ? t("habitComplete") : `${checkInCount}/${target}`;
+                    // 将每条 entry 的 emoji 与备注合并到 title 中，便于鼠标悬停查看
+                    const entrySummary = entries.map(e => e.note ? `${e.emoji} (${e.note})` : e.emoji).join(' ');
+                    dayCell.title = `${day}日: ${entrySummary}\n${statusText}`;
+                } else if (statuses.length > 0) {
+                    statuses.forEach(s => {
+                        const span = document.createElement('span');
+                        span.textContent = s;
+                        span.title = s;
+                        span.style.cssText = `font-size:${fontSize}px; line-height:1;`;
+                        emojiContainer.appendChild(span);
+                    });
+
+                    contentWrap.appendChild(emojiContainer);
+                    const checkInCount = checkIn.count || 0;
+                    const target = this.habit.target || 1;
+                    const statusText = isComplete ? t("habitComplete") : `${checkInCount}/${target}`;
+                    dayCell.title = `${day}日: ${statuses.join(' ')}\n${statusText}`;
+                } else {
+                    const emptyPlaceholder = document.createElement('div');
+                    emptyPlaceholder.style.cssText = 'width:12px; height:12px; border-radius:50%; background:var(--b3-theme-surface); margin-top:4px;';
+                    contentWrap.appendChild(emptyPlaceholder);
+                }
             } else {
                 const emptyPlaceholder = document.createElement('div');
                 emptyPlaceholder.style.cssText = 'width:12px; height:12px; border-radius:50%; background:var(--b3-theme-surface); margin-top:4px;';
