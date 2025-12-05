@@ -4274,11 +4274,11 @@ export class EisenhowerMatrixView {
             repeatInstances = generateRepeatInstances(reminder, startDate, endDate, maxInstances);
 
             // 检查是否有未完成的未来实例（关键修复：不仅要是未来的，还要是未完成的）
-                    hasUncompletedFutureInstance = repeatInstances.some(instance => {
-                        const instanceIdStr = (instance as any).instanceId || `${reminder.id}_${instance.date}`;
-                        const originalKey = instanceIdStr.split('_').pop() || instance.date;
-                        return compareDateStrings(instance.date, today) > 0 && !completedInstances.includes(originalKey);
-                    });
+            hasUncompletedFutureInstance = repeatInstances.some(instance => {
+                const instanceIdStr = (instance as any).instanceId || `${reminder.id}_${instance.date}`;
+                const originalKey = instanceIdStr.split('_').pop() || instance.date;
+                return compareDateStrings(instance.date, today) > 0 && !completedInstances.includes(originalKey);
+            });
 
             if (!hasUncompletedFutureInstance) {
                 // 如果没有找到未完成的未来实例，扩展范围
