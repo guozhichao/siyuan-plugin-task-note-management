@@ -52,6 +52,8 @@ export interface Habit {
     createdAt: string;
     updatedAt: string;
     hideCheckedToday?: boolean; // 如果设置为true，今天已打卡的选项不显示在菜单中
+    // 手动排序字段（用于同优先级内的自定义顺序，数值越小越靠前）
+    sort?: number;
 }
 
 export class HabitPanel {
@@ -69,6 +71,10 @@ export class HabitPanel {
     private groupManager: HabitGroupManager;
     private habitUpdatedHandler: () => void;
     private collapsedGroups: Set<string> = new Set();
+    // 拖拽状态
+    private draggingHabitId: string | null = null;
+    private dragOverTargetEl: HTMLElement | null = null;
+    private dragOverPosition: 'before' | 'after' | null = null;
 
     constructor(container: HTMLElement, plugin?: any) {
         this.container = container;
@@ -597,6 +603,58 @@ export class HabitPanel {
             const sortedHabits = this.sortHabitsInGroup(habits);
             sortedHabits.forEach(habit => {
                 const habitCard = this.createHabitCard(habit);
+
+                // 启用拖拽：仅在同一分组内按优先级排序时可拖拽调整
+                habitCard.draggable = true;
+                habitCard.dataset.habitId = habit.id;
+                habitCard.style.cursor = 'grab';
+
+                habitCard.addEventListener('dragstart', (e) => {
+                    this.draggingHabitId = habit.id;
+                    habitCard.style.opacity = '0.5';
+                    habitCard.style.cursor = 'grabbing';
+                    if (e.dataTransfer) {
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', habit.id);
+                    }
+                });
+
+                habitCard.addEventListener('dragend', () => {
+                    this.draggingHabitId = null;
+                    habitCard.style.opacity = '';
+                    habitCard.style.cursor = 'grab';
+                    this.clearDragOver();
+                });
+
+                habitCard.addEventListener('dragover', (e) => {
+                    if (this.draggingHabitId && this.draggingHabitId !== habit.id) {
+                        e.preventDefault();
+                        const rect = habitCard.getBoundingClientRect();
+                        const pos = (e.clientY - rect.top) < (rect.height / 2) ? 'before' : 'after';
+                        this.setDragOverIndicator(habitCard, pos as 'before' | 'after');
+                    }
+                });
+
+                habitCard.addEventListener('dragleave', () => {
+                    this.clearDragOverOn(habitCard);
+                });
+
+                habitCard.addEventListener('drop', async (e) => {
+                    e.preventDefault();
+                    if (!this.draggingHabitId || this.draggingHabitId === habit.id) return;
+                    const draggedId = this.draggingHabitId;
+                    const targetId = habit.id;
+                    // 仅允许同优先级内调整
+                    try {
+                        await this.reorderHabitsWithinGroup(groupId, habit.priority, draggedId, targetId, this.dragOverPosition || 'after');
+                        await this.loadHabits();
+                    } catch (err) {
+                        showMessage('调整顺序失败：拖拽对象或目标不在同一组/优先级内', 3000, 'error');
+                    }
+                    this.draggingHabitId = null;
+                    this.clearDragOver();
+                });
+
                 groupContent.appendChild(habitCard);
             });
 
@@ -620,20 +678,29 @@ export class HabitPanel {
             if (this.sortKey === 'priority') {
                 const pa = priorityVal(a.priority);
                 const pb = priorityVal(b.priority);
-                if (pa !== pb) return pa - pb;
-                // fallback by title
+                if (pa !== pb) return pb - pa;
+                // 同优先级时，优先使用手动排序值（sort），没有则按标题
+                const sa = (a as any).sort || 0;
+                const sb = (b as any).sort || 0;
+                if (sa !== sb) return sa - sb;
                 return (a.title || '').localeCompare(b.title || '', 'zh-CN', { sensitivity: 'base' });
             }
             // title
             const res = (a.title || '').localeCompare(b.title || '', 'zh-CN', { sensitivity: 'base' });
             if (res !== 0) return res;
-            // fallback by priority
-            return priorityVal(a.priority) - priorityVal(b.priority);
+            // fallback by priority, then manual sort
+            const pv = priorityVal(b.priority) - priorityVal(a.priority);
+            if (pv !== 0) return pv;
+            return ((a as any).sort || 0) - ((b as any).sort || 0);
         };
 
         const copy = [...habits];
         copy.sort((a, b) => {
             const r = compare(a, b);
+            // 当按优先级排序时，手动排序（`sort` 字段）应被视为绝对顺序，不受全局升降序切换影响
+            if (this.sortKey === 'priority') {
+                return r;
+            }
             return this.sortOrder === 'asc' ? r : -r;
         });
         return copy;
@@ -965,6 +1032,88 @@ export class HabitPanel {
         });
 
         this.habitsContainer.appendChild(separator);
+    }
+
+    // 显示拖拽位置指示（简单使用元素的 borderTop/bottom）
+    private setDragOverIndicator(el: HTMLElement, pos: 'before' | 'after') {
+        this.clearDragOver();
+        this.dragOverTargetEl = el;
+        this.dragOverPosition = pos;
+        if (pos === 'before') {
+            el.style.borderTop = '2px solid var(--b3-theme-primary)';
+        } else {
+            el.style.borderBottom = '2px solid var(--b3-theme-primary)';
+        }
+    }
+
+    private clearDragOverOn(el: HTMLElement) {
+        if (!el) return;
+        el.style.borderTop = '';
+        el.style.borderBottom = '';
+        if (this.dragOverTargetEl === el) {
+            this.dragOverTargetEl = null;
+            this.dragOverPosition = null;
+        }
+    }
+
+    private clearDragOver() {
+        if (this.dragOverTargetEl) {
+            this.dragOverTargetEl.style.borderTop = '';
+            this.dragOverTargetEl.style.borderBottom = '';
+            this.dragOverTargetEl = null;
+        }
+        this.dragOverPosition = null;
+    }
+
+    private async reorderHabitsWithinGroup(groupId: string, priority: Habit['priority'] | undefined, draggedId: string, targetId: string, position: 'before' | 'after') {
+        const habitData = await readHabitData();
+        const allHabits: Habit[] = Object.values(habitData || {});
+        const groupKey = groupId || 'none';
+        const priorityKey = priority || 'none';
+
+        // 过滤出同分组且同优先级的习惯
+        const list = allHabits.filter(h => ((h.groupId || 'none') === groupKey) && ((h.priority || 'none') === priorityKey));
+
+        // 如果被拖动或目标不在同一组/优先级，则拒绝
+        const draggedIdx = list.findIndex(h => h.id === draggedId);
+        const targetIdx = list.findIndex(h => h.id === targetId);
+        if (draggedIdx === -1 || targetIdx === -1) {
+            throw new Error('拖拽对象或目标不在同一组/优先级内');
+        }
+
+        // 以当前顺序为基础排序：先按 sort 字段，其次按 title
+        list.sort((a, b) => {
+            const sa = (a as any).sort || 0;
+            const sb = (b as any).sort || 0;
+            if (sa !== sb) return sa - sb;
+            return (a.title || '').localeCompare(b.title || '', 'zh-CN', { sensitivity: 'base' });
+        });
+
+        // 重新查找索引（因为排序后 index 可能变化），移除 dragged 后再根据目标位置插入
+        const idxDragged = list.findIndex(h => h.id === draggedId);
+        if (idxDragged === -1) {
+            throw new Error('拖拽对象不在当前列表');
+        }
+        const [removed] = list.splice(idxDragged, 1);
+
+        // 找到目标索引（移除后索引不会指向被移除的元素）
+        let idxTargetAfterRemoval = list.findIndex(h => h.id === targetId);
+        if (idxTargetAfterRemoval === -1) {
+            // 目标不存在（极少情况），将移到末尾
+            idxTargetAfterRemoval = list.length;
+        }
+
+        const insertAt = position === 'before' ? idxTargetAfterRemoval : idxTargetAfterRemoval + 1;
+        list.splice(Math.min(Math.max(0, insertAt), list.length), 0, removed);
+
+        // 赋予新的 sort 值（使用 1,2,3... 保持简单）
+        for (let i = 0; i < list.length; i++) {
+            const h = list[i];
+            if (!habitData[h.id]) continue;
+            habitData[h.id].sort = i + 1;
+        }
+
+        await writeHabitData(habitData);
     }
 
     private showHabitContextMenu(event: MouseEvent, habit: Habit) {
