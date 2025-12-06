@@ -102,7 +102,7 @@ export class ReminderPanel {
         await this.loadCollapseStates();
 
         this.initUI();
-        this.loadSortConfig();
+        await this.loadSortConfig();
         this.loadReminders();
 
         // 确保对话框样式已加载
