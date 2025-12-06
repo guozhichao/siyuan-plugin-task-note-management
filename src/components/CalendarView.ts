@@ -4105,7 +4105,15 @@ export class CalendarView {
 
                 await writeReminderData(reminderData);
 
-                // 更新块的书签状态
+                // 将绑定的块添加项目ID属性 custom-task-projectId
+                const projectId = reminderData[reminderId].projectId;
+                if (projectId) {
+                    const { addBlockProjectId } = await import('../api');
+                    await addBlockProjectId(blockId, projectId);
+                    console.debug('CalendarView: bindReminderToBlock - 已为块设置项目ID', blockId, projectId);
+                }
+
+                // 更新块的书签状态（添加⏰书签）
                 await updateBlockReminderBookmark(blockId);
 
                 // 触发更新事件

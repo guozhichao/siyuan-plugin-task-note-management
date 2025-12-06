@@ -2822,7 +2822,7 @@ export class ProjectKanbanView {
             titleEl.dataset.type = 'a';
             titleEl.dataset.href = `siyuan://blocks/${group.blockId}`;
             titleEl.style.cursor = 'pointer';
-            titleEl.style.borderBottom = '2px dashed currentColor';
+            titleEl.style.textDecoration = 'underline';
             titleEl.style.paddingBottom = '2px';
             titleEl.title = t('clickToJumpToBlock');
             titleEl.addEventListener('click', (e) => {
@@ -2860,10 +2860,22 @@ export class ProjectKanbanView {
             this.showCreateTaskDialog(undefined, gid);
         });
 
+        // 粘贴新建任务按钮（对应该自定义分组）
+        const pasteGroupTaskBtn = document.createElement('button');
+        pasteGroupTaskBtn.className = 'b3-button b3-button--outline';
+        pasteGroupTaskBtn.title = t('pasteNew');
+        pasteGroupTaskBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg>`;
+        pasteGroupTaskBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const gid = group.id === 'ungrouped' ? null : group.id;
+            this.showPasteTaskDialog(undefined, gid);
+        });
+
         const headerRight = document.createElement('div');
         headerRight.style.cssText = 'display:flex; align-items:center; gap:8px;';
         headerRight.appendChild(countEl);
         headerRight.appendChild(addGroupTaskBtn);
+        headerRight.appendChild(pasteGroupTaskBtn);
 
         header.appendChild(headerRight);
 
@@ -5068,7 +5080,7 @@ export class ProjectKanbanView {
         }
     }
 
-    private showPasteTaskDialog(parentTask?: any) {
+    private showPasteTaskDialog(parentTask?: any, customGroupId?: string) {
         const dialog = new Dialog({
             title: "粘贴列表新建任务",
             content: `
@@ -5118,9 +5130,9 @@ export class ProjectKanbanView {
             if (hierarchicalTasks.length > 0) {
                 // 如果传入 parentTask，则把所有顶级解析项作为 parentTask 的子任务
                 if (parentTask) {
-                    await this.batchCreateTasksWithHierarchy(hierarchicalTasks, parentTask.id);
+                    await this.batchCreateTasksWithHierarchy(hierarchicalTasks, parentTask.id, customGroupId);
                 } else {
-                    await this.batchCreateTasksWithHierarchy(hierarchicalTasks);
+                    await this.batchCreateTasksWithHierarchy(hierarchicalTasks, undefined, customGroupId);
                 }
                 dialog.destroy();
                 const totalTasks = this.countTotalTasks(hierarchicalTasks);
@@ -5225,8 +5237,10 @@ export class ProjectKanbanView {
     /**
      * 批量创建层级化任务
      * @param tasks 层级化任务列表
+     * @param parentIdForAllTopLevel 所有顶级任务的父任务ID
+     * @param customGroupId 自定义分组ID
      */
-    private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[], parentIdForAllTopLevel?: string) {
+    private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[], parentIdForAllTopLevel?: string, customGroupId?: string) {
         const reminderData = await readReminderData();
         const categoryId = this.project.categoryId; // 继承项目分类
 
@@ -5241,7 +5255,8 @@ export class ProjectKanbanView {
         const createTaskRecursively = async (
             task: HierarchicalTask,
             parentId?: string,
-            parentPriority?: string
+            parentPriority?: string,
+            inheritedGroupId?: string
         ): Promise<string> => {
             const taskId = `quick_${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
             sortCounter += 10;
@@ -5270,8 +5285,10 @@ export class ProjectKanbanView {
                 newTask.parentId = parentId;
             }
 
-            // 如果有父任务ID，尝试继承父任务的 customGroupId
-            if (parentId) {
+            // 设置自定义分组ID（优先使用传入的inheritedGroupId，其次继承父任务的customGroupId）
+            if (inheritedGroupId) {
+                newTask.customGroupId = inheritedGroupId;
+            } else if (parentId) {
                 const parent = reminderData[parentId];
                 if (parent && parent.customGroupId) {
                     newTask.customGroupId = parent.customGroupId;
@@ -5291,7 +5308,14 @@ export class ProjectKanbanView {
                             newTask.title = block.content || block.fcontent || t('noContentHint');
                         }
 
-                        // 更新块的书签状态
+                        // 将绑定的块添加项目ID属性 custom-task-projectId
+                        if (this.projectId) {
+                            const { addBlockProjectId } = await import('../api');
+                            await addBlockProjectId(task.blockId, this.projectId);
+                            console.debug('ProjectKanbanView: 粘贴新建任务 - 已为块设置项目ID', task.blockId, this.projectId);
+                        }
+
+                        // 更新块的书签状态（添加⏰书签）
                         await updateBlockReminderBookmark(task.blockId);
                     }
                 } catch (error) {
@@ -5305,7 +5329,7 @@ export class ProjectKanbanView {
             // 递归创建子任务
             if (task.children && task.children.length > 0) {
                 for (let i = 0; i < task.children.length; i++) {
-                    await createTaskRecursively(task.children[i], taskId, inheritedPriority);
+                    await createTaskRecursively(task.children[i], taskId, inheritedPriority, inheritedGroupId);
                 }
             }
 
@@ -5325,7 +5349,7 @@ export class ProjectKanbanView {
                 parentPriority = parentTask?.priority;
             }
 
-            await createTaskRecursively(tasks[i], topParent, parentPriority);
+            await createTaskRecursively(tasks[i], topParent, parentPriority, customGroupId);
         }
 
         await writeReminderData(reminderData);
@@ -7000,7 +7024,15 @@ export class ProjectKanbanView {
 
                 await writeReminderData(reminderData);
 
-                // 更新块的书签状态
+                // 将绑定的块添加项目ID属性 custom-task-projectId
+                const projectId = reminderData[reminderId].projectId;
+                if (projectId) {
+                    const { addBlockProjectId } = await import('../api');
+                    await addBlockProjectId(blockId, projectId);
+                    console.debug('ProjectKanbanView: bindReminderToBlock - 已为块设置项目ID', blockId, projectId);
+                }
+
+                // 更新块的书签状态（添加⏰书签）
                 await updateBlockReminderBookmark(blockId);
 
                 // 触发更新事件

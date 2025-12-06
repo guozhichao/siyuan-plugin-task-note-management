@@ -4079,6 +4079,18 @@ export class EisenhowerMatrixView {
                 reminderData[task.id].blockId = blockId;
                 await writeReminderData(reminderData);
 
+                // 将绑定的块添加项目ID属性 custom-task-projectId
+                const projectId = reminderData[task.id].projectId;
+                if (projectId) {
+                    const { addBlockProjectId } = await import('../api');
+                    await addBlockProjectId(blockId, projectId);
+                    console.debug('EisenhowerMatrixView: bindTaskToBlock - 已为块设置项目ID', blockId, projectId);
+                }
+
+                // 更新块的书签状态（添加⏰书签）
+                const { updateBlockReminderBookmark } = await import('../api');
+                await updateBlockReminderBookmark(blockId);
+
                 await this.refresh();
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
             }
