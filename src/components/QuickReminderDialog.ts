@@ -393,6 +393,7 @@ export class QuickReminderDialog {
 
         const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
         const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
+        const urlInput = this.dialog.element.querySelector('#quickUrlInput') as HTMLInputElement;
         const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
         const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
         const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
@@ -408,6 +409,11 @@ export class QuickReminderDialog {
         // 填充块ID
         if (blockInput && this.reminder.blockId) {
             blockInput.value = this.reminder.blockId;
+        }
+
+        // 填充URL
+        if (urlInput && this.reminder.url) {
+            urlInput.value = this.reminder.url;
         }
 
         // 填充备注
@@ -975,6 +981,11 @@ export class QuickReminderDialog {
                                     <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
                                 </button>
                             </div>
+                        </div>
+                        <!-- 网页链接输入 -->
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${t("bindUrl")}</label>
+                            <input type="url" id="quickUrlInput" class="b3-text-field" placeholder="${t("enterUrl")}" style="width: 100%;">
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("eventCategory")}
@@ -2141,6 +2152,7 @@ export class QuickReminderDialog {
     private async saveReminder() {
         const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
         const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
+        const urlInput = this.dialog.element.querySelector('#quickUrlInput') as HTMLInputElement;
         const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
         const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
         const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
@@ -2154,6 +2166,7 @@ export class QuickReminderDialog {
         const title = titleInput.value.trim();
         const rawBlockVal = blockInput?.value?.trim() || undefined;
         const inputId = rawBlockVal ? (this.extractBlockId(rawBlockVal) || rawBlockVal) : undefined;
+        const url = urlInput?.value?.trim() || undefined;
         const note = noteInput.value.trim() || undefined;
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
         const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
@@ -2227,6 +2240,7 @@ export class QuickReminderDialog {
             const reminderData = {
                 title: title,
                 blockId: inputId || this.defaultBlockId || null,
+                url: url || undefined,
                 date: date || undefined,
                 time: time,
                 endDate: endDate || undefined,
@@ -2304,6 +2318,7 @@ export class QuickReminderDialog {
                     // 更新字段
                     reminder.title = title;
                     reminder.blockId = inputId || null;
+                    reminder.url = url || undefined;
                     reminder.date = date || undefined;
                     reminder.time = time;
                     reminder.endDate = endDate || undefined;
@@ -2434,6 +2449,7 @@ export class QuickReminderDialog {
                     blockId: inputId || this.defaultBlockId || null,
                     docId: null, // 没有绑定文档
                     title: title,
+                    url: url || undefined,
                     date: date || undefined, // 允许日期为空
                     completed: false,
                     priority: priority,

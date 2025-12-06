@@ -1585,6 +1585,21 @@ export class ReminderPanel {
         titleEl.title = reminder.blockId ? `点击打开绑定块: ${reminder.title || t("unnamedNote")}` : (reminder.title || t("unnamedNote"));
         titleContainer.appendChild(titleEl);
 
+        // 添加URL链接图标
+        if (reminder.url) {
+            const urlIcon = document.createElement('a');
+            urlIcon.className = 'reminder-item__url-icon';
+            urlIcon.href = reminder.url;
+            urlIcon.target = '_blank';
+            urlIcon.title = t("openUrl") + ': ' + reminder.url;
+            urlIcon.innerHTML = '<svg style="width: 14px; height: 14px; vertical-align: middle; margin-left: 4px;"><use xlink:href="#iconLink"></use></svg>';
+            urlIcon.style.cssText = 'color: var(--b3-theme-primary); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center;';
+            urlIcon.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+            titleContainer.appendChild(urlIcon);
+        }
+
         const timeContainer = document.createElement('div');
         timeContainer.className = 'reminder-item__time-container';
         timeContainer.style.cssText = `display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap;`;

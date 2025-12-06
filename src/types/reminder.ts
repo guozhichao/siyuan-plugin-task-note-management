@@ -16,6 +16,7 @@ export interface ReminderItem {
     notified?: boolean;
     termType?: 'long_term' | 'short_term' | 'doing';  // 任务类型：长期、短期或进行中
     customReminderTime?: string; // 自定义提醒时间 HH:MM，可选
+    url?: string;        // 网页链接，可选
 }
 
 export interface ReminderData {

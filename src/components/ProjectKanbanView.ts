@@ -3464,7 +3464,6 @@ export class ProjectKanbanView {
             titleEl.setAttribute('data-href', `siyuan://blocks/${targetId}`);
             titleEl.style.cssText = `
                 font-weight: 500;
-                margin-bottom: 8px;
                 color: var(--b3-theme-primary);
                 line-height: 1.4;
                 cursor: pointer;
@@ -3492,7 +3491,6 @@ export class ProjectKanbanView {
             // 没有绑定块，普通标题样式
             titleEl.style.cssText = `
                 font-weight: 500;
-                margin-bottom: 8px;
                 color: var(--b3-theme-on-surface);
                 line-height: 1.4;
                 width: fit-content;
@@ -3516,7 +3514,27 @@ export class ProjectKanbanView {
             titleEl.appendChild(subtaskIndicator);
         }
 
-        taskContentContainer.appendChild(titleEl);
+        // 创建标题和链接的容器
+        const titleContainer = document.createElement('div');
+        titleContainer.style.cssText = 'display: flex; align-items: center; gap: 6px; margin-bottom: 8px;';
+        titleContainer.appendChild(titleEl);
+
+        // 添加URL链接图标作为兄弟节点
+        if (task.url) {
+            const urlIcon = document.createElement('a');
+            urlIcon.className = 'kanban-task-url-icon';
+            urlIcon.href = task.url;
+            urlIcon.target = '_blank';
+            urlIcon.title = t("openUrl") + ': ' + task.url;
+            urlIcon.innerHTML = '<svg style="width: 14px; height: 14px;"><use xlink:href="#iconLink"></use></svg>';
+            urlIcon.style.cssText = 'color: var(--b3-theme-primary); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; flex-shrink: 0;';
+            urlIcon.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+            titleContainer.appendChild(urlIcon);
+        }
+
+        taskContentContainer.appendChild(titleContainer);
 
         // 任务信息容器
         const infoEl = document.createElement('div');
