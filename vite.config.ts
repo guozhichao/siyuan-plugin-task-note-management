@@ -69,6 +69,7 @@ export default defineConfig({
 
     build: {
         outDir: outputDir,
+        // Keep existing files in output directory for incremental builds
         emptyOutDir: false,
         minify: true,
         sourcemap: isSrcmap ? 'inline' : false,
