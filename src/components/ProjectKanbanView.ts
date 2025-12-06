@@ -99,6 +99,11 @@ export class ProjectKanbanView {
                         <input type="text" id="newGroupName" class="b3-text-field" placeholder="${t('pleaseEnterGroupName')}" style="width: 100%;">
                     </div>
                     <div class="b3-form__group">
+                        <label class="b3-form__label">${t('bindBlockId')} (${t('optional')})</label>
+                        <input type="text" id="newGroupBlockId" class="b3-text-field" placeholder="${t('pleaseEnterBlockId')}" style="width: 100%;">
+                        <div class="b3-label__text" style="margin-top: 4px; color: var(--b3-theme-on-surface-light);">${t('bindBlockIdHint')}</div>
+                    </div>
+                    <div class="b3-form__group">
                         <label class="b3-form__label">${t('groupColor')}</label>
                         <input type="color" id="newGroupColor" class="b3-text-field" value="#3498db" style="width: 100%;">
                     </div>
@@ -118,6 +123,7 @@ export class ProjectKanbanView {
         const nameInput = dialog.element.querySelector('#newGroupName') as HTMLInputElement;
         const colorInput = dialog.element.querySelector('#newGroupColor') as HTMLInputElement;
         const iconInput = dialog.element.querySelector('#newGroupIcon') as HTMLInputElement;
+        const blockIdInput = dialog.element.querySelector('#newGroupBlockId') as HTMLInputElement;
         const cancelBtn = dialog.element.querySelector('#newGroupCancel') as HTMLButtonElement;
         const saveBtn = dialog.element.querySelector('#newGroupSave') as HTMLButtonElement;
 
@@ -127,6 +133,7 @@ export class ProjectKanbanView {
             const name = nameInput.value.trim();
             const color = colorInput.value;
             const icon = iconInput.value.trim();
+            const blockId = blockIdInput.value.trim();
 
             if (!name) {
                 showMessage(t('pleaseEnterGroupName') || '请输入分组名称');
@@ -144,10 +151,9 @@ export class ProjectKanbanView {
                     name,
                     color,
                     icon,
+                    blockId: blockId || undefined,
                     sort: maxSort + 10
-                };
-
-                currentGroups.push(newGroup);
+                }; currentGroups.push(newGroup);
                 await projectManager.setProjectCustomGroups(this.projectId, currentGroups);
 
                 await this.loadAndDisplayGroups(container);
@@ -747,6 +753,11 @@ export class ProjectKanbanView {
                         <input type="text" id="editGroupName" class="b3-text-field" value="${group.name}" style="width: 100%;">
                     </div>
                     <div class="b3-form__group">
+                        <label class="b3-form__label">${t('bindBlockId')} (${t('optional')})</label>
+                        <input type="text" id="editGroupBlockId" class="b3-text-field" value="${group.blockId || ''}" placeholder="${t('pleaseEnterBlockId')}" style="width: 100%;">
+                        <div class="b3-label__text" style="margin-top: 4px; color: var(--b3-theme-on-surface-light);">${t('bindBlockIdHint')}</div>
+                    </div>
+                    <div class="b3-form__group">
                         <label class="b3-form__label">${t('groupColor')}</label>
                         <input type="color" id="editGroupColor" class="b3-text-field" value="${group.color}" style="width: 100%;">
                     </div>
@@ -764,6 +775,7 @@ export class ProjectKanbanView {
         });
 
         const editGroupName = dialog.element.querySelector('#editGroupName') as HTMLInputElement;
+        const editGroupBlockId = dialog.element.querySelector('#editGroupBlockId') as HTMLInputElement;
         const editGroupColor = dialog.element.querySelector('#editGroupColor') as HTMLInputElement;
         const editGroupIcon = dialog.element.querySelector('#editGroupIcon') as HTMLInputElement;
         const editCancelBtn = dialog.element.querySelector('#editCancelBtn') as HTMLButtonElement;
@@ -773,6 +785,7 @@ export class ProjectKanbanView {
 
         editSaveBtn.addEventListener('click', async () => {
             const name = editGroupName.value.trim();
+            const blockId = editGroupBlockId.value.trim();
             const color = editGroupColor.value;
             const icon = editGroupIcon.value.trim();
 
@@ -790,7 +803,7 @@ export class ProjectKanbanView {
                 // 更新分组信息
                 const groupIndex = currentGroups.findIndex((g: any) => g.id === group.id);
                 if (groupIndex !== -1) {
-                    currentGroups[groupIndex] = { ...currentGroups[groupIndex], name, color, icon };
+                    currentGroups[groupIndex] = { ...currentGroups[groupIndex], name, color, icon, blockId: blockId || undefined };
                     await projectManager.setProjectCustomGroups(this.projectId, currentGroups);
                 }
 
@@ -2803,6 +2816,21 @@ export class ProjectKanbanView {
             font-weight: 600;
             color: ${group.color};
         `;
+
+        // 如果分组绑定了块ID，添加预览和跳转功能
+        if (group.blockId) {
+            titleEl.dataset.type = 'a';
+            titleEl.dataset.href = `siyuan://blocks/${group.blockId}`;
+            titleEl.style.cursor = 'pointer';
+            titleEl.style.borderBottom = '2px dashed currentColor';
+            titleEl.style.paddingBottom = '2px';
+            titleEl.title = t('clickToJumpToBlock');
+            titleEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openBlock(group.blockId);
+            });
+        }
+
         titleContainer.appendChild(titleEl);
 
         const countEl = document.createElement('span');
