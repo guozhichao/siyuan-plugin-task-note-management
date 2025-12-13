@@ -643,12 +643,15 @@ export class HabitPanel {
                     if (!this.draggingHabitId || this.draggingHabitId === habit.id) return;
                     const draggedId = this.draggingHabitId;
                     const targetId = habit.id;
-                    // 仅允许同优先级内调整
+
                     try {
-                        await this.reorderHabitsWithinGroup(groupId, habit.priority, draggedId, targetId, this.dragOverPosition || 'after');
+                        // 支持跨优先级排序，自动更新优先级
+                        await this.reorderHabits(groupId, habit.priority, draggedId, targetId, this.dragOverPosition || 'after');
                         await this.loadHabits();
+                        showMessage("排序已更新");
                     } catch (err) {
-                        showMessage('调整顺序失败：拖拽对象或目标不在同一组/优先级内', 3000, 'error');
+                        console.error('调整顺序失败:', err);
+                        showMessage('调整顺序失败', 3000, 'error');
                     }
                     this.draggingHabitId = null;
                     this.clearDragOver();
@@ -1064,53 +1067,75 @@ export class HabitPanel {
         this.dragOverPosition = null;
     }
 
-    private async reorderHabitsWithinGroup(groupId: string, priority: Habit['priority'] | undefined, draggedId: string, targetId: string, position: 'before' | 'after') {
+    private async reorderHabits(groupId: string, targetPriority: Habit['priority'] | undefined, draggedId: string, targetId: string, position: 'before' | 'after') {
         const habitData = await readHabitData();
-        const allHabits: Habit[] = Object.values(habitData || {});
-        const groupKey = groupId || 'none';
-        const priorityKey = priority || 'none';
+        const draggedHabit = habitData[draggedId];
+        const targetHabit = habitData[targetId];
 
-        // 过滤出同分组且同优先级的习惯
-        const list = allHabits.filter(h => ((h.groupId || 'none') === groupKey) && ((h.priority || 'none') === priorityKey));
-
-        // 如果被拖动或目标不在同一组/优先级，则拒绝
-        const draggedIdx = list.findIndex(h => h.id === draggedId);
-        const targetIdx = list.findIndex(h => h.id === targetId);
-        if (draggedIdx === -1 || targetIdx === -1) {
-            throw new Error('拖拽对象或目标不在同一组/优先级内');
+        if (!draggedHabit || !targetHabit) {
+            throw new Error('Habit not found');
         }
 
-        // 以当前顺序为基础排序：先按 sort 字段，其次按 title
-        list.sort((a, b) => {
+        const groupKey = groupId || 'none';
+        const oldPriority = draggedHabit.priority || 'none';
+        const newPriority = targetPriority || 'none';
+
+        // 1. 如果优先级发生变化，更新被拖拽习惯的优先级
+        if (oldPriority !== newPriority) {
+            // 注意：界面显示的 'none' 对应数据可能是 'none' 或 undefined，这里统一处理
+            draggedHabit.priority = newPriority as any;
+
+            // 2. 整理旧优先级列表（移除被拖拽项并重新排序）
+            const oldList = (Object.values(habitData) as Habit[]).filter(h =>
+                ((h.groupId || 'none') === groupKey) &&
+                ((h.priority || 'none') === oldPriority) &&
+                h.id !== draggedId
+            );
+
+            // 排序旧列表
+            oldList.sort((a, b) => {
+                const sa = (a as any).sort || 0;
+                const sb = (b as any).sort || 0;
+                if (sa !== sb) return sa - sb;
+                return (a.title || '').localeCompare(b.title || '', 'zh-CN', { sensitivity: 'base' });
+            });
+
+            // 更新旧列表的 sort 值
+            oldList.forEach((h, i) => {
+                if (habitData[h.id]) habitData[h.id].sort = i + 1;
+            });
+        }
+
+        // 3. 处理目标列表（插入到新位置）
+        // 获取目标优先级的所有习惯（不包含拖拽项，以防同优先级情况）
+        const targetList = (Object.values(habitData) as Habit[]).filter(h =>
+            ((h.groupId || 'none') === groupKey) &&
+            ((h.priority || 'none') === newPriority) &&
+            h.id !== draggedId
+        );
+
+        // 排序目标列表
+        targetList.sort((a, b) => {
             const sa = (a as any).sort || 0;
             const sb = (b as any).sort || 0;
             if (sa !== sb) return sa - sb;
             return (a.title || '').localeCompare(b.title || '', 'zh-CN', { sensitivity: 'base' });
         });
 
-        // 重新查找索引（因为排序后 index 可能变化），移除 dragged 后再根据目标位置插入
-        const idxDragged = list.findIndex(h => h.id === draggedId);
-        if (idxDragged === -1) {
-            throw new Error('拖拽对象不在当前列表');
-        }
-        const [removed] = list.splice(idxDragged, 1);
-
-        // 找到目标索引（移除后索引不会指向被移除的元素）
-        let idxTargetAfterRemoval = list.findIndex(h => h.id === targetId);
-        if (idxTargetAfterRemoval === -1) {
-            // 目标不存在（极少情况），将移到末尾
-            idxTargetAfterRemoval = list.length;
+        // 找到插入位置
+        let targetIndex = targetList.findIndex(h => h.id === targetId);
+        if (targetIndex === -1) {
+            // 目标可能在过滤时被排除了？理论上不应该，除非数据不一致
+            targetIndex = targetList.length;
         }
 
-        const insertAt = position === 'before' ? idxTargetAfterRemoval : idxTargetAfterRemoval + 1;
-        list.splice(Math.min(Math.max(0, insertAt), list.length), 0, removed);
+        const insertAt = position === 'before' ? targetIndex : targetIndex + 1;
+        targetList.splice(Math.min(targetList.length, Math.max(0, insertAt)), 0, draggedHabit);
 
-        // 赋予新的 sort 值（使用 1,2,3... 保持简单）
-        for (let i = 0; i < list.length; i++) {
-            const h = list[i];
-            if (!habitData[h.id]) continue;
-            habitData[h.id].sort = i + 1;
-        }
+        // 更新目标列表的 sort 值
+        targetList.forEach((h, i) => {
+            if (habitData[h.id]) habitData[h.id].sort = i + 1;
+        });
 
         await writeHabitData(habitData);
     }
