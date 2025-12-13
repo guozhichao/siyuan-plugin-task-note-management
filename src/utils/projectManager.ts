@@ -259,4 +259,72 @@ export class ProjectManager {
             throw error;
         }
     }
+
+
+
+    /**
+     * 获取项目的标签列表
+     */
+    public async getProjectTags(projectId: string): Promise<Array<{ id: string, name: string, color: string }>> {
+        try {
+            const projectData = await this.plugin.loadData(PROJECT_DATA_FILE) || {};
+            const project = projectData[projectId];
+            const tags = project?.tags || [];
+
+            // 兼容旧数据格式
+            if (tags.length > 0) {
+                // 情况1: 字符串数组 -> 转换为带ID的对象数组
+                if (typeof tags[0] === 'string') {
+                    const convertedTags = tags.map((tag: string) => ({
+                        id: this.generateTagId(),
+                        name: tag,
+                        color: '#3498db'
+                    }));
+                    // 自动保存转换后的数据
+                    await this.setProjectTags(projectId, convertedTags);
+                    return convertedTags;
+                }
+
+                // 情况2: 对象数组但没有ID -> 添加ID
+                if (!tags[0].id) {
+                    const tagsWithId = tags.map((tag: any) => ({
+                        id: this.generateTagId(),
+                        name: tag.name,
+                        color: tag.color || '#3498db'
+                    }));
+                    // 自动保存添加ID后的数据
+                    await this.setProjectTags(projectId, tagsWithId);
+                    return tagsWithId;
+                }
+            }
+
+            return tags;
+        } catch (error) {
+            console.error('获取项目标签失败:', error);
+            return [];
+        }
+    }
+
+    /**
+     * 设置项目的标签列表
+     */
+    public async setProjectTags(projectId: string, tags: Array<{ id: string, name: string, color: string }>): Promise<void> {
+        try {
+            const projectData = await this.plugin.loadData(PROJECT_DATA_FILE) || {};
+            if (projectData[projectId]) {
+                projectData[projectId].tags = tags;
+                await this.plugin.saveData(PROJECT_DATA_FILE, projectData);
+            }
+        } catch (error) {
+            console.error('设置项目标签失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 生成唯一的标签ID
+     */
+    private generateTagId(): string {
+        return `tag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
 }

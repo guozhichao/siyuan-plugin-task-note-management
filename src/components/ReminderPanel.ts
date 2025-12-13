@@ -1818,6 +1818,66 @@ export class ReminderPanel {
             }
         }
 
+        // 添加项目标签显示（如果任务属于项目且有标签）
+        if (reminder.projectId && reminder.tagIds && reminder.tagIds.length > 0) {
+            const tagsContainer = document.createElement('div');
+            tagsContainer.className = 'reminder-item__tags';
+            tagsContainer.style.cssText = `
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px;
+                margin-top: 4px;
+            `;
+
+            // 异步加载项目标签配置
+            (async () => {
+                try {
+                    const { ProjectManager } = await import('../utils/projectManager');
+                    const projectManager = ProjectManager.getInstance(this.plugin);
+                    const projectTags = await projectManager.getProjectTags(reminder.projectId);
+
+                    // 创建标签ID到标签对象的映射
+                    const tagMap = new Map(projectTags.map(t => [t.id, t]));
+
+                    // 过滤出有效的标签ID
+                    const validTagIds = reminder.tagIds.filter((tagId: string) => tagMap.has(tagId));
+
+                    // 如果有无效标签，记录日志（不自动清理，避免在ReminderPanel中修改数据）
+                    if (validTagIds.length !== reminder.tagIds.length) {
+                        const invalidCount = reminder.tagIds.length - validTagIds.length;
+                        console.log(`任务 ${reminder.id} 有 ${invalidCount} 个无效标签`);
+                    }
+
+                    // 显示有效标签
+                    validTagIds.forEach((tagId: string) => {
+                        const tag = tagMap.get(tagId);
+                        if (tag) {
+                            const tagEl = document.createElement('span');
+                            tagEl.className = 'reminder-item__tag';
+                            tagEl.style.cssText = `
+                                display: inline-flex;
+                                align-items: center;
+                                padding: 2px 8px;
+                                font-size: 11px;
+                                border-radius: 12px;
+                                background: ${tag.color}20;
+                                border: 1px solid ${tag.color};
+                                color: var(--b3-theme-on-surface);
+                                font-weight: 500;
+                            `;
+                            tagEl.textContent = `#${tag.name}`;
+                            tagEl.title = tag.name;
+                            tagsContainer.appendChild(tagEl);
+                        }
+                    });
+                } catch (error) {
+                    console.error('加载项目标签失败:', error);
+                }
+            })();
+
+            infoEl.appendChild(tagsContainer);
+        }
+
         contentEl.appendChild(leftControls);
         contentEl.appendChild(infoEl);
         reminderEl.appendChild(contentEl);

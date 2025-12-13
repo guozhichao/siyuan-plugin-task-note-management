@@ -409,6 +409,247 @@ export class ProjectKanbanView {
         });
     }
 
+    private async showManageTagsDialog() {
+        const dialog = new Dialog({
+            title: t('manageProjectTags'),
+            content: `
+                <div class="manage-tags-dialog">
+                    <div class="b3-dialog__content">
+                        <div class="tags-list" style="margin-bottom: 16px;">
+                            <div class="tags-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <h4 style="margin: 0;">${t('existingTags')}</h4>
+                                <button id="addTagBtn" class="b3-button b3-button--small b3-button--primary">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg> ${t('newTag')}
+                                </button>
+                            </div>
+                            <div id="tagsContainer" class="tags-container" style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px;">
+                                <!-- 标签列表将在这里动态生成 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `,
+            width: "600px",
+            height: "auto"
+        });
+
+        const tagsContainer = dialog.element.querySelector('#tagsContainer') as HTMLElement;
+        const addTagBtn = dialog.element.querySelector('#addTagBtn') as HTMLButtonElement;
+
+        // 加载并显示现有标签
+        const loadAndDisplayTags = async () => {
+            try {
+                const { ProjectManager } = await import('../utils/projectManager');
+                const projectManager = ProjectManager.getInstance(this.plugin);
+                const projectTags = await projectManager.getProjectTags(this.projectId);
+
+                tagsContainer.innerHTML = '';
+
+                if (projectTags.length === 0) {
+                    tagsContainer.innerHTML = `<div style="text-align: center; color: var(--b3-theme-on-surface); opacity: 0.6; padding: 20px; width: 100%;">${t('noTags')}</div>`;
+                    return;
+                }
+
+                projectTags.forEach((tag: { id: string, name: string, color: string }) => {
+                    const tagItem = document.createElement('div');
+                    tagItem.className = 'tag-item';
+                    tagItem.style.cssText = `
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                        padding: 6px 12px;
+                        background: ${tag.color}20;
+                        border: 1px solid ${tag.color};
+                        border-radius: 16px;
+                        font-size: 14px;
+                        color: var(--b3-theme-on-surface);
+                        cursor: pointer;
+                    `;
+
+                    const tagText = document.createElement('span');
+                    tagText.textContent = `#${tag.name}`;
+                    tagItem.appendChild(tagText);
+
+                    // 编辑按钮
+                    const editBtn = document.createElement('button');
+                    editBtn.className = 'b3-button b3-button--text';
+                    editBtn.innerHTML = '<svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconEdit"></use></svg>';
+                    editBtn.title = t('edit');
+                    editBtn.style.cssText = `
+                        padding: 2px;
+                        min-width: unset;
+                        opacity: 0.6;
+                    `;
+                    editBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        showEditTagDialog(tag);
+                    });
+                    tagItem.appendChild(editBtn);
+
+                    // 删除按钮
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'b3-button b3-button--text';
+                    deleteBtn.innerHTML = '<svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconClose"></use></svg>';
+                    deleteBtn.title = t('delete');
+                    deleteBtn.style.cssText = `
+                        padding: 2px;
+                        min-width: unset;
+                        opacity: 0.6;
+                    `;
+                    deleteBtn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        await deleteTag(tag.name);
+                    });
+                    tagItem.appendChild(deleteBtn);
+
+                    tagsContainer.appendChild(tagItem);
+                });
+            } catch (error) {
+                console.error('加载标签列表失败:', error);
+                tagsContainer.innerHTML = '<div style="text-align: center; color: var(--b3-theme-error); padding: 20px;">加载标签失败</div>';
+            }
+        };
+
+        // 删除标签
+        const deleteTag = async (tagNameToDelete: string) => {
+            try {
+                const { ProjectManager } = await import('../utils/projectManager');
+                const projectManager = ProjectManager.getInstance(this.plugin);
+                const projectTags = await projectManager.getProjectTags(this.projectId);
+
+                const updatedTags = projectTags.filter(tag => tag.name !== tagNameToDelete);
+                await projectManager.setProjectTags(this.projectId, updatedTags);
+
+                await loadAndDisplayTags();
+                showMessage(t('tagDeleted'));
+            } catch (error) {
+                console.error('删除标签失败:', error);
+                showMessage(t('deleteTagFailed'));
+            }
+        };
+
+        // 编辑标签对话框
+        const showEditTagDialog = (existingTag: { id: string, name: string, color: string }) => {
+            showTagEditDialog(existingTag, async (updatedTag) => {
+                try {
+                    const { ProjectManager } = await import('../utils/projectManager');
+                    const projectManager = ProjectManager.getInstance(this.plugin);
+                    const projectTags = await projectManager.getProjectTags(this.projectId);
+
+                    const index = projectTags.findIndex(t => t.id === existingTag.id);
+                    if (index !== -1) {
+                        projectTags[index] = updatedTag;
+                        await projectManager.setProjectTags(this.projectId, projectTags);
+                        await loadAndDisplayTags();
+                        showMessage(t('tagUpdated'));
+                    }
+                } catch (error) {
+                    console.error('更新标签失败:', error);
+                    showMessage(t('updateTagFailed'));
+                }
+            });
+        };
+
+        // 新建/编辑标签对话框
+        const showTagEditDialog = (existingTag: { id: string, name: string, color: string } | null, onSave: (tag: { id: string, name: string, color: string }) => void) => {
+            const isEdit = existingTag !== null;
+            const defaultColor = existingTag?.color || '#3498db';
+            const defaultName = existingTag?.name || '';
+
+            const tagDialog = new Dialog({
+                title: isEdit ? t('editTag') : t('newTag'),
+                content: `
+                    <div class="b3-dialog__content">
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${t('tagName')}</label>
+                            <input type="text" id="tagNameInput" class="b3-text-field" placeholder="${t('pleaseEnterTagName')}" value="${defaultName}" style="width: 100%;">
+                        </div>
+                        <div class="b3-form__group" style="margin-top: 12px;">
+                            <label class="b3-form__label">${t('tagColor')}</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="color" id="tagColorInput" value="${defaultColor}" style="width: 60px; height: 32px; border: 1px solid var(--b3-border-color); border-radius: 4px; cursor: pointer;">
+                                <input type="text" id="tagColorText" class="b3-text-field" value="${defaultColor}" style="flex: 1;" readonly>
+                                <div id="tagColorPreview" style="width: 80px; height: 32px; border-radius: 16px; border: 1px solid ${defaultColor}; background: ${defaultColor}20; display: flex; align-items: center; justify-content: center; font-size: 12px;">预览</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="tagDialogCancel">${t('cancel')}</button>
+                        <button class="b3-button b3-button--primary" id="tagDialogSave">${t('save')}</button>
+                    </div>
+                `,
+                width: '400px'
+            });
+
+            const nameInput = tagDialog.element.querySelector('#tagNameInput') as HTMLInputElement;
+            const colorInput = tagDialog.element.querySelector('#tagColorInput') as HTMLInputElement;
+            const colorText = tagDialog.element.querySelector('#tagColorText') as HTMLInputElement;
+            const colorPreview = tagDialog.element.querySelector('#tagColorPreview') as HTMLElement;
+            const cancelBtn = tagDialog.element.querySelector('#tagDialogCancel') as HTMLButtonElement;
+            const saveBtn = tagDialog.element.querySelector('#tagDialogSave') as HTMLButtonElement;
+
+            // 颜色选择器变化
+            colorInput.addEventListener('input', () => {
+                const color = colorInput.value;
+                colorText.value = color;
+                colorPreview.style.borderColor = color;
+                colorPreview.style.background = `${color}20`;
+            });
+
+            cancelBtn.addEventListener('click', () => tagDialog.destroy());
+
+            saveBtn.addEventListener('click', async () => {
+                const tagName = nameInput.value.trim();
+                const tagColor = colorInput.value;
+
+                if (!tagName) {
+                    showMessage(t('pleaseEnterTagName'));
+                    return;
+                }
+
+                // 检查标签名是否已存在（编辑时排除自己）
+                if (!isEdit || tagName !== existingTag.name) {
+                    const { ProjectManager } = await import('../utils/projectManager');
+                    const projectManager = ProjectManager.getInstance(this.plugin);
+                    const projectTags = await projectManager.getProjectTags(this.projectId);
+
+                    if (projectTags.some(t => t.name === tagName)) {
+                        showMessage(t('tagAlreadyExists'));
+                        return;
+                    }
+                }
+
+                // 生成ID（编辑时保留原ID，新建时生成新ID）
+                const tagId = isEdit ? existingTag.id : `tag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                onSave({ id: tagId, name: tagName, color: tagColor });
+                tagDialog.destroy();
+            });
+        };
+
+        // 新建标签
+        addTagBtn.addEventListener('click', () => {
+            showTagEditDialog(null, async (newTag) => {
+                try {
+                    const { ProjectManager } = await import('../utils/projectManager');
+                    const projectManager = ProjectManager.getInstance(this.plugin);
+                    const projectTags = await projectManager.getProjectTags(this.projectId);
+
+                    projectTags.push(newTag);
+                    await projectManager.setProjectTags(this.projectId, projectTags);
+
+                    await loadAndDisplayTags();
+                    showMessage(t('tagCreated'));
+                } catch (error) {
+                    console.error('创建标签失败:', error);
+                    showMessage(t('createTagFailed'));
+                }
+            });
+        });
+
+        // 初始加载标签
+        await loadAndDisplayTags();
+    }
+
     private async loadAndDisplayGroups(container: HTMLElement) {
         try {
             const { ProjectManager } = await import('../utils/projectManager');
@@ -1115,6 +1356,14 @@ export class ProjectKanbanView {
         manageGroupsBtn.addEventListener('click', () => this.showManageGroupsDialog());
         controlsGroup.appendChild(manageGroupsBtn);
 
+        // 管理标签按钮
+        const manageTagsBtn = document.createElement('button');
+        manageTagsBtn.className = 'b3-button b3-button--outline';
+        manageTagsBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconTags"></use></svg> ${t('manageTags')}`;
+        manageTagsBtn.title = t('manageProjectTags');
+        manageTagsBtn.addEventListener('click', () => this.showManageTagsDialog());
+        controlsGroup.appendChild(manageTagsBtn);
+
         // 监听看板模式变化，更新管理按钮和“显示/隐藏已完成”按钮显示状态
         this.container.addEventListener('kanbanModeChanged', () => {
             try {
@@ -1460,6 +1709,81 @@ export class ProjectKanbanView {
         } catch (error) {
             console.error('设置任务分组失败:', error);
             showMessage("设置任务分组失败");
+        }
+    }
+
+    /**
+     * 切换任务的标签（添加或移除）
+     * @param task 任务对象
+     * @param tagId 标签ID
+     */
+    private async toggleTaskTag(task: any, tagId: string) {
+        try {
+            const reminderData = await readReminderData();
+
+            if (!reminderData[task.id]) {
+                showMessage("任务不存在");
+                return;
+            }
+
+            // 获取标签名称用于显示
+            const { ProjectManager } = await import('../utils/projectManager');
+            const projectManager = ProjectManager.getInstance(this.plugin);
+            const projectTags = await projectManager.getProjectTags(this.projectId);
+            const tag = projectTags.find(t => t.id === tagId);
+            const tagName = tag?.name || tagId;
+
+            // 计算要更新的任务列表：包含当前任务及其所有后代
+            const toUpdateIds = [task.id, ...this.getAllDescendantIds(task.id, reminderData)];
+
+            // 更新所有相关任务的标签
+            let updatedCount = 0;
+            const currentTags = reminderData[task.id].tagIds || [];
+            const tagIndex = currentTags.indexOf(tagId);
+            const isAdding = tagIndex === -1;
+
+            for (const taskId of toUpdateIds) {
+                if (reminderData[taskId]) {
+                    if (!reminderData[taskId].tagIds) {
+                        reminderData[taskId].tagIds = [];
+                    }
+
+                    const tags = reminderData[taskId].tagIds;
+                    const idx = tags.indexOf(tagId);
+
+                    if (isAdding) {
+                        // 添加标签
+                        if (idx === -1) {
+                            tags.push(tagId);
+                            updatedCount++;
+                        }
+                    } else {
+                        // 移除标签
+                        if (idx > -1) {
+                            tags.splice(idx, 1);
+                            updatedCount++;
+                        }
+                    }
+                }
+            }
+
+            await writeReminderData(reminderData);
+
+            // 广播更新事件
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+            // 提示更新的任务数
+            if (isAdding) {
+                showMessage(`已为 ${updatedCount} 个任务添加标签"${tagName}"`);
+            } else {
+                showMessage(`已从 ${updatedCount} 个任务移除标签"${tagName}"`);
+            }
+
+            // 重新加载任务以更新显示（使用防抖队列）
+            await this.queueLoadTasks();
+        } catch (error) {
+            console.error('切换任务标签失败:', error);
+            showMessage("设置任务标签失败");
         }
     }
 
@@ -3737,6 +4061,79 @@ export class ProjectKanbanView {
             infoEl.appendChild(noteEl);
         }
 
+        // 标签显示（使用标签ID）
+        if (task.tagIds && task.tagIds.length > 0) {
+            const tagsContainer = document.createElement('div');
+            tagsContainer.className = 'kanban-task-tags';
+            tagsContainer.style.cssText = `
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px;
+                margin-top: 4px;
+            `;
+
+            // 获取项目标签配置以获取颜色和名称
+            (async () => {
+                try {
+                    const { ProjectManager } = await import('../utils/projectManager');
+                    const projectManager = ProjectManager.getInstance(this.plugin);
+                    const projectTags = await projectManager.getProjectTags(this.projectId);
+
+                    // 创建标签ID到标签对象的映射
+                    const tagMap = new Map(projectTags.map(t => [t.id, t]));
+
+                    // 过滤出有效的标签ID
+                    const validTagIds = task.tagIds.filter((tagId: string) => tagMap.has(tagId));
+
+                    // 如果有无效标签，自动清理
+                    if (validTagIds.length !== task.tagIds.length) {
+                        const invalidCount = task.tagIds.length - validTagIds.length;
+                        console.log(`任务 ${task.id} 有 ${invalidCount} 个无效标签，已自动清理`);
+
+                        // 异步清理无效标签
+                        (async () => {
+                            try {
+                                const reminderData = await readReminderData();
+                                if (reminderData[task.id]) {
+                                    reminderData[task.id].tagIds = validTagIds;
+                                    await writeReminderData(reminderData);
+                                }
+                            } catch (error) {
+                                console.error('清理无效标签失败:', error);
+                            }
+                        })();
+                    }
+
+                    // 显示有效标签
+                    validTagIds.forEach((tagId: string) => {
+                        const tag = tagMap.get(tagId);
+                        if (tag) {
+                            const tagEl = document.createElement('span');
+                            tagEl.className = 'kanban-task-tag';
+                            tagEl.style.cssText = `
+                                display: inline-flex;
+                                align-items: center;
+                                padding: 2px 8px;
+                                font-size: 11px;
+                                border-radius: 12px;
+                                background: ${tag.color}20;
+                                border: 1px solid ${tag.color};
+                                color: var(--b3-theme-on-surface);
+                                font-weight: 500;
+                            `;
+                            tagEl.textContent = `#${tag.name}`;
+                            tagEl.title = tag.name;
+                            tagsContainer.appendChild(tagEl);
+                        }
+                    });
+                } catch (error) {
+                    console.error('加载标签失败:', error);
+                }
+            })();
+
+            infoEl.appendChild(tagsContainer);
+        }
+
         // 番茄钟数量 + 总专注时长
         if ((task.pomodoroCount && task.pomodoroCount > 0) || (typeof task.focusTime === 'number' && task.focusTime > 0)) {
             const pomodoroDisplay = document.createElement('div');
@@ -4398,6 +4795,62 @@ export class ProjectKanbanView {
             }
         } catch (error) {
             console.error('加载分组信息失败:', error);
+        }
+
+        // 设置标签子菜单（仅在项目有标签时显示）
+        try {
+            const { ProjectManager } = await import('../utils/projectManager');
+            const projectManager = ProjectManager.getInstance(this.plugin);
+            const projectTags = await projectManager.getProjectTags(this.projectId);
+
+            if (projectTags.length > 0) {
+                const tagMenuItems = [];
+                const currentTagIds = task.tagIds || [];
+
+                projectTags.forEach((tag: { id: string, name: string, color: string }) => {
+                    const isSelected = currentTagIds.includes(tag.id);
+
+                    // 创建带颜色的标签HTML，固定宽度并支持省略号
+                    const tagBadgeHTML = `
+                        <div style="
+                            display: flex;
+                            align-items: center;
+                            width: 100%;
+                        ">
+                            <span style="
+                                display: inline-flex;
+                                align-items: center;
+                                padding: 2px 8px;
+                                font-size: 11px;
+                                border-radius: 12px;
+                                background: ${tag.color}20;
+                                border: 1px solid ${tag.color};
+                                color: var(--b3-theme-on-surface);
+                                font-weight: 500;
+                                max-width: 150px;
+                                min-width: 80px;
+                                overflow: hidden;
+                                text-overflow: ellipsis;
+                                white-space: nowrap;
+                            " title="${tag.name}">#${tag.name}</span>
+                        </div>
+                    `;
+
+                    tagMenuItems.push({
+                        iconHTML: isSelected ? "✓" : "",
+                        label: tagBadgeHTML,
+                        click: () => this.toggleTaskTag(task, tag.id)
+                    });
+                });
+
+                menu.addItem({
+                    iconHTML: "🏷️",
+                    label: t('setTags'),
+                    submenu: tagMenuItems
+                });
+            }
+        } catch (error) {
+            console.error('加载项目标签失败:', error);
         }
 
 

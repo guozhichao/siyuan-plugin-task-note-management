@@ -45,6 +45,7 @@ export class QuickReminderDialog {
     private defaultParentId?: string;
     private plugin?: any; // 插件实例
     private customTimes: Array<{ time: string, note?: string }> = []; // 自定义提醒时间列表
+    private selectedTagIds: string[] = []; // 当前选中的标签ID列表
 
     constructor(
         date?: string,
@@ -503,6 +504,11 @@ export class QuickReminderDialog {
         if (this.reminder.repeat) {
             this.repeatConfig = this.reminder.repeat;
             this.updateRepeatDescription();
+        }
+
+        // 初始化选中的标签ID列表
+        if (this.reminder.tagIds && Array.isArray(this.reminder.tagIds)) {
+            this.selectedTagIds = [...this.reminder.tagIds];
         }
 
         // 等待渲染完成后设置分类、优先级和任务类型
@@ -1011,6 +1017,12 @@ export class QuickReminderDialog {
                                 <!-- 自定义分组选择器将在这里渲染 -->
                             </select>
                         </div>
+                        <div class="b3-form__group" id="quickTagsGroup" style="display: none;">
+                            <label class="b3-form__label">${t('tags')}</label>
+                            <div id="quickTagsSelector" class="tags-selector" style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                <!-- 标签选择器将在这里渲染 -->
+                            </div>
+                        </div>
                         ${this.renderTermTypeSelector()}
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("priority")}</label>
@@ -1108,6 +1120,7 @@ export class QuickReminderDialog {
         await this.renderCategorySelector();
         await this.renderProjectSelector();
         await this.renderPrioritySelector();
+        await this.renderTagsSelector();
 
         // 确保日期和时间输入框正确设置初始值
         setTimeout(() => {
@@ -1298,6 +1311,115 @@ export class QuickReminderDialog {
         } catch (error) {
             console.error('渲染分类选择器失败:', error);
             categorySelector.innerHTML = '<div class="category-error">加载分类失败</div>';
+        }
+    }
+
+    private async renderTagsSelector() {
+        const tagsGroup = this.dialog.element.querySelector('#quickTagsGroup') as HTMLElement;
+        const tagsSelector = this.dialog.element.querySelector('#quickTagsSelector') as HTMLElement;
+
+        if (!tagsSelector) return;
+
+        // 获取当前选中的项目ID
+        const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
+        const projectId = projectSelector?.value;
+
+        if (!projectId) {
+            // 没有选中项目，隐藏标签选择器
+            if (tagsGroup) tagsGroup.style.display = 'none';
+            return;
+        }
+
+        try {
+            const { ProjectManager } = await import('../utils/projectManager');
+            const projectManager = ProjectManager.getInstance(this.plugin);
+            const projectTags = await projectManager.getProjectTags(projectId);
+
+            if (projectTags.length === 0) {
+                // 项目没有标签，隐藏选择器
+                if (tagsGroup) tagsGroup.style.display = 'none';
+                return;
+            }
+
+            // 显示标签选择器
+            if (tagsGroup) tagsGroup.style.display = '';
+
+            // 清空并重新渲染
+            tagsSelector.innerHTML = '';
+
+            // 获取当前任务的标签ID列表
+            // 优先使用 selectedTagIds（用户当前选择），其次使用 reminder.tagIds（编辑模式的初始值）
+            const currentTagIds = this.selectedTagIds.length > 0 ? this.selectedTagIds : (this.reminder?.tagIds || []);
+
+            // 渲染每个标签
+            projectTags.forEach((tag: { id: string, name: string, color: string }) => {
+                const tagEl = document.createElement('div');
+                tagEl.className = 'tag-option';
+                tagEl.setAttribute('data-tag-id', tag.id);
+
+                const isSelected = currentTagIds.includes(tag.id);
+                if (isSelected) {
+                    tagEl.classList.add('selected');
+                }
+
+                tagEl.style.cssText = `
+                    display: inline-flex;
+                    align-items: center;
+                    padding: 4px 10px;
+                    font-size: 12px;
+                    border-radius: 12px;
+                    background: ${isSelected ? tag.color : tag.color + '20'};
+                    border: 1px solid ${tag.color};
+                    color: ${isSelected ? '#fff' : 'var(--b3-theme-on-surface)'};
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    user-select: none;
+                    font-weight: ${isSelected ? '600' : '500'};
+                `;
+
+                tagEl.textContent = `#${tag.name}`;
+                tagEl.title = tag.name;
+
+                // 点击切换选中状态
+                tagEl.addEventListener('click', () => {
+                    tagEl.classList.toggle('selected');
+                    const isNowSelected = tagEl.classList.contains('selected');
+
+                    // 更新 selectedTagIds
+                    if (isNowSelected) {
+                        if (!this.selectedTagIds.includes(tag.id)) {
+                            this.selectedTagIds.push(tag.id);
+                        }
+                    } else {
+                        const index = this.selectedTagIds.indexOf(tag.id);
+                        if (index > -1) {
+                            this.selectedTagIds.splice(index, 1);
+                        }
+                    }
+
+                    // 更新样式
+                    tagEl.style.background = isNowSelected ? tag.color : tag.color + '20';
+                    tagEl.style.color = isNowSelected ? '#fff' : 'var(--b3-theme-on-surface)';
+                    tagEl.style.fontWeight = isNowSelected ? '600' : '500';
+                });
+
+                // 悬停效果
+                tagEl.addEventListener('mouseenter', () => {
+                    tagEl.style.opacity = '0.8';
+                    tagEl.style.transform = 'translateY(-1px)';
+                });
+
+                tagEl.addEventListener('mouseleave', () => {
+                    tagEl.style.opacity = '1';
+                    tagEl.style.transform = 'translateY(0)';
+                });
+
+                tagsSelector.appendChild(tagEl);
+            });
+
+        } catch (error) {
+            console.error('加载项目标签失败:', error);
+            if (tagsGroup) tagsGroup.style.display = 'none';
         }
     }
 
@@ -1973,6 +2095,9 @@ export class QuickReminderDialog {
             // 没有选择项目，隐藏分组选择器
             customGroupContainer.style.display = 'none';
         }
+
+        // 更新标签选择器
+        await this.renderTagsSelector();
     }
 
     /**
@@ -2176,6 +2301,9 @@ export class QuickReminderDialog {
         const customReminderTime = (this.dialog.element.querySelector('#quickCustomReminderTime') as HTMLInputElement).value.trim() || undefined;
         const customReminderPreset = (this.dialog.element.querySelector('#quickCustomReminderPreset') as HTMLSelectElement)?.value || undefined;
 
+        // 获取选中的标签ID（使用 selectedTagIds 属性）
+        const tagIds = this.selectedTagIds;
+
         // 解析日期和时间
         let date: string;
         let endDate: string;
@@ -2251,6 +2379,7 @@ export class QuickReminderDialog {
                 projectId: projectId,
                 customGroupId: customGroupId,
                 termType: termType,
+                tagIds: tagIds.length > 0 ? tagIds : undefined,
                 reminderTimes: this.customTimes.length > 0 ? [...this.customTimes] : undefined,
                 customReminderPreset: customReminderPreset,
                 repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined,
@@ -2328,6 +2457,7 @@ export class QuickReminderDialog {
                     reminder.categoryId = categoryId;
                     reminder.projectId = projectId;
                     reminder.customGroupId = customGroupId;
+                    reminder.tagIds = tagIds.length > 0 ? tagIds : undefined;
                     // 不再使用旧的 `customReminderTime` 存储；所有自定义提醒统一保存到 `reminderTimes`
                     reminder.customReminderPreset = customReminderPreset;
                     reminder.reminderTimes = this.customTimes.length > 0 ? [...this.customTimes] : undefined;
@@ -2456,6 +2586,7 @@ export class QuickReminderDialog {
                     categoryId: categoryId,
                     projectId: projectId,
                     customGroupId: customGroupId,
+                    tagIds: tagIds.length > 0 ? tagIds : undefined,
                     createdAt: new Date().toISOString(),
                     repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined,
                     isQuickReminder: true, // 标记为快速创建的提醒
