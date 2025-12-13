@@ -5457,6 +5457,10 @@ export class ProjectKanbanView {
 
     // 使用 QuickReminderDialog 创建任务
     private showCreateTaskDialog(parentTask?: any, defaultCustomGroupId?: string | null, defaultTermType?: 'short_term' | 'long_term' | 'doing' | 'todo') {
+        // Calculate max sort value to place new task at the end
+        const maxSort = this.tasks.reduce((max, task) => Math.max(max, task.sort || 0), 0);
+        const defaultSort = maxSort + 10000;
+
         const quickDialog = new QuickReminderDialog(
             undefined, // 项目看板创建任务默认不设置日期
             undefined, // 无初始时间
@@ -5477,7 +5481,8 @@ export class ProjectKanbanView {
                 showKanbanStatus: 'term', // 显示任务类型选择
                 // 使用上一次选择的 termType 作为默认值
                 defaultTermType: defaultTermType || this.lastSelectedTermType,
-                plugin: this.plugin // 传入plugin实例
+                plugin: this.plugin, // 传入plugin实例
+                defaultSort: defaultSort
             }
         );
 

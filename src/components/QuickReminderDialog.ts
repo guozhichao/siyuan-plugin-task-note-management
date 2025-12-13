@@ -46,6 +46,9 @@ export class QuickReminderDialog {
     private plugin?: any; // 插件实例
     private customTimes: Array<{ time: string, note?: string }> = []; // 自定义提醒时间列表
     private selectedTagIds: string[] = []; // 当前选中的标签ID列表
+    private isInstanceEdit: boolean = false;
+    private instanceDate?: string;
+    private defaultSort?: number;
 
     constructor(
         date?: string,
@@ -74,6 +77,7 @@ export class QuickReminderDialog {
             defaultParentId?: string;
             isInstanceEdit?: boolean;
             instanceDate?: string;
+            defaultSort?: number;
         }
     ) {
         this.initialDate = date;
@@ -105,6 +109,7 @@ export class QuickReminderDialog {
             this.defaultParentId = options.defaultParentId;
             this.isInstanceEdit = options.isInstanceEdit || false;
             this.instanceDate = options.instanceDate;
+            this.defaultSort = options.defaultSort;
         }
 
         // 如果是编辑模式，确保有reminder
@@ -2599,6 +2604,11 @@ export class QuickReminderDialog {
                 // 保存 preset 信息
                 if (customReminderPreset) {
                     reminder.customReminderPreset = customReminderPreset;
+                }
+
+                // 添加默认排序值
+                if (typeof this.defaultSort === 'number') {
+                    reminder.sort = this.defaultSort;
                 }
 
                 // 根据任务类型设置看板状态
