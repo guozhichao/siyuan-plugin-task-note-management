@@ -403,7 +403,7 @@ export class PomodoroRecordManager {
                 const record = this.records[date];
                 if (!record || !record.sessions) continue;
                 for (const session of record.sessions) {
-                    if (session && session.type === 'work' && session.completed) {
+                    if (session && session.type === 'work') {
                         if (idsToInclude.has(session.eventId)) {
                             totalMinutes += session.duration || 0;
                         }
@@ -515,7 +515,7 @@ export class PomodoroRecordManager {
             const record = this.records[date];
             if (!record || !record.sessions) continue;
             for (const session of record.sessions) {
-                if (session && session.type === 'work' && session.completed && session.eventId === eventId) {
+                if (session && session.type === 'work' && session.eventId === eventId) {
                     total += session.duration || 0;
                 }
             }
