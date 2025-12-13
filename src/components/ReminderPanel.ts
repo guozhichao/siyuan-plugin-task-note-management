@@ -3201,11 +3201,12 @@ export class ReminderPanel {
 
             if (!isRemovingParent) {
                 // 只有在不是移除父子关系的情况下，才检查优先级限制
-                const draggedPriority = draggedReminder.priority || 'none';
+                // 允许跨优先级拖拽，后续在 dropping 时处理优先级变更
+                /* const draggedPriority = draggedReminder.priority || 'none';
                 const targetPriority = targetReminder.priority || 'none';
                 if (draggedPriority !== targetPriority) {
                     return false;
-                }
+                } */
             }
         }
 
@@ -3491,33 +3492,85 @@ export class ReminderPanel {
         try {
             const reminderData = await readReminderData();
 
-            // 获取同优先级的所有提醒
-            const samePriorityReminders = Object.values(reminderData)
-                .filter((r: any) => (r.priority || 'none') === (draggedReminder.priority || 'none'))
-                .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+            const oldPriority = draggedReminder.priority || 'none';
+            const newPriority = targetReminder.priority || 'none';
 
-            // 移除被拖拽的提醒
-            const filteredReminders = samePriorityReminders.filter((r: any) => r.id !== draggedReminder.id);
-
-            // 找到目标位置
-            const targetIndex = filteredReminders.findIndex((r: any) => r.id === targetReminder.id);
-            const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
-
-            // 插入被拖拽的提醒
-            filteredReminders.splice(insertIndex, 0, draggedReminder);
-
-            // 重新分配排序值
-            filteredReminders.forEach((reminder: any, index: number) => {
-                if (reminderData[reminder.id]) {
-                    reminderData[reminder.id].sort = index * 10; // 使用10的倍数便于后续插入
+            // 检查是否跨优先级拖拽
+            if (oldPriority !== newPriority) {
+                // 1. 更新优先级
+                if (reminderData[draggedReminder.id]) {
+                    reminderData[draggedReminder.id].priority = newPriority;
+                    // 更新传入对象以反映最新状态
+                    draggedReminder.priority = newPriority;
                 }
-            });
 
-            await writeReminderData(reminderData);
-            // 注意：不触发 reminderUpdated 事件，因为我们会手动更新DOM
-            window.dispatchEvent(new CustomEvent('reminderUpdated', {
-                detail: { skipPanelRefresh: true }
-            }));
+                // 2. 处理旧优先级分组：移除被拖拽项并重新排序
+                const oldGroup = Object.values(reminderData)
+                    .filter((r: any) => (r.priority || 'none') === oldPriority && r.id !== draggedReminder.id)
+                    .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+                oldGroup.forEach((r: any, index: number) => {
+                    if (reminderData[r.id]) reminderData[r.id].sort = index * 10;
+                });
+
+                // 3. 处理新优先级分组：插入并重新排序
+                // 排除 draggedReminder (虽然它现在的 priority 可能是 newPriority，但我们需要将其插入到特定位置)
+                const newGroup = Object.values(reminderData)
+                    .filter((r: any) => (r.priority || 'none') === newPriority && r.id !== draggedReminder.id)
+                    .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+                // 找到目标位置
+                let targetIndex = newGroup.findIndex((r: any) => r.id === targetReminder.id);
+                // 如果找不到目标（极端情况），追加到末尾
+                if (targetIndex === -1) targetIndex = newGroup.length;
+
+                const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
+
+                // 插入被拖拽的提醒
+                const updatedDraggedReminder = reminderData[draggedReminder.id] || draggedReminder;
+                newGroup.splice(insertIndex, 0, updatedDraggedReminder);
+
+                // 更新新分组的排序值
+                newGroup.forEach((r: any, index: number) => {
+                    if (reminderData[r.id]) reminderData[r.id].sort = index * 10;
+                });
+
+                await writeReminderData(reminderData);
+
+                // 触发全局刷新以更新UI（包括优先级颜色和位置）
+                // 不使用 skipPanelRefresh，因为优先级改变需要重新渲染样式
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                // showMessage(t("priorityUpdated") || "优先级已更新");
+
+            } else {
+                // 同优先级排序（原有逻辑）
+                const samePriorityReminders = Object.values(reminderData)
+                    .filter((r: any) => (r.priority || 'none') === oldPriority)
+                    .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+                // 移除被拖拽的提醒
+                const filteredReminders = samePriorityReminders.filter((r: any) => r.id !== draggedReminder.id);
+
+                // 找到目标位置
+                const targetIndex = filteredReminders.findIndex((r: any) => r.id === targetReminder.id);
+                const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
+
+                // 插入被拖拽的提醒
+                filteredReminders.splice(insertIndex, 0, draggedReminder);
+
+                // 重新分配排序值
+                filteredReminders.forEach((reminder: any, index: number) => {
+                    if (reminderData[reminder.id]) {
+                        reminderData[reminder.id].sort = index * 10; // 使用10的倍数便于后续插入
+                    }
+                });
+
+                await writeReminderData(reminderData);
+                // 注意：同优先级排序不触发强制刷新，因为 manually updateDOMOrder 会处理
+                window.dispatchEvent(new CustomEvent('reminderUpdated', {
+                    detail: { skipPanelRefresh: true }
+                }));
+            }
 
         } catch (error) {
             console.error('重新排序提醒失败:', error);
