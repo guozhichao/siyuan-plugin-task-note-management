@@ -5067,12 +5067,13 @@ export class ProjectKanbanView {
                 taskToEdit = originalReminder;
             }
 
-            const callback = async () => {
-                await this.loadTasks();
+            // 优化：只通过 reminderUpdated 事件触发刷新，避免重复更新
+            // 事件监听器会调用 queueLoadTasks() 进行防抖刷新
+            const callback = () => {
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
             };
 
-            const editDialog = new QuickReminderDialog(undefined, undefined, callback, undefined, { mode: 'edit', reminder: taskToEdit, onSaved: callback, plugin: this.plugin });
+            const editDialog = new QuickReminderDialog(undefined, undefined, callback, undefined, { mode: 'edit', reminder: taskToEdit, plugin: this.plugin });
             editDialog.show();
         } catch (error) {
             console.error('打开编辑对话框失败:', error);
@@ -7745,13 +7746,16 @@ export class ProjectKanbanView {
                 instanceDate: originalInstanceDate  // 使用原始生成日期而非当前显示日期
             };
 
+            // 优化：只通过 reminderUpdated 事件触发刷新，避免重复更新
+            // 事件监听器会调用 queueLoadTasks() 进行防抖刷新
+            const callback = () => {
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            };
+
             const editDialog = new QuickReminderDialog(
                 undefined,
                 undefined,
-                async () => {
-                    await this.queueLoadTasks();
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                },
+                callback,
                 undefined,
                 {
                     mode: 'edit',
