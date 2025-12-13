@@ -746,7 +746,7 @@ export class ProjectPanel {
 
         // 添加单击打开项目看板支持
         projectEl.addEventListener('click', (e) => {
-            if (e.target.closest('.drag-handle')) return;
+            if ((e.target as HTMLElement).closest('.drag-handle')) return;
             e.preventDefault();
             e.stopPropagation();
             this.openProjectKanban(project);
@@ -1214,12 +1214,9 @@ export class ProjectPanel {
     }
 
     // 新增：检查是否可以放置
-    private canDropHere(draggedProject: any, targetProject: any): boolean {
-        const draggedPriority = draggedProject.priority || 'none';
-        const targetPriority = targetProject.priority || 'none';
-
-        // 只允许同优先级内的拖拽
-        return draggedPriority === targetPriority;
+    private canDropHere(_draggedProject: any, _targetProject: any): boolean {
+        // 允许跨优先级拖拽，后续在 reorderProjects 中会自动更新优先级
+        return true;
     }
 
     // 新增：显示拖放指示器
@@ -1283,23 +1280,53 @@ export class ProjectPanel {
         try {
             const projectData = await readProjectData();
 
-            // 获取同优先级的所有项目
-            const samePriorityProjects = Object.values(projectData)
-                .filter((p: any) => (p.priority || 'none') === (draggedProject.priority || 'none'))
+            const draggedId = draggedProject.id;
+            const targetId = targetProject.id;
+
+            if (!projectData[draggedId] || !projectData[targetId]) {
+                throw new Error("Project not found in data");
+            }
+
+            const draggedItem = projectData[draggedId];
+            const targetItem = projectData[targetId];
+
+            const oldPriority = draggedItem.priority || 'none';
+            const targetPriority = targetItem.priority || 'none';
+            let newPriority = oldPriority;
+
+            // 检查优先级变更 - 如果拖拽到不同优先级项目的上方或下方，自动变更优先级
+            if (oldPriority !== targetPriority) {
+                newPriority = targetPriority;
+                draggedItem.priority = newPriority;
+            }
+
+            // 如果优先级改变了，需要整理旧优先级列表（确保排序连续）
+            if (oldPriority !== newPriority) {
+                const sourceList = Object.values(projectData)
+                    .filter((p: any) => (p.priority || 'none') === oldPriority && p.id !== draggedId)
+                    .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+                sourceList.forEach((p: any, index: number) => {
+                    if (projectData[p.id]) {
+                        projectData[p.id].sort = index * 10;
+                    }
+                });
+            }
+
+            // 获取目标优先级的所有项目（不包含被拖拽的项目）
+            const targetList = Object.values(projectData)
+                .filter((p: any) => (p.priority || 'none') === newPriority && p.id !== draggedId)
                 .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
 
-            // 移除被拖拽的项目
-            const filteredProjects = samePriorityProjects.filter((p: any) => p.id !== draggedProject.id);
-
             // 找到目标位置
-            const targetIndex = filteredProjects.findIndex((p: any) => p.id === targetProject.id);
-            const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
+            const targetIndex = targetList.findIndex((p: any) => p.id === targetId);
+            const insertIndex = insertBefore ? targetIndex : (targetIndex === -1 ? targetList.length : targetIndex + 1);
 
             // 插入被拖拽的项目
-            filteredProjects.splice(insertIndex, 0, draggedProject);
+            targetList.splice(insertIndex, 0, draggedItem);
 
             // 重新分配排序值
-            filteredProjects.forEach((project: any, index: number) => {
+            targetList.forEach((project: any, index: number) => {
                 if (projectData[project.id]) {
                     projectData[project.id].sort = index * 10; // 使用10的倍数便于后续插入
                     projectData[project.id].updatedTime = new Date().toISOString();
