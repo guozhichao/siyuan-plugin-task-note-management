@@ -7589,12 +7589,10 @@ export class ProjectKanbanView {
     private canDropForSort(draggedTask: any, targetTask: any): boolean {
         if (!draggedTask || !targetTask) return false;
 
-        // 情况1：同级顶层任务之间排序（相同优先级）
+        // 情况1：同级顶层任务之间排序
         if (!draggedTask.parentId && !targetTask.parentId) {
-            // 只允许在相同优先级内拖动
-            const draggedPriority = draggedTask.priority || 'none';
-            const targetPriority = targetTask.priority || 'none';
-            return draggedPriority === targetPriority;
+            // 允许跨优先级拖拽，后续在 reorderTasks 中会自动更新优先级
+            return true;
         }
 
         // 情况2：子任务之间排序（同一个父任务下）
@@ -8033,10 +8031,30 @@ export class ProjectKanbanView {
                     }
                 }
 
+                // --- [新增逻辑] 检查优先级变更 ---
+                const oldPriority = draggedTaskInDb.priority || 'none';
+                const targetPriority = targetTaskInDb.priority || 'none';
+                let newPriority = oldPriority;
+
+                // 即使在自定义分组视图中，如果拖拽到了不同优先级的任务旁边，也更新优先级
+                if (oldPriority !== targetPriority) {
+                    newPriority = targetPriority;
+                    draggedTaskInDb.priority = newPriority;
+                }
+
                 // 根据完成状态选择子容器（incomplete/completed）来排序
                 const isCompleted = !!reminderData[draggedId].completed;
 
-                // 重新计算源分组的排序（如果分组发生变化）
+                // 重新计算源分组的排序（如果分组发生变化 或 优先级发生变化）
+                // 解释：如果优先级变了，虽然它还在同一个"自定义分组"里，但可能影响了原逻辑上的排序稳定性，
+                // 不过在自定义分组视图里，通常是按所有任务混排或按状态排。
+                // 这里的 sourceList 逻辑主要是为了填补移走后的空缺重新排序，保证 continuous。
+                // 既然移走了，不管是换分组了还是仅仅在同组内通过 reorder，下面的 targetList 处理负责新位置。
+                // sourceList 负责清理旧位置（如果是跨组移动）。
+                // 如果只是同组内移动，sourceList 其实就是 targetList（除了被剔除的自己）。
+                // 但为了简单，如果分组变了才处理 sourceList 清理。
+                // 如果仅优先级变了但组没变，sourceList 和 targetList 指向同一个集合，
+                // 下面的 targetList 逻辑中 .filter(... id !== draggedId) 已经把旧的排除了，所以没问题。
                 if (draggedGroup !== targetGroup) {
                     const sourceList = Object.values(reminderData)
                         .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && ((r.customGroupId === undefined) ? null : r.customGroupId) === draggedGroup)
@@ -8049,6 +8067,8 @@ export class ProjectKanbanView {
                 }
 
                 // 目标分组列表（同一完成/未完成子组）
+                // 注意：在自定义分组视图中，通常是按 sort 排序显示的。
+                // 优先级变更已经直接修改了 draggedTaskInDb 对象。
                 const targetList = Object.values(reminderData)
                     .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && ((r.customGroupId === undefined) ? null : r.customGroupId) === targetGroup)
                     .filter((r: any) => !!r.completed === isCompleted)
@@ -8098,8 +8118,16 @@ export class ProjectKanbanView {
                 return; // 子任务排序完成，直接返回
             }
 
-            // 顶层任务排序逻辑（原有逻辑）
-            const priority = draggedTaskInDb.priority || 'none';
+            // 顶层任务排序逻辑
+            const oldPriority = draggedTaskInDb.priority || 'none';
+            const targetPriority = targetTaskInDb.priority || 'none';
+            let newPriority = oldPriority;
+
+            // 检查优先级变更 - 如果拖拽到不同优先级任务的上方或下方，自动变更优先级
+            if (oldPriority !== targetPriority) {
+                newPriority = targetPriority;
+                draggedTaskInDb.priority = newPriority;
+            }
 
             // --- Update status of dragged task ---
             if (oldStatus !== newStatus) {
@@ -8113,10 +8141,10 @@ export class ProjectKanbanView {
                 }
             }
 
-            // --- Reorder source list (if status changed) ---
-            if (oldStatus !== newStatus) {
+            // --- Reorder source list (if status or priority changed) ---
+            if (oldStatus !== newStatus || oldPriority !== newPriority) {
                 const sourceList = Object.values(reminderData)
-                    .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && this.getTaskStatus(r) === oldStatus && (r.priority || 'none') === priority && r.id !== draggedId)
+                    .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && this.getTaskStatus(r) === oldStatus && (r.priority || 'none') === oldPriority && r.id !== draggedId)
                     .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
 
                 sourceList.forEach((task: any, index: number) => {
@@ -8125,8 +8153,9 @@ export class ProjectKanbanView {
             }
 
             // --- Reorder target list ---
+            // Target list defined by NEW status and NEW priority (which matches targetPriority)
             const targetList = Object.values(reminderData)
-                .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && this.getTaskStatus(r) === newStatus && (r.priority || 'none') === priority && r.id !== draggedId)
+                .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && this.getTaskStatus(r) === newStatus && (r.priority || 'none') === newPriority && r.id !== draggedId)
                 .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
 
             const targetIndex = targetList.findIndex((t: any) => t.id === targetId);
