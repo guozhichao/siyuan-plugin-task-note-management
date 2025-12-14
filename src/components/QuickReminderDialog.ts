@@ -568,6 +568,9 @@ export class QuickReminderDialog {
 
         // 填充父任务信息
         this.updateParentTaskDisplay();
+
+        // 填充完成时间
+        this.updateCompletedTimeDisplay();
     }
 
     // 设置chrono解析器
@@ -1064,6 +1067,19 @@ export class QuickReminderDialog {
                                     <div class="priority-dot none"></div>
                                     <span>${t("noPriority")}</span>
                                 </div>
+                            </div>
+                        </div>
+                        <!-- 完成时间显示和编辑 -->
+                        <div class="b3-form__group" id="quickCompletedTimeGroup" style="display: none;">
+                            <label class="b3-form__label">${t("completedAt") || "完成时间"}</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="datetime-local" id="quickCompletedTime" class="b3-text-field" style="flex: 1;">
+                                <button type="button" id="quickSetCompletedNowBtn" class="b3-button b3-button--outline" title="${t("setToNow") || "设为当前时间"}">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconClock"></use></svg>
+                                </button>
+                                <button type="button" id="quickClearCompletedBtn" class="b3-button b3-button--outline" title="${t("clearCompletedTime") || "清除完成时间"}">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconTrashcan"></use></svg>
+                                </button>
                             </div>
                         </div>
                         <div class="b3-form__group">
@@ -1982,6 +1998,29 @@ export class QuickReminderDialog {
         viewParentBtn?.addEventListener('click', async () => {
             await this.viewParentTask();
         });
+
+        // 完成时间相关按钮事件
+        const setCompletedNowBtn = this.dialog.element.querySelector('#quickSetCompletedNowBtn') as HTMLButtonElement;
+        const clearCompletedBtn = this.dialog.element.querySelector('#quickClearCompletedBtn') as HTMLButtonElement;
+        const completedTimeInput = this.dialog.element.querySelector('#quickCompletedTime') as HTMLInputElement;
+
+        setCompletedNowBtn?.addEventListener('click', () => {
+            if (completedTimeInput) {
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                completedTimeInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            }
+        });
+
+        clearCompletedBtn?.addEventListener('click', () => {
+            if (completedTimeInput) {
+                completedTimeInput.value = '';
+            }
+        });
     }
 
     private showRepeatSettingsDialog() {
@@ -2507,6 +2546,42 @@ export class QuickReminderDialog {
                     reminder.termType = termType;
                     reminder.updatedAt = new Date().toISOString();
 
+                    // 保存完成时间（如果任务已完成）
+                    if (reminder.completed) {
+                        const completedTimeInput = this.dialog.element.querySelector('#quickCompletedTime') as HTMLInputElement;
+                        if (completedTimeInput && completedTimeInput.value) {
+                            // 将 datetime-local 格式转换为本地时间格式 YYYY-MM-DD HH:mm
+                            try {
+                                const completedDate = new Date(completedTimeInput.value);
+                                const year = completedDate.getFullYear();
+                                const month = String(completedDate.getMonth() + 1).padStart(2, '0');
+                                const day = String(completedDate.getDate()).padStart(2, '0');
+                                const hours = String(completedDate.getHours()).padStart(2, '0');
+                                const minutes = String(completedDate.getMinutes()).padStart(2, '0');
+                                reminder.completedTime = `${year}-${month}-${day} ${hours}:${minutes}`;
+                            } catch (error) {
+                                console.error('解析完成时间失败:', error);
+                                // 如果解析失败，使用当前时间
+                                const now = new Date();
+                                const year = now.getFullYear();
+                                const month = String(now.getMonth() + 1).padStart(2, '0');
+                                const day = String(now.getDate()).padStart(2, '0');
+                                const hours = String(now.getHours()).padStart(2, '0');
+                                const minutes = String(now.getMinutes()).padStart(2, '0');
+                                reminder.completedTime = `${year}-${month}-${day} ${hours}:${minutes}`;
+                            }
+                        } else if (!reminder.completedTime) {
+                            // 如果没有设置完成时间，使用当前时间
+                            const now = new Date();
+                            const year = now.getFullYear();
+                            const month = String(now.getMonth() + 1).padStart(2, '0');
+                            const day = String(now.getDate()).padStart(2, '0');
+                            const hours = String(now.getHours()).padStart(2, '0');
+                            const minutes = String(now.getMinutes()).padStart(2, '0');
+                            reminder.completedTime = `${year}-${month}-${day} ${hours}:${minutes}`;
+                        }
+                    }
+
                     // 不在编辑时修改已提醒标志（notifiedTime / notifiedCustomTime）。
                     // 过去的提醒无需在编辑时处理，未来的提醒将在未来正常触发，
                     // 所以这里保留原有的 notified 字段值，不做重置或计算。
@@ -2956,6 +3031,73 @@ export class QuickReminderDialog {
         } catch (error) {
             console.error('查看父任务失败:', error);
             showMessage(t("operationFailed") || "操作失败");
+        }
+    }
+
+    /**
+     * 更新完成时间显示
+     */
+    private updateCompletedTimeDisplay() {
+        const completedTimeGroup = this.dialog.element.querySelector('#quickCompletedTimeGroup') as HTMLElement;
+        const completedTimeInput = this.dialog.element.querySelector('#quickCompletedTime') as HTMLInputElement;
+
+        if (!completedTimeGroup || !completedTimeInput) {
+            return;
+        }
+
+        // 检查任务是否已完成
+        const isCompleted = this.reminder?.completed === true;
+
+        if (!isCompleted) {
+            // 任务未完成，隐藏完成时间区域
+            completedTimeGroup.style.display = 'none';
+            return;
+        }
+
+        // 任务已完成，显示完成时间区域
+        completedTimeGroup.style.display = '';
+
+        // 填充完成时间
+        if (this.reminder?.completedTime) {
+            try {
+                // 解析本地时间格式 YYYY-MM-DD HH:mm 或 ISO 格式
+                let completedDate: Date;
+
+                // 检查是否为本地时间格式 YYYY-MM-DD HH:mm
+                if (this.reminder.completedTime.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/)) {
+                    // 本地时间格式，直接转换为 datetime-local 格式
+                    const [datePart, timePart] = this.reminder.completedTime.split(' ');
+                    completedTimeInput.value = `${datePart}T${timePart}`;
+                } else {
+                    // 尝试作为 Date 可解析的格式（如 ISO 格式）
+                    completedDate = new Date(this.reminder.completedTime);
+                    const year = completedDate.getFullYear();
+                    const month = String(completedDate.getMonth() + 1).padStart(2, '0');
+                    const day = String(completedDate.getDate()).padStart(2, '0');
+                    const hours = String(completedDate.getHours()).padStart(2, '0');
+                    const minutes = String(completedDate.getMinutes()).padStart(2, '0');
+                    completedTimeInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+                }
+            } catch (error) {
+                console.error('解析完成时间失败:', error);
+                // 如果解析失败，设置为当前时间
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                completedTimeInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            }
+        } else {
+            // 如果没有完成时间，设置为当前时间
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            completedTimeInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
         }
     }
 }

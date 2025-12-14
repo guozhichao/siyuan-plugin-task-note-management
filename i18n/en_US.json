@@ -863,5 +863,7 @@
     "tagUpdated": "Tag updated",
     "updateTagFailed": "Failed to update tag",
     "viewParentTask": "View Parent Task",
-    "parentTaskNotExist": "Parent task does not exist"
+    "parentTaskNotExist": "Parent task does not exist",
+    "setToNow": "Set to Now",
+    "clearCompletedTime": "Clear Completed Time"
 }

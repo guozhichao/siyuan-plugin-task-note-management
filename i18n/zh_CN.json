@@ -863,5 +863,7 @@
     "tagUpdated": "标签已更新",
     "updateTagFailed": "更新标签失败",
     "viewParentTask": "查看父任务",
-    "parentTaskNotExist": "父任务不存在"
+    "parentTaskNotExist": "父任务不存在",
+    "setToNow": "设为当前时间",
+    "clearCompletedTime": "清除完成时间"
 }
