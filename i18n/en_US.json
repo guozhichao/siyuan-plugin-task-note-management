@@ -861,5 +861,7 @@
     "tagColor": "Tag Color",
     "editTag": "Edit Tag",
     "tagUpdated": "Tag updated",
-    "updateTagFailed": "Failed to update tag"
+    "updateTagFailed": "Failed to update tag",
+    "viewParentTask": "View Parent Task",
+    "parentTaskNotExist": "Parent task does not exist"
 }

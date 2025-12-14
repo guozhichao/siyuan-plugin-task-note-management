@@ -565,6 +565,9 @@ export class QuickReminderDialog {
                 });
             }
         }, 100);
+
+        // 填充父任务信息
+        this.updateParentTaskDisplay();
     }
 
     // 设置chrono解析器
@@ -997,6 +1000,19 @@ export class QuickReminderDialog {
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("bindUrl")}</label>
                             <input type="url" id="quickUrlInput" class="b3-text-field" placeholder="${t("enterUrl")}" style="width: 100%;">
+                        </div>
+                        <!-- 父任务显示 -->
+                        <div class="b3-form__group" id="quickParentTaskGroup" style="display: none;">
+                            <label class="b3-form__label">${t("parentTask") || "父任务"}</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="text" id="quickParentTaskDisplay" class="b3-text-field" readonly style="flex: 1; background: var(--b3-theme-background-light); cursor: default;" placeholder="无父任务">
+                                <button type="button" id="quickViewParentBtn" class="b3-button b3-button--outline" title="${t("viewParentTask") || "查看父任务"}" style="display: none;">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconEye"></use></svg>
+                                </button>
+                            </div>
+                            <div class="b3-form__desc" style="font-size: 11px; color: var(--b3-theme-on-surface-light);">
+                                父任务 ID: <span id="quickParentTaskId" style="font-family: monospace;">-</span>
+                            </div>
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("eventCategory")}
@@ -1960,6 +1976,12 @@ export class QuickReminderDialog {
         } catch (e) {
             // 忽略错误，防止在没有该元素时抛异常
         }
+
+        // 查看父任务按钮事件
+        const viewParentBtn = this.dialog.element.querySelector('#quickViewParentBtn') as HTMLButtonElement;
+        viewParentBtn?.addEventListener('click', async () => {
+            await this.viewParentTask();
+        });
     }
 
     private showRepeatSettingsDialog() {
@@ -2832,5 +2854,108 @@ export class QuickReminderDialog {
         const idRegex = /^([a-zA-Z0-9\-]{5,})$/;
         if (idRegex.test(raw)) return raw;
         return null;
+    }
+
+    /**
+     * 更新父任务显示
+     */
+    private async updateParentTaskDisplay() {
+        const parentTaskGroup = this.dialog.element.querySelector('#quickParentTaskGroup') as HTMLElement;
+        const parentTaskDisplay = this.dialog.element.querySelector('#quickParentTaskDisplay') as HTMLInputElement;
+        const parentTaskIdSpan = this.dialog.element.querySelector('#quickParentTaskId') as HTMLSpanElement;
+        const viewParentBtn = this.dialog.element.querySelector('#quickViewParentBtn') as HTMLButtonElement;
+
+        if (!parentTaskGroup || !parentTaskDisplay || !parentTaskIdSpan || !viewParentBtn) {
+            return;
+        }
+
+        // 获取父任务ID（优先使用reminder中的，其次使用defaultParentId）
+        const parentId = this.reminder?.parentId || this.defaultParentId;
+
+        if (!parentId) {
+            // 没有父任务，隐藏整个区域
+            parentTaskGroup.style.display = 'none';
+            return;
+        }
+
+        // 显示父任务区域
+        parentTaskGroup.style.display = '';
+        parentTaskIdSpan.textContent = parentId;
+
+        try {
+            // 读取父任务数据
+            const reminderData = await readReminderData();
+            const parentTask = reminderData[parentId];
+
+            if (parentTask) {
+                // 显示父任务标题
+                parentTaskDisplay.value = parentTask.title || '(无标题)';
+                parentTaskDisplay.title = `父任务: ${parentTask.title || '(无标题)'}`;
+
+                // 显示查看按钮
+                viewParentBtn.style.display = '';
+            } else {
+                // 父任务不存在
+                parentTaskDisplay.value = '(父任务不存在)';
+                parentTaskDisplay.title = '父任务已被删除或不存在';
+                viewParentBtn.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('加载父任务信息失败:', error);
+            parentTaskDisplay.value = '(加载失败)';
+            viewParentBtn.style.display = 'none';
+        }
+    }
+
+    /**
+     * 查看父任务
+     */
+    private async viewParentTask() {
+        const parentId = this.reminder?.parentId || this.defaultParentId;
+
+        if (!parentId) {
+            showMessage(t("parentTaskNotExist") || "父任务不存在");
+            return;
+        }
+
+        try {
+            // 读取父任务数据
+            const reminderData = await readReminderData();
+            const parentTask = reminderData[parentId];
+
+            if (!parentTask) {
+                showMessage(t("parentTaskNotExist") || "父任务不存在");
+                return;
+            }
+
+            // 创建新的QuickReminderDialog来编辑父任务
+            const parentDialog = new QuickReminderDialog(
+                parentTask.date,
+                parentTask.time,
+                undefined,
+                parentTask.endDate ? {
+                    isTimeRange: true,
+                    endDate: parentTask.endDate,
+                    endTime: parentTask.endTime
+                } : undefined,
+                {
+                    reminder: parentTask,
+                    mode: 'edit',
+                    plugin: this.plugin,
+                    onSaved: async () => {
+                        // 父任务保存后，刷新当前对话框的父任务显示
+                        await this.updateParentTaskDisplay();
+
+                        // 触发全局刷新事件
+                        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    }
+                }
+            );
+
+            parentDialog.show();
+        } catch (error) {
+            console.error('查看父任务失败:', error);
+            showMessage(t("operationFailed") || "操作失败");
+        }
     }
 }

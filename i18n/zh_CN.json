@@ -861,5 +861,7 @@
     "tagColor": "标签颜色",
     "editTag": "编辑标签",
     "tagUpdated": "标签已更新",
-    "updateTagFailed": "更新标签失败"
+    "updateTagFailed": "更新标签失败",
+    "viewParentTask": "查看父任务",
+    "parentTaskNotExist": "父任务不存在"
 }
