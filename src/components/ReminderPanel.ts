@@ -3010,6 +3010,33 @@ export class ReminderPanel {
                 throw new Error('任务不存在');
             }
 
+            // 获取父任务信息，用于继承属性
+            const parentId = reminderData[childId].parentId;
+            if (parentId && reminderData[parentId]) {
+                const parentTask = reminderData[parentId];
+
+                // 继承父任务的属性（如果子任务没有设置这些属性）
+                // 1. 继承分类（categoryId）
+                if (!reminderData[childId].categoryId && parentTask.categoryId) {
+                    reminderData[childId].categoryId = parentTask.categoryId;
+                }
+
+                // 2. 继承项目（projectId）
+                if (!reminderData[childId].projectId && parentTask.projectId) {
+                    reminderData[childId].projectId = parentTask.projectId;
+                }
+
+                // 3. 继承优先级（priority）
+                if (!reminderData[childId].priority && parentTask.priority) {
+                    reminderData[childId].priority = parentTask.priority;
+                }
+
+                // 4. 继承自定义分组（customGroup）
+                if (!reminderData[childId].customGroup && parentTask.customGroup) {
+                    reminderData[childId].customGroup = parentTask.customGroup;
+                }
+            }
+
             // 移除 parentId
             delete reminderData[childId].parentId;
 
@@ -3643,6 +3670,22 @@ export class ReminderPanel {
                 label: t("pasteCreateSubtask"),
                 click: () => this.showPasteSubtaskDialog(reminder)
             });
+            // 解除父子任务关系（仅当任务有父任务时显示）
+            if (reminder.parentId) {
+                menu.addItem({
+                    iconHTML: "🔓",
+                    label: t("unsetParentRelation"),
+                    click: async () => {
+                        try {
+                            await this.removeParentRelation(reminder);
+                            showMessage(t("taskUnlinkedFromParent").replace("${childTitle}", reminder.title || "任务").replace("${parentTitle}", "父任务"));
+                        } catch (error) {
+                            console.error('解除父子关系失败:', error);
+                            showMessage(t("unlinkParentChildFailed") || "解除父子关系失败");
+                        }
+                    }
+                });
+            }
         } else {
             menu.addItem({
                 iconHTML: "➕",
