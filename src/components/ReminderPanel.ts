@@ -2998,7 +2998,7 @@ export class ReminderPanel {
         // 移除父子关系现在通过拖动到其他任务的上方或下方自动完成
     }
 
-    // 新增：移除父子关系
+    // 新增:移除父子关系
     private async removeParentRelation(childReminder: any, silent: boolean = false) {
         try {
             const reminderData = await readReminderData();
@@ -3012,6 +3012,12 @@ export class ReminderPanel {
 
             // 移除 parentId
             delete reminderData[childId].parentId;
+
+            // 如果任务没有日期，且当前在"今日任务"视图中，自动添加今日日期
+            // 这样可以确保拖拽出来的子任务不会从今日任务视图中消失
+            if (!reminderData[childId].date && this.currentTab === 'today') {
+                reminderData[childId].date = getLocalDateString();
+            }
 
             await writeReminderData(reminderData);
 
