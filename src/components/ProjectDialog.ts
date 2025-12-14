@@ -102,6 +102,11 @@ export class ProjectDialog {
                     </div>
                     
                     <div class="form-group">
+                        <label>${t("projectColor") || "项目颜色"}:</label>
+                        <input type="color" id="projectColor" class="b3-text-field" value="${existingProject?.color || '#3498db'}" style="width: 100%; height: 40px; cursor: pointer;">
+                    </div>
+                    
+                    <div class="form-group">
                         <label>${t("startDate") || "开始日期"}:</label>
                         <input type="date" id="projectStartDate" class="b3-text-field" value="${existingProject?.startDate || today}" max="9999-12-31">
                     </div>
@@ -175,6 +180,7 @@ export class ProjectDialog {
             const statusEl = this.dialog.element.querySelector('#projectStatus') as HTMLSelectElement;
             const priorityEl = this.dialog.element.querySelector('#projectPriority') as HTMLSelectElement;
             const categoryEl = this.dialog.element.querySelector('#projectCategory') as HTMLSelectElement;
+            const colorEl = this.dialog.element.querySelector('#projectColor') as HTMLInputElement;
             const startDateEl = this.dialog.element.querySelector('#projectStartDate') as HTMLInputElement;
             const endDateEl = this.dialog.element.querySelector('#projectEndDate') as HTMLInputElement;
 
@@ -207,6 +213,7 @@ export class ProjectDialog {
                 status: statusEl.value,
                 priority: priorityEl.value,
                 categoryId: categoryEl.value || null,
+                color: colorEl.value,
                 startDate: startDate,
                 endDate: endDate || null,
                 // 保持向后兼容
