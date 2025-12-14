@@ -871,5 +871,6 @@
     "projectHasNTasks": "This project contains ${count} tasks.",
     "deleteProjectTasks": "Delete Project Tasks",
     "confirmDeleteProjectTasks": "Do you want to delete all ${count} tasks in this project?\n\nSelect \"Confirm\" to delete all tasks, or \"Cancel\" to delete only the project.",
-    "projectAndTasksDeleted": "Project and ${count} tasks deleted"
+    "projectAndTasksDeleted": "Project and ${count} tasks deleted",
+    "habitCountsAsSuccess": "Counts as successful check-in"
 }

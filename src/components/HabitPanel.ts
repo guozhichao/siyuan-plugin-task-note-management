@@ -14,6 +14,8 @@ export interface HabitCheckInEmoji {
     meaning: string;
     // 当打卡该emoji时，是否在每次打卡时弹窗输入备注
     promptNote?: boolean;
+    // 是否认为是成功打卡（默认为true）
+    countsAsSuccess?: boolean;
     // value removed: now emoji only has emoji and meaning
 }
 
@@ -477,7 +479,24 @@ export class HabitPanel {
     private isCompletedOnDate(habit: Habit, date: string): boolean {
         const checkIn = habit.checkIns?.[date];
         if (!checkIn) return false;
-        return checkIn.count >= habit.target;
+
+        // 获取当天所有打卡的emoji
+        const emojis: string[] = [];
+        if (checkIn.entries && checkIn.entries.length > 0) {
+            // 使用新格式的entries
+            checkIn.entries.forEach(entry => {
+                if (entry.emoji) emojis.push(entry.emoji);
+            });
+        } else if (checkIn.status && checkIn.status.length > 0) {
+            // 使用旧格式的status
+            emojis.push(...checkIn.status);
+        }
+
+        const target = habit.target || 1;
+        const totalCount = emojis.length;
+
+        // 只要打卡次数达标，就算已完成（不管是成功还是失败）
+        return totalCount >= target;
     }
 
     private applyGroupFilter(habits: Habit[]): Habit[] {

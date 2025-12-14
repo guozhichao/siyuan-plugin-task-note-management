@@ -239,9 +239,29 @@ export class HabitStatsDialog {
     private isCheckInComplete(dateStr: string): boolean {
         const checkIn = this.habit.checkIns?.[dateStr];
         if (!checkIn) return false;
-        const count = checkIn.count || 0;
+
+        // 获取当天所有打卡的emoji
+        const emojis: string[] = [];
+        if (checkIn.entries && checkIn.entries.length > 0) {
+            // 使用新格式的entries
+            checkIn.entries.forEach(entry => {
+                if (entry.emoji) emojis.push(entry.emoji);
+            });
+        } else if (checkIn.status && checkIn.status.length > 0) {
+            // 使用旧格式的status
+            emojis.push(...checkIn.status);
+        }
+
+        // 过滤出认为是成功打卡的emoji
+        const successEmojis = emojis.filter(emoji => {
+            const emojiConfig = this.habit.checkInEmojis?.find(e => e.emoji === emoji);
+            // 如果找不到配置或countsAsSuccess未定义，默认认为是成功打卡
+            return emojiConfig ? (emojiConfig.countsAsSuccess !== false) : true;
+        });
+
+        const successCount = successEmojis.length;
         const target = this.habit.target || 1;
-        return count >= target;
+        return successCount >= target;
     }
 
     private calculateEmojiStats(): Array<{ emoji: string; count: number; percentage: number }> {

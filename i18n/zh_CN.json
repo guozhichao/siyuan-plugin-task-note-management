@@ -871,5 +871,6 @@
     "projectHasNTasks": "该项目包含 ${count} 个任务。",
     "deleteProjectTasks": "删除项目任务",
     "confirmDeleteProjectTasks": "是否同时删除项目的所有 ${count} 个任务？\n\n选择\"确定\"将删除所有任务，选择\"取消\"将仅删除项目。",
-    "projectAndTasksDeleted": "项目及 ${count} 个任务已删除"
+    "projectAndTasksDeleted": "项目及 ${count} 个任务已删除",
+    "habitCountsAsSuccess": "认为是成功打卡"
 }

@@ -28,9 +28,9 @@ export class HabitCheckInEmojiDialog {
         // 如果没有配置,使用默认值
         if (this.emojis.length === 0) {
             this.emojis = [
-                { emoji: '✅', meaning: '完成', promptNote: false },
-                { emoji: '❌', meaning: '未完成', promptNote: false },
-                { emoji: '⭕️', meaning: '部分完成', promptNote: false }
+                { emoji: '✅', meaning: '完成', promptNote: false, countsAsSuccess: true },
+                { emoji: '❌', meaning: '未完成', promptNote: false, countsAsSuccess: false },
+                { emoji: '⭕️', meaning: '部分完成', promptNote: false, countsAsSuccess: true }
             ];
         }
     }
@@ -183,7 +183,7 @@ export class HabitCheckInEmojiDialog {
                 this.sharedPicker = new Picker({
                     i18n: zh_CN,
                     locale: 'zh_CN',
-                    dataSource: window.siyuan.config.system.dataDir+'/plugins/siyuan-plugin-task-note-management/assets/emojis_search.json'
+                    dataSource: window.siyuan.config.system.dataDir + '/plugins/siyuan-plugin-task-note-management/assets/emojis_search.json'
                 }
                 ) as Picker;
             } catch (e) {
@@ -505,12 +505,28 @@ export class HabitCheckInEmojiDialog {
         promptNoteWrap.appendChild(promptNoteCheckbox);
         promptNoteWrap.appendChild(promptNoteText);
 
+        // 是否认为是成功打卡
+        const countsAsSuccessWrap = document.createElement('label');
+        countsAsSuccessWrap.style.cssText = 'display:flex; align-items:center; gap:8px; margin-left:8px;';
+        const countsAsSuccessCheckbox = document.createElement('input');
+        countsAsSuccessCheckbox.type = 'checkbox';
+        countsAsSuccessCheckbox.checked = emojiConfig.countsAsSuccess !== false; // 默认为true
+        countsAsSuccessCheckbox.addEventListener('change', () => {
+            this.emojis[index].countsAsSuccess = (countsAsSuccessCheckbox as HTMLInputElement).checked;
+        });
+        const countsAsSuccessText = document.createElement('span');
+        countsAsSuccessText.textContent = '认为是成功打卡';
+        countsAsSuccessText.style.cssText = 'font-size: 12px; color:var(--b3-theme-on-surface-light);';
+        countsAsSuccessWrap.appendChild(countsAsSuccessCheckbox);
+        countsAsSuccessWrap.appendChild(countsAsSuccessText);
+
         // 把 promptNote 插入到 item，放在含义输入后面
         item.appendChild(emojiContainer);
 
         // - 放置到 DOM 的同一位置，之后会加入拖拽事件
         item.appendChild(meaningInput);
         item.appendChild(promptNoteWrap);
+        item.appendChild(countsAsSuccessWrap);
         item.appendChild(deleteBtn);
 
         // Drag events: support reordering by dragging an item
@@ -607,7 +623,8 @@ export class HabitCheckInEmojiDialog {
         this.emojis.push({
             emoji: '⭐',
             meaning: '新选项',
-            promptNote: false
+            promptNote: false,
+            countsAsSuccess: true
         });
 
         // 重新渲染列表
@@ -634,9 +651,9 @@ export class HabitCheckInEmojiDialog {
 
     private resetToDefault() {
         this.emojis = [
-            { emoji: '✅', meaning: '完成', promptNote: false },
-            { emoji: '❌', meaning: '未完成', promptNote: false },
-            { emoji: '⭕️', meaning: '部分完成', promptNote: false }
+            { emoji: '✅', meaning: '完成', promptNote: false, countsAsSuccess: true },
+            { emoji: '❌', meaning: '未完成', promptNote: false, countsAsSuccess: false },
+            { emoji: '⭕️', meaning: '部分完成', promptNote: false, countsAsSuccess: true }
         ];
 
         // 重新渲染列表
