@@ -2223,6 +2223,50 @@ export class ProjectKanbanView {
         }
     }
 
+    /**
+     * 静态方法：计算给定项目的顶级任务在 kanbanStatus 上的数量（只计顶级，即没有 parentId）
+     * 使用与 getTaskStatus 相同的逻辑，包括日期自动归档到进行中的逻辑
+     */
+    public static countTopLevelTasksByStatus(projectId: string, reminderData: any): { todo: number; doing: number; done: number } {
+        const allReminders = reminderData && typeof reminderData === 'object' ? Object.values(reminderData) : [];
+        let todo = 0, doing = 0, done = 0;
+
+        allReminders.forEach((r: any) => {
+            if (!r || typeof r !== 'object') return;
+            // 仅统计属于该 project 且为顶级任务（parentId 严格为 undefined/null/空字符串认为是顶级）
+            const hasParent = r.hasOwnProperty('parentId') && r.parentId !== undefined && r.parentId !== null && String(r.parentId).trim() !== '';
+            if (r.projectId === projectId && !hasParent) {
+                // 已完成优先判断：completed 字段或 completedTime 存在
+                const isCompleted = !!r.completed || (r.completedTime !== undefined && r.completedTime !== null && String(r.completedTime).trim() !== '');
+                if (isCompleted) {
+                    done += 1;
+                    return;
+                }
+
+                // 使用与 getTaskStatus 相同的逻辑
+                if (r.kanbanStatus === 'doing') {
+                    doing += 1;
+                    return;
+                }
+
+                // 如果未完成的任务设置了日期，且日期为今天或过期，放入进行中列
+                if (r.date) {
+                    const today = getLocalDateString();
+                    const dateComparison = compareDateStrings(r.date, today);
+                    if (dateComparison <= 0) { // 今天或过去
+                        doing += 1;
+                        return;
+                    }
+                }
+
+                // 其他情况计入待办
+                todo += 1;
+            }
+        });
+
+        return { todo, doing, done };
+    }
+
     private getTaskStatus(task: any): string {
         if (task.completed) return 'done';
         if (task.kanbanStatus === 'doing') return 'doing';

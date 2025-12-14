@@ -10,6 +10,7 @@ import { StatusManager } from "../utils/statusManager";
 import { ProjectDialog } from "./ProjectDialog";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { StatusManageDialog } from "./StatusManageDialog";
+import { ProjectKanbanView } from "./ProjectKanbanView";
 import { t } from "../utils/i18n";
 
 
@@ -1047,30 +1048,10 @@ export class ProjectPanel {
 
     /**
      * 计算给定项目的顶级任务在 kanbanStatus 上的数量（只计顶级，即没有 parentId）
+     * 使用 ProjectKanbanView 的静态方法，确保统计逻辑一致（包括日期自动归档到进行中的逻辑）
      */
     private countTopLevelKanbanStatus(projectId: string, reminderData: any): { todo: number; doing: number; done: number } {
-        const allReminders = reminderData && typeof reminderData === 'object' ? Object.values(reminderData) : [];
-        let todo = 0, doing = 0, done = 0;
-
-        allReminders.forEach((r: any) => {
-            if (!r || typeof r !== 'object') return;
-            // 仅统计属于该 project 且为顶级任务（parentId 严格为 undefined/null/空字符串认为是顶级）
-            const hasParent = r.hasOwnProperty('parentId') && r.parentId !== undefined && r.parentId !== null && String(r.parentId).trim() !== '';
-            if (r.projectId === projectId && !hasParent) {
-                // 已完成优先判断：completed 字段或 completedTime 存在
-                const isCompleted = !!r.completed || (r.completedTime !== undefined && r.completedTime !== null && String(r.completedTime).trim() !== '');
-                if (isCompleted) {
-                    done += 1;
-                    return;
-                }
-
-                const status = (r.kanbanStatus || '').toString();
-                if (status === 'doing') doing += 1;
-                else todo += 1;
-            }
-        });
-
-        return { todo, doing, done };
+        return ProjectKanbanView.countTopLevelTasksByStatus(projectId, reminderData);
     }
 
     /**
