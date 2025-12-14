@@ -851,10 +851,15 @@ export class ProjectPanel {
         doingCountEl.textContent = '进行中: ...';
         countsContainer.appendChild(doingCountEl);
 
-        const todoCountEl = document.createElement('span');
-        todoCountEl.className = 'project-count project-count--todo';
-        todoCountEl.textContent = '待办: ...';
-        countsContainer.appendChild(todoCountEl);
+        const shortTermCountEl = document.createElement('span');
+        shortTermCountEl.className = 'project-count project-count--short-term';
+        shortTermCountEl.textContent = '短期: ...';
+        countsContainer.appendChild(shortTermCountEl);
+
+        const longTermCountEl = document.createElement('span');
+        longTermCountEl.className = 'project-count project-count--long-term';
+        longTermCountEl.textContent = '长期: ...';
+        countsContainer.appendChild(longTermCountEl);
 
 
         const doneCountEl = document.createElement('span');
@@ -929,7 +934,7 @@ export class ProjectPanel {
         infoEl.appendChild(progressWrapper);
 
         // 异步填充计数（使用缓存或实时读取），并同时更新进度条
-        this.fillProjectTopLevelCounts(project.id, todoCountEl, doingCountEl, doneCountEl, pomodoroCountEl, progressBarInner, progressText).catch(err => {
+        this.fillProjectTopLevelCounts(project.id, doingCountEl, shortTermCountEl, longTermCountEl, doneCountEl, pomodoroCountEl, progressBarInner, progressText).catch(err => {
             console.warn('填充项目任务计数失败:', err);
         });
         // 分类显示
@@ -994,9 +999,9 @@ export class ProjectPanel {
     }
 
     /**
-     * 填充某个项目的顶级任务计数到三个元素
+     * 填充某个项目的顶级任务计数到元素
      */
-    private async fillProjectTopLevelCounts(projectId: string, todoEl: HTMLElement, doingEl: HTMLElement, doneEl: HTMLElement, pomodoroEl?: HTMLElement | null, progressBarInner?: HTMLElement | null, progressText?: HTMLElement | null) {
+    private async fillProjectTopLevelCounts(projectId: string, doingEl: HTMLElement, shortTermEl: HTMLElement, longTermEl: HTMLElement, doneEl: HTMLElement, pomodoroEl?: HTMLElement | null, progressBarInner?: HTMLElement | null, progressText?: HTMLElement | null) {
         try {
             let reminderData = this.reminderDataCache;
             if (!reminderData) {
@@ -1007,8 +1012,9 @@ export class ProjectPanel {
             const counts = this.countTopLevelKanbanStatus(projectId, reminderData);
             const totalPomodoro = await this.countProjectTotalPomodoro(projectId, reminderData);
 
-            todoEl.textContent = `${t("todo") || '待办'}: ${counts.todo}`;
             doingEl.textContent = `${t("doing") || '进行中'}: ${counts.doing}`;
+            shortTermEl.textContent = `${t("shortTerm") || '短期'}: ${counts.short_term}`;
+            longTermEl.textContent = `${t("longTerm") || '长期'}: ${counts.long_term}`;
             doneEl.textContent = `${t("done") || '已完成'}: ${counts.done}`;
 
             // 更新番茄钟总数显示
@@ -1024,17 +1030,18 @@ export class ProjectPanel {
                 pomodoroEl.textContent = `🍅 总计: ${totalPomodoro}${focusText}`;
             }
 
-            // 计算进度： done / (todo + doing + done)
+            // 计算进度： done / (doing + short_term + long_term + done)
             if (progressBarInner && progressText) {
-                const total = counts.todo + counts.doing + counts.done;
+                const total = counts.doing + counts.short_term + counts.long_term + counts.done;
                 const percent = total === 0 ? 0 : Math.round((counts.done / total) * 100);
                 progressBarInner.style.width = `${percent}%`;
                 progressText.textContent = `${percent}%`;
             }
         } catch (error) {
             console.error('获取项目顶级任务计数失败:', error);
-            todoEl.textContent = `${t("todo") || '待办'}: ?`;
             doingEl.textContent = `${t("doing") || '进行中'}: ?`;
+            shortTermEl.textContent = `${t("shortTerm") || '短期'}: ?`;
+            longTermEl.textContent = `${t("longTerm") || '长期'}: ?`;
             doneEl.textContent = `${t("done") || '已完成'}: ?`;
             if (pomodoroEl) {
                 pomodoroEl.textContent = `🍅 总计: ?`;
@@ -1050,7 +1057,7 @@ export class ProjectPanel {
      * 计算给定项目的顶级任务在 kanbanStatus 上的数量（只计顶级，即没有 parentId）
      * 使用 ProjectKanbanView 的静态方法，确保统计逻辑一致（包括日期自动归档到进行中的逻辑）
      */
-    private countTopLevelKanbanStatus(projectId: string, reminderData: any): { todo: number; doing: number; done: number } {
+    private countTopLevelKanbanStatus(projectId: string, reminderData: any): { doing: number; short_term: number; long_term: number; done: number } {
         return ProjectKanbanView.countTopLevelTasksByStatus(projectId, reminderData);
     }
 

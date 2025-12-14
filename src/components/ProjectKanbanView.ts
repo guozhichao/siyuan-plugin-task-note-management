@@ -2227,44 +2227,121 @@ export class ProjectKanbanView {
      * 静态方法：计算给定项目的顶级任务在 kanbanStatus 上的数量（只计顶级，即没有 parentId）
      * 使用与 getTaskStatus 相同的逻辑，包括日期自动归档到进行中的逻辑
      */
-    public static countTopLevelTasksByStatus(projectId: string, reminderData: any): { todo: number; doing: number; done: number } {
+    public static countTopLevelTasksByStatus(projectId: string, reminderData: any): { doing: number; short_term: number; long_term: number; done: number } {
         const allReminders = reminderData && typeof reminderData === 'object' ? Object.values(reminderData) : [];
-        let todo = 0, doing = 0, done = 0;
+        let doing = 0, short_term = 0, long_term = 0, done = 0;
+        const today = getLocalDateString();
 
         allReminders.forEach((r: any) => {
             if (!r || typeof r !== 'object') return;
             // 仅统计属于该 project 且为顶级任务（parentId 严格为 undefined/null/空字符串认为是顶级）
             const hasParent = r.hasOwnProperty('parentId') && r.parentId !== undefined && r.parentId !== null && String(r.parentId).trim() !== '';
+
             if (r.projectId === projectId && !hasParent) {
-                // 已完成优先判断：completed 字段或 completedTime 存在
-                const isCompleted = !!r.completed || (r.completedTime !== undefined && r.completedTime !== null && String(r.completedTime).trim() !== '');
-                if (isCompleted) {
-                    done += 1;
-                    return;
-                }
+                // 判断是否为周期任务
+                if (r.repeat && r.repeat.enabled) {
+                    // 周期任务：逻辑需与 loadTasks 保持一致，统计"实例"而非原始任务
+                    const completedInstances = r.repeat.completedInstances || [];
+                    const instanceModifications = r.repeat.instanceModifications || {};
 
-                // 使用与 getTaskStatus 相同的逻辑
-                if (r.kanbanStatus === 'doing') {
-                    doing += 1;
-                    return;
-                }
+                    // 1. 生成实例
+                    // 为了性能，我们近似生成范围：从任务开始时间（或较早前）到未来一年
+                    // 这能覆盖所有"过去未完成"（视为进行中）和"未来"（视为待办/短期/长期）的情况
+                    const rangeStart = r.startDate || r.date || r.createdTime?.split('T')[0] || '2020-01-01';
+                    const futureDate = new Date();
+                    futureDate.setDate(futureDate.getDate() + 365); // 往后一年，确保能覆盖到下一个周期
+                    const rangeEnd = getLocalDateString(futureDate);
 
-                // 如果未完成的任务设置了日期，且日期为今天或过期，放入进行中列
-                if (r.date) {
-                    const today = getLocalDateString();
-                    const dateComparison = compareDateStrings(r.date, today);
-                    if (dateComparison <= 0) { // 今天或过去
+                    let repeatInstances: any[] = [];
+                    try {
+                        repeatInstances = generateRepeatInstances(r, rangeStart, rangeEnd);
+                    } catch (e) {
+                        console.error('生成重复实例失败', e);
+                        repeatInstances = [];
+                    }
+
+                    // 2. 模拟 loadTasks 的筛选逻辑
+                    let hasTodayIncomplete = false;
+                    const futureIncompleteList: any[] = [];
+
+                    repeatInstances.forEach((instance: any) => {
+                        const instanceIdStr = (instance as any).instanceId || `${r.id}_${instance.date}`;
+                        const originalKey = instanceIdStr.split('_').pop() || instance.date;
+                        const isInstanceCompleted = completedInstances.includes(originalKey);
+                        const instanceMod = instanceModifications[originalKey] || {};
+
+                        const dateComparison = compareDateStrings(instance.date, today);
+
+                        if (isInstanceCompleted) {
+                            // 所有已完成的实例都会显示在看板上，计入 done
+                            done++;
+                        } else {
+                            // 未完成实例处理
+                            if (dateComparison <= 0) {
+                                // 过去或今天的未完成实例 -> 计入 doing (自动归档逻辑)
+                                doing++;
+                                if (dateComparison === 0) hasTodayIncomplete = true;
+                            } else {
+                                // 未来的未完成实例，先收集
+                                futureIncompleteList.push({
+                                    ...instance,
+                                    // 合并修改属性以便后续判断状态
+                                    kanbanStatus: instanceMod.kanbanStatus || r.kanbanStatus,
+                                    termType: instanceMod.termType || r.termType
+                                });
+                            }
+                        }
+                    });
+
+                    // 3. 处理未来实例显示规则：
+                    // 如果今天没有未完成实例，则显示未来第一个未完成实例
+                    if (!hasTodayIncomplete && futureIncompleteList.length > 0) {
+                        const firstFuture = futureIncompleteList[0];
+                        // 判断这个未来实例的状态
+                        if (firstFuture.kanbanStatus === 'doing') {
+                            doing++;
+                        } else {
+                            const tType = firstFuture.termType;
+                            if (tType === 'long_term') long_term++;
+                            else if (tType === 'doing') doing++;
+                            else short_term++; // 默认为短期
+                        }
+                    }
+
+                } else {
+                    // 非周期任务：原有逻辑
+                    const isCompleted = !!r.completed || (r.completedTime !== undefined && r.completedTime !== null && String(r.completedTime).trim() !== '');
+                    if (isCompleted) {
+                        done += 1;
+                        return;
+                    }
+
+                    if (r.kanbanStatus === 'doing') {
                         doing += 1;
                         return;
                     }
-                }
 
-                // 其他情况计入待办
-                todo += 1;
+                    if (r.date) {
+                        const dateComparison = compareDateStrings(r.date, today);
+                        if (dateComparison <= 0) { // 今天或过去
+                            doing += 1;
+                            return;
+                        }
+                    }
+
+                    // 根据termType确定是长期还是短期
+                    if (r.termType === 'long_term') {
+                        long_term += 1;
+                    } else if (r.termType === 'doing') {
+                        doing += 1;
+                    } else {
+                        short_term += 1; // 默认为短期
+                    }
+                }
             }
         });
 
-        return { todo, doing, done };
+        return { doing, short_term, long_term, done };
     }
 
     private getTaskStatus(task: any): string {
@@ -2791,7 +2868,9 @@ export class ProjectKanbanView {
 
         // 更新列顶部计数
         if (count) {
-            count.textContent = tasks.length.toString();
+            const taskMap = new Map(tasks.map(t => [t.id, t]));
+            const topLevelTasks = tasks.filter(t => !t.parentId || !taskMap.has(t.parentId));
+            count.textContent = topLevelTasks.length.toString();
         }
     }
 
@@ -3383,14 +3462,10 @@ export class ProjectKanbanView {
 
         const taskCount = document.createElement('span');
         taskCount.className = 'custom-status-group-count';
-        // 进行中、短期、长期分组只显示顶层任务数量，已完成分组显示所有已完成任务（包括子任务）
-        if (status === 'completed') {
-            taskCount.textContent = tasks.length.toString();
-        } else {
-            const taskMapLocal = new Map(tasks.map((t: any) => [t.id, t]));
-            const topLevel = tasks.filter((t: any) => !t.parentId || !taskMapLocal.has(t.parentId));
-            taskCount.textContent = topLevel.length.toString();
-        }
+        // 进行中、短期、长期、已完成分组都只显示顶层任务数量
+        const taskMapLocal = new Map(tasks.map((t: any) => [t.id, t]));
+        const topLevel = tasks.filter((t: any) => !t.parentId || !taskMapLocal.has(t.parentId));
+        taskCount.textContent = topLevel.length.toString();
         taskCount.style.cssText = `
             background: ${group.color};
             color: white;
