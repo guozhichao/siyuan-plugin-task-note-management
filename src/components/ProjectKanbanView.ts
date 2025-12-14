@@ -2744,56 +2744,6 @@ export class ProjectKanbanView {
         groupContainer.className = `status-stable-group status-stable-${config.status}`;
         groupContainer.dataset.status = config.status;
 
-        // 分组标题
-        const groupHeader = document.createElement('div');
-        groupHeader.className = 'status-stable-group-header';
-        groupHeader.style.cssText = `
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 8px 12px;
-            background: var(--b3-theme-surface-lighter);
-            border: 1px solid var(--b3-theme-border);
-            border-radius: 6px;
-            cursor: pointer;
-        `;
-
-        const groupTitle = document.createElement('div');
-        groupTitle.className = 'status-stable-group-title';
-        groupTitle.style.cssText = `
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-weight: 600;
-            color: var(--b3-theme-on-surface);
-            font-size: 13px;
-        `;
-
-        const groupIcon = document.createElement('span');
-        groupIcon.textContent = config.icon;
-        groupTitle.appendChild(groupIcon);
-
-        const groupName = document.createElement('span');
-        groupName.textContent = config.label;
-        groupTitle.appendChild(groupName);
-
-        const taskCount = document.createElement('span');
-        taskCount.className = 'status-stable-group-count';
-        taskCount.style.cssText = `
-            background: var(--b3-theme-primary);
-            color: white;
-            border-radius: 10px;
-            padding: 2px 6px;
-            font-size: 11px;
-            font-weight: 500;
-            min-width: 18px;
-            text-align: center;
-        `;
-        taskCount.textContent = '0';
-
-        groupHeader.appendChild(groupTitle);
-        groupHeader.appendChild(taskCount);
-
         // 分组任务容器
         const groupTasksContainer = document.createElement('div');
         groupTasksContainer.className = 'status-stable-group-tasks';
@@ -2808,7 +2758,6 @@ export class ProjectKanbanView {
             this.addStatusSubGroupDropEvents(groupTasksContainer, config.status);
         }
 
-        groupContainer.appendChild(groupHeader);
         groupContainer.appendChild(groupTasksContainer);
 
         return groupContainer;
