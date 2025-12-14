@@ -295,11 +295,19 @@ export class CalendarView {
             scrollTime: '08:00:00', // 视图将滚动到此时间
             firstDay: weekStartDay, // 使用用户设置的周开始日
             nowIndicator: true, // 显示当前时间指示线
+            snapDuration: '00:05:00', // 设置吸附间隔为5分钟
+            slotDuration: '00:15:00', // 设置默认时间间隔为15分钟
+            slotLabelFormat: {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            },
             eventClassNames: 'reminder-calendar-event',
             eventContent: this.renderEventContent.bind(this),
             eventClick: this.handleEventClick.bind(this),
             eventDrop: this.handleEventDrop.bind(this),
             eventResize: this.handleEventResize.bind(this),
+            eventAllow: this.handleEventAllow.bind(this),
             dateClick: this.handleDateClick.bind(this),
             select: this.handleDateSelect.bind(this),
             // 移除自动事件源，改为手动管理事件
@@ -383,6 +391,9 @@ export class CalendarView {
 
         // 添加窗口大小变化监听器
         this.addResizeListeners();
+
+        // 添加滚轮缩放监听器
+        this.addWheelZoomListener(calendarEl);
 
         // 设置日历实例到任务摘要管理器
         this.taskSummaryDialog.setCalendar(this.calendar);
@@ -1676,8 +1687,23 @@ export class CalendarView {
         const reminderId = info.event.id;
         const originalReminder = info.event.extendedProps;
 
-        // 如果是重复事件实例，询问用户如何应用更改
+        // 如果是重复事件实例
         if (originalReminder.isRepeated) {
+            // 检查该实例是否已经被修改过
+            const originalId = originalReminder.originalId;
+            const instanceDate = info.event.startStr.split('T')[0];
+
+            const reminderData = await readReminderData();
+            const originalEvent = reminderData[originalId];
+            const isAlreadyModified = originalEvent?.repeat?.instanceModifications?.[instanceDate];
+
+            // 如果实例已经被修改过,直接更新该实例,不再询问
+            if (isAlreadyModified) {
+                await this.updateSingleInstance(info);
+                return;
+            }
+
+            // 否则询问用户如何应用更改
             const result = await this.askApplyToAllInstances();
 
             if (result === 'cancel') {
@@ -1706,8 +1732,23 @@ export class CalendarView {
         const reminderId = info.event.id;
         const originalReminder = info.event.extendedProps;
 
-        // 如果是重复事件实例，询问用户如何应用更改
+        // 如果是重复事件实例
         if (originalReminder.isRepeated) {
+            // 检查该实例是否已经被修改过
+            const originalId = originalReminder.originalId;
+            const instanceDate = info.event.startStr.split('T')[0];
+
+            const reminderData = await readReminderData();
+            const originalEvent = reminderData[originalId];
+            const isAlreadyModified = originalEvent?.repeat?.instanceModifications?.[instanceDate];
+
+            // 如果实例已经被修改过,直接更新该实例,不再询问
+            if (isAlreadyModified) {
+                await this.updateSingleInstance(info);
+                return;
+            }
+
+            // 否则询问用户如何应用更改
             const result = await this.askApplyToAllInstances();
 
             if (result === 'cancel') {
@@ -1730,6 +1771,137 @@ export class CalendarView {
             // 非重复事件，或重复事件的原始事件，直接更新
             await this.updateEventTime(reminderId, info, true);
         }
+    }
+
+    /**
+     * 处理事件移动和调整大小时的吸附逻辑
+     * 当任务拖动到当前时间附近时，自动吸附到当前时间
+     */
+    private handleEventAllow(dropInfo: any, draggedEvent: any): boolean {
+        const view = this.calendar.view;
+
+        // 只在周视图和日视图中启用当前时间吸附
+        if (view.type !== 'timeGridWeek' && view.type !== 'timeGridDay') {
+            return true;
+        }
+
+        // 全天事件不需要吸附到当前时间
+        if (draggedEvent.allDay) {
+            return true;
+        }
+
+        const now = new Date();
+        const dropStart = dropInfo.start;
+
+        // 计算拖动目标时间与当前时间的差值（毫秒）
+        const timeDiff = Math.abs(dropStart.getTime() - now.getTime());
+        const minutesDiff = timeDiff / (1000 * 60);
+
+        // 如果差值小于10分钟，吸附到当前时间
+        if (minutesDiff < 10) {
+            // 计算事件的持续时间
+            const duration = draggedEvent.end ? draggedEvent.end.getTime() - draggedEvent.start.getTime() : 0;
+
+            // 修改dropInfo的开始时间为当前时间
+            dropInfo.start = new Date(now);
+
+            // 如果有结束时间，保持持续时间不变
+            if (duration > 0) {
+                dropInfo.end = new Date(now.getTime() + duration);
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * 添加滚轮缩放监听器
+     * 支持在周视图和日视图中按住Ctrl+滚轮放大缩小时间刻度
+     * 缩放时以鼠标位置为中心,保持鼠标所在时间点的相对位置不变
+     */
+    private addWheelZoomListener(calendarEl: HTMLElement) {
+        const slotDurations = ['00:05:00', '00:15:00', '00:30:00', '01:00:00']; // 5分钟、15分钟、30分钟、1小时
+        let currentSlotIndex = 1; // 默认15分钟
+
+        calendarEl.addEventListener('wheel', (e: WheelEvent) => {
+            // 只在按住Ctrl键时处理
+            if (!e.ctrlKey) {
+                return;
+            }
+
+            const view = this.calendar.view;
+
+            // 只在周视图和日视图中启用缩放
+            if (view.type !== 'timeGridWeek' && view.type !== 'timeGridDay') {
+                return;
+            }
+
+            e.preventDefault();
+
+            // 获取时间网格滚动容器
+            const timeGridScroller = calendarEl.querySelector('.fc-scroller.fc-scroller-liquid-absolute') as HTMLElement;
+            if (!timeGridScroller) {
+                console.warn('未找到时间网格滚动容器');
+                return;
+            }
+
+            // 获取缩放前的滚动位置和鼠标相对位置
+            const scrollTop = timeGridScroller.scrollTop;
+            const mouseY = e.clientY;
+            const scrollerRect = timeGridScroller.getBoundingClientRect();
+            const relativeMouseY = mouseY - scrollerRect.top + scrollTop;
+
+            // 根据滚轮方向调整时间刻度
+            const oldSlotIndex = currentSlotIndex;
+            if (e.deltaY < 0) {
+                // 向上滚动 - 放大（减小时间间隔）
+                if (currentSlotIndex > 0) {
+                    currentSlotIndex--;
+                }
+            } else {
+                // 向下滚动 - 缩小（增大时间间隔）
+                if (currentSlotIndex < slotDurations.length - 1) {
+                    currentSlotIndex++;
+                }
+            }
+
+            // 如果刻度没有变化,直接返回
+            if (oldSlotIndex === currentSlotIndex) {
+                return;
+            }
+
+            // 更新日历的时间刻度
+            this.calendar.setOption('slotDuration', slotDurations[currentSlotIndex]);
+
+            // 使用双重 requestAnimationFrame 确保 DOM 完全更新后再调整滚动位置
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    const newTimeGridScroller = calendarEl.querySelector('.fc-scroller.fc-scroller-liquid-absolute') as HTMLElement;
+                    if (!newTimeGridScroller) return;
+
+                    // 计算缩放比例 (注意: 时间间隔越小,内容高度越大,所以是反比关系)
+                    const oldDuration = this.parseDuration(slotDurations[oldSlotIndex]);
+                    const newDuration = this.parseDuration(slotDurations[currentSlotIndex]);
+                    const zoomRatio = oldDuration / newDuration; // 反比关系
+
+                    // 计算新的滚动位置,使鼠标位置对应的时间点保持在相同的相对位置
+                    const newScrollTop = relativeMouseY * zoomRatio - (mouseY - scrollerRect.top);
+
+                    newTimeGridScroller.scrollTop = newScrollTop;
+                });
+            });
+        }, { passive: false });
+    }
+
+    /**
+     * 解析时间字符串为分钟数
+     * @param duration 格式如 '00:15:00'
+     */
+    private parseDuration(duration: string): number {
+        const parts = duration.split(':');
+        const hours = parseInt(parts[0], 10);
+        const minutes = parseInt(parts[1], 10);
+        return hours * 60 + minutes;
     }
 
     private async updateRecurringEventSeries(info: any) {
