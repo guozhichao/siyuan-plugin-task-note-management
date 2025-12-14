@@ -65,7 +65,7 @@ export class ProjectDialog {
 
         return `
             <div class="project-dialog">
-                <div class="project-form">
+                <div class="b3-dialog__content">
                     <div class="form-group">
                         <label>${t("eventName") || "项目名称"}:</label>
                         <input type="text" id="projectTitle" class="b3-text-field" style="width: 100%;" value="${existingProject?.title || title}" placeholder="${t("pleaseEnterTitle") || "输入项目名称"}">
@@ -117,7 +117,7 @@ export class ProjectDialog {
                     </div>
                 </div>
                 
-                <div class="dialog-buttons">
+                <div class="b3-dialog__action">
                     <button class="b3-button b3-button--cancel" id="cancelBtn">${t("cancel") || "取消"}</button>
                     <button class="b3-button b3-button--text" id="saveBtn">${t("save") || "保存"}</button>
                 </div>
