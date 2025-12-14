@@ -4,7 +4,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
 import { refreshSql, readReminderData, writeReminderData, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark, openBlock, readProjectData } from "../api";
-import { getLocalDateString, getLocalDateTime, getLocalDateTimeString } from "../utils/dateUtils";
+import { getLocalDateString, getLocalDateTime, getLocalDateTimeString, compareDateStrings } from "../utils/dateUtils";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
@@ -13,7 +13,7 @@ import { CategoryManageDialog } from "./CategoryManageDialog";
 import { ProjectColorDialog } from "./ProjectColorDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { t } from "../utils/i18n";
-import { generateRepeatInstances, RepeatInstance } from "../utils/repeatUtils";
+import { generateRepeatInstances, RepeatInstance, getDaysDifference, addDaysToDate } from "../utils/repeatUtils";
 import { CalendarConfigManager } from "../utils/calendarConfigManager";
 import { TaskSummaryDialog } from "@/components/TaskSummaryDialog";
 import { PomodoroManager } from "../utils/pomodoroManager";
@@ -2623,12 +2623,18 @@ export class CalendarView {
                     const completedInstances = reminder.repeat?.completedInstances || [];
                     const instanceModifications = reminder.repeat?.instanceModifications || {};
 
+                    // 用于跟踪已处理的实例（使用原始日期键）
+                    const processedInstances = new Set<string>();
+
                     // 批量处理实例，减少重复计算
                     for (const instance of repeatInstances) {
                         // 使用 instance.instanceId（由 generateRepeatInstances 生成，格式为 <reminder.id>_YYYY-MM-DD）
                         // 从中提取原始实例日期键 originalKey，用于查找完成状态和 instanceModifications。
                         const instanceIdStr = (instance as any).instanceId || `${reminder.id}_${instance.date}`;
                         const originalKey = instanceIdStr.split('_').pop() || instance.date;
+
+                        // 标记此实例已处理
+                        processedInstances.add(originalKey);
 
                         // completedInstances 和 instanceModifications 都以原始实例日期键为索引
                         const isInstanceCompleted = completedInstances.includes(originalKey);
@@ -2647,6 +2653,53 @@ export class CalendarView {
                         // 事件 id 应使用原始实例键，以便后续的拖拽/保存逻辑能够基于原始实例键进行修改，避免产生重复的 instanceModifications 条目
                         const uniqueInstanceId = `${reminder.id}_instance_${originalKey}`;
                         this.addEventToList(events, instanceReminder, uniqueInstanceId, true, instance.originalId);
+                    }
+
+                    // 处理被移动到当前视图范围内但原始日期不在范围内的实例
+                    // 这些实例不会被 generateRepeatInstances 返回，因为它只检查符合重复规则的日期
+                    for (const [originalDateKey, modification] of Object.entries(instanceModifications)) {
+                        // 如果此实例已经被处理过，跳过
+                        if (processedInstances.has(originalDateKey)) {
+                            continue;
+                        }
+
+                        // 类型断言：modification 是实例修改对象
+                        const mod = modification as any;
+
+                        // 检查修改后的日期是否在当前视图范围内
+                        const modifiedDate = mod.date || originalDateKey;
+                        if (compareDateStrings(modifiedDate, startDate) >= 0 &&
+                            compareDateStrings(modifiedDate, endDate) <= 0) {
+
+                            // 检查是否在排除列表中
+                            const excludeDates = reminder.repeat?.excludeDates || [];
+                            if (excludeDates.includes(originalDateKey)) {
+                                continue;
+                            }
+
+                            // 检查此实例是否已完成
+                            const isInstanceCompleted = completedInstances.includes(originalDateKey);
+
+                            // 计算结束日期（如果有）
+                            let modifiedEndDate = mod.endDate;
+                            if (!modifiedEndDate && reminder.endDate && reminder.date) {
+                                const daysDiff = getDaysDifference(reminder.date, reminder.endDate);
+                                modifiedEndDate = addDaysToDate(modifiedDate, daysDiff);
+                            }
+
+                            const instanceReminder = {
+                                ...reminder,
+                                date: modifiedDate,
+                                endDate: modifiedEndDate || reminder.endDate,
+                                time: mod.time || reminder.time,
+                                endTime: mod.endTime || reminder.endTime,
+                                completed: isInstanceCompleted,
+                                note: mod.note || ''
+                            };
+
+                            const uniqueInstanceId = `${reminder.id}_instance_${originalDateKey}`;
+                            this.addEventToList(events, instanceReminder, uniqueInstanceId, true, reminder.id);
+                        }
                     }
                 }
             }

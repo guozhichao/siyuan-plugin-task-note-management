@@ -269,7 +269,7 @@ function getNextDate(currentDate: Date, repeatConfig: RepeatConfig): Date {
 /**
  * 计算两个日期之间的天数差
  */
-function getDaysDifference(startDate: string, endDate: string): number {
+export function getDaysDifference(startDate: string, endDate: string): number {
     const start = new Date(startDate + 'T00:00:00');
     const end = new Date(endDate + 'T00:00:00');
     return Math.floor((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
@@ -278,7 +278,7 @@ function getDaysDifference(startDate: string, endDate: string): number {
 /**
  * 给日期添加指定天数
  */
-function addDaysToDate(dateStr: string, days: number): string {
+export function addDaysToDate(dateStr: string, days: number): string {
     const date = new Date(dateStr + 'T00:00:00');
     date.setDate(date.getDate() + days);
     return getLocalDateString(date); // 使用本地日期字符串
