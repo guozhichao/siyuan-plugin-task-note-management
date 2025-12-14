@@ -865,5 +865,10 @@
     "viewParentTask": "View Parent Task",
     "parentTaskNotExist": "Parent task does not exist",
     "setToNow": "Set to Now",
-    "clearCompletedTime": "Clear Completed Time"
+    "clearCompletedTime": "Clear Completed Time",
+    "confirmDeleteProject": "Are you sure you want to delete project \"${title}\"?",
+    "projectHasNTasks": "This project contains ${count} tasks.",
+    "deleteProjectTasks": "Delete Project Tasks",
+    "confirmDeleteProjectTasks": "Do you want to delete all ${count} tasks in this project?\n\nSelect \"Confirm\" to delete all tasks, or \"Cancel\" to delete only the project.",
+    "projectAndTasksDeleted": "Project and ${count} tasks deleted"
 }

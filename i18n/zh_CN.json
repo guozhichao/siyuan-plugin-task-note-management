@@ -865,5 +865,10 @@
     "viewParentTask": "查看父任务",
     "parentTaskNotExist": "父任务不存在",
     "setToNow": "设为当前时间",
-    "clearCompletedTime": "清除完成时间"
+    "clearCompletedTime": "清除完成时间",
+    "confirmDeleteProject": "确定要删除项目\"${title}\"吗？",
+    "projectHasNTasks": "该项目包含 ${count} 个任务。",
+    "deleteProjectTasks": "删除项目任务",
+    "confirmDeleteProjectTasks": "是否同时删除项目的所有 ${count} 个任务？\n\n选择\"确定\"将删除所有任务，选择\"取消\"将仅删除项目。",
+    "projectAndTasksDeleted": "项目及 ${count} 个任务已删除"
 }

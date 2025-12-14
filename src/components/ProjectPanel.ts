@@ -3,7 +3,7 @@ import { PomodoroStatsView } from "./PomodoroStatsView";
 
 // 添加四象限面板常量
 const EISENHOWER_TAB_TYPE = "reminder_eisenhower_tab";
-import { readProjectData, writeProjectData, getBlockByID, openBlock, readReminderData } from "../api";
+import { readProjectData, writeProjectData, getBlockByID, openBlock, readReminderData, writeReminderData } from "../api";
 import { getLocalDateString, compareDateStrings } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { StatusManager } from "../utils/statusManager";
@@ -1718,27 +1718,96 @@ export class ProjectPanel {
     }
 
     private async deleteProject(project: any) {
-        await confirm(
-            "删除项目",
-            `${t("confirmDelete")?.replace("${title}", project.title) || `确定要删除项目"${project.title}"吗？`}`,
-            async () => {
-                try {
-                    const projectData = await readProjectData();
-                    if (projectData[project.id]) {
-                        delete projectData[project.id];
-                        await writeProjectData(projectData);
-                        window.dispatchEvent(new CustomEvent('projectUpdated'));
-                        this.loadProjects();
-                        showMessage(t("projectDeleted") || "项目删除成功");
-                    } else {
-                        showMessage(t("projectNotExist") || "项目不存在");
-                    }
-                } catch (error) {
-                    console.error('删除项目失败:', error);
-                    showMessage(t("deleteProjectFailed") || "删除项目失败");
-                }
+        // 首先检查是否有关联的任务
+        try {
+            const reminderData = await readReminderData();
+            const projectTasks = Object.values(reminderData).filter((reminder: any) =>
+                reminder && reminder.projectId === project.id
+            );
+
+            const taskCount = projectTasks.length;
+
+            // 构建确认消息
+            let confirmMessage = t("confirmDeleteProject")?.replace("${title}", project.title) || `确定要删除项目"${project.title}"吗？`;
+
+            if (taskCount > 0) {
+                const taskCountMessage = t("projectHasNTasks")?.replace("${count}", taskCount.toString()) || `该项目包含 ${taskCount} 个任务。`;
+                confirmMessage = `${confirmMessage}\n\n${taskCountMessage}`;
             }
-        );
+
+            await confirm(
+                t("deleteProject") || "删除项目",
+                confirmMessage,
+                async () => {
+                    // 如果有任务，询问是否一并删除
+                    if (taskCount > 0) {
+                        await confirm(
+                            t("deleteProjectTasks") || "删除项目任务",
+                            t("confirmDeleteProjectTasks")?.replace("${count}", taskCount.toString()) || `是否同时删除项目的所有 ${taskCount} 个任务？\n\n选择"确定"将删除所有任务，选择"取消"将仅删除项目。`,
+                            async () => {
+                                // 用户选择删除任务
+                                await this.deleteProjectAndTasks(project.id, true);
+                            },
+                            async () => {
+                                // 用户选择不删除任务
+                                await this.deleteProjectAndTasks(project.id, false);
+                            }
+                        );
+                    } else {
+                        // 没有任务，直接删除项目
+                        await this.deleteProjectAndTasks(project.id, false);
+                    }
+                }
+            );
+        } catch (error) {
+            console.error('检查项目任务失败:', error);
+            showMessage(t("deleteProjectFailed") || "删除项目失败");
+        }
+    }
+
+    private async deleteProjectAndTasks(projectId: string, deleteTasks: boolean) {
+        try {
+            const projectData = await readProjectData();
+            if (!projectData[projectId]) {
+                showMessage(t("projectNotExist") || "项目不存在");
+                return;
+            }
+
+            // 删除项目
+            delete projectData[projectId];
+            await writeProjectData(projectData);
+
+            // 如果需要删除任务
+            if (deleteTasks) {
+                const reminderData = await readReminderData();
+                let deletedCount = 0;
+
+                // 删除所有关联的任务
+                Object.keys(reminderData).forEach(reminderId => {
+                    const reminder = reminderData[reminderId];
+                    if (reminder && reminder.projectId === projectId) {
+                        delete reminderData[reminderId];
+                        deletedCount++;
+                    }
+                });
+
+                if (deletedCount > 0) {
+                    await writeReminderData(reminderData);
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    showMessage(t("projectAndTasksDeleted")?.replace("${count}", deletedCount.toString()) || `项目及 ${deletedCount} 个任务已删除`);
+                } else {
+                    showMessage(t("projectDeleted") || "项目删除成功");
+                }
+            } else {
+                showMessage(t("projectDeleted") || "项目删除成功");
+            }
+
+            window.dispatchEvent(new CustomEvent('projectUpdated'));
+            this.loadProjects();
+        } catch (error) {
+            console.error('删除项目失败:', error);
+            showMessage(t("deleteProjectFailed") || "删除项目失败");
+        }
     }
 
     private async openProject(blockId: string) {
