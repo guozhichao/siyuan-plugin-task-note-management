@@ -76,6 +76,17 @@ export class ProjectDialog {
                         <textarea id="projectNote" class="b3-text-field" rows="3" style="width: 100%;" placeholder="${t("enterReminderNote") || "输入项目描述"}">${existingProject?.note || ''}</textarea>
                     </div>
                     
+                    <!-- 绑定块/文档输入，允许手动输入块 ID 或文档 ID -->
+                    <div class="form-group">
+                        <label>${t("bindToBlock") || '块或文档 ID'}:</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="projectBlockInput" class="b3-text-field" value="${existingProject?.blockId || this.blockId || ''}" placeholder="${t("enterBlockId") || '请输入块或文档 ID'}" style="flex: 1;">
+                            <button type="button" id="projectPasteBlockRefBtn" class="b3-button b3-button--outline" title="${t("pasteBlockRef")}">
+                                <svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg>
+                            </button>
+                        </div>
+                    </div>
+                    
                     <div class="form-group">
                         <label>${t("projectStatus") || "项目状态"}:</label>
                         <select id="projectStatus" class="b3-select">
@@ -156,6 +167,8 @@ export class ProjectDialog {
     private bindEvents() {
         const saveBtn = this.dialog.element.querySelector('#saveBtn') as HTMLButtonElement;
         const cancelBtn = this.dialog.element.querySelector('#cancelBtn') as HTMLButtonElement;
+        const pasteBlockRefBtn = this.dialog.element.querySelector('#projectPasteBlockRefBtn') as HTMLButtonElement;
+        const blockInput = this.dialog.element.querySelector('#projectBlockInput') as HTMLInputElement;
 
         saveBtn?.addEventListener('click', () => {
             this.saveProject();
@@ -165,12 +178,46 @@ export class ProjectDialog {
             this.dialog.destroy();
         });
 
+        // 粘贴块引用按钮
+        pasteBlockRefBtn?.addEventListener('click', async () => {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text) {
+                    // 提取块ID（支持多种格式：siyuan://blocks/xxx 或 ((xxx)) 或直接的ID）
+                    const blockId = this.extractBlockId(text) || text.trim();
+                    if (blockInput) {
+                        blockInput.value = blockId;
+                    }
+                }
+            } catch (error) {
+                console.error('读取剪贴板失败:', error);
+                showMessage(t("pasteBlockRefFailed") || "粘贴失败");
+            }
+        });
+
         // 回车键保存
         this.dialog.element.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                 this.saveProject();
             }
         });
+    }
+
+    // 提取块ID的辅助方法
+    private extractBlockId(text: string): string | null {
+        // 匹配 siyuan://blocks/xxx 格式
+        const siyuanMatch = text.match(/siyuan:\/\/blocks\/([a-zA-Z0-9-]+)/);
+        if (siyuanMatch) return siyuanMatch[1];
+
+        // 匹配 ((xxx)) 格式
+        const refMatch = text.match(/\(\(([a-zA-Z0-9-]+)\)\)/);
+        if (refMatch) return refMatch[1];
+
+        // 匹配纯ID格式（20位字母数字组合）
+        const idMatch = text.match(/^([a-zA-Z0-9-]{20})$/);
+        if (idMatch) return idMatch[1];
+
+        return null;
     }
 
     private async saveProject() {
@@ -205,9 +252,14 @@ export class ProjectDialog {
             const projectId = this.blockId || `quick_${Date.now()}`;
             const existingProject = this.blockId ? projectData[this.blockId] : null;
 
+            // 获取块ID输入框的值
+            const blockInputEl = this.dialog.element.querySelector('#projectBlockInput') as HTMLInputElement;
+            const rawBlockVal = blockInputEl?.value?.trim() || '';
+            const inputBlockId = rawBlockVal ? (this.extractBlockId(rawBlockVal) || rawBlockVal) : null;
+
             const project = {
                 id: projectId,
-                blockId: existingProject ? existingProject.blockId : (this.blockId || null),
+                blockId: inputBlockId || null,
                 title: title,
                 note: noteEl.value.trim(),
                 status: statusEl.value,
