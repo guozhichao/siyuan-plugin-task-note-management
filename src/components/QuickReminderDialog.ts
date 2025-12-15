@@ -481,6 +481,16 @@ export class QuickReminderDialog {
                 } else {
                     endDateInput.value = this.reminder.endDate;
                 }
+            } else if (this.reminder.endTime) {
+                // 如果有 endTime 但没有 endDate，默认 endDate 为任务的开始日期或今天
+                const defaultEndDate = this.reminder.date || getLocalDateString();
+                if (this.reminder.time) {
+                    // 如果开始时间存在，使用 datetime-local 格式
+                    endDateInput.value = `${defaultEndDate}T${this.reminder.endTime}`;
+                } else {
+                    // 如果开始时间不存在，只设置日期
+                    endDateInput.value = defaultEndDate;
+                }
             }
         } else {
             // 无日期
