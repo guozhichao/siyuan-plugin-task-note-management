@@ -597,7 +597,7 @@
             let normalized = value as string;
             try {
                 if (typeof normalized === 'string' && normalizeForXiaomi) {
-                    normalized = normalized.replace(/DURATION:P(\\d+)DT/g, 'DURATION:P$1D');
+                    normalized = normalized.replace(/DURATION:P(\d+)DT/g, 'DURATION:P$1D');
                 }
             } catch (e) {
                 console.warn('ICS 替换 DURATION 失败', e);
@@ -689,7 +689,7 @@
                 settings.icsCloudUrl = fullUrl;
                 await plugin.saveData(SETTINGS_FILE, settings);
                 updateGroupItems();
-            } 
+            }
         } catch (err) {
             console.error('上传ICS到云端失败:', err);
             await pushErrMsg('上传ICS到云端失败: ' + (err.message || err));
