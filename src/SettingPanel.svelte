@@ -623,7 +623,9 @@
             }
 
             // 生成ICS文件内容（复用exportIcsFile逻辑）
-            const dataDir = window.siyuan.config.system.dataDir + '/storage/petal/siyuan-plugin-task-note-management';
+            const dataDir =
+                window.siyuan.config.system.dataDir +
+                '/storage/petal/siyuan-plugin-task-note-management';
             const reminders = (await plugin.loadData(REMINDER_DATA_FILE)) || {};
             const events: any[] = [];
 
@@ -672,18 +674,35 @@
                     }
                 } else {
                     event.start = startDateArray;
-                    const nextDay = new Date(startDateArray[0], startDateArray[1] - 1, startDateArray[2]);
+                    const nextDay = new Date(
+                        startDateArray[0],
+                        startDateArray[1] - 1,
+                        startDateArray[2]
+                    );
                     nextDay.setDate(nextDay.getDate() + 1);
                     event.end = [nextDay.getFullYear(), nextDay.getMonth() + 1, nextDay.getDate()];
                 }
 
                 if (r.createdAt) {
                     const created = new Date(r.createdAt);
-                    event.created = [created.getUTCFullYear(), created.getUTCMonth() + 1, created.getUTCDate(), created.getUTCHours(), created.getUTCMinutes(), created.getUTCSeconds()];
+                    event.created = [
+                        created.getUTCFullYear(),
+                        created.getUTCMonth() + 1,
+                        created.getUTCDate(),
+                        created.getUTCHours(),
+                        created.getUTCMinutes(),
+                        created.getUTCSeconds(),
+                    ];
                 }
 
                 if (!r.completed && startTimeArray) {
-                    event.alarms = [{ action: 'display', description: title, trigger: { before: true, minutes: 15 } }];
+                    event.alarms = [
+                        {
+                            action: 'display',
+                            description: title,
+                            trigger: { before: true, minutes: 15 },
+                        },
+                    ];
                 }
 
                 events.push(event);
@@ -692,7 +711,9 @@
             // 生成ICS内容
             const { value } = ics.createEvents(events);
             const isXiaomiFormat = settings.icsFormat === 'xiaomi';
-            const normalized = isXiaomiFormat ? value.replace(/DURATION:P1DT/g, 'DURATION:P1D') : value;
+            const normalized = isXiaomiFormat
+                ? value.replace(/DURATION:P1DT/g, 'DURATION:P1D')
+                : value;
 
             // 保存到assets目录
             const timestamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, -5);
@@ -1107,9 +1128,9 @@
             ],
         },
         {
-            name:"⬆️导出",
-            items:[
-                                {
+            name: '⬆️导出',
+            items: [
+                {
                     key: 'exportIcs',
                     value: '',
                     type: 'button',
@@ -1143,8 +1164,8 @@
                     title: 'ICS 格式',
                     description: '选择ICS文件的格式',
                     options: {
-                        'normal': '常规 ICS',
-                        'xiaomi': '小米兼容',
+                        normal: '常规 ICS',
+                        xiaomi: '小米兼容',
                     },
                 },
                 {
@@ -1152,7 +1173,8 @@
                     value: settings.icsBlockId,
                     type: 'textinput',
                     title: 'ICS 云端同步块ID',
-                    description: '输入包含ICS文件的块ID，用于云端同步。生成ICS后拖入块中，复制块ID粘贴此处',
+                    description:
+                        '输入包含ICS文件的块ID，用于云端同步。生成ICS后拖入块中，复制块ID粘贴此处',
                 },
                 {
                     key: 'icsSyncInterval',
@@ -1161,8 +1183,8 @@
                     title: 'ICS 同步间隔',
                     description: '设置自动同步ICS文件到云端的频率',
                     options: {
-                        'daily': '每天',
-                        'hourly': '每小时',
+                        daily: '每天',
+                        hourly: '每小时',
                     },
                 },
                 {
@@ -1186,7 +1208,7 @@
                         },
                     },
                 },
-            ]
+            ],
         },
         {
             name: '❤️用爱发电',
@@ -1265,10 +1287,15 @@
                         const { getBlockByID } = await import('./api');
                         const block = await getBlockByID(String(detail.value));
                         let filename: string | null = null;
-                        const content = (block && (block.content || block.html || block.text)) || '';
+                        const content =
+                            (block && (block.content || block.html || block.text)) || '';
                         if (typeof content === 'string') {
-                            const m1 = content.match(/https?:\/\/assets\.b3logfile\.com\/siyuan\/[^\/]+\/assets\/([^"\)\]\s<>']+\.ics)/i);
-                            const m2 = content.match(/data\/assets\/([^"\)\]\s<>']+\.ics)/i) || content.match(/assets\/([^"\)\]\s<>']+\.ics)/i);
+                            const m1 = content.match(
+                                /https?:\/\/assets\.b3logfile\.com\/siyuan\/[^\/]+\/assets\/([^"\)\]\s<>']+\.ics)/i
+                            );
+                            const m2 =
+                                content.match(/data\/assets\/([^"\)\]\s<>']+\.ics)/i) ||
+                                content.match(/assets\/([^"\)\]\s<>']+\.ics)/i);
                             const found = m1 || m2;
                             if (found && found[1]) {
                                 filename = found[1];
@@ -1277,7 +1304,10 @@
 
                         // 回退到基于时间戳的文件名（保守策略）
                         if (!filename) {
-                            const timestamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, -5);
+                            const timestamp = new Date()
+                                .toISOString()
+                                .replace(/[:.]/g, '')
+                                .slice(0, -5);
                             filename = `reminders-${timestamp}-kxg4mps.ics`;
                         }
 
@@ -1287,10 +1317,14 @@
                         }
                     } catch (err) {
                         // 出错时保持原有行为：使用时间戳文件名
-                        const timestamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, -5);
+                        const timestamp = new Date()
+                            .toISOString()
+                            .replace(/[:.]/g, '')
+                            .slice(0, -5);
                         const filename = `reminders-${timestamp}-kxg4mps.ics`;
                         const userId = window.siyuan?.user?.userId || '';
-                        if (userId) settings.icsCloudUrl = `https://assets.b3logfile.com/siyuan/${userId}/assets/${filename}`;
+                        if (userId)
+                            settings.icsCloudUrl = `https://assets.b3logfile.com/siyuan/${userId}/assets/${filename}`;
                     }
                 })();
             }
