@@ -627,10 +627,7 @@ export async function uploadIcsToCloud(plugin: any, settings: any) {
             // 使用现有链接
             assetPath = `data/${linkMatch[1]}`;
         } else {
-            // 如果没有找到链接，创建新的
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, -5);
-            const filename = `reminders-${timestamp}-${window.Lute.NewNodeID()}.ics`;
-            assetPath = `data/assets/${filename}`;
+            return await pushErrMsg('块内容中未找到 reminders.ics 的资产链接，请先将 ICS 文件拖入该块中');
         }
 
         // 4. 使用 putFile 上传到 assets
