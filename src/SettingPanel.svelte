@@ -457,6 +457,11 @@
                         },
                     },
                 },
+            ],
+        },
+        {
+            name: '☁️日程同步',
+            items: [
                 {
                     key: 'icsSyncHint',
                     value: '',
