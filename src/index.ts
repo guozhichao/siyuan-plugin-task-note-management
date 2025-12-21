@@ -106,6 +106,12 @@ export const DEFAULT_SETTINGS = {
     // 项目排序配置
     projectSortOrder: [],
     projectSortMode: 'custom',
+    // ICS 云端同步配置
+    icsBlockId: '',
+    icsSyncInterval: 'daily', // 'daily' | 'hourly'
+    icsCloudUrl: '',
+    icsSyncEnabled: false, // 是否启用ICS云端同步
+    icsFormat: 'normal', // 'normal' | 'xiaomi' - ICS格式
 };
 
 export default class ReminderPlugin extends Plugin {
@@ -135,6 +141,9 @@ export default class ReminderPlugin extends Plugin {
     private otherWindowIds: Set<string> = new Set();
     private pomodoroWindowId: string | null = null; // 存储番茄钟独立窗口的ID
     private lastPomodoroSettings: any | null = null; // 存储上一次的番茄钟设置用于比较
+
+    // ICS 云端同步相关
+    private icsSyncTimer: number | null = null;
 
     async onload() {
         await this.loadData(STORAGE_NAME);
@@ -275,6 +284,14 @@ export default class ReminderPlugin extends Plugin {
                 } catch (err2) {
                     console.warn('更新番茄钟设置时发生错误:', err2);
                 }
+
+                // 处理ICS同步设置变更
+                if (settings.icsSyncEnabled && settings.icsBlockId && settings.icsSyncInterval) {
+                    this.scheduleIcsSync(settings.icsSyncInterval);
+                } else if (this.icsSyncTimer) {
+                    clearInterval(this.icsSyncTimer);
+                    this.icsSyncTimer = null;
+                }
             } catch (err) {
                 console.warn('处理设置变更失败:', err);
             }
@@ -282,6 +299,9 @@ export default class ReminderPlugin extends Plugin {
 
         // 监听文档树右键菜单事件
         this.eventBus.on('open-menu-doctree', this.handleDocumentTreeMenu.bind(this));
+
+        // 初始化ICS云端同步
+        this.initIcsSync();
     }
 
     private enableAudioOnUserInteraction() {
@@ -3825,4 +3845,73 @@ export default class ReminderPlugin extends Plugin {
         }
     }
 
+    // 初始化ICS云端同步
+    private async initIcsSync() {
+        const settings = await this.loadSettings();
+        if (settings.icsSyncEnabled && settings.icsBlockId && settings.icsSyncInterval) {
+            this.scheduleIcsSync(settings.icsSyncInterval);
+        }
+    }
+
+    // 调度ICS同步
+    private scheduleIcsSync(interval: 'daily' | 'hourly') {
+        if (this.icsSyncTimer) {
+            clearInterval(this.icsSyncTimer);
+        }
+
+        const intervalMs = interval === 'daily' ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000;
+        this.icsSyncTimer = window.setInterval(async () => {
+            await this.performIcsSync();
+        }, intervalMs);
+
+        // 立即执行一次
+        this.performIcsSync();
+    }
+
+    // 执行ICS同步
+    private async performIcsSync() {
+        try {
+            const settings = await this.loadSettings();
+            if (!settings.icsSyncEnabled || !settings.icsBlockId) return;
+
+            // 这里调用SettingPanel中的uploadIcsToCloud逻辑，但不依赖其返回值
+            try {
+                const { uploadIcsToCloud, getBlockByID } = await import('./api');
+                // 触发上传（SiYuan 会在界面中显示是否上传成功），不检查返回值
+                await uploadIcsToCloud(settings.icsBlockId);
+
+                // 尝试从块内容解析出文件名，优先使用块内的 assets 路径
+                let filename: string | null = null;
+                try {
+                    const block = await getBlockByID(settings.icsBlockId);
+                    const content = (block && (block.content || block.html || block.text)) || '';
+                    if (typeof content === 'string') {
+                        const m1 = content.match(/https?:\/\/assets\.b3logfile\.com\/siyuan\/[^\/]+\/assets\/([^"\)\]\s<>']+\.ics)/i);
+                        const m2 = content.match(/data\/assets\/([^"\)\]\s<>']+\.ics)/i) || content.match(/assets\/([^"\)\]\s<>']+\.ics)/i);
+                        const found = m1 || m2;
+                        if (found && found[1]) filename = found[1];
+                    }
+                } catch (err) {
+                    console.debug('从块中解析文件名失败，将回退到本地生成的文件名', err);
+                }
+
+                // 如果没有从块中解析出文件名，则回退到与生成逻辑一致的时间戳命名
+                if (!filename) {
+                    filename = `reminders-${new Date().toISOString().replace(/[:.]/g, '').slice(0, -5)}-kxg4mps.ics`;
+                }
+
+                const userId = window.siyuan?.user?.userId || '';
+                if (userId && filename) {
+                    const fullUrl = `https://assets.b3logfile.com/siyuan/${userId}/assets/${filename}`;
+                    settings.icsCloudUrl = fullUrl;
+                    await this.saveData(SETTINGS_FILE, settings);
+                    console.log('ICS文件已自动同步到云端:', fullUrl);
+                }
+            } catch (err) {
+                console.error('执行ICS云端上传或解析文件名时出错:', err);
+            }
+        } catch (error) {
+            console.error('ICS自动同步失败:', error);
+        }
+    }
 }

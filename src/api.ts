@@ -1061,3 +1061,15 @@ export async function ensureHabitGroupDataFile(): Promise<void> {
     }
 }
 
+// **************************************** ICS Cloud Upload ****************************************
+
+export async function uploadIcsToCloud(blockId: string): Promise<string | null> {
+    try {
+        const response = await fetchPost('/api/asset/uploadCloud', { id: blockId });
+        return null;
+    } catch (error) {
+        console.error('上传ICS到云端失败:', error);
+        return null;
+    }
+}
+

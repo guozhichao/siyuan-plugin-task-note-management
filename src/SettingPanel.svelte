@@ -16,7 +16,7 @@
         HABIT_GROUP_DATA_FILE,
         STATUSES_DATA_FILE,
     } from './index';
-    import { lsNotebooks, pushErrMsg, removeFile } from './api';
+    import { lsNotebooks, pushErrMsg, removeFile, putFile } from './api';
     import { Constants } from 'siyuan';
 
     export let plugin;
@@ -613,6 +613,125 @@
             await pushErrMsg('导出 ICS 失败');
         }
     }
+
+    // 上传ICS到云端
+    async function uploadIcsToCloud() {
+        try {
+            if (!settings.icsBlockId) {
+                await pushErrMsg('请先设置ICS块ID');
+                return;
+            }
+
+            // 生成ICS文件内容（复用exportIcsFile逻辑）
+            const dataDir = window.siyuan.config.system.dataDir + '/storage/petal/siyuan-plugin-task-note-management';
+            const reminders = (await plugin.loadData(REMINDER_DATA_FILE)) || {};
+            const events: any[] = [];
+
+            function parseDateArray(dateStr: string): [number, number, number] | null {
+                if (!dateStr || typeof dateStr !== 'string') return null;
+                const parts = dateStr.split('-').map(n => parseInt(n, 10));
+                if (parts.length !== 3 || parts.some(isNaN)) return null;
+                return [parts[0], parts[1], parts[2]];
+            }
+
+            function parseTimeArray(timeStr: string): [number, number] | null {
+                if (!timeStr || typeof timeStr !== 'string') return null;
+                const parts = timeStr.split(':').map(n => parseInt(n, 10));
+                if (parts.length < 2 || parts.some(isNaN)) return null;
+                return [parts[0], parts[1]];
+            }
+
+            const reminderMap: { [id: string]: any } = reminders;
+            const rootIds = Object.keys(reminderMap).filter(i => !reminderMap[i].parentId);
+
+            for (const id of rootIds) {
+                const r = reminderMap[id];
+                if (!r || r.deleted) continue;
+                const title = r.title || '无标题';
+                let description = r.note || '';
+
+                const startDateArray = parseDateArray(r.date);
+                if (!startDateArray) continue;
+                const startTimeArray = r.time ? parseTimeArray(r.time) : null;
+                const endDateArray = r.endDate ? parseDateArray(r.endDate) : startDateArray;
+                const endTimeArray = r.endTime ? parseTimeArray(r.endTime) : null;
+
+                const event: any = {
+                    uid: `${id}@siyuan`,
+                    title: title,
+                    description: description,
+                    status: r.completed ? 'CONFIRMED' : 'TENTATIVE',
+                };
+
+                if (startTimeArray) {
+                    event.start = [...startDateArray, ...startTimeArray];
+                    if (endTimeArray) {
+                        event.end = [...endDateArray, ...endTimeArray];
+                    } else {
+                        event.duration = { hours: 1 };
+                    }
+                } else {
+                    event.start = startDateArray;
+                    const nextDay = new Date(startDateArray[0], startDateArray[1] - 1, startDateArray[2]);
+                    nextDay.setDate(nextDay.getDate() + 1);
+                    event.end = [nextDay.getFullYear(), nextDay.getMonth() + 1, nextDay.getDate()];
+                }
+
+                if (r.createdAt) {
+                    const created = new Date(r.createdAt);
+                    event.created = [created.getUTCFullYear(), created.getUTCMonth() + 1, created.getUTCDate(), created.getUTCHours(), created.getUTCMinutes(), created.getUTCSeconds()];
+                }
+
+                if (!r.completed && startTimeArray) {
+                    event.alarms = [{ action: 'display', description: title, trigger: { before: true, minutes: 15 } }];
+                }
+
+                events.push(event);
+            }
+
+            // 生成ICS内容
+            const { value } = ics.createEvents(events);
+            const isXiaomiFormat = settings.icsFormat === 'xiaomi';
+            const normalized = isXiaomiFormat ? value.replace(/DURATION:P1DT/g, 'DURATION:P1D') : value;
+
+            // 保存到assets目录
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, -5);
+            const filename = `reminders-${timestamp}-kxg4mps.ics`;
+            const assetPath = `data/assets/${filename}`;
+
+            fs.mkdirSync('data/assets', { recursive: true });
+            fs.writeFileSync(assetPath, normalized, 'utf8');
+
+            // 使用putFile保存到assets
+            const blob = new Blob([normalized], { type: 'text/calendar' });
+            await putFile(assetPath, false, blob);
+
+            // 上传到云端（不依赖返回值，由思源在界面显示上传结果）
+            const { uploadIcsToCloud: uploadApi } = await import('./api');
+            try {
+                await uploadApi(settings.icsBlockId);
+            } catch (err) {
+                // 忽略，由思源界面提示具体错误
+                console.debug('uploadIcsToCloud 调用返回错误（忽略）', err);
+            }
+
+            // 构建并保存可能的云端链接（尝试使用当前生成的文件名）
+            const userId = window.siyuan?.user?.userId || '';
+            if (userId) {
+                const fullUrl = `https://assets.b3logfile.com/siyuan/${userId}/assets/${filename}`;
+                settings.icsCloudUrl = fullUrl;
+                await plugin.saveData(SETTINGS_FILE, settings);
+                updateGroupItems();
+                await pushErrMsg(`已触发上传至云端: ${fullUrl}`);
+            } else {
+                await pushErrMsg('已触发上传至云端');
+            }
+        } catch (err) {
+            console.error('上传ICS到云端失败:', err);
+            await pushErrMsg('上传ICS到云端失败');
+        }
+    }
+
     // 定义设置分组
     let groups: ISettingGroup[] = [
         {
@@ -1017,6 +1136,56 @@
                         },
                     },
                 },
+                {
+                    key: 'icsFormat',
+                    value: settings.icsFormat,
+                    type: 'select',
+                    title: 'ICS 格式',
+                    description: '选择ICS文件的格式',
+                    options: {
+                        'normal': '常规 ICS',
+                        'xiaomi': '小米兼容',
+                    },
+                },
+                {
+                    key: 'icsBlockId',
+                    value: settings.icsBlockId,
+                    type: 'textinput',
+                    title: 'ICS 云端同步块ID',
+                    description: '输入包含ICS文件的块ID，用于云端同步。生成ICS后拖入块中，复制块ID粘贴此处',
+                },
+                {
+                    key: 'icsSyncInterval',
+                    value: settings.icsSyncInterval,
+                    type: 'select',
+                    title: 'ICS 同步间隔',
+                    description: '设置自动同步ICS文件到云端的频率',
+                    options: {
+                        'daily': '每天',
+                        'hourly': '每小时',
+                    },
+                },
+                {
+                    key: 'icsCloudUrl',
+                    value: settings.icsCloudUrl,
+                    type: 'textinput',
+                    title: 'ICS 云端链接',
+                    description: '上传成功后自动生成的云端链接',
+                    disabled: true,
+                },
+                {
+                    key: 'uploadIcsToCloud',
+                    value: '',
+                    type: 'button',
+                    title: '生成并上传 ICS 到云端',
+                    description: '生成ICS文件并立即上传到思源云端',
+                    button: {
+                        label: '生成并上传',
+                        callback: async () => {
+                            await uploadIcsToCloud();
+                        },
+                    },
+                },
             ]
         },
         {
@@ -1088,6 +1257,44 @@
             } else {
                 settings[detail.key] = detail.value;
             }
+
+            // 当块ID改变时，尝试从该块中解析已上传的文件名并自动生成云端链接
+            if (detail.key === 'icsBlockId' && detail.value) {
+                (async () => {
+                    try {
+                        const { getBlockByID } = await import('./api');
+                        const block = await getBlockByID(String(detail.value));
+                        let filename: string | null = null;
+                        const content = (block && (block.content || block.html || block.text)) || '';
+                        if (typeof content === 'string') {
+                            const m1 = content.match(/https?:\/\/assets\.b3logfile\.com\/siyuan\/[^\/]+\/assets\/([^"\)\]\s<>']+\.ics)/i);
+                            const m2 = content.match(/data\/assets\/([^"\)\]\s<>']+\.ics)/i) || content.match(/assets\/([^"\)\]\s<>']+\.ics)/i);
+                            const found = m1 || m2;
+                            if (found && found[1]) {
+                                filename = found[1];
+                            }
+                        }
+
+                        // 回退到基于时间戳的文件名（保守策略）
+                        if (!filename) {
+                            const timestamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, -5);
+                            filename = `reminders-${timestamp}-kxg4mps.ics`;
+                        }
+
+                        const userId = window.siyuan?.user?.userId || '';
+                        if (userId && filename) {
+                            settings.icsCloudUrl = `https://assets.b3logfile.com/siyuan/${userId}/assets/${filename}`;
+                        }
+                    } catch (err) {
+                        // 出错时保持原有行为：使用时间戳文件名
+                        const timestamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, -5);
+                        const filename = `reminders-${timestamp}-kxg4mps.ics`;
+                        const userId = window.siyuan?.user?.userId || '';
+                        if (userId) settings.icsCloudUrl = `https://assets.b3logfile.com/siyuan/${userId}/assets/${filename}`;
+                    }
+                })();
+            }
+
             saveSettings();
             // 确保 UI 中 select 等值显示被刷新
             updateGroupItems();
