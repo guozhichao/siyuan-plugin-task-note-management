@@ -382,7 +382,7 @@
                     type: 'button',
                     title: '导出 ICS 文件',
                     description:
-                        '将提醒导出为标准 ICS 日历文件，可导入到 Google Calendar 等日历应用',
+                        '将提醒导出为标准 ICS 日历文件，可导入到 Outlook、Google Calendar 等日历应用',
                     button: {
                         label: '生成 ICS',
                         callback: async () => {
