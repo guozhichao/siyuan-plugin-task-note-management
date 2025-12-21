@@ -450,6 +450,14 @@
                     },
                 },
                 {
+                    key: 'icsSyncHint',
+                    value: '',
+                    type: 'hint',
+                    title: 'ICS 云端同步',
+                    description:
+                        '将ICS文件上传到思源云端，实现多设备间的提醒同步。需要开通思源会员并填写块ID。',
+                },
+                {
                     key: 'icsFormat',
                     value: settings.icsFormat,
                     type: 'select',
@@ -466,7 +474,7 @@
                     type: 'textinput',
                     title: 'ICS 云端同步块ID',
                     description:
-                        '输入包含ICS文件的块ID，用于云端同步(调用思源API，需要开通思源会员）。生成ICS后拖入块中，复制块ID粘贴此处',
+                        '输入包含ICS文件的块ID，用于云端同步。生成ICS后手动拖入某个块中，然后复制块ID粘贴此处',
                 },
                 {
                     key: 'icsSyncInterval',
