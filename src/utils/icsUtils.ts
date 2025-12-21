@@ -636,14 +636,23 @@ export async function uploadIcsToCloud(plugin: any, settings: any) {
 
         // 5. 调用 API 的 uploadIcsToCloud 触发云端同步
         await uploadApi(settings.icsBlockId);
-
-        // 构建云端链接
-        const userId = window.siyuan?.user?.userId || '';
-        if (userId) {
-            const filename = assetPath.replace('data/assets/', '');
-            const fullUrl = `https://assets.b3logfile.com/siyuan/${userId}/assets/${filename}`;
-            settings.icsCloudUrl = fullUrl;
-            await plugin.saveData('reminder-settings.json', settings);
+        console.log('ICS 文件上传到云端成功');
+        // 构建云端链接（若可用）并记录上次同步时间
+        try {
+            const userId = window.siyuan?.user?.userId || '';
+            if (userId) {
+                const filename = assetPath.replace('data/assets/', '');
+                const fullUrl = `https://assets.b3logfile.com/siyuan/${userId}/assets/${filename}`;
+                settings.icsCloudUrl = fullUrl;
+            }
+        } finally {
+            // 记录上次成功同步时间
+            try {
+                settings.icsLastSyncAt = new Date().toISOString();
+                await plugin.saveData('reminder-settings.json', settings);
+            } catch (e) {
+                console.warn('保存 ICS 同步时间失败:', e);
+            }
         }
     } catch (err) {
         console.error('上传ICS到云端失败:', err);

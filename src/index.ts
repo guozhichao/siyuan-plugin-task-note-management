@@ -112,7 +112,7 @@ export const DEFAULT_SETTINGS = {
     projectSortMode: 'custom',
     // ICS 云端同步配置
     icsBlockId: '',
-    icsSyncInterval: 'daily', // 'daily' | 'hourly'
+    icsSyncInterval: 'daily', // '15min' | 'hourly' | '4hour' | '12hour' | 'daily'
     icsCloudUrl: '',
     icsSyncEnabled: false, // 是否启用ICS云端同步
     icsFormat: 'normal', // 'normal' | 'xiaomi' - ICS格式
@@ -148,7 +148,7 @@ export default class ReminderPlugin extends Plugin {
 
     // ICS 云端同步相关
     private icsSyncTimer: number | null = null;
-    private icsInitialSyncPerformed: boolean = false; // 标记是否已执行初始同步
+    private isPerformingIcsSync: boolean = false;
 
     async onload() {
         await this.loadData(STORAGE_NAME);
@@ -292,10 +292,8 @@ export default class ReminderPlugin extends Plugin {
 
                 // 处理ICS同步设置变更
                 if (settings.icsSyncEnabled && settings.icsBlockId && settings.icsSyncInterval) {
-                    // 只有在初始同步已完成后才立即执行，避免启动时重复上传
-                    const shouldExecuteImmediately = this.icsInitialSyncPerformed;
-                    this.scheduleIcsSync(settings.icsSyncInterval, shouldExecuteImmediately);
-                    this.icsInitialSyncPerformed = true;
+                    // 启用时立即安排并尽快执行一次同步
+                    await this.scheduleIcsSync(settings.icsSyncInterval, true);
                 } else if (this.icsSyncTimer) {
                     clearInterval(this.icsSyncTimer);
                     this.icsSyncTimer = null;
@@ -3322,7 +3320,7 @@ export default class ReminderPlugin extends Plugin {
     }
 
     onunload() {
-        console.log('插件禁用，开始清理资源...');
+        console.log('任务笔记管理插件禁用，开始清理资源...');
         // 清理广播通信
         this.cleanupBroadcastChannel();
 
@@ -3348,6 +3346,15 @@ export default class ReminderPlugin extends Plugin {
         document.querySelectorAll('.view-reminder-breadcrumb-btn, .project-breadcrumb-btn, .block-project-btn').forEach(btn => {
             btn.remove();
         });
+        // 清理 ICS 同步定时器
+        try {
+            if (this.icsSyncTimer) {
+                clearInterval(this.icsSyncTimer);
+                this.icsSyncTimer = null;
+            }
+        } catch (e) {
+            console.warn('清理 ICS 同步定时器失败:', e);
+        }
     }    /**
      * 初始化系统通知权限
      */
@@ -3857,31 +3864,107 @@ export default class ReminderPlugin extends Plugin {
     private async initIcsSync() {
         const settings = await this.loadSettings();
         if (settings.icsSyncEnabled && settings.icsBlockId && settings.icsSyncInterval) {
-            // 初始化时不立即执行同步，避免与设置更新事件重复
-            this.scheduleIcsSync(settings.icsSyncInterval, false);
-            this.icsInitialSyncPerformed = true;
+            // 启用时立即执行一次初始同步
+            await this.scheduleIcsSync(settings.icsSyncInterval, true);
         }
     }
 
     // 调度ICS同步
-    private scheduleIcsSync(interval: 'daily' | 'hourly', executeImmediately: boolean = true) {
+    private async scheduleIcsSync(interval: '15min' | 'hourly' | '4hour' | '12hour' | 'daily', executeImmediately: boolean = true) {
+        // 使用短轮询（例如每30s）比较时间是否达到预定的下次同步时间，避免长期 setInterval 被后台杀死的问题
         if (this.icsSyncTimer) {
             clearInterval(this.icsSyncTimer);
         }
 
-        const intervalMs = interval === 'daily' ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000;
-        this.icsSyncTimer = window.setInterval(async () => {
-            await this.performIcsSync();
-        }, intervalMs);
+        const intervalMsMap: Record<string, number> = {
+            '15min': 15 * 60 * 1000,
+            'hourly': 60 * 60 * 1000,
+            '4hour': 4 * 60 * 60 * 1000,
+            '12hour': 12 * 60 * 60 * 1000,
+            'daily': 24 * 60 * 60 * 1000,
+        };
+        const intervalMs = intervalMsMap[interval] || 24 * 60 * 60 * 1000;
+        const shortPollMs = 30 * 1000; // 30s 检查一次
 
-        // 根据参数决定是否立即执行
-        if (executeImmediately) {
-            this.performIcsSync();
+        // 计算首次的 nextDue 时间
+        let nextDueMs: number;
+        try {
+            const settings = await this.loadSettings();
+            if (settings && settings.icsLastSyncAt) {
+                const last = Date.parse(settings.icsLastSyncAt);
+                if (!isNaN(last)) {
+                    nextDueMs = last + intervalMs;
+                } else {
+                    // 无效时间，按间隔后触发
+                    nextDueMs = Date.now() + intervalMs;
+                }
+            } else {
+                // 若没有上次同步时间，按是否立即执行决定：
+                if (executeImmediately) {
+                    nextDueMs = Date.now();
+                } else if (interval === 'hourly' || interval === '4hour' || interval === '12hour') {
+                    // 对齐到下一个整点或多个小时边界（例如每4小时、每12小时）
+                    const d = new Date();
+                    const h = d.getHours();
+                    let step = 1;
+                    if (interval === '4hour') step = 4;
+                    else if (interval === '12hour') step = 12;
+                    // 计算下一个 step 的边界小时（例如当前小时为 5，step=4 则下一个为 8）
+                    const nextHour = Math.ceil((h + 1) / step) * step;
+                    d.setHours(nextHour, 0, 0, 0);
+                    nextDueMs = d.getTime();
+                } else {
+                    nextDueMs = Date.now() + intervalMs;
+                }
+            }
+        } catch (e) {
+            console.warn('计算 ICS 下次同步时间失败，使用默认策略:', e);
+            nextDueMs = Date.now() + intervalMs;
         }
+
+        // 立即触发（当需要时）
+        if (executeImmediately && Date.now() >= nextDueMs) {
+            await this.performIcsSync();
+            try {
+                const s2 = await this.loadSettings();
+                const last2 = s2 && s2.icsLastSyncAt ? Date.parse(s2.icsLastSyncAt) : Date.now();
+                nextDueMs = (isNaN(last2) ? Date.now() : last2) + intervalMs;
+            } catch (e) {
+                nextDueMs = Date.now() + intervalMs;
+            }
+        }
+
+        // 启动短轮询，比较当前时间与 nextDue
+        this.icsSyncTimer = window.setInterval(async () => {
+            try {
+                const now = Date.now();
+                if (now < nextDueMs) return;
+
+                if (this.isPerformingIcsSync) return;
+                await this.performIcsSync();
+
+                // 同步成功后，重新读取设置中的 last sync 时间以计算下一次触发时间
+                try {
+                    const s = await this.loadSettings();
+                    const last = s && s.icsLastSyncAt ? Date.parse(s.icsLastSyncAt) : NaN;
+                    if (!isNaN(last)) {
+                        nextDueMs = last + intervalMs;
+                    } else {
+                        nextDueMs = Date.now() + intervalMs;
+                    }
+                } catch (e) {
+                    nextDueMs = Date.now() + intervalMs;
+                }
+            } catch (e) {
+                console.warn('短轮询触发 ICS 同步失败:', e);
+            }
+        }, shortPollMs);
     }
 
     // 执行ICS同步
     private async performIcsSync() {
+        if (this.isPerformingIcsSync) return;
+        this.isPerformingIcsSync = true;
         try {
             const settings = await this.loadSettings();
             if (!settings.icsSyncEnabled || !settings.icsBlockId) return;
@@ -3889,6 +3972,8 @@ export default class ReminderPlugin extends Plugin {
             await uploadIcsToCloud(this, settings);
         } catch (error) {
             console.error('ICS自动同步失败:', error);
+        } finally {
+            this.isPerformingIcsSync = false;
         }
     }
 }

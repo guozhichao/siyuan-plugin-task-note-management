@@ -471,6 +471,13 @@
                         '将ICS文件上传到思源云端，实现多设备间的提醒同步。需要开通思源会员并填写块ID。',
                 },
                 {
+                    key: 'icsSyncEnabled',
+                    value: settings.icsSyncEnabled,
+                    type: 'checkbox',
+                    title: '启用 ICS 云端同步',
+                    description: '开启后按设置的间隔自动生成并上传 ICS 文件到云端',
+                },
+                {
                     key: 'icsFormat',
                     value: settings.icsFormat,
                     type: 'select',
@@ -496,8 +503,11 @@
                     title: 'ICS 同步间隔',
                     description: '设置自动同步ICS文件到云端的频率',
                     options: {
-                        daily: '每天',
-                        hourly: '每小时',
+                        '15min': '每15分钟',
+                        'hourly': '每1小时',
+                        '4hour': '每4小时',
+                        '12hour': '每12小时',
+                        'daily': '每天',
                     },
                 },
                 {
@@ -742,6 +752,18 @@
             }),
         }));
     }
+
+                // 根据 icsSyncEnabled 控制相关项的禁用状态
+                groups = groups.map(group => ({
+                    ...group,
+                    items: group.items.map(item => {
+                        const updated = { ...item } as any;
+                        if (['icsSyncInterval', 'icsBlockId', 'uploadIcsToCloud'].includes(item.key)) {
+                            updated.disabled = !settings.icsSyncEnabled;
+                        }
+                        return updated;
+                    })
+                }));
 
     $: currentGroup = groups.find(group => group.name === focusGroup);
 </script>
