@@ -3,6 +3,7 @@
     import SettingPanel from '@/libs/components/setting-panel.svelte';
     import { t } from './utils/i18n';
     import * as ics from 'ics';
+    import { lunarToSolar, solarToLunar } from './utils/lunarUtils';
     import {
         DEFAULT_SETTINGS,
         SETTINGS_FILE,
@@ -43,6 +44,575 @@
         }
     };
 
+    // 导出 ICS 的通用函数
+    async function exportIcsFile(normalizeForXiaomi: boolean) {
+        try {
+            const dataDir =
+                window.siyuan.config.system.dataDir +
+                '/storage/petal/siyuan-plugin-task-note-management';
+            const reminders = (await plugin.loadData(REMINDER_DATA_FILE)) || {};
+            const fs = window.require && window.require('fs');
+            const pathMod = window.require && window.require('path');
+
+            if (!fs) {
+                await pushErrMsg('当前环境不支持文件写入');
+                return;
+            }
+
+            // 辅助函数：解析日期为 [year, month, day]
+            function parseDateArray(dateStr: string): [number, number, number] | null {
+                if (!dateStr || typeof dateStr !== 'string') return null;
+                const parts = dateStr.split('-').map(n => parseInt(n, 10));
+                if (parts.length !== 3 || parts.some(isNaN)) return null;
+                return [parts[0], parts[1], parts[2]];
+            }
+
+            // 辅助函数：解析时间为 [hour, minute]
+            function parseTimeArray(timeStr: string): [number, number] | null {
+                if (!timeStr || typeof timeStr !== 'string') return null;
+                const parts = timeStr.split(':').map(n => parseInt(n, 10));
+                if (parts.length < 2 || parts.some(isNaN)) return null;
+                return [parts[0], parts[1]];
+            }
+
+            const events: any[] = [];
+
+            function buildRRuleFromRepeat(repeat: any, startDateStr: string) {
+                if (!repeat || !repeat.enabled) return null;
+                const parts: string[] = [];
+                const type = repeat.type || 'daily';
+                switch (type) {
+                    case 'daily':
+                        parts.push('FREQ=DAILY');
+                        break;
+                    case 'weekly':
+                        parts.push('FREQ=WEEKLY');
+                        if (Array.isArray(repeat.weekDays) && repeat.weekDays.length) {
+                            const map = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+                            const byday = repeat.weekDays
+                                .map((d: number) => map[d])
+                                .filter(Boolean)
+                                .join(',');
+                            if (byday) parts.push(`BYDAY=${byday}`);
+                        }
+                        break;
+                    case 'monthly':
+                        parts.push('FREQ=MONTHLY');
+                        if (Array.isArray(repeat.monthDays) && repeat.monthDays.length) {
+                            parts.push(`BYMONTHDAY=${repeat.monthDays.join(',')}`);
+                        }
+                        break;
+                    case 'yearly':
+                        parts.push('FREQ=YEARLY');
+                        break;
+                    case 'custom':
+                        parts.push('FREQ=DAILY');
+                        if (Array.isArray(repeat.weekDays) && repeat.weekDays.length) {
+                            const map = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+                            const byday = repeat.weekDays
+                                .map((d: number) => map[d])
+                                .filter(Boolean)
+                                .join(',');
+                            if (byday) parts.push(`BYDAY=${byday}`);
+                        }
+                        if (Array.isArray(repeat.monthDays) && repeat.monthDays.length) {
+                            parts.push(`BYMONTHDAY=${repeat.monthDays.join(',')}`);
+                        }
+                        if (Array.isArray(repeat.months) && repeat.months.length) {
+                            parts.push(`BYMONTH=${repeat.months.join(',')}`);
+                        }
+                        break;
+                    default:
+                        parts.push('FREQ=DAILY');
+                }
+
+                if (repeat.interval && repeat.interval > 1) {
+                    parts.push(`INTERVAL=${repeat.interval}`);
+                }
+
+                if (repeat.endType === 'count' && repeat.endCount) {
+                    parts.push(`COUNT=${repeat.endCount}`);
+                } else if (repeat.endType === 'date' && repeat.endDate) {
+                    try {
+                        const dt = new Date(repeat.endDate + 'T23:59:59');
+                        const until = `${dt.getUTCFullYear()}${String(dt.getUTCMonth() + 1).padStart(2, '0')}${String(dt.getUTCDate()).padStart(2, '0')}T${String(dt.getUTCHours()).padStart(2, '0')}${String(dt.getUTCMinutes()).padStart(2, '0')}${String(dt.getUTCSeconds()).padStart(2, '0')}Z`;
+                        parts.push(`UNTIL=${until}`);
+                    } catch (e) {
+                        console.warn('构建 UNTIL 失败', e);
+                    }
+                }
+
+                return parts.join(';');
+            }
+
+            const reminderMap: { [id: string]: any } = reminders;
+            const rootIds = Object.keys(reminderMap).filter(i => !reminderMap[i].parentId);
+
+            for (const id of rootIds) {
+                const r = reminderMap[id];
+                if (!r.date) continue;
+
+                const title = r.title || '无标题';
+                let description = r.note || '';
+
+                try {
+                    const children = Object.keys(reminderMap)
+                        .map(k => reminderMap[k])
+                        .filter((item: any) => item.parentId === id);
+                    for (const child of children) {
+                        try {
+                            const childTitle = child.title || '无标题子任务';
+                            const childNote = child.note || '';
+                            const childHasTime = !!(child.time || child.date);
+
+                            if (childHasTime) {
+                                const childStartDateArray = parseDateArray(child.date || r.date);
+                                if (!childStartDateArray) continue;
+                                const childStartTimeArray = child.time
+                                    ? parseTimeArray(child.time)
+                                    : null;
+                                const childEndDateArray = child.endDate
+                                    ? parseDateArray(child.endDate)
+                                    : childStartDateArray;
+                                const childEndTimeArray = child.endTime
+                                    ? parseTimeArray(child.endTime)
+                                    : null;
+
+                                const childEvent: any = {
+                                    uid: `${child.id || ''}-${child.date || ''}${child.time ? '-' + child.time.replace(/:/g, '') : ''}@siyuan`,
+                                    title: childTitle,
+                                    description: childNote,
+                                    status: child.completed ? 'CONFIRMED' : 'TENTATIVE',
+                                };
+
+                                if (childStartTimeArray) {
+                                    childEvent.start = [
+                                        ...childStartDateArray,
+                                        ...childStartTimeArray,
+                                    ];
+                                    if (childEndTimeArray && childEndDateArray) {
+                                        childEvent.end = [
+                                            ...childEndDateArray,
+                                            ...childEndTimeArray,
+                                        ];
+                                    } else {
+                                        childEvent.duration = { hours: 1 };
+                                    }
+                                } else {
+                                    childEvent.start = childStartDateArray;
+                                    const nextDay = new Date(
+                                        childStartDateArray[0],
+                                        childStartDateArray[1] - 1,
+                                        childStartDateArray[2]
+                                    );
+                                    nextDay.setDate(nextDay.getDate() + 1);
+                                    childEvent.end = [
+                                        nextDay.getFullYear(),
+                                        nextDay.getMonth() + 1,
+                                        nextDay.getDate(),
+                                    ];
+                                }
+
+                                if (child.createdAt) {
+                                    const created = new Date(child.createdAt);
+                                    childEvent.created = [
+                                        created.getUTCFullYear(),
+                                        created.getUTCMonth() + 1,
+                                        created.getUTCDate(),
+                                        created.getUTCHours(),
+                                        created.getUTCMinutes(),
+                                        created.getUTCSeconds(),
+                                    ];
+                                }
+
+                                if (!child.completed && childStartTimeArray) {
+                                    childEvent.alarms = [
+                                        {
+                                            action: 'display',
+                                            description: childTitle,
+                                            trigger: { before: true, minutes: 15 },
+                                        },
+                                    ];
+                                }
+
+                                if (child.repeat && child.repeat.enabled) {
+                                    try {
+                                        const childRrule = buildRRuleFromRepeat(
+                                            child.repeat,
+                                            child.date || r.date
+                                        );
+                                        if (childRrule) {
+                                            childEvent.recurrenceRule = childRrule;
+                                            if (childStartTimeArray) {
+                                                if (!childEndTimeArray) {
+                                                    delete childEvent.end;
+                                                    childEvent.duration = { hours: 1 };
+                                                } else {
+                                                    const sh = childStartTimeArray[0];
+                                                    const sm = childStartTimeArray[1];
+                                                    const eh = childEndTimeArray[0];
+                                                    const em = childEndTimeArray[1];
+                                                    let dh = eh - sh;
+                                                    let dm = em - sm;
+                                                    if (dm < 0) {
+                                                        dh -= 1;
+                                                        dm += 60;
+                                                    }
+                                                    if (dh <= 0 && dm <= 0) {
+                                                        childEvent.duration = { hours: 1 };
+                                                        delete childEvent.end;
+                                                    } else {
+                                                        const dur: any = {};
+                                                        if (dh > 0) dur.hours = dh;
+                                                        if (dm > 0) dur.minutes = dm;
+                                                        childEvent.duration = dur;
+                                                        delete childEvent.end;
+                                                    }
+                                                }
+                                            } else {
+                                                childEvent.duration = { days: 1 };
+                                                delete childEvent.end;
+                                            }
+                                        }
+                                    } catch (e) {
+                                        console.warn('构建子任务 RRULE 失败', e, child);
+                                    }
+                                }
+
+                                events.push(childEvent);
+                            } else {
+                                const prefix = '\n- ';
+                                description += `${prefix}${childTitle}${childNote ? '：' + childNote : ''}`;
+                            }
+                        } catch (ce) {
+                            console.error('处理子任务失败:', ce, child);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('处理子任务出错', e);
+                }
+
+                const startDateArray = parseDateArray(r.date);
+                if (!startDateArray) continue;
+                const startTimeArray = r.time ? parseTimeArray(r.time) : null;
+                const endDateArray = r.endDate ? parseDateArray(r.endDate) : startDateArray;
+                const endTimeArray = r.endTime ? parseTimeArray(r.endTime) : null;
+
+                const event: any = {
+                    uid: `${id}-${r.date}${r.time ? '-' + r.time.replace(/:/g, '') : ''}@siyuan`,
+                    title: title,
+                    description: description,
+                    status: r.completed ? 'CONFIRMED' : 'TENTATIVE',
+                };
+
+                if (startTimeArray) {
+                    event.start = [...startDateArray, ...startTimeArray];
+                    if (endTimeArray && endDateArray) {
+                        event.end = [...endDateArray, ...endTimeArray];
+                    } else {
+                        event.duration = { hours: 1 };
+                    }
+                } else {
+                    event.start = startDateArray;
+                    if (
+                        endDateArray &&
+                        (endDateArray[0] !== startDateArray[0] ||
+                            endDateArray[1] !== startDateArray[1] ||
+                            endDateArray[2] !== startDateArray[2])
+                    ) {
+                        const endDate = new Date(
+                            endDateArray[0],
+                            endDateArray[1] - 1,
+                            endDateArray[2]
+                        );
+                        endDate.setDate(endDate.getDate() + 1);
+                        event.end = [
+                            endDate.getFullYear(),
+                            endDate.getMonth() + 1,
+                            endDate.getDate(),
+                        ];
+                    } else {
+                        const nextDay = new Date(
+                            startDateArray[0],
+                            startDateArray[1] - 1,
+                            startDateArray[2]
+                        );
+                        nextDay.setDate(nextDay.getDate() + 1);
+                        event.end = [
+                            nextDay.getFullYear(),
+                            nextDay.getMonth() + 1,
+                            nextDay.getDate(),
+                        ];
+                    }
+                }
+
+                if (r.createdAt) {
+                    const created = new Date(r.createdAt);
+                    event.created = [
+                        created.getUTCFullYear(),
+                        created.getUTCMonth() + 1,
+                        created.getUTCDate(),
+                        created.getUTCHours(),
+                        created.getUTCMinutes(),
+                        created.getUTCSeconds(),
+                    ];
+                }
+
+                if (!r.completed && startTimeArray) {
+                    event.alarms = [
+                        {
+                            action: 'display',
+                            description: title,
+                            trigger: { before: true, minutes: 15 },
+                        },
+                    ];
+                }
+
+                if (r.repeat && r.repeat.enabled) {
+                    // 特殊处理：农历年事件，生成今年和明年两个普通事件
+                    if (r.repeat.type === 'lunar-yearly') {
+                        try {
+                            const lunarMonth = r.repeat.lunarMonth;
+                            const lunarDay = r.repeat.lunarDay;
+                            const isLeap = !!r.repeat.isLeapMonth;
+                            const nowYear = new Date().getFullYear();
+                            for (let offset = 0; offset < 2; offset++) {
+                                const y = nowYear + offset;
+                                const solar = lunarToSolar(y, lunarMonth, lunarDay, isLeap);
+                                if (!solar) continue;
+                                const occDateArr = parseDateArray(solar);
+                                if (!occDateArr) continue;
+
+                                const occEvent: any = {
+                                    uid: `${id}-${solar}@siyuan`,
+                                    title: title,
+                                    description: description,
+                                    status: r.completed ? 'CONFIRMED' : 'TENTATIVE',
+                                };
+
+                                if (startTimeArray) {
+                                    occEvent.start = [...occDateArr, ...startTimeArray];
+                                    if (endTimeArray) {
+                                        occEvent.end = [
+                                            ...parseDateArray(r.endDate || solar)!,
+                                            ...endTimeArray,
+                                        ];
+                                    } else {
+                                        occEvent.duration = { hours: 1 };
+                                    }
+                                } else {
+                                    occEvent.start = occDateArr;
+                                    const nextDay = new Date(
+                                        occDateArr[0],
+                                        occDateArr[1] - 1,
+                                        occDateArr[2]
+                                    );
+                                    nextDay.setDate(nextDay.getDate() + 1);
+                                    occEvent.end = [
+                                        nextDay.getFullYear(),
+                                        nextDay.getMonth() + 1,
+                                        nextDay.getDate(),
+                                    ];
+                                }
+
+                                if (r.createdAt) {
+                                    const created = new Date(r.createdAt);
+                                    occEvent.created = [
+                                        created.getUTCFullYear(),
+                                        created.getUTCMonth() + 1,
+                                        created.getUTCDate(),
+                                        created.getUTCHours(),
+                                        created.getUTCMinutes(),
+                                        created.getUTCSeconds(),
+                                    ];
+                                }
+
+                                if (!r.completed && startTimeArray) {
+                                    occEvent.alarms = [
+                                        {
+                                            action: 'display',
+                                            description: title,
+                                            trigger: { before: true, minutes: 15 },
+                                        },
+                                    ];
+                                }
+
+                                events.push(occEvent);
+                            }
+                            // 已经为 lunar-yearly 展开为独立事件，跳过后续的 RRULE 处理与基础事件
+                            continue;
+                        } catch (e) {
+                            console.warn('处理农历重复事件失败', e, r);
+                        }
+                    }
+
+                    // 农历每月：在当前年和下一年范围内遍历每天，匹配农历日并生成独立事件
+                    if (r.repeat.type === 'lunar-monthly') {
+                        try {
+                            const lunarDay = r.repeat.lunarDay;
+                            if (!lunarDay) {
+                                console.warn('lunar-monthly 缺少 lunarDay', r);
+                            } else {
+                                const nowYear = new Date().getFullYear();
+                                const startDate = new Date(nowYear, 0, 1);
+                                const endDate = new Date(nowYear + 1, 11, 31);
+                                for (
+                                    let d = new Date(startDate);
+                                    d <= endDate;
+                                    d.setDate(d.getDate() + 1)
+                                ) {
+                                    const year = d.getFullYear();
+                                    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+                                    const day = d.getDate().toString().padStart(2, '0');
+                                    const solarStr = `${year}-${month}-${day}`;
+                                    try {
+                                        const lunar = solarToLunar(solarStr);
+                                        if (lunar && lunar.day === lunarDay) {
+                                            const occDateArr = parseDateArray(solarStr);
+                                            if (!occDateArr) continue;
+                                            const occEvent: any = {
+                                                uid: `${id}-${solarStr}@siyuan`,
+                                                title: title,
+                                                description: description,
+                                                status: r.completed ? 'CONFIRMED' : 'TENTATIVE',
+                                            };
+
+                                            if (startTimeArray) {
+                                                occEvent.start = [...occDateArr, ...startTimeArray];
+                                                if (endTimeArray) {
+                                                    occEvent.end = [
+                                                        ...parseDateArray(r.endDate || solarStr)!,
+                                                        ...endTimeArray,
+                                                    ];
+                                                } else {
+                                                    occEvent.duration = { hours: 1 };
+                                                }
+                                            } else {
+                                                occEvent.start = occDateArr;
+                                                const nextDay = new Date(
+                                                    occDateArr[0],
+                                                    occDateArr[1] - 1,
+                                                    occDateArr[2]
+                                                );
+                                                nextDay.setDate(nextDay.getDate() + 1);
+                                                occEvent.end = [
+                                                    nextDay.getFullYear(),
+                                                    nextDay.getMonth() + 1,
+                                                    nextDay.getDate(),
+                                                ];
+                                            }
+
+                                            if (r.createdAt) {
+                                                const created = new Date(r.createdAt);
+                                                occEvent.created = [
+                                                    created.getUTCFullYear(),
+                                                    created.getUTCMonth() + 1,
+                                                    created.getUTCDate(),
+                                                    created.getUTCHours(),
+                                                    created.getUTCMinutes(),
+                                                    created.getUTCSeconds(),
+                                                ];
+                                            }
+
+                                            if (!r.completed && startTimeArray) {
+                                                occEvent.alarms = [
+                                                    {
+                                                        action: 'display',
+                                                        description: title,
+                                                        trigger: { before: true, minutes: 15 },
+                                                    },
+                                                ];
+                                            }
+
+                                            events.push(occEvent);
+                                        }
+                                    } catch (le) {
+                                        // ignore conversion errors for specific dates
+                                    }
+                                }
+                            }
+                            // 已展开为独立事件，跳过后续 RRULE 与基础事件
+                            continue;
+                        } catch (e) {
+                            console.warn('处理农历每月事件失败', e, r);
+                        }
+                        try {
+                            const rrule = buildRRuleFromRepeat(r.repeat, r.date);
+                            if (rrule) {
+                                event.recurrenceRule = rrule;
+                                if (startTimeArray) {
+                                    if (!endTimeArray) {
+                                        delete event.end;
+                                        event.duration = { hours: 1 };
+                                    } else {
+                                        const sh = startTimeArray[0];
+                                        const sm = startTimeArray[1];
+                                        const eh = endTimeArray[0];
+                                        const em = endTimeArray[1];
+                                        let dh = eh - sh;
+                                        let dm = em - sm;
+                                        if (dm < 0) {
+                                            dh -= 1;
+                                            dm += 60;
+                                        }
+                                        if (dh <= 0 && dm <= 0) {
+                                            event.duration = { hours: 1 };
+                                            delete event.end;
+                                        } else {
+                                            const dur: any = {};
+                                            if (dh > 0) dur.hours = dh;
+                                            if (dm > 0) dur.minutes = dm;
+                                            event.duration = dur;
+                                            delete event.end;
+                                        }
+                                    }
+                                } else {
+                                    event.duration = { days: 1 };
+                                    delete event.end;
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('构建 RRULE 失败', e, r);
+                        }
+                    }
+
+                    events.push(event);
+                }
+            }
+
+            const { error, value } = ics.createEvents(events, {
+                productId: 'siyuan-plugin-task-note-management',
+                method: 'PUBLISH',
+                calName: '思源提醒',
+            });
+
+            if (error) {
+                console.error('ICS 生成失败:', error);
+                await pushErrMsg('ICS 生成失败: ' + error.message);
+                return;
+            }
+
+            let normalized = value as string;
+            try {
+                if (typeof normalized === 'string' && normalizeForXiaomi) {
+                    normalized = normalized.replace(/DURATION:P(\\d+)DT/g, 'DURATION:P$1D');
+                }
+            } catch (e) {
+                console.warn('ICS 替换 DURATION 失败', e);
+            }
+
+            fs.mkdirSync(dataDir, { recursive: true });
+            const outPath = pathMod
+                ? pathMod.join(dataDir, 'reminders.ics')
+                : dataDir + '/reminders.ics';
+            fs.writeFileSync(outPath, normalized, 'utf8');
+            await useShell('showItemInFolder', outPath);
+            await pushErrMsg(`ICS 文件已生成: ${outPath} (共 ${events.length} 个事件)`);
+        } catch (err) {
+            console.error('导出 ICS 失败:', err);
+            await pushErrMsg('导出 ICS 失败');
+        }
+    }
     // 定义设置分组
     let groups: ISettingGroup[] = [
         {
@@ -377,177 +947,6 @@
                     },
                 },
                 {
-                    key: 'exportIcs',
-                    value: '',
-                    type: 'button',
-                    title: '导出 ICS 文件',
-                    description:
-                        '将提醒导出为标准 ICS 日历文件，可导入到 Outlook、Google Calendar 等日历应用',
-                    button: {
-                        label: '生成 ICS',
-                        callback: async () => {
-                            try {
-                                const dataDir =
-                                    window.siyuan.config.system.dataDir +
-                                    '/storage/petal/siyuan-plugin-task-note-management';
-                                const reminders = (await plugin.loadData(REMINDER_DATA_FILE)) || {};
-                                const fs = window.require && window.require('fs');
-                                const pathMod = window.require && window.require('path');
-
-                                if (!fs) {
-                                    await pushErrMsg('当前环境不支持文件写入');
-                                    return;
-                                }
-
-                                // 辅助函数：解析日期为 [year, month, day]
-                                function parseDateArray(
-                                    dateStr: string
-                                ): [number, number, number] | null {
-                                    if (!dateStr || typeof dateStr !== 'string') return null;
-                                    const parts = dateStr.split('-').map(n => parseInt(n, 10));
-                                    if (parts.length !== 3 || parts.some(isNaN)) return null;
-                                    return [parts[0], parts[1], parts[2]];
-                                }
-
-                                // 辅助函数：解析时间为 [hour, minute]
-                                function parseTimeArray(timeStr: string): [number, number] | null {
-                                    if (!timeStr || typeof timeStr !== 'string') return null;
-                                    const parts = timeStr.split(':').map(n => parseInt(n, 10));
-                                    if (parts.length < 2 || parts.some(isNaN)) return null;
-                                    return [parts[0], parts[1]];
-                                }
-
-                                const events: any[] = [];
-                                const reminderMap: { [id: string]: any } = reminders;
-
-                                // 只处理顶层任务
-                                const rootIds = Object.keys(reminderMap).filter(
-                                    i => !reminderMap[i].parentId
-                                );
-
-                                for (const id of rootIds) {
-                                    try {
-                                        const r = reminderMap[id];
-
-                                        // 跳过没有日期的任务
-                                        if (!r.date) {
-                                            console.log('跳过无日期任务:', r.title);
-                                            continue;
-                                        }
-
-                                        const title = r.title || '无标题';
-                                        const description = r.note || '';
-
-                                        // 解析日期和时间
-                                        const startDateArray = parseDateArray(r.date);
-                                        if (!startDateArray) {
-                                            console.log('无效日期格式:', r.date, r.title);
-                                            continue;
-                                        }
-
-                                        const startTimeArray = r.time
-                                            ? parseTimeArray(r.time)
-                                            : null;
-                                        const endDateArray = r.endDate
-                                            ? parseDateArray(r.endDate)
-                                            : startDateArray;
-                                        const endTimeArray = r.endTime
-                                            ? parseTimeArray(r.endTime)
-                                            : null;
-
-                                        // 构建事件对象
-                                        const event: any = {
-                                            uid: `${id}-${r.date}${r.time ? '-' + r.time.replace(/:/g, '') : ''}@siyuan`,
-                                            title: title,
-                                            description: description,
-                                            productId: 'siyuan-plugin-task-note-management',
-                                            status: r.completed ? 'CONFIRMED' : 'TENTATIVE',
-                                        };
-
-                                        // 设置开始和结束时间
-                                        if (startTimeArray) {
-                                            // 有时间的事件
-                                            event.start = [...startDateArray, ...startTimeArray];
-
-                                            if (endTimeArray && endDateArray) {
-                                                event.end = [...endDateArray, ...endTimeArray];
-                                            } else {
-                                                // 默认 1 小时
-                                                event.duration = { hours: 1 };
-                                            }
-                                        } else {
-                                            // 全天事件
-                                            event.start = startDateArray;
-
-                                            if (
-                                                endDateArray &&
-                                                (endDateArray[0] !== startDateArray[0] ||
-                                                    endDateArray[1] !== startDateArray[1] ||
-                                                    endDateArray[2] !== startDateArray[2])
-                                            ) {
-                                                // 跨天全天事件，ICS 需要 endDate + 1
-                                                const endDate = new Date(
-                                                    endDateArray[0],
-                                                    endDateArray[1] - 1,
-                                                    endDateArray[2]
-                                                );
-                                                endDate.setDate(endDate.getDate() + 1);
-                                                event.end = [
-                                                    endDate.getFullYear(),
-                                                    endDate.getMonth() + 1,
-                                                    endDate.getDate(),
-                                                ];
-                                            } else {
-                                                event.duration = { days: 1 };
-                                            }
-                                        }
-
-                                        // 添加创建时间
-                                        if (r.createdAt) {
-                                            const created = new Date(r.createdAt);
-                                            event.created = [
-                                                created.getUTCFullYear(),
-                                                created.getUTCMonth() + 1,
-                                                created.getUTCDate(),
-                                                created.getUTCHours(),
-                                                created.getUTCMinutes(),
-                                                created.getUTCSeconds(),
-                                            ];
-                                        }
-
-                                        events.push(event);
-                                    } catch (e) {
-                                        console.error('构建事件失败:', e, r);
-                                    }
-                                }
-
-                                // 使用 ics 库生成
-                                const { error, value } = ics.createEvents(events);
-
-                                if (error) {
-                                    console.error('ICS 生成失败:', error);
-                                    await pushErrMsg('ICS 生成失败: ' + error.message);
-                                    return;
-                                }
-
-                                // 写入文件
-                                fs.mkdirSync(dataDir, { recursive: true });
-                                const outPath = pathMod
-                                    ? pathMod.join(dataDir, 'reminders.ics')
-                                    : dataDir + '/reminders.ics';
-                                fs.writeFileSync(outPath, value, 'utf8');
-                                await useShell('showItemInFolder', outPath);
-                                await pushErrMsg(
-                                    `ICS 文件已生成: ${outPath} (共 ${events.length} 个事件)`
-                                );
-                            } catch (err) {
-                                console.error('导出 ICS 失败:', err);
-                                await pushErrMsg('导出 ICS 失败');
-                            }
-                        },
-                    },
-                },
-                {
                     key: 'deletePluginData',
                     value: '',
                     type: 'button',
@@ -587,6 +986,38 @@
                     },
                 },
             ],
+        },
+        {
+            name:"⬆️导出",
+            items:[
+                                {
+                    key: 'exportIcs',
+                    value: '',
+                    type: 'button',
+                    title: '导出 ICS 文件',
+                    description:
+                        '将提醒导出为标准 ICS 日历文件，可导入到 Outlook、Google Calendar 等日历应用',
+                    button: {
+                        label: '生成 ICS',
+                        callback: async () => {
+                            await exportIcsFile(false);
+                        },
+                    },
+                },
+                {
+                    key: 'exportIcsXiaomi',
+                    value: '',
+                    type: 'button',
+                    title: '导出 ICS 文件（小米兼容）',
+                    description: '生成适配小米日历的 ICS（将 DURATION:P1DT 替换为 DURATION:P1D）',
+                    button: {
+                        label: '生成 ICS（小米）',
+                        callback: async () => {
+                            await exportIcsFile(true);
+                        },
+                    },
+                },
+            ]
         },
         {
             name: '❤️用爱发电',
