@@ -144,6 +144,7 @@ export default class ReminderPlugin extends Plugin {
 
     // ICS 云端同步相关
     private icsSyncTimer: number | null = null;
+    private icsInitialSyncPerformed: boolean = false; // 标记是否已执行初始同步
 
     async onload() {
         await this.loadData(STORAGE_NAME);
@@ -287,7 +288,10 @@ export default class ReminderPlugin extends Plugin {
 
                 // 处理ICS同步设置变更
                 if (settings.icsSyncEnabled && settings.icsBlockId && settings.icsSyncInterval) {
-                    this.scheduleIcsSync(settings.icsSyncInterval);
+                    // 只有在初始同步已完成后才立即执行，避免启动时重复上传
+                    const shouldExecuteImmediately = this.icsInitialSyncPerformed;
+                    this.scheduleIcsSync(settings.icsSyncInterval, shouldExecuteImmediately);
+                    this.icsInitialSyncPerformed = true;
                 } else if (this.icsSyncTimer) {
                     clearInterval(this.icsSyncTimer);
                     this.icsSyncTimer = null;
@@ -3849,12 +3853,14 @@ export default class ReminderPlugin extends Plugin {
     private async initIcsSync() {
         const settings = await this.loadSettings();
         if (settings.icsSyncEnabled && settings.icsBlockId && settings.icsSyncInterval) {
-            this.scheduleIcsSync(settings.icsSyncInterval);
+            // 初始化时不立即执行同步，避免与设置更新事件重复
+            this.scheduleIcsSync(settings.icsSyncInterval, false);
+            this.icsInitialSyncPerformed = true;
         }
     }
 
     // 调度ICS同步
-    private scheduleIcsSync(interval: 'daily' | 'hourly') {
+    private scheduleIcsSync(interval: 'daily' | 'hourly', executeImmediately: boolean = true) {
         if (this.icsSyncTimer) {
             clearInterval(this.icsSyncTimer);
         }
@@ -3864,8 +3870,10 @@ export default class ReminderPlugin extends Plugin {
             await this.performIcsSync();
         }, intervalMs);
 
-        // 立即执行一次
-        this.performIcsSync();
+        // 根据参数决定是否立即执行
+        if (executeImmediately) {
+            this.performIcsSync();
+        }
     }
 
     // 执行ICS同步
