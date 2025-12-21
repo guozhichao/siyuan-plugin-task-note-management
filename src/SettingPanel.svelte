@@ -162,6 +162,14 @@
                         6: t('saturday'),
                     },
                 },
+                {
+                    key: 'dayStartTime',
+                    value: settings.dayStartTime,
+                    type: 'textinput',
+                    title: t('dayStartTime'),
+                    description: t('dayStartTimeDesc'),
+                    placeholder: '08:00',
+                },
             ],
         },
         {

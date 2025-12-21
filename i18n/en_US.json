@@ -820,6 +820,8 @@
     "calendarSettings": "📅 Calendar Settings",
     "weekStartDay": "Week Start Day",
     "weekStartDayDesc": "Set the start day of the week for week view",
+    "dayStartTime": "Day Start Time",
+    "dayStartTimeDesc": "Set the start scroll position of the day for calendar view, e.g., 06:00 (still shows full day)",
     "weekStartMonday": "Monday",
     "weekStartSunday": "Sunday",
     "allStatuses": "All Statuses",

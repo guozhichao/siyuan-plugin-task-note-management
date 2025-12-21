@@ -820,6 +820,8 @@
     "enableHabitDockBadgeDesc": "在习惯打卡侧栏图标上显示/隐藏数字徽章",
     "weekStartDay": "周起始日",
     "weekStartDayDesc": "设置周视图的一周开始时间",
+    "dayStartTime": "一天起始时间",
+    "dayStartTimeDesc": "设置日历视图中一天的起始滚动位置，例如 06:00（仍显示全天时间）",
     "weekStartMonday": "周一",
     "weekStartSunday": "周日",
     "allStatuses": "全部状态",

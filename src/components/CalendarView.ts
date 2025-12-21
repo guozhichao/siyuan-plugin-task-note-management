@@ -85,6 +85,9 @@ export class CalendarView {
         // 获取周开始日设置
         const weekStartDay = await this.getWeekStartDay();
 
+        // 获取一天起始时间设置
+        const dayStartTime = await this.getDayStartTime();
+
         this.container.classList.add('reminder-calendar-view');
 
         // 创建工具栏
@@ -292,8 +295,9 @@ export class CalendarView {
             selectMirror: true,
             selectOverlap: true,
             locale: window.siyuan.config.lang.toLowerCase().replace('_', '-'),
-            scrollTime: '08:00:00', // 视图将滚动到此时间
+            scrollTime: dayStartTime, // 使用用户设置的一天起始时间作为滚动位置
             firstDay: weekStartDay, // 使用用户设置的周开始日
+            slotMinTime: '00:00', // 显示全天时间槽，从00:00开始
             nowIndicator: true, // 显示当前时间指示线
             snapDuration: '00:05:00', // 设置吸附间隔为5分钟
             slotDuration: '00:15:00', // 设置默认时间间隔为15分钟
@@ -388,6 +392,7 @@ export class CalendarView {
         });
         // 监听设置更新事件（如：周开始日）
         window.addEventListener('reminderSettingsUpdated', () => this.applyWeekStartDay());
+        window.addEventListener('reminderSettingsUpdated', () => this.applyDayStartTime());
 
         // 添加窗口大小变化监听器
         this.addResizeListeners();
@@ -4710,6 +4715,28 @@ export class CalendarView {
     }
 
     /**
+     * 获取一天起始时间设置
+     */
+    private async getDayStartTime(): Promise<string> {
+        try {
+            const settings = await this.plugin.loadSettings();
+            const dayStartTime = settings.dayStartTime;
+
+            // 验证时间格式 (HH:MM)
+            if (typeof dayStartTime === 'string' && /^\d{1,2}:\d{2}$/.test(dayStartTime)) {
+                return dayStartTime;
+            }
+
+            // 如果配置无效，返回默认值
+            return '06:00';
+        } catch (error) {
+            console.error('获取一天起始时间设置失败:', error);
+            // 出错时返回默认值
+            return '06:00';
+        }
+    }
+
+    /**
      * 应用周开始日设置到日历
      */
     private async applyWeekStartDay() {
@@ -4719,6 +4746,19 @@ export class CalendarView {
             this.calendar.setOption('firstDay', weekStartDay);
         } catch (error) {
             console.error('应用周开始日设置失败:', error);
+        }
+    }
+
+    /**
+     * 应用一天起始时间设置到日历
+     */
+    private async applyDayStartTime() {
+        try {
+            const dayStartTime = await this.getDayStartTime();
+            // 更新日历的scrollTime设置，保持slotMinTime为00:00以显示全天
+            this.calendar.setOption('scrollTime', dayStartTime);
+        } catch (error) {
+            console.error('应用一天起始时间设置失败:', error);
         }
     }
 }
