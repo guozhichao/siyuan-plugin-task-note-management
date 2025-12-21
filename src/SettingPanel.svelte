@@ -432,7 +432,7 @@
                     button: {
                         label: '生成 ICS',
                         callback: async () => {
-                            await exportIcsFile(plugin, false);
+                            await exportIcsFile(plugin, true);
                         },
                     },
                 },

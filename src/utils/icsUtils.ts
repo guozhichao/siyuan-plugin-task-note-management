@@ -9,8 +9,20 @@
 
 import * as ics from 'ics';
 import { lunarToSolar, solarToLunar } from './lunarUtils';
-import { pushErrMsg, pushMsg, putFile, getBlockKramdown, uploadIcsToCloud as uploadApi } from '../api';
+import { pushErrMsg, pushMsg, putFile, getBlockKramdown, uploadIcsToCloud as uploadApi, getFileBlob } from '../api';
 import { Constants } from 'siyuan';
+
+const useShell = async (cmd: 'showItemInFolder' | 'openPath', filePath: string) => {
+    try {
+        const { ipcRenderer } = window.require('electron');
+        ipcRenderer.send(Constants.SIYUAN_CMD, {
+            cmd,
+            filePath: filePath,
+        });
+    } catch (error) {
+        await pushErrMsg('当前客户端不支持打开插件数据文件夹');
+    }
+};
 
 export async function exportIcsFile(
     plugin: any,
@@ -18,17 +30,8 @@ export async function exportIcsFile(
     openFolder: boolean = true
 ) {
     try {
-        const dataDir =
-            window.siyuan.config.system.dataDir +
-            '/storage/petal/siyuan-plugin-task-note-management';
+        const dataDir = 'data/storage/petal/siyuan-plugin-task-note-management';
         const reminders = (await plugin.loadData('reminder.json')) || {};
-        const fs = window.require && window.require('fs');
-        const pathMod = window.require && window.require('path');
-
-        if (!fs) {
-            await pushErrMsg('当前环境不支持文件写入');
-            return;
-        }
 
         // 辅助函数：解析日期为 [year, month, day]
         function parseDateArray(dateStr: string): [number, number, number] | null {
@@ -574,17 +577,10 @@ export async function exportIcsFile(
             console.warn('ICS 替换 DURATION 失败', e);
         }
 
-        fs.mkdirSync(dataDir, { recursive: true });
-        const outPath = pathMod
-            ? pathMod.join(dataDir, 'reminders.ics')
-            : dataDir + '/reminders.ics';
-        fs.writeFileSync(outPath, normalized, 'utf8');
+        const outPath = dataDir + '/reminders.ics';
+        await putFile(outPath, false, new Blob([normalized], { type: 'text/calendar' }));
         if (openFolder) {
-            const { ipcRenderer } = window.require('electron');
-            ipcRenderer.send(Constants.SIYUAN_CMD, {
-                cmd: 'showItemInFolder',
-                filePath: outPath,
-            });
+            await useShell('showItemInFolder', window.siyuan.config.system.workspaceDir + '/' + outPath);
         }
         await pushMsg(`ICS 文件已生成: ${outPath} (共 ${events.length} 个事件)`);
     } catch (err) {
@@ -600,31 +596,22 @@ export async function uploadIcsToCloud(plugin: any, settings: any) {
             return;
         }
 
-        const fs = window.require && window.require('fs');
-        const pathMod = window.require && window.require('path');
-        if (!fs) {
-            await pushErrMsg('当前环境不支持文件读取');
-            return;
-        }
-
         // 1. 调用 exportIcsFile 生成 reminders.ics (不打开文件夹)
         const isXiaomiFormat = settings.icsFormat === 'xiaomi';
         await exportIcsFile(plugin, isXiaomiFormat, false);
 
         // 2. 读取生成的 reminders.ics 文件
         const dataDir =
-            window.siyuan.config.system.dataDir +
-            '/storage/petal/siyuan-plugin-task-note-management';
-        const icsPath = pathMod
-            ? pathMod.join(dataDir, 'reminders.ics')
-            : dataDir + '/reminders.ics';
+            'data/storage/petal/siyuan-plugin-task-note-management';
+        const icsPath = dataDir + '/reminders.ics';
 
-        if (!fs.existsSync(icsPath)) {
+        const icsBlob = await getFileBlob(icsPath);
+        if (!icsBlob) {
             await pushErrMsg('reminders.ics 文件不存在，请先生成 ICS 文件');
             return;
         }
 
-        const icsContent = fs.readFileSync(icsPath, 'utf8');
+        const icsContent = await icsBlob.text();
 
         // 3. 从块内容中提取 ICS 链接
         const blockData = await getBlockKramdown(settings.icsBlockId);
