@@ -504,10 +504,10 @@
                     description: '设置自动同步ICS文件到云端的频率',
                     options: {
                         '15min': '每15分钟',
-                        'hourly': '每1小时',
+                        hourly: '每1小时',
                         '4hour': '每4小时',
                         '12hour': '每12小时',
-                        'daily': '每天',
+                        daily: '每天',
                     },
                 },
                 {
@@ -753,17 +753,17 @@
         }));
     }
 
-                // 根据 icsSyncEnabled 控制相关项的禁用状态
-                groups = groups.map(group => ({
-                    ...group,
-                    items: group.items.map(item => {
-                        const updated = { ...item } as any;
-                        if (['icsSyncInterval', 'icsBlockId', 'uploadIcsToCloud'].includes(item.key)) {
-                            updated.disabled = !settings.icsSyncEnabled;
-                        }
-                        return updated;
-                    })
-                }));
+    // 根据 icsSyncEnabled 控制相关项的禁用状态
+    groups = groups.map(group => ({
+        ...group,
+        items: group.items.map(item => {
+            const updated = { ...item } as any;
+            if (['icsSyncInterval', 'icsBlockId', 'uploadIcsToCloud'].includes(item.key)) {
+                updated.disabled = !settings.icsSyncEnabled;
+            }
+            return updated;
+        }),
+    }));
 
     $: currentGroup = groups.find(group => group.name === focusGroup);
 </script>
