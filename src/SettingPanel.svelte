@@ -16,7 +16,7 @@
         HABIT_GROUP_DATA_FILE,
         STATUSES_DATA_FILE,
     } from './index';
-    import { lsNotebooks, pushErrMsg, removeFile, putFile } from './api';
+    import { lsNotebooks, pushErrMsg, pushMsg, removeFile, putFile } from './api';
     import { Constants } from 'siyuan';
 
     export let plugin;
@@ -45,7 +45,7 @@
     };
 
     // 导出 ICS 的通用函数
-    async function exportIcsFile(normalizeForXiaomi: boolean) {
+    async function exportIcsFile(normalizeForXiaomi: boolean, openFolder: boolean = true) {
         try {
             const dataDir =
                 window.siyuan.config.system.dataDir +
@@ -446,7 +446,7 @@
                         }
                     }
 
-                    // 农历每月：在当前年和下一年范围内遍历每天，匹配农历日并生成独立事件
+                    // 农历每月:在当前年和下一年范围内遍历每天,匹配农历日并生成独立事件
                     if (r.repeat.type === 'lunar-monthly') {
                         try {
                             const lunarDay = r.repeat.lunarDay;
@@ -531,53 +531,55 @@
                                     }
                                 }
                             }
-                            // 已展开为独立事件，跳过后续 RRULE 与基础事件
+                            // 已展开为独立事件,跳过后续 RRULE 与基础事件
                             continue;
                         } catch (e) {
                             console.warn('处理农历每月事件失败', e, r);
                         }
-                        try {
-                            const rrule = buildRRuleFromRepeat(r.repeat, r.date);
-                            if (rrule) {
-                                event.recurrenceRule = rrule;
-                                if (startTimeArray) {
-                                    if (!endTimeArray) {
-                                        delete event.end;
-                                        event.duration = { hours: 1 };
-                                    } else {
-                                        const sh = startTimeArray[0];
-                                        const sm = startTimeArray[1];
-                                        const eh = endTimeArray[0];
-                                        const em = endTimeArray[1];
-                                        let dh = eh - sh;
-                                        let dm = em - sm;
-                                        if (dm < 0) {
-                                            dh -= 1;
-                                            dm += 60;
-                                        }
-                                        if (dh <= 0 && dm <= 0) {
-                                            event.duration = { hours: 1 };
-                                            delete event.end;
-                                        } else {
-                                            const dur: any = {};
-                                            if (dh > 0) dur.hours = dh;
-                                            if (dm > 0) dur.minutes = dm;
-                                            event.duration = dur;
-                                            delete event.end;
-                                        }
-                                    }
-                                } else {
-                                    event.duration = { days: 1 };
-                                    delete event.end;
-                                }
-                            }
-                        } catch (e) {
-                            console.warn('构建 RRULE 失败', e, r);
-                        }
                     }
 
-                    events.push(event);
+                    // 处理其他重复类型的 RRULE
+                    try {
+                        const rrule = buildRRuleFromRepeat(r.repeat, r.date);
+                        if (rrule) {
+                            event.recurrenceRule = rrule;
+                            if (startTimeArray) {
+                                if (!endTimeArray) {
+                                    delete event.end;
+                                    event.duration = { hours: 1 };
+                                } else {
+                                    const sh = startTimeArray[0];
+                                    const sm = startTimeArray[1];
+                                    const eh = endTimeArray[0];
+                                    const em = endTimeArray[1];
+                                    let dh = eh - sh;
+                                    let dm = em - sm;
+                                    if (dm < 0) {
+                                        dh -= 1;
+                                        dm += 60;
+                                    }
+                                    if (dh <= 0 && dm <= 0) {
+                                        event.duration = { hours: 1 };
+                                        delete event.end;
+                                    } else {
+                                        const dur: any = {};
+                                        if (dh > 0) dur.hours = dh;
+                                        if (dm > 0) dur.minutes = dm;
+                                        event.duration = dur;
+                                        delete event.end;
+                                    }
+                                }
+                            } else {
+                                event.duration = { days: 1 };
+                                delete event.end;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('构建 RRULE 失败', e, r);
+                    }
                 }
+
+                events.push(event);
             }
 
             const { error, value } = ics.createEvents(events, {
@@ -606,8 +608,10 @@
                 ? pathMod.join(dataDir, 'reminders.ics')
                 : dataDir + '/reminders.ics';
             fs.writeFileSync(outPath, normalized, 'utf8');
-            await useShell('showItemInFolder', outPath);
-            await pushErrMsg(`ICS 文件已生成: ${outPath} (共 ${events.length} 个事件)`);
+            if (openFolder) {
+                await useShell('showItemInFolder', outPath);
+            }
+            await pushMsg(`ICS 文件已生成: ${outPath} (共 ${events.length} 个事件)`);
         } catch (err) {
             console.error('导出 ICS 失败:', err);
             await pushErrMsg('导出 ICS 失败');
@@ -622,134 +626,73 @@
                 return;
             }
 
-            // 生成ICS文件内容（复用exportIcsFile逻辑）
+            const fs = window.require && window.require('fs');
+            const pathMod = window.require && window.require('path');
+            if (!fs) {
+                await pushErrMsg('当前环境不支持文件读取');
+                return;
+            }
+
+            // 1. 调用 exportIcsFile 生成 reminders.ics (不打开文件夹)
+            const isXiaomiFormat = settings.icsFormat === 'xiaomi';
+            await exportIcsFile(isXiaomiFormat, false);
+
+            // 2. 读取生成的 reminders.ics 文件
             const dataDir =
                 window.siyuan.config.system.dataDir +
                 '/storage/petal/siyuan-plugin-task-note-management';
-            const reminders = (await plugin.loadData(REMINDER_DATA_FILE)) || {};
-            const events: any[] = [];
+            const icsPath = pathMod
+                ? pathMod.join(dataDir, 'reminders.ics')
+                : dataDir + '/reminders.ics';
 
-            function parseDateArray(dateStr: string): [number, number, number] | null {
-                if (!dateStr || typeof dateStr !== 'string') return null;
-                const parts = dateStr.split('-').map(n => parseInt(n, 10));
-                if (parts.length !== 3 || parts.some(isNaN)) return null;
-                return [parts[0], parts[1], parts[2]];
+            if (!fs.existsSync(icsPath)) {
+                await pushErrMsg('reminders.ics 文件不存在，请先生成 ICS 文件');
+                return;
             }
 
-            function parseTimeArray(timeStr: string): [number, number] | null {
-                if (!timeStr || typeof timeStr !== 'string') return null;
-                const parts = timeStr.split(':').map(n => parseInt(n, 10));
-                if (parts.length < 2 || parts.some(isNaN)) return null;
-                return [parts[0], parts[1]];
+            const icsContent = fs.readFileSync(icsPath, 'utf8');
+
+            // 3. 从块内容中提取 ICS 链接
+            const { getBlockKramdown } = await import('./api');
+            const blockData = await getBlockKramdown(settings.icsBlockId);
+            const kramdown = blockData.kramdown;
+
+            // 匹配 [reminders.ics](assets/reminders-xxx.ics) 格式
+            const linkMatch = kramdown.match(
+                /\[reminders\.ics\]\((assets\/reminders-[^)]+\.ics)\)/
+            );
+
+            let assetPath: string;
+            if (linkMatch && linkMatch[1]) {
+                // 使用现有链接
+                assetPath = `data/${linkMatch[1]}`;
+            } else {
+                // 如果没有找到链接，创建新的
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, -5);
+                const filename = `reminders-${timestamp}-${window.Lute.NewNodeID()}.ics`;
+                assetPath = `data/assets/${filename}`;
             }
 
-            const reminderMap: { [id: string]: any } = reminders;
-            const rootIds = Object.keys(reminderMap).filter(i => !reminderMap[i].parentId);
-
-            for (const id of rootIds) {
-                const r = reminderMap[id];
-                if (!r || r.deleted) continue;
-                const title = r.title || '无标题';
-                let description = r.note || '';
-
-                const startDateArray = parseDateArray(r.date);
-                if (!startDateArray) continue;
-                const startTimeArray = r.time ? parseTimeArray(r.time) : null;
-                const endDateArray = r.endDate ? parseDateArray(r.endDate) : startDateArray;
-                const endTimeArray = r.endTime ? parseTimeArray(r.endTime) : null;
-
-                const event: any = {
-                    uid: `${id}@siyuan`,
-                    title: title,
-                    description: description,
-                    status: r.completed ? 'CONFIRMED' : 'TENTATIVE',
-                };
-
-                if (startTimeArray) {
-                    event.start = [...startDateArray, ...startTimeArray];
-                    if (endTimeArray) {
-                        event.end = [...endDateArray, ...endTimeArray];
-                    } else {
-                        event.duration = { hours: 1 };
-                    }
-                } else {
-                    event.start = startDateArray;
-                    const nextDay = new Date(
-                        startDateArray[0],
-                        startDateArray[1] - 1,
-                        startDateArray[2]
-                    );
-                    nextDay.setDate(nextDay.getDate() + 1);
-                    event.end = [nextDay.getFullYear(), nextDay.getMonth() + 1, nextDay.getDate()];
-                }
-
-                if (r.createdAt) {
-                    const created = new Date(r.createdAt);
-                    event.created = [
-                        created.getUTCFullYear(),
-                        created.getUTCMonth() + 1,
-                        created.getUTCDate(),
-                        created.getUTCHours(),
-                        created.getUTCMinutes(),
-                        created.getUTCSeconds(),
-                    ];
-                }
-
-                if (!r.completed && startTimeArray) {
-                    event.alarms = [
-                        {
-                            action: 'display',
-                            description: title,
-                            trigger: { before: true, minutes: 15 },
-                        },
-                    ];
-                }
-
-                events.push(event);
-            }
-
-            // 生成ICS内容
-            const { value } = ics.createEvents(events);
-            const isXiaomiFormat = settings.icsFormat === 'xiaomi';
-            const normalized = isXiaomiFormat
-                ? value.replace(/DURATION:P1DT/g, 'DURATION:P1D')
-                : value;
-
-            // 保存到assets目录
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, -5);
-            const filename = `reminders-${timestamp}-kxg4mps.ics`;
-            const assetPath = `data/assets/${filename}`;
-
-            fs.mkdirSync('data/assets', { recursive: true });
-            fs.writeFileSync(assetPath, normalized, 'utf8');
-
-            // 使用putFile保存到assets
-            const blob = new Blob([normalized], { type: 'text/calendar' });
+            // 4. 使用 putFile 上传到 assets
+            const blob = new Blob([icsContent], { type: 'text/calendar' });
             await putFile(assetPath, false, blob);
 
-            // 上传到云端（不依赖返回值，由思源在界面显示上传结果）
+            // 5. 调用 API 的 uploadIcsToCloud 触发云端同步
             const { uploadIcsToCloud: uploadApi } = await import('./api');
-            try {
-                await uploadApi(settings.icsBlockId);
-            } catch (err) {
-                // 忽略，由思源界面提示具体错误
-                console.debug('uploadIcsToCloud 调用返回错误（忽略）', err);
-            }
+            await uploadApi(settings.icsBlockId);
 
-            // 构建并保存可能的云端链接（尝试使用当前生成的文件名）
+            // 构建云端链接
             const userId = window.siyuan?.user?.userId || '';
             if (userId) {
+                const filename = assetPath.replace('data/assets/', '');
                 const fullUrl = `https://assets.b3logfile.com/siyuan/${userId}/assets/${filename}`;
                 settings.icsCloudUrl = fullUrl;
                 await plugin.saveData(SETTINGS_FILE, settings);
                 updateGroupItems();
-                await pushErrMsg(`已触发上传至云端: ${fullUrl}`);
-            } else {
-                await pushErrMsg('已触发上传至云端');
-            }
+            } 
         } catch (err) {
             console.error('上传ICS到云端失败:', err);
-            await pushErrMsg('上传ICS到云端失败');
+            await pushErrMsg('上传ICS到云端失败: ' + (err.message || err));
         }
     }
 
@@ -1174,7 +1117,7 @@
                     type: 'textinput',
                     title: 'ICS 云端同步块ID',
                     description:
-                        '输入包含ICS文件的块ID，用于云端同步。生成ICS后拖入块中，复制块ID粘贴此处',
+                        '输入包含ICS文件的块ID，用于云端同步(调用思源API，需要开通思源会员）。生成ICS后拖入块中，复制块ID粘贴此处',
                 },
                 {
                     key: 'icsSyncInterval',
