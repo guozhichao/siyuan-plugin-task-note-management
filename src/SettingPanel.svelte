@@ -468,7 +468,7 @@
                     type: 'hint',
                     title: 'ICS 云端同步',
                     description:
-                        '将ICS文件上传到思源云端，实现多设备间的提醒同步。需要开通思源会员并填写块ID。',
+                        '将ICS文件上传到云端，实现多设备间的提醒同步。支持思源服务器或S3存储。',
                 },
                 {
                     key: 'icsSyncEnabled',
@@ -489,12 +489,24 @@
                     },
                 },
                 {
-                    key: 'icsBlockId',
-                    value: settings.icsBlockId,
+                    key: 'icsFileName',
+                    value: settings.icsFileName,
                     type: 'textinput',
-                    title: 'ICS 云端同步块ID',
+                    title: 'ICS 文件名',
                     description:
-                        '输入包含ICS文件的块ID，用于云端同步。生成ICS后手动拖入某个块中，然后复制块ID粘贴此处',
+                        '自定义ICS文件名（不含.ics后缀），留空则自动生成为 reminder-随机ID',
+                    placeholder: 'reminder-' + (window.Lute?.NewNodeID?.() || 'auto'),
+                },
+                {
+                    key: 'icsSyncMethod',
+                    value: settings.icsSyncMethod,
+                    type: 'select',
+                    title: '同步方式',
+                    description: '选择ICS文件的同步方式',
+                    options: {
+                        siyuan: '思源服务器',
+                        s3: 'S3存储',
+                    },
                 },
                 {
                     key: 'icsSyncInterval',
@@ -510,6 +522,20 @@
                         daily: '每天',
                     },
                 },
+                // 上传按钮和云端链接（移到前面）
+                {
+                    key: 'uploadIcsToCloud',
+                    value: '',
+                    type: 'button',
+                    title: '生成并上传 ICS 到云端',
+                    description: '生成ICS文件并立即上传到云端',
+                    button: {
+                        label: '生成并上传',
+                        callback: async () => {
+                            await uploadIcsToCloud(plugin, settings);
+                        },
+                    },
+                },
                 {
                     key: 'icsCloudUrl',
                     value: settings.icsCloudUrl,
@@ -518,17 +544,90 @@
                     description: '上传成功后自动生成的云端链接',
                     disabled: true,
                 },
+                // 思源服务器同步配置
                 {
-                    key: 'uploadIcsToCloud',
-                    value: '',
-                    type: 'button',
-                    title: '生成并上传 ICS 到云端',
-                    description: '生成ICS文件并立即上传到思源云端',
-                    button: {
-                        label: '生成并上传',
-                        callback: async () => {
-                            await uploadIcsToCloud(plugin, settings);
-                        },
+                    key: 'icsBlockId',
+                    value: settings.icsBlockId,
+                    type: 'textinput',
+                    title: 'ICS 云端同步块ID（思源）',
+                    description:
+                        '输入包含ICS文件的块ID，用于云端同步。生成ICS后手动拖入某个块中，然后复制块ID粘贴此处',
+                },
+                // S3 同步配置
+                {
+                    key: 's3UseSiyuanConfig',
+                    value: settings.s3UseSiyuanConfig,
+                    type: 'checkbox',
+                    title: '使用思源S3设置',
+                    description: '启用后将使用思源的S3配置，无需手动配置下方的S3参数',
+                },
+                {
+                    key: 's3Bucket',
+                    value: settings.s3Bucket,
+                    type: 'textinput',
+                    title: 'S3 Bucket',
+                    description: 'S3存储桶名称',
+                    placeholder: 'my-bucket',
+                },
+                {
+                    key: 's3Endpoint',
+                    value: settings.s3Endpoint,
+                    type: 'textinput',
+                    title: 'S3 Endpoint',
+                    description: 'S3服务端点地址，可省略协议前缀（自动添加https://）',
+                    placeholder: 'oss-cn-shanghai.aliyuncs.com',
+                },
+                {
+                    key: 's3Region',
+                    value: settings.s3Region,
+                    type: 'textinput',
+                    title: 'S3 Region',
+                    description: 'S3区域，例如 oss-cn-shanghai',
+                    placeholder: 'auto',
+                },
+                {
+                    key: 's3AccessKeyId',
+                    value: settings.s3AccessKeyId,
+                    type: 'textinput',
+                    title: 'S3 Access Key ID',
+                    description: 'S3访问密钥ID',
+                },
+                {
+                    key: 's3AccessKeySecret',
+                    value: settings.s3AccessKeySecret,
+                    type: 'textinput',
+                    title: 'S3 Access Key Secret',
+                    description: 'S3访问密钥Secret',
+                },
+                {
+                    key: 's3StoragePath',
+                    value: settings.s3StoragePath,
+                    type: 'textinput',
+                    title: 'S3 存储路径',
+                    description: 'S3中的存储路径，例如: /calendar/ 或留空存储在根目录',
+                    placeholder: '/calendar/',
+                },
+                {
+                    key: 's3ForcePathStyle',
+                    value: settings.s3ForcePathStyle,
+                    type: 'select',
+                    title: 'S3 Addressing 风格',
+                    description:
+                        '访问文件URL，Path-style: https://endpoint/bucket/key, Virtual hosted: https://bucket.endpoint/key',
+                    options: {
+                        true: 'Path-style',
+                        false: 'Virtual hosted style',
+                    },
+                },
+                {
+                    key: 's3TlsVerify',
+                    value: settings.s3TlsVerify,
+                    type: 'select',
+                    title: 'S3 TLS 证书验证',
+                    description: '是否验证TLS/SSL证书，关闭后可连接自签名证书的服务',
+                    options: {
+                        true: '启用验证',
+                        false: '禁用验证',
                     },
                 },
             ],
@@ -576,6 +675,12 @@
             if (detail.key === 'weekStartDay' && typeof detail.value === 'string') {
                 const parsed = parseInt(detail.value, 10);
                 settings[detail.key] = isNaN(parsed) ? DEFAULT_SETTINGS.weekStartDay : parsed;
+            } else if (
+                (detail.key === 's3ForcePathStyle' || detail.key === 's3TlsVerify') &&
+                typeof detail.value === 'string'
+            ) {
+                // 将字符串 'true'/'false' 转换为布尔值
+                settings[detail.key] = detail.value === 'true';
             } else if (detail.key === 'dailyNotificationTime') {
                 // 允许用户输入 HH:MM，也兼容数字（小时）或单个小时字符串
                 let v = detail.value;
@@ -753,19 +858,59 @@
         }));
     }
 
-    // 根据 icsSyncEnabled 控制相关项的禁用状态
-    groups = groups.map(group => ({
+    // 根据 icsSyncEnabled 和 icsSyncMethod 控制相关项的显示和隐藏
+    $: filteredGroups = groups.map(group => ({
         ...group,
         items: group.items.map(item => {
             const updated = { ...item } as any;
-            if (['icsSyncInterval', 'icsBlockId', 'uploadIcsToCloud'].includes(item.key)) {
+
+            // 通用同步设置，仅在同步启用时可用
+            if (
+                [
+                    'icsSyncInterval',
+                    'icsFormat',
+                    'icsFileName',
+                    'icsSyncMethod',
+                    'uploadIcsToCloud',
+                ].includes(item.key)
+            ) {
                 updated.disabled = !settings.icsSyncEnabled;
             }
+
+            // 思源服务器专用设置 - 仅在启用同步且选择思源服务器时显示
+            if (item.key === 'icsBlockId') {
+                updated.hidden = !settings.icsSyncEnabled || settings.icsSyncMethod !== 'siyuan';
+            }
+
+            // S3专用设置 - s3UseSiyuanConfig仅在启用同步且选择S3存储时显示
+            if (item.key === 's3UseSiyuanConfig') {
+                updated.hidden = !settings.icsSyncEnabled || settings.icsSyncMethod !== 's3';
+            }
+
+            // S3详细配置 - 仅在启用同步、选择S3存储且未启用"使用思源S3设置"时显示
+            if (
+                [
+                    's3Bucket',
+                    's3Endpoint',
+                    's3Region',
+                    's3AccessKeyId',
+                    's3AccessKeySecret',
+                    's3StoragePath',
+                    's3ForcePathStyle',
+                    's3TlsVerify',
+                ].includes(item.key)
+            ) {
+                updated.hidden =
+                    !settings.icsSyncEnabled ||
+                    settings.icsSyncMethod !== 's3' ||
+                    settings.s3UseSiyuanConfig === true;
+            }
+
             return updated;
         }),
     }));
 
-    $: currentGroup = groups.find(group => group.name === focusGroup);
+    $: currentGroup = filteredGroups.find(group => group.name === focusGroup);
 </script>
 
 <div class="fn__flex-1 fn__flex config__panel">

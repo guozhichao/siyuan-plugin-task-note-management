@@ -8,6 +8,7 @@
  */
 
 import * as ics from 'ics';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { lunarToSolar, solarToLunar } from './lunarUtils';
 import { pushErrMsg, pushMsg, putFile, getBlockKramdown, uploadIcsToCloud as uploadApi, getFileBlob } from '../api';
 import { Constants } from 'siyuan';
@@ -559,7 +560,7 @@ export async function exportIcsFile(
         const { error, value } = ics.createEvents(events, {
             productId: 'siyuan-plugin-task-note-management',
             method: 'PUBLISH',
-            calName: '思源提醒',
+            calName: '思源任务笔记管理',
         });
 
         if (error) {
@@ -591,18 +592,28 @@ export async function exportIcsFile(
 
 export async function uploadIcsToCloud(plugin: any, settings: any) {
     try {
-        if (!settings.icsBlockId) {
-            await pushErrMsg('请先设置ICS块ID');
-            return;
+        const syncMethod = settings.icsSyncMethod || 'siyuan';
+
+        // 生成或获取ICS文件名
+        let icsFileName = settings.icsFileName;
+        if (!icsFileName || icsFileName.trim() === '') {
+            // 自动生成文件名：reminder-随机ID
+            icsFileName = `reminder-${window.Lute?.NewNodeID?.() || Date.now()}`;
+            // 保存生成的文件名
+            settings.icsFileName = icsFileName;
+            await plugin.saveData('reminder-settings.json', settings);
         }
 
-        // 1. 调用 exportIcsFile 生成 reminders.ics (不打开文件夹)
+        // 确保文件名不包含.ics后缀
+        icsFileName = icsFileName.replace(/\.ics$/i, '');
+        const fullFileName = `${icsFileName}.ics`;
+
+        // 1. 调用 exportIcsFile 生成 ICS 文件
         const isXiaomiFormat = settings.icsFormat === 'xiaomi';
         await exportIcsFile(plugin, isXiaomiFormat, false);
 
         // 2. 读取生成的 reminders.ics 文件
-        const dataDir =
-            'data/storage/petal/siyuan-plugin-task-note-management';
+        const dataDir = 'data/storage/petal/siyuan-plugin-task-note-management';
         const icsPath = dataDir + '/reminders.ics';
 
         const icsBlob = await getFileBlob(icsPath);
@@ -613,7 +624,186 @@ export async function uploadIcsToCloud(plugin: any, settings: any) {
 
         const icsContent = await icsBlob.text();
 
-        // 3. 从块内容中提取 ICS 链接
+        // 根据同步方式选择不同的上传逻辑
+        if (syncMethod === 's3') {
+            // S3 同步方式
+            await uploadToS3(settings, icsContent, fullFileName, plugin);
+        } else {
+            // 思源服务器同步方式
+            await uploadToSiyuan(settings, icsContent, plugin);
+        }
+    } catch (err) {
+        console.error('上传ICS到云端失败:', err);
+        await pushErrMsg('上传ICS到云端失败: ' + (err.message || err));
+    }
+}
+
+/**
+ * 上传到S3存储
+ */
+async function uploadToS3(settings: any, icsContent: string, fileName: string, plugin: any) {
+    try {
+        // 获取S3配置：如果启用"使用思源S3设置"，则从思源配置读取；否则使用插件配置
+        let s3Bucket: string;
+        let s3Endpoint: string;
+        let s3Region: string;
+        let s3AccessKeyId: string;
+        let s3AccessKeySecret: string;
+        let s3StoragePath: string;
+        let s3ForcePathStyle: boolean;
+        let s3TlsVerify: boolean;
+
+        if (settings.s3UseSiyuanConfig) {
+            // 使用思源的S3配置
+            const siyuanS3 = window.siyuan?.config?.sync?.s3;
+            if (!siyuanS3) {
+                await pushErrMsg('未找到思源的S3配置，请先在思源设置中配置S3同步');
+                return;
+            }
+            s3Bucket = siyuanS3.bucket || '';
+            s3Endpoint = siyuanS3.endpoint || '';
+            s3Region = siyuanS3.region || 'auto';
+            s3AccessKeyId = siyuanS3.accessKey || '';
+            s3AccessKeySecret = siyuanS3.secretKey || '';
+            s3StoragePath = settings.s3StoragePath || ''; // 存储路径仍使用插件配置
+            s3ForcePathStyle = siyuanS3.pathStyle !== false; // 思源的pathStyle
+            s3TlsVerify = !siyuanS3.skipTlsVerify; // 思源的skipTlsVerify取反
+        } else {
+            // 使用插件的S3配置
+            s3Bucket = settings.s3Bucket || '';
+            s3Endpoint = settings.s3Endpoint || '';
+            s3Region = settings.s3Region || 'auto';
+            s3AccessKeyId = settings.s3AccessKeyId || '';
+            s3AccessKeySecret = settings.s3AccessKeySecret || '';
+            s3StoragePath = settings.s3StoragePath || '';
+            s3ForcePathStyle = settings.s3ForcePathStyle === true;
+            s3TlsVerify = settings.s3TlsVerify !== false;
+        }
+
+        // 验证S3配置
+        if (!s3Bucket || !s3Endpoint || !s3AccessKeyId || !s3AccessKeySecret) {
+            await pushErrMsg('S3配置不完整，请检查Bucket、Endpoint、AccessKeyId和AccessKeySecret');
+            return;
+        }
+
+        // 处理endpoint，如果没有协议前缀则自动添加https://
+        let endpoint = s3Endpoint.trim();
+        if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+            endpoint = 'https://' + endpoint;
+        }
+
+        // 创建S3客户端配置
+        const s3Config: any = {
+            region: s3Region || 'auto', // 使用配置的region，默认为auto
+            endpoint: endpoint,
+            credentials: {
+                accessKeyId: s3AccessKeyId,
+                secretAccessKey: s3AccessKeySecret,
+            },
+            forcePathStyle: s3ForcePathStyle, // 使用配置的addressing风格
+        };
+
+        // 如果禁用TLS验证，配置requestHandler
+        if (s3TlsVerify === false) {
+            // 在Node.js环境中禁用TLS验证
+            if (typeof require !== 'undefined') {
+                try {
+                    const https = require('https');
+                    const { NodeHttpHandler } = require('@smithy/node-http-handler');
+                    s3Config.requestHandler = new NodeHttpHandler({
+                        httpsAgent: new https.Agent({
+                            rejectUnauthorized: false,
+                        }),
+                    });
+                } catch (e) {
+                    console.warn('无法配置TLS验证选项:', e);
+                }
+            }
+        }
+
+        const s3Client = new S3Client(s3Config);
+
+        // 构建S3存储路径
+        let storagePath = s3StoragePath || '';
+        // 确保路径格式正确
+        if (storagePath && !storagePath.endsWith('/')) {
+            storagePath += '/';
+        }
+        if (storagePath && storagePath.startsWith('/')) {
+            storagePath = storagePath.substring(1);
+        }
+
+        const s3Key = storagePath + fileName;
+
+        // 上传到S3
+        const command = new PutObjectCommand({
+            Bucket: s3Bucket,
+            Key: s3Key,
+            Body: icsContent,
+            ContentType: 'text/calendar',
+        });
+
+        await s3Client.send(command);
+
+        // 构建云端链接
+        let cloudUrl: string;
+        if (s3ForcePathStyle === true) {
+            // Path-style: https://endpoint/bucket/key
+            cloudUrl = endpoint;
+            if (!cloudUrl.endsWith('/')) {
+                cloudUrl += '/';
+            }
+            cloudUrl += `${s3Bucket}/${s3Key}`;
+        } else {
+            // Virtual hosted style: https://bucket.endpoint/key
+            // 从endpoint中提取协议和域名
+            const urlMatch = endpoint.match(/^(https?:\/\/)(.+)$/);
+            if (urlMatch) {
+                const protocol = urlMatch[1];
+                const domain = urlMatch[2].replace(/\/$/, ''); // 移除末尾的斜杠
+                cloudUrl = `${protocol}${s3Bucket}.${domain}/${s3Key}`;
+            } else {
+                // 如果无法解析，回退到path-style
+                cloudUrl = endpoint;
+                if (!cloudUrl.endsWith('/')) {
+                    cloudUrl += '/';
+                }
+                cloudUrl += `${s3Bucket}/${s3Key}`;
+            }
+        }
+
+        settings.icsCloudUrl = cloudUrl;
+        settings.icsLastSyncAt = new Date().toISOString();
+
+        // 保存设置到文件
+        await plugin.saveData('reminder-settings.json', settings);
+
+        // 触发设置更新事件，刷新UI
+        try {
+            window.dispatchEvent(new CustomEvent('reminderSettingsUpdated'));
+        } catch (e) {
+            console.warn('触发设置更新事件失败:', e);
+        }
+
+        await pushMsg(`ICS文件已上传到S3: ${cloudUrl}`);
+        console.log('ICS 文件上传到 S3 成功');
+    } catch (err) {
+        console.error('上传到S3失败:', err);
+        throw new Error('上传到S3失败: ' + (err.message || err));
+    }
+}
+
+/**
+ * 上传到思源服务器
+ */
+async function uploadToSiyuan(settings: any, icsContent: string, plugin: any) {
+    try {
+        if (!settings.icsBlockId) {
+            await pushErrMsg('请先设置ICS块ID');
+            return;
+        }
+
+        // 从块内容中提取 ICS 链接
         const blockData = await getBlockKramdown(settings.icsBlockId);
         const kramdown = blockData.kramdown;
 
@@ -630,13 +820,14 @@ export async function uploadIcsToCloud(plugin: any, settings: any) {
             return await pushErrMsg('块内容中未找到 reminders.ics 的资产链接，请先将 ICS 文件拖入该块中');
         }
 
-        // 4. 使用 putFile 上传到 assets
+        // 使用 putFile 上传到 assets
         const blob = new Blob([icsContent], { type: 'text/calendar' });
         await putFile(assetPath, false, blob);
 
-        // 5. 调用 API 的 uploadIcsToCloud 触发云端同步
+        // 调用 API 的 uploadIcsToCloud 触发云端同步
         await uploadApi(settings.icsBlockId);
-        console.log('ICS 文件上传到云端成功');
+        console.log('ICS 文件上传到思源云端成功');
+
         // 构建云端链接（若可用）并记录上次同步时间
         try {
             const userId = window.siyuan?.user?.userId || '';
@@ -650,12 +841,21 @@ export async function uploadIcsToCloud(plugin: any, settings: any) {
             try {
                 settings.icsLastSyncAt = new Date().toISOString();
                 await plugin.saveData('reminder-settings.json', settings);
+
+                // 触发设置更新事件，刷新UI
+                try {
+                    window.dispatchEvent(new CustomEvent('reminderSettingsUpdated'));
+                } catch (e) {
+                    console.warn('触发设置更新事件失败:', e);
+                }
             } catch (e) {
                 console.warn('保存 ICS 同步时间失败:', e);
             }
         }
+
+        await pushMsg('ICS文件已上传到思源云端');
     } catch (err) {
-        console.error('上传ICS到云端失败:', err);
-        await pushErrMsg('上传ICS到云端失败: ' + (err.message || err));
+        console.error('上传到思源服务器失败:', err);
+        throw new Error('上传到思源服务器失败: ' + (err.message || err));
     }
 }

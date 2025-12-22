@@ -116,6 +116,19 @@ export const DEFAULT_SETTINGS = {
     icsCloudUrl: '',
     icsSyncEnabled: false, // 是否启用ICS云端同步
     icsFormat: 'normal', // 'normal' | 'xiaomi' - ICS格式
+    icsFileName: '', // ICS文件名，默认为空时自动生成
+    // ICS 同步方式配置
+    icsSyncMethod: 'siyuan', // 'siyuan' | 's3' - 同步方式
+    // S3 配置
+    s3UseSiyuanConfig: false, // 是否使用思源的S3配置
+    s3Bucket: '',
+    s3Endpoint: '',
+    s3Region: 'auto', // S3 区域，默认为 auto
+    s3AccessKeyId: '',
+    s3AccessKeySecret: '',
+    s3StoragePath: '', // S3存储路径，例如: /calendar/
+    s3ForcePathStyle: false, // S3 Addressing风格，true为Path-style，false为Virtual hosted style（默认）
+    s3TlsVerify: true, // S3 TLS证书验证，true为启用验证（默认），false为禁用验证
 };
 
 export default class ReminderPlugin extends Plugin {
