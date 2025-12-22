@@ -504,7 +504,7 @@
                     title: '同步方式',
                     description: '选择ICS文件的同步方式',
                     options: {
-                        siyuan: '思源服务器',
+                        siyuan: '思源订阅会员服务器',
                         s3: 'S3存储',
                     },
                 },
