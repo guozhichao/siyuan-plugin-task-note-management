@@ -1,3 +1,6 @@
+![](https://fastly.jsdelivr.net/gh/Achuan-2/PicBed/assets/1766388432910-2025-12-22.png)
+
+
 ## ✨Star History
 
 <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Achuan-2/siyuan-plugin-task-note-management&type=Date" />
