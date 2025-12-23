@@ -1,4 +1,4 @@
-![](https://fastly.jsdelivr.net/gh/Achuan-2/PicBed/assets/1766388432910-2025-12-22.png)
+![](https://fastly.jsdelivr.net/gh/Achuan-2/PicBed@pic/assets/17664627371481766462737091.png)
 
 
 ## ✨Star History
