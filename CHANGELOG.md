@@ -1,3 +1,8 @@
+## v4.1.1 / 20251223
+- 🎨 优化日历视图列表交互：
+  - 改进switchViewType，目前周视图和日视图的switchViewType是分别记忆的，不要分别记忆，switchViewType直接控制周视图和日视图显示风格
+  - 优化switchViewType按钮，目前如果窄的话，switchViewType label会变成一列显示，导致撑高
+
 ## v4.1.0 / 20251223
 - 🎨 日历视图增加更多视图 [#223](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/223)
 
