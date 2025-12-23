@@ -541,8 +541,8 @@ export class CalendarView {
                 this.hideDropIndicator();
             }
         });
-        
-        
+
+
         // 更新视图按钮状态
         this.updateViewButtonStates();
 
