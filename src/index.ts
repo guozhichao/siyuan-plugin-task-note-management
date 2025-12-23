@@ -4019,10 +4019,6 @@ export default class ReminderPlugin extends Plugin {
     // 初始化ICS订阅同步
     private async initIcsSubscriptionSync() {
         try {
-            const { syncAllSubscriptions } = await import('./utils/icsSubscription');
-
-            // 第一次打开时同步所有日历
-            await syncAllSubscriptions(this);
 
             // 启动定时检查 (参考 ICS 云端同步的短轮询机制)
             this.scheduleIcsSubscriptionSync();
