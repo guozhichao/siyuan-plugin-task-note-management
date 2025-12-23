@@ -83,8 +83,8 @@ export class CalendarConfigManager {
             };
         } catch (error) {
             console.warn('Failed to load calendar config, using defaults:', error);
-            this.config = { 
-                colorBy: 'project', 
+            this.config = {
+                colorBy: 'project',
                 viewMode: 'timeGridWeek',
                 weekViewType: 'timeGrid',
                 dayViewType: 'timeGrid'
