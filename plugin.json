@@ -3,7 +3,7 @@
   "author": "Achuan-2",
   "url": "https://github.com/Achuan-2/siyuan-plugin-task-note-management",
   "version": "4.0.4",
-  "minAppVersion": "3.0.12",
+  "minAppVersion": "3.5.1",
   "backends": [
     "windows",
     "linux",
