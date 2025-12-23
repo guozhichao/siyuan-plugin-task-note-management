@@ -6,6 +6,7 @@ import { QuickReminderDialog } from "./QuickReminderDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { t } from "../utils/i18n";
+import { SETTINGS_FILE } from "../index";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroStatsView } from "./PomodoroStatsView";
@@ -40,6 +41,11 @@ export class ReminderPanel {
     private collapsedTasks: Set<string> = new Set(); // 管理任务的折叠状态
     // 记录用户手动展开的任务（优先于默认折叠）
     private userExpandedTasks: Set<string> = new Set();
+
+    // 是否在“今日任务”视图下显示已完成的子任务（由 header 中的开关控制）
+    private showCompletedSubtasks: boolean = false;
+    private showCompletedCheckbox: HTMLInputElement | null = null;
+    private showCompletedContainer: HTMLElement | null = null;
 
     // 使用全局番茄钟管理器
     private pomodoroManager: PomodoroManager = PomodoroManager.getInstance();
@@ -101,6 +107,16 @@ export class ReminderPanel {
         // 加载折叠状态
         await this.loadCollapseStates();
 
+        // 加载持久化设置（例如 showCompletedSubtasks）
+        try {
+            const settings = (await this.plugin.loadData(SETTINGS_FILE)) || {};
+            if (settings.showCompletedSubtasks !== undefined) {
+                this.showCompletedSubtasks = !!settings.showCompletedSubtasks;
+            }
+        } catch (e) {
+            // ignore
+        }
+
         this.initUI();
         await this.loadSortConfig();
         this.loadReminders();
@@ -153,6 +169,21 @@ export class ReminderPanel {
     private initUI() {
         this.container.classList.add('reminder-panel');
         this.container.innerHTML = '';
+
+        // 注入拖拽时的全局样式（确保 drag 状态下透明度生效）
+        try {
+            if (!document.getElementById('reminder-panel-drag-style')) {
+                const style = document.createElement('style');
+                style.id = 'reminder-panel-drag-style';
+                style.textContent = `
+                    .reminder-item.dragging { opacity: 0.5 !important; }
+                    .reminder-item.reminder-completed { opacity: 0.5 !important; }
+                `;
+                document.head.appendChild(style);
+            }
+        } catch (e) {
+            // ignore
+        }
 
         // 标题部分
         const header = document.createElement('div');
@@ -303,6 +334,10 @@ export class ReminderPanel {
             this.totalItems = 0;
             // 强制刷新，允许在 isLoading 为 true 时也能覆盖加载（例如快速切换时）
             this.loadReminders(true);
+            // 根据当前筛选显示或隐藏“显示已完成子任务”开关
+            if (this.showCompletedContainer) {
+                this.showCompletedContainer.style.display = this.currentTab === 'today' ? '' : 'none';
+            }
         });
         controls.appendChild(this.filterSelect);
 
@@ -323,7 +358,57 @@ export class ReminderPanel {
         this.categoryFilterButton.addEventListener('click', () => this.showCategorySelectDialog());
         controls.appendChild(this.categoryFilterButton);
 
+        // 添加“显示已完成子任务”开关，仅在“今日任务”筛选时显示
+        const showCompletedContainer = document.createElement('label');
+        showCompletedContainer.className = 'b3-label';
+        showCompletedContainer.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin: 0;
+            white-space: nowrap;
+            cursor: pointer;
+            padding: 0;
+        `;
+
+        this.showCompletedCheckbox = document.createElement('input');
+        this.showCompletedCheckbox.type = 'checkbox';
+        this.showCompletedCheckbox.className = 'b3-switch';
+        this.showCompletedCheckbox.checked = this.showCompletedSubtasks;
+        this.showCompletedCheckbox.addEventListener('change', () => {
+            this.showCompletedSubtasks = !!this.showCompletedCheckbox!.checked;
+            // 切换后刷新任务显示
+            this.loadReminders(true);
+            // 持久化设置
+            (async () => {
+                try {
+                    const settings = (await this.plugin.loadData(SETTINGS_FILE)) || {};
+                    settings.showCompletedSubtasks = this.showCompletedSubtasks;
+                    await this.plugin.saveData(SETTINGS_FILE, settings);
+                } catch (e) {
+                    // ignore
+                }
+            })();
+        });
+
+        const showCompletedText = document.createElement('span');
+        // 直接使用中文标签，不使用 i18n
+        showCompletedText.textContent = '显示已完成子任务';
+        showCompletedText.style.cssText = `
+            font-size: 12px;
+            color: var(--b3-theme-on-surface);
+        `;
+
+        showCompletedContainer.appendChild(this.showCompletedCheckbox);
+        showCompletedContainer.appendChild(showCompletedText);
+        // 默认仅在当前筛选为 today 时显示，且单独一行
+        showCompletedContainer.style.display = (this.filterSelect && this.filterSelect.value === 'today') ? '' : 'none';
+        showCompletedContainer.style.cssText += '\n            display: flex; width: 100%; margin-top: 8px;';
+
         header.appendChild(controls);
+        // 将开关单独一行放在 controls 下面
+        header.appendChild(showCompletedContainer);
+        this.showCompletedContainer = showCompletedContainer;
         this.container.appendChild(header);
 
         // 提醒列表容器
@@ -1173,8 +1258,8 @@ export class ReminderPanel {
             for (const parent of directlyMatchingReminders) {
                 const descendants = this.getAllDescendantIds(parent.id, reminderMap);
                 descendants.forEach(id => {
-                    // 在"今日任务"视图中，如果父任务未完成，不显示已完成的子任务
-                    if (this.currentTab === 'today' && !parent.completed) {
+                    // 在"今日任务"视图中，如果父任务未完成且开关关闭，不显示已完成的子任务
+                    if (this.currentTab === 'today' && !parent.completed && !this.showCompletedSubtasks) {
                         const descendant = reminderMap.get(id);
                         if (descendant && descendant.completed) {
                             return; // 跳过已完成的子任务
@@ -1214,21 +1299,71 @@ export class ReminderPanel {
             this.sortReminders(displayReminders);
             this.currentRemindersCache = [...displayReminders];
 
-            // 分页逻辑：计算总数和总页数
-            this.totalItems = displayReminders.length;
-            this.totalPages = Math.ceil(this.totalItems / this.itemsPerPage);
-
-            // 如果启用了分页且有多个页面，则进行分页截断
+            // 分页逻辑：按顶级父任务数进行分页（每页 N 个父任务及其子任务），避免父子被拆分
             let truncatedTotal = 0;
-            if (this.isPaginationEnabled && this.totalPages > 1) {
-                const startIndex = (this.currentPage - 1) * this.itemsPerPage;
-                const endIndex = startIndex + this.itemsPerPage;
-                const originalLength = displayReminders.length;
+            if (this.isPaginationEnabled) {
+                const remMap = new Map<string, any>();
+                displayReminders.forEach(r => remMap.set(r.id, r));
 
-                displayReminders = displayReminders.slice(startIndex, endIndex);
-                truncatedTotal = originalLength - displayReminders.length;
+                // 找到根节点（在当前 displayReminders 集合中没有父节点的项）
+                const roots = displayReminders.filter(r => !r.parentId || !remMap.has(r.parentId));
 
-                // 更新缓存为当前页的条目
+                // 计算以父任务为单位的分页信息
+                const totalParents = roots.length;
+                this.totalItems = totalParents; // 总项数表示为父任务数量
+                this.totalPages = Math.max(1, Math.ceil(totalParents / this.itemsPerPage));
+
+                // 仅当有多页时才进行按父任务分页截断
+                if (this.totalPages > 1) {
+                    // 构建每个根节点对应的组（包含所有后代，按 displayReminders 中的顺序）
+                    const idToChildren = new Map<string, any[]>();
+                    displayReminders.forEach(r => {
+                        if (r.parentId && remMap.has(r.parentId)) {
+                            const arr = idToChildren.get(r.parentId) || [];
+                            arr.push(r);
+                            idToChildren.set(r.parentId, arr);
+                        }
+                    });
+
+                    const buildGroup = (root: any) => {
+                        const group: any[] = [];
+                        const queue: any[] = [root];
+                        while (queue.length > 0) {
+                            const cur = queue.shift();
+                            group.push(cur);
+                            const children = idToChildren.get(cur.id) || [];
+                            for (const c of children) queue.push(c);
+                        }
+                        return group;
+                    };
+
+                    const groups = roots.map(r => buildGroup(r));
+
+                    const startParent = (this.currentPage - 1) * this.itemsPerPage;
+                    const endParent = startParent + this.itemsPerPage;
+                    const selectedRoots = roots.slice(startParent, endParent);
+
+                    // 将选中的父组展开为页面项
+                    const pageItems: any[] = [];
+                    for (const root of selectedRoots) {
+                        const g = buildGroup(root);
+                        pageItems.push(...g);
+                    }
+
+                    const originalLength = displayReminders.length;
+                    truncatedTotal = Math.max(0, originalLength - pageItems.length);
+                    displayReminders = pageItems;
+                    this.currentRemindersCache = [...displayReminders];
+                } else {
+                    // 仅一页，全部展示
+                    this.currentRemindersCache = [...displayReminders];
+                    this.totalItems = totalParents;
+                    this.totalPages = 1;
+                }
+            } else {
+                // 未启用分页：总项为实际提醒数
+                this.totalItems = displayReminders.length;
+                this.totalPages = 1;
                 this.currentRemindersCache = [...displayReminders];
             }
 
@@ -1699,9 +1834,11 @@ export class ReminderPanel {
 
         // 已完成任务显示透明度并显示完成时间
         if (reminder.completed) {
-            // 设置整体透明度为 0.5
+            // 添加已完成类
+            reminderEl.classList.add('reminder-completed');
+            // 设置整体透明度为 0.5（重要性以确保优先级）
             try {
-                reminderEl.style.opacity = '0.5';
+                reminderEl.style.setProperty('opacity', '0.5', 'important');
             } catch (e) {
                 // ignore style errors
             }
@@ -2940,7 +3077,13 @@ export class ReminderPanel {
             this.isDragging = true;
             this.draggedElement = element;
             this.draggedReminder = reminder;
-            element.style.opacity = '0.5';
+            try {
+                element.style.setProperty('opacity', '0.5', 'important');
+            } catch (e) {
+                element.style.opacity = '0.5';
+            }
+            // 添加 dragging 类，作为保险（并覆盖任何样式冲突）
+            try { element.classList.add('dragging'); } catch (e) {}
             element.style.cursor = 'grabbing';
 
             if (e.dataTransfer) {
@@ -2982,7 +3125,12 @@ export class ReminderPanel {
             this.isDragging = false;
             this.draggedElement = null;
             this.draggedReminder = null;
-            element.style.opacity = '';
+            try {
+                element.style.removeProperty('opacity');
+            } catch (e) {
+                element.style.opacity = '';
+            }
+            try { element.classList.remove('dragging'); } catch (e) {}
             element.style.cursor = 'grab';
         });
 
