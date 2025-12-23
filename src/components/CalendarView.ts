@@ -133,7 +133,7 @@ export class CalendarView {
         this.weekBtn.className = 'b3-button b3-button--outline';
         this.weekBtn.textContent = t("week");
         this.weekBtn.addEventListener('click', async () => {
-            const viewType = this.calendarConfigManager.getWeekViewType();
+            const viewType = this.calendarConfigManager.getViewType();
             const viewMode = viewType === 'dayGrid' ? 'dayGridWeek' : 'timeGridWeek';
             await this.calendarConfigManager.setViewMode(viewMode);
             this.calendar.changeView(viewMode);
@@ -145,7 +145,7 @@ export class CalendarView {
         this.dayBtn.className = 'b3-button b3-button--outline';
         this.dayBtn.textContent = t("day");
         this.dayBtn.addEventListener('click', async () => {
-            const viewType = this.calendarConfigManager.getDayViewType();
+            const viewType = this.calendarConfigManager.getViewType();
             const viewMode = viewType === 'dayGrid' ? 'dayGridDay' : 'timeGridDay';
             await this.calendarConfigManager.setViewMode(viewMode);
             this.calendar.changeView(viewMode);
@@ -161,6 +161,8 @@ export class CalendarView {
         switchContainer.style.display = 'flex';
         switchContainer.style.alignItems = 'center';
         switchContainer.style.marginLeft = '8px';
+        switchContainer.style.whiteSpace = 'nowrap';
+        switchContainer.style.flexShrink = '0';
         switchContainer.title = t("switchViewType");
 
         const switchLabel = document.createElement('label');
@@ -5013,21 +5015,18 @@ export class CalendarView {
     private async toggleViewType() {
         const currentView = this.calendar.view.type;
         let newView: string;
-        let viewType: 'timeGrid' | 'dayGrid';
+        const viewType = this.viewTypeSwitch.checked ? 'dayGrid' : 'timeGrid';
 
         if (currentView === 'timeGridWeek' || currentView === 'dayGridWeek') {
-            viewType = this.viewTypeSwitch.checked ? 'dayGrid' : 'timeGrid';
             newView = viewType === 'dayGrid' ? 'dayGridWeek' : 'timeGridWeek';
-            await this.calendarConfigManager.setWeekViewType(viewType);
         } else if (currentView === 'timeGridDay' || currentView === 'dayGridDay') {
-            viewType = this.viewTypeSwitch.checked ? 'dayGrid' : 'timeGrid';
             newView = viewType === 'dayGrid' ? 'dayGridDay' : 'timeGridDay';
-            await this.calendarConfigManager.setDayViewType(viewType);
         } else {
             // 如果不是周或日视图，不做任何操作
             return;
         }
 
+        await this.calendarConfigManager.setViewType(viewType);
         this.calendar.changeView(newView);
         // 更新配置中的视图模式
         this.calendarConfigManager.setViewMode(newView);
@@ -5058,13 +5057,13 @@ export class CalendarView {
             case 'dayGridWeek':
                 this.weekBtn.classList.add('b3-button--primary');
                 this.viewTypeSwitch.disabled = false;
-                this.viewTypeSwitch.checked = currentViewMode === 'dayGridWeek';
+                this.viewTypeSwitch.checked = this.calendarConfigManager.getViewType() === 'dayGrid';
                 break;
             case 'timeGridDay':
             case 'dayGridDay':
                 this.dayBtn.classList.add('b3-button--primary');
                 this.viewTypeSwitch.disabled = false;
-                this.viewTypeSwitch.checked = currentViewMode === 'dayGridDay';
+                this.viewTypeSwitch.checked = this.calendarConfigManager.getViewType() === 'dayGrid';
                 break;
             case 'multiMonthYear':
                 this.yearBtn.classList.add('b3-button--primary');

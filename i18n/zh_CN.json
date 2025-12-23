@@ -6,7 +6,7 @@
     "setTimeReminder": "设置为任务",
     "reminderPanel": "提醒面板",
     "calendarView": "日历视图",
-    "switchViewType": "无时间轴",
+    "switchViewType": "列表",
     "eisenhowerMatrix": "四象限",
     "dragTasksToChangeQuadrant": "拖拽任务到不同象限以改变分类",
     "noTasksInQuadrant": "该象限暂无任务",
