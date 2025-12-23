@@ -3083,7 +3083,7 @@ export class ReminderPanel {
                 element.style.opacity = '0.5';
             }
             // 添加 dragging 类，作为保险（并覆盖任何样式冲突）
-            try { element.classList.add('dragging'); } catch (e) {}
+            try { element.classList.add('dragging'); } catch (e) { }
             element.style.cursor = 'grabbing';
 
             if (e.dataTransfer) {
@@ -3130,7 +3130,7 @@ export class ReminderPanel {
             } catch (e) {
                 element.style.opacity = '';
             }
-            try { element.classList.remove('dragging'); } catch (e) {}
+            try { element.classList.remove('dragging'); } catch (e) { }
             element.style.cursor = 'grab';
         });
 
