@@ -2076,7 +2076,6 @@ export class CalendarView {
             await saveReminders(this.plugin, reminderData);
 
             showMessage(t("eventTimeUpdated"));
-            await this.refreshEvents();
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
         } catch (error) {
@@ -2212,7 +2211,6 @@ export class CalendarView {
             });
 
             showMessage(t("instanceTimeUpdated"));
-            await this.refreshEvents();
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
         } catch (error) {
@@ -2332,13 +2330,7 @@ export class CalendarView {
 
                 await saveReminders(this.plugin, reminderData);
 
-                // 触发更新事件
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
-
                 showMessage(t("eventTimeUpdated"));
-
-                // 立即刷新事件显示
-                await this.refreshEvents();
             } else {
                 throw new Error('提醒数据不存在');
             }
