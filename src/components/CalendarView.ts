@@ -2226,7 +2226,13 @@ export class CalendarView {
 
             if (reminderData[reminderId]) {
                 const newStartDate = info.event.start;
-                const newEndDate = info.event.end;
+                let newEndDate = info.event.end;
+
+                // 如果是将全天事件拖动为定时事件，FullCalendar 可能不会提供 end。
+                // 在这种情况下默认使用 1 小时时长，避免刷新后事件变短。
+                if (!newEndDate && !info.event.allDay && info.oldEvent && info.oldEvent.allDay) {
+                    newEndDate = new Date(newStartDate.getTime() + 60 * 60 * 1000); // 默认 1 小时
+                }
 
                 // 使用本地时间处理日期和时间
                 const { dateStr: startDateStr, timeStr: startTimeStr } = getLocalDateTime(newStartDate);
