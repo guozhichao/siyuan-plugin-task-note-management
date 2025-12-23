@@ -10,7 +10,7 @@
 import * as ics from 'ics';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { lunarToSolar, solarToLunar } from './lunarUtils';
-import { pushErrMsg, pushMsg, putFile, getBlockKramdown, uploadIcsToCloud as uploadApi, getFileBlob } from '../api';
+import { pushErrMsg, pushMsg, putFile, getBlockKramdown, uploadCloud, getFileBlob } from '../api';
 import { Constants } from 'siyuan';
 
 const useShell = async (cmd: 'showItemInFolder' | 'openPath', filePath: string) => {
@@ -594,14 +594,11 @@ export async function uploadIcsToCloud(plugin: any, settings: any) {
     try {
         const syncMethod = settings.icsSyncMethod || 'siyuan';
 
-        // 生成或获取ICS文件名
+        // 获取ICS文件名，若未设置则提示用户先在设置中填写
         let icsFileName = settings.icsFileName;
         if (!icsFileName || icsFileName.trim() === '') {
-            // 自动生成文件名：reminder-随机ID
-            icsFileName = `reminder-${window.Lute?.NewNodeID?.() || Date.now()}`;
-            // 保存生成的文件名
-            settings.icsFileName = icsFileName;
-            await plugin.saveData('reminder-settings.json', settings);
+            await pushErrMsg('请先在设置中填写 ICS 文件名 (icsFileName)');
+            return;
         }
 
         // 确保文件名不包含.ics后缀
@@ -804,51 +801,39 @@ async function uploadToS3(settings: any, icsContent: string, fileName: string, p
  */
 async function uploadToSiyuan(settings: any, icsContent: string, plugin: any) {
     try {
-        if (!settings.icsBlockId) {
-            await pushErrMsg('请先设置ICS块ID');
+        // 检查是否配置了文件名，否则提示用户先在设置中填写
+        let icsFileName = settings.icsFileName;
+        if (!icsFileName || icsFileName.trim() === '') {
+            await pushErrMsg('请先在设置中填写 ICS 文件名 (icsFileName)');
             return;
         }
 
-        // 从块内容中提取 ICS 链接
-        const blockData = await getBlockKramdown(settings.icsBlockId);
-        const kramdown = blockData.kramdown;
+        // 确保不包含 .ics 后缀
+        icsFileName = icsFileName.replace(/\.ics$/i, '');
+        const fullFileName = `${icsFileName}.ics`;
 
-        // 匹配 [reminders.ics](assets/reminders-xxx.ics) 格式
-        const linkMatch = kramdown.match(
-            /\[reminders\.ics\]\((assets\/reminders-[^)]+\.ics)\)/
-        );
-
-        let assetPath: string;
-        if (linkMatch && linkMatch[1]) {
-            // 使用现有链接
-            assetPath = `data/${linkMatch[1]}`;
-        } else {
-            return await pushErrMsg('块内容中未找到 reminders.ics 的资产链接，请先将 ICS 文件拖入该块中');
-        }
-
-        // 使用 putFile 上传到 assets
+        // 写入到 data/assets/<fullFileName>
+        const assetPath = `data/assets/${fullFileName}`;
         const blob = new Blob([icsContent], { type: 'text/calendar' });
         await putFile(assetPath, false, blob);
 
-        // 调用 API 的 uploadIcsToCloud 触发云端同步
-        await uploadApi(settings.icsBlockId);
-        console.log('ICS 文件上传到思源云端成功');
+        // 使用 uploadCloud 上传资源，传入 paths 参数
+        await uploadCloud(undefined, [`assets/${fullFileName}`]);
 
         // 构建云端链接（若可用）并记录上次同步时间
         try {
             const userId = window.siyuan?.user?.userId || '';
             if (userId) {
-                const filename = assetPath.replace('data/assets/', '');
+                const filename = fullFileName;
                 const fullUrl = `https://assets.b3logfile.com/siyuan/${userId}/assets/${filename}`;
                 settings.icsCloudUrl = fullUrl;
             }
         } finally {
-            // 记录上次成功同步时间
+            // 记录上次成功同步时间并保存设置
             try {
                 settings.icsLastSyncAt = new Date().toISOString();
                 await plugin.saveData('reminder-settings.json', settings);
 
-                // 触发设置更新事件，刷新UI
                 try {
                     window.dispatchEvent(new CustomEvent('reminderSettingsUpdated'));
                 } catch (e) {
@@ -859,7 +844,6 @@ async function uploadToSiyuan(settings: any, icsContent: string, plugin: any) {
             }
         }
 
-        await pushMsg('ICS文件已上传到思源云端');
     } catch (err) {
         console.error('上传到思源服务器失败:', err);
         throw new Error('上传到思源服务器失败: ' + (err.message || err));

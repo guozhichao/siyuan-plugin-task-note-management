@@ -108,7 +108,6 @@ export const DEFAULT_SETTINGS = {
     projectSortOrder: [],
     projectSortMode: 'custom',
     // ICS 云端同步配置
-    icsBlockId: '',
     icsSyncInterval: 'daily', // '15min' | 'hourly' | '4hour' | '12hour' | 'daily'
     icsCloudUrl: '',
     icsSyncEnabled: false, // 是否启用ICS云端同步
@@ -299,7 +298,7 @@ export default class ReminderPlugin extends Plugin {
                 }
 
                 // 处理ICS同步设置变更
-                if (settings.icsSyncEnabled && settings.icsBlockId && settings.icsSyncInterval) {
+                if (settings.icsSyncEnabled && settings.icsSyncInterval) {
                     // 启用时立即安排并尽快执行一次同步
                     await this.scheduleIcsSync(settings.icsSyncInterval, true);
                 } else if (this.icsSyncTimer) {
@@ -3902,7 +3901,7 @@ export default class ReminderPlugin extends Plugin {
     // 初始化ICS云端同步
     private async initIcsSync() {
         const settings = await this.loadSettings();
-        if (settings.icsSyncEnabled && settings.icsBlockId && settings.icsSyncInterval) {
+        if (settings.icsSyncEnabled && settings.icsSyncInterval) {
             // 启用时立即执行一次初始同步
             await this.scheduleIcsSync(settings.icsSyncInterval, true);
         }
@@ -4006,7 +4005,7 @@ export default class ReminderPlugin extends Plugin {
         this.isPerformingIcsSync = true;
         try {
             const settings = await this.loadSettings();
-            if (!settings.icsSyncEnabled || !settings.icsBlockId) return;
+            if (!settings.icsSyncEnabled) return;
 
             await uploadIcsToCloud(this, settings);
         } catch (error) {

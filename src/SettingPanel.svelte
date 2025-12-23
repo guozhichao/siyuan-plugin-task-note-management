@@ -617,14 +617,7 @@
                     disabled: true,
                 },
                 // 思源服务器同步配置
-                {
-                    key: 'icsBlockId',
-                    value: settings.icsBlockId,
-                    type: 'textinput',
-                    title: 'ICS 云端同步块ID（思源）',
-                    description:
-                        '输入包含ICS文件的块ID，用于云端同步。生成ICS后手动拖入某个块中，然后复制块ID粘贴此处',
-                },
+                
                 // S3 同步配置
                 {
                     key: 's3UseSiyuanConfig',
@@ -809,54 +802,7 @@
                 settings[detail.key] = detail.value;
             }
 
-            // 当块ID改变时，尝试从该块中解析已上传的文件名并自动生成云端链接
-            if (detail.key === 'icsBlockId' && detail.value) {
-                (async () => {
-                    try {
-                        const { getBlockByID } = await import('./api');
-                        const block = await getBlockByID(String(detail.value));
-                        let filename: string | null = null;
-                        const content =
-                            (block && (block.content || block.html || block.text)) || '';
-                        if (typeof content === 'string') {
-                            const m1 = content.match(
-                                /https?:\/\/assets\.b3logfile\.com\/siyuan\/[^\/]+\/assets\/([^"\)\]\s<>']+\.ics)/i
-                            );
-                            const m2 =
-                                content.match(/data\/assets\/([^"\)\]\s<>']+\.ics)/i) ||
-                                content.match(/assets\/([^"\)\]\s<>']+\.ics)/i);
-                            const found = m1 || m2;
-                            if (found && found[1]) {
-                                filename = found[1];
-                            }
-                        }
-
-                        // 回退到基于时间戳的文件名（保守策略）
-                        if (!filename) {
-                            const timestamp = new Date()
-                                .toISOString()
-                                .replace(/[:.]/g, '')
-                                .slice(0, -5);
-                            filename = `reminders-${timestamp}-kxg4mps.ics`;
-                        }
-
-                        const userId = window.siyuan?.user?.userId || '';
-                        if (userId && filename) {
-                            settings.icsCloudUrl = `https://assets.b3logfile.com/siyuan/${userId}/assets/${filename}`;
-                        }
-                    } catch (err) {
-                        // 出错时保持原有行为：使用时间戳文件名
-                        const timestamp = new Date()
-                            .toISOString()
-                            .replace(/[:.]/g, '')
-                            .slice(0, -5);
-                        const filename = `reminders-${timestamp}-kxg4mps.ics`;
-                        const userId = window.siyuan?.user?.userId || '';
-                        if (userId)
-                            settings.icsCloudUrl = `https://assets.b3logfile.com/siyuan/${userId}/assets/${filename}`;
-                    }
-                })();
-            }
+            
 
             saveSettings();
             // 确保 UI 中 select 等值显示被刷新
@@ -978,10 +924,7 @@
                 updated.disabled = !settings.icsSyncEnabled;
             }
 
-            // 思源服务器专用设置 - 仅在启用同步且选择思源服务器时显示
-            if (item.key === 'icsBlockId') {
-                updated.hidden = !settings.icsSyncEnabled || settings.icsSyncMethod !== 'siyuan';
-            }
+            
 
             // S3专用设置 - s3UseSiyuanConfig仅在启用同步且选择S3存储时显示
             if (item.key === 's3UseSiyuanConfig') {
