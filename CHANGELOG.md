@@ -1,3 +1,7 @@
+## v3.9.4 / 20251223
+- ✨ 支持ics文件导入
+- ✨ 支持订阅ics链接
+
 ## v3.9.3 / 20251223
 - 🎨 mac系统表情文件无法正确加载，改为相对路径 ([#214](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/214))，感谢[QYLexpired](https://github.com/QYLexpired)贡献
 - 🎨 增加一天起始时间的设置，增加任务时间统计功能，增加日历快捷键 ([#221](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/221))，感谢[ebAobS](https://github.com/ebAobS)贡献

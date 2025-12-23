@@ -1,5 +1,5 @@
 import { showMessage, confirm, Dialog, Menu, openTab } from "siyuan";
-import { refreshSql, readReminderData, writeReminderData, sql, updateBlock, getBlockKramdown, getBlockByID, updateBlockReminderBookmark, openBlock, createDocWithMd, renderSprig, readProjectData } from "../api";
+import { refreshSql, sql, updateBlock, getBlockKramdown, getBlockByID, updateBlockReminderBookmark, openBlock, createDocWithMd, renderSprig, readProjectData } from "../api";
 import { getLocalDateString, compareDateStrings, getLocalDateTime, getLocalDateTimeString, getLogicalDateString, getRelativeDateString } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { QuickReminderDialog } from "./QuickReminderDialog";
@@ -11,9 +11,9 @@ import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroStatsView } from "./PomodoroStatsView";
 import { TaskTimeStatsView } from "./TaskTimeStatsView";
 import { EisenhowerMatrixView } from "./EisenhowerMatrixView";
-import { QuickReminderDialog } from "./QuickReminderDialog";
 import { PomodoroManager } from "../utils/pomodoroManager";
 import { getSolarDateLunarString, getNextLunarMonthlyDate, getNextLunarYearlyDate } from "../utils/lunarUtils";
+import { getAllReminders, saveReminders } from "../utils/icsSubscription";
 
 // 添加四象限面板常量
 const EISENHOWER_TAB_TYPE = "reminder_eisenhower_tab";
@@ -1149,7 +1149,7 @@ export class ReminderPanel {
         const scrollLeft = this.remindersContainer.scrollLeft;
 
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             if (!reminderData || typeof reminderData !== 'object') {
                 this.updateReminderCounts(0, 0, 0, 0, 0, 0);
                 this.renderReminders([]);
@@ -1494,7 +1494,7 @@ export class ReminderPanel {
         reminderEl.dataset.reminderId = reminder.id;
         reminderEl.dataset.priority = priority;
 
-        // 总是启用拖拽功能（支持排序和设置父子关系）
+        // 所有任务均启用拖拽功能（支持排序）
         this.addDragFunctionality(reminderEl, reminder);
 
         reminderEl.addEventListener('contextmenu', (e) => {
@@ -1513,13 +1513,18 @@ export class ReminderPanel {
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.checked = reminder.completed || false;
-        checkbox.addEventListener('change', () => {
-            if (reminder.isRepeatInstance) {
-                this.toggleReminder(reminder.originalId, checkbox.checked, true, reminder.date);
-            } else {
-                this.toggleReminder(reminder.id, checkbox.checked);
-            }
-        });
+        if (reminder.isSubscribed) {
+            checkbox.disabled = true;
+            checkbox.title = t("subscribedTaskReadOnly") || "订阅任务（只读）";
+        } else {
+            checkbox.addEventListener('change', () => {
+                if (reminder.isRepeatInstance) {
+                    this.toggleReminder(reminder.originalId, checkbox.checked, true, reminder.date);
+                } else {
+                    this.toggleReminder(reminder.id, checkbox.checked);
+                }
+            });
+        }
 
         leftControls.appendChild(checkbox);
 
@@ -1631,14 +1636,19 @@ export class ReminderPanel {
             timeEl.textContent = '🗓' + timeText;
             timeEl.style.cursor = 'pointer';
             timeEl.title = t("clickToModifyTime");
-            timeEl.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (reminder.isRepeatInstance) {
-                    this.editOriginalReminder(reminder.originalId);
-                } else {
-                    this.showTimeEditDialog(reminder);
-                }
-            });
+            if (!reminder.isSubscribed) {
+                timeEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (reminder.isRepeatInstance) {
+                        this.editOriginalReminder(reminder.originalId);
+                    } else {
+                        this.showTimeEditDialog(reminder);
+                    }
+                });
+            } else {
+                timeEl.title = t("subscribedTaskReadOnly") || "订阅任务（只读）";
+                timeEl.style.cursor = 'default';
+            }
             timeContainer.appendChild(timeEl);
 
             const countdownEl = this.createReminderCountdownElement(reminder, today);
@@ -2281,7 +2291,7 @@ export class ReminderPanel {
     private asyncDataCache: Map<string, any> = new Map();
     private async editOriginalReminder(originalId: string) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const originalReminder = reminderData[originalId];
 
             if (originalReminder) {
@@ -2419,7 +2429,7 @@ export class ReminderPanel {
 
     private async toggleReminder(reminderId: string, completed: boolean, isRepeatInstance?: boolean, instanceDate?: string) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             if (isRepeatInstance && instanceDate) {
                 // reminderId 是原始提醒的 id
@@ -2447,7 +2457,7 @@ export class ReminderPanel {
                     delete completedTimes[instanceDate];
                 }
 
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
 
                 // 更新 allRemindersMap 中的原始数据
                 if (this.allRemindersMap.has(originalId)) {
@@ -2489,7 +2499,7 @@ export class ReminderPanel {
                 delete reminder.completedTime;
             }
 
-            await writeReminderData(reminderData);
+            await saveReminders(this.plugin, reminderData);
 
             // (no block attribute updates here)
 
@@ -2865,7 +2875,7 @@ export class ReminderPanel {
 
     private async deleteRemindersByBlockId(blockId: string) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             let deletedCount = 0;
             const deletedIds: string[] = [];
 
@@ -2880,7 +2890,7 @@ export class ReminderPanel {
             });
 
             if (deletedCount > 0) {
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
 
                 // 更新块的书签状态（应该会移除书签，因为没有提醒了）
                 await updateBlockReminderBookmark(blockId);
@@ -3010,7 +3020,7 @@ export class ReminderPanel {
     // 新增:移除父子关系
     private async removeParentRelation(childReminder: any, silent: boolean = false) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             // 获取原始ID（处理重复实例的情况）
             const childId = childReminder.isRepeatInstance ? childReminder.originalId : childReminder.id;
@@ -3055,7 +3065,7 @@ export class ReminderPanel {
                 reminderData[childId].date = getLogicalDateString();
             }
 
-            await writeReminderData(reminderData);
+            await saveReminders(this.plugin, reminderData);
 
             // 触发刷新以重新渲染整个列表（因为层级结构变化需要重新渲染）
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -3224,7 +3234,13 @@ export class ReminderPanel {
         const targetIsRecurring = targetReminder.isRepeatInstance || (targetReminder.repeat && targetReminder.repeat.enabled);
 
         if (isSetParent) {
-            // 设置父子关系时的检查
+            // 设置父子关系时的额外检查
+            // 订阅任务不支持设置父子关系
+            if (draggedReminder.isSubscribed || targetReminder.isSubscribed) {
+                return false;
+            }
+
+            // 循环任务限制
             if (draggedIsRecurring) {
                 return false; // 循环任务不能成为子任务
             }
@@ -3452,7 +3468,7 @@ export class ReminderPanel {
     // 新增：设置父子关系
     private async setParentRelation(childReminder: any, parentReminder: any) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             // 获取原始ID（处理重复实例的情况）
             const childId = childReminder.isRepeatInstance ? childReminder.originalId : childReminder.id;
@@ -3473,7 +3489,7 @@ export class ReminderPanel {
                 reminderData[childId].projectId = reminderData[parentId].projectId;
             }
 
-            await writeReminderData(reminderData);
+            await saveReminders(this.plugin, reminderData);
 
             // 触发刷新以重新渲染整个列表（因为层级结构变化需要重新渲染）
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -3532,7 +3548,7 @@ export class ReminderPanel {
     // 新增：重新排序提醒
     private async reorderReminders(draggedReminder: any, targetReminder: any, insertBefore: boolean) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             const oldPriority = draggedReminder.priority || 'none';
             const newPriority = targetReminder.priority || 'none';
@@ -3577,7 +3593,7 @@ export class ReminderPanel {
                     if (reminderData[r.id]) reminderData[r.id].sort = index * 10;
                 });
 
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
 
                 // 触发全局刷新以更新UI（包括优先级颜色和位置）
                 // 不使用 skipPanelRefresh，因为优先级改变需要重新渲染样式
@@ -3607,7 +3623,7 @@ export class ReminderPanel {
                     }
                 });
 
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
                 // 注意：同优先级排序不触发强制刷新，因为 manually updateDOMOrder 会处理
                 window.dispatchEvent(new CustomEvent('reminderUpdated', {
                     detail: { skipPanelRefresh: true }
@@ -3661,6 +3677,59 @@ export class ReminderPanel {
     private showReminderContextMenu(event: MouseEvent, reminder: any) {
         const menu = new Menu("reminderContextMenu");
         const today = getLogicalDateString();
+
+        // --- 订阅任务只读处理 ---
+        if (reminder.isSubscribed) {
+            menu.addItem({
+                iconHTML: "ℹ️",
+                label: t("subscribedTaskReadOnly") || "订阅任务（只读）",
+                disabled: true
+            });
+            menu.addSeparator();
+
+            // 导航选项
+            if (reminder.blockId) {
+                menu.addItem({
+                    iconHTML: "📖",
+                    label: t("openNote") || "打开笔记",
+                    click: () => this.openBlockTab(reminder.blockId)
+                });
+                menu.addItem({
+                    iconHTML: "📋",
+                    label: t("copyBlockRef") || "复制块引用",
+                    click: () => this.copyBlockRef(reminder)
+                });
+            }
+
+            if (reminder.projectId) {
+                menu.addItem({
+                    icon: "iconGrid",
+                    label: t("openProjectKanban") || "打开项目看板",
+                    click: () => this.openProjectKanban(reminder.projectId)
+                });
+            }
+
+            menu.addSeparator();
+
+            // 生产力工具
+            menu.addItem({
+                iconHTML: "🍅",
+                label: t("startPomodoro") || "开始番茄钟",
+                click: () => this.startPomodoro(reminder)
+            });
+            menu.addItem({
+                iconHTML: "⏱️",
+                label: t("startCountUp") || "开始正向计时",
+                click: () => this.startPomodoroCountUp(reminder)
+            });
+
+            menu.open({
+                x: event.clientX,
+                y: event.clientY,
+            });
+            return;
+        }
+
         const isSpanningDays = reminder.endDate && reminder.endDate !== reminder.date;
 
         // 判断是否为重复/循环任务或重复实例
@@ -3846,7 +3915,7 @@ export class ReminderPanel {
                 label: t("modifyAllInstances"),
                 click: async () => {
                     // 从数据库重新加载原始提醒对象，避免使用实例化的对象
-                    const reminderData = await readReminderData();
+                    const reminderData = await getAllReminders(this.plugin);
                     const originalReminder = reminderData[reminder.originalId];
                     if (!originalReminder) {
                         showMessage(t("reminderDataNotExist"));
@@ -4105,7 +4174,7 @@ export class ReminderPanel {
     private async markSpanningEventTodayCompleted(reminder: any) {
         try {
             const today = getLogicalDateString();
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             let updatedReminder: any = null;
 
@@ -4130,7 +4199,7 @@ export class ReminderPanel {
                 }
             }
 
-            await writeReminderData(reminderData);
+            await saveReminders(this.plugin, reminderData);
 
             // 局部更新：更新该提醒显示及其父项进度（如果显示）
             // 传入更新后的数据以便正确判断完成状态
@@ -4156,7 +4225,7 @@ export class ReminderPanel {
     private async unmarkSpanningEventTodayCompleted(reminder: any) {
         try {
             const today = getLogicalDateString();
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             let updatedReminder: any = null;
 
@@ -4175,7 +4244,7 @@ export class ReminderPanel {
                 }
             }
 
-            await writeReminderData(reminderData);
+            await saveReminders(this.plugin, reminderData);
 
             // 通知插件更新徽章
             if (this.plugin && typeof this.plugin.updateBadges === 'function') {
@@ -4588,7 +4657,7 @@ export class ReminderPanel {
 
     private async deleteReminder(reminder: any) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             let hasDescendants = false;
             if (reminderData) {
                 // 快速判断是否存在子任务（深度优先）
@@ -4632,7 +4701,7 @@ export class ReminderPanel {
 
     private async performDeleteReminder(reminderId: string) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             if (!reminderData[reminderId]) {
                 showMessage(t("reminderNotExist"));
@@ -4696,7 +4765,7 @@ export class ReminderPanel {
             }
 
             if (deletedCount > 0) {
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
 
                 // 更新受影响的块的书签状态
                 for (const bId of affectedBlockIds) {
@@ -4807,7 +4876,7 @@ export class ReminderPanel {
 
     private async setPriority(reminderId: string, priority: string) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             if (reminderData[reminderId]) {
                 // 检查是否为重复事件（修改全部实例的情况）
                 const isRecurringEvent = reminderData[reminderId].repeat?.enabled;
@@ -4824,7 +4893,7 @@ export class ReminderPanel {
                     });
                 }
 
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
                 showMessage(t("priorityUpdated") || "优先级已更新");
 
                 // 如果是重复事件（修改全部实例），需要重新加载面板以更新所有实例
@@ -4892,7 +4961,7 @@ export class ReminderPanel {
 
     private async setCategory(reminderId: string, categoryId: string | null) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             if (reminderData[reminderId]) {
                 // 检查是否为重复事件（修改全部实例的情况）
                 const isRecurringEvent = reminderData[reminderId].repeat?.enabled;
@@ -4909,7 +4978,7 @@ export class ReminderPanel {
                     });
                 }
 
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
                 showMessage(categoryId ? (t("categoryUpdated") || "分类已更新") : (t("categoryRemoved") || "分类已移除"));
 
                 // 如果是重复事件（修改全部实例），需要重新加载面板以更新所有实例
@@ -5005,7 +5074,7 @@ export class ReminderPanel {
      */
     private async setInstancePriority(originalId: string, instanceDate: string, priority: string) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const originalReminder = reminderData[originalId];
 
             if (!originalReminder) {
@@ -5027,7 +5096,7 @@ export class ReminderPanel {
             // 设置实例的优先级
             originalReminder.repeat.instanceModifications[instanceDate].priority = priority;
 
-            await writeReminderData(reminderData);
+            await saveReminders(this.plugin, reminderData);
 
             // 触发刷新（如果当前按优先级排序）
             if (this.currentSort === 'priority') {
@@ -5051,7 +5120,7 @@ export class ReminderPanel {
      */
     private async setInstanceCategory(originalId: string, instanceDate: string, categoryId: string | null) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const originalReminder = reminderData[originalId];
 
             if (!originalReminder) {
@@ -5073,7 +5142,7 @@ export class ReminderPanel {
             // 设置实例的分类
             originalReminder.repeat.instanceModifications[instanceDate].categoryId = categoryId;
 
-            await writeReminderData(reminderData);
+            await saveReminders(this.plugin, reminderData);
 
             // 触发刷新（如果有分类过滤）
             if (this.currentCategoryFilter !== 'all') {
@@ -5095,7 +5164,7 @@ export class ReminderPanel {
      */
     private async splitRecurringReminder(reminder: any) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const originalReminder = reminderData[reminder.id];
             if (!originalReminder || !originalReminder.repeat?.enabled) {
                 showMessage(t("operationFailed"));
@@ -5150,7 +5219,7 @@ export class ReminderPanel {
      */
     private async performSplitOperation(originalReminder: any, modifiedReminder: any) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             // 1. 修改原始事件为单次事件（应用用户的修改）
             const singleReminder = {
@@ -5205,7 +5274,7 @@ export class ReminderPanel {
             // 4. 保存修改
             reminderData[originalReminder.id] = singleReminder;
             reminderData[newId] = newReminder;
-            await writeReminderData(reminderData);
+            await saveReminders(this.plugin, reminderData);
 
             // 5. 更新界面
             this.loadReminders();
@@ -5226,7 +5295,7 @@ export class ReminderPanel {
             const originalId = reminder.originalId;
             const instanceDate = reminder.date;
 
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const originalReminder = reminderData[originalId];
 
             if (!originalReminder) {
@@ -5269,7 +5338,7 @@ export class ReminderPanel {
             // 4. 保存修改
             reminderData[originalId] = originalReminder;
             reminderData[newId] = newReminder;
-            await writeReminderData(reminderData);
+            await saveReminders(this.plugin, reminderData);
 
             // 5. 打开编辑对话框编辑新系列
             const editDialog = new QuickReminderDialog(
@@ -5299,7 +5368,7 @@ export class ReminderPanel {
     // 新增：编辑重复事件实例
     private async editInstanceReminder(reminder: any) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const originalReminder = reminderData[reminder.originalId];
 
             if (!originalReminder) {
@@ -5391,7 +5460,7 @@ export class ReminderPanel {
     // 新增：为原始重复事件添加排除日期
     private async addExcludedDate(originalId: string, excludeDate: string) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             if (reminderData[originalId]) {
                 if (!reminderData[originalId].repeat) {
@@ -5408,7 +5477,7 @@ export class ReminderPanel {
                     reminderData[originalId].repeat.excludeDates.push(excludeDate);
                 }
 
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
             } else {
                 throw new Error('原始事件不存在');
             }
@@ -5437,7 +5506,7 @@ export class ReminderPanel {
 
     private async deleteOriginalReminder(originalId: string) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const originalReminder = reminderData[originalId];
 
             if (originalReminder) {
@@ -5462,7 +5531,7 @@ export class ReminderPanel {
             t("confirmSkipFirstOccurrence"),
             async () => {
                 try {
-                    const reminderData = await readReminderData();
+                    const reminderData = await getAllReminders(this.plugin);
                     const originalReminder = reminderData[reminder.id];
 
                     if (!originalReminder || !originalReminder.repeat?.enabled) {
@@ -5510,7 +5579,7 @@ export class ReminderPanel {
                         }
                     }
 
-                    await writeReminderData(reminderData);
+                    await saveReminders(this.plugin, reminderData);
                     showMessage(t("firstOccurrenceSkipped"));
                     this.loadReminders();
                     window.dispatchEvent(new CustomEvent('reminderUpdated', {
@@ -5552,7 +5621,7 @@ export class ReminderPanel {
     // 获取原始事件的blockId
     private async getOriginalBlockId(originalId: string): Promise<string | null> {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const originalReminder = reminderData[originalId];
             return originalReminder?.blockId || originalId;
         } catch (error) {
@@ -5932,7 +6001,7 @@ export class ReminderPanel {
     }
 
     private async batchCreateSubtasksWithHierarchy(tasks: any[], parentIdForAllTopLevel: string) {
-        const reminderData = await readReminderData();
+        const reminderData = await getAllReminders(this.plugin);
 
         // 获取项目ID从父任务
         const parent = reminderData[parentIdForAllTopLevel];
@@ -5996,7 +6065,7 @@ export class ReminderPanel {
             await createRecursively(t, undefined);
         }
 
-        await writeReminderData(reminderData);
+        await saveReminders(this.plugin, reminderData);
         // 全量刷新面板以确保分页/父子关系/异步数据一致
         try {
             await this.loadReminders(true);
@@ -6311,7 +6380,7 @@ export class ReminderPanel {
      */
     private async bindReminderToBlock(reminder: any, blockId: string) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const reminderId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
 
             if (reminderData[reminderId]) {
@@ -6326,7 +6395,7 @@ export class ReminderPanel {
                 reminderData[reminderId].docId = block.root_id || blockId;
                 reminderData[reminderId].isQuickReminder = false; // 移除快速提醒标记
 
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
 
                 // 将绑定的块添加项目ID属性 custom-task-projectId
                 const projectId = reminderData[reminderId].projectId;
@@ -6428,7 +6497,7 @@ export class ReminderPanel {
                     // 保存回调：局部更新而非刷新整个列表
                     try {
                         // 读取最新的提醒数据，找到刚创建的任务
-                        const reminderData = await readReminderData();
+                        const reminderData = await getAllReminders(this.plugin);
                         const allReminders = Object.values(reminderData);
                         // 找到最新创建的任务（按created时间排序）
                         const sortedReminders = allReminders
@@ -6601,7 +6670,7 @@ export class ReminderPanel {
                     let rawData = reminderData;
                     if (!rawData) {
                         const { readReminderData } = await import("../api");
-                        rawData = await readReminderData();
+                        rawData = await getAllReminders(this.plugin);
                     }
                     const reminderMap = rawData instanceof Map ? rawData : new Map(Object.values(rawData || {}).map((r: any) => [r.id, r]));
                     hasDescendants = this.getAllDescendantIds(reminder.id, reminderMap).length > 0;
@@ -6715,7 +6784,7 @@ export class ReminderPanel {
             } else {
                 try {
                     const { readReminderData } = await import("../api");
-                    const rd = await readReminderData();
+                    const rd = await getAllReminders(this.plugin);
                     dataMap = new Map(Object.values(rd || {}).map((r: any) => [r.id, r]));
                 } catch (e) {
                     dataMap = null;
@@ -6809,7 +6878,7 @@ export class ReminderPanel {
             } else {
                 try {
                     const { readReminderData } = await import("../api");
-                    const rd = await readReminderData();
+                    const rd = await getAllReminders(this.plugin);
                     dataMap = new Map(Object.values(rd || {}).map((r: any) => [r.id, r]));
                 } catch (e) {
                     dataMap = null;

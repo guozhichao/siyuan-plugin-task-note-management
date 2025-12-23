@@ -1,4 +1,5 @@
-import { readReminderData, writeReminderData, getFile, putFile, openBlock, getBlockByID, removeFile } from "../api";
+import { getFile, putFile, openBlock, getBlockByID, removeFile } from "../api";
+import { getAllReminders, saveReminders } from "../utils/icsSubscription";
 import { SETTINGS_FILE } from "../index";
 import { ProjectManager } from "../utils/projectManager";
 import { CategoryManager } from "../utils/categoryManager";
@@ -36,6 +37,7 @@ interface QuadrantTask {
     isRepeatInstance?: boolean; // 是否为重复事件实例
     originalId?: string; // 原始重复事件的ID
     termType?: 'short_term' | 'long_term'; // 任务期限类型：短期或长期
+    isSubscribed?: boolean; // 是否为订阅任务
 }
 
 interface Quadrant {
@@ -210,7 +212,7 @@ export class EisenhowerMatrixView {
 
     private async loadTasks() {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const today = getLogicalDateString();
             this.allTasks = [];
 
@@ -443,7 +445,8 @@ export class EisenhowerMatrixView {
                     categoryId: reminder?.categoryId,
                     repeat: reminder?.repeat,
                     isRepeatInstance: reminder?.isRepeatInstance,
-                    originalId: reminder?.originalId
+                    originalId: reminder?.originalId,
+                    isSubscribed: reminder?.isSubscribed
                 };
 
                 this.allTasks.push(task);
@@ -475,8 +478,7 @@ export class EisenhowerMatrixView {
                 try {
                     let rawData = reminderData;
                     if (!rawData) {
-                        const { readReminderData } = await import("../api");
-                        rawData = await readReminderData();
+                        rawData = await getAllReminders(this.plugin);
                     }
                     const reminderMap = rawData instanceof Map ? rawData : new Map(Object.values(rawData || {}).map((r: any) => [r.id, r]));
                     hasDescendants = this.getAllDescendantIds(reminder.id, reminderMap).length > 0;
@@ -525,8 +527,7 @@ export class EisenhowerMatrixView {
                 try {
                     let rawData = reminderData;
                     if (!rawData) {
-                        const { readReminderData } = await import('../api');
-                        rawData = await readReminderData();
+                        rawData = await getAllReminders(this.plugin);
                     }
                     const reminderMap = rawData instanceof Map ? rawData : new Map(Object.values(rawData || {}).map((r: any) => [r.id, r]));
                     hasDescendants = this.getAllDescendantIds(reminder.id, reminderMap).length > 0;
@@ -892,11 +893,23 @@ export class EisenhowerMatrixView {
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.checked = task.completed;
+        if (task.isSubscribed) {
+            checkbox.disabled = true;
+            checkbox.title = t("subscribedTaskReadonly");
+        }
         checkboxContainer.appendChild(checkbox);
 
         // 创建任务信息容器
         const taskInfo = document.createElement('div');
         taskInfo.className = 'task-info';
+
+        // 订阅任务标识
+        if (task.isSubscribed) {
+            const subBadge = document.createElement('span');
+            subBadge.innerHTML = `<svg style="width: 12px; height: 12px; margin-right: 4px; vertical-align: middle;"><use xlink:href="#iconCloud"></use></svg>`;
+            subBadge.title = t("icsSubscribedTask");
+            taskInfo.appendChild(subBadge);
+        }
 
         // 创建控制按钮容器（折叠按钮和拖拽手柄）
         const taskControlContainer = document.createElement('div');
@@ -1438,7 +1451,7 @@ export class EisenhowerMatrixView {
 
     private async moveTaskToQuadrant(taskId: string, newQuadrant: QuadrantTask['quadrant']) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             if (reminderData[taskId]) {
                 // 更新当前任务的象限
@@ -1456,7 +1469,7 @@ export class EisenhowerMatrixView {
                 };
 
                 updateChildrenQuadrant(taskId);
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
 
                 await this.refresh();
                 showMessage(`任务及其子任务已移动到${this.getQuadrantDisplayName(newQuadrant)}`);
@@ -1479,7 +1492,7 @@ export class EisenhowerMatrixView {
 
     private async toggleTaskCompletion(task: QuadrantTask, completed: boolean) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             if (task.isRepeatInstance && task.originalId) {
                 // 对于重复实例，使用不同的完成逻辑
@@ -1496,7 +1509,7 @@ export class EisenhowerMatrixView {
                     delete reminderData[task.id].completedTime;
                 }
 
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
 
                 // 更新本地缓存 this.allTasks 中对应任务的状态
                 const localTask = this.allTasks.find(t => t.id === task.id);
@@ -1537,7 +1550,7 @@ export class EisenhowerMatrixView {
      */
     private async toggleRepeatInstanceCompletion(task: QuadrantTask, completed: boolean) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const originalReminder = reminderData[task.originalId!];
 
             if (!originalReminder) {
@@ -1577,7 +1590,7 @@ export class EisenhowerMatrixView {
                 }
             }
 
-            await writeReminderData(reminderData);
+            await saveReminders(this.plugin, reminderData);
 
             // 更新本地缓存
             const localTask = this.allTasks.find(t => t.id === task.id);
@@ -1756,7 +1769,7 @@ export class EisenhowerMatrixView {
 
     private async deleteTaskByBlockId(blockId: string) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             let taskFound = false;
 
             for (const [taskId, reminder] of Object.entries(reminderData as any)) {
@@ -1767,7 +1780,7 @@ export class EisenhowerMatrixView {
             }
 
             if (taskFound) {
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
                 showMessage('相关任务记录已删除');
                 await this.refresh();
@@ -1833,7 +1846,7 @@ export class EisenhowerMatrixView {
 
         if (task.isRepeatInstance && task.originalId) {
             try {
-                const reminderData = await readReminderData();
+                const reminderData = await getAllReminders(this.plugin);
                 const originalReminder = reminderData[task.originalId];
 
                 if (originalReminder) {
@@ -2510,6 +2523,45 @@ export class EisenhowerMatrixView {
     private showTaskContextMenu(task: QuadrantTask, event: MouseEvent) {
         const menu = new Menu();
 
+        if (task.isSubscribed) {
+            menu.addItem({
+                iconHTML: "ℹ️",
+                label: t("subscribedTaskReadonly"),
+                disabled: true
+            });
+            menu.addSeparator();
+
+            if (task.blockId) {
+                menu.addItem({
+                    iconHTML: "🔗",
+                    label: "打开绑定块",
+                    click: () => this.openTaskBlock(task.blockId!)
+                });
+
+                menu.addItem({
+                    iconHTML: "📋",
+                    label: "复制块引用",
+                    click: () => this.copyBlockRef(task)
+                });
+            }
+
+            // 番茄钟功能对订阅任务仍然可用
+            menu.addItem({
+                iconHTML: "🍅",
+                label: "开始番茄钟",
+                click: () => this.startPomodoro(task)
+            });
+
+            menu.addItem({
+                iconHTML: "⏱️",
+                label: "开始正计时",
+                click: () => this.startPomodoroCountUp(task)
+            });
+
+            menu.open({ x: event.clientX, y: event.clientY });
+            return;
+        }
+
         // 创建子任务选项
         menu.addItem({
             iconHTML: "➕",
@@ -2773,11 +2825,11 @@ export class EisenhowerMatrixView {
 
     private async updateTaskProject(taskId: string, projectId: string | null) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             if (reminderData[taskId]) {
                 reminderData[taskId].projectId = projectId;
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
 
                 await this.refresh();
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -2790,10 +2842,10 @@ export class EisenhowerMatrixView {
 
     private async setTaskPriority(taskId: string, priority: string) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             if (reminderData[taskId]) {
                 reminderData[taskId].priority = priority;
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
 
                 await this.refresh();
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -2809,7 +2861,7 @@ export class EisenhowerMatrixView {
 
     private async setTaskStatusAndTerm(taskId: string, kanbanStatus: string, termType: 'short_term' | 'long_term' | null) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             if (reminderData[taskId]) {
                 reminderData[taskId].kanbanStatus = kanbanStatus;
 
@@ -2820,7 +2872,7 @@ export class EisenhowerMatrixView {
                     delete reminderData[taskId].termType;
                 }
 
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
 
                 await this.refresh();
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -2882,7 +2934,7 @@ export class EisenhowerMatrixView {
             content,
             async () => {
                 try {
-                    const reminderData = await readReminderData();
+                    const reminderData = await getAllReminders(this.plugin);
                     if (!reminderData) {
                         console.warn('No reminder data found');
                         showMessage('任务数据不存在');
@@ -2916,7 +2968,7 @@ export class EisenhowerMatrixView {
                     });
 
                     if (deletedCount > 0) {
-                        await writeReminderData(reminderData);
+                        await saveReminders(this.plugin, reminderData);
                         await this.refresh();
                         window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
@@ -2990,7 +3042,7 @@ export class EisenhowerMatrixView {
 
     private async handleTaskReorder(draggedTaskId: string, targetTaskId: string, event: DragEvent) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             const draggedTask = reminderData[draggedTaskId];
             const targetTask = reminderData[targetTaskId];
@@ -3047,7 +3099,7 @@ export class EisenhowerMatrixView {
                     task.sort = index * 10;
                 });
 
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
                 await this.refresh();
             }
         } catch (error) {
@@ -3770,7 +3822,7 @@ export class EisenhowerMatrixView {
     // @ts-ignore: 方法通过动态绑定使用，避免未使用提示
     private async setParentTaskRelationship(parentTask: QuadrantTask): Promise<void> {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             // 找到最近创建的任务（通过 isQuickReminder 标识和时间戳）
             let latestTaskId: string | null = null;
@@ -3797,7 +3849,7 @@ export class EisenhowerMatrixView {
                 // 这里不再需要重新设置象限
 
                 // 保存数据
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
 
                 console.log(`成功创建子任务: ${taskToUpdate.title}，父任务: ${parentTask.title}`);
             }
@@ -4073,11 +4125,11 @@ export class EisenhowerMatrixView {
     // 将任务绑定到指定的块
     private async bindTaskToBlock(task: QuadrantTask, blockId: string) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             if (reminderData[task.id]) {
                 reminderData[task.id].blockId = blockId;
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
 
                 // 将绑定的块添加项目ID属性 custom-task-projectId
                 const projectId = reminderData[task.id].projectId;
@@ -4106,7 +4158,7 @@ export class EisenhowerMatrixView {
      */
     private async unbindTaskFromBlock(blockId: string) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             let taskFound = false;
 
             for (const [, reminder] of Object.entries(reminderData as any)) {
@@ -4118,7 +4170,7 @@ export class EisenhowerMatrixView {
             }
 
             if (taskFound) {
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
                 await this.refresh();
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
                 showMessage('已解除绑定');
@@ -4134,7 +4186,7 @@ export class EisenhowerMatrixView {
      */
     private async editInstanceReminder(task: QuadrantTask) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const originalReminder = reminderData[task.originalId!];
 
             if (!originalReminder) {
@@ -4215,7 +4267,7 @@ export class EisenhowerMatrixView {
      */
     private async addExcludedDate(originalId: string, excludeDate: string) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             if (reminderData[originalId]) {
                 if (!reminderData[originalId].repeat) {
@@ -4232,7 +4284,7 @@ export class EisenhowerMatrixView {
                     reminderData[originalId].repeat.excludeDates.push(excludeDate);
                 }
 
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
             } else {
                 throw new Error('原始事件不存在');
             }

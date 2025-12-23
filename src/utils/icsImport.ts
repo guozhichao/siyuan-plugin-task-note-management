@@ -29,6 +29,8 @@ export interface ParsedIcsEvent {
     completed?: boolean;
     repeat?: any;
     createdAt?: string;
+    subscriptionId?: string; // ID of the subscription this event belongs to
+    isSubscribed?: boolean; // Whether this event is from a subscription (read-only)
 }
 
 /**
@@ -279,6 +281,9 @@ export function mergeImportedEvents(
                 priority: options.priority || 'none',
                 completed: event.completed || false,
                 createdAt: event.createdAt || new Date().toISOString(),
+                // Preserve subscription metadata
+                subscriptionId: event.subscriptionId,
+                isSubscribed: event.isSubscribed,
             };
             addedCount++;
         }

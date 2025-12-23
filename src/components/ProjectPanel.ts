@@ -1,9 +1,8 @@
-import { showMessage, confirm, Menu, openTab, Dialog } from "siyuan";
+import { showMessage, confirm, Menu, Dialog } from "siyuan";
 import { PomodoroStatsView } from "./PomodoroStatsView";
 import { TaskTimeStatsView } from "./TaskTimeStatsView";
 
 // 添加四象限面板常量
-const EISENHOWER_TAB_TYPE = "reminder_eisenhower_tab";
 import { readProjectData, writeProjectData, getBlockByID, openBlock, readReminderData, writeReminderData } from "../api";
 import { compareDateStrings, getLogicalDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
@@ -13,20 +12,19 @@ import { CategoryManageDialog } from "./CategoryManageDialog";
 import { StatusManageDialog } from "./StatusManageDialog";
 import { ProjectKanbanView } from "./ProjectKanbanView";
 import { t } from "../utils/i18n";
+import { getAllReminders } from "../utils/icsSubscription";
 
 
 export class ProjectPanel {
     private container: HTMLElement;
     private projectsContainer: HTMLElement;
     private filterSelect: HTMLSelectElement;
-    private categoryFilterSelect: HTMLSelectElement;
     private categoryFilterButton: HTMLButtonElement;
     private sortButton: HTMLButtonElement;
     private searchInput: HTMLInputElement;
     private showOnlyWithDoingCheckbox: HTMLInputElement;
     private plugin: any;
     private currentTab: string = 'all';
-    private currentCategoryFilter: string = 'all';
     private selectedCategories: string[] = [];
     private currentSort: string = 'priority';
     private currentSortOrder: 'asc' | 'desc' = 'desc';
@@ -495,7 +493,7 @@ export class ProjectPanel {
 
             // 预先读取提醒数据缓存，用于计算每个项目的任务计数
             try {
-                this.reminderDataCache = await readReminderData();
+                this.reminderDataCache = await getAllReminders(this.plugin);
             } catch (err) {
                 console.warn('读取提醒数据失败，计数将异步回退：', err);
                 this.reminderDataCache = null;
@@ -1016,7 +1014,7 @@ export class ProjectPanel {
         try {
             let reminderData = this.reminderDataCache;
             if (!reminderData) {
-                reminderData = await readReminderData();
+                reminderData = await getAllReminders(this.plugin);
                 this.reminderDataCache = reminderData;
             }
 
@@ -1094,9 +1092,9 @@ export class ProjectPanel {
             for (const r of topLevelReminders) {
                 if (!r || typeof r !== 'object') continue;
                 if (typeof pomodoroManager.getAggregatedReminderPomodoroCount === 'function') {
-                    totalPomodoro += await pomodoroManager.getAggregatedReminderPomodoroCount(r.id);
+                    totalPomodoro += await pomodoroManager.getAggregatedReminderPomodoroCount((r as any).id);
                 } else if (typeof pomodoroManager.getReminderPomodoroCount === 'function') {
-                    totalPomodoro += await pomodoroManager.getReminderPomodoroCount(r.id);
+                    totalPomodoro += await pomodoroManager.getReminderPomodoroCount((r as any).id);
                 }
             }
         } catch (e) {

@@ -3,7 +3,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
-import { refreshSql, readReminderData, writeReminderData, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark, openBlock, readProjectData } from "../api";
+import { refreshSql, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark, openBlock, readProjectData } from "../api";
 import { getLocalDateString, getLocalDateTime, getLocalDateTimeString, compareDateStrings, getLogicalDateString, getRelativeDateString } from "../utils/dateUtils";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
@@ -14,6 +14,7 @@ import { ProjectColorDialog } from "./ProjectColorDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { t } from "../utils/i18n";
 import { generateRepeatInstances, RepeatInstance, getDaysDifference, addDaysToDate } from "../utils/repeatUtils";
+import { getAllReminders, saveReminders } from "../utils/icsSubscription";
 import { CalendarConfigManager } from "../utils/calendarConfigManager";
 import { TaskSummaryDialog } from "@/components/TaskSummaryDialog";
 import { PomodoroManager } from "../utils/pomodoroManager";
@@ -317,7 +318,13 @@ export class CalendarView {
             eventClick: this.handleEventClick.bind(this),
             eventDrop: this.handleEventDrop.bind(this),
             eventResize: this.handleEventResize.bind(this),
-            eventAllow: this.handleEventAllow.bind(this),
+            eventAllow: (dropInfo, draggedEvent) => {
+                // 禁用订阅任务的拖拽和调整大小
+                if (draggedEvent.extendedProps.isSubscribed) {
+                    return false;
+                }
+                return this.handleEventAllow(dropInfo, draggedEvent);
+            },
             dateClick: this.handleDateClick.bind(this),
             select: this.handleDateSelect.bind(this),
             // 移除自动事件源，改为手动管理事件
@@ -767,32 +774,43 @@ export class CalendarView {
             });
             menu.addSeparator();
         } else {
-            menu.addItem({
-                iconHTML: "📖",
-                label: t("openNote"),
-                click: () => {
-                    this.handleEventClick({ event: calendarEvent });
-                }
-            });
+            if (calendarEvent.extendedProps.isSubscribed) {
+                // 订阅任务显示只读标识
+                menu.addItem({
+                    iconHTML: "ℹ️",
+                    label: t("subscribedTaskReadOnly") || "订阅任务（只读）",
+                    disabled: true
+                });
+            } else {
+                menu.addItem({
+                    iconHTML: "📖",
+                    label: t("openNote"),
+                    click: () => {
+                        this.handleEventClick({ event: calendarEvent });
+                    }
+                });
+            }
         }
 
         // 对于重复事件实例，提供特殊选项
         if (calendarEvent.extendedProps.isRepeated) {
-            menu.addItem({
-                iconHTML: "📝",
-                label: t("modifyThisInstance"),
-                click: () => {
-                    this.showInstanceEditDialog(calendarEvent);
-                }
-            });
+            if (!calendarEvent.extendedProps.isSubscribed) {
+                menu.addItem({
+                    iconHTML: "📝",
+                    label: t("modifyThisInstance"),
+                    click: () => {
+                        this.showInstanceEditDialog(calendarEvent);
+                    }
+                });
 
-            menu.addItem({
-                iconHTML: "📝",
-                label: t("modifyAllInstances"),
-                click: () => {
-                    this.showTimeEditDialogForSeries(calendarEvent);
-                }
-            });
+                menu.addItem({
+                    iconHTML: "📝",
+                    label: t("modifyAllInstances"),
+                    click: () => {
+                        this.showTimeEditDialogForSeries(calendarEvent);
+                    }
+                });
+            }
         } else if (calendarEvent.extendedProps.repeat?.enabled) {
             // 对于周期原始事件，提供与实例一致的选项
             menu.addItem({
@@ -985,7 +1003,7 @@ export class CalendarView {
         const instanceDate = instanceIdStr.split('_').pop() || calendarEvent.extendedProps.date;
 
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const originalReminder = reminderData[originalId];
 
             if (!originalReminder) {
@@ -1062,7 +1080,7 @@ export class CalendarView {
     private async addExcludedDate(originalId: string, excludeDate: string) {
         // 为原始重复事件添加排除日期
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             if (reminderData[originalId]) {
                 if (!reminderData[originalId].repeat) {
@@ -1079,7 +1097,7 @@ export class CalendarView {
                     reminderData[originalId].repeat.excludeDates.push(excludeDate);
                 }
 
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
             } else {
                 throw new Error('原始事件不存在');
             }
@@ -1225,11 +1243,11 @@ export class CalendarView {
                 calendarEvent.extendedProps.originalId :
                 calendarEvent.id;
 
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             if (reminderData[reminderId]) {
                 reminderData[reminderId].priority = priority;
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
 
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -1276,12 +1294,12 @@ export class CalendarView {
 
     private async performDeleteEvent(reminderId: string) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             if (reminderData[reminderId]) {
                 const blockId = reminderData[reminderId].blockId;
                 delete reminderData[reminderId];
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
 
                 // 更新块的书签状态
                 if (blockId) {
@@ -1312,10 +1330,15 @@ export class CalendarView {
         checkbox.type = 'checkbox';
         checkbox.className = 'reminder-calendar-event-checkbox';
         checkbox.checked = eventInfo.event.extendedProps.completed || false;
-        checkbox.addEventListener('click', (e) => {
-            e.stopPropagation(); // 阻止事件冒泡
-            this.toggleEventCompleted(eventInfo.event);
-        });
+        if (eventInfo.event.extendedProps.isSubscribed) {
+            checkbox.disabled = true;
+            checkbox.title = t("subscribedTaskReadOnly") || "订阅任务（只读）";
+        } else {
+            checkbox.addEventListener('click', (e) => {
+                e.stopPropagation(); // 阻止事件冒泡
+                this.toggleEventCompleted(eventInfo.event);
+            });
+        }
 
         // 添加事件内容容器
         const eventEl = document.createElement('div');
@@ -1406,7 +1429,7 @@ export class CalendarView {
 
     private async toggleEventCompleted(event) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             if (event.extendedProps.isRepeated) {
                 // 处理重复事件实例
@@ -1444,7 +1467,7 @@ export class CalendarView {
                         completedTimes[instanceDate] = getLocalDateTimeString(new Date());
                     }
 
-                    await writeReminderData(reminderData);
+                    await saveReminders(this.plugin, reminderData);
 
                     // 更新块的书签状态
                     const blockId = reminderData[originalId].blockId;
@@ -1481,7 +1504,7 @@ export class CalendarView {
                         delete reminderData[reminderId].completedTime;
                     }
 
-                    await writeReminderData(reminderData);
+                    await saveReminders(this.plugin, reminderData);
 
                     // 更新块的书签状态
                     if (blockId) {
@@ -1668,9 +1691,13 @@ export class CalendarView {
         const reminder = info.event.extendedProps;
         const blockId = reminder.blockId || info.event.id; // 兼容旧数据格式
 
-        // 如果没有绑定块，提示用户绑定块
+        // 如果没有绑定块，提示用户绑定块 (订阅任务除外)
         if (!reminder.blockId) {
-            showMessage(t("unboundReminder") + "，请右键选择\"绑定到块\"");
+            if (reminder.isSubscribed) {
+                showMessage(t("subscribedTaskReadOnly") || "订阅任务（只读）");
+            } else {
+                showMessage(t("unboundReminder") + "，请右键选择\"绑定到块\"");
+            }
             return;
         }
 
@@ -1704,7 +1731,7 @@ export class CalendarView {
             const originalId = originalReminder.originalId;
             const instanceDate = info.event.startStr.split('T')[0];
 
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const originalEvent = reminderData[originalId];
             const isAlreadyModified = originalEvent?.repeat?.instanceModifications?.[instanceDate];
 
@@ -1749,7 +1776,7 @@ export class CalendarView {
             const originalId = originalReminder.originalId;
             const instanceDate = info.event.startStr.split('T')[0];
 
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const originalEvent = reminderData[originalId];
             const isAlreadyModified = originalEvent?.repeat?.instanceModifications?.[instanceDate];
 
@@ -1918,7 +1945,7 @@ export class CalendarView {
     private async updateRecurringEventSeries(info: any) {
         try {
             const originalId = info.event.extendedProps.originalId;
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const originalReminder = reminderData[originalId];
 
             if (!originalReminder) {
@@ -2007,7 +2034,7 @@ export class CalendarView {
             // 4. 保存修改后的原始提醒和新的提醒。
             reminderData[originalId] = originalReminder;
             reminderData[newId] = newReminder;
-            await writeReminderData(reminderData);
+            await saveReminders(this.plugin, reminderData);
 
             showMessage(t("eventTimeUpdated"));
             await this.refreshEvents();
@@ -2158,7 +2185,7 @@ export class CalendarView {
 
     private async updateEventTime(reminderId: string, info, isResize: boolean) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             if (reminderData[reminderId]) {
                 const newStartDate = info.event.start;
@@ -2264,7 +2291,7 @@ export class CalendarView {
                     }
                 }
 
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
 
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -2307,7 +2334,7 @@ export class CalendarView {
             const originalId = instanceData.originalId;
             const instanceDate = instanceData.instanceDate;
 
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             if (!reminderData[originalId]) {
                 throw new Error('原始事件不存在');
@@ -2350,7 +2377,7 @@ export class CalendarView {
                 modifiedAt: getLocalDateString(new Date())
             };
 
-            await writeReminderData(reminderData);
+            await saveReminders(this.plugin, reminderData);
 
         } catch (error) {
             console.error('保存实例修改失败:', error);
@@ -2420,7 +2447,7 @@ export class CalendarView {
                 calendarEvent.extendedProps.originalId :
                 calendarEvent.id;
 
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             if (reminderData[reminderId]) {
                 const reminder = reminderData[reminderId];
@@ -2461,7 +2488,7 @@ export class CalendarView {
                 calendarEvent.extendedProps.originalId :
                 calendarEvent.id;
 
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             if (reminderData[originalId]) {
                 const reminder = reminderData[originalId];
@@ -2502,7 +2529,7 @@ export class CalendarView {
                 calendarEvent.extendedProps.originalId :
                 calendarEvent.id;
 
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             if (reminderData[reminderId]) {
                 if (calendarEvent.allDay) {
@@ -2515,7 +2542,7 @@ export class CalendarView {
                     delete reminderData[reminderId].endTime;
                 }
 
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
 
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -2746,7 +2773,7 @@ export class CalendarView {
 
     private async getEvents() {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const events = [];
 
             // 获取当前视图的日期范围
@@ -3458,7 +3485,7 @@ export class CalendarView {
                 let completedTime = null;
 
                 try {
-                    const reminderData = await readReminderData();
+                    const reminderData = await getAllReminders(this.plugin);
 
                     if (reminder.isRepeated) {
                         // 重复事件实例的完成时间
@@ -3724,7 +3751,7 @@ export class CalendarView {
     private async splitRecurringEvent(calendarEvent: any) {
         try {
             const reminder = calendarEvent.extendedProps;
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const originalReminder = reminderData[calendarEvent.id];
 
             if (!originalReminder || !originalReminder.repeat?.enabled) {
@@ -3777,7 +3804,7 @@ export class CalendarView {
      */
     private async performSplitOperation(originalReminder: any, modifiedReminder: any) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
 
             // 1. 修改原始事件为单次事件
             const singleReminder = {
@@ -3838,7 +3865,7 @@ export class CalendarView {
             // 4. 保存修改
             reminderData[originalReminder.id] = singleReminder;
             reminderData[newId] = newReminder;
-            await writeReminderData(reminderData);
+            await saveReminders(this.plugin, reminderData);
 
             // 5. 更新界面
             await this.refreshEvents();
@@ -3861,7 +3888,7 @@ export class CalendarView {
             t("confirmSkipFirstOccurrence"),
             async () => {
                 try {
-                    const reminderData = await readReminderData();
+                    const reminderData = await getAllReminders(this.plugin);
                     const originalReminder = reminderData[reminder.id];
 
                     if (!originalReminder || !originalReminder.repeat?.enabled) {
@@ -3909,7 +3936,7 @@ export class CalendarView {
                         }
                     }
 
-                    await writeReminderData(reminderData);
+                    await saveReminders(this.plugin, reminderData);
                     showMessage(t("firstOccurrenceSkipped"));
                     window.dispatchEvent(new CustomEvent('reminderUpdated'));
                 } catch (error) {
@@ -4320,7 +4347,7 @@ export class CalendarView {
      */
     private async bindReminderToBlock(calendarEvent: any, blockId: string) {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await getAllReminders(this.plugin);
             const reminderId = calendarEvent.id;
 
             if (reminderData[reminderId]) {
@@ -4335,7 +4362,7 @@ export class CalendarView {
                 reminderData[reminderId].docId = block.root_id || blockId;
                 reminderData[reminderId].isQuickReminder = false; // 移除快速提醒标记
 
-                await writeReminderData(reminderData);
+                await saveReminders(this.plugin, reminderData);
 
                 // 将绑定的块添加项目ID属性 custom-task-projectId
                 const projectId = reminderData[reminderId].projectId;

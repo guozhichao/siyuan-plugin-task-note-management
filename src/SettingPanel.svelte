@@ -17,7 +17,7 @@
         HABIT_GROUP_DATA_FILE,
         STATUSES_DATA_FILE,
     } from './index';
-    import { lsNotebooks, pushErrMsg, removeFile, putFile } from './api';
+    import { lsNotebooks, pushErrMsg, pushMsg, removeFile, putFile } from './api';
     import { Constants } from 'siyuan';
     import { exportIcsFile, uploadIcsToCloud } from './utils/icsUtils';
     import { importIcsFile } from './utils/icsImport';
@@ -507,7 +507,32 @@
             ],
         },
         {
-            name: '☁️日程同步',
+            name: '📅' + t('icsSubscription'),
+            items: [
+                {
+                    key: 'icsSubscriptionHint',
+                    value: '',
+                    type: 'hint',
+                    title: t('icsSubscription'),
+                    description: t('icsSubscriptionDesc'),
+                },
+                {
+                    key: 'manageSubscriptions',
+                    value: '',
+                    type: 'button',
+                    title: t('manageSubscriptions'),
+                    description: '管理ICS日历订阅，支持设置项目、分类、优先级和同步频率',
+                    button: {
+                        label: t('manageSubscriptions'),
+                        callback: async () => {
+                            showSubscriptionManagementDialog();
+                        },
+                    },
+                },
+            ],
+        },
+        {
+            name: '☁️日历上传',
             items: [
                 {
                     key: 'icsSyncHint',
@@ -998,7 +1023,6 @@
         const projectManager = ProjectManager.getInstance(plugin);
         await projectManager.loadProjects();
         const groupedProjects = projectManager.getProjectsGroupedByStatus();
-        const projects = Object.values(groupedProjects).flat();
 
         const dialog = new Dialog({
             title: '导入 ICS 文件',
@@ -1011,7 +1035,28 @@
                             <div style="display: flex; gap: 8px;">
                                 <select class="b3-select fn__flex-1" id="import-project-select">
                                     <option value="">不设置</option>
-                                    ${projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+                                    ${Object.entries(groupedProjects)
+                                        .map(([statusId, statusProjects]) => {
+                                            if (statusProjects.length === 0) return '';
+                                            const status = projectManager
+                                                .getStatusManager()
+                                                .getStatusById(statusId);
+                                            const label = status
+                                                ? `${status.icon || ''} ${status.name}`
+                                                : statusId;
+                                            return `
+                                        <optgroup label="${label}">
+                                            ${statusProjects
+                                                .map(
+                                                    p => `
+                                                <option value="${p.id}">${p.name}</option>
+                                            `
+                                                )
+                                                .join('')}
+                                        </optgroup>
+                                    `;
+                                        })
+                                        .join('')}
                                 </select>
                                 <button class="b3-button b3-button--outline" id="import-create-project" title="新建项目">
                                     <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
@@ -1192,15 +1237,22 @@
                     // 重新加载项目列表
                     await projectManager.loadProjects();
                     const groupedProjects = projectManager.getProjectsGroupedByStatus();
-                    const updatedProjects = Object.values(groupedProjects).flat();
 
                     // 清空并重新填充下拉列表
                     projectSelect.innerHTML = '<option value="">不设置</option>';
-                    updatedProjects.forEach(p => {
-                        const option = document.createElement('option');
-                        option.value = p.id;
-                        option.textContent = p.name;
-                        projectSelect.appendChild(option);
+                    Object.entries(groupedProjects).forEach(([statusId, statusProjects]) => {
+                        if (statusProjects.length === 0) return;
+                        const status = projectManager.getStatusManager().getStatusById(statusId);
+                        const optgroup = document.createElement('optgroup');
+                        optgroup.label = status ? `${status.icon || ''} ${status.name}` : statusId;
+
+                        statusProjects.forEach(p => {
+                            const option = document.createElement('option');
+                            option.value = p.id;
+                            option.textContent = p.name;
+                            optgroup.appendChild(option);
+                        });
+                        projectSelect.appendChild(optgroup);
                     });
 
                     // 选中新创建的项目
@@ -1245,6 +1297,352 @@
         cancelBtn?.addEventListener('click', () => {
             dialog.destroy();
         });
+    }
+
+    // ICS订阅管理对话框
+    async function showSubscriptionManagementDialog() {
+        const {
+            loadSubscriptions,
+            saveSubscriptions,
+            syncSubscription,
+            removeSubscription,
+            updateSubscriptionTaskMetadata,
+        } = await import('./utils/icsSubscription');
+        const { ProjectManager } = await import('./utils/projectManager');
+        const projectManager = ProjectManager.getInstance(plugin);
+        await projectManager.loadProjects();
+        const groupedProjects = projectManager.getProjectsGroupedByStatus();
+
+        const { CategoryManager } = await import('./utils/categoryManager');
+        const categoryManager = CategoryManager.getInstance(plugin);
+        await categoryManager.initialize();
+        const categories = categoryManager.getCategories();
+
+        const data = await loadSubscriptions(plugin);
+        const subscriptions = Object.values(data.subscriptions);
+
+        const dialog = new Dialog({
+            title: t('manageSubscriptions'),
+            content: `
+                <div class="b3-dialog__content" style="padding: 16px;">
+                    <div class="fn__flex-column" style="gap: 16px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 style="margin: 0;">${t('icsSubscription')}</h3>
+                            <button class="b3-button b3-button--outline" id="add-subscription">
+                                <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
+                                ${t('addSubscription')}
+                            </button>
+                        </div>
+                        <div id="subscription-list" style="max-height: 400px; overflow-y: auto;">
+                            ${subscriptions.length === 0 ? `<div style="text-align: center; padding: 32px; color: var(--b3-theme-on-surface-light);">${t('noSubscriptions')}</div>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `,
+            width: '800px',
+        });
+
+        const listContainer = dialog.element.querySelector('#subscription-list');
+        const addBtn = dialog.element.querySelector('#add-subscription');
+
+        // 渲染订阅列表
+        function renderSubscriptions() {
+            if (subscriptions.length === 0) {
+                listContainer.innerHTML = `<div style="text-align: center; padding: 32px; color: var(--b3-theme-on-surface-light);">${t('noSubscriptions')}</div>`;
+                return;
+            }
+
+            listContainer.innerHTML = subscriptions
+                .map(
+                    sub => `
+                <div class="b3-card" style="padding: 12px; margin-bottom: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 500; margin-bottom: 4px;">${sub.name}</div>
+                            <div style="font-size: 12px; color: var(--b3-theme-on-surface-light); margin-bottom: 4px;">${sub.url}</div>
+                            <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">
+                                ${t('subscriptionSyncInterval')}: ${t(sub.syncInterval === '15min' ? 'every15Minutes' : sub.syncInterval === '30min' ? 'every30Minutes' : sub.syncInterval === 'hourly' ? 'everyHour' : sub.syncInterval === '4hour' ? 'every4Hours' : sub.syncInterval === '12hour' ? 'every12Hours' : 'everyDay')}
+                                ${sub.lastSync ? ` | ${t('subscriptionLastSync')}: ${new Date(sub.lastSync).toLocaleString()}` : ''}
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 4px;">
+                            <button class="b3-button b3-button--outline" data-action="toggle" data-id="${sub.id}" title="${sub.enabled ?  '停用' :  '启用'}">
+                                <svg class="b3-button__icon ${!sub.enabled ? 'fn__opacity' : ''}"><use xlink:href="${sub.enabled ? '#iconEye' : '#iconEyeoff'}"></use></svg>
+                            </button>
+                            <button class="b3-button b3-button--outline" data-action="sync" data-id="${sub.id}" title="${t('syncNow')}">
+                                <svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>
+                            </button>
+                            <button class="b3-button b3-button--outline" data-action="edit" data-id="${sub.id}" title="${t('editSubscription')}">
+                                <svg class="b3-button__icon"><use xlink:href="#iconEdit"></use></svg>
+                            </button>
+                            <button class="b3-button b3-button--outline" data-action="delete" data-id="${sub.id}" title="${t('deleteSubscription')}">
+                                <svg class="b3-button__icon"><use xlink:href="#iconTrashcan"></use></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `
+                )
+                .join('');
+
+            // 添加事件监听
+            listContainer.querySelectorAll('[data-action]').forEach(btn => {
+                btn.addEventListener('click', async e => {
+                    const target = e.currentTarget as HTMLElement;
+                    const action = target.dataset.action;
+                    const id = target.dataset.id;
+                    const sub = subscriptions.find(s => s.id === id);
+
+                    if (action === 'toggle' && sub) {
+                        sub.enabled = !sub.enabled;
+                        data.subscriptions[sub.id] = sub;
+                        await saveSubscriptions(plugin, data);
+                        renderSubscriptions();
+                        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    } else if (action === 'sync' && sub) {
+                        btn.innerHTML =
+                            '<svg class="b3-button__icon fn__rotate"><use xlink:href="#iconRefresh"></use></svg>';
+                        await syncSubscription(plugin, sub);
+                        renderSubscriptions();
+                    } else if (action === 'edit' && sub) {
+                        showEditSubscriptionDialog(sub);
+                    } else if (action === 'delete' && sub) {
+                        if (confirm(t('confirmDeleteSubscription').replace('${name}', sub.name))) {
+                            await removeSubscription(plugin, sub.id);
+                            delete data.subscriptions[sub.id];
+                            await saveSubscriptions(plugin, data);
+                            subscriptions.splice(
+                                subscriptions.findIndex(s => s.id === id),
+                                1
+                            );
+                            renderSubscriptions();
+                        }
+                    }
+                });
+            });
+        }
+
+        // 编辑/新建订阅对话框
+        function showEditSubscriptionDialog(subscription?: any) {
+            const isEdit = !!subscription;
+            const editDialog = new Dialog({
+                title: isEdit ? t('editSubscription') : t('addSubscription'),
+                content: `
+                    <div class="b3-dialog__content" style="padding: 16px;">
+                        <div class="fn__flex-column" style="gap: 12px;">
+                            <div class="b3-label">
+                                <div class="b3-label__text">${t('subscriptionName')}</div>
+                                <input class="b3-text-field fn__block" id="sub-name" value="${subscription?.name || ''}" placeholder="${t('pleaseEnterSubscriptionName')}">
+                            </div>
+                            <div class="b3-label">
+                                <div class="b3-label__text">${t('subscriptionUrl')}</div>
+                                <input class="b3-text-field fn__block" id="sub-url" value="${subscription?.url || ''}" placeholder="${t('subscriptionUrlPlaceholder')}">
+                            </div>
+                            <div class="b3-label">
+                                <div class="b3-label__text">${t('subscriptionSyncInterval')}</div>
+                                <select class="b3-select fn__block" id="sub-interval">
+                                    <option value="15min" ${subscription?.syncInterval === '15min' ? 'selected' : ''}>${t('every15Minutes')}</option>
+                                    <option value="30min" ${subscription?.syncInterval === '30min' ? 'selected' : ''}>${t('every30Minutes')}</option>
+                                    <option value="hourly" ${subscription?.syncInterval === 'hourly' ? 'selected' : ''}>${t('everyHour')}</option>
+                                    <option value="4hour" ${subscription?.syncInterval === '4hour' ? 'selected' : ''}>${t('every4Hours')}</option>
+                                    <option value="12hour" ${subscription?.syncInterval === '12hour' ? 'selected' : ''}>${t('every12Hours')}</option>
+                                    <option value="daily" ${subscription?.syncInterval === 'daily' ? 'selected' : ''}>${t('everyDay')}</option>
+                                </select>
+                            </div>
+                            <div class="b3-label">
+                                <div class="b3-label__text">${t('subscriptionProject')} *</div>
+                                <div class="fn__hr"></div>
+                                <div style="display: flex; gap: 8px;">
+                                    <select class="b3-select fn__flex-1" id="sub-project" required>
+                                        <option value="">${t('pleaseSelectProject')}</option>
+                                        ${Object.entries(groupedProjects)
+                                            .map(([statusId, statusProjects]) => {
+                                                if (statusProjects.length === 0) return '';
+                                                const status = projectManager
+                                                    .getStatusManager()
+                                                    .getStatusById(statusId);
+                                                const label = status
+                                                    ? `${status.icon || ''} ${status.name}`
+                                                    : statusId;
+                                                return `
+                                            <optgroup label="${label}">
+                                                ${statusProjects
+                                                    .map(
+                                                        p => `
+                                                    <option value="${p.id}" ${subscription?.projectId === p.id ? 'selected' : ''}>${p.name}</option>
+                                                `
+                                                    )
+                                                    .join('')}
+                                            </optgroup>
+                                        `;
+                                            })
+                                            .join('')}
+                                    </select>
+                                    <button class="b3-button b3-button--outline" id="sub-create-project" title="新建项目">
+                                        <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="b3-label">
+                                <div class="b3-label__text">${t('subscriptionPriority')}</div>
+                                <select class="b3-select fn__block" id="sub-priority">
+                                    <option value="none" ${!subscription?.priority || subscription?.priority === 'none' ? 'selected' : ''}>${t('noPriority')}</option>
+                                    <option value="high" ${subscription?.priority === 'high' ? 'selected' : ''}>${t('highPriority')}</option>
+                                    <option value="medium" ${subscription?.priority === 'medium' ? 'selected' : ''}>${t('mediumPriority')}</option>
+                                    <option value="low" ${subscription?.priority === 'low' ? 'selected' : ''}>${t('lowPriority')}</option>
+                                </select>
+                            </div>
+                            <div class="b3-label">
+                                <div class="b3-label__text">${t('subscriptionCategory')}</div>
+                                <select class="b3-select fn__block" id="sub-category">
+                                    <option value="" ${!subscription?.categoryId ? 'selected' : ''}>${t('noCategory') || '无分类'}</option>
+                                    ${categories.map(c => `<option value="${c.id}" ${subscription?.categoryId === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+                                </select>
+                            </div>
+
+                        </div>
+                        <div class="b3-dialog__action" style="margin-top: 16px;">
+                            <button class="b3-button b3-button--cancel">${t('cancel')}</button>
+                            <button class="b3-button b3-button--text" id="confirm-sub">${t('save')}</button>
+                        </div>
+                    </div>
+                `,
+                width: '500px',
+            });
+
+            const createProjectBtn = editDialog.element.querySelector(
+                '#sub-create-project'
+            ) as HTMLButtonElement;
+            const projectSelect = editDialog.element.querySelector(
+                '#sub-project'
+            ) as HTMLSelectElement;
+            const confirmBtn = editDialog.element.querySelector('#confirm-sub');
+            const cancelBtn = editDialog.element.querySelector('.b3-button--cancel');
+
+            // 新建项目按钮逻辑
+            createProjectBtn?.addEventListener('click', async () => {
+                try {
+                    const { ProjectDialog } = await import('./components/ProjectDialog');
+                    const projectDialog = new ProjectDialog(undefined, plugin);
+                    await projectDialog.show();
+
+                    const handleProjectCreated = async (event: CustomEvent) => {
+                        await projectManager.loadProjects();
+                        const groupedProjects = projectManager.getProjectsGroupedByStatus();
+
+                        projectSelect.innerHTML = `<option value="">${t('pleaseSelectProject')}</option>`;
+                        Object.entries(groupedProjects).forEach(([statusId, statusProjects]) => {
+                            if (statusProjects.length === 0) return;
+                            const status = projectManager
+                                .getStatusManager()
+                                .getStatusById(statusId);
+                            const optgroup = document.createElement('optgroup');
+                            optgroup.label = status
+                                ? `${status.icon || ''} ${status.name}`
+                                : statusId;
+
+                            statusProjects.forEach(p => {
+                                const option = document.createElement('option');
+                                option.value = p.id;
+                                option.textContent = p.name;
+                                optgroup.appendChild(option);
+                            });
+                            projectSelect.appendChild(optgroup);
+                        });
+
+                        if (event.detail && event.detail.projectId) {
+                            projectSelect.value = event.detail.projectId;
+                        }
+
+                        window.removeEventListener(
+                            'projectUpdated',
+                            handleProjectCreated as EventListener
+                        );
+                    };
+
+                    window.addEventListener(
+                        'projectUpdated',
+                        handleProjectCreated as EventListener
+                    );
+                } catch (error) {
+                    console.error('创建项目失败:', error);
+                }
+            });
+
+            confirmBtn?.addEventListener('click', async () => {
+                const name = (
+                    editDialog.element.querySelector('#sub-name') as HTMLInputElement
+                ).value.trim();
+                const url = (
+                    editDialog.element.querySelector('#sub-url') as HTMLInputElement
+                ).value.trim();
+                const syncInterval = (
+                    editDialog.element.querySelector('#sub-interval') as HTMLSelectElement
+                ).value as any;
+                const projectId = (
+                    editDialog.element.querySelector('#sub-project') as HTMLSelectElement
+                ).value;
+                const priority = (
+                    editDialog.element.querySelector('#sub-priority') as HTMLSelectElement
+                ).value as any;
+                const categoryId = (
+                    editDialog.element.querySelector('#sub-category') as HTMLSelectElement
+                ).value;
+                const tagIds: string[] = [];
+
+                if (!name) {
+                    await pushErrMsg(t('pleaseEnterSubscriptionName'));
+                    return;
+                }
+                if (!url) {
+                    await pushErrMsg(t('pleaseEnterSubscriptionUrl'));
+                    return;
+                }
+                if (!projectId) {
+                    await pushErrMsg(t('pleaseSelectProject'));
+                    return;
+                }
+
+                const subData = {
+                    id: subscription?.id || window.Lute?.NewNodeID?.() || `sub-${Date.now()}`,
+                    name,
+                    url,
+                    syncInterval,
+                    projectId,
+                    priority,
+                    categoryId,
+                    tagIds,
+                    enabled: true,
+                    createdAt: subscription?.createdAt || new Date().toISOString(),
+                };
+
+                data.subscriptions[subData.id] = subData;
+                await saveSubscriptions(plugin, data);
+
+                if (isEdit) {
+                    const index = subscriptions.findIndex(s => s.id === subData.id);
+                    subscriptions[index] = subData;
+                    // 更新现有任务元数据
+                    await updateSubscriptionTaskMetadata(subData);
+                } else {
+                    subscriptions.push(subData);
+                }
+
+                renderSubscriptions();
+                editDialog.destroy();
+                await pushMsg(isEdit ? t('subscriptionUpdated') : t('subscriptionCreated'));
+            });
+
+            cancelBtn?.addEventListener('click', () => {
+                editDialog.destroy();
+            });
+        }
+
+        addBtn?.addEventListener('click', () => {
+            showEditSubscriptionDialog();
+        });
+
+        renderSubscriptions();
     }
 </script>
 

@@ -2,14 +2,10 @@ import {
     Plugin,
     getActiveEditor,
     showMessage,
-    confirm,
     Dialog,
-    Menu,
     openTab,
     openWindow,
-    adaptHotkey,
     getFrontend,
-    getBackend,
 } from "siyuan";
 import "./index.scss";
 
@@ -134,10 +130,7 @@ export const DEFAULT_SETTINGS = {
 };
 
 export default class ReminderPlugin extends Plugin {
-    private dockPanel: HTMLElement;
     private reminderPanel: ReminderPanel;
-    private topBarElement: HTMLElement;
-    private dockElement: HTMLElement;
     private tabViews: Map<string, any> = new Map(); // 存储所有Tab视图实例（日历、四象限、项目看板、番茄钟等）
     private categoryManager: CategoryManager;
     private settingUtils: SettingUtils;
@@ -164,6 +157,9 @@ export default class ReminderPlugin extends Plugin {
     // ICS 云端同步相关
     private icsSyncTimer: number | null = null;
     private isPerformingIcsSync: boolean = false;
+
+    // ICS 订阅同步相关
+    private icsSubscriptionSyncTimer: number | null = null;
 
     async onload() {
         await this.loadData(STORAGE_NAME);
@@ -257,18 +253,9 @@ export default class ReminderPlugin extends Plugin {
                         if (String(pv) !== String(nv)) { relevantChanged = true; break; }
                     }
 
-                    // 检查是否存在番茄钟实例（任何状态：运行/暂停/停止）
-                    let anyInstanceExists = false;
                     const currentPomodoro = PomodoroManager.getInstance().getCurrentPomodoroTimer();
-                    if (currentPomodoro) {
-                        anyInstanceExists = true;
-                    } else {
-                        for (const [, view] of this.tabViews) {
-                            if (view && typeof view.updateState === 'function' && typeof view.getCurrentState === 'function') {
-                                anyInstanceExists = true; break;
-                            }
-                        }
-                    }
+
+
 
                     if (!relevantChanged) {
                         // 仅更新时间缓存，不做实例更新或广播
@@ -329,6 +316,9 @@ export default class ReminderPlugin extends Plugin {
 
         // 初始化ICS云端同步
         this.initIcsSync();
+
+        // 初始化ICS订阅同步
+        this.initIcsSubscriptionSync();
     }
 
     private enableAudioOnUserInteraction() {
@@ -381,7 +371,7 @@ export default class ReminderPlugin extends Plugin {
             content: `<div id="SettingPanel" style="height: 100%;"></div>`,
             width: "800px",
             height: "700px",
-            destroyCallback: (options) => {
+            destroyCallback: () => {
                 pannel.$destroy();
             }
         });
@@ -4023,6 +4013,83 @@ export default class ReminderPlugin extends Plugin {
             console.error('ICS自动同步失败:', error);
         } finally {
             this.isPerformingIcsSync = false;
+        }
+    }
+
+    // 初始化ICS订阅同步
+    private async initIcsSubscriptionSync() {
+        try {
+            const { syncAllSubscriptions } = await import('./utils/icsSubscription');
+
+            // 第一次打开时同步所有日历
+            await syncAllSubscriptions(this);
+
+            // 启动定时检查 (参考 ICS 云端同步的短轮询机制)
+            this.scheduleIcsSubscriptionSync();
+        } catch (error) {
+            console.error('初始化ICS订阅同步失败:', error);
+        }
+    }
+
+    // 安排ICS订阅定时同步
+    private async scheduleIcsSubscriptionSync() {
+        if (this.icsSubscriptionSyncTimer) {
+            window.clearInterval(this.icsSubscriptionSyncTimer);
+            this.icsSubscriptionSyncTimer = null;
+        }
+
+        const shortPollMs = 60 * 1000; // 每分钟检查一次是否需要同步
+        this.icsSubscriptionSyncTimer = window.setInterval(async () => {
+            try {
+                await this.performIcsSubscriptionSync();
+            } catch (error) {
+                console.error('ICS订阅轮询同步检查失败:', error);
+            }
+        }, shortPollMs);
+    }
+
+    // 执行到期的订阅同步
+    private async performIcsSubscriptionSync() {
+        const { loadSubscriptions, syncSubscription, getSyncIntervalMs, saveSubscriptions } = await import('./utils/icsSubscription');
+
+        let data;
+        try {
+            data = await loadSubscriptions(this);
+        } catch (e) {
+            return;
+        }
+
+        const subscriptions = Object.values(data.subscriptions).filter((sub: any) => sub.enabled);
+        if (subscriptions.length === 0) return;
+
+        let changed = false;
+        const now = Date.now();
+
+        for (const sub of subscriptions as any[]) {
+            const intervalMs = getSyncIntervalMs(sub.syncInterval);
+            const lastSyncMs = sub.lastSync ? Date.parse(sub.lastSync) : 0;
+
+            // 如果到了同步时间
+            if (now >= lastSyncMs + intervalMs) {
+                console.log(`[Timer] Syncing ICS subscription: ${sub.name}`);
+                const result = await syncSubscription(this, sub);
+
+                // 更新订阅状态信息
+                sub.lastSync = new Date().toISOString();
+                sub.lastSyncStatus = result.success ? 'success' : 'error';
+                if (!result.success) {
+                    sub.lastSyncError = result.error;
+                } else {
+                    sub.lastSyncError = undefined;
+                }
+
+                data.subscriptions[sub.id] = sub;
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            await saveSubscriptions(this, data);
         }
     }
 }
