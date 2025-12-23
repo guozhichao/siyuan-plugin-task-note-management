@@ -1,5 +1,6 @@
 <script lang="ts">
     import { onMount } from 'svelte';
+    import { Dialog } from 'siyuan';
     import SettingPanel from '@/libs/components/setting-panel.svelte';
     import { t } from './utils/i18n';
     import * as ics from 'ics';
@@ -16,9 +17,10 @@
         HABIT_GROUP_DATA_FILE,
         STATUSES_DATA_FILE,
     } from './index';
-    import { lsNotebooks, pushErrMsg, pushMsg, removeFile, putFile } from './api';
+    import { lsNotebooks, pushErrMsg, removeFile, putFile } from './api';
     import { Constants } from 'siyuan';
     import { exportIcsFile, uploadIcsToCloud } from './utils/icsUtils';
+    import { importIcsFile } from './utils/icsImport';
 
     export let plugin;
 
@@ -462,6 +464,43 @@
                         label: '生成 ICS（小米）',
                         callback: async () => {
                             await exportIcsFile(plugin, true);
+                        },
+                    },
+                },
+            ],
+        },
+        {
+            name: '⬇️导入',
+            items: [
+                {
+                    key: 'importIcs',
+                    value: '',
+                    type: 'button',
+                    title: '导入 ICS 文件',
+                    description: '从 ICS 文件导入任务，支持批量设置所属项目、标签和优先级',
+                    button: {
+                        label: '选择文件导入',
+                        callback: async () => {
+                            // 创建文件输入元素
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.accept = '.ics';
+                            input.onchange = async (e: Event) => {
+                                const target = e.target as HTMLInputElement;
+                                const file = target.files?.[0];
+                                if (!file) return;
+
+                                try {
+                                    const content = await file.text();
+
+                                    // 显示批量设置对话框
+                                    showImportDialog(content);
+                                } catch (error) {
+                                    console.error('读取文件失败:', error);
+                                    await pushErrMsg('读取文件失败');
+                                }
+                            };
+                            input.click();
                         },
                     },
                 },
@@ -951,6 +990,262 @@
     }));
 
     $: currentGroup = filteredGroups.find(group => group.name === focusGroup);
+
+    // ICS导入对话框
+    async function showImportDialog(icsContent: string) {
+        // 加载项目和标签数据
+        const { ProjectManager } = await import('./utils/projectManager');
+        const projectManager = ProjectManager.getInstance(plugin);
+        await projectManager.loadProjects();
+        const groupedProjects = projectManager.getProjectsGroupedByStatus();
+        const projects = Object.values(groupedProjects).flat();
+
+        const dialog = new Dialog({
+            title: '导入 ICS 文件',
+            content: `
+                <div class="b3-dialog__content" style="padding: 16px;">
+                    <div class="fn__flex-column" style="gap: 16px;">
+                        <div class="b3-label">
+                            <div class="b3-label__text">批量设置所属项目（可选）</div>
+                            <div class="fn__hr"></div>
+                            <div style="display: flex; gap: 8px;">
+                                <select class="b3-select fn__flex-1" id="import-project-select">
+                                    <option value="">不设置</option>
+                                    ${projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+                                </select>
+                                <button class="b3-button b3-button--outline" id="import-create-project" title="新建项目">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="b3-label">
+                            <div class="b3-label__text">批量设置分类（可选）</div>
+                            <div class="fn__hr"></div>
+                            <div id="import-category-selector" class="category-selector" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
+                                <!-- 分类选择器将在这里渲染 -->
+                            </div>
+                        </div>
+                        
+                        <div class="b3-label">
+                            <div class="b3-label__text">批量设置优先级（可选）</div>
+                            <div class="fn__hr"></div>
+                            <select class="b3-select fn__flex-1" id="import-priority">
+                                <option value="">不设置</option>
+                                <option value="high">高优先级</option>
+                                <option value="medium">中优先级</option>
+                                <option value="low">低优先级</option>
+                                <option value="none">无优先级</option>
+                            </select>
+                        </div>
+                        
+                        <div class="fn__hr"></div>
+                        
+                        <div class="fn__flex" style="justify-content: flex-end; gap: 8px;">
+                            <button class="b3-button b3-button--cancel">取消</button>
+                            <button class="b3-button b3-button--text" id="import-confirm">导入</button>
+                        </div>
+                    </div>
+                </div>
+            `,
+            width: '500px',
+        });
+
+        const projectSelect = dialog.element.querySelector(
+            '#import-project-select'
+        ) as HTMLSelectElement;
+        const createProjectBtn = dialog.element.querySelector(
+            '#import-create-project'
+        ) as HTMLButtonElement;
+        const categorySelector = dialog.element.querySelector(
+            '#import-category-selector'
+        ) as HTMLElement;
+        const confirmBtn = dialog.element.querySelector('#import-confirm');
+        const cancelBtn = dialog.element.querySelector('.b3-button--cancel');
+
+        let selectedCategoryId: string = '';
+
+        // 渲染分类选择器
+        async function renderCategories() {
+            if (!categorySelector) return;
+
+            try {
+                const { CategoryManager } = await import('./utils/categoryManager');
+                const categoryManager = CategoryManager.getInstance(plugin);
+                await categoryManager.initialize();
+                const categories = categoryManager.getCategories();
+
+                // 清空并重新构建
+                categorySelector.innerHTML = '';
+
+                // 添加无分类选项
+                const noCategoryEl = document.createElement('div');
+                noCategoryEl.className = 'category-option';
+                noCategoryEl.setAttribute('data-category', '');
+                noCategoryEl.textContent = '无分类';
+                noCategoryEl.style.cssText = `
+                    display: inline-flex;
+                    align-items: center;
+                    padding: 6px 12px;
+                    font-size: 13px;
+                    border-radius: 6px;
+                    background: var(--b3-theme-background-light);
+                    border: 1px solid var(--b3-border-color);
+                    color: var(--b3-theme-on-surface);
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    user-select: none;
+                `;
+                noCategoryEl.classList.add('selected');
+                categorySelector.appendChild(noCategoryEl);
+
+                // 添加所有分类选项
+                categories.forEach(category => {
+                    const categoryEl = document.createElement('div');
+                    categoryEl.className = 'category-option';
+                    categoryEl.setAttribute('data-category', category.id);
+                    categoryEl.textContent = `${category.icon ? category.icon + ' ' : ''}${category.name}`;
+                    categoryEl.style.cssText = `
+                        display: inline-flex;
+                        align-items: center;
+                        padding: 6px 12px;
+                        font-size: 13px;
+                        border-radius: 6px;
+                        background: ${category.color}20;
+                        border: 1px solid ${category.color};
+                        color: var(--b3-theme-on-surface);
+                        cursor: pointer;
+                        transition: all 0.2s ease;
+                        user-select: none;
+                    `;
+                    categorySelector.appendChild(categoryEl);
+                });
+
+                // 绑定点击事件
+                categorySelector.querySelectorAll('.category-option').forEach(el => {
+                    el.addEventListener('click', () => {
+                        // 移除所有选中状态
+                        categorySelector.querySelectorAll('.category-option').forEach(opt => {
+                            opt.classList.remove('selected');
+                            const catId = opt.getAttribute('data-category');
+                            if (catId) {
+                                const cat = categories.find(c => c.id === catId);
+                                if (cat) {
+                                    (opt as HTMLElement).style.background = cat.color + '20';
+                                    (opt as HTMLElement).style.fontWeight = '500';
+                                }
+                            } else {
+                                (opt as HTMLElement).style.background =
+                                    'var(--b3-theme-background-light)';
+                                (opt as HTMLElement).style.fontWeight = '500';
+                            }
+                        });
+
+                        // 设置当前选中
+                        el.classList.add('selected');
+                        const catId = el.getAttribute('data-category');
+                        selectedCategoryId = catId || '';
+
+                        if (catId) {
+                            const cat = categories.find(c => c.id === catId);
+                            if (cat) {
+                                (el as HTMLElement).style.background = cat.color;
+                                (el as HTMLElement).style.color = '#fff';
+                                (el as HTMLElement).style.fontWeight = '600';
+                            }
+                        } else {
+                            (el as HTMLElement).style.background = 'var(--b3-theme-surface)';
+                            (el as HTMLElement).style.fontWeight = '600';
+                        }
+                    });
+
+                    // 悬停效果
+                    el.addEventListener('mouseenter', () => {
+                        (el as HTMLElement).style.opacity = '0.8';
+                        (el as HTMLElement).style.transform = 'translateY(-1px)';
+                    });
+
+                    el.addEventListener('mouseleave', () => {
+                        (el as HTMLElement).style.opacity = '1';
+                        (el as HTMLElement).style.transform = 'translateY(0)';
+                    });
+                });
+            } catch (error) {
+                console.error('加载分类失败:', error);
+                categorySelector.innerHTML = '<div class="category-error">加载分类失败</div>';
+            }
+        }
+
+        // 初始化时渲染分类选择器
+        await renderCategories();
+
+        // 新建项目按钮
+        createProjectBtn.addEventListener('click', async () => {
+            try {
+                // 使用 ProjectDialog 创建项目
+                const { ProjectDialog } = await import('./components/ProjectDialog');
+                const projectDialog = new ProjectDialog(undefined, plugin);
+                await projectDialog.show();
+
+                // 监听项目创建成功事件
+                const handleProjectCreated = async (event: CustomEvent) => {
+                    // 重新加载项目列表
+                    await projectManager.loadProjects();
+                    const groupedProjects = projectManager.getProjectsGroupedByStatus();
+                    const updatedProjects = Object.values(groupedProjects).flat();
+
+                    // 清空并重新填充下拉列表
+                    projectSelect.innerHTML = '<option value="">不设置</option>';
+                    updatedProjects.forEach(p => {
+                        const option = document.createElement('option');
+                        option.value = p.id;
+                        option.textContent = p.name;
+                        projectSelect.appendChild(option);
+                    });
+
+                    // 选中新创建的项目
+                    if (event.detail && event.detail.projectId) {
+                        projectSelect.value = event.detail.projectId;
+                    }
+
+                    // 移除事件监听器
+                    window.removeEventListener(
+                        'projectUpdated',
+                        handleProjectCreated as EventListener
+                    );
+                };
+
+                window.addEventListener('projectUpdated', handleProjectCreated as EventListener);
+            } catch (error) {
+                console.error('创建项目失败:', error);
+                await pushErrMsg('创建项目失败');
+            }
+        });
+
+        // 确定按钮
+        confirmBtn?.addEventListener('click', async () => {
+            const projectId = projectSelect?.value.trim() || undefined;
+            const priority =
+                ((dialog.element.querySelector('#import-priority') as HTMLSelectElement)
+                    ?.value as any) || undefined;
+
+            try {
+                await importIcsFile(plugin, icsContent, {
+                    projectId,
+                    categoryId: selectedCategoryId || undefined,
+                    priority,
+                });
+                dialog.destroy();
+            } catch (error) {
+                console.error('导入失败:', error);
+            }
+        });
+
+        // 取消按钮
+        cancelBtn?.addEventListener('click', () => {
+            dialog.destroy();
+        });
+    }
 </script>
 
 <div class="fn__flex-1 fn__flex config__panel">

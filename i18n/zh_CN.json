@@ -890,5 +890,20 @@
     "deleteProjectTasks": "删除项目任务",
     "confirmDeleteProjectTasks": "是否同时删除项目的所有 ${count} 个任务？\n\n选择\"确定\"将删除所有任务，选择\"取消\"将仅删除项目。",
     "projectAndTasksDeleted": "项目及 ${count} 个任务已删除",
-    "habitCountsAsSuccess": "认为是成功打卡"
+    "habitCountsAsSuccess": "认为是成功打卡",
+    "importIcs": "导入 ICS 文件",
+    "importIcsDesc": "从 ICS 文件导入任务，支持批量设置所属项目、标签和优先级",
+    "selectFileToImport": "选择文件导入",
+    "importIcsDialog": "导入 ICS 文件",
+    "batchSetProject": "批量设置所属项目（可选）",
+    "enterProjectName": "输入项目名称",
+    "batchSetTags": "批量设置标签（可选）",
+    "tagsPlaceholder": "多个标签用逗号分隔，如：工作,重要",
+    "batchSetPriority": "批量设置优先级（可选）",
+    "doNotSet": "不设置",
+    "importSuccess": "ICS导入成功：新增 ${added} 个，更新 ${updated} 个，共 ${total} 个事件",
+    "importFailed": "导入ICS文件失败",
+    "readFileFailed": "读取文件失败",
+    "noValidEvents": "ICS文件中没有找到有效的事件",
+    "parseIcsFailed": "解析ICS文件失败"
 }
