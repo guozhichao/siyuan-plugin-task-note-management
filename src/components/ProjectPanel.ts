@@ -1,10 +1,11 @@
 import { showMessage, confirm, Menu, openTab, Dialog } from "siyuan";
 import { PomodoroStatsView } from "./PomodoroStatsView";
+import { TaskTimeStatsView } from "./TaskTimeStatsView";
 
 // 添加四象限面板常量
 const EISENHOWER_TAB_TYPE = "reminder_eisenhower_tab";
 import { readProjectData, writeProjectData, getBlockByID, openBlock, readReminderData, writeReminderData } from "../api";
-import { getLocalDateString, compareDateStrings } from "../utils/dateUtils";
+import { compareDateStrings, getLogicalDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { StatusManager } from "../utils/statusManager";
 import { ProjectDialog } from "./ProjectDialog";
@@ -165,6 +166,16 @@ export class ProjectPanel {
                 this.showPomodoroStatsView();
             });
             actionContainer.appendChild(pomodoroStatsBtn);
+
+            // 添加任务时间统计按钮
+            const taskTimeStatsBtn = document.createElement('button');
+            taskTimeStatsBtn.className = 'b3-button b3-button--outline';
+            taskTimeStatsBtn.innerHTML = '&#x23F1;';
+            taskTimeStatsBtn.title = t("taskTimeStats") || "任务时间统计";
+            taskTimeStatsBtn.addEventListener('click', () => {
+                this.showTaskTimeStatsView();
+            });
+            actionContainer.appendChild(taskTimeStatsBtn);
 
             // 添加刷新按钮
             const refreshBtn = document.createElement('button');
@@ -686,7 +697,7 @@ export class ProjectPanel {
     }
 
     private createProjectElement(project: any): HTMLElement {
-        const today = getLocalDateString();
+        const today = getLogicalDateString();
         const isOverdue = project.endDate && compareDateStrings(project.endDate, today) < 0;
         const priority = project.priority || 'none';
         const status = project.status || 'active';
@@ -1404,7 +1415,7 @@ export class ProjectPanel {
 
     private formatProjectTime(startDate: string, endDate?: string, today?: string): string {
         if (!today) {
-            today = getLocalDateString();
+            today = getLogicalDateString();
         }
 
         let timeStr = '';
@@ -2001,6 +2012,19 @@ export class ProjectPanel {
         } catch (error) {
             console.error('打开番茄钟统计视图失败:', error);
             showMessage("打开番茄钟统计视图失败");
+        }
+    }
+
+    /**
+     * 显示任务时间统计视图
+     */
+    private showTaskTimeStatsView() {
+        try {
+            const statsView = new TaskTimeStatsView(this.plugin);
+            statsView.show();
+        } catch (error) {
+            console.error('打开任务时间统计视图失败:', error);
+            showMessage("打开任务时间统计视图失败");
         }
     }
 

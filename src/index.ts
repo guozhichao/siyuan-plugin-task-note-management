@@ -21,7 +21,7 @@ import { ensureReminderDataFile, ensureHabitDataFile, ensureHabitGroupDataFile }
 import { CalendarView } from "./components/CalendarView";
 import { EisenhowerMatrixView } from "./components/EisenhowerMatrixView";
 import { CategoryManager } from "./utils/categoryManager";
-import { getLocalDateString, getLocalTimeString, compareDateStrings } from "./utils/dateUtils";
+import { getLocalDateString, getLocalTimeString, compareDateStrings, getLogicalDateString, setDayStartTime } from "./utils/dateUtils";
 import { t, setPluginInstance } from "./utils/i18n";
 import { SettingUtils } from "./libs/setting-utils";
 import { PomodoroRecordManager } from "./utils/pomodoroRecord";
@@ -104,6 +104,7 @@ export const DEFAULT_SETTINGS = {
     calendarColorBy: 'project',
     calendarViewMode: 'timeGridWeek',
     dayStartTime: '08:00', // 日历视图一天的起始时间
+    todayStartTime: '00:00', // 日常任务/习惯的一天起始时间
     // 四象限设置
     eisenhowerImportanceThreshold: 'medium',
     eisenhowerUrgencyDays: 3,
@@ -234,6 +235,12 @@ export default class ReminderPlugin extends Plugin {
                 this.updateBadges();
                 this.updateProjectBadges();
                 this.updateHabitBadges();
+                try {
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    window.dispatchEvent(new CustomEvent('habitUpdated'));
+                } catch (err) {
+                    console.warn('Dispatch reminder/habit update event failed:', err);
+                }
                 // 更新所有打开的番茄钟实例，使其应用新的番茄钟设置
                 try {
                     const pomodoroSettings = await this.getPomodoroSettings();
@@ -415,6 +422,22 @@ export default class ReminderPlugin extends Plugin {
                 settings.dailyNotificationTime = DEFAULT_SETTINGS.dailyNotificationTime as any;
             }
         }
+        if (typeof settings.todayStartTime === 'number') {
+            const hours = Math.max(0, Math.min(23, Math.floor(settings.todayStartTime)));
+            settings.todayStartTime = (hours < 10 ? '0' : '') + hours.toString() + ':00';
+        }
+        if (typeof settings.todayStartTime === 'string') {
+            const raw = settings.todayStartTime;
+            const m = raw.match(/^(\d{1,2})(?::(\d{1,2}))?$/);
+            if (m) {
+                const h = Math.max(0, Math.min(23, parseInt(m[1], 10) || 0));
+                const min = Math.max(0, Math.min(59, parseInt(m[2] || '0', 10) || 0));
+                settings.todayStartTime = (h < 10 ? '0' : '') + h.toString() + ':' + (min < 10 ? '0' : '') + min.toString();
+            } else {
+                settings.todayStartTime = DEFAULT_SETTINGS.todayStartTime as any;
+            }
+        }
+        setDayStartTime(settings.todayStartTime);
         return settings;
     }
 
@@ -809,7 +832,7 @@ export default class ReminderPlugin extends Plugin {
                 return;
             }
 
-            const today = getLocalDateString();
+            const today = getLogicalDateString();
 
             // ========== 第一步：生成所有任务（包括重复实例），参照 generateAllRemindersWithInstances ==========
             const allReminders: any[] = [];
@@ -1288,7 +1311,7 @@ export default class ReminderPlugin extends Plugin {
                 return;
             }
 
-            const today = getLocalDateString();
+            const today = getLogicalDateString();
             let pendingCount = 0;
 
             Object.values(habitData).forEach((habit: any) => {
@@ -1766,7 +1789,7 @@ export default class ReminderPlugin extends Plugin {
                 return;
             }
 
-            const today = getLocalDateString();
+            const today = getLogicalDateString();
             const currentTime = getLocalTimeString();
             const currentTimeNumber = this.timeStringToNumber(currentTime);
 
@@ -3223,6 +3246,18 @@ export default class ReminderPlugin extends Plugin {
      * 注册快捷键命令
      */
     private registerCommands() {
+        // 快捷键：打开日历视图
+        this.addCommand({
+            langKey: "shortcutOpenCalendarView",
+            hotkey: "Alt+T",
+            editorCallback: () => {
+                this.openCalendarTab();
+            },
+            callback: () => {
+                this.openCalendarTab();
+            }
+        });
+
         // 快捷键：设置当前文档为任务
         this.addCommand({
             langKey: "shortcutSetDocumentAsTask",
