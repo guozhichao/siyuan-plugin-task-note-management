@@ -104,7 +104,11 @@ function parseIcalEvent(vevent: ICAL.Component): ParsedIcsEvent | null {
             const endDateStr = formatDate(endDate);
 
             if (event.endDate.isDate) {
-                parsedEvent.endDate = endDateStr;
+                // ICS all-day event endDate is exclusive (e.g., 2026-01-01 to 2026-01-02 is a 1-day event).
+                // We convert it to inclusive (e.g., 2026-01-01 to 2026-01-01) for our task system.
+                const inclusiveDate = new Date(endDate.getTime());
+                inclusiveDate.setDate(inclusiveDate.getDate() - 1);
+                parsedEvent.endDate = formatDate(inclusiveDate);
             } else {
                 parsedEvent.endDate = endDateStr;
                 parsedEvent.endTime = formatTime(endDate);
@@ -114,7 +118,7 @@ function parseIcalEvent(vevent: ICAL.Component): ParsedIcsEvent | null {
         // 状态
         const status = vevent.getFirstPropertyValue('status');
         if (status) {
-            parsedEvent.completed = status === 'CONFIRMED' || status === 'COMPLETED';
+            parsedEvent.completed = status === 'COMPLETED';
         }
 
         // 创建时间
@@ -141,7 +145,7 @@ function parseIcalEvent(vevent: ICAL.Component): ParsedIcsEvent | null {
 /**
  * 格式化日期为 YYYY-MM-DD
  */
-function formatDate(date: Date): string {
+export function formatDate(date: Date): string {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -151,10 +155,44 @@ function formatDate(date: Date): string {
 /**
  * 格式化时间为 HH:MM
  */
-function formatTime(date: Date): string {
+export function formatTime(date: Date): string {
     const hours = String(date.getHours()).padStart(2, '0');
     const minutes = String(date.getMinutes()).padStart(2, '0');
     return `${hours}:${minutes}`;
+}
+
+/**
+ * Check if an event is in the past
+ */
+export function isEventPast(event: any): boolean {
+    const now = new Date();
+    const today = formatDate(now);
+    const currentTime = formatTime(now);
+
+    if (!event.date) return false;
+
+    // Use endDate if available, otherwise use date
+    // For timed events, also check endTime/time
+    const endD = event.endDate || event.date;
+    const endT = event.endTime || event.time;
+
+    if (endT) {
+        // Timed event
+        if (endD < today) return true;
+        if (endD > today) return false;
+        // Same day, compare time
+        return endT <= currentTime;
+    } else {
+        // All-day event
+        if (event.endDate) {
+            // endDate is now inclusive in our data
+            // It is past only if today is strictly after the inclusive end date
+            return event.endDate < today;
+        } else {
+            // If only start date is provided, it's past if today is after that date
+            return event.date < today;
+        }
+    }
 }
 
 
@@ -279,7 +317,7 @@ export function mergeImportedEvents(
                 categoryId: options.categoryId,
                 tags: options.tags || [],
                 priority: options.priority || 'none',
-                completed: event.completed || false,
+                completed: event.completed || isEventPast(event),
                 createdAt: event.createdAt || new Date().toISOString(),
                 // Preserve subscription metadata
                 subscriptionId: event.subscriptionId,

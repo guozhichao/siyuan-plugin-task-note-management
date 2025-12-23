@@ -4,7 +4,7 @@
  */
 
 import { pushErrMsg, pushMsg, putFile, getFile } from '../api';
-import { parseIcsFile } from './icsImport';
+import { parseIcsFile, isEventPast } from './icsImport';
 
 export interface IcsSubscription {
     id: string;
@@ -258,7 +258,7 @@ export async function syncSubscription(
                 categoryId: subscription.categoryId,
                 priority: subscription.priority || 'none',
                 tagIds: subscription.tagIds || [],
-                completed: event.completed || false,
+                completed: event.completed || isEventPast(event),
                 createdAt: event.createdAt || new Date().toISOString(),
                 // Mark as subscribed (read-only)
                 subscriptionId: subscription.id,
