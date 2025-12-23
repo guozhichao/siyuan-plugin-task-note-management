@@ -763,6 +763,48 @@ export class CalendarView {
 
         const menu = new Menu("calendarEventContextMenu");
 
+        if (calendarEvent.extendedProps.isSubscribed) {
+            menu.addItem({
+                iconHTML: "ℹ️",
+                label: t("subscribedTaskReadOnly") || "订阅任务（只读）",
+                disabled: true
+            });
+
+            if (calendarEvent.extendedProps.projectId) {
+                menu.addItem({
+                    iconHTML: "📂",
+                    label: t("openProjectKanban"),
+                    click: () => {
+                        this.openProjectKanban(calendarEvent.extendedProps.projectId);
+                    }
+                });
+            }
+
+            menu.addSeparator();
+
+            menu.addItem({
+                iconHTML: "🍅",
+                label: t("startPomodoro"),
+                click: () => {
+                    this.startPomodoro(calendarEvent);
+                }
+            });
+
+            menu.addItem({
+                iconHTML: "⏱️",
+                label: t("startCountUp"),
+                click: () => {
+                    this.startPomodoroCountUp(calendarEvent);
+                }
+            });
+
+            menu.open({
+                x: event.clientX,
+                y: event.clientY
+            });
+            return;
+        }
+
         // 如果事项没有绑定块，显示绑定块选项
         if (!calendarEvent.extendedProps.blockId || calendarEvent.extendedProps.isQuickReminder) {
             menu.addItem({
@@ -774,22 +816,13 @@ export class CalendarView {
             });
             menu.addSeparator();
         } else {
-            if (calendarEvent.extendedProps.isSubscribed) {
-                // 订阅任务显示只读标识
-                menu.addItem({
-                    iconHTML: "ℹ️",
-                    label: t("subscribedTaskReadOnly") || "订阅任务（只读）",
-                    disabled: true
-                });
-            } else {
-                menu.addItem({
-                    iconHTML: "📖",
-                    label: t("openNote"),
-                    click: () => {
-                        this.handleEventClick({ event: calendarEvent });
-                    }
-                });
-            }
+            menu.addItem({
+                iconHTML: "📖",
+                label: t("openNote"),
+                click: () => {
+                    this.handleEventClick({ event: calendarEvent });
+                }
+            });
         }
 
         // 对于重复事件实例，提供特殊选项
@@ -1378,8 +1411,14 @@ export class CalendarView {
             eventEl.appendChild(noteEl);
         }
 
-        // 添加分类emoji图标（如果有分类）
-        if (eventInfo.event.extendedProps.categoryId) {
+        // 添加分类emoji图标或订阅图标
+        if (eventInfo.event.extendedProps.isSubscribed) {
+            const subIcon = document.createElement('div');
+            subIcon.className = 'reminder-category-indicator';
+            subIcon.innerHTML = '🗓';
+            subIcon.title = t("subscribedTask") || "订阅任务";
+            wrapper.appendChild(subIcon);
+        } else if (eventInfo.event.extendedProps.categoryId) {
             const category = this.categoryManager.getCategoryById(eventInfo.event.extendedProps.categoryId);
             if (category && category.icon) {
                 const categoryIcon = document.createElement('div');
@@ -1390,8 +1429,8 @@ export class CalendarView {
             }
         }
 
-        // 添加链接图标（如果有绑定块且不是快速提醒）
-        if (eventInfo.event.extendedProps.blockId && !eventInfo.event.extendedProps.isQuickReminder) {
+        // 添加链接图标（如果有绑定块且不是快速提醒，且不是订阅任务）
+        if (eventInfo.event.extendedProps.blockId && !eventInfo.event.extendedProps.isQuickReminder && !eventInfo.event.extendedProps.isSubscribed) {
             const linkIcon = document.createElement('div');
             linkIcon.className = 'reminder-link-indicator';
             linkIcon.innerHTML = '🔗';
@@ -3179,6 +3218,9 @@ export class CalendarView {
             borderColor: colors.borderColor,
             textColor: isCompleted ? '#ffffffcc' : '#ffffff',
             className: classNames,
+            editable: !reminder.isSubscribed, // 如果是订阅任务，禁止编辑
+            startEditable: !reminder.isSubscribed, // 如果是订阅任务，禁止拖动开始时间
+            durationEditable: !reminder.isSubscribed, // 如果是订阅任务，禁止调整时长
             extendedProps: {
                 completed: isCompleted,
                 note: reminder.note || '',
@@ -3198,7 +3240,9 @@ export class CalendarView {
                 isRepeated: isRepeated,
                 originalId: originalId || reminder.id,
                 repeat: reminder.repeat,
-                isQuickReminder: reminder.isQuickReminder || false
+                isQuickReminder: reminder.isQuickReminder || false,
+                isSubscribed: reminder.isSubscribed || false,
+                subscriptionId: reminder.subscriptionId
             }
         };
 
@@ -4630,7 +4674,7 @@ export class CalendarView {
             const project = projectData[projectId];
 
             // 使用openProjectKanbanTab打开项目看板
-            this.plugin.openProjectKanbanTab(project.blockId, project.title);
+            this.plugin.openProjectKanbanTab(projectId, project.title);
         } catch (error) {
             console.error('打开项目看板失败:', error);
             showMessage("打开项目看板失败");
