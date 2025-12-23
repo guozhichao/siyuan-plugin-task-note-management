@@ -630,6 +630,14 @@
                         false: '禁用验证',
                     },
                 },
+                {
+                    key: 's3CustomDomain',
+                    value: settings.s3CustomDomain,
+                    type: 'textinput',
+                    title: 'S3 自定义域名',
+                    description: '用于生成外链的自定义域名，留空则使用标准S3 URL',
+                    placeholder: 'cdn.example.com',
+                },
             ],
         },
         {
@@ -887,15 +895,18 @@
                 updated.hidden = !settings.icsSyncEnabled || settings.icsSyncMethod !== 's3';
             }
 
+            // S3 bucket、存储路径和自定义域名 - 仅在启用同步且选择S3存储时显示（即使使用思源配置也允许覆盖）
+            if (['s3Bucket', 's3StoragePath', 's3CustomDomain'].includes(item.key)) {
+                updated.hidden = !settings.icsSyncEnabled || settings.icsSyncMethod !== 's3';
+            }
+
             // S3详细配置 - 仅在启用同步、选择S3存储且未启用"使用思源S3设置"时显示
             if (
                 [
-                    's3Bucket',
                     's3Endpoint',
                     's3Region',
                     's3AccessKeyId',
                     's3AccessKeySecret',
-                    's3StoragePath',
                     's3ForcePathStyle',
                     's3TlsVerify',
                 ].includes(item.key)

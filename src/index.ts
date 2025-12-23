@@ -129,6 +129,7 @@ export const DEFAULT_SETTINGS = {
     s3StoragePath: '', // S3存储路径，例如: /calendar/
     s3ForcePathStyle: false, // S3 Addressing风格，true为Path-style，false为Virtual hosted style（默认）
     s3TlsVerify: true, // S3 TLS证书验证，true为启用验证（默认），false为禁用验证
+    s3CustomDomain: '', // S3 自定义域名，用于生成外链
 };
 
 export default class ReminderPlugin extends Plugin {

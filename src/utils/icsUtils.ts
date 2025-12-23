@@ -665,7 +665,7 @@ async function uploadToS3(settings: any, icsContent: string, fileName: string, p
             s3Region = siyuanS3.region || 'auto';
             s3AccessKeyId = siyuanS3.accessKey || '';
             s3AccessKeySecret = siyuanS3.secretKey || '';
-            s3StoragePath = settings.s3StoragePath || ''; // 存储路径仍使用插件配置
+            s3StoragePath = settings.s3StoragePath || ''; // 存储路径使用插件配置，可覆盖思源默认
             s3ForcePathStyle = siyuanS3.pathStyle !== false; // 思源的pathStyle
             s3TlsVerify = !siyuanS3.skipTlsVerify; // 思源的skipTlsVerify取反
         } else {
@@ -747,28 +747,34 @@ async function uploadToS3(settings: any, icsContent: string, fileName: string, p
 
         // 构建云端链接
         let cloudUrl: string;
-        if (s3ForcePathStyle === true) {
-            // Path-style: https://endpoint/bucket/key
-            cloudUrl = endpoint;
-            if (!cloudUrl.endsWith('/')) {
-                cloudUrl += '/';
-            }
-            cloudUrl += `${s3Bucket}/${s3Key}`;
+        if (settings.s3CustomDomain) {
+            // 使用自定义域名
+            cloudUrl = `https://${settings.s3CustomDomain}/${s3Key}`;
         } else {
-            // Virtual hosted style: https://bucket.endpoint/key
-            // 从endpoint中提取协议和域名
-            const urlMatch = endpoint.match(/^(https?:\/\/)(.+)$/);
-            if (urlMatch) {
-                const protocol = urlMatch[1];
-                const domain = urlMatch[2].replace(/\/$/, ''); // 移除末尾的斜杠
-                cloudUrl = `${protocol}${s3Bucket}.${domain}/${s3Key}`;
-            } else {
-                // 如果无法解析，回退到path-style
+            // 使用标准S3 URL
+            if (s3ForcePathStyle === true) {
+                // Path-style: https://endpoint/bucket/key
                 cloudUrl = endpoint;
                 if (!cloudUrl.endsWith('/')) {
                     cloudUrl += '/';
                 }
                 cloudUrl += `${s3Bucket}/${s3Key}`;
+            } else {
+                // Virtual hosted style: https://bucket.endpoint/key
+                // 从endpoint中提取协议和域名
+                const urlMatch = endpoint.match(/^(https?:\/\/)(.+)$/);
+                if (urlMatch) {
+                    const protocol = urlMatch[1];
+                    const domain = urlMatch[2].replace(/\/$/, ''); // 移除末尾的斜杠
+                    cloudUrl = `${protocol}${s3Bucket}.${domain}/${s3Key}`;
+                } else {
+                    // 如果无法解析，回退到path-style
+                    cloudUrl = endpoint;
+                    if (!cloudUrl.endsWith('/')) {
+                        cloudUrl += '/';
+                    }
+                    cloudUrl += `${s3Bucket}/${s3Key}`;
+                }
             }
         }
 
