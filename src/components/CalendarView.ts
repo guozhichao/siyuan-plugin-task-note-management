@@ -52,7 +52,6 @@ export class CalendarView {
     private monthBtn: HTMLButtonElement;
     private weekBtn: HTMLButtonElement;
     private dayBtn: HTMLButtonElement;
-    private matrixBtn: HTMLButtonElement;
     private yearBtn: HTMLButtonElement;
     private viewTypeSwitch: HTMLInputElement;
 
@@ -581,6 +580,10 @@ export class CalendarView {
 
         // 更新视图按钮状态
         this.updateViewButtonStates();
+
+        // 设置任务摘要对话框的引用
+        this.taskSummaryDialog.setCalendar(this.calendar);
+        this.taskSummaryDialog.setCategoryManager(this);
 
         // datesSet 会在 render 后自动触发，无需额外调用 refreshEvents
 
@@ -5042,7 +5045,6 @@ export class CalendarView {
         this.monthBtn.classList.remove('b3-button--primary');
         this.weekBtn.classList.remove('b3-button--primary');
         this.dayBtn.classList.remove('b3-button--primary');
-        this.matrixBtn.classList.remove('b3-button--primary');
         this.yearBtn.classList.remove('b3-button--primary');
 
         // 根据当前视图模式设置激活按钮
