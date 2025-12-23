@@ -6,6 +6,7 @@
     "setTimeReminder": "Set Time Reminder",
     "reminderPanel": "Reminder Panel",
     "calendarView": "Calendar View",
+    "switchViewType": "Switch View Type",
     "sidebarSettings": "🛠Sidebar Settings",
     "enableReminderDock": "Show Task Sidebar",
     "enableReminderDockDesc": "Show or hide the Task (Reminder) panel in the sidebar",

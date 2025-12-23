@@ -1,6 +1,7 @@
 import { Calendar } from '@fullcalendar/core';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
+import multiMonthPlugin from '@fullcalendar/multimonth';
 import interactionPlugin from '@fullcalendar/interaction';
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
 import { refreshSql, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark, openBlock, readProjectData } from "../api";
@@ -52,6 +53,8 @@ export class CalendarView {
     private weekBtn: HTMLButtonElement;
     private dayBtn: HTMLButtonElement;
     private matrixBtn: HTMLButtonElement;
+    private yearBtn: HTMLButtonElement;
+    private viewTypeSwitch: HTMLInputElement;
 
     // 使用全局番茄钟管理器
     private pomodoroManager: PomodoroManager = PomodoroManager.getInstance();
@@ -108,7 +111,15 @@ export class CalendarView {
         const viewGroup = document.createElement('div');
         viewGroup.className = 'reminder-calendar-view-group';
         toolbar.appendChild(viewGroup);
-
+        this.yearBtn = document.createElement('button');
+        this.yearBtn.className = 'b3-button b3-button--outline';
+        this.yearBtn.textContent = t("year");
+        this.yearBtn.addEventListener('click', async () => {
+            await this.calendarConfigManager.setViewMode('multiMonthYear');
+            this.calendar.changeView('multiMonthYear');
+            this.updateViewButtonStates();
+        });
+        viewGroup.appendChild(this.yearBtn);
         this.monthBtn = document.createElement('button');
         this.monthBtn.className = 'b3-button b3-button--outline';
         this.monthBtn.textContent = t("month");
@@ -123,8 +134,10 @@ export class CalendarView {
         this.weekBtn.className = 'b3-button b3-button--outline';
         this.weekBtn.textContent = t("week");
         this.weekBtn.addEventListener('click', async () => {
-            await this.calendarConfigManager.setViewMode('timeGridWeek');
-            this.calendar.changeView('timeGridWeek');
+            const viewType = this.calendarConfigManager.getWeekViewType();
+            const viewMode = viewType === 'dayGrid' ? 'dayGridWeek' : 'timeGridWeek';
+            await this.calendarConfigManager.setViewMode(viewMode);
+            this.calendar.changeView(viewMode);
             this.updateViewButtonStates();
         });
         viewGroup.appendChild(this.weekBtn);
@@ -133,19 +146,40 @@ export class CalendarView {
         this.dayBtn.className = 'b3-button b3-button--outline';
         this.dayBtn.textContent = t("day");
         this.dayBtn.addEventListener('click', async () => {
-            await this.calendarConfigManager.setViewMode('timeGridDay');
-            this.calendar.changeView('timeGridDay');
+            const viewType = this.calendarConfigManager.getDayViewType();
+            const viewMode = viewType === 'dayGrid' ? 'dayGridDay' : 'timeGridDay';
+            await this.calendarConfigManager.setViewMode(viewMode);
+            this.calendar.changeView(viewMode);
             this.updateViewButtonStates();
         });
         viewGroup.appendChild(this.dayBtn);
 
-        this.matrixBtn = document.createElement('button');
-        this.matrixBtn.className = 'b3-button b3-button--outline';
-        this.matrixBtn.textContent = t("eisenhowerMatrix");
-        this.matrixBtn.addEventListener('click', async () => {
-            this.openEisenhowerTab();
+
+
+
+        // 添加视图类型切换开关
+        const switchContainer = document.createElement('div');
+        switchContainer.style.display = 'flex';
+        switchContainer.style.alignItems = 'center';
+        switchContainer.style.marginLeft = '8px';
+        switchContainer.title = t("switchViewType");
+
+        const switchLabel = document.createElement('label');
+        switchLabel.className = 'b3-form__label';
+        switchLabel.textContent = t("switchViewType");
+        switchLabel.style.marginRight = '4px';
+        switchLabel.style.fontSize = '12px';
+
+        this.viewTypeSwitch = document.createElement('input');
+        this.viewTypeSwitch.type = 'checkbox';
+        this.viewTypeSwitch.className = 'b3-switch';
+        this.viewTypeSwitch.addEventListener('change', () => {
+            this.toggleViewType();
         });
-        viewGroup.appendChild(this.matrixBtn);
+
+        switchContainer.appendChild(switchLabel);
+        switchContainer.appendChild(this.viewTypeSwitch);
+        viewGroup.appendChild(switchContainer);
 
 
         // 添加统一过滤器
@@ -290,8 +324,9 @@ export class CalendarView {
 
         // 初始化日历 - 使用用户设置的周开始日
         this.calendar = new Calendar(calendarEl, {
-            plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
+            plugins: [dayGridPlugin, timeGridPlugin, multiMonthPlugin, interactionPlugin],
             initialView: this.calendarConfigManager.getViewMode(),
+            multiMonthMaxColumns: 1, // force a single column
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
@@ -316,6 +351,7 @@ export class CalendarView {
                 hour12: false
             },
             eventClassNames: 'reminder-calendar-event',
+            displayEventTime: true,
             eventContent: this.renderEventContent.bind(this),
             eventClick: this.handleEventClick.bind(this),
             eventDrop: this.handleEventDrop.bind(this),
@@ -1569,6 +1605,31 @@ export class CalendarView {
         titleEl.className = 'fc-event-title';
         titleEl.innerHTML = eventInfo.event.title;
         eventEl.appendChild(titleEl);
+
+        // 在非全天事件中显示时间范围
+        if (!eventInfo.event.allDay) {
+            const timeEl = document.createElement('div');
+            timeEl.className = 'reminder-calendar-event-time';
+            timeEl.style.cssText = `
+                font-size: 10px;
+                opacity: 0.8;
+                margin-top: 2px;
+                line-height: 1.2;
+            `;
+
+            const startTime = eventInfo.event.start;
+            const endTime = eventInfo.event.end;
+
+            if (startTime && endTime) {
+                const startStr = startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const endStr = endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                timeEl.textContent = `${startStr} - ${endStr}`;
+            } else if (startTime) {
+                timeEl.textContent = startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+
+            eventEl.appendChild(timeEl);
+        }
 
         // 添加备注（如果存在）
         if (eventInfo.event.extendedProps.note) {
@@ -4941,16 +5002,34 @@ export class CalendarView {
         }
     }
 
+
+
     /**
-     * 打开四象限视图Tab
+     * 切换视图类型（timeGrid <-> dayGrid）
      */
-    private openEisenhowerTab() {
-        try {
-            this.plugin.openEisenhowerMatrixTab();
-        } catch (error) {
-            console.error('打开四象限面板失败:', error);
-            showMessage("打开四象限面板失败");
+    private async toggleViewType() {
+        const currentView = this.calendar.view.type;
+        let newView: string;
+        let viewType: 'timeGrid' | 'dayGrid';
+
+        if (currentView === 'timeGridWeek' || currentView === 'dayGridWeek') {
+            viewType = this.viewTypeSwitch.checked ? 'dayGrid' : 'timeGrid';
+            newView = viewType === 'dayGrid' ? 'dayGridWeek' : 'timeGridWeek';
+            await this.calendarConfigManager.setWeekViewType(viewType);
+        } else if (currentView === 'timeGridDay' || currentView === 'dayGridDay') {
+            viewType = this.viewTypeSwitch.checked ? 'dayGrid' : 'timeGrid';
+            newView = viewType === 'dayGrid' ? 'dayGridDay' : 'timeGridDay';
+            await this.calendarConfigManager.setDayViewType(viewType);
+        } else {
+            // 如果不是周或日视图，不做任何操作
+            return;
         }
+
+        this.calendar.changeView(newView);
+        // 更新配置中的视图模式
+        this.calendarConfigManager.setViewMode(newView);
+        // 更新按钮状态
+        this.updateViewButtonStates();
     }
 
     /**
@@ -4964,17 +5043,31 @@ export class CalendarView {
         this.weekBtn.classList.remove('b3-button--primary');
         this.dayBtn.classList.remove('b3-button--primary');
         this.matrixBtn.classList.remove('b3-button--primary');
+        this.yearBtn.classList.remove('b3-button--primary');
 
         // 根据当前视图模式设置激活按钮
         switch (currentViewMode) {
             case 'dayGridMonth':
                 this.monthBtn.classList.add('b3-button--primary');
+                this.viewTypeSwitch.disabled = true;
+                this.viewTypeSwitch.checked = false;
                 break;
             case 'timeGridWeek':
+            case 'dayGridWeek':
                 this.weekBtn.classList.add('b3-button--primary');
+                this.viewTypeSwitch.disabled = false;
+                this.viewTypeSwitch.checked = currentViewMode === 'dayGridWeek';
                 break;
             case 'timeGridDay':
+            case 'dayGridDay':
                 this.dayBtn.classList.add('b3-button--primary');
+                this.viewTypeSwitch.disabled = false;
+                this.viewTypeSwitch.checked = currentViewMode === 'dayGridDay';
+                break;
+            case 'multiMonthYear':
+                this.yearBtn.classList.add('b3-button--primary');
+                this.viewTypeSwitch.disabled = true;
+                this.viewTypeSwitch.checked = false;
                 break;
         }
     }

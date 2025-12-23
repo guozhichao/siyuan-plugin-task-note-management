@@ -6,7 +6,9 @@ const CALENDAR_CONFIG_FILE = 'data/storage/petal/siyuan-plugin-task-note-managem
 
 export interface CalendarConfig {
     colorBy: 'category' | 'priority' | 'project';
-    viewMode: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay';
+    viewMode: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay' | 'dayGridWeek' | 'dayGridDay';
+    weekViewType: 'timeGrid' | 'dayGrid';
+    dayViewType: 'timeGrid' | 'dayGrid';
 }
 
 export class CalendarConfigManager {
@@ -18,7 +20,9 @@ export class CalendarConfigManager {
         this.plugin = plugin;
         this.config = {
             colorBy: 'project', // 默认按项目上色
-            viewMode: 'timeGridWeek' // 默认周视图
+            viewMode: 'timeGridWeek', // 默认周视图
+            weekViewType: 'timeGrid', // 默认周视图类型
+            dayViewType: 'timeGrid' // 默认日视图类型
         };
     }
 
@@ -38,6 +42,8 @@ export class CalendarConfigManager {
             const settings = await this.plugin.loadData(SETTINGS_FILE) || {};
             settings.calendarColorBy = this.config.colorBy;
             settings.calendarViewMode = this.config.viewMode;
+            settings.calendarWeekViewType = this.config.weekViewType;
+            settings.calendarDayViewType = this.config.dayViewType;
             await this.plugin.saveData(SETTINGS_FILE, settings);
         } catch (error) {
             console.error('Failed to save calendar config:', error);
@@ -71,11 +77,18 @@ export class CalendarConfigManager {
 
             this.config = {
                 colorBy: settings.calendarColorBy || 'project',
-                viewMode: settings.calendarViewMode || 'timeGridWeek'
+                viewMode: settings.calendarViewMode || 'timeGridWeek',
+                weekViewType: settings.calendarWeekViewType || 'timeGrid',
+                dayViewType: settings.calendarDayViewType || 'timeGrid'
             };
         } catch (error) {
             console.warn('Failed to load calendar config, using defaults:', error);
-            this.config = { colorBy: 'project', viewMode: 'timeGridWeek' };
+            this.config = { 
+                colorBy: 'project', 
+                viewMode: 'timeGridWeek',
+                weekViewType: 'timeGrid',
+                dayViewType: 'timeGrid'
+            };
             try {
                 await this.saveConfig();
             } catch (saveError) {
@@ -93,13 +106,31 @@ export class CalendarConfigManager {
         return this.config.colorBy;
     }
 
-    public async setViewMode(viewMode: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay') {
+    public async setViewMode(viewMode: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay' | 'dayGridWeek' | 'dayGridDay') {
         this.config.viewMode = viewMode;
         await this.saveConfig();
     }
 
-    public getViewMode(): 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay' {
+    public getViewMode(): 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay' | 'dayGridWeek' | 'dayGridDay' {
         return this.config.viewMode;
+    }
+
+    public async setWeekViewType(viewType: 'timeGrid' | 'dayGrid') {
+        this.config.weekViewType = viewType;
+        await this.saveConfig();
+    }
+
+    public getWeekViewType(): 'timeGrid' | 'dayGrid' {
+        return this.config.weekViewType;
+    }
+
+    public async setDayViewType(viewType: 'timeGrid' | 'dayGrid') {
+        this.config.dayViewType = viewType;
+        await this.saveConfig();
+    }
+
+    public getDayViewType(): 'timeGrid' | 'dayGrid' {
+        return this.config.dayViewType;
     }
 
     public getConfig(): CalendarConfig {
