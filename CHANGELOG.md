@@ -1,3 +1,8 @@
+## v4.0.5 / 20251223
+
+- 🎨 设置插件最低思源版本为3.5.1
+- 🎨 支持直接上传ics文件到思源服务器，限制思源版本v3.5.1  [#219](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/219)
+
 ## v4.0.4 / 20251223
 - 🎨 任务管理侧栏的任务可以直接拖动到日历，调整任务时间 [#218](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/218)
 - 🎨 任务管理侧栏添加设置，支持设置是否显示已完成的子任务 [#224](https://github.com/Achuan-2/siyuan-plugin-task-note-management/issues/224)
