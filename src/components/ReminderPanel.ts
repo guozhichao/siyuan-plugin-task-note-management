@@ -9,7 +9,6 @@ import { t } from "../utils/i18n";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroStatsView } from "./PomodoroStatsView";
-import { TaskTimeStatsView } from "./TaskTimeStatsView";
 import { EisenhowerMatrixView } from "./EisenhowerMatrixView";
 import { PomodoroManager } from "../utils/pomodoroManager";
 import { getSolarDateLunarString, getNextLunarMonthlyDate, getNextLunarYearlyDate } from "../utils/lunarUtils";
@@ -233,15 +232,7 @@ export class ReminderPanel {
             });
             actionContainer.appendChild(pomodoroStatsBtn);
 
-            // 添加任务时间统计按钮
-            const taskTimeStatsBtn = document.createElement('button');
-            taskTimeStatsBtn.className = 'b3-button b3-button--outline';
-            taskTimeStatsBtn.innerHTML = '&#x23F1;';
-            taskTimeStatsBtn.title = t("taskTimeStats");
-            taskTimeStatsBtn.addEventListener('click', () => {
-                this.showTaskTimeStatsView();
-            });
-            actionContainer.appendChild(taskTimeStatsBtn);
+
 
             // 添加刷新按钮
             const refreshBtn = document.createElement('button');
@@ -2955,6 +2946,35 @@ export class ReminderPanel {
             if (e.dataTransfer) {
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/html', element.outerHTML);
+                // 支持拖动到日历：携带提醒的最小必要信息
+                try {
+                    const payload = {
+                        id: reminder.id,
+                        title: reminder.title || '',
+                        date: reminder.date || null,
+                        time: reminder.time || null,
+                        endDate: reminder.endDate || null,
+                        endTime: reminder.endTime || null,
+                        durationMinutes: (() => {
+                            try {
+                                if (reminder.time && reminder.endTime) {
+                                    const [sh, sm] = (reminder.time || '00:00').split(':').map(Number);
+                                    const [eh, em] = (reminder.endTime || reminder.time || '00:00').split(':').map(Number);
+                                    const s = sh * 60 + (sm || 0);
+                                    const e = eh * 60 + (em || 0);
+                                    return Math.max(1, e - s);
+                                }
+                            } catch (e) { }
+                            return 60;
+                        })()
+                    };
+
+                    e.dataTransfer.setData('application/x-reminder', JSON.stringify(payload));
+                    // 兼容性：也设置纯文本为 id
+                    e.dataTransfer.setData('text/plain', reminder.id);
+                } catch (err) {
+                    // ignore
+                }
             }
         });
 
@@ -6458,18 +6478,7 @@ export class ReminderPanel {
         }
     }
 
-    /**
-     * 显示任务时间统计视图
-     */
-    private showTaskTimeStatsView() {
-        try {
-            const statsView = new TaskTimeStatsView(this.plugin);
-            statsView.show();
-        } catch (error) {
-            console.error('打开任务时间统计视图失败:', error);
-            showMessage("打开任务时间统计视图失败");
-        }
-    }
+
 
     /**
      * 打开四象限面板

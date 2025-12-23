@@ -35,6 +35,8 @@ export class CalendarView {
     private initialProjectFilter: string | null = null;
     private colorBy: 'category' | 'priority' | 'project' = 'project'; // 按分类或优先级上色
     private tooltip: HTMLElement | null = null; // 添加提示框元素
+    private dropIndicator: HTMLElement | null = null; // 拖放放置指示器
+    private externalReminderUpdatedHandler: ((e: Event) => void) | null = null;
     private hideTooltipTimeout: number | null = null; // 添加提示框隐藏超时控制
     private tooltipShowTimeout: number | null = null; // 添加提示框显示延迟控制
     private lastClickTime: number = 0; // 添加双击检测
@@ -388,6 +390,159 @@ export class CalendarView {
 
         this.calendar.render();
 
+        // 支持从提醒面板将任务拖拽到日历上以调整任务时间
+        // 接受 mime-type: 'application/x-reminder' (JSON) 或纯文本 reminder id
+        calendarEl.addEventListener('dragover', (e: DragEvent) => {
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+            // 更新并显示放置指示器
+            try {
+                this.updateDropIndicator(e.clientX, e.clientY, calendarEl);
+            } catch (err) {
+                // ignore
+            }
+        });
+
+        calendarEl.addEventListener('dragleave', (e: DragEvent) => {
+            // 隐藏指示器（当拖出日历区域）
+            this.hideDropIndicator();
+        });
+
+        calendarEl.addEventListener('drop', async (e: DragEvent) => {
+            e.preventDefault();
+            // 隐藏指示器（优先）
+            this.hideDropIndicator();
+            try {
+                const dt = e.dataTransfer;
+                if (!dt) return;
+
+                let payloadStr = dt.getData('application/x-reminder') || dt.getData('text/plain') || '';
+                if (!payloadStr) return;
+
+                let payload: any;
+                try {
+                    payload = JSON.parse(payloadStr);
+                } catch (err) {
+                    // 如果只是 id 字符串
+                    payload = { id: payloadStr };
+                }
+
+                const reminderId = payload.id;
+                if (!reminderId) return;
+
+                // 找到放置位置对应的日期（通过坐标查找所有带 data-date 的元素）
+                const pointX = e.clientX;
+                const pointY = e.clientY;
+                const dateEls = Array.from(calendarEl.querySelectorAll('[data-date]')) as HTMLElement[];
+                let dateEl: HTMLElement | null = null;
+
+                // 优先查找包含该点的元素
+                for (const d of dateEls) {
+                    const r = d.getBoundingClientRect();
+                    if (pointX >= r.left && pointX <= r.right && pointY >= r.top && pointY <= r.bottom) {
+                        dateEl = d;
+                        break;
+                    }
+                }
+
+                // 若没有直接包含的元素，则选择距离点中心最近的日期单元格
+                if (!dateEl && dateEls.length > 0) {
+                    let minDist = Infinity;
+                    for (const d of dateEls) {
+                        const r = d.getBoundingClientRect();
+                        const cx = (r.left + r.right) / 2;
+                        const cy = (r.top + r.bottom) / 2;
+                        const dx = cx - pointX;
+                        const dy = cy - pointY;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            dateEl = d;
+                        }
+                    }
+                }
+
+                // 若仍未找到，使用日历当前显示的日期作为回退
+                if (!dateEl) {
+                    const fallbackDate = this.calendar ? this.calendar.getDate() : new Date();
+                    const dateStrFallback = fallbackDate.toISOString().slice(0, 10);
+                    dateEl = null;
+                    // 直接使用回退日期字符串
+                    var dateStr = dateStrFallback;
+                } else {
+                    var dateStr = dateEl.getAttribute('data-date') || '';
+                }
+                if (!dateStr) {
+                    showMessage('无法识别放置位置，请放到日历的日期或时间格上。');
+                    return;
+                }
+
+                // 判断是否在时间网格（timeGrid）内部
+                const elAtPoint = document.elementFromPoint(pointX, pointY) as HTMLElement | null;
+                const inTimeGrid = !!(elAtPoint && elAtPoint.closest('.fc-timegrid'));
+
+                // 检测是否落在“全天”区域（FullCalendar 在 timeGrid 上方会渲染 dayGrid/all-day 区域）
+                const inAllDayArea = !!(elAtPoint && (elAtPoint.closest('.fc-daygrid') || elAtPoint.closest('.fc-daygrid-day') || elAtPoint.closest('.fc-daygrid-body') || elAtPoint.closest('.fc-all-day')));
+
+                let startDate: Date;
+                let isAllDay = false;
+
+                if (inAllDayArea) {
+                    // 明确放置到全天区域，按全天事件处理
+                    startDate = new Date(`${dateStr}T00:00:00`);
+                    isAllDay = true;
+                } else if (inTimeGrid) {
+                    // 计算时间：按放置点在当天列的相对纵向位置映射到 slotMinTime-slotMaxTime
+                    const dayCol = dateEl;
+                    const rect = dayCol.getBoundingClientRect();
+                    const y = e.clientY - rect.top;
+
+                    const todayStartTime = await this.getTodayStartTime();
+                    const slotMaxTime = this.calculateSlotMaxTime(todayStartTime);
+                    const slotMin = this.parseDuration(todayStartTime);
+                    const slotMax = this.parseDuration(slotMaxTime);
+
+                    const totalMinutes = Math.max(1, slotMax - slotMin);
+                    const clampedY = Math.max(0, Math.min(rect.height, y));
+                    const minutesFromMin = Math.round((clampedY / rect.height) * totalMinutes);
+
+                    startDate = new Date(`${dateStr}T00:00:00`);
+                    const m = slotMin + minutesFromMin;
+                    const hh = Math.floor(m / 60);
+                    const mm = m % 60;
+                    startDate.setHours(hh, mm, 0, 0);
+                    isAllDay = false;
+                } else {
+                    // 月视图或无时间信息：视为全天
+                    startDate = new Date(`${dateStr}T00:00:00`);
+                    isAllDay = true;
+                }
+
+                const durationMinutes = payload.durationMinutes || 60;
+                const endDate = new Date(startDate.getTime() + durationMinutes * 60000);
+
+                // 使用已有的方法更新提醒时间（复用现有逻辑）
+                await this.updateEventTime(reminderId, { event: { start: startDate, end: endDate, allDay: isAllDay } }, false);
+
+                // 通知全局提醒更新，触发 ReminderPanel 刷新
+                try {
+                    window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
+                } catch (err) {
+                    // ignore
+                }
+
+                // 刷新日历显示
+                await this.refreshEvents();
+                // 隐藏指示器
+                this.hideDropIndicator();
+            } catch (err) {
+                console.error('处理外部拖放失败', err);
+                showMessage(t('operationFailed'));
+                this.hideDropIndicator();
+            }
+        });
+        
+        
         // 更新视图按钮状态
         this.updateViewButtonStates();
 
@@ -397,7 +552,19 @@ export class CalendarView {
         this.addCustomStyles();
 
         // 监听提醒更新事件
-        window.addEventListener('reminderUpdated', () => this.refreshEvents());
+        this.externalReminderUpdatedHandler = (e: Event) => {
+            try {
+                const ev = e as CustomEvent;
+                if (ev && ev.detail && ev.detail.source === 'calendar') {
+                    // 忽略由日历自身发出的更新，防止循环刷新
+                    return;
+                }
+            } catch (err) {
+                // ignore and proceed
+            }
+            this.refreshEvents();
+        };
+        window.addEventListener('reminderUpdated', this.externalReminderUpdatedHandler);
         // 监听项目颜色更新事件
         window.addEventListener('projectColorUpdated', () => {
             this.colorCache.clear();
@@ -597,7 +764,7 @@ export class CalendarView {
                 await this.renderUnifiedFilter(unifiedFilterSelect);
             }
             this.refreshEvents();
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
         });
         categoryDialog.show();
     }
@@ -1073,7 +1240,7 @@ export class CalendarView {
                     mode: 'edit',
                     onSaved: async () => {
                         await this.refreshEvents();
-                        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                        window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
                     },
                     plugin: this.plugin,
                     isInstanceEdit: true
@@ -1102,7 +1269,7 @@ export class CalendarView {
 
                     showMessage(t("instanceDeleted"));
                     await this.refreshEvents();
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
                 } catch (error) {
                     console.error('删除重复实例失败:', error);
                     showMessage(t("deleteInstanceFailed"));
@@ -1283,7 +1450,7 @@ export class CalendarView {
                 await saveReminders(this.plugin, reminderData);
 
                 // 触发更新事件
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
 
                 // 立即刷新事件显示
                 await this.refreshEvents();
@@ -1339,7 +1506,7 @@ export class CalendarView {
                     await updateBlockReminderBookmark(blockId);
                 }
 
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
 
                 // 立即刷新事件显示
                 await this.refreshEvents();
@@ -1521,7 +1688,7 @@ export class CalendarView {
                     }
 
                     // 触发更新事件
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
 
                     // 立即刷新事件显示
                     await this.refreshEvents();
@@ -1560,7 +1727,7 @@ export class CalendarView {
                     event.setExtendedProp('completed', newCompletedState);
 
                     // 触发更新事件
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
 
                     // 立即刷新事件显示
                     await this.refreshEvents();
@@ -1802,6 +1969,7 @@ export class CalendarView {
         } else {
             // 非重复事件，或重复事件的原始事件，直接更新
             await this.updateEventTime(reminderId, info, false);
+            try { window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } })); } catch (err) { /* ignore */ }
         }
     }
 
@@ -1847,6 +2015,7 @@ export class CalendarView {
         } else {
             // 非重复事件，或重复事件的原始事件，直接更新
             await this.updateEventTime(reminderId, info, true);
+            try { window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } })); } catch (err) { /* ignore */ }
         }
     }
 
@@ -2076,7 +2245,7 @@ export class CalendarView {
             await saveReminders(this.plugin, reminderData);
 
             showMessage(t("eventTimeUpdated"));
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
 
         } catch (error) {
             console.error('更新重复事件系列失败:', error);
@@ -2211,7 +2380,7 @@ export class CalendarView {
             });
 
             showMessage(t("instanceTimeUpdated"));
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
 
         } catch (error) {
             console.error('更新单个实例失败:', error);
@@ -2477,6 +2646,96 @@ export class CalendarView {
         document.head.appendChild(style);
     }
 
+    private async updateDropIndicator(pointX: number, pointY: number, calendarEl: HTMLElement): Promise<void> {
+        try {
+            if (!this.dropIndicator) {
+                const ind = document.createElement('div');
+                ind.className = 'reminder-drop-indicator';
+                ind.style.position = 'fixed';
+                ind.style.pointerEvents = 'none';
+                ind.style.zIndex = '9999';
+                ind.style.transition = 'all 0.08s linear';
+                document.body.appendChild(ind);
+                this.dropIndicator = ind;
+            }
+
+            const dateEls = Array.from(calendarEl.querySelectorAll('[data-date]')) as HTMLElement[];
+            if (dateEls.length === 0) {
+                this.hideDropIndicator();
+                return;
+            }
+
+            let dateEl: HTMLElement | null = null;
+            for (const d of dateEls) {
+                const r = d.getBoundingClientRect();
+                if (pointX >= r.left && pointX <= r.right && pointY >= r.top && pointY <= r.bottom) {
+                    dateEl = d;
+                    break;
+                }
+            }
+
+            if (!dateEl) {
+                let minDist = Infinity;
+                for (const d of dateEls) {
+                    const r = d.getBoundingClientRect();
+                    const cx = (r.left + r.right) / 2;
+                    const cy = (r.top + r.bottom) / 2;
+                    const dx = cx - pointX;
+                    const dy = cy - pointY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        dateEl = d;
+                    }
+                }
+            }
+
+            if (!dateEl) {
+                this.hideDropIndicator();
+                return;
+            }
+
+            const elAtPoint = document.elementFromPoint(pointX, pointY) as HTMLElement | null;
+            const inTimeGrid = !!(elAtPoint && elAtPoint.closest('.fc-timegrid'));
+            const rect = dateEl.getBoundingClientRect();
+
+            if (inTimeGrid) {
+                const top = Math.max(rect.top, Math.min(rect.bottom, pointY));
+                this.dropIndicator.style.left = rect.left + 'px';
+                this.dropIndicator.style.top = (top - 1) + 'px';
+                this.dropIndicator.style.width = rect.width + 'px';
+                this.dropIndicator.style.height = '2px';
+                this.dropIndicator.style.background = 'var(--b3-theme-primary)';
+                this.dropIndicator.style.borderRadius = '2px';
+                this.dropIndicator.style.boxShadow = '0 0 6px var(--b3-theme-primary)';
+                this.dropIndicator.style.opacity = '1';
+            } else {
+                this.dropIndicator.style.left = rect.left + 'px';
+                this.dropIndicator.style.top = rect.top + 'px';
+                this.dropIndicator.style.width = rect.width + 'px';
+                this.dropIndicator.style.height = rect.height + 'px';
+                this.dropIndicator.style.background = 'rgba(0,128,255,0.06)';
+                this.dropIndicator.style.border = '2px dashed rgba(0,128,255,0.18)';
+                this.dropIndicator.style.borderRadius = '6px';
+                this.dropIndicator.style.boxShadow = 'none';
+                this.dropIndicator.style.opacity = '1';
+            }
+        } catch (err) {
+            console.error('updateDropIndicator error', err);
+        }
+    }
+
+    private hideDropIndicator(): void {
+        try {
+            if (this.dropIndicator) {
+                this.dropIndicator.remove();
+                this.dropIndicator = null;
+            }
+        } catch (err) {
+            // ignore
+        }
+    }
+
     private async showTimeEditDialog(calendarEvent: any) {
         try {
             // 对于重复事件实例，需要使用原始ID来获取原始提醒数据
@@ -2502,7 +2761,7 @@ export class CalendarView {
                             await this.refreshEvents();
 
                             // 触发全局更新事件
-                            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                            window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
                         },
                         plugin: this.plugin
                     }
@@ -2543,7 +2802,7 @@ export class CalendarView {
                             await this.refreshEvents();
 
                             // 触发全局更新事件
-                            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                            window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
                         },
                         plugin: this.plugin
                     }
@@ -2582,7 +2841,7 @@ export class CalendarView {
                 await saveReminders(this.plugin, reminderData);
 
                 // 触发更新事件
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
 
                 // 立即刷新事件显示
                 await this.refreshEvents();
@@ -3770,7 +4029,10 @@ export class CalendarView {
         }
 
         // 移除事件监听器
-        window.removeEventListener('reminderUpdated', () => this.refreshEvents());
+        if (this.externalReminderUpdatedHandler) {
+            window.removeEventListener('reminderUpdated', this.externalReminderUpdatedHandler);
+            this.externalReminderUpdatedHandler = null;
+        }
         window.removeEventListener('projectColorUpdated', () => {
             this.colorCache.clear();
             this.refreshEvents();
@@ -3911,7 +4173,7 @@ export class CalendarView {
 
             // 5. 更新界面
             await this.refreshEvents();
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
             showMessage(t("seriesSplitSuccess"));
 
         } catch (error) {
@@ -3980,7 +4242,7 @@ export class CalendarView {
 
                     await saveReminders(this.plugin, reminderData);
                     showMessage(t("firstOccurrenceSkipped"));
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
                 } catch (error) {
                     console.error('跳过首次发生失败:', error);
                     showMessage(t("operationFailed"));
@@ -4417,8 +4679,8 @@ export class CalendarView {
                 // 更新块的书签状态（添加⏰书签）
                 await updateBlockReminderBookmark(blockId);
 
-                // 触发更新事件
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                // 触发更新事件（标记来源为日历，避免自我触发）
+                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
             } else {
                 throw new Error('提醒不存在');
             }
