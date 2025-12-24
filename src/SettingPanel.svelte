@@ -226,8 +226,8 @@
                     title: t('defaultHeadingPosition'),
                     description: t('defaultHeadingPositionDesc'),
                     options: {
-                        'prepend': t('prepend'),
-                        'append': t('append'),
+                        prepend: t('prepend'),
+                        append: t('append'),
                     },
                 },
             ],
@@ -641,7 +641,7 @@
                     disabled: true,
                 },
                 // 思源服务器同步配置
-                
+
                 // S3 同步配置
                 {
                     key: 's3UseSiyuanConfig',
@@ -826,8 +826,6 @@
                 settings[detail.key] = detail.value;
             }
 
-            
-
             saveSettings();
             // 确保 UI 中 select 等值显示被刷新
             updateGroupItems();
@@ -947,8 +945,6 @@
             ) {
                 updated.disabled = !settings.icsSyncEnabled;
             }
-
-            
 
             // S3专用设置 - s3UseSiyuanConfig仅在启用同步且选择S3存储时显示
             if (item.key === 's3UseSiyuanConfig') {
@@ -1333,7 +1329,7 @@
                             </div>
                         </div>
                         <div style="display: flex; gap: 4px;">
-                            <button class="b3-button b3-button--outline" data-action="toggle" data-id="${sub.id}" title="${sub.enabled ?  '停用' :  '启用'}">
+                            <button class="b3-button b3-button--outline" data-action="toggle" data-id="${sub.id}" title="${sub.enabled ? '停用' : '启用'}">
                                 <svg class="b3-button__icon ${!sub.enabled ? 'fn__opacity' : ''}"><use xlink:href="${sub.enabled ? '#iconEye' : '#iconEyeoff'}"></use></svg>
                             </button>
                             <button class="b3-button b3-button--outline" data-action="sync" data-id="${sub.id}" title="${t('syncNow')}">
