@@ -287,6 +287,14 @@ export async function getBlockDOM(id: BlockId) {
     return request(url, data);
 }
 
+export async function getHeadingChildrenDOM(id: BlockId) {
+    let data = {
+        id: id
+    }
+    let url = '/api/block/getHeadingChildrenDOM';
+    return request(url, data);
+}
+
 export async function getChildBlocks(id: BlockId): Promise<IResGetChildBlock[]> {
     let data = {
         id: id
@@ -394,6 +402,12 @@ export async function sql(sql: string): Promise<any[]> {
     };
     let url = '/api/query/sql';
     return request(url, sqldata);
+}
+
+export async function getHeadingDeleteTransaction(blockId: string): Promise<any> {
+    let data = { id: blockId };
+    let url = '/api/block/getHeadingDeleteTransaction';
+    return request(url, data);
 }
 
 export async function getBlockByID(blockId: string): Promise<Block> {

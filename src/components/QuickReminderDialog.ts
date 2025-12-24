@@ -725,7 +725,6 @@ export class QuickReminderDialog {
                     if (lunarDate.month > 0) {
                         const solarDate = getCurrentYearLunarToSolar(lunarDate.month, lunarDate.day);
                         if (solarDate) {
-                            console.log(`农历日期识别成功: 农历${lunarDate.month}月${lunarDate.day}日 -> 公历${solarDate}`);
                             return {
                                 date: solarDate,
                                 hasTime: false
@@ -2256,7 +2255,7 @@ export class QuickReminderDialog {
                                             <input type="checkbox" id="quickBindIncludeHeadingsCheckbox" class="b3-switch">
                                             <span class="b3-switch__slider"></span>
                                         </label>
-                                        <span style="font-size: 12px; color: var(--b3-theme-on-surface); white-space: nowrap;">包含标题</span>
+                                        <span style="font-size: 12px; color: var(--b3-theme-on-surface); white-space: nowrap;">搜索包含标题</span>
                                     </div>
                                     <div id="quickBindSearchResults" style="max-height: 150px; overflow-y: auto; margin-top: 8px; border: 1px solid var(--b3-border-color); border-radius: 4px; display: none;"></div>
                                     <!-- 块预览区域 -->
@@ -2298,7 +2297,7 @@ export class QuickReminderDialog {
                                             <input type="checkbox" id="quickIncludeHeadingsCheckbox" class="b3-switch">
                                             <span class="b3-switch__slider"></span>
                                         </label>
-                                        <span style="font-size: 12px; color: var(--b3-theme-on-surface); white-space: nowrap;">包含标题</span>
+                                        <span style="font-size: 12px; color: var(--b3-theme-on-surface); white-space: nowrap;">搜索包含标题</span>
                                     </div>
                                     <div id="quickSearchResults" style="max-height: 150px; overflow-y: auto; margin-top: 8px; border: 1px solid var(--b3-border-color); border-radius: 4px; display: none;"></div>
                                     <!-- 块预览区域 -->
@@ -2534,7 +2533,7 @@ export class QuickReminderDialog {
             }
         });
 
-        // 包含标题复选框变化时重新搜索
+        // 搜索包含标题复选框变化时重新搜索
         bindIncludeHeadingsCheckbox.addEventListener('change', () => {
             const query = bindBlockInput.value.trim();
             if (query) {
@@ -2592,7 +2591,7 @@ export class QuickReminderDialog {
             }
         });
 
-        // 包含标题复选框变化时重新搜索
+        // 搜索包含标题复选框变化时重新搜索
         includeHeadingsCheckbox.addEventListener('change', () => {
             const query = headingParentInput.value.trim();
             if (query) {
@@ -2771,14 +2770,24 @@ export class QuickReminderDialog {
             }
 
             // 2. 检查项目自定义分组绑定
-            if (!autoFillBlockId && this.defaultProjectId) {
+            // 优先从主对话框的下拉框获取当前选择的项目和分组
+            const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
+            const customGroupSelector = this.dialog.element.querySelector('#quickCustomGroupSelector') as HTMLSelectElement;
+
+            // 如果选择器存在，使用选择器的值（包括空字符串表示无项目/无分组）
+            // 如果选择器不存在（还未渲染），则使用 default 或 reminder 中的值
+            const currentProjectId = projectSelector ? projectSelector.value : (this.defaultProjectId || this.reminder?.projectId);
+            const isCustomGroupVisible = customGroupSelector && customGroupSelector.parentElement?.style.display !== 'none';
+            const currentCustomGroupId = isCustomGroupVisible ? customGroupSelector.value : (this.defaultCustomGroupId || this.reminder?.customGroupId);
+
+            if (!autoFillBlockId && currentProjectId) {
                 const { ProjectManager } = await import('../utils/projectManager');
                 const projectManager = ProjectManager.getInstance(this.plugin);
 
-                // 检查是否有自定义分组（编辑模式或新建模式）
-                if (this.defaultCustomGroupId) {
-                    const groups = await projectManager.getProjectCustomGroups(this.defaultProjectId);
-                    const group = groups.find((g: any) => g.id === this.defaultCustomGroupId);
+                // 检查是否有自定义分组
+                if (currentCustomGroupId) {
+                    const groups = await projectManager.getProjectCustomGroups(currentProjectId);
+                    const group = groups.find((g: any) => g.id === currentCustomGroupId);
                     if (group?.blockId) {
                         autoFillBlockId = group.blockId;
                     }
@@ -2786,11 +2795,10 @@ export class QuickReminderDialog {
 
                 // 3. 如果没有分组绑定，检查项目绑定
                 if (!autoFillBlockId) {
-                    const project = projectManager.getProjectById(this.defaultProjectId);
-                    // 项目的 blockId 可能在 project 对象中，也可能在 project.data 中
-                    const projectBlockId = (project as any)?.blockId || (project as any)?.data?.blockId;
-                    if (projectBlockId) {
-                        autoFillBlockId = projectBlockId;
+                    const project = projectManager.getProjectById(currentProjectId);
+                    // 项目的 blockId
+                    if (project?.blockId) {
+                        autoFillBlockId = project.blockId;
                     }
                 }
 
@@ -2912,10 +2920,15 @@ export class QuickReminderDialog {
             const defaultLevel = settings.defaultHeadingLevel || 3;
 
             if (parentBlock.type === 'h') {
-                // 父块是标题，新标题层级 = 父层级 + 1
                 const parentLevel = parseInt(parentBlock.subtype.replace('h', ''));
-                const newLevel = Math.min(parentLevel + 1, 6); // 最大H6
-                levelSelect.value = newLevel.toString();
+                // 只有当默认层级高于父块（数字更小，例如 H2 高于 H3）时，才调整为父块层级 + 1
+                if (defaultLevel < parentLevel) {
+                    const newLevel = Math.min(parentLevel + 1, 6);
+                    levelSelect.value = newLevel.toString();
+                } else {
+                    // 否则（默认层级低于或等于父块）不调整，保持默认层级
+                    levelSelect.value = defaultLevel.toString();
+                }
             } else {
                 // 父块是文档，使用默认层级
                 levelSelect.value = defaultLevel.toString();
@@ -2925,9 +2938,6 @@ export class QuickReminderDialog {
         }
     }
 
-    /**
-     * 创建标题
-     */
     private async createHeading(
         content: string,
         parentId: string,
@@ -2935,7 +2945,7 @@ export class QuickReminderDialog {
         position: 'prepend' | 'append'
     ): Promise<string> {
         try {
-            const { prependBlock, appendBlock, getBlockByID } = await import("../api");
+            const { prependBlock, appendBlock, getBlockByID, insertBlock } = await import("../api");
 
             // 格式化标题内容
             const hashes = '#'.repeat(level);
@@ -2949,12 +2959,76 @@ export class QuickReminderDialog {
 
             let response: any;
 
-            if (position === 'prepend') {
-                // 插入到最前
-                response = await prependBlock('markdown', markdownContent, parentId);
+            if (parentBlock.type === 'h') {
+                // 如果父块是标题，执行特殊逻辑以避免直接插入到标题块内部
+                if (position === 'prepend') {
+                    // 在标题最前插入：插入到当前标题下第一个子标题前，如果没有子标题则插入到最后一个非标题块后
+                    try {
+                        const { getHeadingChildrenDOM } = await import("../api");
+                        const domHtml = await getHeadingChildrenDOM(parentId);
+
+
+                        if (domHtml && typeof domHtml === 'string') {
+                            // 解析 DOM 字符串，查找所有子块
+                            const parser = new DOMParser();
+                            const doc = parser.parseFromString(domHtml, 'text/html');
+                            const childBlocks = doc.querySelectorAll('[data-node-id]');
+
+
+                            let insertPreviousID = parentId; // 默认插入到标题块之后
+                            let lastConsecutiveNonHeadingId = parentId;
+                            let hasFoundHeading = false;
+
+                            // 遍历子块，查找第一个标题块之前的最后一个非标题块
+                            childBlocks.forEach((block: Element, index: number) => {
+                                const blockId = block.getAttribute('data-node-id');
+                                const blockType = block.getAttribute('data-type');
+
+
+                                // 跳过父标题块本身
+                                if (blockId === parentId) return;
+
+                                if (!hasFoundHeading) {
+                                    if (blockType === 'NodeHeading') {
+                                        // 找到第一个子标题，停止记录
+
+                                        hasFoundHeading = true;
+                                        insertPreviousID = lastConsecutiveNonHeadingId;
+                                    } else {
+                                        // 继续记录连续的非标题块
+                                        lastConsecutiveNonHeadingId = blockId;
+                                    }
+                                }
+                            });
+
+                            // 如果没有找到子标题，使用最后一个连续非标题块
+                            if (!hasFoundHeading) {
+                                insertPreviousID = lastConsecutiveNonHeadingId;
+                            } else {
+                            }
+
+                            response = await insertBlock('markdown', markdownContent, undefined, insertPreviousID);
+                        } else {
+                            // 回退方案：直接在标题后插入
+                            response = await insertBlock('markdown', markdownContent, undefined, parentId);
+                        }
+                    } catch (e) {
+                        console.warn('[Heading Prepend] Error:', e);
+                        response = await insertBlock('markdown', markdownContent, undefined, parentId);
+                    }
+                } else {
+                    // 在标题最后插入：使用常规 appendBlock，它会自动处理标题的逻辑范围
+                    response = await appendBlock('markdown', markdownContent, parentId);
+                }
             } else {
-                // 插入到最后
-                response = await appendBlock('markdown', markdownContent, parentId);
+                // 父块是文档或其他非标题块，使用常规逻辑
+                if (position === 'prepend') {
+                    // 插入到最前
+                    response = await prependBlock('markdown', markdownContent, parentId);
+                } else {
+                    // 插入到最后
+                    response = await appendBlock('markdown', markdownContent, parentId);
+                }
             }
 
             // 提取插入的块ID
@@ -3421,7 +3495,6 @@ export class QuickReminderDialog {
                             reminder.repeat.completedInstances = [];
                         }
                         reminder.repeat.completedInstances.push(...pastInstances);
-                        console.log(`自动完成了 ${pastInstances.length} 个过去的周期实例（共生成 ${instances.length} 个实例）`);
                     }
                 }
             }
