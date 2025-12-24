@@ -897,5 +897,7 @@
     "deleteProjectTasks": "Delete Project Tasks",
     "confirmDeleteProjectTasks": "Do you want to delete all ${count} tasks in this project?\n\nSelect \"Confirm\" to delete all tasks, or \"Cancel\" to delete only the project.",
     "projectAndTasksDeleted": "Project and ${count} tasks deleted",
-    "habitCountsAsSuccess": "Counts as successful check-in"
+    "habitCountsAsSuccess": "Counts as successful check-in",
+    "enableOutlinePrefix": "Outline Title Prefix",
+    "enableOutlinePrefixDesc": "Add task status prefix to bound headings in outline (✅ completed ⏰ pending), does not affect heading content"
 }

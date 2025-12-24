@@ -128,6 +128,7 @@ export const DEFAULT_SETTINGS = {
     s3ForcePathStyle: false, // S3 Addressing风格，true为Path-style，false为Virtual hosted style（默认）
     s3TlsVerify: true, // S3 TLS证书验证，true为启用验证（默认），false为禁用验证
     s3CustomDomain: '', // S3 自定义域名，用于生成外链
+    enableOutlinePrefix: true, // 是否在大纲中为绑定标题添加任务状态前缀
 };
 
 export default class ReminderPlugin extends Plugin {
@@ -232,6 +233,7 @@ export default class ReminderPlugin extends Plugin {
                 this.updateBadges();
                 this.updateProjectBadges();
                 this.updateHabitBadges();
+                this.updateOutlinePrefixes();
                 try {
                     window.dispatchEvent(new CustomEvent('reminderUpdated'));
                     window.dispatchEvent(new CustomEvent('habitUpdated'));
@@ -797,6 +799,71 @@ export default class ReminderPlugin extends Plugin {
         });
         // 为当前已存在的protyle添加按钮
         this.addBreadcrumbButtonsToExistingProtyles();
+
+        // 初始化大纲前缀监听
+        this.initOutlinePrefixObserver();
+    }
+
+    private initOutlinePrefixObserver() {
+        let updateTimeout: number | null = null;
+
+        // 防抖更新函数
+        const debouncedUpdate = () => {
+            if (updateTimeout) clearTimeout(updateTimeout);
+            updateTimeout = window.setTimeout(() => {
+                this.updateOutlinePrefixes();
+            }, 100);
+        };
+
+        // 创建观察器
+        const createObserver = () => {
+            const outlineContainer = document.querySelector('.file-tree');
+            if (!outlineContainer) return null;
+
+            const observer = new MutationObserver(debouncedUpdate);
+            observer.observe(outlineContainer, {
+                childList: true,
+                subtree: true,
+                characterData: true,
+                attributes: true,
+                attributeFilter: ['data-node-id', 'data-type']
+            });
+            return observer;
+        };
+
+        let currentObserver = createObserver();
+
+        // 定期检查和重新绑定观察器
+        const checkAndRebindObserver = () => {
+            const outlineContainer = document.querySelector('.file-tree');
+            if (!outlineContainer) {
+                if (currentObserver) {
+                    currentObserver.disconnect();
+                    currentObserver = null;
+                }
+                return;
+            }
+
+            if (!currentObserver) {
+                currentObserver = createObserver();
+            }
+
+            // 无论如何都更新一次，确保前缀正确
+            debouncedUpdate();
+        };
+
+        // 初始更新
+        setTimeout(checkAndRebindObserver, 500);
+
+        // 每隔一段时间检查观察器状态
+        setInterval(checkAndRebindObserver, 2000);
+
+        // 监听文档切换事件
+        this.eventBus.on('switch-doc', checkAndRebindObserver);
+        this.eventBus.on('loaded-doc', checkAndRebindObserver);
+
+        // 监听大纲相关事件
+        this.eventBus.on('outline', checkAndRebindObserver);
     }
 
     private addBreadcrumbButtonsToExistingProtyles() {
@@ -1331,6 +1398,52 @@ export default class ReminderPlugin extends Plugin {
         } catch (error) {
             console.error('更新习惯徽章失败:', error);
             this.setHabitDockBadge(0);
+        }
+    }
+
+    // 更新大纲标题前缀
+    private async updateOutlinePrefixes() {
+        try {
+            const settings = await this.loadSettings();
+            if (!settings.enableOutlinePrefix) return;
+
+            const outline = document.querySelector('.file-tree.sy__outline');
+            if (!outline) return;
+
+            const headingLis = outline.querySelectorAll('li[data-type="NodeHeading"]');
+            const blockIds = Array.from(headingLis).map(li => (li as HTMLElement).getAttribute('data-node-id')).filter(id => id) as string[];
+
+            if (blockIds.length === 0) return;
+
+            // 批量获取块属性
+            const { getBlockAttrs } = await import('./api');
+            const attrsPromises = blockIds.map(id => getBlockAttrs(id));
+            const attrsArray = await Promise.all(attrsPromises);
+
+            headingLis.forEach((li, index) => {
+                const attrs = attrsArray[index];
+                const bookmark = attrs?.bookmark || '';
+                const textElement = li.querySelector('.b3-list-item__text') as HTMLElement;
+
+                if (textElement) {
+                    let prefix = '';
+                    if (bookmark === '✅') {
+                        prefix = '✅ ';
+                    } else if (bookmark === '⏰') {
+                        prefix = '⏰ ';
+                    }
+
+                    // 移除现有前缀并添加新前缀
+                    const originalText = textElement.textContent || '';
+                    const newText = prefix + originalText.replace(/^[✅⏰]\s*/, '');
+
+                    if (textElement.textContent !== newText) {
+                        textElement.textContent = newText;
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('更新大纲前缀失败:', error);
         }
     }
 

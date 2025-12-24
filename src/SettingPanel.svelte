@@ -230,6 +230,13 @@
                         append: t('append'),
                     },
                 },
+                {
+                    key: 'enableOutlinePrefix',
+                    value: settings.enableOutlinePrefix,
+                    type: 'checkbox',
+                    title: t('enableOutlinePrefix'),
+                    description: t('enableOutlinePrefixDesc'),
+                },
             ],
         },
         {
