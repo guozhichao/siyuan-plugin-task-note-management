@@ -625,7 +625,13 @@
                         daily: '每天',
                     },
                 },
-                // 上传按钮和云端链接（移到前面）
+                {
+                    key: 'icsSilentUpload',
+                    value: settings.icsSilentUpload,
+                    type: 'checkbox',
+                    title: '静默上传ICS文件',
+                    description: '启用后，定时上传ICS文件时不显示成功提示消息',
+                },
                 {
                     key: 'uploadIcsToCloud',
                     value: '',
@@ -639,6 +645,7 @@
                         },
                     },
                 },
+
                 {
                     key: 'icsCloudUrl',
                     value: settings.icsCloudUrl,

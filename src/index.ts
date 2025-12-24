@@ -116,6 +116,7 @@ export const DEFAULT_SETTINGS = {
     icsSyncEnabled: false, // 是否启用ICS云端同步
     icsFormat: 'normal', // 'normal' | 'xiaomi' - ICS格式
     icsFileName: '', // ICS文件名，默认为空时自动生成
+    icsSilentUpload: false, // 是否静默上传ICS文件，不显示成功提示
     // ICS 同步方式配置
     icsSyncMethod: 'siyuan', // 'siyuan' | 's3' - 同步方式
     // S3 配置
@@ -4134,7 +4135,7 @@ export default class ReminderPlugin extends Plugin {
                 return;
             }
 
-            await uploadIcsToCloud(this, settings);
+            await uploadIcsToCloud(this, settings, settings.icsSilentUpload);
         } catch (error) {
             console.error('ICS自动同步失败:', error);
         } finally {

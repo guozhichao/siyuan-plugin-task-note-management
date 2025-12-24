@@ -1112,17 +1112,15 @@ export async function ensureHabitGroupDataFile(): Promise<void> {
 
 // **************************************** ICS Cloud Upload ****************************************
 
-export async function uploadCloud(blockId?: string, paths?: string[]): Promise<string | null> {
+export async function uploadCloud(paths?: string[], silent: boolean = false): Promise<string | null> {
     try {
         // 支持两种调用方式：传入 blockId（旧用法）或传入 paths（资源路径数组）
         const payload: any = {};
         if (Array.isArray(paths) && paths.length > 0) {
             payload.paths = paths; // 需要assets前缀
-        } else if (blockId) {
-            payload.id = blockId;
-        } else {
-            console.warn('uploadCloud: missing blockId and paths');
-            return null;
+        }
+        if (silent) {
+            payload.ignorePushMsg = true;
         }
 
         await fetchPost('/api/asset/uploadCloudByAssetsPaths', payload);

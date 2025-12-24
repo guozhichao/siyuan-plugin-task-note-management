@@ -590,7 +590,7 @@ export async function exportIcsFile(
     }
 }
 
-export async function uploadIcsToCloud(plugin: any, settings: any) {
+export async function uploadIcsToCloud(plugin: any, settings: any, silent: boolean = false) {
     try {
         const syncMethod = settings.icsSyncMethod || 'siyuan';
 
@@ -624,10 +624,10 @@ export async function uploadIcsToCloud(plugin: any, settings: any) {
         // 根据同步方式选择不同的上传逻辑
         if (syncMethod === 's3') {
             // S3 同步方式
-            await uploadToS3(settings, icsContent, fullFileName, plugin);
+            await uploadToS3(settings, icsContent, fullFileName, plugin, silent);
         } else {
             // 思源服务器同步方式
-            await uploadToSiyuan(settings, icsContent, plugin);
+            await uploadToSiyuan(settings, icsContent, plugin, silent);
         }
     } catch (err) {
         console.error('上传ICS到云端失败:', err);
@@ -638,7 +638,7 @@ export async function uploadIcsToCloud(plugin: any, settings: any) {
 /**
  * 上传到S3存储
  */
-async function uploadToS3(settings: any, icsContent: string, fileName: string, plugin: any) {
+async function uploadToS3(settings: any, icsContent: string, fileName: string, plugin: any, silent: boolean = false) {
     try {
         // 获取S3配置：如果启用"使用思源S3设置"，则从思源配置读取；否则使用插件配置
         let s3Bucket: string;
@@ -788,7 +788,9 @@ async function uploadToS3(settings: any, icsContent: string, fileName: string, p
             console.warn('触发设置更新事件失败:', e);
         }
 
-        await pushMsg(`ICS文件已上传到S3: ${cloudUrl}`);
+        if (!silent) {
+            await pushMsg(`ICS文件已上传到S3: ${cloudUrl}`);
+        }
         console.log('ICS 文件上传到 S3 成功');
     } catch (err) {
         console.error('上传到S3失败:', err);
@@ -799,7 +801,7 @@ async function uploadToS3(settings: any, icsContent: string, fileName: string, p
 /**
  * 上传到思源服务器
  */
-async function uploadToSiyuan(settings: any, icsContent: string, plugin: any) {
+async function uploadToSiyuan(settings: any, icsContent: string, plugin: any, silent: boolean = false) {
     try {
         // 检查是否配置了文件名，否则提示用户先在设置中填写
         let icsFileName = settings.icsFileName;
@@ -817,8 +819,8 @@ async function uploadToSiyuan(settings: any, icsContent: string, plugin: any) {
         const blob = new Blob([icsContent], { type: 'text/calendar' });
         await putFile(assetPath, false, blob);
 
-        // 使用 uploadCloud 上传资源，传入 paths 参数
-        await uploadCloud(undefined, [`assets/${fullFileName}`]);
+        // 使用 uploadCloud 上传资源，传入 paths 参数和 silent 参数
+        await uploadCloud([`assets/${fullFileName}`], silent);
 
         // 构建云端链接（若可用）并记录上次同步时间
         try {
