@@ -10,6 +10,7 @@ import { ProjectDialog } from "./ProjectDialog";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { StatusManageDialog } from "./StatusManageDialog";
 import { ProjectKanbanView } from "./ProjectKanbanView";
+import { BlockBindingDialog } from "./BlockBindingDialog";
 import { t } from "../utils/i18n";
 import { getAllReminders } from "../utils/icsSubscription";
 
@@ -1869,46 +1870,18 @@ export class ProjectPanel {
     }
 
     private showBindToBlockDialog(project: any) {
-        const dialog = new Dialog({
-            title: t("bindToBlock"),
-            content: `<div class="b3-dialog__content">
-                        <input id="blockIdInput" class="b3-text-field fn__block" placeholder="${t("pleaseEnterBlockID") || "请输入块ID"}">
-                      </div>
-                      <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel">${t("cancel") || "取消"}</button><div class="fn__space"></div>
-                        <button class="b3-button b3-button--primary">${t("confirm") || "确定"}</button>
-                      </div>`,
-            width: "520px",
+        const blockBindingDialog = new BlockBindingDialog(this.plugin, async (blockId: string) => {
+            try {
+                await this.bindProjectToBlock(project, blockId);
+                showMessage(t("bindSuccess") || "绑定成功");
+            } catch (error) {
+                showMessage(t("bindFailed") || "绑定失败");
+                console.error(error);
+            }
+        }, {
+            defaultTab: 'bind'
         });
-
-        const input = dialog.element.querySelector('#blockIdInput') as HTMLInputElement;
-        const cancelBtn = dialog.element.querySelector('.b3-button--cancel');
-        const confirmBtn = dialog.element.querySelector('.b3-button--primary');
-
-        cancelBtn?.addEventListener('click', () => {
-            dialog.destroy();
-        });
-
-        if (confirmBtn) {
-            confirmBtn.addEventListener('click', async () => {
-                const blockId = input.value.trim();
-                if (blockId) {
-                    try {
-                        const targetBlock = await getBlockByID(blockId);
-                        if (targetBlock) {
-                            await this.bindProjectToBlock(project, blockId);
-                            showMessage(t("bindSuccess") || "绑定成功");
-                            dialog.destroy();
-                        } else {
-                            showMessage(t("blockNotFound") || "未找到块");
-                        }
-                    } catch (error) {
-                        showMessage(t("bindFailed") || "绑定失败");
-                        console.error(error);
-                    }
-                }
-            });
-        }
+        blockBindingDialog.show();
     }
 
     private async bindProjectToBlock(project: any, blockId: string) {

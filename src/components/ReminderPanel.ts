@@ -5,6 +5,7 @@ import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sort
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
+import { BlockBindingDialog } from "./BlockBindingDialog";
 import { t } from "../utils/i18n";
 import { SETTINGS_FILE } from "../index";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
@@ -5802,202 +5803,25 @@ export class ReminderPanel {
      * 显示绑定到块的对话框
      */
     private showBindToBlockDialog(reminder: any) {
-        const dialog = new Dialog({
-            title: t("bindReminderToBlock"),
-            content: `
-                <div class="bind-to-block-dialog">
-                    <div class="b3-dialog__content">
-                        <div class="mode-toggle" style="margin-bottom: 16px;">
-                            <button id="bindExistingBtn" class="b3-button b3-button--outline mode-btn active" style="margin-right: 8px;">
-                                绑定现有块
-                            </button>
-                            <button id="createNewBtn" class="b3-button b3-button--outline mode-btn">
-                                ${t("createNewDocument")}
-                            </button>
-                        </div>
-
-                        <div id="bindExistingPanel" class="mode-panel">
-                            <div class="b3-form__group">
-                                <label class="b3-form__label">输入块ID</label>
-                                <div class="b3-form__desc">支持块ID或块引用格式，如：((blockId '标题'))</div>
-                                <input type="text" id="blockIdInput" class="b3-text-field" placeholder="请输入块ID或粘贴块引用" style="width: 100%; margin-top: 8px;">
-                            </div>
-                            <div class="b3-form__group" id="selectedBlockInfo" style="display: none;">
-                                <label class="b3-form__label">块信息预览</label>
-                                <div id="blockContent" class="block-content-preview" style="
-                                    padding: 8px;
-                                    background-color: var(--b3-theme-surface-lighter);
-                                    border-radius: 4px;
-                                    border: 1px solid var(--b3-theme-border);
-                                    max-height: 100px;
-                                    overflow-y: auto;
-                                    font-size: 12px;
-                                    color: var(--b3-theme-on-surface);
-                                "></div>
-                            </div>
-                        </div>
-
-                        <div id="createNewPanel" class="mode-panel" style="display: none;">
-                            <div class="b3-form__group">
-                                <label class="b3-form__label">文档标题</label>
-                                <input type="text" id="docTitleInput" class="b3-text-field" placeholder="请输入文档标题" style="width: 100%; margin-top: 8px;">
-                            </div>
-                            <div class="b3-form__group">
-                                <label class="b3-form__label">文档内容（可选）</label>
-                                <textarea id="docContentInput" class="b3-text-field" placeholder="请输入文档内容" style="width: 100%; margin-top: 8px; min-height: 80px; resize: vertical;"></textarea>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="bindCancelBtn">${t("cancel")}</button>
-                        <button class="b3-button b3-button--primary" id="bindConfirmBtn">${t("bindToBlock")}</button>
-                    </div>
-                </div>
-            `,
-            width: "500px",
-            height: "400px"
-        });
-
-        // 获取DOM元素
-        const bindExistingBtn = dialog.element.querySelector('#bindExistingBtn') as HTMLButtonElement;
-        const createNewBtn = dialog.element.querySelector('#createNewBtn') as HTMLButtonElement;
-        const bindExistingPanel = dialog.element.querySelector('#bindExistingPanel') as HTMLElement;
-        const createNewPanel = dialog.element.querySelector('#createNewPanel') as HTMLElement;
-
-        const blockIdInput = dialog.element.querySelector('#blockIdInput') as HTMLInputElement;
-        const selectedBlockInfo = dialog.element.querySelector('#selectedBlockInfo') as HTMLElement;
-        const blockContentEl = dialog.element.querySelector('#blockContent') as HTMLElement;
-
-        const docTitleInput = dialog.element.querySelector('#docTitleInput') as HTMLInputElement;
-        const docContentInput = dialog.element.querySelector('#docContentInput') as HTMLTextAreaElement;
-
-        const cancelBtn = dialog.element.querySelector('#bindCancelBtn') as HTMLButtonElement;
-        const confirmBtn = dialog.element.querySelector('#bindConfirmBtn') as HTMLButtonElement;
-
-        let currentMode = 'existing';
-
-        // 模式切换事件
-        bindExistingBtn.addEventListener('click', () => {
-            currentMode = 'existing';
-            bindExistingBtn.classList.add('active');
-            createNewBtn.classList.remove('active');
-            bindExistingPanel.style.display = 'block';
-            createNewPanel.style.display = 'none';
-            confirmBtn.textContent = t("bindToBlock");
-        });
-
-        createNewBtn.addEventListener('click', () => {
-            currentMode = 'create';
-            createNewBtn.classList.add('active');
-            bindExistingBtn.classList.remove('active');
-            createNewPanel.style.display = 'block';
-            bindExistingPanel.style.display = 'none';
-            confirmBtn.textContent = t("createDocumentAndBind");
-
-            // 自动填充标题
-            if (!docTitleInput.value && reminder.title) {
-                docTitleInput.value = reminder.title;
+        const blockBindingDialog = new BlockBindingDialog(this.plugin, async (blockId: string) => {
+            try {
+                console.log('选择绑定到块ID:', blockId);
+                await this.bindReminderToBlock(reminder, blockId);
+                showMessage(t("reminderBoundToBlock"));
+                // 绑定成功后刷新整个列表以确保显示正确
+                this.loadReminders();
+            } catch (error) {
+                console.error('绑定提醒到块失败:', error);
+                showMessage(t("bindToBlockFailed"));
             }
+        }, {
+            defaultTab: 'bind',
+            defaultParentId: reminder.parentId,
+            defaultProjectId: reminder.projectId,
+            defaultCustomGroupId: reminder.customGroupId,
+            reminder: reminder
         });
-
-        // 监听块ID输入变化
-        blockIdInput.addEventListener('input', async () => {
-            const inputValue = blockIdInput.value.trim();
-
-            // 尝试从输入内容中提取块ID（支持块引用格式）
-            let blockId = this.extractBlockIdFromText(inputValue);
-
-            // 如果没有匹配到块引用格式，则将输入作为纯块ID使用
-            if (!blockId) {
-                blockId = inputValue;
-            }
-
-            if (blockId && blockId.length >= 20) { // 块ID通常是20位字符
-                try {
-                    const block = await getBlockByID(blockId);
-                    if (block) {
-                        const blockContent = block.content || block.fcontent || '未命名块';
-                        blockContentEl.textContent = blockContent;
-                        selectedBlockInfo.style.display = 'block';
-                    } else {
-                        selectedBlockInfo.style.display = 'none';
-                    }
-                } catch (error) {
-                    selectedBlockInfo.style.display = 'none';
-                }
-            } else {
-                selectedBlockInfo.style.display = 'none';
-            }
-        });
-
-        // 取消按钮
-        cancelBtn.addEventListener('click', () => {
-            dialog.destroy();
-        });
-
-        // 确认按钮
-        confirmBtn.addEventListener('click', async () => {
-            if (currentMode === 'existing') {
-                // 绑定现有块模式
-                const inputValue = blockIdInput.value.trim();
-                if (!inputValue) {
-                    showMessage('请输入块ID');
-                    return;
-                }
-
-                // 尝试从输入内容中提取块ID（支持块引用格式）
-                let blockId = this.extractBlockIdFromText(inputValue);
-
-                // 如果没有匹配到块引用格式，则将输入作为纯块ID使用
-                if (!blockId) {
-                    blockId = inputValue;
-                }
-
-                if (!blockId || blockId.length < 20) {
-                    showMessage('请输入有效的块ID或块引用');
-                    return;
-                }
-
-                try {
-                    await this.bindReminderToBlock(reminder, blockId);
-                    showMessage(t("reminderBoundToBlock"));
-                    dialog.destroy();
-                    // 绑定成功后刷新整个列表以确保显示正确
-                    this.loadReminders();
-                } catch (error) {
-                    console.error('绑定提醒到块失败:', error);
-                    showMessage(t("bindToBlockFailed"));
-                }
-            } else {
-                // 创建新文档模式
-                const title = docTitleInput.value.trim();
-                const content = docContentInput.value.trim();
-
-                if (!title) {
-                    showMessage(t("pleaseEnterTitle"));
-                    return;
-                }
-
-                try {
-                    await this.createDocumentAndBind(reminder, title, content);
-                    dialog.destroy();
-                    // 创建文档并绑定成功后刷新整个列表
-                    this.loadReminders();
-                } catch (error) {
-                    console.error('创建文档并绑定失败:', error);
-                    showMessage(t("createDocumentFailed"));
-                }
-            }
-        });
-
-        // 自动聚焦输入框
-        setTimeout(() => {
-            if (currentMode === 'existing') {
-                blockIdInput.focus();
-            } else {
-                docTitleInput.focus();
-            }
-        }, 100);
+        blockBindingDialog.show();
     }
 
     private showCreateSubtaskDialog(parentReminder: any) {
@@ -6553,6 +6377,7 @@ export class ReminderPanel {
 
             if (reminderData[reminderId]) {
                 // 获取块信息
+                await refreshSql();
                 const block = await getBlockByID(blockId);
                 if (!block) {
                     throw new Error('目标块不存在');

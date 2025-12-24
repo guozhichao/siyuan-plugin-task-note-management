@@ -4,6 +4,7 @@ import { SETTINGS_FILE } from "../index";
 import { ProjectManager } from "../utils/projectManager";
 import { CategoryManager } from "../utils/categoryManager";
 import { QuickReminderDialog } from "./QuickReminderDialog";
+import { BlockBindingDialog } from "./BlockBindingDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroManager } from "../utils/pomodoroManager";
 import { showMessage, confirm, Menu, Dialog } from "siyuan";
@@ -4033,93 +4034,19 @@ export class EisenhowerMatrixView {
 
     // 显示绑定到块的对话框
     private showBindToBlockDialog(task: QuadrantTask) {
-        const dialog = new Dialog({
-            title: "绑定任务到块",
-            content: `
-                <div class="bind-to-block-dialog">
-                    <div class="b3-dialog__content">
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">块ID</label>
-                            <div class="b3-form__desc">请输入要绑定的块ID</div>
-                            <input type="text" id="blockIdInput" class="b3-text-field" placeholder="请输入块ID" style="width: 100%; margin-top: 8px;">
-                        </div>
-                        <div class="b3-form__group" id="selectedBlockInfo" style="display: none;">
-                            <label class="b3-form__label">块信息预览</label>
-                            <div id="blockContent" class="block-content-preview" style="
-                                padding: 8px;
-                                background-color: var(--b3-theme-surface-lighter);
-                                border-radius: 4px;
-                                border: 1px solid var(--b3-theme-border);
-                                max-height: 100px;
-                                overflow-y: auto;
-                                font-size: 12px;
-                                color: var(--b3-theme-on-surface);
-                            "></div>
-                        </div>
-                    </div>
-                    <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="bindCancelBtn">取消</button>
-                        <button class="b3-button b3-button--primary" id="bindConfirmBtn">绑定</button>
-                    </div>
-                </div>
-            `,
-            width: "400px",
-            height: "300px"
-        });
-
-        const blockIdInput = dialog.element.querySelector('#blockIdInput') as HTMLInputElement;
-        const selectedBlockInfo = dialog.element.querySelector('#selectedBlockInfo') as HTMLElement;
-        const blockContentEl = dialog.element.querySelector('#blockContent') as HTMLElement;
-        const cancelBtn = dialog.element.querySelector('#bindCancelBtn') as HTMLButtonElement;
-        const confirmBtn = dialog.element.querySelector('#bindConfirmBtn') as HTMLButtonElement;
-
-        // 监听块ID输入变化
-        blockIdInput.addEventListener('input', async () => {
-            const blockId = blockIdInput.value.trim();
-            if (blockId && blockId.length >= 22) {
-                try {
-                    const blockInfo = await getBlockByID(blockId);
-                    if (blockInfo && blockInfo.content) {
-                        selectedBlockInfo.style.display = 'block';
-                        blockContentEl.innerHTML = blockInfo.content;
-                    } else {
-                        selectedBlockInfo.style.display = 'none';
-                    }
-                } catch (error) {
-                    selectedBlockInfo.style.display = 'none';
-                }
-            } else {
-                selectedBlockInfo.style.display = 'none';
-            }
-        });
-
-        // 取消按钮
-        cancelBtn.addEventListener('click', () => {
-            dialog.destroy();
-        });
-
-        // 确认按钮
-        confirmBtn.addEventListener('click', async () => {
-            const blockId = blockIdInput.value.trim();
-            if (!blockId) {
-                showMessage('请输入块ID');
-                return;
-            }
-
+        const blockBindingDialog = new BlockBindingDialog(this.plugin, async (blockId: string) => {
             try {
                 await this.bindTaskToBlock(task, blockId);
-                dialog.destroy();
                 showMessage('绑定成功');
             } catch (error) {
                 console.error('绑定失败:', error);
                 showMessage('绑定失败，请重试');
             }
+        }, {
+            defaultTab: 'bind',
+            reminder: task
         });
-
-        // 自动聚焦输入框
-        setTimeout(() => {
-            blockIdInput.focus();
-        }, 100);
+        blockBindingDialog.show();
     }
 
     // 将任务绑定到指定的块

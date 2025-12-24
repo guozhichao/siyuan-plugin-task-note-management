@@ -91,6 +91,14 @@ export async function createDocWithMd(notebook: NotebookId, path: string, markdo
     return request(url, data);
 }
 
+export async function searchDocs(k: string, flashcard: boolean = false): Promise<IResSearchDocs[]> {
+    let data = {
+        k: k,
+        flashcard: flashcard
+    };
+    let url = '/api/filetree/searchDocs';
+    return request(url, data);
+}
 
 export async function renameDoc(notebook: NotebookId, path: string, title: string): Promise<DocumentId> {
     let data = {
@@ -411,6 +419,7 @@ export async function getHeadingDeleteTransaction(blockId: string): Promise<any>
 }
 
 export async function getBlockByID(blockId: string): Promise<Block> {
+    // 先flush
     let sqlScript = `select * from blocks where id ='${blockId}'`;
     let data = await sql(sqlScript);
     return data[0];

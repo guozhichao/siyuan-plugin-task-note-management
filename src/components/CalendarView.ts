@@ -20,6 +20,7 @@ import { CalendarConfigManager } from "../utils/calendarConfigManager";
 import { TaskSummaryDialog } from "@/components/TaskSummaryDialog";
 import { PomodoroManager } from "../utils/pomodoroManager";
 import { getNextLunarMonthlyDate, getNextLunarYearlyDate, getSolarDateLunarString } from "../utils/lunarUtils";
+import { BlockBindingDialog } from "./BlockBindingDialog";
 export class CalendarView {
     private container: HTMLElement;
     private calendar: Calendar;
@@ -4450,267 +4451,29 @@ export class CalendarView {
      * 显示绑定到块的对话框
      */
     private showBindToBlockDialog(calendarEvent: any) {
-        const dialog = new Dialog({
-            title: t("bindReminderToBlock"),
-            content: `
-                <div class="bind-to-block-dialog">
-                    <div class="b3-dialog__content">
-                        <div class="b3-form__group">
-                            <div class="b3-form__desc" style="margin-bottom: 12px;">选择绑定方式：</div>
-                            <div style="display: flex; gap: 8px; margin-bottom: 16px;">
-                                <button class="b3-button b3-button--outline" id="bindExistingBtn" style="flex: 1;">
-                                    <svg style="width: 16px; height: 16px; margin-right: 4px;"><use xlink:href="#iconLink"></use></svg>
-                                    绑定现有块
-                                </button>
-                                <button class="b3-button b3-button--outline" id="createNewDocBtn" style="flex: 1;">
-                                    <svg style="width: 16px; height: 16px; margin-right: 4px;"><use xlink:href="#iconAdd"></use></svg>
-                                    ${t("createNewDocument")}
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div id="bindExistingPanel" style="display: none;">
-                            <div class="b3-form__group">
-                                <label class="b3-form__label">输入块ID</label>
-                                <div class="b3-form__desc">支持块ID或块引用格式，如：((blockId '标题'))</div>
-                                <input type="text" id="blockIdInput" class="b3-text-field" placeholder="请输入块ID或粘贴块引用" style="width: 100%; margin-top: 8px;">
-                            </div>
-                            <div class="b3-form__group" id="selectedBlockInfo" style="display: none;">
-                                <label class="b3-form__label">块信息预览</label>
-                                <div id="blockContent" class="block-content-preview" style="
-                                    padding: 8px;
-                                    background-color: var(--b3-theme-surface-lighter);
-                                    border-radius: 4px;
-                                    border: 1px solid var(--b3-theme-border);
-                                    max-height: 100px;
-                                    overflow-y: auto;
-                                    font-size: 12px;
-                                    color: var(--b3-theme-on-surface);
-                                "></div>
-                            </div>
-                        </div>
-
-                        <div id="createNewDocPanel" style="display: none;">
-                            <div class="b3-form__group">
-                                <label class="b3-form__label">文档标题</label>
-                                <input type="text" id="docTitleInput" class="b3-text-field" placeholder="请输入文档标题" style="width: 100%; margin-top: 8px;" value="${calendarEvent.title || ''}">
-                            </div>
-                            <div class="b3-form__group">
-                                <label class="b3-form__label">文档内容（可选）</label>
-                                <textarea id="docContentInput" class="b3-text-field" placeholder="请输入文档内容..." style="width: 100%; height: 80px; margin-top: 8px; resize: vertical;"></textarea>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="bindCancelBtn">${t("cancel")}</button>
-                        <button class="b3-button b3-button--primary" id="bindConfirmBtn" style="display: none;">${t("bindToBlock")}</button>
-                        <button class="b3-button b3-button--primary" id="createDocConfirmBtn" style="display: none;">${t("createDocumentAndBind")}</button>
-                    </div>
-                </div>
-            `,
-            width: "500px",
-            height: "400px"
-        });
-
-        const bindExistingBtn = dialog.element.querySelector('#bindExistingBtn') as HTMLButtonElement;
-        const createNewDocBtn = dialog.element.querySelector('#createNewDocBtn') as HTMLButtonElement;
-        const bindExistingPanel = dialog.element.querySelector('#bindExistingPanel') as HTMLElement;
-        const createNewDocPanel = dialog.element.querySelector('#createNewDocPanel') as HTMLElement;
-
-        const blockIdInput = dialog.element.querySelector('#blockIdInput') as HTMLInputElement;
-        const selectedBlockInfo = dialog.element.querySelector('#selectedBlockInfo') as HTMLElement;
-        const blockContentEl = dialog.element.querySelector('#blockContent') as HTMLElement;
-
-        const docTitleInput = dialog.element.querySelector('#docTitleInput') as HTMLInputElement;
-        const docContentInput = dialog.element.querySelector('#docContentInput') as HTMLTextAreaElement;
-
-        const cancelBtn = dialog.element.querySelector('#bindCancelBtn') as HTMLButtonElement;
-        const confirmBtn = dialog.element.querySelector('#bindConfirmBtn') as HTMLButtonElement;
-        const createDocConfirmBtn = dialog.element.querySelector('#createDocConfirmBtn') as HTMLButtonElement;
-
-        // 切换到绑定现有块模式
-        bindExistingBtn.addEventListener('click', () => {
-            bindExistingBtn.classList.add('b3-button--primary');
-            bindExistingBtn.classList.remove('b3-button--outline');
-            createNewDocBtn.classList.remove('b3-button--primary');
-            createNewDocBtn.classList.add('b3-button--outline');
-
-            bindExistingPanel.style.display = 'block';
-            createNewDocPanel.style.display = 'none';
-            confirmBtn.style.display = 'inline-block';
-            createDocConfirmBtn.style.display = 'none';
-
-            setTimeout(() => blockIdInput.focus(), 100);
-        });
-
-        // 切换到新建文档模式
-        createNewDocBtn.addEventListener('click', () => {
-            createNewDocBtn.classList.add('b3-button--primary');
-            createNewDocBtn.classList.remove('b3-button--outline');
-            bindExistingBtn.classList.remove('b3-button--primary');
-            bindExistingBtn.classList.add('b3-button--outline');
-
-            createNewDocPanel.style.display = 'block';
-            bindExistingPanel.style.display = 'none';
-            confirmBtn.style.display = 'none';
-            createDocConfirmBtn.style.display = 'inline-block';
-
-            setTimeout(() => docTitleInput.focus(), 100);
-        });
-
-        // 监听块ID输入变化
-        blockIdInput.addEventListener('input', async () => {
-            const inputValue = blockIdInput.value.trim();
-
-            // 尝试从输入内容中提取块ID（支持块引用格式）
-            let blockId = this.extractBlockIdFromText(inputValue);
-
-            // 如果没有匹配到块引用格式，则将输入作为纯块ID使用
-            if (!blockId) {
-                blockId = inputValue;
-            }
-
-            if (blockId && blockId.length >= 20) { // 块ID通常是20位字符
+        const dialog = new BlockBindingDialog(
+            this.plugin,
+            async (blockId: string) => {
                 try {
-                    const block = await getBlockByID(blockId);
-                    if (block) {
-                        const blockContent = block.content || block.fcontent || '未命名块';
-                        blockContentEl.textContent = blockContent;
-                        selectedBlockInfo.style.display = 'block';
-                    } else {
-                        selectedBlockInfo.style.display = 'none';
-                    }
+                    await this.bindReminderToBlock(calendarEvent, blockId);
+                    showMessage(t("reminderBoundToBlock"));
+                    // 刷新日历显示
+                    await this.refreshEvents();
                 } catch (error) {
-                    selectedBlockInfo.style.display = 'none';
+                    console.error('绑定提醒到块失败:', error);
+                    showMessage(t("bindToBlockFailed"));
                 }
-            } else {
-                selectedBlockInfo.style.display = 'none';
+            },
+            {
+                title: t("bindReminderToBlock"),
+                defaultTab: 'bind',
+                reminder: calendarEvent,
+                defaultTitle: calendarEvent.title || ''
             }
-        });
-
-        // 取消按钮
-        cancelBtn.addEventListener('click', () => {
-            dialog.destroy();
-        });
-
-        // 确认绑定现有块
-        confirmBtn.addEventListener('click', async () => {
-            const inputValue = blockIdInput.value.trim();
-            if (!inputValue) {
-                showMessage('请输入块ID');
-                return;
-            }
-
-            // 尝试从输入内容中提取块ID（支持块引用格式）
-            let blockId = this.extractBlockIdFromText(inputValue);
-
-            // 如果没有匹配到块引用格式，则将输入作为纯块ID使用
-            if (!blockId) {
-                blockId = inputValue;
-            }
-
-            if (!blockId || blockId.length < 20) {
-                showMessage('请输入有效的块ID或块引用');
-                return;
-            }
-
-            try {
-                await this.bindReminderToBlock(calendarEvent, blockId);
-                showMessage(t("reminderBoundToBlock"));
-                dialog.destroy();
-
-                // 刷新日历显示
-                await this.refreshEvents();
-            } catch (error) {
-                console.error('绑定提醒到块失败:', error);
-                showMessage(t("bindToBlockFailed"));
-            }
-        });
-
-        // 确认新建文档并绑定
-        createDocConfirmBtn.addEventListener('click', async () => {
-            const title = docTitleInput.value.trim();
-            const content = docContentInput.value.trim();
-
-            if (!title) {
-                showMessage('请输入文档标题');
-                return;
-            }
-
-            try {
-                const blockId = await this.createDocumentAndBind(calendarEvent, title, content);
-                showMessage(t("documentCreated"));
-                dialog.destroy();
-
-                // 刷新日历显示
-                await this.refreshEvents();
-            } catch (error) {
-                console.error('创建文档并绑定失败:', error);
-                showMessage(t("createDocumentFailed"));
-            }
-        });
-
-        // 默认显示绑定现有块模式
-        bindExistingBtn.click();
+        );
+        dialog.show();
     }
 
-    /**
-     * 创建文档并绑定提醒
-     */
-    private async createDocumentAndBind(calendarEvent: any, title: string, content: string): Promise<string> {
-        try {
-            // 获取插件设置
-            const settings = await this.plugin.loadSettings();
-            const notebook = settings.newDocNotebook;
-            const pathTemplate = settings.newDocPath || '/任务管理/{{now | date "2006-01-02"}}/{{.title}}';
-
-            if (!notebook) {
-                throw new Error(t("pleaseConfigureNotebook"));
-            }
-
-            // 导入API函数
-            const { renderSprig, createDocWithMd } = await import("../api");
-
-            // 准备模板变量
-            const templateVars = {
-                title: title,
-                content: content,
-                date: calendarEvent.extendedProps?.date || new Date().toISOString().split('T')[0],
-                time: calendarEvent.extendedProps?.time || '',
-            };
-
-
-            // 渲染路径模板
-            let renderedPath: string;
-            try {
-                // 需要检测pathTemplate是否以/结尾，如果不是，则添加/
-                if (!pathTemplate.endsWith('/')) {
-                    renderedPath += pathTemplate + '/';
-                } else {
-                    renderedPath = pathTemplate;
-                }
-                renderedPath = await renderSprig(renderedPath + title);
-            } catch (error) {
-                console.error('渲染路径模板失败:', error);
-                throw new Error(t("renderPathFailed"));
-            }
-
-            // 准备文档内容
-            const docContent = content || `# ${title}\n\n`;
-
-            // 创建文档
-            const docId = await createDocWithMd(notebook, renderedPath, docContent);
-
-            await refreshSql();
-            // 绑定提醒到新创建的文档
-            await this.bindReminderToBlock(calendarEvent, docId);
-
-            return docId;
-        } catch (error) {
-            console.error('创建文档并绑定失败:', error);
-            throw error;
-        }
-    }
 
     /**
      * 将提醒绑定到指定的块
@@ -4722,6 +4485,7 @@ export class CalendarView {
 
             if (reminderData[reminderId]) {
                 // 获取块信息
+                await refreshSql();
                 const block = await getBlockByID(blockId);
                 if (!block) {
                     throw new Error('目标块不存在');
