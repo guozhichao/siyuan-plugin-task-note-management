@@ -148,7 +148,7 @@ export class BlockBindingDialog {
                             </div>
 
                             <div class="b3-form__group">
-                                <label class="b3-form__label">标题层级</label>
+                                <label class="b3-form__label">插入的标题层级</label>
                                 <select id="headingLevelSelect" class="b3-select" style="width: 100%; margin-top: 8px;">
                                     <option value="1">H1</option>
                                     <option value="2">H2</option>
