@@ -582,6 +582,59 @@ export class QuickReminderDialog {
 
         // 填充完成时间
         this.updateCompletedTimeDisplay();
+
+        // 如果有块ID，显示预览
+        if (this.reminder.blockId) {
+            this.updateBlockPreview(this.reminder.blockId);
+        }
+    }
+
+    /**
+     * 更新块预览显示
+     */
+    private async updateBlockPreview(blockId: string) {
+        const preview = this.dialog.element.querySelector('#quickBlockPreview') as HTMLElement;
+        const content = this.dialog.element.querySelector('#quickBlockPreviewContent') as HTMLElement;
+
+        if (!blockId) {
+            preview.style.display = 'none';
+            return;
+        }
+
+        try {
+            const { getBlockByID } = await import("../api");
+            const block = await getBlockByID(blockId);
+
+            if (block) {
+                content.innerHTML = `
+                    <span style="font-weight: 500; margin-bottom: 4px; cursor: pointer; color: var(--b3-protyle-inline-blockref-color); border-bottom: 1px dashed var(--b3-protyle-inline-blockref-color); padding-bottom: 2px; max-width: 100%; word-wrap: break-word; overflow-wrap: break-word;" id="quickBlockPreviewHover">${(block.content || '无内容').length > 50 ? (block.content || '无内容').substring(0, 50) + '...' : (block.content || '无内容')}</span>
+                    <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">
+                        类型: ${block.type} | ID: ${block.id}
+                    </div>
+                `;
+                preview.style.display = 'block';
+
+                // 绑定悬浮预览事件
+                const hoverDiv = content.querySelector('#quickBlockPreviewHover') as HTMLElement;
+                if (hoverDiv && this.plugin && this.plugin.addFloatLayer) {
+                    hoverDiv.addEventListener('mouseenter', (event) => {
+                        const rect = hoverDiv.getBoundingClientRect();
+                        this.plugin.addFloatLayer({
+                            refDefs: [{ refID: blockId, defIDs: [] }],
+                            x: rect.left,
+                            y: rect.top - 70,
+                            isBacklink: false
+                        });
+                    });
+                }
+            } else {
+                content.innerHTML = '<div style="color: var(--b3-theme-error);">块不存在</div>';
+                preview.style.display = 'block';
+            }
+        } catch (error) {
+            console.error('获取块信息失败:', error);
+            preview.style.display = 'none';
+        }
     }
 
     // 设置chrono解析器
@@ -1008,6 +1061,10 @@ export class QuickReminderDialog {
                                     <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
                                 </button>
                             </div>
+                        </div>
+                        <!-- 块预览区域 -->
+                        <div id="quickBlockPreview" style="margin-top: 8px; padding: 8px; background: var(--b3-theme-background-light); border: 1px solid var(--b3-border-color); border-radius: 4px; display: none;">
+                            <div id="quickBlockPreviewContent" style="font-size: 13px; color: var(--b3-theme-on-surface);"></div>
                         </div>
                         <!-- 网页链接输入 -->
                         <div class="b3-form__group">
@@ -1841,6 +1898,7 @@ export class QuickReminderDialog {
 
                     if (blockInput) {
                         blockInput.value = blockId;
+                        this.updateBlockPreview(blockId);
                     }
                     if (titleInput && title && (!titleInput.value || titleInput.value.trim().length === 0)) {
                         titleInput.value = title;
@@ -1862,15 +1920,21 @@ export class QuickReminderDialog {
             quickBlockInput.addEventListener('input', async () => {
                 if (isAutoSetting) return;
                 const raw = quickBlockInput.value?.trim();
-                if (!raw) return;
+                if (!raw) {
+                    this.updateBlockPreview('');
+                    return;
+                }
                 const id = this.extractBlockId(raw);
                 if (id && id !== raw && (raw.includes('((') || raw.includes('siyuan://blocks/') || raw.includes(']('))) {
                     try {
                         isAutoSetting = true;
                         quickBlockInput.value = id;
+                        this.updateBlockPreview(id);
                     } finally {
                         setTimeout(() => { isAutoSetting = false; }, 0);
                     }
+                } else {
+                    this.updateBlockPreview(raw);
                 }
             });
         }

@@ -181,7 +181,7 @@
             ],
         },
         {
-            name: '✅任务笔记创建',
+            name: '✅任务笔记设置',
             items: [
                 {
                     key: 'newDocNotebook',
