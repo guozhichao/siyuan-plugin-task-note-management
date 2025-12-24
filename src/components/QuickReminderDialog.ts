@@ -2492,6 +2492,19 @@ export class QuickReminderDialog {
                     reminder.reminderTimes = this.customTimes.length > 0 ? [...this.customTimes] : undefined;
                     reminder.repeat = this.repeatConfig.enabled ? this.repeatConfig : undefined;
 
+                    // 设置或删除 documentId
+                    if (inputId) {
+                        try {
+                            const block = await getBlockByID(inputId);
+                            reminder.docId = block.root_id;
+                        } catch (error) {
+                            console.error('获取块信息失败:', error);
+                            reminder.docId = undefined;
+                        }
+                    } else {
+                        delete reminder.docId;
+                    }
+
                     // 根据任务类型设置看板状态
                     if (termType === 'doing') {
                         reminder.kanbanStatus = 'doing';
