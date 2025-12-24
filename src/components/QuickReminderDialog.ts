@@ -618,13 +618,13 @@ export class QuickReminderDialog {
                 const hoverDiv = content.querySelector('#quickBlockPreviewHover') as HTMLElement;
                 if (hoverDiv && this.plugin && this.plugin.addFloatLayer) {
                     let hoverTimeout: number | null = null;
-                    
+
                     hoverDiv.addEventListener('mouseenter', (event) => {
                         // 清除之前的定时器
                         if (hoverTimeout) {
                             clearTimeout(hoverTimeout);
                         }
-                        
+
                         // 设置500ms延迟后显示预览
                         hoverTimeout = window.setTimeout(() => {
                             const rect = hoverDiv.getBoundingClientRect();
@@ -637,7 +637,7 @@ export class QuickReminderDialog {
                             hoverTimeout = null;
                         }, 500);
                     });
-                    
+
                     hoverDiv.addEventListener('mouseleave', () => {
                         // 清除定时器，取消预览显示
                         if (hoverTimeout) {
