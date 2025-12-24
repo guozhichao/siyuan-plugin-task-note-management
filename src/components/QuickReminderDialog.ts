@@ -2219,7 +2219,7 @@ export class QuickReminderDialog {
     }
 
     /**
-     * 显示创建文档对话框
+     * 显示创建文档/标题对话框（支持标签页切换）
      */
     private showCreateDocumentDialog() {
         // 检查plugin是否已初始化
@@ -2232,68 +2232,455 @@ export class QuickReminderDialog {
         const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
         const defaultTitle = titleInput?.value?.trim() || '';
 
-        const createDocDialog = new Dialog({
-            title: t("createNewDocument") || '新建文档',
+        const createDialog = new Dialog({
+            title: '新建文档/标题',
             content: `
-                <div class="create-doc-dialog">
-                    <div class="b3-dialog__content">
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">文档标题</label>
-                            <input type="text" id="quickDocTitleInput" class="b3-text-field" value="${defaultTitle}" placeholder="请输入文档标题" style="width: 100%; margin-top: 8px;">
+                <div class="create-doc-heading-dialog" style="display: flex; flex-direction: column; height: 100%;">
+                    <!-- 按钮切换 -->
+                    <div style="margin-bottom: 16px; flex-shrink: 0; display: flex; gap: 8px; justify-content: center;">
+                        <button class="b3-button b3-button--outline tab-switch-btn" data-tab="bind">绑定块</button>
+                        <button class="b3-button b3-button--outline tab-switch-btn" data-tab="document">新建文档</button>
+                        <button class="b3-button tab-switch-btn" data-tab="heading">新建标题</button>
+                    </div>
+
+                    <!-- 内容区域 -->
+                    <div style="flex: 1; overflow-y: auto; min-height: 0;">
+                        <!-- 绑定块标签页 -->
+                        <div class="tab-content" data-content="bind" style="display: none;">
+                            <div class="b3-dialog__content">
+                                <div class="b3-form__group">
+                                    <label class="b3-form__label">块ID</label>
+                                    <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
+                                        <input type="text" id="quickBindBlockInput" class="b3-text-field" placeholder="输入块ID或搜索" style="flex: 1;">
+                                        <label style="margin: 0;">
+                                            <input type="checkbox" id="quickBindIncludeHeadingsCheckbox" class="b3-switch">
+                                            <span class="b3-switch__slider"></span>
+                                        </label>
+                                        <span style="font-size: 12px; color: var(--b3-theme-on-surface); white-space: nowrap;">包含标题</span>
+                                    </div>
+                                    <div id="quickBindSearchResults" style="max-height: 150px; overflow-y: auto; margin-top: 8px; border: 1px solid var(--b3-border-color); border-radius: 4px; display: none;"></div>
+                                    <!-- 块预览区域 -->
+                                    <div id="quickBindBlockPreview" style="margin-top: 8px; padding: 8px; background: var(--b3-theme-background-light); border: 1px solid var(--b3-border-color); border-radius: 4px; display: none;">
+                                        <div style="font-size: 12px; color: var(--b3-theme-on-surface-light); margin-bottom: 4px;">当前选择：</div>
+                                        <div id="quickBindBlockPreviewContent" style="font-size: 13px; color: var(--b3-theme-on-surface);"></div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">文档内容（可选）</label>
-                            <textarea id="quickDocContentInput" class="b3-text-field" placeholder="请输入文档内容" style="width: 100%; margin-top: 8px; min-height: 80px; resize: vertical;"></textarea>
+
+                        <!-- 文档创建标签页 -->
+                        <div class="tab-content" data-content="document" style="display: none;">
+                            <div class="b3-dialog__content">
+                                <div class="b3-form__group">
+                                    <label class="b3-form__label">文档标题</label>
+                                    <input type="text" id="quickDocTitleInput" class="b3-text-field" value="${defaultTitle}" placeholder="请输入文档标题" style="width: 100%; margin-top: 8px;">
+                                </div>
+                                <div class="b3-form__group">
+                                    <label class="b3-form__label">文档内容（可选）</label>
+                                    <textarea id="quickDocContentInput" class="b3-text-field" placeholder="请输入文档内容" style="width: 100%; margin-top: 8px; min-height: 80px; resize: vertical;"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 标题创建标签页 -->
+                        <div class="tab-content" data-content="heading">
+                            <div class="b3-dialog__content">
+                                <div class="b3-form__group">
+                                    <label class="b3-form__label">标题内容</label>
+                                    <input type="text" id="quickHeadingContentInput" class="b3-text-field" value="${defaultTitle}" placeholder="请输入标题内容" style="width: 100%; margin-top: 8px;">
+                                </div>
+                                
+                                <div class="b3-form__group">
+                                    <label class="b3-form__label">父块</label>
+                                    <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
+                                        <input type="text" id="quickHeadingParentInput" class="b3-text-field" placeholder="输入块ID或搜索" style="flex: 1;">
+                                        <label style="margin: 0;">
+                                            <input type="checkbox" id="quickIncludeHeadingsCheckbox" class="b3-switch">
+                                            <span class="b3-switch__slider"></span>
+                                        </label>
+                                        <span style="font-size: 12px; color: var(--b3-theme-on-surface); white-space: nowrap;">包含标题</span>
+                                    </div>
+                                    <div id="quickSearchResults" style="max-height: 150px; overflow-y: auto; margin-top: 8px; border: 1px solid var(--b3-border-color); border-radius: 4px; display: none;"></div>
+                                    <!-- 块预览区域 -->
+                                    <div id="quickBlockPreview" style="margin-top: 8px; padding: 8px; background: var(--b3-theme-background-light); border: 1px solid var(--b3-border-color); border-radius: 4px; display: none;">
+                                        <div style="font-size: 12px; color: var(--b3-theme-on-surface-light); margin-bottom: 4px;">当前选择：</div>
+                                        <div id="quickBlockPreviewContent" style="font-size: 13px; color: var(--b3-theme-on-surface);"></div>
+                                    </div>
+                                </div>
+
+                                <div class="b3-form__group">
+                                    <label class="b3-form__label">标题层级</label>
+                                    <select id="quickHeadingLevelSelect" class="b3-select" style="width: 100%; margin-top: 8px;">
+                                        <option value="1">H1</option>
+                                        <option value="2">H2</option>
+                                        <option value="3" selected>H3</option>
+                                        <option value="4">H4</option>
+                                        <option value="5">H5</option>
+                                        <option value="6">H6</option>
+                                    </select>
+                                </div>
+
+                                <div class="b3-form__group">
+                                    <label class="b3-form__label">插入位置</label>
+                                    <select id="quickHeadingPositionSelect" class="b3-select" style="width: 100%; margin-top: 8px;">
+                                        <option value="prepend">插入到最前</option>
+                                        <option value="append">插入到最后</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="quickCreateDocCancelBtn">${t("cancel")}</button>
-                        <button class="b3-button b3-button--primary" id="quickCreateDocConfirmBtn">${t("confirm") || '确定'}</button>
+
+                    <!-- 按钮区域 -->
+                    <div class="b3-dialog__action" style="flex-shrink: 0; margin-top: 16px;">
+                        <button class="b3-button b3-button--cancel" id="quickCreateCancelBtn">取消</button>
+                        <button class="b3-button b3-button--primary" id="quickCreateConfirmBtn">确定</button>
                     </div>
                 </div>
             `,
-            width: "500px",
-            height: "300px"
+            width: "600px",
+            height: "560px"
         });
 
-        const docTitleInput = createDocDialog.element.querySelector('#quickDocTitleInput') as HTMLInputElement;
-        const docContentInput = createDocDialog.element.querySelector('#quickDocContentInput') as HTMLTextAreaElement;
-        const cancelBtn = createDocDialog.element.querySelector('#quickCreateDocCancelBtn') as HTMLButtonElement;
-        const confirmBtn = createDocDialog.element.querySelector('#quickCreateDocConfirmBtn') as HTMLButtonElement;
+        // 获取元素
+        const tabButtons = createDialog.element.querySelectorAll('.tab-switch-btn');
+        const tabContents = createDialog.element.querySelectorAll('.tab-content');
+        const cancelBtn = createDialog.element.querySelector('#quickCreateCancelBtn') as HTMLButtonElement;
+        const confirmBtn = createDialog.element.querySelector('#quickCreateConfirmBtn') as HTMLButtonElement;
 
-        // 取消按钮
-        cancelBtn?.addEventListener('click', () => {
-            createDocDialog.destroy();
-        });
+        // 文档标签页元素
+        const docTitleInput = createDialog.element.querySelector('#quickDocTitleInput') as HTMLInputElement;
+        const docContentInput = createDialog.element.querySelector('#quickDocContentInput') as HTMLTextAreaElement;
 
-        // 确认按钮
-        confirmBtn?.addEventListener('click', async () => {
-            const title = docTitleInput.value.trim();
-            const content = docContentInput.value.trim();
+        // 绑定块标签页元素
+        const bindBlockInput = createDialog.element.querySelector('#quickBindBlockInput') as HTMLInputElement;
+        const bindIncludeHeadingsCheckbox = createDialog.element.querySelector('#quickBindIncludeHeadingsCheckbox') as HTMLInputElement;
+        const bindSearchResults = createDialog.element.querySelector('#quickBindSearchResults') as HTMLElement;
+        const bindBlockPreview = createDialog.element.querySelector('#quickBindBlockPreview') as HTMLElement;
+        const bindBlockPreviewContent = createDialog.element.querySelector('#quickBindBlockPreviewContent') as HTMLElement;
 
-            if (!title) {
-                showMessage(t("pleaseEnterTitle"));
+        // 标题标签页元素
+        const headingContentInput = createDialog.element.querySelector('#quickHeadingContentInput') as HTMLInputElement;
+        const headingParentInput = createDialog.element.querySelector('#quickHeadingParentInput') as HTMLInputElement;
+        const includeHeadingsCheckbox = createDialog.element.querySelector('#quickIncludeHeadingsCheckbox') as HTMLInputElement;
+        const searchResults = createDialog.element.querySelector('#quickSearchResults') as HTMLElement;
+        const blockPreview = createDialog.element.querySelector('#quickBlockPreview') as HTMLElement;
+        const blockPreviewContent = createDialog.element.querySelector('#quickBlockPreviewContent') as HTMLElement;
+        const headingLevelSelect = createDialog.element.querySelector('#quickHeadingLevelSelect') as HTMLSelectElement;
+        const headingPositionSelect = createDialog.element.querySelector('#quickHeadingPositionSelect') as HTMLSelectElement;
+
+        let currentTab = 'heading';  // 默认为新建标题
+        let selectedParentBlock: any = null;
+
+        // 更新绑定块预览
+        const updateBindBlockPreview = async (blockId: string) => {
+            if (!blockId) {
+                bindBlockPreview.style.display = 'none';
                 return;
             }
 
             try {
-                const docId = await this.createDocument(title, content);
-                if (docId) {
-                    // 自动填入文档ID到绑定块输入框
-                    const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
-                    if (blockInput) {
-                        blockInput.value = docId;
-                    }
-                    showMessage('✓ 文档创建成功，已自动填入ID');
-                    createDocDialog.destroy();
+                const { getBlockByID } = await import("../api");
+                const block = await getBlockByID(blockId);
+
+                if (block) {
+                    const isHeading = block.type === 'h';
+                    const icon = isHeading ? '📑' : '📄';
+                    const levelText = isHeading ? ` (${block.subtype.toUpperCase()})` : '';
+
+                    bindBlockPreviewContent.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span>${icon}</span>
+                            <div style="flex: 1; overflow: hidden;">
+                                <div style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    ${block.content}${levelText}
+                                </div>
+                                <div style="font-size: 12px; color: var(--b3-theme-on-surface-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    ${block.hpath || block.box}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    bindBlockPreview.style.display = 'block';
+                } else {
+                    bindBlockPreview.style.display = 'none';
                 }
             } catch (error) {
-                console.error('创建文档失败:', error);
-                showMessage(t("createDocumentFailed") || '创建文档失败');
+                console.error('获取块信息失败:', error);
+                bindBlockPreview.style.display = 'none';
+            }
+        };
+
+        // 更新标题块预览
+        const updateBlockPreview = async (blockId: string) => {
+            if (!blockId) {
+                blockPreview.style.display = 'none';
+                return;
+            }
+
+            try {
+                const { getBlockByID } = await import("../api");
+                const block = await getBlockByID(blockId);
+
+                if (block) {
+                    selectedParentBlock = block;
+                    const isHeading = block.type === 'h';
+                    const icon = isHeading ? '📑' : '📄';
+                    const levelText = isHeading ? ` (${block.subtype.toUpperCase()})` : '';
+
+                    blockPreviewContent.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span>${icon}</span>
+                            <div style="flex: 1; overflow: hidden;">
+                                <div style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    ${block.content}${levelText}
+                                </div>
+                                <div style="font-size: 12px; color: var(--b3-theme-on-surface-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    ${block.hpath || block.box}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    blockPreview.style.display = 'block';
+
+                    // 自动调整标题层级
+                    this.adjustHeadingLevel(block, headingLevelSelect);
+                } else {
+                    blockPreview.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('获取块信息失败:', error);
+                blockPreview.style.display = 'none';
+            }
+        };
+
+        // 标签页切换
+        tabButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tabName = btn.getAttribute('data-tab');
+                currentTab = tabName;
+
+                // 更新按钮样式
+                tabButtons.forEach(b => {
+                    if (b === btn) {
+                        // 激活的按钮：移除 outline
+                        b.classList.remove('b3-button--outline');
+                    } else {
+                        // 未激活的按钮：添加 outline
+                        b.classList.add('b3-button--outline');
+                    }
+                });
+
+                // 更新内容显示
+                tabContents.forEach(content => {
+                    const contentTab = content.getAttribute('data-content');
+                    if (contentTab === tabName) {
+                        (content as HTMLElement).style.display = 'block';
+                    } else {
+                        (content as HTMLElement).style.display = 'none';
+                    }
+                });
+            });
+        });
+
+        // 初始化标题标签页的默认值
+        this.initHeadingTabDefaults(headingParentInput, headingLevelSelect, headingPositionSelect);
+
+        // 绑定块标签页搜索功能
+        let bindSearchTimeout: number;
+        let bindBlurTimeout: number;
+
+        bindBlockInput.addEventListener('input', () => {
+            clearTimeout(bindSearchTimeout);
+            const query = bindBlockInput.value.trim();
+
+            if (!query) {
+                bindSearchResults.style.display = 'none';
+                bindBlockPreview.style.display = 'none';
+                return;
+            }
+
+            // 如果输入的是块ID格式，直接显示预览
+            if (/^\d{14}-[a-z0-9]{7}$/.test(query)) {
+                bindSearchResults.style.display = 'none';
+                updateBindBlockPreview(query);
+                return;
+            }
+
+            // 否则进行搜索
+            bindSearchTimeout = window.setTimeout(async () => {
+                await this.searchBlocksForHeading(query, bindIncludeHeadingsCheckbox.checked, bindSearchResults, async (block) => {
+                    bindBlockInput.value = block.id;
+                    bindSearchResults.style.display = 'none';
+
+                    // 显示块预览
+                    await updateBindBlockPreview(block.id);
+                });
+            }, 300);
+        });
+
+        // 输入框失去焦点时，延迟隐藏搜索结果
+        bindBlockInput.addEventListener('blur', () => {
+            bindBlurTimeout = window.setTimeout(() => {
+                bindSearchResults.style.display = 'none';
+            }, 200);
+        });
+
+        // 输入框获得焦点时，如果有搜索结果则显示
+        bindBlockInput.addEventListener('focus', () => {
+            clearTimeout(bindBlurTimeout);
+            if (bindSearchResults.children.length > 0 && bindBlockInput.value.trim()) {
+                bindSearchResults.style.display = 'block';
             }
         });
 
-        // 自动聚焦标题输入框
+        // 包含标题复选框变化时重新搜索
+        bindIncludeHeadingsCheckbox.addEventListener('change', () => {
+            const query = bindBlockInput.value.trim();
+            if (query) {
+                bindBlockInput.dispatchEvent(new Event('input'));
+            }
+        });
+
+        // 标题标签页搜索功能
+        let searchTimeout: number;
+        let blurTimeout: number;
+
+        headingParentInput.addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            const query = headingParentInput.value.trim();
+
+            if (!query) {
+                searchResults.style.display = 'none';
+                blockPreview.style.display = 'none';
+                selectedParentBlock = null;
+                return;
+            }
+
+            // 如果输入的是块ID格式（20位数字-7位字母数字），直接显示预览
+            if (/^\d{14}-[a-z0-9]{7}$/.test(query)) {
+                searchResults.style.display = 'none';
+                updateBlockPreview(query);
+                return;
+            }
+
+            // 否则进行搜索
+            searchTimeout = window.setTimeout(async () => {
+                await this.searchBlocksForHeading(query, includeHeadingsCheckbox.checked, searchResults, async (block) => {
+                    selectedParentBlock = block;
+                    headingParentInput.value = block.id;
+                    searchResults.style.display = 'none';
+
+                    // 显示块预览
+                    await updateBlockPreview(block.id);
+                });
+            }, 300);
+        });
+
+        // 输入框失去焦点时，延迟隐藏搜索结果（给点击事件时间）
+        headingParentInput.addEventListener('blur', () => {
+            blurTimeout = window.setTimeout(() => {
+                searchResults.style.display = 'none';
+            }, 200);
+        });
+
+        // 输入框获得焦点时，如果有搜索结果则显示
+        headingParentInput.addEventListener('focus', () => {
+            clearTimeout(blurTimeout);
+            if (searchResults.children.length > 0 && headingParentInput.value.trim()) {
+                searchResults.style.display = 'block';
+            }
+        });
+
+        // 包含标题复选框变化时重新搜索
+        includeHeadingsCheckbox.addEventListener('change', () => {
+            const query = headingParentInput.value.trim();
+            if (query) {
+                headingParentInput.dispatchEvent(new Event('input'));
+            }
+        });
+
+        // 取消按钮
+        cancelBtn?.addEventListener('click', () => {
+            createDialog.destroy();
+        });
+
+        // 确认按钮
+        confirmBtn?.addEventListener('click', async () => {
+            if (currentTab === 'bind') {
+                // 绑定块
+                const blockId = bindBlockInput.value.trim();
+
+                if (!blockId) {
+                    showMessage('请输入块ID');
+                    return;
+                }
+
+                const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
+                if (blockInput) {
+                    blockInput.value = blockId;
+                }
+                showMessage('✓ 块ID已填入');
+                createDialog.destroy();
+            } else if (currentTab === 'document') {
+                // 创建文档
+                const title = docTitleInput.value.trim();
+                const content = docContentInput.value.trim();
+
+                if (!title) {
+                    showMessage('请输入文档标题');
+                    return;
+                }
+
+                try {
+                    const docId = await this.createDocument(title, content);
+                    if (docId) {
+                        const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
+                        if (blockInput) {
+                            blockInput.value = docId;
+                        }
+                        showMessage('✓ 文档创建成功，已自动填入ID');
+                        createDialog.destroy();
+                    }
+                } catch (error) {
+                    console.error('创建文档失败:', error);
+                    showMessage('创建文档失败');
+                }
+            } else {
+                // 创建标题
+                const content = headingContentInput.value.trim();
+                const parentId = headingParentInput.value.trim();
+                const level = parseInt(headingLevelSelect.value);
+                const position = headingPositionSelect.value as 'prepend' | 'append';
+
+                if (!content) {
+                    showMessage('请输入标题内容');
+                    return;
+                }
+
+                if (!parentId) {
+                    showMessage('请选择父块');
+                    return;
+                }
+
+                try {
+                    const headingId = await this.createHeading(content, parentId, level, position);
+                    if (headingId) {
+                        const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
+                        if (blockInput) {
+                            blockInput.value = headingId;
+                        }
+                        showMessage('✓ 标题创建成功，已自动填入ID');
+                        createDialog.destroy();
+                    }
+                } catch (error) {
+                    console.error('创建标题失败:', error);
+                    showMessage('创建标题失败');
+                }
+            }
+        });
+
+        // 自动聚焦
         setTimeout(() => {
             docTitleInput?.focus();
         }, 100);
@@ -2346,6 +2733,238 @@ export class QuickReminderDialog {
             return docId;
         } catch (error) {
             console.error('创建文档失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 初始化标题标签页的默认值
+     */
+    private async initHeadingTabDefaults(
+        parentInput: HTMLInputElement,
+        levelSelect: HTMLSelectElement,
+        positionSelect: HTMLSelectElement
+    ) {
+        try {
+            const settings = await this.plugin.loadSettings();
+            const defaultLevel = settings.defaultHeadingLevel || 3;
+            const defaultPosition = settings.defaultHeadingPosition || 'prepend';
+
+            // 设置默认层级
+            levelSelect.value = defaultLevel.toString();
+            positionSelect.value = defaultPosition;
+
+            // 尝试自动填充父块ID
+            let autoFillBlockId: string | null = null;
+
+            // 1. 检查父任务绑定
+            if (this.defaultParentId) {
+                const { getBlockByID } = await import("../api");
+                const parentReminder = await this.getParentReminder(this.defaultParentId);
+                if (parentReminder?.blockId) {
+                    autoFillBlockId = parentReminder.blockId;
+                    const parentBlock = await getBlockByID(parentReminder.blockId);
+                    if (parentBlock) {
+                        this.adjustHeadingLevel(parentBlock, levelSelect);
+                    }
+                }
+            }
+
+            // 2. 检查项目自定义分组绑定
+            if (!autoFillBlockId && this.defaultProjectId) {
+                const { ProjectManager } = await import('../utils/projectManager');
+                const projectManager = ProjectManager.getInstance(this.plugin);
+
+                // 检查是否有自定义分组（编辑模式或新建模式）
+                if (this.defaultCustomGroupId) {
+                    const groups = await projectManager.getProjectCustomGroups(this.defaultProjectId);
+                    const group = groups.find((g: any) => g.id === this.defaultCustomGroupId);
+                    if (group?.blockId) {
+                        autoFillBlockId = group.blockId;
+                    }
+                }
+
+                // 3. 如果没有分组绑定，检查项目绑定
+                if (!autoFillBlockId) {
+                    const project = projectManager.getProjectById(this.defaultProjectId);
+                    // 项目的 blockId 可能在 project 对象中，也可能在 project.data 中
+                    const projectBlockId = (project as any)?.blockId || (project as any)?.data?.blockId;
+                    if (projectBlockId) {
+                        autoFillBlockId = projectBlockId;
+                    }
+                }
+
+                // 如果找到了绑定块，调整层级
+                if (autoFillBlockId) {
+                    const { getBlockByID } = await import("../api");
+                    const block = await getBlockByID(autoFillBlockId);
+                    if (block) {
+                        this.adjustHeadingLevel(block, levelSelect);
+                    }
+                }
+            }
+
+            // 自动填充父块ID
+            if (autoFillBlockId) {
+                parentInput.value = autoFillBlockId;
+            }
+        } catch (error) {
+            console.error('初始化标题标签页默认值失败:', error);
+        }
+    }
+
+    /**
+     * 获取父任务提醒
+     */
+    private async getParentReminder(parentId: string): Promise<any> {
+        try {
+            const { readReminderData } = await import("../api");
+            const reminderData = await readReminderData();
+            return reminderData[parentId];
+        } catch (error) {
+            console.error('获取父任务失败:', error);
+            return null;
+        }
+    }
+
+    /**
+     * 搜索文档和标题块
+     */
+    private async searchBlocksForHeading(
+        query: string,
+        includeHeadings: boolean,
+        resultsContainer: HTMLElement,
+        onSelect: (block: any) => void
+    ) {
+        try {
+            const { sql } = await import("../api");
+
+            // 构建SQL查询 - 支持空格分隔的AND搜索
+            const keywords = query.trim().split(/\s+/).filter(k => k.length > 0);
+            if (keywords.length === 0) {
+                resultsContainer.style.display = 'none';
+                return;
+            }
+
+            // 构建多个LIKE条件（AND关系）
+            const likeConditions = keywords.map(keyword => `content LIKE '%${keyword.replace(/'/g, "''")}%'`).join(' AND ');
+
+            let sqlQuery: string;
+            if (includeHeadings) {
+                sqlQuery = `SELECT * FROM blocks WHERE (type = 'd' OR type = 'h') AND ${likeConditions} LIMIT 10`;
+            } else {
+                sqlQuery = `SELECT * FROM blocks WHERE type = 'd' AND ${likeConditions} LIMIT 10`;
+            }
+
+            const results = await sql(sqlQuery);
+
+            if (!results || results.length === 0) {
+                resultsContainer.innerHTML = `<div style="padding: 8px; text-align: center; color: var(--b3-theme-on-surface-light);">未找到匹配结果</div>`;
+                resultsContainer.style.display = 'block';
+                return;
+            }
+
+            // 渲染搜索结果
+            resultsContainer.innerHTML = results.map((block: any) => {
+                const isHeading = block.type === 'h';
+                const headingLevel = isHeading ? block.subtype : '';
+                const icon = isHeading ? '📑' : '📄';
+                const levelText = isHeading ? ` (${headingLevel.toUpperCase()})` : '';
+
+                return `
+                    <div class="search-result-item" data-block-id="${block.id}" style="padding: 8px; cursor: pointer; border-bottom: 1px solid var(--b3-border-color);">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span>${icon}</span>
+                            <div style="flex: 1; overflow: hidden;">
+                                <div style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    ${block.content}${levelText}
+                                </div>
+                                <div style="font-size: 12px; color: var(--b3-theme-on-surface-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    ${block.hpath || block.box}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            resultsContainer.style.display = 'block';
+
+            // 添加点击事件
+            resultsContainer.querySelectorAll('.search-result-item').forEach((item, index) => {
+                item.addEventListener('click', () => {
+                    onSelect(results[index]);
+                });
+            });
+        } catch (error) {
+            console.error('搜索块失败:', error);
+            resultsContainer.innerHTML = `<div style="padding: 8px; text-align: center; color: var(--b3-theme-error);">搜索失败</div>`;
+            resultsContainer.style.display = 'block';
+        }
+    }
+
+    /**
+     * 根据父块自动调整标题层级
+     */
+    private async adjustHeadingLevel(parentBlock: any, levelSelect: HTMLSelectElement) {
+        try {
+            const settings = await this.plugin.loadSettings();
+            const defaultLevel = settings.defaultHeadingLevel || 3;
+
+            if (parentBlock.type === 'h') {
+                // 父块是标题，新标题层级 = 父层级 + 1
+                const parentLevel = parseInt(parentBlock.subtype.replace('h', ''));
+                const newLevel = Math.min(parentLevel + 1, 6); // 最大H6
+                levelSelect.value = newLevel.toString();
+            } else {
+                // 父块是文档，使用默认层级
+                levelSelect.value = defaultLevel.toString();
+            }
+        } catch (error) {
+            console.error('调整标题层级失败:', error);
+        }
+    }
+
+    /**
+     * 创建标题
+     */
+    private async createHeading(
+        content: string,
+        parentId: string,
+        level: number,
+        position: 'prepend' | 'append'
+    ): Promise<string> {
+        try {
+            const { prependBlock, appendBlock, getBlockByID } = await import("../api");
+
+            // 格式化标题内容
+            const hashes = '#'.repeat(level);
+            const markdownContent = `${hashes} ${content}`;
+
+            // 检查父块类型
+            const parentBlock = await getBlockByID(parentId);
+            if (!parentBlock) {
+                throw new Error('父块不存在');
+            }
+
+            let response: any;
+
+            if (position === 'prepend') {
+                // 插入到最前
+                response = await prependBlock('markdown', markdownContent, parentId);
+            } else {
+                // 插入到最后
+                response = await appendBlock('markdown', markdownContent, parentId);
+            }
+
+            // 提取插入的块ID
+            if (response && response[0]?.doOperations?.[0]?.id) {
+                return response[0].doOperations[0].id;
+            }
+
+            throw new Error('创建标题失败：无法获取新建块ID');
+        } catch (error) {
+            console.error('创建标题失败:', error);
             throw error;
         }
     }

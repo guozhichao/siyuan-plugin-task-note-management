@@ -82,6 +82,8 @@ export const DEFAULT_SETTINGS = {
     autoDetectDateTime: false, // 新增：是否自动识别日期时间
     newDocNotebook: '', // 新增：新建文档的笔记本ID
     newDocPath: '/{{now | date "2006-01-02"}}/', // 新增：新建文档的路径模板，支持sprig语法
+    defaultHeadingLevel: 3, // 新增：新建标题的默认层级（1-6），默认为3级标题
+    defaultHeadingPosition: 'prepend', // 新增：新建标题的默认位置（'prepend' | 'append'），默认为最前
     weekStartDay: 1, // 新增：周视图的一周开始日 (0=周日, 1=周一，默认周一)
     // 控制侧边栏显示
     enableReminderDock: true, // 侧边栏：提醒（任务管理）
