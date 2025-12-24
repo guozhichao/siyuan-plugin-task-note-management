@@ -3,8 +3,6 @@
     import { Dialog } from 'siyuan';
     import SettingPanel from '@/libs/components/setting-panel.svelte';
     import { t } from './utils/i18n';
-    import * as ics from 'ics';
-    import { lunarToSolar, solarToLunar } from './utils/lunarUtils';
     import {
         DEFAULT_SETTINGS,
         SETTINGS_FILE,
