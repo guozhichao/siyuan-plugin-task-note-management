@@ -519,6 +519,32 @@ export const getFileBlob = async (path: string): Promise<Blob | null> => {
     return data;
 }
 
+export const getFileStat = async (path: string): Promise<{ mtime: number } | null> => {
+    // Extract directory and filename from path
+    const lastSlashIndex = path.lastIndexOf('/');
+    if (lastSlashIndex === -1) {
+        return null; // Invalid path
+    }
+    const dir = path.substring(0, lastSlashIndex);
+    const filename = path.substring(lastSlashIndex + 1);
+
+    try {
+        const dirData = await readDir(dir);
+        if (!dirData || !Array.isArray(dirData)) {
+            return null;
+        }
+        const fileEntry = dirData.find(entry => entry.name === filename);
+        if (!fileEntry || fileEntry.isDir) {
+            return null;
+        }
+        // updated is in seconds, convert to milliseconds
+        return { mtime: fileEntry.updated * 1000 };
+    } catch (error) {
+        console.warn('getFileStat failed:', error);
+        return null;
+    }
+}
+
 
 export async function putFile(path: string, isDir: boolean, file: any) {
     let form = new FormData();

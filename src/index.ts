@@ -29,6 +29,7 @@ import { ProjectKanbanView } from "./components/ProjectKanbanView";
 import { PomodoroManager } from "./utils/pomodoroManager";
 import SettingPanelComponent from "./SettingPanel.svelte";
 import { exportIcsFile, uploadIcsToCloud } from "./utils/icsUtils";
+import { getFileStat } from "./api";
 
 export const SETTINGS_FILE = "reminder-settings.json";
 export const PROJECT_DATA_FILE = "project.json";
@@ -4121,6 +4122,17 @@ export default class ReminderPlugin extends Plugin {
         try {
             const settings = await this.loadSettings();
             if (!settings.icsSyncEnabled) return;
+
+            // 检查reminder.json是否有新事件
+            const reminderPath = 'data/storage/petal/siyuan-plugin-task-note-management/reminder.json';
+            const stat = await getFileStat(reminderPath);
+            const lastSync = settings.icsLastSyncAt ? new Date(settings.icsLastSyncAt).getTime() : 0;
+            if (stat && stat.mtime <= lastSync) {
+                // 没有新事件，只更新同步时间
+                settings.icsLastSyncAt = new Date().toISOString();
+                await this.saveData(SETTINGS_FILE, settings);
+                return;
+            }
 
             await uploadIcsToCloud(this, settings);
         } catch (error) {
