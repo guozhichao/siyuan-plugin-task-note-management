@@ -15,7 +15,7 @@
         HABIT_GROUP_DATA_FILE,
         STATUSES_DATA_FILE,
     } from './index';
-    import { lsNotebooks, pushErrMsg, pushMsg, removeFile, putFile } from './api';
+    import { lsNotebooks, pushErrMsg, pushMsg, removeFile } from './api';
     import { Constants } from 'siyuan';
     import { exportIcsFile, uploadIcsToCloud } from './utils/icsUtils';
     import { importIcsFile } from './utils/icsImport';
@@ -181,7 +181,7 @@
             ],
         },
         {
-            name: '✅' + t('timeReminder'),
+            name: '✅任务笔记创建',
             items: [
                 {
                     key: 'newDocNotebook',
@@ -203,6 +203,32 @@
                     type: 'textinput',
                     title: t('newDocPath'),
                     description: t('newDocPathDesc'),
+                },
+                {
+                    key: 'defaultHeadingLevel',
+                    value: settings.defaultHeadingLevel,
+                    type: 'select',
+                    title: t('defaultHeadingLevel'),
+                    description: t('defaultHeadingLevelDesc'),
+                    options: {
+                        1: '1',
+                        2: '2',
+                        3: '3',
+                        4: '4',
+                        5: '5',
+                        6: '6',
+                    },
+                },
+                {
+                    key: 'defaultHeadingPosition',
+                    value: settings.defaultHeadingPosition,
+                    type: 'select',
+                    title: t('defaultHeadingPosition'),
+                    description: t('defaultHeadingPositionDesc'),
+                    options: {
+                        'prepend': t('prepend'),
+                        'append': t('append'),
+                    },
                 },
             ],
         },
@@ -1594,6 +1620,7 @@
                 data-name="editor"
                 class:b3-list-item--focus={group.name === focusGroup}
                 class="b3-list-item"
+                role="button"
                 on:click={() => {
                     focusGroup = group.name;
                 }}
