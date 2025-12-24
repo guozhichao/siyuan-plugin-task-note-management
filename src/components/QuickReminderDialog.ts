@@ -1932,7 +1932,7 @@ export class QuickReminderDialog {
             }
         });
 
-        // 规范化 quickBlockInput：当用户直接粘贴 ((id 'title')) 或链接时，自动替换为纯 id
+        // 规范化 quickBlockInput：当用户直接粘贴 ((id 'title')) 或链接时，自动替换为纯 id 并设置标题
         const quickBlockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
         if (quickBlockInput) {
             let isAutoSetting = false;
@@ -1943,12 +1943,43 @@ export class QuickReminderDialog {
                     this.updateBlockPreview('');
                     return;
                 }
-                const id = this.extractBlockId(raw);
-                if (id && id !== raw && (raw.includes('((') || raw.includes('siyuan://blocks/') || raw.includes(']('))) {
+
+                const blockRefRegex = /\(\(([\w\-]+)\s+'(.*)'\)\)/;
+                const blockLinkRegex = /\[(.*)\]\(siyuan:\/\/blocks\/([\w\-]+)\)/;
+                const urlRegex = /siyuan:\/\/blocks\/([\w\-]+)/;
+
+                let blockId: string | null = null;
+                let extractedTitle: string | null = null;
+
+                let match = raw.match(blockRefRegex);
+                if (match) {
+                    blockId = match[1];
+                    extractedTitle = match[2];
+                } else {
+                    match = raw.match(blockLinkRegex);
+                    if (match) {
+                        extractedTitle = match[1];
+                        blockId = match[2];
+                    } else {
+                        match = raw.match(urlRegex);
+                        if (match) {
+                            blockId = match[1];
+                        }
+                    }
+                }
+
+                if (blockId && (raw.includes('((') || raw.includes('siyuan://blocks/') || raw.includes(']('))) {
                     try {
                         isAutoSetting = true;
-                        quickBlockInput.value = id;
-                        this.updateBlockPreview(id);
+                        quickBlockInput.value = blockId;
+
+                        // 如果标题输入框为空，自动设置标题
+                        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+                        if (titleInput && extractedTitle && (!titleInput.value || titleInput.value.trim().length === 0)) {
+                            titleInput.value = extractedTitle;
+                        }
+
+                        this.updateBlockPreview(blockId);
                     } finally {
                         setTimeout(() => { isAutoSetting = false; }, 0);
                     }
