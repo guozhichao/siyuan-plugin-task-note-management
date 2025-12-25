@@ -133,13 +133,6 @@
                     title: t('dailyNotificationEnabled'),
                     description: t('dailyNotificationEnabledDesc'),
                 },
-                {
-                    key: 'autoDetectDateTime',
-                    value: settings.autoDetectDateTime,
-                    type: 'checkbox',
-                    title: t('autoDetectDateTime'),
-                    description: t('autoDetectDateTimeDesc'),
-                },
             ],
         },
         {
@@ -183,6 +176,13 @@
         {
             name: '✅任务笔记设置',
             items: [
+                {
+                    key: 'autoDetectDateTime',
+                    value: settings.autoDetectDateTime,
+                    type: 'checkbox',
+                    title: t('autoDetectDateTime'),
+                    description: t('autoDetectDateTimeDesc'),
+                },
                 {
                     key: 'newDocNotebook',
                     value: settings.newDocNotebook,
