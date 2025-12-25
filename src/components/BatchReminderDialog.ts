@@ -1,6 +1,6 @@
 import { Dialog, showMessage } from "siyuan";
 import { t } from "../utils/i18n";
-import { ensureReminderDataFile, updateBlockReminderBookmark, getBlockByID, getBlockDOM } from "../api";
+import { ensureReminderDataFile, updateBlockReminderBookmark, getBlockByID } from "../api";
 import { getRepeatDescription } from "../utils/repeatUtils";
 import { getLocalDateString, getLocalTimeString, getLogicalDateString } from "../utils/dateUtils";
 import { RepeatConfig, RepeatSettingsDialog } from "./RepeatSettingsDialog";
@@ -29,6 +29,7 @@ export interface BlockDetail {
 export interface AutoDetectResult {
     blockId: string;
     content: string;
+    note?: string;
     date?: string;
     time?: string;
     hasTime?: boolean;
@@ -179,34 +180,99 @@ export class BatchReminderDialog {
 
     async autoDetectBatchDateTime(blockIds: string[]): Promise<AutoDetectResult[]> {
         const results = [];
+        const { getBlockByID, getChildBlocks, exportMdContent } = await import("../api");
+
+        // 第一步：识别所有应该被跳过的子块ID
+        const blocksToSkip = new Set<string>();
 
         for (const blockId of blockIds) {
             try {
-                const { getBlockByID } = await import("../api");
+                const block = await getBlockByID(blockId);
+                if (block && block.type === 'h') {
+                    // 获取这个标题的所有子块
+                    const childRes = await getChildBlocks(blockId);
+                    const childIds = childRes ? childRes.map(c => c.id) : [];
+
+                    // 如果子块也在选中列表中，标记为需要跳过
+                    for (const childId of childIds) {
+                        if (blockIds.includes(childId)) {
+                            blocksToSkip.add(childId);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error(`检查块 ${blockId} 的子块失败:`, error);
+            }
+        }
+
+        // 第二步：处理未被跳过的块
+        for (const blockId of blockIds) {
+            // 跳过子块
+            if (blocksToSkip.has(blockId)) {
+                continue;
+            }
+            try {
                 const block = await getBlockByID(blockId);
 
                 if (block) {
-                    let content;
-                    try {
-                        const domString = await getBlockDOM(blockId);
-                        const parser = new DOMParser();
-                        const dom = parser.parseFromString(domString.dom, 'text/html');
-                        const element = dom.querySelector('div[data-type="NodeParagraph"]');
-                        if (element) {
-                            const attrElement = element.querySelector('div.protyle-attr');
-                            if (attrElement) {
-                                attrElement.remove();
+                    let exportedContent = '';
+
+                    // 导出块内容
+                    const res = await exportMdContent(blockId);
+                    exportedContent = res?.content || '';
+
+                    // 统一处理：第一行作为标题，其余行作为备注
+                    let content = '';
+                    let note = '';
+
+                    if (exportedContent) {
+                        const originalLines = exportedContent.split('\n');
+                        const lines = originalLines.map(line => line.trim()).filter(line => line.length > 0);
+                        if (lines.length > 0) {
+                            const firstLine = lines[0];
+                            if (firstLine.startsWith('#')) {
+                                // 如果第一行是标题，去掉#号作为标题，其余作为备注
+                                content = firstLine.replace(/^#+\s*/, '').trim();
+                                // 备注保留原始格式（包括缩进）
+                                const firstLineIndex = originalLines.findIndex(line => line.trim() === firstLine);
+                                if (firstLineIndex >= 0 && firstLineIndex < originalLines.length - 1) {
+                                    note = originalLines.slice(firstLineIndex + 1).join('\n').trim();
+                                }
+                            } else {
+                                // 如果第一行不是标题，去掉列表标记后作为标题，其余作为备注
+                                // 处理列表标记：- * + 1. 等
+                                content = firstLine.replace(/^[-*+]\s+/, '').replace(/^\d+\.\s+/, '').trim();
+
+                                // 备注保留原始格式（包括缩进和列表标记）
+                                const firstLineIndex = originalLines.findIndex(line => line.trim() === firstLine);
+                                if (firstLineIndex >= 0 && firstLineIndex < originalLines.length - 1) {
+                                    note = originalLines.slice(firstLineIndex + 1).join('\n').trim();
+                                }
                             }
                         }
-                        content = element ? element.textContent.trim() : (block?.fcontent || block?.content);
-                    } catch (e) {
-                        content = block?.fcontent || block?.content;
                     }
-                    const autoDetected = this.autoDetectDateTimeFromTitle(content);
+
+                    // 从标题中识别日期
+                    const titleAuto = this.autoDetectDateTimeFromTitle(content);
+                    // 从备注中识别日期，如果标题没有
+                    let date = titleAuto.date;
+                    let time = titleAuto.time;
+                    let hasTime = titleAuto.hasTime;
+                    if (!date) {
+                        const contentAuto = this.autoDetectDateTimeFromTitle(note);
+                        date = contentAuto.date;
+                        time = contentAuto.time;
+                        hasTime = contentAuto.hasTime;
+                    }
+
                     results.push({
                         blockId,
                         content: content,
-                        ...autoDetected
+                        note: note,
+                        date,
+                        time,
+                        hasTime,
+                        cleanTitle: titleAuto.cleanTitle
                     });
                 }
             } catch (error) {
@@ -224,41 +290,102 @@ export class BatchReminderDialog {
 
     private async getBlockDetails(blockIds: string[]): Promise<BlockDetail[]> {
         const details = [];
+        const { getBlockByID, getChildBlocks, exportMdContent } = await import("../api");
+
+        // 第一步：识别所有应该被跳过的子块ID
+        const blocksToSkip = new Set<string>();
 
         for (const blockId of blockIds) {
             try {
-                const { getBlockByID } = await import("../api");
+                const block = await getBlockByID(blockId);
+                if (block && block.type === 'h') {
+                    // 获取这个标题的所有子块
+                    const childRes = await getChildBlocks(blockId);
+                    const childIds = childRes ? childRes.map(c => c.id) : [];
+
+                    // 如果子块也在选中列表中，标记为需要跳过
+                    for (const childId of childIds) {
+                        if (blockIds.includes(childId)) {
+                            blocksToSkip.add(childId);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error(`检查块 ${blockId} 的子块失败:`, error);
+            }
+        }
+
+        // 第二步：处理未被跳过的块
+        for (const blockId of blockIds) {
+            // 跳过子块
+            if (blocksToSkip.has(blockId)) {
+                continue;
+            }
+            try {
                 const block = await getBlockByID(blockId);
 
                 if (block) {
-                    let content;
-                    try {
-                        const domString = await getBlockDOM(blockId);
-                        const parser = new DOMParser();
-                        const dom = parser.parseFromString(domString.dom, 'text/html');
-                        const element = dom.querySelector('div[data-type="NodeParagraph"]');
-                        if (element) {
-                            const attrElement = element.querySelector('div.protyle-attr');
-                            if (attrElement) {
-                                attrElement.remove();
+                    let exportedContent = '';
+
+                    // 导出块内容
+                    const res = await exportMdContent(blockId);
+                    exportedContent = res?.content || block?.fcontent || block?.content || '';
+
+                    // 统一处理：第一行作为标题，其余行作为备注
+                    let content = '';
+                    let note = '';
+
+                    if (exportedContent) {
+                        const originalLines = exportedContent.split('\n');
+                        const lines = originalLines.map(line => line.trim()).filter(line => line.length > 0);
+                        if (lines.length > 0) {
+                            const firstLine = lines[0];
+                            if (firstLine.startsWith('#')) {
+                                // 如果第一行是标题，去掉#号作为标题，其余作为备注
+                                content = firstLine.replace(/^#+\s*/, '').trim();
+                                // 备注保留原始格式（包括缩进）
+                                const firstLineIndex = originalLines.findIndex(line => line.trim() === firstLine);
+                                if (firstLineIndex >= 0 && firstLineIndex < originalLines.length - 1) {
+                                    note = originalLines.slice(firstLineIndex + 1).join('\n').trim();
+                                }
+                            } else {
+                                // 如果第一行不是标题，去掉列表标记后作为标题，其余作为备注
+                                // 处理列表标记：- * + 1. 等
+                                content = firstLine.replace(/^[-*+]\s+/, '').replace(/^\d+\.\s+/, '').trim();
+
+                                // 备注保留原始格式（包括缩进和列表标记）
+                                const firstLineIndex = originalLines.findIndex(line => line.trim() === firstLine);
+                                if (firstLineIndex >= 0 && firstLineIndex < originalLines.length - 1) {
+                                    note = originalLines.slice(firstLineIndex + 1).join('\n').trim();
+                                }
                             }
                         }
-                        content = element ? element.textContent.trim() : (block?.fcontent || block?.content);
-                    } catch (e) {
-                        content = block?.fcontent || block?.content;
                     }
-                    const autoDetected = this.autoDetectDateTimeFromTitle(content);
+
+                    // 从标题中识别日期
+                    const titleAuto = this.autoDetectDateTimeFromTitle(content);
+                    // 从备注中识别日期，如果标题没有
+                    let date = titleAuto.date;
+                    let time = titleAuto.time;
+                    let hasTime = titleAuto.hasTime;
+                    if (!date) {
+                        const contentAuto = this.autoDetectDateTimeFromTitle(note);
+                        date = contentAuto.date;
+                        time = contentAuto.time;
+                        hasTime = contentAuto.hasTime;
+                    }
+
                     details.push({
                         blockId,
                         content: content,
                         docId: block.root_id || blockId,
-                        ...autoDetected,
-                        selectedDate: autoDetected.date || getLogicalDateString(),
-                        selectedTime: autoDetected.time || '',
-                        hasTime: autoDetected.hasTime || false,
+                        ...titleAuto,
+                        selectedDate: date || getLogicalDateString(),
+                        selectedTime: time || '',
+                        hasTime: hasTime || false,
                         priority: 'none',
                         categoryId: '',
-                        note: ''
+                        note: note
                     });
                 }
             } catch (error) {
@@ -444,7 +571,7 @@ class SmartBatchDialog {
                 priority: 'none',
                 categoryId: '',
                 projectId: '',
-                note: '',
+                note: data.note || '',
                 repeatConfig: {
                     enabled: false,
                     type: 'daily',
@@ -1009,6 +1136,7 @@ class SmartBatchDialog {
             {
                 mode: 'batch_edit',
                 reminder: tempReminder,
+                defaultNote: setting.note,
                 onSaved: (modifiedReminder) => {
                     // 将修改后的 reminder 映射回 BlockSetting
                     if (modifiedReminder) {
