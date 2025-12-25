@@ -3215,14 +3215,14 @@ export default class ReminderPlugin extends Plugin {
             const protyleRoot = sourceElement.closest('.protyle');
             if (protyleRoot) {
                 const titleElement = protyleRoot.querySelector('.protyle-top .protyle-title.protyle-wysiwyg--attr') ||
-                                   protyleRoot.querySelector('.protyle-top .protyle-title');
+                    protyleRoot.querySelector('.protyle-top .protyle-title');
                 return titleElement?.querySelector('div.protyle-attr') || titleElement;
             }
         } else {
             // 普通块：优先使用 protyle-attr
             return blockEl.querySelector('div.protyle-attr') ||
-                   blockEl.querySelector('.protyle-title') ||
-                   blockEl.firstElementChild as HTMLElement;
+                blockEl.querySelector('.protyle-title') ||
+                blockEl.firstElementChild as HTMLElement;
         }
 
         return null;
