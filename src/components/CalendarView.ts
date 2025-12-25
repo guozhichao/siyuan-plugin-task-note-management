@@ -727,7 +727,13 @@ export class CalendarView {
                     });
                 });
             }
-
+            options.push({
+                value: 'project_group',
+                text: '📂 项目',
+                group: 'projects',
+                disabled: true,
+                indent: 0
+            });
             // 添加项目分组 - 按状态分组（排除归档状态）
             if (projectData && Object.keys(projectData).length > 0) {
                 // 按状态分组项目，排除归档状态
@@ -761,16 +767,16 @@ export class CalendarView {
                             text: `${status.icon || ''} ${status.name}`,
                             group: 'projects',
                             disabled: true,
-                            indent: 0
+                            indent: 1
                         });
 
-                        // 添加该状态下的项目
+                        // 添加该状态下的项目（在项目分组下再缩进一级）
                         statusProjects.forEach(project => {
                             options.push({
                                 value: `project:${project.id}`,
                                 text: project.title || '未命名项目',
                                 group: 'projects',
-                                indent: 1
+                                indent: 2
                             });
                         });
                     }
