@@ -545,10 +545,14 @@ export class CalendarView {
                     const minutesFromMin = Math.round((clampedY / rect.height) * totalMinutes);
 
                     startDate = new Date(`${dateStr}T00:00:00`);
-                    const m = slotMin + minutesFromMin;
+                    let m = slotMin + minutesFromMin;
+                    // 吸附到5分钟步长，避免出现如 19:03 之类的时间
+                    m = Math.round(m / 5) * 5;
                     const hh = Math.floor(m / 60);
                     const mm = m % 60;
                     startDate.setHours(hh, mm, 0, 0);
+                    // 额外确保秒和毫秒为0，并做一次稳定的吸附
+                    startDate = this.snapToMinutes(startDate, 5);
                     isAllDay = false;
                 } else {
                     // 月视图或无时间信息：视为全天
@@ -557,7 +561,10 @@ export class CalendarView {
                 }
 
                 const durationMinutes = payload.durationMinutes || 60;
-                const endDate = new Date(startDate.getTime() + durationMinutes * 60000);
+                let endDate = new Date(startDate.getTime() + durationMinutes * 60000);
+                if (!isAllDay) {
+                    endDate = this.snapToMinutes(endDate, 5);
+                }
 
                 // 使用已有的方法更新提醒时间（复用现有逻辑）
                 await this.updateEventTime(reminderId, { event: { start: startDate, end: endDate, allDay: isAllDay } }, false);
@@ -2217,6 +2224,23 @@ export class CalendarView {
         return hours * 60 + minutes;
     }
 
+    /**
+     * 将日期的分钟数吸附到指定步长（默认5分钟）
+     * @param date 要吸附的日期
+     * @param step 分钟步长，默认为5
+     */
+    private snapToMinutes(date: Date, step: number = 5): Date {
+        try {
+            const d = new Date(date);
+            const minutes = d.getMinutes();
+            const snapped = Math.round(minutes / step) * step;
+            d.setMinutes(snapped, 0, 0);
+            return d;
+        } catch (err) {
+            return date;
+        }
+    }
+
     private async updateRecurringEventSeries(info: any) {
         try {
             const originalId = info.event.extendedProps.originalId;
@@ -2383,8 +2407,16 @@ export class CalendarView {
             const originalId = info.event.extendedProps.originalId;
             // 从 instanceId 提取原始日期（格式：originalId_YYYY-MM-DD）
             const originalInstanceDate = info.event.id ? info.event.id.split('_').pop() : info.event.extendedProps.date;
-            const newStartDate = info.event.start;
-            const newEndDate = info.event.end;
+            let newStartDate = info.event.start;
+            let newEndDate = info.event.end;
+
+            // 吸附到5分钟步长，避免出现诸如 19:03 的时间
+            if (newStartDate && !info.event.allDay) {
+                newStartDate = this.snapToMinutes(newStartDate, 5);
+            }
+            if (newEndDate && !info.event.allDay) {
+                newEndDate = this.snapToMinutes(newEndDate, 5);
+            }
 
             // 检查是否需要重置通知状态
             const shouldResetNotified = this.shouldResetNotification(newStartDate, info.event.allDay);
@@ -2461,13 +2493,22 @@ export class CalendarView {
             const reminderData = await getAllReminders(this.plugin);
 
             if (reminderData[reminderId]) {
-                const newStartDate = info.event.start;
+                let newStartDate = info.event.start;
                 let newEndDate = info.event.end;
+
+                // 吸附到5分钟步长，避免出现诸如 19:03 的时间
+                if (newStartDate && !info.event.allDay) {
+                    newStartDate = this.snapToMinutes(newStartDate, 5);
+                }
+                if (newEndDate && !info.event.allDay) {
+                    newEndDate = this.snapToMinutes(newEndDate, 5);
+                }
 
                 // 如果是将全天事件拖动为定时事件，FullCalendar 可能不会提供 end。
                 // 在这种情况下默认使用 1 小时时长，避免刷新后事件变短。
                 if (!newEndDate && !info.event.allDay && info.oldEvent && info.oldEvent.allDay) {
                     newEndDate = new Date(newStartDate.getTime() + 60 * 60 * 1000); // 默认 1 小时
+                    newEndDate = this.snapToMinutes(newEndDate, 5);
                 }
 
                 // 使用本地时间处理日期和时间
