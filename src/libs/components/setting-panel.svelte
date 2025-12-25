@@ -43,6 +43,7 @@
                     options={item?.options}
                     slider={item?.slider}
                     button={item?.button}
+                    disabled={item?.disabled}
                     on:click={onClick}
                     on:changed={onChanged}
                 />

@@ -652,7 +652,7 @@
                     type: 'textinput',
                     title: 'ICS 云端链接',
                     description: '上传成功后自动生成的云端链接',
-                    disabled: true,
+                    disabled: false,
                 },
                 {
                     key: 'icsLastSyncAt',

@@ -18,6 +18,7 @@
     } = { label: value, callback: () => {} };
     export let fnSize: boolean = true; // If the form input is used within setting panel context, it is usually given a fixed width by a class named "fn__size200".
     export let style: string = ""; // Custom style
+    export let disabled: boolean = false;
 
     const dispatch = createEventDispatcher();
 
@@ -49,6 +50,7 @@
         class:fn__size200={fnSize}
         id={key}
         {placeholder}
+        {disabled}
         bind:value={value}
         on:change={changed}
         style={style}
@@ -91,6 +93,7 @@
         class:fn__flex-center={true}
         class:fn__size200={fnSize}
         id="iconPosition"
+        {disabled}
         bind:value={value}
         on:change={changed}
         style={style}
