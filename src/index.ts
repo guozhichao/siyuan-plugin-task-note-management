@@ -1825,6 +1825,22 @@ export default class ReminderPlugin extends Plugin {
             }
         });
 
+        // 添加查看绑定任务菜单项（仅当选中单个块且有custom-bind-reminders属性时显示）
+        if (detail.blockElements && detail.blockElements.length === 1) {
+            const blockElement = detail.blockElements[0];
+            const blockId = blockElement.getAttribute("data-node-id");
+            if (blockId && blockElement.hasAttribute("custom-bind-reminders")) {
+                detail.menu.addItem({
+                    iconHTML: "📋",
+                    label: "查看绑定任务",
+                    click: async () => {
+                        const { BlockRemindersDialog } = await import("./components/BlockRemindersDialog");
+                        const dialog = new BlockRemindersDialog(blockId, this);
+                        await dialog.show();
+                    }
+                });
+            }
+        }
 
     }
 
@@ -3058,6 +3074,9 @@ export default class ReminderPlugin extends Plugin {
             // - 文档的 .protyle-wysiwyg 元素上的属性（文档级别）
             const blocksWithProjectAttrSet = new Set<string>();
             const blockAttrMap = new Map<string, string>();
+            // 同时预扫描是否存在绑定任务的自定义属性 custom-bind-reminders
+            const blocksWithBindAttrSet = new Set<string>();
+            const bindAttrMap = new Map<string, string>();
             // 预扫描具有 custom-task-projectid 的节点，并构建块 ID 与原始属性映射
             try {
                 const nodes = protyle.element.querySelectorAll(projectSelector);
@@ -3081,13 +3100,19 @@ export default class ReminderPlugin extends Plugin {
                         id = el.closest('[data-node-id]')?.getAttribute('data-node-id') || null;
                     }
                     if (!id) return;
-
                     // 获取原始属性值
                     const rawAttr = el.getAttribute('custom-task-projectid');
-                    if (!rawAttr) return;
+                    if (rawAttr) {
+                        blocksWithProjectAttrSet.add(id);
+                        blockAttrMap.set(id, rawAttr);
+                    }
 
-                    blocksWithProjectAttrSet.add(id);
-                    blockAttrMap.set(id, rawAttr);
+                    // 检查 custom-bind-reminders 属性（用于绑定块的快速查看按钮）
+                    const bindRaw = el.getAttribute('custom-bind-reminders');
+                    if (bindRaw !== null) {
+                        blocksWithBindAttrSet.add(id);
+                        bindAttrMap.set(id, bindRaw);
+                    }
                 });
             } catch (err) {
                 console.debug('addBlockProjectButtonsToProtyle - scanning for project attrs failed', err);
@@ -3104,6 +3129,17 @@ export default class ReminderPlugin extends Plugin {
 
                     // 如果无法解析出关联的 block id 或该 block id 当前不再含有 custom-task-projectid，则移除该按钮
                     if (!bid || !blocksWithProjectAttrSet.has(bid)) {
+                        try { btn.remove(); } catch (err) { }
+                    }
+                });
+                // 同样清理查看绑定任务的旧按钮
+                const existingBindBtns = protyle.element.querySelectorAll('.block-bind-reminders-btn');
+                existingBindBtns.forEach(btn => {
+                    const bidFromDataset = (btn as HTMLElement).dataset.blockId || null;
+                    const blockEl = btn.closest('[data-node-id]');
+                    const bidFromDom = blockEl ? blockEl.getAttribute('data-node-id') : null;
+                    const bid = bidFromDataset || bidFromDom;
+                    if (!bid || !blocksWithBindAttrSet.has(bid)) {
                         try { btn.remove(); } catch (err) { }
                     }
                 });
@@ -3335,6 +3371,53 @@ export default class ReminderPlugin extends Plugin {
                             blockEl.appendChild(btn);
                         }
                         console.debug('addBlockProjectButtonsToProtyle - button created for blockId:', blockId, 'projectId:', pid);
+                    }
+
+                    // 如果该块有 custom-bind-reminders 属性，则添加一个查看绑定任务的按钮（如果尚未存在）
+                    try {
+                        const hasBind = blocksWithBindAttrSet.has(blockId) || (blockEl as HTMLElement).hasAttribute('custom-bind-reminders');
+                        if (hasBind) {
+                            // 避免重复创建
+                            if (!blockEl.querySelector('.block-bind-reminders-btn')) {
+                                const bindBtn = document.createElement('button');
+                                bindBtn.className = 'block-bind-reminders-btn block__icon fn__flex-center ariaLabel';
+                                bindBtn.setAttribute('aria-label', '查看绑定任务');
+                                bindBtn.style.cssText = `
+                                    margin-left: 6px;
+                                    padding: 2px;
+                                    border: none;
+                                    background: transparent;
+                                    cursor: pointer;
+                                    border-radius: 3px;
+                                    color: var(--b3-theme-on-background);
+                                    opacity: 0.85;
+                                    transition: all 0.12s ease;
+                                    display: inline-flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    width: 22px;
+                                    height: 22px;
+                                `;
+                                bindBtn.innerHTML = `<span style="font-size:14px;line-height:1">📋</span>`;
+                                bindBtn.dataset.blockId = blockId;
+                                bindBtn.title = '查看绑定任务';
+                                bindBtn.addEventListener('click', async (e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    try {
+                                        const { BlockRemindersDialog } = await import('./components/BlockRemindersDialog');
+                                        const dialog = new BlockRemindersDialog(blockId, this);
+                                        await dialog.show();
+                                    } catch (err) {
+                                        console.error('打开块绑定任务对话框失败:', err);
+                                    }
+                                });
+                                if (container) container.appendChild(bindBtn);
+                                else blockEl.appendChild(bindBtn);
+                            }
+                        }
+                    } catch (err) {
+                        console.debug('addBlockProjectButtonsToProtyle - add bind button failed', err);
                     }
                 }
                 finally {

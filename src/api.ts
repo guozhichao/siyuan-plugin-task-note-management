@@ -402,6 +402,68 @@ export async function removeBlockProjectId(id: BlockId, projectId: string): Prom
     }
 }
 
+// **************************************** Block Reminder IDs Helpers ****************************************
+/**
+ * 解析块属性 custom-bind-reminders 为数组（去重 & 去空格）
+ * @param id block id
+ */
+export async function getBlockReminderIds(id: BlockId): Promise<string[]> {
+    try {
+        const attrs = await getBlockAttrs(id);
+        if (!attrs || typeof attrs !== 'object') return [];
+        const raw = attrs['custom-bind-reminders'] || '';
+        if (!raw) return [];
+        return Array.from(new Set(raw.split(',').map(s => s.trim()).filter(s => s)));
+    } catch (error) {
+        console.warn('getBlockReminderIds failed:', error);
+        return [];
+    }
+}
+
+/**
+ * 将数组写入块属性 custom-bind-reminders（以逗号分隔），如果为空数组则清空属性
+ */
+export async function setBlockReminderIds(id: BlockId, reminderIds: string[]): Promise<any> {
+    try {
+        const csv = reminderIds && reminderIds.length > 0 ? reminderIds.join(',') : '';
+        return await setBlockAttrs(id, { 'custom-bind-reminders': csv });
+    } catch (error) {
+        console.warn('setBlockReminderIds failed:', error);
+        throw error;
+    }
+}
+
+/**
+ * 将单个 reminderId 添加到块的 custom-bind-reminders 属性中（去重）
+ */
+export async function addBlockReminderId(id: BlockId, reminderId: string): Promise<any> {
+    if (!reminderId) return;
+    try {
+        const ids = await getBlockReminderIds(id);
+        if (!ids.includes(reminderId)) {
+            ids.push(reminderId);
+            return await setBlockReminderIds(id, ids);
+        }
+    } catch (error) {
+        console.warn('addBlockReminderId failed:', error);
+        throw error;
+    }
+}
+
+/**
+ * 从块的 custom-bind-reminders 中移除一个 reminderId，如果最后为空数组则清空属性
+ */
+export async function removeBlockReminderId(id: BlockId, reminderId: string): Promise<any> {
+    try {
+        const ids = await getBlockReminderIds(id);
+        const filtered = ids.filter(r => r !== reminderId);
+        return await setBlockReminderIds(id, filtered);
+    } catch (error) {
+        console.warn('removeBlockReminderId failed:', error);
+        throw error;
+    }
+}
+
 // **************************************** SQL ****************************************
 
 export async function sql(sql: string): Promise<any[]> {
@@ -953,6 +1015,12 @@ export async function updateBlockReminderBookmark(blockId: string): Promise<void
             } catch (err) {
                 console.warn('clear block project ids failed for', blockId, err);
             }
+            // 清理 custom-bind-reminders 属性
+            try {
+                await setBlockReminderIds(blockId, []);
+            } catch (err) {
+                console.warn('clear block reminder ids failed for', blockId, err);
+            }
             return;
         }
 
@@ -969,6 +1037,15 @@ export async function updateBlockReminderBookmark(blockId: string): Promise<void
         } else {
             // 其他情况，移除书签
             await removeBlockBookmark(blockId);
+        }
+
+        // ----- 同步 custom-bind-reminders 属性 -----
+        // 收集该块所有提醒的ID
+        try {
+            const reminderIds = blockReminders.map((r: any) => r.id).filter(id => id);
+            await setBlockReminderIds(blockId, reminderIds);
+        } catch (err) {
+            console.warn('sync block reminder ids failed for', blockId, err);
         }
 
         // ----- 同步 custom-task-projectId 属性 -----
