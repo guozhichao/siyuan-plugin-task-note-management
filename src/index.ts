@@ -131,6 +131,10 @@ export const DEFAULT_SETTINGS = {
     s3TlsVerify: true, // S3 TLS证书验证，true为启用验证（默认），false为禁用验证
     s3CustomDomain: '', // S3 自定义域名，用于生成外链
     enableOutlinePrefix: true, // 是否在大纲中为绑定标题添加任务状态前缀
+    // 数据迁移标记
+    datatransfer: {
+        bindblockAddAttr: false, // 是否已迁移绑定块的 custom-bind-reminders 属性
+    },
 };
 
 export default class ReminderPlugin extends Plugin {
@@ -324,6 +328,9 @@ export default class ReminderPlugin extends Plugin {
 
         // 初始化ICS订阅同步
         this.initIcsSubscriptionSync();
+
+        // 执行数据迁移
+        await this.performDataMigration();
     }
 
     private enableAudioOnUserInteraction() {
@@ -4178,6 +4185,86 @@ export default class ReminderPlugin extends Plugin {
 
         if (changed) {
             await saveSubscriptions(this, data);
+        }
+    }
+
+    /**
+     * 执行数据迁移
+     */
+    private async performDataMigration() {
+        try {
+            const settings = await this.loadSettings();
+
+            // 检查是否需要迁移绑定块属性
+            if (!settings.datatransfer?.bindblockAddAttr) {
+                console.log('开始迁移绑定块属性...');
+                await this.migrateBindBlockAttributes();
+                console.log('绑定块属性迁移完成');
+
+                // 标记迁移完成
+                settings.datatransfer = settings.datatransfer || {};
+                settings.datatransfer.bindblockAddAttr = true;
+                await this.saveData(SETTINGS_FILE, settings);
+            }
+        } catch (error) {
+            console.error('数据迁移失败:', error);
+        }
+    }
+
+    /**
+     * 迁移绑定块属性：为绑定了提醒的块添加 custom-bind-reminders 属性
+     */
+    private async migrateBindBlockAttributes() {
+        try {
+            const { readReminderData, setBlockAttrs } = await import('./api');
+            const reminderData = await readReminderData();
+
+            if (!reminderData || typeof reminderData !== 'object') {
+                console.log('没有找到提醒数据，跳过迁移');
+                return;
+            }
+
+            let migratedCount = 0;
+
+            // 遍历所有提醒，找到绑定到块的提醒
+            for (const [reminderId, reminder] of Object.entries(reminderData) as [string, any][]) {
+                if (!reminder || !reminder.blockId) continue;
+
+                try {
+                    // 检查块是否已经有 custom-bind-reminders 属性
+                    const blockElement = document.querySelector(`[data-node-id="${reminder.blockId}"]`);
+                    if (!blockElement) continue;
+
+                    const existingAttr = blockElement.getAttribute('custom-bind-reminders');
+                    if (existingAttr) {
+                        // 如果已经存在，检查是否包含当前提醒ID
+                        const existingIds = existingAttr.split(',').map(s => s.trim());
+                        if (existingIds.includes(reminderId)) {
+                            continue; // 已经包含，跳过
+                        }
+                        // 添加新的提醒ID
+                        existingIds.push(reminderId);
+                        await setBlockAttrs(reminder.blockId, {
+                            'custom-bind-reminders': existingIds.join(',')
+                        });
+                    } else {
+                        // 不存在，设置新的属性
+                        await setBlockAttrs(reminder.blockId, {
+                            'custom-bind-reminders': reminderId
+                        });
+                    }
+
+                    migratedCount++;
+                } catch (error) {
+                    console.warn(`迁移块 ${reminder.blockId} 的属性失败:`, error);
+                }
+            }
+
+            console.log(`成功迁移了 ${migratedCount} 个绑定块的属性`);
+
+        } catch (error) {
+            console.error('迁移绑定块属性时出错:', error);
+            throw error;
         }
     }
 }
