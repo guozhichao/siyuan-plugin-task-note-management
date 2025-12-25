@@ -1287,6 +1287,40 @@ export class QuickReminderDialog {
             // 设置默认值：优先使用 this.blockContent，其次使用 this.defaultTitle
             if (this.blockContent && titleInput) {
                 titleInput.value = this.blockContent;
+
+                // 如果启用了自动识别，从标题中提取日期/时间并填充到输入框
+                if (this.autoDetectDateTime) {
+                    try {
+                        const detected = this.autoDetectDateTimeFromTitle(this.blockContent);
+                        if (detected && detected.date) {
+                            const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
+                            const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
+
+                            if (detected.hasTime && detected.time) {
+                                // 确保显示带时间的输入控件并填充 datetime-local
+                                this.toggleDateTimeInputs(false);
+                                if (dateInput) {
+                                    dateInput.value = `${detected.date}T${detected.time}`;
+                                }
+                                if (noTimeCheckbox) noTimeCheckbox.checked = false;
+                            } else {
+                                // 仅日期
+                                this.toggleDateTimeInputs(true);
+                                if (dateInput) {
+                                    dateInput.value = detected.date as string;
+                                }
+                                if (noTimeCheckbox) noTimeCheckbox.checked = true;
+                            }
+
+                            // 使用清理后的标题替换输入框内容（如果有）
+                            if (detected.cleanTitle && detected.cleanTitle.trim()) {
+                                titleInput.value = detected.cleanTitle;
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('自动识别标题日期失败:', err);
+                    }
+                }
             } else if (this.defaultTitle && titleInput) {
                 titleInput.value = this.defaultTitle;
             }
