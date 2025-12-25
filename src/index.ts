@@ -113,6 +113,7 @@ export const DEFAULT_SETTINGS = {
     // ICS 云端同步配置
     icsSyncInterval: 'daily', // '15min' | 'hourly' | '4hour' | '12hour' | 'daily'
     icsCloudUrl: '',
+    icsLastSyncAt: '', // 上一次上传时间
     icsSyncEnabled: false, // 是否启用ICS云端同步
     icsFormat: 'normal', // 'normal' | 'xiaomi' - ICS格式
     icsFileName: '', // ICS文件名，默认为空时自动生成

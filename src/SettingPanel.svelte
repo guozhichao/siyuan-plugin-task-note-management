@@ -654,6 +654,14 @@
                     description: '上传成功后自动生成的云端链接',
                     disabled: true,
                 },
+                {
+                    key: 'icsLastSyncAt',
+                    value: settings.icsLastSyncAt ? new Date(settings.icsLastSyncAt).toLocaleString() : '',
+                    type: 'textinput',
+                    title: '上一次上传时间',
+                    description: '显示上次成功上传ICS文件的时间',
+                    disabled: true,
+                },
                 // 思源服务器同步配置
 
                 // S3 同步配置
@@ -920,6 +928,9 @@
                         // If this is a select input, use string representation for UI matching
                         if (item.type === 'select') {
                             return typeof v === 'string' ? v : String(v);
+                        }
+                        if (item.key === 'icsLastSyncAt') {
+                            return v ? new Date(v).toLocaleString() : '';
                         }
                         return v;
                     })(),
