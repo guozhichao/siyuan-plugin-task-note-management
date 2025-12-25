@@ -28,7 +28,8 @@ const useShell = async (cmd: 'showItemInFolder' | 'openPath', filePath: string) 
 export async function exportIcsFile(
     plugin: any,
     normalizeForXiaomi: boolean,
-    openFolder: boolean = true
+    openFolder: boolean = true,
+    isSilent: boolean = false
 ) {
     try {
         const dataDir = 'data/storage/petal/siyuan-plugin-task-note-management';
@@ -583,7 +584,9 @@ export async function exportIcsFile(
         if (openFolder) {
             await useShell('showItemInFolder', window.siyuan.config.system.workspaceDir + '/' + outPath);
         }
-        await pushMsg(`ICS 文件已生成: ${outPath} (共 ${events.length} 个事件)`);
+        if (!isSilent) {
+            await pushMsg(`ICS 文件已生成: ${outPath} (共 ${events.length} 个事件)`);
+        }
     } catch (err) {
         console.error('导出 ICS 失败:', err);
         await pushErrMsg('导出 ICS 失败');
@@ -607,7 +610,7 @@ export async function uploadIcsToCloud(plugin: any, settings: any, silent: boole
 
         // 1. 调用 exportIcsFile 生成 ICS 文件
         const isXiaomiFormat = settings.icsFormat === 'xiaomi';
-        await exportIcsFile(plugin, isXiaomiFormat, false);
+        await exportIcsFile(plugin, isXiaomiFormat, false, true);
 
         // 2. 读取生成的 reminders.ics 文件
         const dataDir = 'data/storage/petal/siyuan-plugin-task-note-management';
