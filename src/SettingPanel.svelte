@@ -656,7 +656,9 @@
                 },
                 {
                     key: 'icsLastSyncAt',
-                    value: settings.icsLastSyncAt ? new Date(settings.icsLastSyncAt).toLocaleString() : '',
+                    value: settings.icsLastSyncAt
+                        ? new Date(settings.icsLastSyncAt).toLocaleString()
+                        : '',
                     type: 'textinput',
                     title: '上一次上传时间',
                     description: '显示上次成功上传ICS文件的时间',
