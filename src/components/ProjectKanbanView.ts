@@ -4715,6 +4715,35 @@ export class ProjectKanbanView {
             if (e.dataTransfer) {
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/html', element.outerHTML);
+                // 支持拖动到日历：携带任务的最小必要信息，格式与 ReminderPanel 保持一致
+                try {
+                    const payload = {
+                        id: task.id,
+                        title: task.title || '',
+                        date: task.date || null,
+                        time: task.time || null,
+                        endDate: task.endDate || null,
+                        endTime: task.endTime || null,
+                        durationMinutes: (() => {
+                            try {
+                                if (task.time && task.endTime) {
+                                    const [sh, sm] = (task.time || '00:00').split(':').map(Number);
+                                    const [eh, em] = (task.endTime || task.time || '00:00').split(':').map(Number);
+                                    const s = sh * 60 + (sm || 0);
+                                    const e = eh * 60 + (em || 0);
+                                    return Math.max(1, e - s);
+                                }
+                            } catch (e) { }
+                            return 60;
+                        })()
+                    };
+
+                    e.dataTransfer.setData('application/x-reminder', JSON.stringify(payload));
+                    // 兼容性：也设置纯文本为 id
+                    e.dataTransfer.setData('text/plain', task.id);
+                } catch (err) {
+                    // ignore
+                }
             }
         });
 
@@ -4914,7 +4943,7 @@ export class ProjectKanbanView {
 
                 menu.addItem({
                     iconHTML: "📂",
-                    label: t('setCategory'),
+                    label: "设置分组",
                     submenu: groupMenuItems
                 });
             }

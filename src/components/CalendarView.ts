@@ -561,8 +561,14 @@ export class CalendarView {
                 }
 
                 const durationMinutes = payload.durationMinutes || 60;
-                let endDate = new Date(startDate.getTime() + durationMinutes * 60000);
-                if (!isAllDay) {
+                let endDate: Date;
+                if (isAllDay) {
+                    // 对于全天事件，FullCalendar 要求 end 为排他日期（next day midnight）
+                    // 因此将结束时间设为开始日期的下一天 00:00，避免在后续处理中被减一天后产生比开始早的问题
+                    endDate = new Date(startDate.getTime() + 24 * 60 * 60000);
+                    endDate.setHours(0, 0, 0, 0);
+                } else {
+                    endDate = new Date(startDate.getTime() + durationMinutes * 60000);
                     endDate = this.snapToMinutes(endDate, 5);
                 }
 
