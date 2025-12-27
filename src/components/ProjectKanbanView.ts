@@ -35,7 +35,6 @@ export class ProjectKanbanView {
     private currentSortOrder: 'asc' | 'desc' = 'desc';
     private doneSort: string = 'completedTime';
     private doneSortOrder: 'asc' | 'desc' = 'desc';
-    private showDone: boolean = true; // 改为默认显示已完成任务
     private tasks: any[] = [];
     private isDragging: boolean = false;
     private draggedTask: any = null;
@@ -1280,19 +1279,6 @@ export class ProjectKanbanView {
         pasteTaskBtn.addEventListener('click', () => this.showPasteTaskDialog());
         controlsGroup.appendChild(pasteTaskBtn);
 
-        // 显示/隐藏已完成任务
-        const toggleDoneBtn = document.createElement('button');
-        toggleDoneBtn.className = 'b3-button b3-button--outline';
-        toggleDoneBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconEye"></use></svg> ${this.showDone ? t('hideCompleted') : t('showCompleted')}`;
-        toggleDoneBtn.addEventListener('click', () => {
-            this.showDone = !this.showDone;
-            toggleDoneBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconEye"></use></svg> ${this.showDone ? t('hideCompleted') : t('showCompleted')}`;
-            this.queueLoadTasks();
-        });
-        // 如果当前为自定义分组看板模式，则不显示“隐藏已完成”按钮
-        toggleDoneBtn.style.display = this.kanbanMode === 'custom' ? 'none' : 'inline-flex';
-        controlsGroup.appendChild(toggleDoneBtn);
-
         // 排序按钮
         this.sortButton = document.createElement('button');
         this.sortButton.className = 'b3-button b3-button--outline';
@@ -1385,10 +1371,6 @@ export class ProjectKanbanView {
         this.container.addEventListener('kanbanModeChanged', () => {
             try {
                 manageGroupsBtn.style.display = this.kanbanMode === 'custom' ? 'inline-flex' : 'none';
-                if (toggleDoneBtn) {
-                    // 自定义分组模式下不显示该按钮
-                    toggleDoneBtn.style.display = this.kanbanMode === 'custom' ? 'none' : 'inline-flex';
-                }
             } catch (e) {
                 console.error('Error updating toolbar buttons on kanbanModeChanged:', e);
             }
@@ -2774,13 +2756,9 @@ export class ProjectKanbanView {
         await this.renderStatusColumnWithStableGroups('short_term', shortTermTasks);
         await this.renderStatusColumnWithStableGroups('long_term', longTermTasks);
 
-        if (this.showDone) {
-            const sortedDoneTasks = this.sortDoneTasks(doneTasks);
-            await this.renderStatusColumnWithStableGroups('completed', sortedDoneTasks);
-            this.showColumn('completed');
-        } else {
-            this.hideColumn('completed');
-        }
+        const sortedDoneTasks = this.sortDoneTasks(doneTasks);
+        await this.renderStatusColumnWithStableGroups('completed', sortedDoneTasks);
+        this.showColumn('completed');
     }
 
     private ensureStatusColumnsExist(kanbanContainer: HTMLElement) {
@@ -3835,12 +3813,7 @@ export class ProjectKanbanView {
         }
     }
 
-    private hideColumn(status: string) {
-        const column = this.container.querySelector(`.kanban-column-${status}`) as HTMLElement;
-        if (column) {
-            column.style.display = 'none';
-        }
-    }
+
 
     private createTaskElement(task: any, level: number = 0): HTMLElement {
         const taskEl = document.createElement('div');
