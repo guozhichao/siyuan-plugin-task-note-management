@@ -50,6 +50,8 @@ export class ProjectKanbanView {
     private sortButton: HTMLButtonElement;
     private doneSortButton: HTMLButtonElement;
     private isLoading: boolean = false;
+    private searchKeyword: string = '';
+    private searchInput: HTMLInputElement;
     private collapsedTasks: Set<string> = new Set();
 
     // 分页：每页最多显示的顶层任务数量
@@ -1262,8 +1264,6 @@ export class ProjectKanbanView {
         controlsGroup.style.cssText = `
             display: flex;
             align-items: center;
-            gap: 8px;
-            margin-left: auto;
         `;
 
         // 新建任务按钮
@@ -1285,6 +1285,79 @@ export class ProjectKanbanView {
         this.sortButton.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconSort"></use></svg>';
         this.sortButton.addEventListener('click', (e) => this.showSortMenu(e));
         controlsGroup.appendChild(this.sortButton);
+
+        // 搜索按钮和输入框
+        const searchContainer = document.createElement('div');
+        searchContainer.className = 'kanban-search-container';
+        searchContainer.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            position: relative;
+        `;
+
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.className = 'b3-text-field search-input';
+        searchInput.placeholder = t('searchReminders');
+        searchInput.style.cssText = `
+            width: 0;
+            padding: 4px 0;
+            border: none;
+            transition: all 0.2s ease-in-out;
+            opacity: 0;
+            visibility: hidden;
+            font-size: 14px;
+            background: var(--b3-theme-surface);
+            color: var(--b3-theme-on-surface);
+        `;
+        this.searchInput = searchInput;
+
+        const searchBtn = document.createElement('button');
+        searchBtn.className = 'b3-button b3-button--outline search-btn';
+        searchBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconSearch"></use></svg>';
+        searchBtn.title = t('searchReminders');
+
+        searchBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isHidden = searchInput.style.visibility === 'hidden';
+            if (isHidden) {
+                searchInput.style.width = '150px';
+                searchInput.style.padding = '4px 8px';
+                searchInput.style.opacity = '1';
+                searchInput.style.visibility = 'visible';
+                searchInput.focus();
+            } else {
+                searchInput.style.width = '0';
+                searchInput.style.padding = '4px 0';
+                searchInput.style.opacity = '0';
+                setTimeout(() => { searchInput.style.visibility = 'hidden'; }, 200);
+                if (this.searchKeyword) {
+                    this.searchKeyword = '';
+                    searchInput.value = '';
+                    this.queueLoadTasks();
+                }
+            }
+        });
+
+        searchInput.addEventListener('input', () => {
+            this.searchKeyword = searchInput.value.trim();
+            this.queueLoadTasks();
+        });
+
+        // 点击外部关闭搜索框（如果为空）
+        document.addEventListener('click', (e) => {
+            if (!searchContainer.contains(e.target as Node) && !this.searchKeyword && searchInput.style.visibility !== 'hidden') {
+                searchInput.style.width = '0';
+                searchInput.style.padding = '4px 0';
+                searchInput.style.opacity = '0';
+                setTimeout(() => { searchInput.style.visibility = 'hidden'; }, 200);
+            }
+        });
+
+        searchContainer.appendChild(searchInput);
+        searchContainer.appendChild(searchBtn);
+        controlsGroup.appendChild(searchContainer);
 
         // 刷新按钮
         const refreshBtn = document.createElement('button');
@@ -1943,6 +2016,33 @@ export class ProjectKanbanView {
                     focusTime: focusTime || 0
                 };
             }));
+
+            // [NEW] 搜索过滤逻辑
+            if (this.searchKeyword) {
+                const keywords = this.searchKeyword.toLowerCase().split(/\s+/).filter(k => !!k);
+                const matches = (t: any) => {
+                    const title = (t.title || '').toLowerCase();
+                    const note = (t.note || '').toLowerCase();
+                    const combined = `${title} ${note}`;
+                    return keywords.every(k => combined.includes(k));
+                };
+
+                const matchingIds = new Set<string>();
+                const taskMap = new Map(this.tasks.map(t => [t.id, t]));
+
+                this.tasks.forEach(t => {
+                    if (matches(t)) {
+                        // 匹配的任务及其所有祖先都需要保留，以维持层级显示
+                        let current = t;
+                        while (current) {
+                            matchingIds.add(current.id);
+                            current = current.parentId ? taskMap.get(current.parentId) : null;
+                        }
+                    }
+                });
+
+                this.tasks = this.tasks.filter(t => matchingIds.has(t.id));
+            }
 
             this.sortTasks();
 
@@ -6509,22 +6609,24 @@ export class ProjectKanbanView {
 
             .project-kanban-toolbar {
                 display: flex;
-                align-items: center;
-                padding: 12px 16px;
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 16px 24px;
                 border-bottom: 1px solid var(--b3-theme-border);
                 background: var(--b3-theme-surface);
                 gap: 16px;
-                flex-wrap: wrap;
             }
 
             .project-kanban-title {
-                flex: 1;
+                width: 100%;
+                border-bottom: 1px solid var(--b3-theme-border);
             }
 
             .project-kanban-controls {
+                width: 100%;
                 display: flex;
                 align-items: center;
-                gap: 8px;
+                gap: 12px;
                 flex-wrap: wrap;
             }
 
