@@ -56,7 +56,7 @@ export class ProjectKanbanView {
     // 分页：每页最多显示的顶层任务数量
     private pageSize: number = 30;
     // 存储每列当前页，key 为 status ('long_term'|'short_term'|'doing'|'done')
-    private pageIndexMap: { [status: string]: number } = { long_term: 1, short_term: 1, doing: 1, done: 1 };
+    private pageIndexMap: { [status: string]: number } = { long_term: 1, short_term: 1, doing: 1, completed: 1 };
 
     // 自定义分组子分组折叠状态跟踪，key 为 "groupId-status" 格式
     private collapsedStatusGroups: Set<string> = new Set();
@@ -1404,7 +1404,7 @@ export class ProjectKanbanView {
         this.createKanbanColumn(kanbanContainer, 'doing', t('doing'), '#f39c12');
         this.createKanbanColumn(kanbanContainer, 'short_term', t('shortTerm'), '#3498db');
         this.createKanbanColumn(kanbanContainer, 'long_term', t('longTerm'), '#9b59b6');
-        this.createKanbanColumn(kanbanContainer, 'done', t('done'), '#27ae60');
+        this.createKanbanColumn(kanbanContainer, 'completed', t('done'), '#27ae60');
 
         // 添加自定义样式
         this.addCustomStyles();
@@ -1448,7 +1448,7 @@ export class ProjectKanbanView {
             doing: '⏳',
             short_term: '📋',
             long_term: '🤔',
-            done: '✅'
+            completed: '✅'
         };
         const emoji = statusEmojiMap[status] || '';
         titleEl.textContent = emoji ? `${emoji}${title}` : title;
@@ -1460,7 +1460,7 @@ export class ProjectKanbanView {
         `;
         titleContainer.appendChild(titleEl);
 
-        if (status === 'done') {
+        if (status === 'completed') {
             this.doneSortButton = document.createElement('button');
             this.doneSortButton.className = 'b3-button b3-button--text';
             this.doneSortButton.innerHTML = '<svg style="width: 14px; height: 14px;"><use xlink:href="#iconSort"></use></svg>';
@@ -1492,7 +1492,7 @@ export class ProjectKanbanView {
         rightContainer.style.cssText = 'display:flex; align-items:center; gap:8px;';
         rightContainer.appendChild(countEl);
 
-        if (status !== 'done') {
+        if (status !== 'completed') {
             const addTaskBtn = document.createElement('button');
             addTaskBtn.className = 'b3-button b3-button--outline';
             addTaskBtn.style.cssText = 'margin-left:8px;';
@@ -1808,7 +1808,6 @@ export class ProjectKanbanView {
 
     private async loadTasks() {
         if (this.isLoading) {
-            console.log('任务正在加载中，跳过本次加载请求');
             return;
         }
 
@@ -2010,9 +2009,9 @@ export class ProjectKanbanView {
                     doing: this.tasks.filter(t => t.status === 'doing').filter(t => !t.parentId || !this.tasks.find(tt => tt.id === t.parentId)).length,
                     short_term: this.tasks.filter(t => t.status === 'short_term').filter(t => !t.parentId || !this.tasks.find(tt => tt.id === t.parentId)).length,
                     long_term: this.tasks.filter(t => t.status === 'long_term').filter(t => !t.parentId || !this.tasks.find(tt => tt.id === t.parentId)).length,
-                    done: this.tasks.filter(t => t.status === 'done').filter(t => !t.parentId || !this.tasks.find(tt => tt.id === t.parentId)).length,
+                    completed: this.tasks.filter(t => t.status === 'completed').filter(t => !t.parentId || !this.tasks.find(tt => tt.id === t.parentId)).length,
                 };
-                for (const status of ['doing', 'short_term', 'long_term', 'done']) {
+                for (const status of ['doing', 'short_term', 'long_term', 'completed']) {
                     const totalTop = counts[status as keyof typeof counts] || 0;
                     const totalPages = Math.max(1, Math.ceil(totalTop / this.pageSize));
                     const current = this.pageIndexMap[status] || 1;
@@ -2260,9 +2259,9 @@ export class ProjectKanbanView {
      * 静态方法：计算给定项目的顶级任务在 kanbanStatus 上的数量（只计顶级，即没有 parentId）
      * 使用与 getTaskStatus 相同的逻辑，包括日期自动归档到进行中的逻辑
      */
-    public static countTopLevelTasksByStatus(projectId: string, reminderData: any): { doing: number; short_term: number; long_term: number; done: number } {
+    public static countTopLevelTasksByStatus(projectId: string, reminderData: any): { doing: number; short_term: number; long_term: number; completed: number } {
         const allReminders = reminderData && typeof reminderData === 'object' ? Object.values(reminderData) : [];
-        let doing = 0, short_term = 0, long_term = 0, done = 0;
+        let doing = 0, short_term = 0, long_term = 0, completed = 0;
         const today = getLogicalDateString();
 
         allReminders.forEach((r: any) => {
@@ -2306,8 +2305,8 @@ export class ProjectKanbanView {
                         const dateComparison = compareDateStrings(instance.date, today);
 
                         if (isInstanceCompleted) {
-                            // 所有已完成的实例都会显示在看板上，计入 done
-                            done++;
+                            // 所有已完成的实例都会显示在看板上，计入 completed
+                            completed++;
                         } else {
                             // 未完成实例处理
                             if (dateComparison <= 0) {
@@ -2345,7 +2344,7 @@ export class ProjectKanbanView {
                     // 非周期任务：原有逻辑
                     const isCompleted = !!r.completed || (r.completedTime !== undefined && r.completedTime !== null && String(r.completedTime).trim() !== '');
                     if (isCompleted) {
-                        done += 1;
+                        completed += 1;
                         return;
                     }
 
@@ -2374,11 +2373,11 @@ export class ProjectKanbanView {
             }
         });
 
-        return { doing, short_term, long_term, done };
+        return { doing, short_term, long_term, completed };
     }
 
     private getTaskStatus(task: any): string {
-        if (task.completed) return 'done';
+        if (task.completed) return 'completed';
         if (task.kanbanStatus === 'doing') return 'doing';
 
         // 如果未完成的任务设置了日期，且日期为今天或过期，放入进行中列
@@ -4234,7 +4233,6 @@ export class ProjectKanbanView {
                     // 如果有无效标签，自动清理
                     if (validTagIds.length !== task.tagIds.length) {
                         const invalidCount = task.tagIds.length - validTagIds.length;
-                        console.log(`任务 ${task.id} 有 ${invalidCount} 个无效标签，已自动清理`);
 
                         // 异步清理无效标签
                         (async () => {
@@ -4464,8 +4462,6 @@ export class ProjectKanbanView {
                 if (this.kanbanMode === 'custom') {
                     const targetSubGroup = taskEl.closest('.custom-status-group') as HTMLElement;
                     let targetStatus = targetSubGroup?.dataset.status;
-                    if (targetStatus === 'completed') targetStatus = 'done';
-
                     // dataset.groupId 可能为 "ungrouped"（字符串），需要归一化为 null
                     const targetGroupRaw = targetSubGroup?.dataset.groupId;
                     const targetGroup = (targetGroupRaw === 'ungrouped') ? null : targetGroupRaw;
@@ -5290,9 +5286,6 @@ export class ProjectKanbanView {
     }
 
     private async changeTaskStatus(task: any, newStatus: string) {
-        // 归一化：将 'completed'（在自定义分组子列中使用）转换为 'done'
-        if (newStatus === 'completed') newStatus = 'done';
-
         try {
             // 保存旧状态,用于后续的DOM移动
             const oldStatus = this.getTaskStatus(task);
@@ -5301,7 +5294,7 @@ export class ProjectKanbanView {
             // 则阻止直接把它移出 "进行中"，提示用户需要修改任务时间才能移出。
             try {
                 const today = getLogicalDateString();
-                if (this.isDragging && task && task.date && compareDateStrings(task.date, today) <= 0 && newStatus !== 'doing' && newStatus !== 'done') {
+                if (this.isDragging && task && task.date && compareDateStrings(task.date, today) <= 0 && newStatus !== 'doing' && newStatus !== 'completed') {
                     const dialog = new Dialog({
                         title: '提示',
                         content: `
@@ -5341,7 +5334,7 @@ export class ProjectKanbanView {
                 // 如果是周期实例，需要更新实例的完成状态
                 if (task.isRepeatInstance) {
                     // 处理周期实例的完成状态
-                    if (newStatus === 'done') {
+                    if (newStatus === 'completed') {
                         // 标记这个特定日期的实例为已完成
                         if (!reminderData[actualTaskId].repeat) {
                             reminderData[actualTaskId].repeat = {};
@@ -5378,7 +5371,7 @@ export class ProjectKanbanView {
                     }
                 } else {
                     // 非周期实例的正常处理
-                    if (newStatus === 'done') {
+                    if (newStatus === 'completed') {
                         reminderData[actualTaskId].completed = true;
                         reminderData[actualTaskId].completedTime = getLocalDateTimeString(new Date());
 
@@ -5485,7 +5478,6 @@ export class ProjectKanbanView {
             }
 
             if (completedCount > 0) {
-                console.log(`${t('parentTaskCompleted')} ${parentId}, ${t('autoCompleteSubtasks', { count: String(completedCount) })} `);
                 showMessage(t('autoCompleteSubtasks', { count: String(completedCount) }), 2000);
             }
         } catch (error) {
@@ -6391,7 +6383,6 @@ export class ProjectKanbanView {
 
         if (hasStandaloneWindow) {
             // 如果存在独立窗口，更新独立窗口中的番茄钟
-            console.log('检测到独立窗口，更新独立窗口中的番茄钟');
 
             const reminder = {
                 id: task.id,
@@ -6444,7 +6435,6 @@ export class ProjectKanbanView {
 
         if (hasStandaloneWindow) {
             // 如果存在独立窗口，更新独立窗口中的番茄钟
-            console.log('检测到独立窗口，更新独立窗口中的番茄钟（正计时模式）');
 
             const reminder = {
                 id: task.id,
@@ -8246,7 +8236,7 @@ export class ProjectKanbanView {
 
             // --- Update status of dragged task ---
             if (oldStatus !== newStatus) {
-                if (newStatus === 'done') {
+                if (newStatus === 'completed') {
                     draggedTaskInDb.completed = true;
                     draggedTaskInDb.completedTime = getLocalDateTimeString(new Date());
                 } else {
@@ -8814,7 +8804,6 @@ export class ProjectKanbanView {
                 const moved = this.moveTaskCardToColumn(taskEl, currentStatus, newStatus);
                 if (!moved) {
                     // 如果移动失败，才重新渲染
-                    console.log('任务卡片移动失败，重新渲染看板');
                     this.queueLoadTasks();
                 }
             }
@@ -8830,24 +8819,45 @@ export class ProjectKanbanView {
      */
     private moveTaskCardToColumn(taskEl: HTMLElement, fromStatus: string | null | undefined, toStatus: string): boolean {
         try {
-            // 找到目标列
-            const targetColumn = this.container.querySelector(`.kanban-column-${toStatus}`) as HTMLElement;
-            if (!targetColumn) {
-                console.warn('找不到目标列:', toStatus);
-                return false;
+            // 归一化：将 'done' 转换为 'completed'
+            const targetStatus = toStatus === 'done' ? 'completed' : toStatus;
+
+            let targetContent: HTMLElement | null = null;
+            let targetColumn: HTMLElement | null = null;
+
+            if (this.kanbanMode === 'custom') {
+                // 自定义分组模式：在当前分组内移动到对应的状态子分组
+                const groupColumn = taskEl.closest('.kanban-column') as HTMLElement;
+                if (!groupColumn) {
+                    console.warn('找不到任务所属的分组列');
+                    return false;
+                }
+
+                targetColumn = groupColumn.querySelector(`.custom-status-${targetStatus}`) as HTMLElement;
+                if (!targetColumn) {
+                    console.warn('找不到目标状态分组:', targetStatus);
+                    return false;
+                }
+                targetContent = targetColumn.querySelector('.custom-status-group-tasks') as HTMLElement;
+            } else {
+                // 状态模式
+                targetColumn = this.container.querySelector(`.kanban-column-${targetStatus}`) as HTMLElement;
+                if (!targetColumn) {
+                    console.warn('找不到目标列:', targetStatus);
+                    return false;
+                }
+                targetContent = targetColumn.querySelector('.kanban-column-content') as HTMLElement;
             }
 
-            const targetContent = targetColumn.querySelector('.kanban-column-content') as HTMLElement;
             if (!targetContent) {
-                console.warn('找不到目标列内容区域');
+                console.warn('找不到目标内容区域');
                 return false;
             }
 
             // 移除当前位置的任务卡片
             taskEl.remove();
 
-            // 插入到目标列
-            // TODO: 可以根据排序规则确定插入位置，目前简单地添加到末尾
+            // 插入到目标容器
             targetContent.appendChild(taskEl);
 
             // 更新列的任务计数
@@ -8856,7 +8866,6 @@ export class ProjectKanbanView {
             }
             this.updateColumnCount(toStatus, 1);
 
-            console.log(`任务卡片已移动: ${fromStatus} -> ${toStatus}`);
             return true;
         } catch (error) {
             console.error('移动任务卡片失败:', error);
@@ -8931,7 +8940,6 @@ export class ProjectKanbanView {
                 }
             }
 
-            console.log(`任务DOM已重排: ${draggedTaskId} -> ${insertBefore ? 'before' : 'after'} ${targetTaskId}`);
             return true;
         } catch (error) {
             console.error('DOM重排失败:', error);
