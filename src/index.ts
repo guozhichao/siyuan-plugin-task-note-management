@@ -103,7 +103,7 @@ export const DEFAULT_SETTINGS = {
     calendarColorBy: 'project',
     calendarViewMode: 'timeGridWeek',
     dayStartTime: '08:00', // 日历视图一天的起始时间
-    todayStartTime: '00:00', // 日常任务/习惯的一天起始时间
+    todayStartTime: '03:00', // 日常任务/习惯的一天起始时间
     // 四象限设置
     eisenhowerImportanceThreshold: 'medium',
     eisenhowerUrgencyDays: 3,
