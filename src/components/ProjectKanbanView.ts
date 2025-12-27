@@ -83,6 +83,13 @@ export class ProjectKanbanView {
         columnScrollTopMap: { [key: string]: number };
     } | null = null;
 
+    // 看板实例ID，用于区分事件来源
+    private kanbanInstanceId: string = `kanban_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    // 记录最后一次渲染的模式和项目ID，用于判断是否需要全量清空
+    private _lastRenderMode: string | null = null;
+    private _lastRenderedProjectId: string | null = null;
+
     constructor(container: HTMLElement, plugin: any, projectId: string) {
         this.container = container;
         this.plugin = plugin;
@@ -178,7 +185,14 @@ export class ProjectKanbanView {
         await this.loadTasks();
 
         // 监听提醒更新事件（使用防抖加载以避免频繁重绘导致滚动重置）
-        window.addEventListener('reminderUpdated', () => this.queueLoadTasks());
+        // 只有外部触发的事件才重新加载任务
+        window.addEventListener('reminderUpdated', (e: CustomEvent) => {
+            // 如果是自己触发的更新，忽略
+            if (e.detail?.source === this.kanbanInstanceId) {
+                return;
+            }
+            this.queueLoadTasks();
+        });
     }
 
     private async loadProject() {
@@ -1163,7 +1177,7 @@ export class ProjectKanbanView {
                 // 保存任务数据（如果有任务被修改或删除）
                 if (hasTasks) {
                     await saveReminders(this.plugin, reminderData);
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    this.dispatchReminderUpdate(true);
                 }
 
                 // 刷新分组列表
@@ -1620,12 +1634,15 @@ export class ProjectKanbanView {
      * @param targetStatus 目标状态 ('doing', 'short_term', 'long_term')
      */
     private addStatusSubGroupDropEvents(element: HTMLElement, targetStatus: string) {
+        // 归一化目标状态
+        const normalizedTargetStatus = targetStatus === 'completed' ? 'done' : targetStatus;
+
         element.addEventListener('dragover', (e) => {
             if (this.isDragging && this.draggedTask) {
                 // 获取当前任务的状态
                 const currentStatus = this.getTaskStatus(this.draggedTask);
                 // 如果当前状态与目标状态不同，则允许放置
-                if (currentStatus !== targetStatus) {
+                if (currentStatus !== normalizedTargetStatus) {
                     e.preventDefault();
                     if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
                     element.classList.add('kanban-drop-zone-active');
@@ -1697,7 +1714,7 @@ export class ProjectKanbanView {
             await saveReminders(this.plugin, reminderData);
 
             // 广播更新事件
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            this.dispatchReminderUpdate(true);
 
             // 提示更新的任务数
             if (groupId === null) {
@@ -1772,7 +1789,7 @@ export class ProjectKanbanView {
             await saveReminders(this.plugin, reminderData);
 
             // 广播更新事件
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            this.dispatchReminderUpdate(true);
 
             // 提示更新的任务数
             if (isAdding) {
@@ -2083,7 +2100,12 @@ export class ProjectKanbanView {
             const { containerScrollLeft, columnScrollTopMap } = this._savedScrollState;
             const kanbanContainer = this.container.querySelector('.project-kanban-container') as HTMLElement | null;
             if (kanbanContainer) {
-                // setTimeout to ensure layout updated
+                // 立即恢复，如果失败再使用 setTimeout
+                try {
+                    kanbanContainer.scrollLeft = containerScrollLeft;
+                } catch (e) { /* ignore */ }
+
+                // setTimeout to ensure layout updated (as a safety fallback)
                 setTimeout(() => {
                     try {
                         kanbanContainer.scrollLeft = Math.max(0, Math.min(kanbanContainer.scrollWidth - kanbanContainer.clientWidth, containerScrollLeft));
@@ -2113,8 +2135,17 @@ export class ProjectKanbanView {
                 }
                 if (content) {
                     const top = columnScrollTopMap[key] || 0;
-                    // setTimeout to ensure DOM content height calculated
-                    setTimeout(() => { content.scrollTop = Math.max(0, Math.min(content.scrollHeight - content.clientHeight, top)); }, 0);
+                    // 立即恢复垂直滚动
+                    try {
+                        content.scrollTop = top;
+                    } catch (e) { /* ignore */ }
+
+                    // setTimeout as fallback
+                    setTimeout(() => {
+                        try {
+                            content.scrollTop = Math.max(0, Math.min(content.scrollHeight - content.clientHeight, top));
+                        } catch (e) { /* ignore */ }
+                    }, 0);
                 }
             });
         } catch (err) {
@@ -2518,10 +2549,15 @@ export class ProjectKanbanView {
     private async renderKanban() {
         // 保存滚动位置（如果还没有被上层保存）
         if (!this._savedScrollState) this.captureScrollState();
-        // 在切换模式时完全清空容器，避免不同模式的组件残留
+
         const kanbanContainer = this.container.querySelector('.project-kanban-container') as HTMLElement;
         if (kanbanContainer) {
-            kanbanContainer.innerHTML = '';
+            // 只有在项目变了或者模式变了的时候才全量清空，避免水平滚动条跳动
+            if (this._lastRenderedProjectId !== this.projectId || this._lastRenderMode !== this.kanbanMode) {
+                kanbanContainer.innerHTML = '';
+                this._lastRenderedProjectId = this.projectId;
+                this._lastRenderMode = this.kanbanMode;
+            }
         }
 
         if (this.kanbanMode === 'status') {
@@ -2529,6 +2565,7 @@ export class ProjectKanbanView {
         } else {
             await this.renderCustomGroupKanban();
         }
+
         // 恢复滚动位置（如果有的话）
         this.restoreScrollState();
     }
@@ -2897,8 +2934,19 @@ export class ProjectKanbanView {
         const taskCount = groupContainer.querySelector('.status-stable-group-count') as HTMLElement;
 
         // 清空任务容器并重新渲染任务
+        // 锁定高度防止抖动
+        const oldHeight = groupTasksContainer.offsetHeight;
+        if (oldHeight > 0) groupTasksContainer.style.minHeight = `${oldHeight}px`;
+
         groupTasksContainer.innerHTML = '';
         this.renderTasksInColumn(groupTasksContainer, tasks);
+
+        // 恢复高度
+        if (oldHeight > 0) {
+            requestAnimationFrame(() => {
+                groupTasksContainer.style.minHeight = '';
+            });
+        }
 
         // 更新分组任务计数
         if (taskCount) {
@@ -2922,6 +2970,10 @@ export class ProjectKanbanView {
         const taskCount = groupContainer.querySelector('.status-stable-group-count') as HTMLElement;
 
         // 在状态分组容器内渲染自定义分组
+        // 锁定高度防止抖动
+        const oldHeight = groupTasksContainer.offsetHeight;
+        if (oldHeight > 0) groupTasksContainer.style.minHeight = `${oldHeight}px`;
+
         groupTasksContainer.innerHTML = '';
 
         if (projectGroups.length === 0) {
@@ -2960,6 +3012,13 @@ export class ProjectKanbanView {
             }
 
             groupTasksContainer.appendChild(groupsSubContainer);
+        }
+
+        // 恢复高度
+        if (oldHeight > 0) {
+            requestAnimationFrame(() => {
+                groupTasksContainer.style.minHeight = '';
+            });
         }
 
         // 更新分组任务计数
@@ -3348,6 +3407,10 @@ export class ProjectKanbanView {
         const content = column.querySelector('.kanban-column-content') as HTMLElement;
         const count = column.querySelector('.kanban-column-count') as HTMLElement;
 
+        // 锁定高度防止抖动
+        const oldHeight = content.offsetHeight;
+        if (oldHeight > 0) content.style.minHeight = `${oldHeight}px`;
+
         content.innerHTML = '';
 
         // 创建分组容器（参考状态分组样式）
@@ -3405,6 +3468,13 @@ export class ProjectKanbanView {
         groupsContainer.appendChild(completedGroupContainer);
 
         content.appendChild(groupsContainer);
+
+        // 恢复高度
+        if (oldHeight > 0) {
+            requestAnimationFrame(() => {
+                content.style.minHeight = '';
+            });
+        }
 
         // 更新列顶部计数 — 只统计顶层（父）任务，不包括子任务
         if (count) {
@@ -3491,10 +3561,8 @@ export class ProjectKanbanView {
             min-height: 20px; /* 确保即使没有任务也有拖放区域 */
         `;
 
-        // **[核心修改]** 为非“已完成”的子分组添加拖放事件处理器
-        if (status !== 'completed') {
-            this.addStatusSubGroupDropEvents(groupTasksContainer, status);
-        }
+        // 为子分组添加拖放事件处理器
+        this.addStatusSubGroupDropEvents(groupTasksContainer, status);
 
 
         // 折叠按钮
@@ -4395,12 +4463,14 @@ export class ProjectKanbanView {
                 let statusChanged = false;
                 if (this.kanbanMode === 'custom') {
                     const targetSubGroup = taskEl.closest('.custom-status-group') as HTMLElement;
-                    const targetStatus = targetSubGroup?.dataset.status;
+                    let targetStatus = targetSubGroup?.dataset.status;
+                    if (targetStatus === 'completed') targetStatus = 'done';
+
                     // dataset.groupId 可能为 "ungrouped"（字符串），需要归一化为 null
                     const targetGroupRaw = targetSubGroup?.dataset.groupId;
                     const targetGroup = (targetGroupRaw === 'ungrouped') ? null : targetGroupRaw;
 
-                    if (targetStatus && targetStatus !== 'completed') {
+                    if (targetStatus) {
                         const draggedStatus = this.getTaskStatus(this.draggedTask);
                         // 归一化 draggedTask.customGroupId，针对字符串 'ungrouped' 视为 null
                         const draggedGroupRaw = this.draggedTask.customGroupId as any;
@@ -5131,9 +5201,19 @@ export class ProjectKanbanView {
                 // 对于重复实例，使用不同的完成逻辑
                 await this.toggleRepeatInstanceCompletion(task, completed);
             } else {
-                // 对于普通任务，使用原有逻辑
-                const newStatus = completed ? 'done' : 'todo';
-                await this.changeTaskStatus(task, newStatus);
+                // 对于普通任务，使用直接更新优化性能
+                const updates: any = {
+                    completed: completed
+                };
+
+                if (completed) {
+                    updates.completedTime = getLocalDateTimeString(new Date());
+                } else {
+                    updates.completedTime = null;
+                }
+
+                // 使用直接更新方法
+                await this.updateTaskDirectly(task.id, updates);
             }
         } catch (error) {
             console.error('切换任务完成状态失败:', error);
@@ -5202,7 +5282,7 @@ export class ProjectKanbanView {
             }
 
             // 广播更新事件
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            this.dispatchReminderUpdate(true);
         } catch (error) {
             console.error('切换重复实例完成状态失败:', error);
             showMessage('操作失败，请重试');
@@ -5210,12 +5290,18 @@ export class ProjectKanbanView {
     }
 
     private async changeTaskStatus(task: any, newStatus: string) {
+        // 归一化：将 'completed'（在自定义分组子列中使用）转换为 'done'
+        if (newStatus === 'completed') newStatus = 'done';
+
         try {
+            // 保存旧状态,用于后续的DOM移动
+            const oldStatus = this.getTaskStatus(task);
+
             // 如果当前是通过拖拽触发的状态变更，并且任务有设置日期且该日期为今天或已过
             // 则阻止直接把它移出 "进行中"，提示用户需要修改任务时间才能移出。
             try {
                 const today = getLogicalDateString();
-                if (this.isDragging && task && task.date && compareDateStrings(task.date, today) <= 0 && newStatus !== 'doing') {
+                if (this.isDragging && task && task.date && compareDateStrings(task.date, today) <= 0 && newStatus !== 'doing' && newStatus !== 'done') {
                     const dialog = new Dialog({
                         title: '提示',
                         content: `
@@ -5322,9 +5408,39 @@ export class ProjectKanbanView {
                 }
 
                 // 触发更新事件（debounced 由 listener 自动处理）
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                // 重新加载任务
-                await this.queueLoadTasks();
+                this.dispatchReminderUpdate(true);
+
+                // 如果是拖拽操作,尝试使用智能DOM移动
+                if (this.isDragging) {
+                    // 更新本地缓存
+                    const localTask = this.tasks.find(t => t.id === actualTaskId);
+                    if (localTask) {
+                        if (newStatus === 'done') {
+                            localTask.completed = true;
+                            localTask.completedTime = reminderData[actualTaskId].completedTime;
+                        } else {
+                            localTask.completed = false;
+                            delete localTask.completedTime;
+                            localTask.kanbanStatus = newStatus;
+                        }
+                    }
+
+                    // 尝试智能移动DOM
+                    const taskEl = this.container.querySelector(`[data-task-id="${actualTaskId}"]`) as HTMLElement;
+                    if (taskEl) {
+                        const moved = this.moveTaskCardToColumn(taskEl, oldStatus, newStatus);
+                        if (!moved) {
+                            // 移动失败,重新加载
+                            await this.queueLoadTasks();
+                        }
+                    } else {
+                        // 找不到元素,重新加载
+                        await this.queueLoadTasks();
+                    }
+                } else {
+                    // 非拖拽操作,重新加载以确保正确性
+                    await this.queueLoadTasks();
+                }
             }
         } catch (error) {
             console.error('切换任务状态失败:', error);
@@ -5682,7 +5798,7 @@ export class ProjectKanbanView {
             // 优化：只通过 reminderUpdated 事件触发刷新，避免重复更新
             // 事件监听器会调用 queueLoadTasks() 进行防抖刷新
             const callback = () => {
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                this.dispatchReminderUpdate(true);
             };
 
             const editDialog = new QuickReminderDialog(undefined, undefined, callback, undefined, { mode: 'edit', reminder: taskToEdit, plugin: this.plugin });
@@ -5967,7 +6083,7 @@ export class ProjectKanbanView {
 
         await writeReminderData(reminderData);
         await this.queueLoadTasks();
-        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+        this.dispatchReminderUpdate(true);
     }
 
     /**
@@ -6161,7 +6277,7 @@ export class ProjectKanbanView {
                     await saveReminders(this.plugin, reminderData);
 
                     // 触发更新事件
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    this.dispatchReminderUpdate(true);
 
                     // 重新加载任务（使用防抖队列）
                     await this.queueLoadTasks();
@@ -7340,7 +7456,7 @@ export class ProjectKanbanView {
             }
 
             await this.queueLoadTasks();
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            this.dispatchReminderUpdate(true);
         } catch (error) {
             console.error('设置优先级失败:', error);
             showMessage("设置优先级失败");
@@ -7425,7 +7541,7 @@ export class ProjectKanbanView {
                 await updateBlockReminderBookmark(blockId);
 
                 // 触发更新事件
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                this.dispatchReminderUpdate(true);
             } else {
                 throw new Error('提醒不存在');
             }
@@ -7497,7 +7613,7 @@ export class ProjectKanbanView {
                 await saveReminders(this.plugin, reminderData);
 
                 // 触发更新事件
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                this.dispatchReminderUpdate(true);
 
                 showMessage(`已解除 ${unboundCount} 个任务的块绑定`);
                 await this.queueLoadTasks();
@@ -7779,9 +7895,20 @@ export class ProjectKanbanView {
             }
 
             await saveReminders(this.plugin, reminderData);
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
-            // 重新加载任务以更新显示（防抖）
+            // 更新本地缓存
+            const localChild = this.tasks.find(t => t.id === childTask.id);
+            if (localChild) {
+                localChild.parentId = parentTask.id;
+                if (parentStatus === 'doing' && !localChild.completed) {
+                    localChild.kanbanStatus = 'doing';
+                }
+            }
+
+            this.dispatchReminderUpdate(true);
+
+            // 父子关系改变会影响任务层级显示,需要重新加载
+            // 但只在拖拽操作时使用防抖,避免频繁重载
             await this.queueLoadTasks();
         } catch (error) {
             console.error('设置父子关系失败:', error);
@@ -7813,11 +7940,19 @@ export class ProjectKanbanView {
             delete reminderData[childTask.id].parentId;
 
             await saveReminders(this.plugin, reminderData);
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+            // 更新本地缓存
+            const localTask = this.tasks.find(t => t.id === childTask.id);
+            if (localTask) {
+                delete localTask.parentId;
+            }
+
+            this.dispatchReminderUpdate(true);
 
             showMessage(`"${childTask.title}" 已从 "${parentTitle}" 中独立出来`);
 
-            // 重新加载任务以更新显示（防抖）
+            // 解除父子关系会影响任务层级显示,需要重新加载
+            // 使用防抖避免频繁重载
             await this.queueLoadTasks();
         } catch (error) {
             console.error('解除父子关系失败:', error);
@@ -7837,7 +7972,6 @@ export class ProjectKanbanView {
             // 但如果 reorderTasks 中处理了这些逻辑，我们直接调用
             await this.reorderTasks(this.draggedTask, targetTask, insertBefore);
 
-            showMessage(t("sortUpdated") || "排序已更新");
         } catch (error) {
             console.error('处理拖放排序失败:', error);
             showMessage(t("sortUpdateFailed") || "排序更新失败");
@@ -7925,7 +8059,7 @@ export class ProjectKanbanView {
             });
 
             await saveReminders(this.plugin, reminderData);
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            this.dispatchReminderUpdate(true);
 
         } catch (error) {
             console.error('Failed to set task as sibling and sort:', error);
@@ -8019,7 +8153,14 @@ export class ProjectKanbanView {
                 });
 
                 await saveReminders(this.plugin, reminderData);
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+                // 尝试直接更新DOM,失败时才重新加载
+                const domUpdated = this.reorderTasksDOM(draggedId, targetId, insertBefore);
+                if (!domUpdated) {
+                    await this.queueLoadTasks();
+                }
+
+                this.dispatchReminderUpdate(true);
                 return;
             }
 
@@ -8048,7 +8189,14 @@ export class ProjectKanbanView {
                 });
 
                 await saveReminders(this.plugin, reminderData);
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+                // 尝试直接更新DOM,失败时才重新加载
+                const domUpdated = this.reorderTasksDOM(draggedId, targetId, insertBefore);
+                if (!domUpdated) {
+                    await this.queueLoadTasks();
+                }
+
+                this.dispatchReminderUpdate(true);
                 return; // 子任务排序完成，直接返回
             }
 
@@ -8102,7 +8250,14 @@ export class ProjectKanbanView {
             });
 
             await saveReminders(this.plugin, reminderData);
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+            // 尝试直接更新DOM,失败时才重新加载
+            const domUpdated = this.reorderTasksDOM(draggedId, targetId, insertBefore);
+            if (!domUpdated) {
+                await this.queueLoadTasks();
+            }
+
+            this.dispatchReminderUpdate(true);
 
         } catch (error) {
             console.error('重新排序任务失败:', error);
@@ -8170,7 +8325,7 @@ export class ProjectKanbanView {
             // 优化：只通过 reminderUpdated 事件触发刷新，避免重复更新
             // 事件监听器会调用 queueLoadTasks() 进行防抖刷新
             const callback = () => {
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                this.dispatchReminderUpdate(true);
             };
 
             const editDialog = new QuickReminderDialog(
@@ -8208,7 +8363,7 @@ export class ProjectKanbanView {
 
                     showMessage("实例已删除");
                     await this.queueLoadTasks();
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    this.dispatchReminderUpdate(true);
                 } catch (error) {
                     console.error('删除周期实例失败:', error);
                     showMessage("删除实例失败");
@@ -8483,5 +8638,279 @@ export class ProjectKanbanView {
                 showMessage('更新分组顺序失败');
             }
         });
+    }
+
+    /**
+     * 触发reminderUpdated事件，带源标识
+     * @param skipSelfUpdate 是否跳过自己的更新（默认true）
+     */
+    private dispatchReminderUpdate(skipSelfUpdate: boolean = true) {
+        window.dispatchEvent(new CustomEvent('reminderUpdated', {
+            detail: {
+                source: skipSelfUpdate ? this.kanbanInstanceId : null
+            }
+        }));
+    }
+
+    /**
+     * 直接更新任务，不重新加载整个看板
+     * @param taskId 任务ID
+     * @param updates 更新的字段
+     */
+    private async updateTaskDirectly(taskId: string, updates: Partial<any>) {
+        try {
+            // 1. 更新本地缓存
+            const task = this.tasks.find(t => t.id === taskId);
+            if (task) {
+                Object.assign(task, updates);
+            }
+
+            // 2. 更新 DOM
+            this.updateTaskElementDOM(taskId, updates);
+
+            // 3. 保存到磁盘
+            const reminderData = await readReminderData();
+            if (reminderData[taskId]) {
+                Object.assign(reminderData[taskId], updates);
+                await saveReminders(this.plugin, reminderData);
+            }
+
+            // 4. 触发带源标识的事件（其他组件需要更新）
+            this.dispatchReminderUpdate(true);
+        } catch (error) {
+            console.error('直接更新任务失败:', error);
+            // 如果失败，回退到完整重载
+            await this.queueLoadTasks();
+        }
+    }
+
+    /**
+     * 更新任务DOM元素
+     * @param taskId 任务ID
+     * @param updates 更新的字段
+     */
+    private updateTaskElementDOM(taskId: string, updates: Partial<any>) {
+        const taskEl = this.container.querySelector(`[data-task-id="${taskId}"]`) as HTMLElement;
+        if (!taskEl) {
+            // 如果找不到DOM元素，可能需要重新渲染
+            console.warn('找不到任务DOM元素，将重新渲染看板:', taskId);
+            this.queueLoadTasks();
+            return;
+        }
+
+        const task = this.tasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        // 根据更新内容选择性更新 DOM
+        if ('title' in updates) {
+            const titleEl = taskEl.querySelector('.kanban-task-title');
+            if (titleEl) {
+                // 保留子任务数量指示器
+                const subtaskIndicator = titleEl.querySelector('.subtask-indicator');
+                titleEl.textContent = task.title || t('noContentHint');
+                if (subtaskIndicator) {
+                    titleEl.appendChild(subtaskIndicator);
+                }
+            }
+        }
+
+        if ('completed' in updates) {
+            const checkbox = taskEl.querySelector('.kanban-task-checkbox') as HTMLInputElement;
+            if (checkbox) checkbox.checked = task.completed;
+            taskEl.style.opacity = task.completed ? '0.5' : '1';
+        }
+
+        if ('priority' in updates) {
+            // 移除旧的优先级类
+            taskEl.className = taskEl.className.replace(/kanban-task-priority-\w+/g, '');
+            if (task.priority && task.priority !== 'none') {
+                taskEl.classList.add(`kanban-task-priority-${task.priority}`);
+            }
+
+            // 更新优先级背景色和边框
+            let backgroundColor = '';
+            let borderColor = '';
+            switch (task.priority) {
+                case 'high':
+                    backgroundColor = 'var(--b3-card-error-background)';
+                    borderColor = 'var(--b3-card-error-color)';
+                    break;
+                case 'medium':
+                    backgroundColor = 'var(--b3-card-warning-background)';
+                    borderColor = 'var(--b3-card-warning-color)';
+                    break;
+                case 'low':
+                    backgroundColor = 'var(--b3-card-info-background)';
+                    borderColor = 'var(--b3-card-info-color)';
+                    break;
+                default:
+                    backgroundColor = 'var(--b3-theme-surface-lighter)';
+                    borderColor = 'var(--b3-theme-background-light)';
+            }
+            taskEl.style.backgroundColor = backgroundColor;
+            taskEl.style.borderColor = borderColor;
+        }
+
+        // 如果状态改变，智能移动任务卡片到新列
+        if ('kanbanStatus' in updates || 'termType' in updates || 'completed' in updates || 'date' in updates) {
+            const newStatus = this.getTaskStatus(task);
+            const currentColumn = taskEl.closest('.kanban-column');
+            const currentStatus = currentColumn?.getAttribute('data-status');
+
+            if (currentStatus !== newStatus) {
+                // 尝试智能移动任务卡片
+                const moved = this.moveTaskCardToColumn(taskEl, currentStatus, newStatus);
+                if (!moved) {
+                    // 如果移动失败，才重新渲染
+                    console.log('任务卡片移动失败，重新渲染看板');
+                    this.queueLoadTasks();
+                }
+            }
+        }
+    }
+
+    /**
+     * 智能移动任务卡片到新列
+     * @param taskEl 任务DOM元素
+     * @param fromStatus 原状态
+     * @param toStatus 目标状态
+     * @returns 是否成功移动
+     */
+    private moveTaskCardToColumn(taskEl: HTMLElement, fromStatus: string | null | undefined, toStatus: string): boolean {
+        try {
+            // 找到目标列
+            const targetColumn = this.container.querySelector(`.kanban-column-${toStatus}`) as HTMLElement;
+            if (!targetColumn) {
+                console.warn('找不到目标列:', toStatus);
+                return false;
+            }
+
+            const targetContent = targetColumn.querySelector('.kanban-column-content') as HTMLElement;
+            if (!targetContent) {
+                console.warn('找不到目标列内容区域');
+                return false;
+            }
+
+            // 移除当前位置的任务卡片
+            taskEl.remove();
+
+            // 插入到目标列
+            // TODO: 可以根据排序规则确定插入位置，目前简单地添加到末尾
+            targetContent.appendChild(taskEl);
+
+            // 更新列的任务计数
+            if (fromStatus) {
+                this.updateColumnCount(fromStatus, -1);
+            }
+            this.updateColumnCount(toStatus, 1);
+
+            console.log(`任务卡片已移动: ${fromStatus} -> ${toStatus}`);
+            return true;
+        } catch (error) {
+            console.error('移动任务卡片失败:', error);
+            return false;
+        }
+    }
+
+    /**
+     * 更新列的任务计数
+     * @param status 列状态
+     * @param delta 变化量
+     */
+    private updateColumnCount(status: string, delta: number) {
+        try {
+            const column = this.container.querySelector(`.kanban-column-${status}`) as HTMLElement;
+            if (!column) return;
+
+            const countEl = column.querySelector('.kanban-column-count') as HTMLElement;
+            if (!countEl) return;
+
+            const currentCount = parseInt(countEl.textContent || '0', 10);
+            const newCount = Math.max(0, currentCount + delta);
+            countEl.textContent = newCount.toString();
+        } catch (error) {
+            console.error('更新列计数失败:', error);
+        }
+    }
+
+    /**
+     * 拖拽排序后直接更新DOM,避免重新加载
+     * @param draggedTaskId 被拖拽的任务ID
+     * @param targetTaskId 目标任务ID
+     * @param insertBefore 是否插入到目标任务之前
+     * @returns 是否成功更新DOM
+     */
+    private reorderTasksDOM(draggedTaskId: string, targetTaskId: string, insertBefore: boolean): boolean {
+        try {
+            // 1. 找到被拖拽的任务元素
+            const draggedEl = this.container.querySelector(`[data-task-id="${draggedTaskId}"]`) as HTMLElement;
+            if (!draggedEl) {
+                console.warn('找不到被拖拽的任务元素:', draggedTaskId);
+                return false;
+            }
+
+            // 2. 找到目标任务元素
+            const targetEl = this.container.querySelector(`[data-task-id="${targetTaskId}"]`) as HTMLElement;
+            if (!targetEl) {
+                console.warn('找不到目标任务元素:', targetTaskId);
+                return false;
+            }
+
+            // 3. 获取父容器
+            const parentContainer = targetEl.parentElement;
+            if (!parentContainer) {
+                console.warn('找不到父容器');
+                return false;
+            }
+
+            // 4. 移除被拖拽的元素
+            draggedEl.remove();
+
+            // 5. 插入到正确位置
+            if (insertBefore) {
+                parentContainer.insertBefore(draggedEl, targetEl);
+            } else {
+                // 插入到目标元素之后
+                const nextSibling = targetEl.nextSibling;
+                if (nextSibling) {
+                    parentContainer.insertBefore(draggedEl, nextSibling);
+                } else {
+                    parentContainer.appendChild(draggedEl);
+                }
+            }
+
+            console.log(`任务DOM已重排: ${draggedTaskId} -> ${insertBefore ? 'before' : 'after'} ${targetTaskId}`);
+            return true;
+        } catch (error) {
+            console.error('DOM重排失败:', error);
+            return false;
+        }
+    }
+
+    /**
+     * 直接创建任务，不重新加载整个看板
+     * @param taskData 任务数据
+     */
+    private async createTaskDirectly(taskData: any) {
+        try {
+            // 1. 添加到本地缓存
+            this.tasks.push(taskData);
+
+            // 2. 保存到磁盘
+            const reminderData = await readReminderData();
+            reminderData[taskData.id] = taskData;
+            await saveReminders(this.plugin, reminderData);
+
+            // 3. 重新渲染看板（因为新任务可能影响排序和分组）
+            // 这里我们选择重新渲染，因为新任务的位置可能需要根据排序规则确定
+            await this.queueLoadTasks();
+
+            // 4. 触发带源标识的事件
+            this.dispatchReminderUpdate(true);
+        } catch (error) {
+            console.error('直接创建任务失败:', error);
+            // 如果失败，回退到完整重载
+            await this.queueLoadTasks();
+        }
     }
 }
