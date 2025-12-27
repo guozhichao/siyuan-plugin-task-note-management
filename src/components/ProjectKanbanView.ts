@@ -8059,6 +8059,15 @@ export class ProjectKanbanView {
             });
 
             await saveReminders(this.plugin, reminderData);
+
+            // 更新本地缓存的 sort 值，避免编辑时使用旧值
+            siblingTasks.forEach((task: any) => {
+                const localTask = this.tasks.find(t => t.id === task.id);
+                if (localTask) {
+                    localTask.sort = task.sort;
+                }
+            });
+
             this.dispatchReminderUpdate(true);
 
         } catch (error) {
@@ -8132,6 +8141,14 @@ export class ProjectKanbanView {
                     sourceList.forEach((t: any, index: number) => {
                         reminderData[t.id].sort = index * 10;
                     });
+
+                    // 更新本地缓存的 sort 值
+                    sourceList.forEach((task: any) => {
+                        const localTask = this.tasks.find(t => t.id === task.id);
+                        if (localTask) {
+                            localTask.sort = task.sort;
+                        }
+                    });
                 }
 
                 // 目标分组列表（同一完成/未完成子组）
@@ -8153,6 +8170,14 @@ export class ProjectKanbanView {
                 });
 
                 await saveReminders(this.plugin, reminderData);
+
+                // 更新本地缓存的 sort 值，避免编辑时使用旧值
+                targetList.forEach((task: any) => {
+                    const localTask = this.tasks.find(t => t.id === task.id);
+                    if (localTask) {
+                        localTask.sort = task.sort;
+                    }
+                });
 
                 // 尝试直接更新DOM,失败时才重新加载
                 const domUpdated = this.reorderTasksDOM(draggedId, targetId, insertBefore);
@@ -8189,6 +8214,14 @@ export class ProjectKanbanView {
                 });
 
                 await saveReminders(this.plugin, reminderData);
+
+                // 更新本地缓存的 sort 值，避免编辑时使用旧值
+                siblingTasks.forEach((task: any) => {
+                    const localTask = this.tasks.find(t => t.id === task.id);
+                    if (localTask) {
+                        localTask.sort = task.sort;
+                    }
+                });
 
                 // 尝试直接更新DOM,失败时才重新加载
                 const domUpdated = this.reorderTasksDOM(draggedId, targetId, insertBefore);
@@ -8250,6 +8283,25 @@ export class ProjectKanbanView {
             });
 
             await saveReminders(this.plugin, reminderData);
+
+            // 更新本地缓存的 sort 值，避免编辑时使用旧值
+            targetList.forEach((task: any) => {
+                const localTask = this.tasks.find(t => t.id === task.id);
+                if (localTask) {
+                    localTask.sort = task.sort;
+                }
+            });
+            // 如果源列表也被重新排序了，也要更新它们的缓存
+            if (oldStatus !== newStatus || oldPriority !== newPriority) {
+                const sourceList = Object.values(reminderData)
+                    .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && this.getTaskStatus(r) === oldStatus && (r.priority || 'none') === oldPriority && r.id !== draggedId);
+                sourceList.forEach((task: any) => {
+                    const localTask = this.tasks.find(t => t.id === task.id);
+                    if (localTask) {
+                        localTask.sort = task.sort;
+                    }
+                });
+            }
 
             // 尝试直接更新DOM,失败时才重新加载
             const domUpdated = this.reorderTasksDOM(draggedId, targetId, insertBefore);
