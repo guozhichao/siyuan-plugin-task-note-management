@@ -234,18 +234,6 @@ export class CalendarView {
             optionItem.style.borderRadius = '4px';
             optionItem.textContent = option.text;
 
-            if (currentViewType === option.value) {
-                optionItem.style.backgroundColor = 'var(--b3-list-hover)';
-            }
-
-            optionItem.addEventListener('mouseenter', () => {
-                optionItem.style.backgroundColor = 'var(--b3-list-hover)';
-            });
-            optionItem.addEventListener('mouseleave', () => {
-                if (currentViewType !== option.value) {
-                    optionItem.style.backgroundColor = 'transparent';
-                }
-            });
             optionItem.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const selectedViewType = option.value as 'timeline' | 'kanban' | 'list';
@@ -469,18 +457,7 @@ export class CalendarView {
             optionItem.style.borderRadius = '4px';
             optionItem.textContent = option.text;
 
-            if (this.currentCompletionFilter === option.value) {
-                optionItem.style.backgroundColor = 'var(--b3-list-hover)';
-            }
 
-            optionItem.addEventListener('mouseenter', () => {
-                optionItem.style.backgroundColor = 'var(--b3-list-hover)';
-            });
-            optionItem.addEventListener('mouseleave', () => {
-                if (this.currentCompletionFilter !== option.value) {
-                    optionItem.style.backgroundColor = 'transparent';
-                }
-            });
             optionItem.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.currentCompletionFilter = option.value;
@@ -542,18 +519,7 @@ export class CalendarView {
             optionItem.style.borderRadius = '4px';
             optionItem.textContent = option.text;
 
-            if (this.colorBy === option.value) {
-                optionItem.style.backgroundColor = 'var(--b3-list-hover)';
-            }
 
-            optionItem.addEventListener('mouseenter', () => {
-                optionItem.style.backgroundColor = 'var(--b3-list-hover)';
-            });
-            optionItem.addEventListener('mouseleave', () => {
-                if (this.colorBy !== option.value) {
-                    optionItem.style.backgroundColor = 'transparent';
-                }
-            });
             optionItem.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 this.colorBy = option.value as 'category' | 'priority' | 'project';

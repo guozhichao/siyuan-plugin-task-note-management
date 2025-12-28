@@ -2278,3 +2278,7 @@
     opacity: 1;
     background: var(--b3-theme-surface-light);
 }
+
+.reminder-calendar-view .filter-dropdown-menu > div:hover{
+    background-color: var(--b3-list-hover) !important;
+}
