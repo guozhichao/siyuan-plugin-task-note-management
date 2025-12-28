@@ -434,6 +434,7 @@ export class CalendarView {
             selectable: true,
             selectMirror: true,
             selectOverlap: true,
+            eventResizableFromStart: true, // 允许从事件顶部拖动调整开始时间
             locale: window.siyuan.config.lang.toLowerCase().replace('_', '-'),
             scrollTime: dayStartTime, // 日历视图初始滚动位置
             firstDay: weekStartDay, // 使用用户设置的周开始日
