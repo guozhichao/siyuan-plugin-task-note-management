@@ -256,9 +256,19 @@ export class CalendarView {
 
                 // Extract the time period from current view mode (year, month, week, day)
                 if (currentViewMode === 'multiMonthYear') {
-                    newViewMode = 'multiMonthYear';
+                    // 对于年视图，按选中的 viewType 决定是保留 timeline/kanban 还是切换为 listYear
+                    if (selectedViewType === 'list') {
+                        newViewMode = 'listYear';
+                    } else {
+                        newViewMode = 'multiMonthYear';
+                    }
                 } else if (currentViewMode === 'dayGridMonth') {
-                    newViewMode = 'dayGridMonth';
+                    // 对于月视图，按选中的 viewType 决定是保留 dayGridMonth 还是切换为 listMonth
+                    if (selectedViewType === 'list') {
+                        newViewMode = 'listMonth';
+                    } else {
+                        newViewMode = 'dayGridMonth';
+                    }
                 } else if (currentViewMode.includes('Week')) {
                     // Week view
                     if (selectedViewType === 'timeline') {
@@ -304,7 +314,7 @@ export class CalendarView {
 
                 await this.calendarConfigManager.setViewType(selectedViewType);
                 await this.calendarConfigManager.setViewMode(newViewMode as any);
-                this.calendar.changeView(newViewMode);
+                    this.calendar.changeView(newViewMode);
                 this.updateViewButtonStates();
 
                 const textSpan = viewTypeButton.querySelector('.filter-button-text');
