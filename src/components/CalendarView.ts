@@ -314,7 +314,7 @@ export class CalendarView {
 
                 await this.calendarConfigManager.setViewType(selectedViewType);
                 await this.calendarConfigManager.setViewMode(newViewMode as any);
-                    this.calendar.changeView(newViewMode);
+                this.calendar.changeView(newViewMode);
                 this.updateViewButtonStates();
 
                 const textSpan = viewTypeButton.querySelector('.filter-button-text');
