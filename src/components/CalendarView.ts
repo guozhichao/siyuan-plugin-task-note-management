@@ -2185,9 +2185,14 @@ export class CalendarView {
                     color: white;
                     padding: 2px 6px;
                     border-radius: 3px;
-                    display: inline-block;
+                    display: -webkit-box;
+                    -webkit-line-clamp: 3;
+                    -webkit-box-orient: vertical;
+                    overflow: hidden;
+                    word-break: break-all;
                     font-size: 11px;
                     margin-top: 2px;
+                    line-height: 1.2;
                 `;
             }
 
@@ -3340,6 +3345,16 @@ export class CalendarView {
                 line-height: 1.2;
                 flex-shrink: 999; /* 文档名和备注优先收缩 */
                 max-height: 1.2em;
+            }
+
+            .reminder-event-label {
+                display: -webkit-box;
+                -webkit-line-clamp: 3;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+                word-break: break-all;
+                line-height: 1.2;
+                max-height: 3.6em;
             }
 
             /* 短事件布局优化 (TimeGrid 15-30min) */
