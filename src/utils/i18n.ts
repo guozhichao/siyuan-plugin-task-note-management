@@ -33,7 +33,7 @@ export function t(key: string, params?: { [key: string]: string }): string {
 
     // 如果没有找到对应的翻译文本,返回为空
     if (typeof text !== 'string') {
-        console.warn('未找到i18n键:', key);
+        // console.warn('未找到i18n键:', key);
         text = '';
     }
 

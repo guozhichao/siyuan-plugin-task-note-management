@@ -1651,7 +1651,7 @@ export class CalendarView {
             const linkIcon = document.createElement('span');
             linkIcon.className = 'reminder-event-icon';
             linkIcon.innerHTML = '🔗';
-            linkIcon.title =  '已绑定块';
+            linkIcon.title = '已绑定块';
             indicatorsRow.appendChild(linkIcon);
         }
 
@@ -1674,12 +1674,46 @@ export class CalendarView {
             mainFrame.appendChild(indicatorsRow);
         }
 
-        // 4. 文档标题 (块级事件显示)
-        if (props.docTitle && props.docId && props.blockId && props.docId !== props.blockId) {
-            const docTitleEl = document.createElement('div');
-            docTitleEl.className = 'reminder-event-doc-title';
-            docTitleEl.textContent = props.docTitle;
-            mainFrame.appendChild(docTitleEl);
+        // 4. 显示标签：项目名、自定义分组名或文档名
+        let labelText = '';
+        let labelColor = '';
+
+        if (props.projectId) {
+            // 如果有项目，显示项目名（带📂图标）
+            const project = this.projectManager.getProjectById(props.projectId);
+            if (project) {
+                labelText = `📂 ${project.name}`;
+                labelColor = this.projectManager.getProjectColor(props.projectId);
+
+                // 如果有自定义分组，显示"项目/自定义分组"（使用预加载的名称）
+                if (props.customGroupId && props.customGroupName) {
+                    labelText = `📂 ${project.name} / ${props.customGroupName}`;
+                }
+            }
+        } else if (props.docTitle && props.docId && props.blockId && props.docId !== props.blockId) {
+            // 如果没有项目，且绑定块是块而不是文档，显示文档名（带📄图标）
+            labelText = `📄 ${props.docTitle}`;
+        }
+
+        if (labelText) {
+            const labelEl = document.createElement('div');
+            labelEl.className = 'reminder-event-label';
+            labelEl.textContent = labelText;
+
+            // 如果有项目颜色，应用颜色样式
+            if (labelColor) {
+                labelEl.style.cssText = `
+                    background-color: ${labelColor};
+                    color: white;
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                    display: inline-block;
+                    font-size: 11px;
+                    margin-top: 2px;
+                `;
+            }
+
+            mainFrame.appendChild(labelEl);
         }
 
         // 5. 时间 (使用内置类名和 timeText) - 放在标题之后，空间不足时自动隐藏
@@ -3331,6 +3365,9 @@ export class CalendarView {
             // 批量预加载所有需要的文档标题
             await this.batchLoadDocTitles(filteredReminders);
 
+            // 批量预加载自定义分组信息
+            await this.batchLoadCustomGroupNames(filteredReminders);
+
             // 预处理父任务信息映射（一次性构建，避免重复查找）
             const parentInfoMap = new Map<string, { title: string; blockId: string }>();
             for (const reminder of filteredReminders) {
@@ -3538,6 +3575,49 @@ export class CalendarView {
     }
 
     /**
+     * 批量加载自定义分组名称
+     */
+    private async batchLoadCustomGroupNames(reminders: any[]) {
+        try {
+            // 收集所有需要查询的项目ID
+            const projectIds = new Set<string>();
+            for (const reminder of reminders) {
+                if (reminder.projectId && reminder.customGroupId) {
+                    projectIds.add(reminder.projectId);
+                }
+            }
+
+            // 批量加载所有项目的自定义分组
+            const projectCustomGroups = new Map<string, any[]>();
+            const promises = Array.from(projectIds).map(async (projectId) => {
+                try {
+                    const customGroups = await this.projectManager.getProjectCustomGroups(projectId);
+                    projectCustomGroups.set(projectId, customGroups);
+                } catch (err) {
+                    console.warn(`获取项目 ${projectId} 的自定义分组失败:`, err);
+                    projectCustomGroups.set(projectId, []);
+                }
+            });
+            await Promise.all(promises);
+
+            // 应用结果到reminders
+            for (const reminder of reminders) {
+                if (reminder.projectId && reminder.customGroupId) {
+                    const customGroups = projectCustomGroups.get(reminder.projectId);
+                    if (customGroups) {
+                        const customGroup = customGroups.find(g => g.id === reminder.customGroupId);
+                        if (customGroup) {
+                            reminder.customGroupName = customGroup.name;
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('批量加载自定义分组名称失败:', error);
+        }
+    }
+
+    /**
      * 确保提醒对象包含文档标题（保留用于单个调用场景）
      */
     private async ensureDocTitle(reminder: any, docTitleCache: Map<string, string>) {
@@ -3720,6 +3800,8 @@ export class CalendarView {
                 priority: priority,
                 categoryId: reminder.categoryId,
                 projectId: reminder.projectId,
+                customGroupId: reminder.customGroupId,
+                customGroupName: reminder.customGroupName,
                 blockId: reminder.blockId || reminder.id,
                 docId: reminder.docId,
                 docTitle: reminder.docTitle,
@@ -3902,12 +3984,41 @@ export class CalendarView {
         const htmlParts: string[] = [];
 
         try {
-            // 1. 文档标题（只有当docId不等于blockId时才显示）
-            if (reminder.docTitle && reminder.docId && reminder.blockId && reminder.docId !== reminder.blockId) {
+            // 1. 显示标签：项目名、自定义分组名或文档名
+            let labelText = '';
+            let labelIcon = '';
+
+            if (reminder.projectId) {
+                // 如果有项目，显示项目名
+                const project = this.projectManager.getProjectById(reminder.projectId);
+                if (project) {
+                    labelIcon = '📂';
+                    labelText = project.name;
+
+                    // 如果有自定义分组，显示"项目-自定义分组"
+                    if (reminder.customGroupId) {
+                        try {
+                            const customGroups = await this.projectManager.getProjectCustomGroups(reminder.projectId);
+                            const customGroup = customGroups.find(g => g.id === reminder.customGroupId);
+                            if (customGroup) {
+                                labelText = `${project.name} - ${customGroup.name}`;
+                            }
+                        } catch (error) {
+                            console.warn('获取自定义分组失败:', error);
+                        }
+                    }
+                }
+            } else if (reminder.docTitle && reminder.docId && reminder.blockId && reminder.docId !== reminder.blockId) {
+                // 如果没有项目，且绑定块是块而不是文档，显示文档名
+                labelIcon = '📄';
+                labelText = reminder.docTitle;
+            }
+
+            if (labelText) {
                 htmlParts.push(
                     `<div style="color: var(--b3-theme-on-background); font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-align: left;">`,
-                    `<span>📄</span>`,
-                    `<span title="${t("belongsToDocument")}">${this.escapeHtml(reminder.docTitle)}</span>`,
+                    `<span>${labelIcon}</span>`,
+                    `<span title="${t("belongsToDocument")}">${this.escapeHtml(labelText)}</span>`,
                     `</div>`
                 );
             }
@@ -4218,6 +4329,7 @@ export class CalendarView {
         div.textContent = text;
         return div.innerHTML;
     }
+
 
     // 添加销毁方法
     destroy() {
