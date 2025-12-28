@@ -1,13 +1,14 @@
 import { showMessage, Dialog } from "siyuan";
 import { readReminderData, writeReminderData, getBlockByID, getBlockDOM, updateBlockReminderBookmark } from "../api";
-import { getLocalTimeString, compareDateStrings, getLogicalDateString } from "../utils/dateUtils";
-import { CategoryManager, Category } from "../utils/categoryManager";
+import { compareDateStrings, getLogicalDateString } from "../utils/dateUtils";
+import { CategoryManager } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
 import { t } from "../utils/i18n";
 import { RepeatSettingsDialog, RepeatConfig } from "./RepeatSettingsDialog";
 import { getRepeatDescription } from "../utils/repeatUtils";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { BlockBindingDialog } from "./BlockBindingDialog";
+import { SubtasksDialog } from "./SubtasksDialog";
 import * as chrono from 'chrono-node';
 import { parseLunarDateText, getCurrentYearLunarToSolar, solarToLunar } from "../utils/lunarUtils";
 
@@ -18,7 +19,6 @@ export class QuickReminderDialog {
     private onSaved?: (modifiedReminder?: any) => void;
     private mode: 'quick' | 'block' | 'edit' | 'batch_edit' = 'quick'; // 模式：快速创建、块绑定创建、编辑、批量编辑
     private blockContent: string = '';
-    private documentId: string = '';
     private reminderUpdatedHandler: () => void;
     private sortConfigUpdatedHandler: (event: CustomEvent) => void;
     private currentSort: string = 'time';
@@ -50,6 +50,8 @@ export class QuickReminderDialog {
     private isInstanceEdit: boolean = false;
     private instanceDate?: string;
     private defaultSort?: number;
+    private hideProjectSelector: boolean = false;
+    private existingReminders: any[] = [];
 
     constructor(
         date?: string,
@@ -86,12 +88,13 @@ export class QuickReminderDialog {
         this.isTimeRange = timeRangeOptions?.isTimeRange || false;
         this.initialEndDate = timeRangeOptions?.endDate;
         this.initialEndTime = timeRangeOptions?.endTime;
+        this.onSaved = callback;
 
         // 处理额外选项
         if (options) {
             this.blockId = options.blockId;
             this.reminder = options.reminder;
-            this.onSaved = options.onSaved;
+            if (options.onSaved) this.onSaved = options.onSaved;
             this.mode = options.mode || 'quick';
             this.autoDetectDateTime = options.autoDetectDateTime;
             this.defaultProjectId = options.defaultProjectId;
@@ -586,6 +589,31 @@ export class QuickReminderDialog {
         // 如果有块ID，显示预览
         if (this.reminder.blockId) {
             this.updateBlockPreview(this.reminder.blockId);
+        }
+
+        // 如果是编辑模式，更新子任务入口显示
+        if (this.mode === 'edit' && this.reminder) {
+            this.updateSubtasksDisplay();
+        }
+    }
+
+    /**
+     * 更新子任务入口显示
+     */
+    private async updateSubtasksDisplay() {
+        const subtasksGroup = this.dialog.element.querySelector('#quickSubtasksGroup') as HTMLElement;
+        const subtasksCountText = this.dialog.element.querySelector('#quickSubtasksCountText') as HTMLElement;
+
+        if (!subtasksGroup || !this.reminder) return;
+
+        subtasksGroup.style.display = 'block';
+
+        const reminderData = await readReminderData();
+        const subtasks = Object.values(reminderData).filter((r: any) => r.parentId === this.reminder.id);
+        const count = subtasks.length;
+
+        if (subtasksCountText) {
+            subtasksCountText.textContent = `${t("viewSubtasks") || "查看子任务"}${count > 0 ? ` (${count})` : ''}`;
         }
     }
 
@@ -1120,6 +1148,15 @@ export class QuickReminderDialog {
                             </div>
                             <div class="b3-form__desc" style="font-size: 11px; color: var(--b3-theme-on-surface-light);">
                                 父任务 ID: <span id="quickParentTaskId" style="font-family: monospace;">-</span>
+                            </div>
+                        </div>
+                        <div class="b3-form__group" id="quickSubtasksGroup" style="display: none;">
+                            <label class="b3-form__label">${t("subtasks") || "子任务"}</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <button type="button" id="quickViewSubtasksBtn" class="b3-button b3-button--outline" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconBulletedList"></use></svg>
+                                    <span id="quickSubtasksCountText">${t("viewSubtasks") || "查看子任务"}</span>
+                                </button>
                             </div>
                         </div>
                         <div class="b3-form__group">
@@ -1832,6 +1869,17 @@ export class QuickReminderDialog {
         const pasteBlockRefBtn = this.dialog.element.querySelector('#quickPasteBlockRefBtn') as HTMLButtonElement;
         const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
         const dateTimeDesc = this.dialog.element.querySelector('#quickDateTimeDesc') as HTMLElement;
+        const viewSubtasksBtn = this.dialog.element.querySelector('#quickViewSubtasksBtn') as HTMLButtonElement;
+
+        // 查看子任务
+        viewSubtasksBtn?.addEventListener('click', () => {
+            if (this.reminder && this.reminder.id) {
+                const subtasksDialog = new SubtasksDialog(this.reminder.id, this.plugin, () => {
+                    this.updateSubtasksDisplay();
+                });
+                subtasksDialog.show();
+            }
+        });
 
         // 标题输入框粘贴事件处理
         titleInput?.addEventListener('paste', (e) => {
