@@ -2,6 +2,7 @@ import { Calendar } from '@fullcalendar/core';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import multiMonthPlugin from '@fullcalendar/multimonth';
+import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
 import { refreshSql, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark, openBlock, readProjectData } from "../api";
@@ -54,7 +55,7 @@ export class CalendarView {
     private weekBtn: HTMLButtonElement;
     private dayBtn: HTMLButtonElement;
     private yearBtn: HTMLButtonElement;
-    private viewTypeSwitch: HTMLInputElement;
+
 
     // 使用全局番茄钟管理器
     private pomodoroManager: PomodoroManager = PomodoroManager.getInstance();
@@ -115,8 +116,16 @@ export class CalendarView {
         this.yearBtn.className = 'b3-button b3-button--outline';
         this.yearBtn.textContent = t("year");
         this.yearBtn.addEventListener('click', async () => {
-            await this.calendarConfigManager.setViewMode('multiMonthYear');
-            this.calendar.changeView('multiMonthYear');
+            const viewType = this.calendarConfigManager.getViewType();
+            let viewMode: string;
+            if (viewType === 'list') {
+                viewMode = 'listYear';
+            } else {
+                // timeline and kanban both use multiMonthYear
+                viewMode = 'multiMonthYear';
+            }
+            await this.calendarConfigManager.setViewMode(viewMode as any);
+            this.calendar.changeView(viewMode);
             this.updateViewButtonStates();
         });
         viewGroup.appendChild(this.yearBtn);
@@ -124,8 +133,16 @@ export class CalendarView {
         this.monthBtn.className = 'b3-button b3-button--outline';
         this.monthBtn.textContent = t("month");
         this.monthBtn.addEventListener('click', async () => {
-            await this.calendarConfigManager.setViewMode('dayGridMonth');
-            this.calendar.changeView('dayGridMonth');
+            const viewType = this.calendarConfigManager.getViewType();
+            let viewMode: string;
+            if (viewType === 'list') {
+                viewMode = 'listMonth';
+            } else {
+                // timeline and kanban both use dayGridMonth
+                viewMode = 'dayGridMonth';
+            }
+            await this.calendarConfigManager.setViewMode(viewMode as any);
+            this.calendar.changeView(viewMode);
             this.updateViewButtonStates();
         });
         viewGroup.appendChild(this.monthBtn);
@@ -135,8 +152,15 @@ export class CalendarView {
         this.weekBtn.textContent = t("week");
         this.weekBtn.addEventListener('click', async () => {
             const viewType = this.calendarConfigManager.getViewType();
-            const viewMode = viewType === 'dayGrid' ? 'dayGridWeek' : 'timeGridWeek';
-            await this.calendarConfigManager.setViewMode(viewMode);
+            let viewMode: string;
+            if (viewType === 'timeline') {
+                viewMode = 'timeGridWeek';
+            } else if (viewType === 'kanban') {
+                viewMode = 'dayGridWeek';
+            } else { // list
+                viewMode = 'listWeek';
+            }
+            await this.calendarConfigManager.setViewMode(viewMode as any);
             this.calendar.changeView(viewMode);
             this.updateViewButtonStates();
         });
@@ -147,8 +171,15 @@ export class CalendarView {
         this.dayBtn.textContent = t("day");
         this.dayBtn.addEventListener('click', async () => {
             const viewType = this.calendarConfigManager.getViewType();
-            const viewMode = viewType === 'dayGrid' ? 'dayGridDay' : 'timeGridDay';
-            await this.calendarConfigManager.setViewMode(viewMode);
+            let viewMode: string;
+            if (viewType === 'timeline') {
+                viewMode = 'timeGridDay';
+            } else if (viewType === 'kanban') {
+                viewMode = 'dayGridDay';
+            } else { // list
+                viewMode = 'listDay';
+            }
+            await this.calendarConfigManager.setViewMode(viewMode as any);
             this.calendar.changeView(viewMode);
             this.updateViewButtonStates();
         });
@@ -156,32 +187,97 @@ export class CalendarView {
 
 
 
+        // 添加视图类型下拉框
+        const viewTypeContainer = document.createElement('div');
+        viewTypeContainer.style.display = 'flex';
+        viewTypeContainer.style.alignItems = 'center';
+        viewTypeContainer.style.marginLeft = '8px';
+        viewTypeContainer.style.whiteSpace = 'nowrap';
+        viewTypeContainer.style.flexShrink = '0';
 
-        // 添加视图类型切换开关
-        const switchContainer = document.createElement('div');
-        switchContainer.style.display = 'flex';
-        switchContainer.style.alignItems = 'center';
-        switchContainer.style.marginLeft = '8px';
-        switchContainer.style.whiteSpace = 'nowrap';
-        switchContainer.style.flexShrink = '0';
-        switchContainer.title = t("switchViewType");
+        const viewTypeLabel = document.createElement('label');
+        viewTypeLabel.className = 'b3-form__label';
+        viewTypeLabel.textContent = t("switchViewType");
+        viewTypeLabel.style.marginRight = '4px';
+        viewTypeLabel.style.fontSize = '12px';
 
-        const switchLabel = document.createElement('label');
-        switchLabel.className = 'b3-form__label';
-        switchLabel.textContent = t("switchViewType");
-        switchLabel.style.marginRight = '4px';
-        switchLabel.style.fontSize = '12px';
+        const viewTypeSelect = document.createElement('select');
+        viewTypeSelect.className = 'b3-select';
+        viewTypeSelect.style.width = 'auto';
+        viewTypeSelect.innerHTML = `
+            <option value="timeline">${t("viewTypeTimeline")}</option>
+            <option value="kanban">${t("viewTypeKanban")}</option>
+            <option value="list">${t("viewTypeList")}</option>
+        `;
 
-        this.viewTypeSwitch = document.createElement('input');
-        this.viewTypeSwitch.type = 'checkbox';
-        this.viewTypeSwitch.className = 'b3-switch';
-        this.viewTypeSwitch.addEventListener('change', () => {
-            this.toggleViewType();
+        // Set initial value based on current view type
+        const currentViewType = this.calendarConfigManager.getViewType();
+        viewTypeSelect.value = currentViewType;
+
+        viewTypeSelect.addEventListener('change', async () => {
+            const selectedViewType = viewTypeSelect.value as 'timeline' | 'kanban' | 'list';
+            const currentViewMode = this.calendarConfigManager.getViewMode();
+
+            // Determine the new view mode based on current view mode and new view type
+            let newViewMode: string;
+
+            // Extract the time period from current view mode (year, month, week, day)
+            if (currentViewMode === 'multiMonthYear') {
+                newViewMode = 'multiMonthYear';
+            } else if (currentViewMode === 'dayGridMonth') {
+                newViewMode = 'dayGridMonth';
+            } else if (currentViewMode.includes('Week')) {
+                // Week view
+                if (selectedViewType === 'timeline') {
+                    newViewMode = 'timeGridWeek';
+                } else if (selectedViewType === 'kanban') {
+                    newViewMode = 'dayGridWeek';
+                } else { // list
+                    newViewMode = 'listWeek';
+                }
+            } else if (currentViewMode.includes('Day')) {
+                // Day view
+                if (selectedViewType === 'timeline') {
+                    newViewMode = 'timeGridDay';
+                } else if (selectedViewType === 'kanban') {
+                    newViewMode = 'dayGridDay';
+                } else { // list
+                    newViewMode = 'listDay';
+                }
+            } else if (currentViewMode.includes('Month')) {
+                // List month view
+                if (selectedViewType === 'list') {
+                    newViewMode = 'listMonth';
+                } else {
+                    newViewMode = 'dayGridMonth';
+                }
+            } else if (currentViewMode.includes('Year')) {
+                // List year view
+                if (selectedViewType === 'list') {
+                    newViewMode = 'listYear';
+                } else {
+                    newViewMode = 'multiMonthYear';
+                }
+            } else {
+                // Default to week view
+                if (selectedViewType === 'timeline') {
+                    newViewMode = 'timeGridWeek';
+                } else if (selectedViewType === 'kanban') {
+                    newViewMode = 'dayGridWeek';
+                } else { // list
+                    newViewMode = 'listWeek';
+                }
+            }
+
+            await this.calendarConfigManager.setViewType(selectedViewType);
+            await this.calendarConfigManager.setViewMode(newViewMode as any);
+            this.calendar.changeView(newViewMode);
+            this.updateViewButtonStates();
         });
 
-        switchContainer.appendChild(switchLabel);
-        switchContainer.appendChild(this.viewTypeSwitch);
-        viewGroup.appendChild(switchContainer);
+        viewTypeContainer.appendChild(viewTypeLabel);
+        viewTypeContainer.appendChild(viewTypeSelect);
+        viewGroup.appendChild(viewTypeContainer);
 
 
         // 添加统一过滤器
@@ -326,7 +422,7 @@ export class CalendarView {
 
         // 初始化日历 - 使用用户设置的周开始日
         this.calendar = new Calendar(calendarEl, {
-            plugins: [dayGridPlugin, timeGridPlugin, multiMonthPlugin, interactionPlugin],
+            plugins: [dayGridPlugin, timeGridPlugin, multiMonthPlugin, listPlugin, interactionPlugin],
             initialView: this.calendarConfigManager.getViewMode(),
             multiMonthMaxColumns: 1, // force a single column
             headerToolbar: {
@@ -1703,7 +1799,7 @@ export class CalendarView {
             // 如果有项目颜色，应用颜色样式
             if (labelColor) {
                 labelEl.style.cssText = `
-                    background-color: ${labelColor};
+                    background-color: rgba(from ${labelColor} r g b / .3);
                     color: white;
                     padding: 2px 6px;
                     border-radius: 3px;
@@ -5050,30 +5146,7 @@ export class CalendarView {
 
 
 
-    /**
-     * 切换视图类型（timeGrid <-> dayGrid）
-     */
-    private async toggleViewType() {
-        const currentView = this.calendar.view.type;
-        let newView: string;
-        const viewType = this.viewTypeSwitch.checked ? 'dayGrid' : 'timeGrid';
 
-        if (currentView === 'timeGridWeek' || currentView === 'dayGridWeek') {
-            newView = viewType === 'dayGrid' ? 'dayGridWeek' : 'timeGridWeek';
-        } else if (currentView === 'timeGridDay' || currentView === 'dayGridDay') {
-            newView = viewType === 'dayGrid' ? 'dayGridDay' : 'timeGridDay';
-        } else {
-            // 如果不是周或日视图，不做任何操作
-            return;
-        }
-
-        await this.calendarConfigManager.setViewType(viewType);
-        this.calendar.changeView(newView);
-        // 更新配置中的视图模式
-        this.calendarConfigManager.setViewMode(newView);
-        // 更新按钮状态
-        this.updateViewButtonStates();
-    }
 
     /**
      * 更新视图按钮的激活状态
@@ -5091,25 +5164,23 @@ export class CalendarView {
         switch (currentViewMode) {
             case 'dayGridMonth':
                 this.monthBtn.classList.add('b3-button--primary');
-                this.viewTypeSwitch.disabled = true;
-                this.viewTypeSwitch.checked = false;
                 break;
             case 'timeGridWeek':
             case 'dayGridWeek':
+            case 'listWeek':
                 this.weekBtn.classList.add('b3-button--primary');
-                this.viewTypeSwitch.disabled = false;
-                this.viewTypeSwitch.checked = this.calendarConfigManager.getViewType() === 'dayGrid';
                 break;
             case 'timeGridDay':
             case 'dayGridDay':
+            case 'listDay':
                 this.dayBtn.classList.add('b3-button--primary');
-                this.viewTypeSwitch.disabled = false;
-                this.viewTypeSwitch.checked = this.calendarConfigManager.getViewType() === 'dayGrid';
                 break;
             case 'multiMonthYear':
                 this.yearBtn.classList.add('b3-button--primary');
-                this.viewTypeSwitch.disabled = true;
-                this.viewTypeSwitch.checked = false;
+                break;
+            case 'listMonth':
+            case 'listYear':
+                // List views don't have a specific button
                 break;
         }
     }
