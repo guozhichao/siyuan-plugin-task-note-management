@@ -352,6 +352,12 @@ export class CalendarView {
                 minute: '2-digit',
                 hour12: false
             },
+            eventTimeFormat: {
+                hour: '2-digit',
+                minute: '2-digit',
+                meridiem: false,
+                hour12: false
+            },
             eventClassNames: 'reminder-calendar-event',
             displayEventTime: true,
             eventContent: this.renderEventContent.bind(this),
@@ -1583,138 +1589,116 @@ export class CalendarView {
     }
 
     private renderEventContent(eventInfo) {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'reminder-calendar-event-wrapper';
+        const { event, timeText } = eventInfo;
+        const props = event.extendedProps;
 
-        // 添加复选框
+        // 创建主容器
+        const mainFrame = document.createElement('div');
+        mainFrame.className = 'fc-event-main-frame';
+
+        // 顶部行：放置复选框和任务标题（同一行）
+        const topRow = document.createElement('div');
+        topRow.className = 'reminder-event-top-row';
+
+        // 1. 复选框
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.className = 'reminder-calendar-event-checkbox';
-        checkbox.checked = eventInfo.event.extendedProps.completed || false;
-        if (eventInfo.event.extendedProps.isSubscribed) {
+        checkbox.checked = props.completed || false;
+        if (props.isSubscribed) {
             checkbox.disabled = true;
             checkbox.title = t("subscribedTaskReadOnly") || "订阅任务（只读）";
         } else {
             checkbox.addEventListener('click', (e) => {
-                e.stopPropagation(); // 阻止事件冒泡
-                this.toggleEventCompleted(eventInfo.event);
+                e.stopPropagation();
+                this.toggleEventCompleted(event);
             });
         }
+        topRow.appendChild(checkbox);
 
-        // 添加事件内容容器
-        const eventEl = document.createElement('div');
-        eventEl.className = 'reminder-calendar-event-content';
-
-        // 只有当docId不等于blockId时才添加文档标题（表示这是块级事件）
-        if (eventInfo.event.extendedProps.docTitle &&
-            eventInfo.event.extendedProps.docId &&
-            eventInfo.event.extendedProps.blockId &&
-            eventInfo.event.extendedProps.docId !== eventInfo.event.extendedProps.blockId) {
-            const docTitleEl = document.createElement('div');
-            docTitleEl.className = 'reminder-calendar-event-doc-title';
-            docTitleEl.textContent = eventInfo.event.extendedProps.docTitle;
-            docTitleEl.style.cssText = `
-                font-size: 10px;
-                opacity: 0.7;
-                margin-bottom: 2px;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                line-height: 1.2;
-            `;
-            eventEl.appendChild(docTitleEl);
-        }
-
-        // 添加事件标题
+        // 2. 任务标题（与复选框同行）
         const titleEl = document.createElement('div');
         titleEl.className = 'fc-event-title';
-        titleEl.innerHTML = eventInfo.event.title;
-        eventEl.appendChild(titleEl);
+        titleEl.innerHTML = event.title;
+        topRow.appendChild(titleEl);
 
-        // 在非全天事件中显示时间范围
-        if (!eventInfo.event.allDay) {
-            const timeEl = document.createElement('div');
-            timeEl.className = 'reminder-calendar-event-time';
-            timeEl.style.cssText = `
-                font-size: 10px;
-                opacity: 0.8;
-                margin-top: 2px;
-                line-height: 1.2;
-            `;
+        mainFrame.appendChild(topRow);
 
-            const startTime = eventInfo.event.start;
-            const endTime = eventInfo.event.end;
+        // 3. 指标行：放置状态图标
+        const indicatorsRow = document.createElement('div');
+        indicatorsRow.className = 'reminder-event-indicators-row';
 
-            if (startTime && endTime) {
-                const startStr = startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                const endStr = endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                timeEl.textContent = `${startStr} - ${endStr}`;
-            } else if (startTime) {
-                timeEl.textContent = startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            }
-
-            eventEl.appendChild(timeEl);
-        }
-
-        // 添加备注（如果存在）
-        if (eventInfo.event.extendedProps.note) {
-            const noteEl = document.createElement('div');
-            noteEl.className = 'reminder-calendar-event-note';
-            noteEl.textContent = eventInfo.event.extendedProps.note;
-            eventEl.appendChild(noteEl);
-        }
-
-        // 添加分类emoji图标或订阅图标
-        if (eventInfo.event.extendedProps.isSubscribed) {
-            const subIcon = document.createElement('div');
-            subIcon.className = 'reminder-category-indicator';
+        // 分类/订阅图标
+        if (props.isSubscribed) {
+            const subIcon = document.createElement('span');
+            subIcon.className = 'reminder-event-icon';
             subIcon.innerHTML = '🗓';
             subIcon.title = t("subscribedTask") || "订阅任务";
-            wrapper.appendChild(subIcon);
-        } else if (eventInfo.event.extendedProps.categoryId) {
-            const category = this.categoryManager.getCategoryById(eventInfo.event.extendedProps.categoryId);
+            indicatorsRow.appendChild(subIcon);
+        } else if (props.categoryId) {
+            const category = this.categoryManager.getCategoryById(props.categoryId);
             if (category && category.icon) {
-                const categoryIcon = document.createElement('div');
-                categoryIcon.className = 'reminder-category-indicator';
-                categoryIcon.innerHTML = category.icon;
-                categoryIcon.title = category.name;
-                wrapper.appendChild(categoryIcon);
+                const catIcon = document.createElement('span');
+                catIcon.className = 'reminder-event-icon';
+                catIcon.innerHTML = category.icon;
+                catIcon.title = category.name;
+                indicatorsRow.appendChild(catIcon);
             }
         }
 
-        // 添加链接图标（如果有绑定块且不是快速提醒，且不是订阅任务）
-        if (eventInfo.event.extendedProps.blockId && !eventInfo.event.extendedProps.isQuickReminder && !eventInfo.event.extendedProps.isSubscribed) {
-            const linkIcon = document.createElement('div');
-            linkIcon.className = 'reminder-link-indicator';
+        // 绑定图标
+        if (props.blockId && !props.isQuickReminder && !props.isSubscribed) {
+            const linkIcon = document.createElement('span');
+            linkIcon.className = 'reminder-event-icon';
             linkIcon.innerHTML = '🔗';
-            linkIcon.title = '已绑定块';
-            wrapper.appendChild(linkIcon);
+            linkIcon.title =  '已绑定块';
+            indicatorsRow.appendChild(linkIcon);
         }
 
-        // 添加重复图标（如果是重复事件）
-        if (eventInfo.event.extendedProps.isRepeated || eventInfo.event.extendedProps.repeat?.enabled) {
-            const repeatIcon = document.createElement('div');
-            repeatIcon.className = 'reminder-repeat-indicator';
-
-            if (eventInfo.event.extendedProps.isRepeated) {
-                // 重复事件实例
-                repeatIcon.classList.add('instance');
+        // 重复图标
+        if (props.isRepeated || props.repeat?.enabled) {
+            const repeatIcon = document.createElement('span');
+            repeatIcon.className = 'reminder-event-icon';
+            if (props.isRepeated) {
                 repeatIcon.innerHTML = '🔄';
                 repeatIcon.title = t("repeatInstance");
-            } else if (eventInfo.event.extendedProps.repeat?.enabled) {
-                // 原始重复事件
-                repeatIcon.classList.add('recurring');
+            } else {
                 repeatIcon.innerHTML = '🔁';
                 repeatIcon.title = t("repeatSeries");
             }
-
-            wrapper.appendChild(repeatIcon);
+            indicatorsRow.appendChild(repeatIcon);
         }
 
-        wrapper.appendChild(checkbox);
-        wrapper.appendChild(eventEl);
+        // 只有当有图标时才添加指标行
+        if (indicatorsRow.children.length > 0) {
+            mainFrame.appendChild(indicatorsRow);
+        }
 
-        return { domNodes: [wrapper] };
+        // 4. 文档标题 (块级事件显示)
+        if (props.docTitle && props.docId && props.blockId && props.docId !== props.blockId) {
+            const docTitleEl = document.createElement('div');
+            docTitleEl.className = 'reminder-event-doc-title';
+            docTitleEl.textContent = props.docTitle;
+            mainFrame.appendChild(docTitleEl);
+        }
+
+        // 5. 时间 (使用内置类名和 timeText) - 放在标题之后，空间不足时自动隐藏
+        if (!event.allDay && timeText) {
+            const timeEl = document.createElement('div');
+            timeEl.className = 'fc-event-time';
+            timeEl.textContent = timeText;
+            mainFrame.appendChild(timeEl);
+        }
+
+        // 6. 备注
+        if (props.note) {
+            const noteEl = document.createElement('div');
+            noteEl.className = 'reminder-event-note';
+            noteEl.textContent = props.note;
+            mainFrame.appendChild(noteEl);
+        }
+
+        return { domNodes: [mainFrame] };
     }
 
     // ...existing code...
@@ -2742,6 +2726,134 @@ export class CalendarView {
                 opacity: 0.8;
             }
             
+            /* 日历事件主容器优化 */
+            .fc-event-main-frame {
+                display: flex;
+                flex-direction: column;
+                padding: 2px 4px;
+                box-sizing: border-box;
+                gap: 1px;
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+            }
+
+            .reminder-event-top-row {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                width: 100%;
+                min-height: 18px;
+                flex-shrink: 0;
+            }
+
+            .reminder-event-indicators-row {
+                display: flex;
+                gap: 2px;
+                align-items: center;
+                padding-left: 18px; /* 与复选框对齐 */
+                flex-shrink: 999; /* 空间不足时优先隐藏 */
+                max-height: 1.2em;
+                overflow: hidden;
+            }
+
+            .reminder-event-icon {
+                font-size: 12px;
+                line-height: 1;
+            }
+
+            .reminder-calendar-event-checkbox {
+                margin: 0;
+                width: 14px;
+                height: 14px;
+                cursor: pointer;
+                flex-shrink: 0;
+            }
+
+            .reminder-event-doc-title,
+            .reminder-event-note {
+                font-size: 10px;
+                opacity: 0.7;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                line-height: 1.2;
+                flex-shrink: 0;
+            }
+
+            .fc-event-time {
+                font-size: 10px;
+                opacity: 0.8;
+                white-space: nowrap;
+                overflow: hidden;
+                flex-shrink: 0;
+            }
+
+            .fc-event-title-container {
+                flex-grow: 1;
+                overflow: hidden;
+                min-height: 0;
+            }
+
+            .fc-event-title {
+                font-size: 12px;
+                line-height: 1.3;
+                font-weight: 600;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                flex: 1; /* 占据剩余空间 */
+                min-width: 0; /* 允许收缩 */
+            }
+
+            .fc-event-time {
+                font-size: 10px;
+                opacity: 0.8;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                flex-shrink: 999; /* 时间优先收缩隐藏 */
+                max-height: 1.2em;
+            }
+
+            .reminder-event-doc-title,
+            .reminder-event-note {
+                font-size: 10px;
+                opacity: 0.7;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                line-height: 1.2;
+                flex-shrink: 999; /* 文档名和备注优先收缩 */
+                max-height: 1.2em;
+            }
+
+            /* 短事件布局优化 (TimeGrid 15-30min) */
+            .fc-timegrid-event-short .fc-event-main-frame {
+                flex-direction: row;
+                align-items: center;
+                gap: 4px;
+                padding: 1px 4px;
+            }
+
+            .fc-timegrid-event-short .fc-event-title {
+                -webkit-line-clamp: 1;
+                flex-shrink: 1; /* 横向布局时可以收缩 */
+            }
+
+            .fc-timegrid-event-short .fc-event-time,
+            .fc-timegrid-event-short .reminder-event-doc-title,
+            .fc-timegrid-event-short .reminder-event-note {
+                display: none;
+            }
+
+            /* 当高度非常小时隐藏非关键信息 */
+            .fc-timegrid-event:not(.fc-timegrid-event-short) .fc-event-main-frame {
+                justify-content: flex-start;
+            }
+
             /* 在深色主题下的适配 */
             .b3-theme-dark .fc-timegrid-now-indicator-line {
                 border-color: var(--b3-theme-primary-light) !important;
