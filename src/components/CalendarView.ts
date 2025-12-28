@@ -4190,11 +4190,11 @@ export class CalendarView {
             effectiveCategoryId = projectData[reminder.projectId].categoryId;
         }
 
-        if (this.currentCategoryFilter.has('none')) {
-            return !effectiveCategoryId;
+        if (!effectiveCategoryId) {
+            return this.currentCategoryFilter.has('none');
         }
 
-        return effectiveCategoryId && this.currentCategoryFilter.has(effectiveCategoryId);
+        return this.currentCategoryFilter.has(effectiveCategoryId);
     }
 
     passesProjectFilter(reminder: any): boolean {
@@ -4207,11 +4207,11 @@ export class CalendarView {
             return true;
         }
 
-        if (this.currentProjectFilter.has('none')) {
-            return !reminder.projectId;
+        if (!reminder.projectId) {
+            return this.currentProjectFilter.has('none');
         }
 
-        return reminder.projectId && this.currentProjectFilter.has(reminder.projectId);
+        return this.currentProjectFilter.has(reminder.projectId);
     }
 
     passesCompletionFilter(reminder: any): boolean {
