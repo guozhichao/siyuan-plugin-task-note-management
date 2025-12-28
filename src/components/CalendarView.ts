@@ -5576,8 +5576,10 @@ export class CalendarView {
                 this.yearBtn.classList.add('b3-button--primary');
                 break;
             case 'listMonth':
+                this.monthBtn.classList.add('b3-button--primary');
+                break;
             case 'listYear':
-                // List views don't have a specific button
+                this.yearBtn.classList.add('b3-button--primary');
                 break;
         }
     }
