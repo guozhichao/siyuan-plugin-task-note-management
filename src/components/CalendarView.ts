@@ -2078,21 +2078,30 @@ export class CalendarView {
         const topRow = document.createElement('div');
         topRow.className = 'reminder-event-top-row';
 
-        // 1. 复选框
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.className = 'reminder-calendar-event-checkbox';
-        checkbox.checked = props.completed || false;
+        // 1. 复选框 or 订阅图标
         if (props.isSubscribed) {
-            checkbox.disabled = true;
-            checkbox.title = t("subscribedTaskReadOnly") || "订阅任务（只读）";
+            const subIcon = document.createElement('span');
+            subIcon.innerHTML = '🗓';
+            subIcon.title = t("subscribedTaskReadOnly") || "订阅任务（只读）";
+            subIcon.style.width = '14px';
+            subIcon.style.height = '14px';
+            subIcon.style.display = 'flex';
+            subIcon.style.alignItems = 'center';
+            subIcon.style.justifyContent = 'center';
+            subIcon.style.fontSize = '12px';
+            subIcon.style.flexShrink = '0';
+            topRow.appendChild(subIcon);
         } else {
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'reminder-calendar-event-checkbox';
+            checkbox.checked = props.completed || false;
             checkbox.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.toggleEventCompleted(event);
             });
+            topRow.appendChild(checkbox);
         }
-        topRow.appendChild(checkbox);
 
         // 2. 任务标题（与复选框同行）
         const titleEl = document.createElement('div');
@@ -2106,14 +2115,8 @@ export class CalendarView {
         const indicatorsRow = document.createElement('div');
         indicatorsRow.className = 'reminder-event-indicators-row';
 
-        // 分类/订阅图标
-        if (props.isSubscribed) {
-            const subIcon = document.createElement('span');
-            subIcon.className = 'reminder-event-icon';
-            subIcon.innerHTML = '🗓';
-            subIcon.title = t("subscribedTask") || "订阅任务";
-            indicatorsRow.appendChild(subIcon);
-        } else if (props.categoryId) {
+        // 分类图标 (订阅图标已移至顶部复选框位置)
+        if (!props.isSubscribed && props.categoryId) {
             const category = this.categoryManager.getCategoryById(props.categoryId);
             if (category && category.icon) {
                 const catIcon = document.createElement('span');
