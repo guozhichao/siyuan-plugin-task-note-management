@@ -1,5 +1,6 @@
 import { showMessage, confirm, Menu, Dialog } from "siyuan";
-import { PomodoroStatsView } from "./PomodoroStatsView";
+import { PomodoroStatsView, getLastStatsMode } from "./PomodoroStatsView";
+import { TaskStatsView } from "./TaskStatsView";
 
 // 添加四象限面板常量
 import { readProjectData, writeProjectData, getBlockByID, openBlock, readReminderData, writeReminderData } from "../api";
@@ -158,7 +159,7 @@ export class ProjectPanel {
             // 添加番茄钟看板按钮
             const pomodoroStatsBtn = document.createElement('button');
             pomodoroStatsBtn.className = 'b3-button b3-button--outline';
-            pomodoroStatsBtn.innerHTML = '🍅';
+            pomodoroStatsBtn.innerHTML = '📊';
             pomodoroStatsBtn.title = t("pomodoroStats") || "番茄钟统计";
             pomodoroStatsBtn.addEventListener('click', () => {
                 this.showPomodoroStatsView();
@@ -1967,8 +1968,14 @@ export class ProjectPanel {
      */
     private showPomodoroStatsView() {
         try {
-            const statsView = new PomodoroStatsView();
-            statsView.show();
+            const lastMode = getLastStatsMode();
+            if (lastMode === 'task') {
+                const statsView = new TaskStatsView();
+                statsView.show();
+            } else {
+                const statsView = new PomodoroStatsView();
+                statsView.show();
+            }
         } catch (error) {
             console.error('打开番茄钟统计视图失败:', error);
             showMessage("打开番茄钟统计视图失败");

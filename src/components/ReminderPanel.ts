@@ -10,7 +10,8 @@ import { t } from "../utils/i18n";
 import { SETTINGS_FILE } from "../index";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
 import { PomodoroTimer } from "./PomodoroTimer";
-import { PomodoroStatsView } from "./PomodoroStatsView";
+import { PomodoroStatsView, getLastStatsMode } from "./PomodoroStatsView";
+import { TaskStatsView } from "./TaskStatsView";
 import { EisenhowerMatrixView } from "./EisenhowerMatrixView";
 import { PomodoroManager } from "../utils/pomodoroManager";
 import { getSolarDateLunarString, getNextLunarMonthlyDate, getNextLunarYearlyDate } from "../utils/lunarUtils";
@@ -257,7 +258,7 @@ export class ReminderPanel {
             // 添加番茄钟统计按钮
             const pomodoroStatsBtn = document.createElement('button');
             pomodoroStatsBtn.className = 'b3-button b3-button--outline';
-            pomodoroStatsBtn.innerHTML = '🍅';
+            pomodoroStatsBtn.innerHTML = '📊';
             pomodoroStatsBtn.title = t("pomodoroStats");
             pomodoroStatsBtn.addEventListener('click', () => {
                 this.showPomodoroStatsView();
@@ -6443,14 +6444,19 @@ export class ReminderPanel {
      */
     private showPomodoroStatsView() {
         try {
-            const statsView = new PomodoroStatsView();
-            statsView.show();
+            const lastMode = getLastStatsMode();
+            if (lastMode === 'task') {
+                const statsView = new TaskStatsView();
+                statsView.show();
+            } else {
+                const statsView = new PomodoroStatsView();
+                statsView.show();
+            }
         } catch (error) {
             console.error('打开番茄钟统计视图失败:', error);
             showMessage("打开番茄钟统计视图失败");
         }
     }
-
 
 
     /**

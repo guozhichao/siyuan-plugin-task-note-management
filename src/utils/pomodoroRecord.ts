@@ -1,4 +1,5 @@
 import { POMODORO_RECORD_DATA_FILE } from "../index";
+import { getLogicalDateString } from "../utils/dateUtils";
 
 // 单个番茄钟会话记录
 export interface PomodoroSession {
@@ -97,11 +98,7 @@ export class PomodoroRecordManager {
     }
 
     private getToday(): string {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
+        return getLogicalDateString();
     }
 
     private ensureTodayRecord(today: string) {
@@ -199,7 +196,7 @@ export class PomodoroRecordManager {
     }
 
     getWeekFocusTime(): number {
-        const today = new Date();
+        const today = new Date(`${getLogicalDateString()}T00:00:00`);
         // 获取本周一的日期（周一为一周的开始）
         const currentDay = today.getDay(); // 0 = 周日, 1 = 周一, ..., 6 = 周六
         const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay; // 如果是周日，回退6天；否则回退到周一
@@ -211,11 +208,7 @@ export class PomodoroRecordManager {
         for (let i = 0; i < 7; i++) {
             const date = new Date(monday);
             date.setDate(monday.getDate() + i);
-            // 使用本地日期格式而不是ISO字符串
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            const dateStr = `${year}-${month}-${day}`;
+            const dateStr = getLogicalDateString(date);
 
             totalMinutes += this.records[dateStr]?.totalWorkTime || 0;
         }
@@ -427,7 +420,7 @@ export class PomodoroRecordManager {
 
             if (!reminderData) return 0;
 
-            const today = new Date().toISOString().split('T')[0];
+            const today = getLogicalDateString();
             let totalCount = 0;
 
             Object.values(reminderData).forEach((reminder: any) => {
@@ -545,7 +538,7 @@ export class PomodoroRecordManager {
      * 获取本周的会话记录
      */
     getWeekSessions(): PomodoroSession[] {
-        const today = new Date();
+        const today = new Date(`${getLogicalDateString()}T00:00:00`);
         const weekStart = new Date(today);
         weekStart.setDate(today.getDate() - today.getDay());
         weekStart.setHours(0, 0, 0, 0);
@@ -555,8 +548,8 @@ export class PomodoroRecordManager {
         weekEnd.setHours(23, 59, 59, 999);
 
         return this.getDateRangeSessions(
-            weekStart.toISOString().split('T')[0],
-            weekEnd.toISOString().split('T')[0]
+            getLogicalDateString(weekStart),
+            getLogicalDateString(weekEnd)
         );
     }
 
@@ -597,5 +590,71 @@ export class PomodoroRecordManager {
         }
 
         return false; // 未找到会话
+    }
+
+    /**
+     * 根据当前的一天起始时间设置，重新生成按天分组的番茄钟记录
+     * 当用户修改一天起始时间后，需要调用此方法重新计算所有会话的逻辑日期
+     */
+    async regenerateRecordsByDate(): Promise<void> {
+        // 确保已初始化
+        if (!this.isInitialized) {
+            await this.initialize();
+        }
+
+        // 收集所有会话
+        const allSessions: PomodoroSession[] = [];
+        for (const date in this.records) {
+            const record = this.records[date];
+            if (record && record.sessions) {
+                allSessions.push(...record.sessions);
+            }
+        }
+
+        if (allSessions.length === 0) {
+            return;
+        }
+
+
+        // 清空现有记录
+        this.records = {};
+
+        // 根据会话的开始时间重新分组
+        for (const session of allSessions) {
+            try {
+                // 使用会话的开始时间计算逻辑日期
+                const sessionStartTime = new Date(session.startTime);
+                const logicalDate = getLogicalDateString(sessionStartTime);
+
+                // 确保该日期的记录存在
+                if (!this.records[logicalDate]) {
+                    this.records[logicalDate] = {
+                        date: logicalDate,
+                        workSessions: 0,
+                        totalWorkTime: 0,
+                        totalBreakTime: 0,
+                        sessions: []
+                    };
+                }
+
+                // 添加会话到对应日期
+                this.records[logicalDate].sessions.push(session);
+
+                // 更新统计数据
+                if (session.type === 'work') {
+                    if (session.completed) {
+                        this.records[logicalDate].workSessions += 1;
+                    }
+                    this.records[logicalDate].totalWorkTime += session.duration;
+                } else {
+                    this.records[logicalDate].totalBreakTime += session.duration;
+                }
+            } catch (error) {
+                console.error('处理会话时出错:', session, error);
+            }
+        }
+
+        // 保存重新生成的记录
+        await this.saveRecords();
     }
 }
