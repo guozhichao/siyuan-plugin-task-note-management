@@ -2082,7 +2082,44 @@ export class CalendarView {
         // 2. 任务标题（与复选框同行）
         const titleEl = document.createElement('div');
         titleEl.className = 'fc-event-title';
-        titleEl.innerHTML = event.title;
+
+        // 如果有绑定块，将内容包裹在 span 中并添加虚线边框
+        if (props.blockId && !props.isSubscribed) {
+            const textSpan = document.createElement('span');
+            textSpan.innerHTML = event.title;
+            textSpan.style.borderBottom = '2px dashed #fff';
+            textSpan.style.cursor = 'pointer';
+            textSpan.title = '已绑定块';
+
+            let hoverTimeout: number | null = null;
+
+            // 添加悬浮事件显示块引弹窗（延迟500ms）
+            textSpan.addEventListener('mouseenter', () => {
+                hoverTimeout = window.setTimeout(() => {
+                    const rect = textSpan.getBoundingClientRect();
+                    this.plugin.addFloatLayer({
+                        refDefs: [{ refID: props.blockId, defIDs: [] }],
+                        x: rect.left,
+                        y: rect.top - 70,
+                        isBacklink: false
+                    });
+                }, 500);
+            });
+
+            // 鼠标离开时清除延迟
+            textSpan.addEventListener('mouseleave', () => {
+                if (hoverTimeout !== null) {
+                    window.clearTimeout(hoverTimeout);
+                    hoverTimeout = null;
+                }
+            });
+
+            titleEl.appendChild(textSpan);
+        } else {
+            // 没有绑定块时，直接设置 innerHTML
+            titleEl.innerHTML = event.title;
+        }
+
         topRow.appendChild(titleEl);
 
         mainFrame.appendChild(topRow);
@@ -2101,15 +2138,6 @@ export class CalendarView {
                 catIcon.title = category.name;
                 indicatorsRow.appendChild(catIcon);
             }
-        }
-
-        // 绑定图标
-        if (props.blockId && !props.isQuickReminder && !props.isSubscribed) {
-            const linkIcon = document.createElement('span');
-            linkIcon.className = 'reminder-event-icon';
-            linkIcon.innerHTML = '🔗';
-            linkIcon.title = '已绑定块';
-            indicatorsRow.appendChild(linkIcon);
         }
 
         // 重复图标
@@ -4295,7 +4323,7 @@ export class CalendarView {
                 projectId: reminder.projectId,
                 customGroupId: reminder.customGroupId,
                 customGroupName: reminder.customGroupName,
-                blockId: reminder.blockId || reminder.id,
+                blockId: reminder.blockId || null,
                 docId: reminder.docId,
                 docTitle: reminder.docTitle,
                 parentId: reminder.parentId || null,
