@@ -1494,7 +1494,7 @@ export class CalendarView {
         }
 
         // 如果事项没有绑定块，显示绑定块选项
-        if (!calendarEvent.extendedProps.blockId || calendarEvent.extendedProps.isQuickReminder) {
+        if (!calendarEvent.extendedProps.blockId) {
             menu.addItem({
                 iconHTML: "🔗",
                 label: t("bindToBlock"),
@@ -1605,7 +1605,7 @@ export class CalendarView {
         menu.addSeparator();
 
         // 添加复制块引选项 - 只对已绑定块的事件显示，排除未绑定块的事项和快速提醒
-        if (calendarEvent.extendedProps.blockId && !calendarEvent.extendedProps.isQuickReminder) {
+        if (calendarEvent.extendedProps.blockId) {
             menu.addItem({
                 iconHTML: "📋",
                 label: t("copyBlockRef"),
@@ -2086,8 +2086,12 @@ export class CalendarView {
         // 如果有绑定块，将内容包裹在 span 中并添加虚线边框
         if (props.blockId && !props.isSubscribed) {
             const textSpan = document.createElement('span');
+            const textColor = (event && event.textColor) ? event.textColor : '#fff';
             textSpan.innerHTML = event.title;
-            textSpan.style.borderBottom = '2px dashed #fff';
+            textSpan.style.display = 'inline-block';
+            textSpan.style.boxSizing = 'border-box';
+            textSpan.style.paddingBottom = '2px';
+            textSpan.style.borderBottom = `2px dashed ${textColor}`;
             textSpan.style.cursor = 'pointer';
             textSpan.title = '已绑定块';
 
@@ -4298,7 +4302,8 @@ export class CalendarView {
         let classNames = `reminder-priority-${priority}`;
         if (isRepeated) classNames += ' reminder-repeated';
         if (isCompleted) classNames += ' completed';
-        classNames += (!reminder.blockId || reminder.isQuickReminder) ? ' no-block-binding' : ' has-block-binding';
+        // 仅根据是否存在 blockId 决定绑定样式，允许已绑定块的快速提醒显示绑定样式
+        classNames += (!reminder.blockId) ? ' no-block-binding' : ' has-block-binding';
 
         // 构建事件对象（优化：直接使用colors.backgroundColor和colors.borderColor）
         const eventObj: any = {
