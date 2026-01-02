@@ -155,7 +155,7 @@ function shouldGenerateInstance(currentDate: Date, originalDate: string, repeatC
 
         case 'yearly':
             // 如果设置了months和monthDays，检查当前日期是否匹配
-            if (repeatConfig.months && repeatConfig.months.length > 0 && 
+            if (repeatConfig.months && repeatConfig.months.length > 0 &&
                 repeatConfig.monthDays && repeatConfig.monthDays.length > 0) {
                 const matchMonth = repeatConfig.months.includes(currentDate.getMonth() + 1);
                 const matchDay = repeatConfig.monthDays.includes(currentDate.getDate());
@@ -334,7 +334,7 @@ export function getRepeatDescription(repeatConfig: RepeatConfig): string {
             }
             break;
         case 'yearly':
-            if (repeatConfig.months && repeatConfig.months.length > 0 && 
+            if (repeatConfig.months && repeatConfig.months.length > 0 &&
                 repeatConfig.monthDays && repeatConfig.monthDays.length > 0) {
                 description = `每年${repeatConfig.months[0]}月${repeatConfig.monthDays[0]}日`;
             } else {

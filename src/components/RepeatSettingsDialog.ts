@@ -223,13 +223,13 @@ export class RepeatSettingsDialog {
 
     private getYearlyDateValue(): string {
         // 如果已经设置了月份和日期，返回格式化的值
-        if (this.repeatConfig.months && this.repeatConfig.months.length > 0 && 
+        if (this.repeatConfig.months && this.repeatConfig.months.length > 0 &&
             this.repeatConfig.monthDays && this.repeatConfig.monthDays.length > 0) {
             const month = String(this.repeatConfig.months[0]).padStart(2, '0');
             const day = String(this.repeatConfig.monthDays[0]).padStart(2, '0');
             return `${month}-${day}`;
         }
-        
+
         // 否则从 startDate 推导默认值
         if (this.startDate) {
             try {
@@ -241,7 +241,7 @@ export class RepeatSettingsDialog {
                 // 如果解析失败，返回空字符串
             }
         }
-        
+
         return '';
     }
 
@@ -278,7 +278,7 @@ export class RepeatSettingsDialog {
 
     private createMonthdaySelector(): string {
         let html = '<div class="monthday-grid">';
-        
+
         // 如果没有设置monthDays但有startDate，自动选中起始日期的日
         let defaultDays = this.repeatConfig.monthDays || [];
         if (defaultDays.length === 0 && this.startDate) {
@@ -289,7 +289,7 @@ export class RepeatSettingsDialog {
                 // 如果解析失败，保持为空数组
             }
         }
-        
+
         for (let i = 1; i <= 31; i++) {
             const checked = defaultDays.includes(i) ? 'checked' : '';
             html += `
@@ -424,10 +424,10 @@ export class RepeatSettingsDialog {
 
             // 每周重复：显示星期选择器
             weeklyOptions.style.display = this.repeatConfig.type === 'weekly' ? 'block' : 'none';
-            
+
             // 每月重复：显示日期选择器
             monthlyOptions.style.display = this.repeatConfig.type === 'monthly' ? 'block' : 'none';
-            
+
             // 每年重复：显示日期输入框
             yearlyOptions.style.display = this.repeatConfig.type === 'yearly' ? 'block' : 'none';
 

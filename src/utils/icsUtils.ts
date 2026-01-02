@@ -150,17 +150,17 @@ export async function exportIcsFile(
                         if (childHasTime) {
                             let childStartDateArray = parseDateArray(child.date || r.date);
                             if (!childStartDateArray) continue;
-                            
+
                             // 如果子任务也有重复设置，调整起始日期
                             if (child.repeat && child.repeat.enabled) {
                                 const originalDate = new Date(childStartDateArray[0], childStartDateArray[1] - 1, childStartDateArray[2]);
-                                
+
                                 if (child.repeat.type === 'weekly' && Array.isArray(child.repeat.weekDays) && child.repeat.weekDays.length > 0) {
                                     const originalDay = originalDate.getDay();
-                                    
+
                                     if (!child.repeat.weekDays.includes(originalDay)) {
                                         let adjustedDate = new Date(originalDate);
-                                        
+
                                         for (let i = 1; i <= 7; i++) {
                                             adjustedDate.setDate(originalDate.getDate() + i);
                                             if (child.repeat.weekDays.includes(adjustedDate.getDay())) {
@@ -175,11 +175,11 @@ export async function exportIcsFile(
                                     }
                                 } else if (child.repeat.type === 'monthly' && Array.isArray(child.repeat.monthDays) && child.repeat.monthDays.length > 0) {
                                     const originalDay = originalDate.getDate();
-                                    
+
                                     if (!child.repeat.monthDays.includes(originalDay)) {
                                         const sortedDays = [...child.repeat.monthDays].sort((a, b) => a - b);
                                         const laterDays = sortedDays.filter(d => d > originalDay);
-                                        
+
                                         if (laterDays.length > 0) {
                                             const adjustedDate = new Date(originalDate);
                                             adjustedDate.setDate(laterDays[0]);
@@ -199,21 +199,21 @@ export async function exportIcsFile(
                                             ];
                                         }
                                     }
-                                } else if (child.repeat.type === 'yearly' && Array.isArray(child.repeat.months) && child.repeat.months.length > 0 && 
-                                           Array.isArray(child.repeat.monthDays) && child.repeat.monthDays.length > 0) {
+                                } else if (child.repeat.type === 'yearly' && Array.isArray(child.repeat.months) && child.repeat.months.length > 0 &&
+                                    Array.isArray(child.repeat.monthDays) && child.repeat.monthDays.length > 0) {
                                     const originalMonth = originalDate.getMonth() + 1;
                                     const originalDay = originalDate.getDate();
-                                    
+
                                     const matchesMonth = child.repeat.months.includes(originalMonth);
                                     const matchesDay = child.repeat.monthDays.includes(originalDay);
-                                    
+
                                     if (!matchesMonth || !matchesDay) {
                                         const sortedMonths = [...child.repeat.months].sort((a, b) => a - b);
                                         const sortedDays = [...child.repeat.monthDays].sort((a, b) => a - b);
-                                        
+
                                         let adjustedDate = new Date(originalDate);
                                         let found = false;
-                                        
+
                                         if (matchesMonth) {
                                             const laterDays = sortedDays.filter(d => d > originalDay);
                                             if (laterDays.length > 0) {
@@ -221,7 +221,7 @@ export async function exportIcsFile(
                                                 found = true;
                                             }
                                         }
-                                        
+
                                         if (!found) {
                                             const laterMonths = sortedMonths.filter(m => m > originalMonth);
                                             if (laterMonths.length > 0) {
@@ -235,7 +235,7 @@ export async function exportIcsFile(
                                                 found = true;
                                             }
                                         }
-                                        
+
                                         if (found) {
                                             childStartDateArray = [
                                                 adjustedDate.getFullYear(),
@@ -372,18 +372,18 @@ export async function exportIcsFile(
 
             let startDateArray = parseDateArray(r.date);
             if (!startDateArray) continue;
-            
+
             // 如果是重复任务，调整起始日期为第一个符合条件的日期
             if (r.repeat && r.repeat.enabled) {
                 const originalDate = new Date(startDateArray[0], startDateArray[1] - 1, startDateArray[2]);
-                
+
                 if (r.repeat.type === 'weekly' && Array.isArray(r.repeat.weekDays) && r.repeat.weekDays.length > 0) {
                     const originalDay = originalDate.getDay();
-                    
+
                     // 如果起始日期的星期不在weekDays列表中，找到下一个符合条件的日期
                     if (!r.repeat.weekDays.includes(originalDay)) {
                         let adjustedDate = new Date(originalDate);
-                        
+
                         // 最多向后查找7天
                         for (let i = 1; i <= 7; i++) {
                             adjustedDate.setDate(originalDate.getDate() + i);
@@ -399,13 +399,13 @@ export async function exportIcsFile(
                     }
                 } else if (r.repeat.type === 'monthly' && Array.isArray(r.repeat.monthDays) && r.repeat.monthDays.length > 0) {
                     const originalDay = originalDate.getDate();
-                    
+
                     // 如果起始日期不在monthDays列表中，找到下一个符合条件的日期
                     if (!r.repeat.monthDays.includes(originalDay)) {
                         // 在当月查找
                         const sortedDays = [...r.repeat.monthDays].sort((a, b) => a - b);
                         const laterDays = sortedDays.filter(d => d > originalDay);
-                        
+
                         if (laterDays.length > 0) {
                             // 使用当月的下一个日期
                             const adjustedDate = new Date(originalDate);
@@ -427,23 +427,23 @@ export async function exportIcsFile(
                             ];
                         }
                     }
-                } else if (r.repeat.type === 'yearly' && Array.isArray(r.repeat.months) && r.repeat.months.length > 0 && 
-                           Array.isArray(r.repeat.monthDays) && r.repeat.monthDays.length > 0) {
+                } else if (r.repeat.type === 'yearly' && Array.isArray(r.repeat.months) && r.repeat.months.length > 0 &&
+                    Array.isArray(r.repeat.monthDays) && r.repeat.monthDays.length > 0) {
                     const originalMonth = originalDate.getMonth() + 1;
                     const originalDay = originalDate.getDate();
-                    
+
                     // 检查当前日期是否匹配
                     const matchesMonth = r.repeat.months.includes(originalMonth);
                     const matchesDay = r.repeat.monthDays.includes(originalDay);
-                    
+
                     if (!matchesMonth || !matchesDay) {
                         // 需要找到下一个符合条件的日期
                         const sortedMonths = [...r.repeat.months].sort((a, b) => a - b);
                         const sortedDays = [...r.repeat.monthDays].sort((a, b) => a - b);
-                        
+
                         let adjustedDate = new Date(originalDate);
                         let found = false;
-                        
+
                         // 如果当前月份在列表中，但日期不对，尝试当月的后续日期
                         if (matchesMonth) {
                             const laterDays = sortedDays.filter(d => d > originalDay);
@@ -452,7 +452,7 @@ export async function exportIcsFile(
                                 found = true;
                             }
                         }
-                        
+
                         // 如果当月没找到，查找后续月份
                         if (!found) {
                             const laterMonths = sortedMonths.filter(m => m > originalMonth);
@@ -469,7 +469,7 @@ export async function exportIcsFile(
                                 found = true;
                             }
                         }
-                        
+
                         if (found) {
                             startDateArray = [
                                 adjustedDate.getFullYear(),
@@ -480,7 +480,7 @@ export async function exportIcsFile(
                     }
                 }
             }
-            
+
             const startTimeArray = r.time ? parseTimeArray(r.time) : null;
             const endDateArray = r.endDate ? parseDateArray(r.endDate) : startDateArray;
             const endTimeArray = r.endTime ? parseTimeArray(r.endTime) : null;
