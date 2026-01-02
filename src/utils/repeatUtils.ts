@@ -133,17 +133,35 @@ function shouldGenerateInstance(currentDate: Date, originalDate: string, repeatC
             return daysDiff >= 0 && daysDiff % (repeatConfig.interval || 1) === 0;
 
         case 'weekly':
+            // 如果设置了weekDays，检查当前日期的星期是否在指定的星期列表中
+            if (repeatConfig.weekDays && repeatConfig.weekDays.length > 0) {
+                return repeatConfig.weekDays.includes(currentDate.getDay()) && currentDate >= originalDateObj;
+            }
+            // 否则按原有逻辑：检查与原始日期的星期是否相同
             const weeksDiff = Math.floor((currentDate.getTime() - originalDateObj.getTime()) / (7 * 24 * 60 * 60 * 1000));
             const sameWeekday = currentDate.getDay() === originalDateObj.getDay();
             return weeksDiff >= 0 && weeksDiff % (repeatConfig.interval || 1) === 0 && sameWeekday;
 
         case 'monthly':
+            // 如果设置了monthDays，检查当前日期是否在指定的日期列表中
+            if (repeatConfig.monthDays && repeatConfig.monthDays.length > 0) {
+                return repeatConfig.monthDays.includes(currentDate.getDate()) && currentDate >= originalDateObj;
+            }
+            // 否则按原有逻辑：检查与原始日期的日是否相同
             const monthsDiff = (currentDate.getFullYear() - originalDateObj.getFullYear()) * 12 +
                 (currentDate.getMonth() - originalDateObj.getMonth());
             const sameDay = currentDate.getDate() === originalDateObj.getDate();
             return monthsDiff >= 0 && monthsDiff % (repeatConfig.interval || 1) === 0 && sameDay;
 
         case 'yearly':
+            // 如果设置了months和monthDays，检查当前日期是否匹配
+            if (repeatConfig.months && repeatConfig.months.length > 0 && 
+                repeatConfig.monthDays && repeatConfig.monthDays.length > 0) {
+                const matchMonth = repeatConfig.months.includes(currentDate.getMonth() + 1);
+                const matchDay = repeatConfig.monthDays.includes(currentDate.getDate());
+                return matchMonth && matchDay && currentDate >= originalDateObj;
+            }
+            // 否则按原有逻辑：检查与原始日期的月和日是否相同
             const yearsDiff = currentDate.getFullYear() - originalDateObj.getFullYear();
             const sameMonthDay = currentDate.getMonth() === originalDateObj.getMonth() &&
                 currentDate.getDate() === originalDateObj.getDate();
@@ -300,13 +318,28 @@ export function getRepeatDescription(repeatConfig: RepeatConfig): string {
             description = interval === 1 ? t("everyDay") : t("everyNDays", { n: interval.toString() });
             break;
         case 'weekly':
-            description = interval === 1 ? t("everyWeek") : t("everyNWeeks", { n: interval.toString() });
+            if (repeatConfig.weekDays && repeatConfig.weekDays.length > 0) {
+                const dayNames = [t("sun"), t("mon"), t("tue"), t("wed"), t("thu"), t("fri"), t("sat")];
+                const days = repeatConfig.weekDays.map(d => dayNames[d]).join(',');
+                description = `每周${days}`;
+            } else {
+                description = interval === 1 ? t("everyWeek") : t("everyNWeeks", { n: interval.toString() });
+            }
             break;
         case 'monthly':
-            description = interval === 1 ? t("everyMonth") : t("everyNMonths", { n: interval.toString() });
+            if (repeatConfig.monthDays && repeatConfig.monthDays.length > 0) {
+                description = `每月${repeatConfig.monthDays.join(',')}日`;
+            } else {
+                description = interval === 1 ? t("everyMonth") : t("everyNMonths", { n: interval.toString() });
+            }
             break;
         case 'yearly':
-            description = interval === 1 ? t("everyYear") : t("everyNYears", { n: interval.toString() });
+            if (repeatConfig.months && repeatConfig.months.length > 0 && 
+                repeatConfig.monthDays && repeatConfig.monthDays.length > 0) {
+                description = `每年${repeatConfig.months[0]}月${repeatConfig.monthDays[0]}日`;
+            } else {
+                description = interval === 1 ? t("everyYear") : t("everyNYears", { n: interval.toString() });
+            }
             break;
         case 'lunar-monthly':
             description = t("lunarMonthlyRepeat");

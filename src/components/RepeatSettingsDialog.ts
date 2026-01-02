@@ -107,7 +107,6 @@ export class RepeatSettingsDialog {
                                 <option value="yearly" ${this.repeatConfig.type === 'yearly' ? 'selected' : ''}>${t("yearly")}</option>
                                 <option value="lunar-monthly" ${this.repeatConfig.type === 'lunar-monthly' ? 'selected' : ''}>${t("lunarMonthly")}</option>
                                 <option value="lunar-yearly" ${this.repeatConfig.type === 'lunar-yearly' ? 'selected' : ''}>${t("lunarYearly")}</option>
-                                <option value="custom" ${this.repeatConfig.type === 'custom' ? 'selected' : ''}>${t("custom")}</option>
                                 <option value="ebbinghaus" ${this.repeatConfig.type === 'ebbinghaus' ? 'selected' : ''}>${t("ebbinghaus")}</option>
                             </select>
                         </div>
@@ -122,30 +121,28 @@ export class RepeatSettingsDialog {
                             </div>
                         </div>
 
-                        <!-- 自定义重复选项 -->
-                        <div id="customOptions" style="display: none;">
-                            <!-- 每周选项 -->
-                            <div id="weeklyOptions" class="b3-form__group" style="display: none;">
-                                <label class="b3-form__label">${t("repeatOnDays")}</label>
-                                <div class="weekday-selector">
-                                    ${this.createWeekdaySelector()}
-                                </div>
+                        <!-- 每周选项（星期选择） -->
+                        <div id="weeklyOptions" class="b3-form__group" style="display: none;">
+                            <label class="b3-form__label">${t("repeatOnDays")}</label>
+                            <div class="weekday-selector">
+                                ${this.createWeekdaySelector()}
                             </div>
+                        </div>
 
-                            <!-- 每月选项 -->
-                            <div id="monthlyOptions" class="b3-form__group" style="display: none;">
-                                <label class="b3-form__label">${t("repeatOnDates")}</label>
-                                <div class="monthday-selector">
-                                    ${this.createMonthdaySelector()}
-                                </div>
+                        <!-- 每月选项（日期选择） -->
+                        <div id="monthlyOptions" class="b3-form__group" style="display: none;">
+                            <label class="b3-form__label">${t("repeatOnDates")}</label>
+                            <div class="monthday-selector">
+                                ${this.createMonthdaySelector()}
                             </div>
+                        </div>
 
-                            <!-- 每年选项 -->
-                            <div id="yearlyOptions" class="b3-form__group" style="display: none;">
-                                <label class="b3-form__label">${t("repeatInMonths")}</label>
-                                <div class="month-selector">
-                                    ${this.createMonthSelector()}
-                                </div>
+                        <!-- 每年选项（日期输入框 MM-DD） -->
+                        <div id="yearlyOptions" class="b3-form__group" style="display: none;">
+                            <label class="b3-form__label">${t("repeatDate") || '日期'}</label>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <input type="text" id="yearlyDateInput" class="b3-text-field" placeholder="例如: 01-01 或 06-15" style="width: 120px;" value="${this.getYearlyDateValue()}">
+                                <span style="font-size: 12px; color: var(--b3-theme-on-surface-light);">(格式：MM-DD)</span>
                             </div>
                         </div>
 
@@ -224,6 +221,30 @@ export class RepeatSettingsDialog {
         `;
     }
 
+    private getYearlyDateValue(): string {
+        // 如果已经设置了月份和日期，返回格式化的值
+        if (this.repeatConfig.months && this.repeatConfig.months.length > 0 && 
+            this.repeatConfig.monthDays && this.repeatConfig.monthDays.length > 0) {
+            const month = String(this.repeatConfig.months[0]).padStart(2, '0');
+            const day = String(this.repeatConfig.monthDays[0]).padStart(2, '0');
+            return `${month}-${day}`;
+        }
+        
+        // 否则从 startDate 推导默认值
+        if (this.startDate) {
+            try {
+                const date = new Date(this.startDate + 'T00:00:00');
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${month}-${day}`;
+            } catch (e) {
+                // 如果解析失败，返回空字符串
+            }
+        }
+        
+        return '';
+    }
+
     private createWeekdaySelector(): string {
         const weekdays = [
             { value: 0, label: t("sunday"), short: t("sun") },
@@ -235,9 +256,20 @@ export class RepeatSettingsDialog {
             { value: 6, label: t("saturday"), short: t("sat") }
         ];
 
+        // 如果没有设置weekDays但有startDate，自动选中起始日期的星期
+        let defaultWeekDays = this.repeatConfig.weekDays || [];
+        if (defaultWeekDays.length === 0 && this.startDate) {
+            try {
+                const date = new Date(this.startDate + 'T00:00:00');
+                defaultWeekDays = [date.getDay()];
+            } catch (e) {
+                // 如果解析失败，保持为空数组
+            }
+        }
+
         return weekdays.map(day => `
             <label class="weekday-option b3-checkbox">
-                <input type="checkbox" value="${day.value}" ${(this.repeatConfig.weekDays || []).includes(day.value) ? 'checked' : ''}>
+                <input type="checkbox" value="${day.value}" ${defaultWeekDays.includes(day.value) ? 'checked' : ''}>
                 <span class="b3-checkbox__graphic"></span>
                 <span class="b3-checkbox__label">${day.short}</span>
             </label>
@@ -246,8 +278,20 @@ export class RepeatSettingsDialog {
 
     private createMonthdaySelector(): string {
         let html = '<div class="monthday-grid">';
+        
+        // 如果没有设置monthDays但有startDate，自动选中起始日期的日
+        let defaultDays = this.repeatConfig.monthDays || [];
+        if (defaultDays.length === 0 && this.startDate) {
+            try {
+                const date = new Date(this.startDate + 'T00:00:00');
+                defaultDays = [date.getDate()];
+            } catch (e) {
+                // 如果解析失败，保持为空数组
+            }
+        }
+        
         for (let i = 1; i <= 31; i++) {
-            const checked = (this.repeatConfig.monthDays || []).includes(i) ? 'checked' : '';
+            const checked = defaultDays.includes(i) ? 'checked' : '';
             html += `
                 <label class="monthday-option b3-checkbox">
                     <input type="checkbox" value="${i}" ${checked}>
@@ -355,7 +399,6 @@ export class RepeatSettingsDialog {
     private updateUI() {
         const repeatOptions = this.dialog.element.querySelector('#repeatOptions') as HTMLElement;
         const intervalGroup = this.dialog.element.querySelector('#intervalGroup') as HTMLElement;
-        const customOptions = this.dialog.element.querySelector('#customOptions') as HTMLElement;
         const weeklyOptions = this.dialog.element.querySelector('#weeklyOptions') as HTMLElement;
         const monthlyOptions = this.dialog.element.querySelector('#monthlyOptions') as HTMLElement;
         const yearlyOptions = this.dialog.element.querySelector('#yearlyOptions') as HTMLElement;
@@ -374,22 +417,19 @@ export class RepeatSettingsDialog {
             intervalUnit.textContent = this.getIntervalUnit();
 
             // 显示/隐藏相关选项
-            const showInterval = this.repeatConfig.type !== 'ebbinghaus' && this.repeatConfig.type !== 'custom' &&
-                this.repeatConfig.type !== 'lunar-monthly' && this.repeatConfig.type !== 'lunar-yearly';
+            const showInterval = this.repeatConfig.type !== 'ebbinghaus' &&
+                this.repeatConfig.type !== 'lunar-monthly' && this.repeatConfig.type !== 'lunar-yearly' &&
+                this.repeatConfig.type !== 'weekly' && this.repeatConfig.type !== 'monthly' && this.repeatConfig.type !== 'yearly';
             intervalGroup.style.display = showInterval ? 'block' : 'none';
 
-            const showCustom = this.repeatConfig.type === 'custom';
-            customOptions.style.display = showCustom ? 'block' : 'none';
-
-            if (showCustom) {
-                weeklyOptions.style.display = 'block';
-                monthlyOptions.style.display = 'block';
-                yearlyOptions.style.display = 'block';
-            } else {
-                weeklyOptions.style.display = 'none';
-                monthlyOptions.style.display = 'none';
-                yearlyOptions.style.display = 'none';
-            }
+            // 每周重复：显示星期选择器
+            weeklyOptions.style.display = this.repeatConfig.type === 'weekly' ? 'block' : 'none';
+            
+            // 每月重复：显示日期选择器
+            monthlyOptions.style.display = this.repeatConfig.type === 'monthly' ? 'block' : 'none';
+            
+            // 每年重复：显示日期输入框
+            yearlyOptions.style.display = this.repeatConfig.type === 'yearly' ? 'block' : 'none';
 
             ebbinghausInfo.style.display = this.repeatConfig.type === 'ebbinghaus' ? 'block' : 'none';
 
@@ -432,16 +472,50 @@ export class RepeatSettingsDialog {
 
             this.repeatConfig.interval = parseInt(intervalInput.value) || 1;
 
-            if (this.repeatConfig.type === 'custom') {
-                // 收集自定义选项
+            if (this.repeatConfig.type === 'weekly') {
+                // 收集星期选项
                 const weekDayInputs = this.dialog.element.querySelectorAll('#weeklyOptions input[type="checkbox"]:checked') as NodeListOf<HTMLInputElement>;
                 this.repeatConfig.weekDays = Array.from(weekDayInputs).map(input => parseInt(input.value));
+                if (this.repeatConfig.weekDays.length === 0) {
+                    showMessage('请至少选择一个星期', 3000, 'error');
+                    return;
+                }
+            }
 
+            if (this.repeatConfig.type === 'monthly') {
+                // 收集日期选项
                 const monthDayInputs = this.dialog.element.querySelectorAll('#monthlyOptions input[type="checkbox"]:checked') as NodeListOf<HTMLInputElement>;
                 this.repeatConfig.monthDays = Array.from(monthDayInputs).map(input => parseInt(input.value));
+                if (this.repeatConfig.monthDays.length === 0) {
+                    showMessage('请至少选择一个日期', 3000, 'error');
+                    return;
+                }
+            }
 
-                const monthInputs = this.dialog.element.querySelectorAll('#yearlyOptions input[type="checkbox"]:checked') as NodeListOf<HTMLInputElement>;
-                this.repeatConfig.months = Array.from(monthInputs).map(input => parseInt(input.value));
+            if (this.repeatConfig.type === 'yearly') {
+                // 从日期输入框解析月份和日期
+                const yearlyDateInput = this.dialog.element.querySelector('#yearlyDateInput') as HTMLInputElement;
+                const yearlyDateStr = yearlyDateInput.value.trim();
+                if (yearlyDateStr) {
+                    const match = yearlyDateStr.match(/^(\d{1,2})-(\d{1,2})$/);
+                    if (match) {
+                        const month = parseInt(match[1]);
+                        const day = parseInt(match[2]);
+                        if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+                            this.repeatConfig.months = [month];
+                            this.repeatConfig.monthDays = [day];
+                        } else {
+                            showMessage('日期格式错误：月份应为1-12，日期应为1-31', 3000, 'error');
+                            return;
+                        }
+                    } else {
+                        showMessage('日期格式错误，请使用 MM-DD 格式（例如：01-01）', 3000, 'error');
+                        return;
+                    }
+                } else {
+                    showMessage('请输入日期', 3000, 'error');
+                    return;
+                }
             }
 
             if (this.repeatConfig.type === 'ebbinghaus') {
