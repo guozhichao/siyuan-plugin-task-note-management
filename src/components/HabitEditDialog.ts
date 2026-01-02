@@ -446,7 +446,7 @@ export class HabitEditDialog {
         yearlyDateInput.className = 'b3-text-field';
         yearlyDateInput.placeholder = '例如: 01-01 或 06-15';
         yearlyDateInput.style.cssText = 'width: 120px;';
-        
+
         // 恢复已有的每年日期
         if (this.habit?.frequency?.type === 'yearly' && this.habit.frequency.months && this.habit.frequency.monthDays) {
             const month = this.habit.frequency.months[0];
