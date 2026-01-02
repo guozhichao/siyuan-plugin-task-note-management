@@ -26,10 +26,11 @@ export interface Habit {
     blockId?: string; // 绑定的块ID
     target: number; // 每次打卡需要打卡x次
     frequency: {
-        type: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+        type: 'daily' | 'weekly' | 'monthly' | 'yearly';
         interval?: number; // 重复间隔，比如每x天
         weekdays?: number[]; // 重复星期 (0-6, 0=周日)
         monthDays?: number[]; // 重复日期 (1-31)
+        months?: number[]; // 重复月份 (1-12)
     };
     startDate: string;
     endDate?: string;
@@ -452,6 +453,13 @@ export class HabitPanel {
                 return checkDate.getDate() === startDate.getDate();
 
             case 'yearly':
+                if (frequency.months && frequency.months.length > 0) {
+                    if (!frequency.months.includes(checkDate.getMonth() + 1)) return false;
+                    if (frequency.monthDays && frequency.monthDays.length > 0) {
+                        return frequency.monthDays.includes(checkDate.getDate());
+                    }
+                    return checkDate.getDate() === startDate.getDate();
+                }
                 if (frequency.interval) {
                     const yearsDiff = checkDate.getFullYear() - startDate.getFullYear();
                     return yearsDiff % frequency.interval === 0 &&
@@ -460,16 +468,6 @@ export class HabitPanel {
                 }
                 return checkDate.getMonth() === startDate.getMonth() &&
                     checkDate.getDate() === startDate.getDate();
-
-            case 'custom':
-                // 自定义频率：如果设置了周重复则按周判断，如果设置了月重复则按月判断；默认返回true
-                if (frequency.weekdays && frequency.weekdays.length > 0) {
-                    return frequency.weekdays.includes(checkDate.getDay());
-                }
-                if (frequency.monthDays && frequency.monthDays.length > 0) {
-                    return frequency.monthDays.includes(checkDate.getDate());
-                }
-                return true;
 
             default:
                 return true;
@@ -950,7 +948,7 @@ export class HabitPanel {
     }
 
     private getFrequencyText(frequency: Habit['frequency']): string {
-        const { type, interval, weekdays, monthDays } = frequency;
+        const { type, interval, weekdays, monthDays, months } = frequency;
 
         switch (type) {
             case 'daily':
@@ -967,9 +965,14 @@ export class HabitPanel {
                 }
                 return interval ? `每${interval}月` : '每月';
             case 'yearly':
+                if (months && months.length > 0) {
+                    const monthStr = months.join(',');
+                    if (monthDays && monthDays.length > 0) {
+                        return `每年${monthStr}月的${monthDays.join(',')}日`;
+                    }
+                    return `每年${monthStr}月`;
+                }
                 return interval ? `每${interval}年` : '每年';
-            case 'custom':
-                return '自定义';
             default:
                 return '每天';
         }

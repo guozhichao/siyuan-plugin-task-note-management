@@ -359,7 +359,6 @@ export class HabitEditDialog {
             <option value="weekly">每周</option>
             <option value="monthly">每月</option>
             <option value="yearly">每年</option>
-            <option value="custom">自定义</option>
         `;
 
         if (this.habit?.frequency) {
@@ -392,33 +391,6 @@ export class HabitEditDialog {
         intervalContainer.appendChild(intervalLabel);
         intervalContainer.appendChild(intervalInput);
         intervalContainer.appendChild(intervalSuffix);
-
-        // 自定义模式选择（按周/按月）
-        const customModeContainer = document.createElement('div');
-        customModeContainer.style.cssText = 'display:flex; align-items:center; gap:8px;';
-        customModeContainer.style.display = 'none';
-
-        const customModeLabel = document.createElement('label');
-        customModeLabel.textContent = '自定义方式';
-        customModeLabel.style.cssText = 'min-width: 64px;';
-
-        const customModeSelect = document.createElement('select');
-        customModeSelect.name = 'customMode';
-        customModeSelect.className = 'b3-select';
-        customModeSelect.innerHTML = `
-            <option value="weekdays">按星期</option>
-            <option value="monthDays">按每月日期</option>
-        `;
-
-        customModeContainer.appendChild(customModeLabel);
-        customModeContainer.appendChild(customModeSelect);
-
-        // 依据已有习惯数据恢复自定义模式
-        if (this.habit?.frequency?.weekdays && this.habit.frequency.weekdays.length > 0) {
-            customModeSelect.value = 'weekdays';
-        } else if (this.habit?.frequency?.monthDays && this.habit.frequency.monthDays.length > 0) {
-            customModeSelect.value = 'monthDays';
-        }
 
         // 星期选择器
         const weekdaysContainer = document.createElement('div');
@@ -459,10 +431,41 @@ export class HabitEditDialog {
             monthDaysContainer.appendChild(cbLabel);
         }
 
+        // 每年日期选择器（月-日格式）
+        const yearlyDateContainer = document.createElement('div');
+        yearlyDateContainer.style.cssText = 'display:flex; align-items:center; gap:8px;';
+        yearlyDateContainer.style.display = 'none';
+
+        const yearlyDateLabel = document.createElement('label');
+        yearlyDateLabel.textContent = '日期';
+        yearlyDateLabel.style.cssText = 'min-width: 48px;';
+
+        const yearlyDateInput = document.createElement('input');
+        yearlyDateInput.type = 'text';
+        yearlyDateInput.name = 'yearlyDate';
+        yearlyDateInput.className = 'b3-text-field';
+        yearlyDateInput.placeholder = '例如: 01-01 或 06-15';
+        yearlyDateInput.style.cssText = 'width: 120px;';
+        
+        // 恢复已有的每年日期
+        if (this.habit?.frequency?.type === 'yearly' && this.habit.frequency.months && this.habit.frequency.monthDays) {
+            const month = this.habit.frequency.months[0];
+            const day = this.habit.frequency.monthDays[0];
+            yearlyDateInput.value = `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+
+        const yearlyDateHint = document.createElement('span');
+        yearlyDateHint.textContent = '（格式：MM-DD）';
+        yearlyDateHint.style.cssText = 'font-size: 12px; color: var(--b3-theme-on-surface-light);';
+
+        yearlyDateContainer.appendChild(yearlyDateLabel);
+        yearlyDateContainer.appendChild(yearlyDateInput);
+        yearlyDateContainer.appendChild(yearlyDateHint);
+
         helperContainer.appendChild(intervalContainer);
-        helperContainer.appendChild(customModeContainer);
         helperContainer.appendChild(weekdaysContainer);
         helperContainer.appendChild(monthDaysContainer);
+        helperContainer.appendChild(yearlyDateContainer);
 
         group.appendChild(label);
         group.appendChild(select);
@@ -474,38 +477,27 @@ export class HabitEditDialog {
             if (type === 'daily') {
                 intervalContainer.style.display = 'flex';
                 intervalSuffix.textContent = '天';
-                customModeContainer.style.display = 'none';
                 weekdaysContainer.style.display = 'none';
                 monthDaysContainer.style.display = 'none';
+                yearlyDateContainer.style.display = 'none';
             } else if (type === 'weekly') {
                 intervalContainer.style.display = 'flex';
                 intervalSuffix.textContent = '周';
-                customModeContainer.style.display = 'none';
                 weekdaysContainer.style.display = 'flex';
                 monthDaysContainer.style.display = 'none';
+                yearlyDateContainer.style.display = 'none';
             } else if (type === 'monthly') {
                 intervalContainer.style.display = 'flex';
                 intervalSuffix.textContent = '月';
-                customModeContainer.style.display = 'none';
                 weekdaysContainer.style.display = 'none';
                 monthDaysContainer.style.display = 'flex';
+                yearlyDateContainer.style.display = 'none';
             } else if (type === 'yearly') {
                 intervalContainer.style.display = 'flex';
                 intervalSuffix.textContent = '年';
-                customModeContainer.style.display = 'none';
                 weekdaysContainer.style.display = 'none';
                 monthDaysContainer.style.display = 'none';
-            } else if (type === 'custom') {
-                // 自定义：允许切换星期/每月日期
-                intervalContainer.style.display = 'none';
-                customModeContainer.style.display = 'flex';
-                if (customModeSelect.value === 'weekdays') {
-                    weekdaysContainer.style.display = 'flex';
-                    monthDaysContainer.style.display = 'none';
-                } else {
-                    weekdaysContainer.style.display = 'none';
-                    monthDaysContainer.style.display = 'flex';
-                }
+                yearlyDateContainer.style.display = 'flex';
             }
         };
 
@@ -518,7 +510,6 @@ export class HabitEditDialog {
         }
 
         select.addEventListener('change', () => updateHelperUI());
-        customModeSelect.addEventListener('change', () => updateHelperUI());
 
         return group;
     }
@@ -784,7 +775,7 @@ export class HabitEditDialog {
         }
 
         // set frequency details
-        if (frequencyType === 'daily' || frequencyType === 'yearly') {
+        if (frequencyType === 'daily') {
             if (interval && interval > 1) habit.frequency.interval = interval;
         }
 
@@ -804,13 +795,28 @@ export class HabitEditDialog {
             }
         }
 
-        if (frequencyType === 'custom') {
-            // prefer weekdays if selected, otherwise monthDays; default keep empty
-            if (weekdays && weekdays.length > 0) {
-                habit.frequency.weekdays = weekdays.sort((a, b) => a - b);
+        if (frequencyType === 'yearly') {
+            // 从日期输入框解析月份和日期
+            const yearlyDateStr = formData.get('yearlyDate') as string;
+            if (yearlyDateStr && yearlyDateStr.trim()) {
+                const match = yearlyDateStr.trim().match(/^(\d{1,2})-(\d{1,2})$/);
+                if (match) {
+                    const month = parseInt(match[1]);
+                    const day = parseInt(match[2]);
+                    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+                        habit.frequency.months = [month];
+                        habit.frequency.monthDays = [day];
+                    } else {
+                        showMessage('日期格式错误：月份应为1-12，日期应为1-31', 3000, 'error');
+                        return;
+                    }
+                } else {
+                    showMessage('日期格式错误，请使用 MM-DD 格式（例如：01-01）', 3000, 'error');
+                    return;
+                }
             }
-            if (monthDays && monthDays.length > 0) {
-                habit.frequency.monthDays = monthDays.sort((a, b) => a - b);
+            if (interval && interval > 1) {
+                habit.frequency.interval = interval;
             }
         }
 
