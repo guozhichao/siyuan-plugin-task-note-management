@@ -145,14 +145,14 @@ export async function getAllReminders(plugin: any): Promise<any> {
                 const subTasks = await loadSubscriptionTasks(subscription.id);
                 const updatedSubTasks: any = {};
                 let subTasksUpdated = false;
-                
+
                 // Merge subscription tasks, marking them as read-only
                 Object.keys(subTasks).forEach(key => {
                     const task = subTasks[key];
                     // Auto-complete expired subscription tasks
                     const isPast = isEventPast(task);
                     const completed = task.completed || isPast;
-                    
+
                     // If event is past and not already marked as completed, update the JSON file
                     if (isPast && !task.completed) {
                         updatedSubTasks[key] = { ...task, completed: true };
@@ -160,7 +160,7 @@ export async function getAllReminders(plugin: any): Promise<any> {
                     } else {
                         updatedSubTasks[key] = task;
                     }
-                    
+
                     allReminders[key] = {
                         ...task,
                         completed,
@@ -168,7 +168,7 @@ export async function getAllReminders(plugin: any): Promise<any> {
                         subscriptionId: subscription.id,
                     };
                 });
-                
+
                 // Save updated subscription tasks if any were auto-completed
                 if (subTasksUpdated) {
                     await saveSubscriptionTasks(subscription.id, updatedSubTasks);
