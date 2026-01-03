@@ -863,7 +863,6 @@
                             );
                             const recordManager = PomodoroRecordManager.getInstance(plugin);
                             await recordManager.regenerateRecordsByDate();
-
                         } catch (error) {
                             console.error('重新生成番茄钟记录失败:', error);
                             pushErrMsg('重新生成番茄钟记录失败');
