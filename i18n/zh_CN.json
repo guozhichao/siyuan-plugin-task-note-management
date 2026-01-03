@@ -976,6 +976,7 @@
     "invalidIcsUrl": "无效的ICS链接",
     "pleaseSelectProject": "请选择项目",
     "subscribedTaskReadOnly": "订阅任务（只读）",
+    "subscribedTask": "订阅日历任务",
     "enableOutlinePrefix": "大纲标题前缀",
     "enableOutlinePrefixDesc": "在大纲中为绑定标题添加任务状态前缀（✅完成 ⏰未完成），不影响标题内容",
     "taskGroupByTask": "任务区分",

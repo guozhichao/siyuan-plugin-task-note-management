@@ -911,6 +911,8 @@
     "habitCountsAsSuccess": "Counts as successful check-in",
     "enableOutlinePrefix": "Outline Title Prefix",
     "enableOutlinePrefixDesc": "Add task status prefix to bound headings in outline (✅ completed ⏰ pending), does not affect heading content",
+    "subscribedTaskReadOnly": "Subscribed Task (Read-only)",
+    "subscribedTask": "Subscribed Calendar Task",
     "taskGroupByTask": "By Task",
     "taskGroupByProject": "By Project",
     "taskGroupByCategory": "By Category",

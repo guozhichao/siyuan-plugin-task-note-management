@@ -1641,18 +1641,13 @@ export class ReminderPanel {
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.checked = reminder.completed || false;
-        if (reminder.isSubscribed) {
-            checkbox.disabled = true;
-            checkbox.title = t("subscribedTaskReadOnly") || "订阅任务（只读）";
-        } else {
-            checkbox.addEventListener('change', () => {
-                if (reminder.isRepeatInstance) {
-                    this.toggleReminder(reminder.originalId, checkbox.checked, true, reminder.date);
-                } else {
-                    this.toggleReminder(reminder.id, checkbox.checked);
-                }
-            });
-        }
+        checkbox.addEventListener('change', () => {
+            if (reminder.isRepeatInstance) {
+                this.toggleReminder(reminder.originalId, checkbox.checked, true, reminder.date);
+            } else {
+                this.toggleReminder(reminder.id, checkbox.checked);
+            }
+        });
 
         leftControls.appendChild(checkbox);
 
@@ -3848,15 +3843,8 @@ export class ReminderPanel {
         const menu = new Menu("reminderContextMenu");
         const today = getLogicalDateString();
 
-        // --- 订阅任务只读处理 ---
+        // --- 订阅任务处理 ---
         if (reminder.isSubscribed) {
-            menu.addItem({
-                iconHTML: "ℹ️",
-                label: t("subscribedTaskReadOnly") || "订阅任务（只读）",
-                disabled: true
-            });
-            menu.addSeparator();
-
             // 导航选项
             if (reminder.blockId) {
                 menu.addItem({
@@ -3891,6 +3879,15 @@ export class ReminderPanel {
                 iconHTML: "⏱️",
                 label: t("startCountUp") || "开始正向计时",
                 click: () => this.startPomodoroCountUp(reminder)
+            });
+
+            menu.addSeparator();
+
+            // 说明订阅来源
+            menu.addItem({
+                iconHTML: "ℹ️",
+                label: t("subscribedTask") || "订阅日历任务",
+                disabled: true
             });
 
             menu.open({
