@@ -111,7 +111,7 @@ export const DEFAULT_SETTINGS = {
     projectSortOrder: [],
     projectSortMode: 'custom',
     // ICS 云端同步配置
-    icsSyncInterval: 'daily', // '15min' | 'hourly' | '4hour' | '12hour' | 'daily'
+    icsSyncInterval: 'daily', // 'manual' | '15min' | 'hourly' | '4hour' | '12hour' | 'daily'
     icsCloudUrl: '',
     icsLastSyncAt: '', // 上一次上传时间
     icsSyncEnabled: false, // 是否启用ICS云端同步
@@ -309,7 +309,7 @@ export default class ReminderPlugin extends Plugin {
                 }
 
                 // 处理ICS同步设置变更
-                if (settings.icsSyncEnabled && settings.icsSyncInterval) {
+                if (settings.icsSyncEnabled && settings.icsSyncInterval && settings.icsSyncInterval !== 'manual') {
                     // 启用时立即安排并尽快执行一次同步
                     await this.scheduleIcsSync(settings.icsSyncInterval, true);
                 } else if (this.icsSyncTimer) {
@@ -4021,14 +4021,22 @@ export default class ReminderPlugin extends Plugin {
     // 初始化ICS云端同步
     private async initIcsSync() {
         const settings = await this.loadSettings();
-        if (settings.icsSyncEnabled && settings.icsSyncInterval) {
+        if (settings.icsSyncEnabled && settings.icsSyncInterval && settings.icsSyncInterval !== 'manual') {
             // 启用时立即执行一次初始同步
             await this.scheduleIcsSync(settings.icsSyncInterval, true);
         }
     }
 
     // 调度ICS同步
-    private async scheduleIcsSync(interval: '15min' | 'hourly' | '4hour' | '12hour' | 'daily', executeImmediately: boolean = true) {
+    private async scheduleIcsSync(interval: 'manual' | '15min' | 'hourly' | '4hour' | '12hour' | 'daily', executeImmediately: boolean = true) {
+        // 如果是手动模式，不启动定时同步
+        if (interval === 'manual') {
+            if (this.icsSyncTimer) {
+                clearInterval(this.icsSyncTimer);
+                this.icsSyncTimer = null;
+            }
+            return;
+        }
         // 使用短轮询（例如每30s）比较时间是否达到预定的下次同步时间，避免长期 setInterval 被后台杀死的问题
         if (this.icsSyncTimer) {
             clearInterval(this.icsSyncTimer);
@@ -4192,6 +4200,11 @@ export default class ReminderPlugin extends Plugin {
         const now = Date.now();
 
         for (const sub of subscriptions as any[]) {
+            // 跳过手动模式的订阅
+            if (sub.syncInterval === 'manual') {
+                continue;
+            }
+
             const intervalMs = getSyncIntervalMs(sub.syncInterval);
             const lastSyncMs = sub.lastSync ? Date.parse(sub.lastSync) : 0;
 

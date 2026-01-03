@@ -618,6 +618,7 @@
                     title: 'ICS 同步间隔',
                     description: '设置自动同步ICS文件到云端的频率',
                     options: {
+                        manual: '手动',
                         '15min': '每15分钟',
                         hourly: '每1小时',
                         '4hour': '每4小时',
@@ -1446,6 +1447,7 @@
                             <div class="b3-label">
                                 <div class="b3-label__text">${t('subscriptionSyncInterval')}</div>
                                 <select class="b3-select fn__block" id="sub-interval">
+                                    <option value="manual" ${subscription?.syncInterval === 'manual' ? 'selected' : ''}>${t('manual')}</option>
                                     <option value="15min" ${subscription?.syncInterval === '15min' ? 'selected' : ''}>${t('every15Minutes')}</option>
                                     <option value="30min" ${subscription?.syncInterval === '30min' ? 'selected' : ''}>${t('every30Minutes')}</option>
                                     <option value="hourly" ${subscription?.syncInterval === 'hourly' ? 'selected' : ''}>${t('everyHour')}</option>

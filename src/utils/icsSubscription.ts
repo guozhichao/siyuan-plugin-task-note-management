@@ -13,7 +13,7 @@ export interface IcsSubscription {
     projectId: string; // Required - must have a project
     categoryId?: string;
     priority?: 'high' | 'medium' | 'low' | 'none';
-    syncInterval: '15min' | '30min' | 'hourly' | '4hour' | '12hour' | 'daily';
+    syncInterval: 'manual' | '15min' | '30min' | 'hourly' | '4hour' | '12hour' | 'daily';
     enabled: boolean;
     lastSync?: string; // ISO timestamp
     lastSyncStatus?: 'success' | 'error';
@@ -358,6 +358,7 @@ export async function syncAllSubscriptions(plugin: any): Promise<void> {
  */
 export function getSyncIntervalMs(interval: IcsSubscription['syncInterval']): number {
     const intervals = {
+        'manual': Infinity, // 手动模式，永不自动同步
         '15min': 15 * 60 * 1000,
         '30min': 30 * 60 * 1000,
         'hourly': 60 * 60 * 1000,

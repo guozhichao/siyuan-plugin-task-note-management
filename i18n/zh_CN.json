@@ -963,6 +963,7 @@
     "subscriptionSyncCompleted": "订阅同步完成",
     "subscriptionTaskReadOnly": "订阅任务（只读）",
     "cannotEditSubscriptionTask": "订阅的任务无法编辑，请在原日历中修改",
+    "manual": "手动",
     "every15Minutes": "每15分钟",
     "every30Minutes": "每30分钟",
     "everyHour": "每1小时",

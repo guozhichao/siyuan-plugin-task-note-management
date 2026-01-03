@@ -917,5 +917,11 @@
     "taskGroupByProject": "By Project",
     "taskGroupByCategory": "By Category",
     "uncategorizedProject": "Unassigned Project",
-    "uncategorizedCategory": "Uncategorized"
+    "uncategorizedCategory": "Uncategorized",
+    "manual": "Manual",
+    "every15Minutes": "Every 15 Minutes",
+    "every30Minutes": "Every 30 Minutes",
+    "everyHour": "Every Hour",
+    "every4Hours": "Every 4 Hours",
+    "every12Hours": "Every 12 Hours"
 }
