@@ -166,7 +166,7 @@ export class CalendarView {
             this.updateViewButtonStates();
         });
         viewGroup.appendChild(this.weekBtn);
-        
+
         // 多天视图按钮（默认最近7天，今日为第二天）
         this.multiDaysBtn = document.createElement('button');
         this.multiDaysBtn.className = 'b3-button b3-button--outline';
