@@ -231,7 +231,17 @@ export async function saveReminders(plugin: any, allReminders: any): Promise<voi
  */
 async function fetchIcsContent(url: string): Promise<string> {
     try {
-        const response = await fetch(url, {
+        // Convert webcal:// and webcals:// protocols to http:// and https://
+        // webcal:// is just an alias for http://
+        // webcals:// is just an alias for https://
+        let fetchUrl = url;
+        if (url.startsWith('webcal://')) {
+            fetchUrl = 'http://' + url.substring(9);
+        } else if (url.startsWith('webcals://')) {
+            fetchUrl = 'https://' + url.substring(10);
+        }
+
+        const response = await fetch(fetchUrl, {
             method: 'GET',
             headers: {
                 'Accept': 'text/calendar, text/plain, */*',
