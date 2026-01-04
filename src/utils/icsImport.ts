@@ -84,35 +84,117 @@ function parseIcalEvent(vevent: ICAL.Component): ParsedIcsEvent | null {
             parsedEvent.description = event.description;
         }
 
-        // 开始时间
-        if (event.startDate) {
-            const startDate = event.startDate.toJSDate();
-            const dateStr = formatDate(startDate);
+        // 开始时间 - 先获取原始属性，避免自动解析错误
+        try {
+            const prop = vevent.getFirstProperty('dtstart');
+            if (prop) {
+                // 获取原始字符串值 - jCal[3] 是实际的值
+                const rawValue = prop.jCal[3];
+                const valueStr = typeof rawValue === 'string' ? rawValue : (Array.isArray(rawValue) ? rawValue[0] : String(rawValue));
+                const valueType = prop.jCal[2]; // 值类型："date" 或 "date-time"
 
-            // 检查是否是全天事件
-            if (event.startDate.isDate) {
-                parsedEvent.date = dateStr;
-            } else {
-                parsedEvent.date = dateStr;
-                parsedEvent.time = formatTime(startDate);
+                // 判断是否是纯日期格式（YYYYMMDD）或错误转换的格式（YYYY-MM-DDT::）
+                if (/^\d{8}$/.test(valueStr)) {
+                    // 纯日期格式，全天事件
+                    const year = valueStr.substring(0, 4);
+                    const month = valueStr.substring(4, 6);
+                    const day = valueStr.substring(6, 8);
+                    parsedEvent.date = `${year}-${month}-${day}`;
+                } else if (/^\d{4}-\d{2}-\d{2}T::$/.test(valueStr) || valueType === 'date') {
+                    // ical.js 错误转换的全天事件格式（如 "2026-01-04T::"）或明确标记为 date 类型
+                    const dateMatch = valueStr.match(/^(\d{4}-\d{2}-\d{2})/);
+                    if (dateMatch) {
+                        parsedEvent.date = dateMatch[1];
+                    }
+                } else {
+                    // 尝试正常解析为时间
+                    try {
+                        const startTime = prop.getFirstValue() as ICAL.Time;
+                        const startDate = startTime.toJSDate();
+                        const dateStr = formatDate(startDate);
+
+                        if (startTime.isDate) {
+                            parsedEvent.date = dateStr;
+                        } else {
+                            parsedEvent.date = dateStr;
+                            parsedEvent.time = formatTime(startDate);
+                        }
+                    } catch (parseError) {
+                        // 最后的fallback：尝试从错误格式中提取日期
+                        const dateMatch = valueStr.match(/^(\d{4}-\d{2}-\d{2})/);
+                        if (dateMatch) {
+                            parsedEvent.date = dateMatch[1];
+                            console.warn('从错误格式中提取日期:', dateMatch[1]);
+                        } else {
+                            console.warn('无法解析为 ICAL.Time，使用原始值:', valueStr);
+                        }
+                    }
+                }
             }
+        } catch (e) {
+            console.warn('解析开始时间失败:', e);
         }
 
-        // 结束时间
-        if (event.endDate) {
-            const endDate = event.endDate.toJSDate();
-            const endDateStr = formatDate(endDate);
+        // 结束时间 - 先获取原始属性，避免自动解析错误
+        try {
+            const prop = vevent.getFirstProperty('dtend');
+            if (prop) {
+                // 获取原始字符串值 - jCal[3] 是实际的值
+                const rawValue = prop.jCal[3];
+                const valueStr = typeof rawValue === 'string' ? rawValue : (Array.isArray(rawValue) ? rawValue[0] : String(rawValue));
+                const valueType = prop.jCal[2]; // 值类型："date" 或 "date-time"
 
-            if (event.endDate.isDate) {
-                // ICS all-day event endDate is exclusive (e.g., 2026-01-01 to 2026-01-02 is a 1-day event).
-                // We convert it to inclusive (e.g., 2026-01-01 to 2026-01-01) for our task system.
-                const inclusiveDate = new Date(endDate.getTime());
-                inclusiveDate.setDate(inclusiveDate.getDate() - 1);
-                parsedEvent.endDate = formatDate(inclusiveDate);
-            } else {
-                parsedEvent.endDate = endDateStr;
-                parsedEvent.endTime = formatTime(endDate);
+                // 判断是否是纯日期格式（YYYYMMDD）或错误转换的格式（YYYY-MM-DDT::）
+                if (/^\d{8}$/.test(valueStr)) {
+                    // 纯日期格式，全天事件
+                    const year = valueStr.substring(0, 4);
+                    const month = valueStr.substring(4, 6);
+                    const day = valueStr.substring(6, 8);
+                    const endDate = `${year}-${month}-${day}`;
+                    // ICS 全天事件的结束日期是独占的，需要减1天转换为包含式
+                    const date = new Date(endDate);
+                    date.setDate(date.getDate() - 1);
+                    parsedEvent.endDate = formatDate(date);
+                } else if (/^\d{4}-\d{2}-\d{2}T::$/.test(valueStr) || valueType === 'date') {
+                    // ical.js 错误转换的全天事件格式（如 "2026-01-05T::"）或明确标记为 date 类型
+                    const dateMatch = valueStr.match(/^(\d{4}-\d{2}-\d{2})/);
+                    if (dateMatch) {
+                        // ICS 全天事件的结束日期是独占的，需要减1天
+                        const date = new Date(dateMatch[1]);
+                        date.setDate(date.getDate() - 1);
+                        parsedEvent.endDate = formatDate(date);
+                    }
+                } else {
+                    // 尝试正常解析为时间
+                    try {
+                        const endTime = prop.getFirstValue() as ICAL.Time;
+                        const endDate = endTime.toJSDate();
+                        const endDateStr = formatDate(endDate);
+
+                        if (endTime.isDate) {
+                            const inclusiveDate = new Date(endDate.getTime());
+                            inclusiveDate.setDate(inclusiveDate.getDate() - 1);
+                            parsedEvent.endDate = formatDate(inclusiveDate);
+                        } else {
+                            parsedEvent.endDate = endDateStr;
+                            parsedEvent.endTime = formatTime(endDate);
+                        }
+                    } catch (parseError) {
+                        // 最后的fallback：尝试从错误格式中提取日期
+                        const dateMatch = valueStr.match(/^(\d{4}-\d{2}-\d{2})/);
+                        if (dateMatch) {
+                            const date = new Date(dateMatch[1]);
+                            date.setDate(date.getDate() - 1);
+                            parsedEvent.endDate = formatDate(date);
+                            console.warn('从错误格式中提取结束日期:', parsedEvent.endDate);
+                        } else {
+                            console.warn('无法解析为 ICAL.Time，使用原始值:', valueStr);
+                        }
+                    }
+                }
             }
+        } catch (e) {
+            console.warn('解析结束时间失败:', e);
         }
 
         // 状态
