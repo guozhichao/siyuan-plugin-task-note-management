@@ -55,6 +55,7 @@ export class CalendarView {
     private weekBtn: HTMLButtonElement;
     private dayBtn: HTMLButtonElement;
     private yearBtn: HTMLButtonElement;
+    private multiDaysBtn: HTMLButtonElement;
 
 
     // 使用全局番茄钟管理器
@@ -165,6 +166,30 @@ export class CalendarView {
             this.updateViewButtonStates();
         });
         viewGroup.appendChild(this.weekBtn);
+        
+        // 多天视图按钮（默认最近7天，今日为第二天）
+        this.multiDaysBtn = document.createElement('button');
+        this.multiDaysBtn.className = 'b3-button b3-button--outline';
+        this.multiDaysBtn.textContent = t("multiDays") || "多天";
+        this.multiDaysBtn.addEventListener('click', async () => {
+            const viewType = this.calendarConfigManager.getViewType();
+            let viewMode: string;
+            if (viewType === 'timeline') {
+                viewMode = 'timeGridMultiDays7';
+            } else if (viewType === 'kanban') {
+                viewMode = 'dayGridMultiDays7';
+            } else { // list
+                viewMode = 'listMultiDays7';
+            }
+
+            // 计算多天视图的起始日期（今天的前一天），使今天显示为第二天
+            const startDate = getRelativeDateString(-1);
+
+            await this.calendarConfigManager.setViewMode(viewMode as any);
+            this.calendar.changeView(viewMode, startDate);
+            this.updateViewButtonStates();
+        });
+        viewGroup.appendChild(this.multiDaysBtn);
 
         this.dayBtn = document.createElement('button');
         this.dayBtn.className = 'b3-button b3-button--outline';
@@ -265,6 +290,15 @@ export class CalendarView {
                         newViewMode = 'dayGridWeek';
                     } else { // list
                         newViewMode = 'listWeek';
+                    }
+                } else if (currentViewMode.includes('MultiDays')) {
+                    // Multi-days (7) view
+                    if (selectedViewType === 'timeline') {
+                        newViewMode = 'timeGridMultiDays7';
+                    } else if (selectedViewType === 'kanban') {
+                        newViewMode = 'dayGridMultiDays7';
+                    } else { // list
+                        newViewMode = 'listMultiDays7';
                     }
                 } else if (currentViewMode.includes('Day')) {
                     // Day view
@@ -672,9 +706,17 @@ export class CalendarView {
         this.container.appendChild(calendarEl);
 
         // 初始化日历 - 使用用户设置的周开始日
+        const initialViewMode = this.calendarConfigManager.getViewMode();
+        const multiDaysStartDate = getRelativeDateString(-1);
         this.calendar = new Calendar(calendarEl, {
             plugins: [dayGridPlugin, timeGridPlugin, multiMonthPlugin, listPlugin, interactionPlugin],
-            initialView: this.calendarConfigManager.getViewMode(),
+            initialView: initialViewMode,
+            initialDate: (initialViewMode && initialViewMode.includes('MultiDays')) ? multiDaysStartDate : undefined,
+            views: {
+                timeGridMultiDays7: { type: 'timeGrid', duration: { days: 7 } },
+                dayGridMultiDays7: { type: 'dayGrid', duration: { days: 7 } },
+                listMultiDays7: { type: 'list', duration: { days: 7 } }
+            },
             multiMonthMaxColumns: 1, // force a single column
             headerToolbar: {
                 left: 'prev,next today',
@@ -5589,6 +5631,7 @@ export class CalendarView {
         this.weekBtn.classList.remove('b3-button--primary');
         this.dayBtn.classList.remove('b3-button--primary');
         this.yearBtn.classList.remove('b3-button--primary');
+        if (this.multiDaysBtn) this.multiDaysBtn.classList.remove('b3-button--primary');
 
         // 根据当前视图模式设置激活按钮
         switch (currentViewMode) {
@@ -5607,6 +5650,11 @@ export class CalendarView {
                 break;
             case 'multiMonthYear':
                 this.yearBtn.classList.add('b3-button--primary');
+                break;
+            case 'timeGridMultiDays7':
+            case 'dayGridMultiDays7':
+            case 'listMultiDays7':
+                if (this.multiDaysBtn) this.multiDaysBtn.classList.add('b3-button--primary');
                 break;
             case 'listMonth':
                 this.monthBtn.classList.add('b3-button--primary');
