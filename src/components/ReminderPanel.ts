@@ -16,6 +16,7 @@ import { EisenhowerMatrixView } from "./EisenhowerMatrixView";
 import { PomodoroManager } from "../utils/pomodoroManager";
 import { getSolarDateLunarString, getNextLunarMonthlyDate, getNextLunarYearlyDate } from "../utils/lunarUtils";
 import { getAllReminders, saveReminders } from "../utils/icsSubscription";
+import { isEventPast } from "../utils/icsImport";
 
 // 添加四象限面板常量
 const EISENHOWER_TAB_TYPE = "reminder_eisenhower_tab";
@@ -2107,7 +2108,14 @@ export class ReminderPanel {
                 const repeatInstances = this.generateInstancesWithFutureGuarantee(reminder, today, isLunarRepeat);
 
                 // 过滤实例：保留过去未完成、今天的、未来第一个未完成，以及所有已完成的实例
-                const completedInstances = reminder.repeat?.completedInstances || [];
+                // 确保 repeat 对象存在
+                if (!reminder.repeat) {
+                    reminder.repeat = {};
+                }
+                if (!reminder.repeat.completedInstances) {
+                    reminder.repeat.completedInstances = [];
+                }
+                const completedInstances = reminder.repeat.completedInstances;
                 const instanceModifications = reminder.repeat?.instanceModifications || {};
 
                 // 将实例分类为：过去未完成、今天未完成、未来未完成、未来已完成、过去已完成
@@ -2121,7 +2129,28 @@ export class ReminderPanel {
                     // 对于所有重复事件，添加所有生成的实例（包括与原始日期相同的实例）
                     // 从 instanceId (格式: originalId_YYYY-MM-DD) 中提取原始生成日期
                     const originalInstanceDate = instance.instanceId.split('_').pop() || instance.date;
-                    const isInstanceCompleted = completedInstances.includes(originalInstanceDate);
+                    let isInstanceCompleted = completedInstances.includes(originalInstanceDate);
+                    
+                    // 对于订阅任务的重复实例，检查是否过期并自动标记为已完成
+                    if (reminder.isSubscribed && !isInstanceCompleted) {
+                        const instanceIsPast = isEventPast({
+                            ...reminder,
+                            date: instance.date,
+                            time: instance.time,
+                            endDate: instance.endDate,
+                            endTime: instance.endTime,
+                        });
+                        if (instanceIsPast) {
+                            isInstanceCompleted = true;
+                            // 异步更新 completedInstances 数组并保存
+                            if (!completedInstances.includes(originalInstanceDate)) {
+                                completedInstances.push(originalInstanceDate);
+                                // 标记需要保存（在循环结束后统一保存）
+                                reminder._needsSave = true;
+                            }
+                        }
+                    }
+                    
                     const instanceMod = instanceModifications[originalInstanceDate];
 
                     // 使用展开运算符复制原始提醒的所有属性（包括 projectId、categoryId、priority 等）
@@ -2197,6 +2226,20 @@ export class ReminderPanel {
                 // 添加所有已完成的实例（包括过去和未来的）
                 allReminders.push(...pastCompletedList);
                 allReminders.push(...futureCompletedList);
+                
+                // 如果订阅任务有过期实例被自动标记为已完成，保存更新
+                if (reminder.isSubscribed && reminder._needsSave) {
+                    delete reminder._needsSave; // 清理临时标记
+                    // 异步保存，不阻塞UI渲染
+                    (async () => {
+                        try {
+                            reminderData[reminder.id] = reminder;
+                            await saveReminders(this.plugin, reminderData);
+                        } catch (error) {
+                            console.error('Failed to save auto-completed subscription instances:', error);
+                        }
+                    })();
+                }
             }
         });
 

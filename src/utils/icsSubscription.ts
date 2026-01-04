@@ -5,6 +5,8 @@
 
 import { pushErrMsg, pushMsg, putFile, getFile } from '../api';
 import { parseIcsFile, isEventPast } from './icsImport';
+import { generateRepeatInstances } from './repeatUtils';
+import { getLocalDateString } from './dateUtils';
 
 export interface IcsSubscription {
     id: string;
@@ -140,6 +142,10 @@ export async function getAllReminders(plugin: any): Promise<any> {
         let allReminders = { ...mainReminders };
         let needsSave = false;
 
+        const today = getLocalDateString();
+        const startDate = today; // 从今天开始生成实例
+        const endDate = getLocalDateString(new Date(new Date().getTime() + 365 * 24 * 60 * 60 * 1000)); // 未来一年
+
         for (const subscription of subscriptions) {
             if (subscription.enabled) {
                 const subTasks = await loadSubscriptionTasks(subscription.id);
@@ -149,24 +155,73 @@ export async function getAllReminders(plugin: any): Promise<any> {
                 // Merge subscription tasks, marking them as read-only
                 Object.keys(subTasks).forEach(key => {
                     const task = subTasks[key];
-                    // Auto-complete expired subscription tasks
-                    const isPast = isEventPast(task);
-                    const completed = task.completed || isPast;
-
-                    // If event is past and not already marked as completed, update the JSON file
-                    if (isPast && !task.completed) {
-                        updatedSubTasks[key] = { ...task, completed: true };
-                        subTasksUpdated = true;
+                    
+                    // 处理重复事件
+                    if (task.repeat && task.repeat.enabled) {
+                        // 生成重复实例
+                        const instances = generateRepeatInstances(task, startDate, endDate, 100);
+                        
+                        // 检查每个实例是否过期，并自动完成
+                        const completedInstances = task.repeat.completedInstances || [];
+                        let instancesUpdated = false;
+                        
+                        instances.forEach(instance => {
+                            const instanceDate = instance.date;
+                            const instanceIsPast = isEventPast({
+                                ...task,
+                                date: instance.date,
+                                time: instance.time,
+                                endDate: instance.endDate,
+                                endTime: instance.endTime,
+                            });
+                            
+                            // 如果实例过期且未完成，自动添加到completedInstances
+                            if (instanceIsPast && !completedInstances.includes(instanceDate)) {
+                                completedInstances.push(instanceDate);
+                                instancesUpdated = true;
+                            }
+                        });
+                        
+                        // 如果有实例被自动完成，更新任务数据
+                        if (instancesUpdated) {
+                            updatedSubTasks[key] = {
+                                ...task,
+                                repeat: {
+                                    ...task.repeat,
+                                    completedInstances,
+                                },
+                            };
+                            subTasksUpdated = true;
+                        } else {
+                            updatedSubTasks[key] = task;
+                        }
+                        
+                        // 添加到allReminders（保留原始的重复任务，实例会在ReminderPanel中生成）
+                        allReminders[key] = {
+                            ...updatedSubTasks[key] || task,
+                            isSubscribed: true,
+                            subscriptionId: subscription.id,
+                        };
                     } else {
-                        updatedSubTasks[key] = task;
-                    }
+                        // 非重复事件的处理逻辑（原有逻辑）
+                        const isPast = isEventPast(task);
+                        const completed = task.completed || isPast;
 
-                    allReminders[key] = {
-                        ...task,
-                        completed,
-                        isSubscribed: true,
-                        subscriptionId: subscription.id,
-                    };
+                        // If event is past and not already marked as completed, update the JSON file
+                        if (isPast && !task.completed) {
+                            updatedSubTasks[key] = { ...task, completed: true };
+                            subTasksUpdated = true;
+                        } else {
+                            updatedSubTasks[key] = task;
+                        }
+
+                        allReminders[key] = {
+                            ...task,
+                            completed,
+                            isSubscribed: true,
+                            subscriptionId: subscription.id,
+                        };
+                    }
                 });
 
                 // Save updated subscription tasks if any were auto-completed
