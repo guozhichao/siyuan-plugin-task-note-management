@@ -2130,7 +2130,7 @@ export class ReminderPanel {
                     // 从 instanceId (格式: originalId_YYYY-MM-DD) 中提取原始生成日期
                     const originalInstanceDate = instance.instanceId.split('_').pop() || instance.date;
                     let isInstanceCompleted = completedInstances.includes(originalInstanceDate);
-                    
+
                     // 对于订阅任务的重复实例，检查是否过期并自动标记为已完成
                     if (reminder.isSubscribed && !isInstanceCompleted) {
                         const instanceIsPast = isEventPast({
@@ -2150,7 +2150,7 @@ export class ReminderPanel {
                             }
                         }
                     }
-                    
+
                     const instanceMod = instanceModifications[originalInstanceDate];
 
                     // 使用展开运算符复制原始提醒的所有属性（包括 projectId、categoryId、priority 等）
@@ -2226,7 +2226,7 @@ export class ReminderPanel {
                 // 添加所有已完成的实例（包括过去和未来的）
                 allReminders.push(...pastCompletedList);
                 allReminders.push(...futureCompletedList);
-                
+
                 // 如果订阅任务有过期实例被自动标记为已完成，保存更新
                 if (reminder.isSubscribed && reminder._needsSave) {
                     delete reminder._needsSave; // 清理临时标记

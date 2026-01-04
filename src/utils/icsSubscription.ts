@@ -155,16 +155,16 @@ export async function getAllReminders(plugin: any): Promise<any> {
                 // Merge subscription tasks, marking them as read-only
                 Object.keys(subTasks).forEach(key => {
                     const task = subTasks[key];
-                    
+
                     // 处理重复事件
                     if (task.repeat && task.repeat.enabled) {
                         // 生成重复实例
                         const instances = generateRepeatInstances(task, startDate, endDate, 100);
-                        
+
                         // 检查每个实例是否过期，并自动完成
                         const completedInstances = task.repeat.completedInstances || [];
                         let instancesUpdated = false;
-                        
+
                         instances.forEach(instance => {
                             const instanceDate = instance.date;
                             const instanceIsPast = isEventPast({
@@ -174,14 +174,14 @@ export async function getAllReminders(plugin: any): Promise<any> {
                                 endDate: instance.endDate,
                                 endTime: instance.endTime,
                             });
-                            
+
                             // 如果实例过期且未完成，自动添加到completedInstances
                             if (instanceIsPast && !completedInstances.includes(instanceDate)) {
                                 completedInstances.push(instanceDate);
                                 instancesUpdated = true;
                             }
                         });
-                        
+
                         // 如果有实例被自动完成，更新任务数据
                         if (instancesUpdated) {
                             updatedSubTasks[key] = {
@@ -195,7 +195,7 @@ export async function getAllReminders(plugin: any): Promise<any> {
                         } else {
                             updatedSubTasks[key] = task;
                         }
-                        
+
                         // 添加到allReminders（保留原始的重复任务，实例会在ReminderPanel中生成）
                         allReminders[key] = {
                             ...updatedSubTasks[key] || task,
