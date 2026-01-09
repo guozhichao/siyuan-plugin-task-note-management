@@ -36,6 +36,7 @@ export class CalendarView {
     private currentCategoryFilter: Set<string> = new Set(['all']); // 当前分类过滤（支持多选）
     private currentProjectFilter: Set<string> = new Set(['all']); // 当前项目过滤（支持多选）
     private initialProjectFilter: string | null = null;
+    private showCategoryAndProject: boolean = true; // 是否显示分类和项目信息
     private colorBy: 'category' | 'priority' | 'project' = 'project'; // 按分类或优先级上色
     private tooltip: HTMLElement | null = null; // 添加提示框元素
     private dropIndicator: HTMLElement | null = null; // 拖放放置指示器
@@ -89,6 +90,8 @@ export class CalendarView {
 
         // 从配置中读取colorBy和viewMode设置
         this.colorBy = this.calendarConfigManager.getColorBy();
+        const settings = await this.plugin.loadSettings();
+        this.showCategoryAndProject = settings.calendarShowCategoryAndProject !== false;
 
         // 获取周开始日设置
         const weekStartDay = await this.getWeekStartDay();
@@ -1024,6 +1027,11 @@ export class CalendarView {
         // 监听设置更新事件（如：周开始日）
         window.addEventListener('reminderSettingsUpdated', () => this.applyWeekStartDay());
         window.addEventListener('reminderSettingsUpdated', () => this.applyDayStartTime());
+        window.addEventListener('reminderSettingsUpdated', async () => {
+            const settings = await this.plugin.loadSettings();
+            this.showCategoryAndProject = settings.calendarShowCategoryAndProject !== false;
+            this.calendar.render(); // 重新渲染日历内容
+        });
 
         // 添加窗口大小变化监听器
         this.addResizeListeners();
@@ -2195,7 +2203,7 @@ export class CalendarView {
         indicatorsRow.className = 'reminder-event-indicators-row';
 
         // 分类图标 (订阅图标已移至顶部复选框位置)
-        if (!props.isSubscribed && props.categoryId) {
+        if (this.showCategoryAndProject && !props.isSubscribed && props.categoryId) {
             const category = this.categoryManager.getCategoryById(props.categoryId);
             if (category && category.icon) {
                 const catIcon = document.createElement('span');
@@ -2229,21 +2237,23 @@ export class CalendarView {
         let labelText = '';
         let labelColor = '';
 
-        if (props.projectId) {
-            // 如果有项目，显示项目名（带📂图标）
-            const project = this.projectManager.getProjectById(props.projectId);
-            if (project) {
-                labelText = `📂 ${project.name}`;
-                labelColor = this.projectManager.getProjectColor(props.projectId);
+        if (this.showCategoryAndProject) {
+            if (props.projectId) {
+                // 如果有项目，显示项目名（带📂图标）
+                const project = this.projectManager.getProjectById(props.projectId);
+                if (project) {
+                    labelText = `📂 ${project.name}`;
+                    labelColor = this.projectManager.getProjectColor(props.projectId);
 
-                // 如果有自定义分组，显示"项目/自定义分组"（使用预加载的名称）
-                if (props.customGroupId && props.customGroupName) {
-                    labelText = `📂 ${project.name} / ${props.customGroupName}`;
+                    // 如果有自定义分组，显示"项目/自定义分组"（使用预加载的名称）
+                    if (props.customGroupId && props.customGroupName) {
+                        labelText = `📂 ${project.name} / ${props.customGroupName}`;
+                    }
                 }
+            } else if (props.docTitle && props.docId && props.blockId && props.docId !== props.blockId) {
+                // 如果没有项目，且绑定块是块而不是文档，显示文档名（带📄图标）
+                labelText = `📄 ${props.docTitle}`;
             }
-        } else if (props.docTitle && props.docId && props.blockId && props.docId !== props.blockId) {
-            // 如果没有项目，且绑定块是块而不是文档，显示文档名（带📄图标）
-            labelText = `📄 ${props.docTitle}`;
         }
 
         if (labelText) {

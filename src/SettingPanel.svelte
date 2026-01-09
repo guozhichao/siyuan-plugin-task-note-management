@@ -156,6 +156,13 @@
                     },
                 },
                 {
+                    key: 'calendarShowCategoryAndProject',
+                    value: settings.calendarShowCategoryAndProject,
+                    type: 'checkbox',
+                    title: t('calendarShowCategoryAndProject'),
+                    description: t('calendarShowCategoryAndProjectDesc'),
+                },
+                {
                     key: 'dayStartTime',
                     value: settings.dayStartTime,
                     type: 'textinput',
