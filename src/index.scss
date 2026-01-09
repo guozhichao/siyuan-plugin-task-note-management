@@ -720,10 +720,12 @@
     }
 
 }
-.habit-panel{
+
+.habit-panel {
     display: flex;
     flex-direction: column;
 }
+
 .habit-panel .habit-header,
 .reminder-panel {
     padding: 8px;
@@ -2283,10 +2285,10 @@
     background: var(--b3-theme-surface-light);
 }
 
-.reminder-calendar-view .filter-dropdown-menu > div:hover{
+.reminder-calendar-view .filter-dropdown-menu>div:hover {
     background-color: var(--b3-list-hover) !important;
 }
 
-.fc-daygrid-body{
+.fc-daygrid-body {
     max-height: 150px !important;
 }
