@@ -83,6 +83,7 @@ export class PomodoroTimer {
     private randomNotificationCheckTimer: number = null; // 定期检查定时器
     private randomNotificationLastCheckTime: number = 0; // 上次检查时间
     private randomNotificationNextTriggerTime: number = 0; // 下次触发时间
+    private randomNotificationWindow: any = null; // 新增：随机提示音弹窗
 
     private systemNotificationEnabled: boolean = true; // 新增：系统弹窗开关
     private randomNotificationSystemNotificationEnabled: boolean = true; // 新增：随机提示音系统通知开关
@@ -506,6 +507,9 @@ export class PomodoroTimer {
                 }
             }
 
+            // 打开弹窗提示
+            this.openRandomNotificationWindow();
+
             // 显示系统通知
             if (this.randomNotificationSystemNotificationEnabled) {
                 this.showSystemNotification(
@@ -538,6 +542,7 @@ export class PomodoroTimer {
                         // safePlayAudio 应不会抛出，但以防万一记录警告
                         console.warn('播放随机提示音结束声音时发生异常:', error);
                     } finally {
+                        this.closeRandomNotificationWindow();
                         // 随机提示音微休息结束，增加计数并持久化
                         try {
                             // 随机提示音计数仅在内存中维护
@@ -557,11 +562,12 @@ export class PomodoroTimer {
                         this.randomNotificationEndSoundTimer = null;
                     }
                 }, breakDuration);
-            } else if (this.randomNotificationSystemNotificationEnabled) {
+            } else {
                 const breakDurationSeconds = Number(this.settings.randomNotificationBreakDuration) || 0;
                 const breakDuration = Math.max(0, breakDurationSeconds * 1000);
 
                 this.randomNotificationEndSoundTimer = window.setTimeout(() => {
+                    this.closeRandomNotificationWindow();
                     // 随机提示音微休息结束，增加计数并持久化
                     try {
                         // 随机提示音计数仅在内存中维护
@@ -570,10 +576,12 @@ export class PomodoroTimer {
                     } catch (err) {
                         console.warn('更新随机提示音计数失败:', err);
                     }
-                    this.showSystemNotification(
-                        t('randomNotificationSettings'),
-                        t('randomRestComplete') || '微休息时间结束，可以继续专注工作了！'
-                    );
+                    if (this.randomNotificationSystemNotificationEnabled) {
+                        this.showSystemNotification(
+                            t('randomNotificationSettings'),
+                            t('randomRestComplete') || '微休息时间结束，可以继续专注工作了！'
+                        );
+                    }
                     this.randomNotificationEndSoundTimer = null;
                 }, breakDuration);
             }
@@ -661,6 +669,217 @@ export class PomodoroTimer {
         if (this.randomNotificationEndSoundTimer) {
             clearTimeout(this.randomNotificationEndSoundTimer);
             this.randomNotificationEndSoundTimer = null;
+        }
+        this.closeRandomNotificationWindow();
+    }
+
+    private closeRandomNotificationWindow() {
+        if (this.randomNotificationWindow) {
+            try {
+                this.randomNotificationWindow.close();
+            } catch (e) {
+                // ignore
+            }
+            this.randomNotificationWindow = null;
+        }
+    }
+
+    private openPomodoroEndWindow() {
+        if (!this.settings.pomodoroEndPopupWindow) return;
+        this.openRandomNotificationWindowImpl(
+            t('pomodoroWorkEnd') || '工作结束',
+            t('pomodoroWorkEndDesc') || '工作时间结束，起来走走喝喝水吧！',
+            '🍅'
+        );
+    }
+
+    private openRandomNotificationWindow() {
+        if (!this.settings.randomNotificationPopupWindow) return;
+        console.log('[PomodoroTimer] 打开随机提示音弹窗');
+        this.openRandomNotificationWindowImpl(
+            t('randomNotificationSettings') || '随机提示音',
+            t('randomRest', { duration: this.settings.randomNotificationBreakDuration }) || 'Time for a quick break!',
+            '🎲'
+        );
+    }
+
+    private openRandomNotificationWindowImpl(title: string, message: string, icon: string, autoCloseDelay?: number) {
+        try {
+            this.closeRandomNotificationWindow();
+
+            let electron: any;
+            try {
+                electron = (window as any).require('electron');
+            } catch (e) {
+                console.error("[PomodoroTimer] Failed to require electron", e);
+                return;
+            }
+
+            // 尝试多种方式获取 remote 和 BrowserWindow
+            let remote = electron.remote;
+            if (!remote) {
+                try {
+                    remote = (window as any).require('@electron/remote');
+                } catch (e) {
+                    // ignore
+                }
+            }
+
+            if (!remote) {
+                console.error("[PomodoroTimer] Failed to get electron remote");
+                return;
+            }
+
+            const BrowserWindowConstructor = remote.BrowserWindow;
+            if (!BrowserWindowConstructor) {
+                console.error("[PomodoroTimer] Failed to get BrowserWindow constructor");
+                return;
+            }
+
+            // 获取屏幕尺寸
+            const screen = remote.screen || electron.screen;
+            if (!screen) {
+                console.error("[PomodoroTimer] Failed to get screen object");
+                return;
+            }
+
+            const primaryDisplay = screen.getPrimaryDisplay();
+            const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+            const winWidth = Math.floor(screenWidth / 2);
+            const winHeight = Math.floor(screenHeight / 2);
+
+            this.randomNotificationWindow = new BrowserWindowConstructor({
+                width: winWidth,
+                height: winHeight,
+                frame: true,
+                alwaysOnTop: true,
+                center: true,
+                resizable: false,
+                movable: true,
+                skipTaskbar: true,
+                hasShadow: true,
+                transparent: false,
+                webPreferences: {
+                    nodeIntegration: false,
+                    contextIsolation: true,
+                    webSecurity: false // 允许加载本地资源
+                },
+                title: title,
+                show: false,
+                backgroundColor: (this.settings.darkMode || document.body.classList.contains('theme-dark')) ? '#1e1e1e' : '#ffffff'
+            });
+
+            // 移除默认菜单
+            this.randomNotificationWindow.setMenu(null);
+
+            const isDark = (this.settings.darkMode || document.body.classList.contains('theme-dark'));
+            const bgColor = isDark ? '#1e1e1e' : '#ffffff';
+            const textColor = isDark ? '#e0e0e0' : '#333333';
+
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <!-- 允许内联样式和脚本 -->
+                    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:;">
+                    <style>
+                        body {
+                            background-color: ${bgColor};
+                            color: ${textColor};
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            height: 100vh;
+                            margin: 0;
+                            font-family: "Segoe UI", "Microsoft YaHei", -apple-system, sans-serif;
+                            overflow: hidden;
+                            user-select: none;
+                            box-sizing: border-box;
+                            padding: 20px;
+                            text-align: center;
+                        }
+                        .container {
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            animation: fadeIn 0.5s ease;
+                            width: 100%;
+                        }
+                        .icon { 
+                            font-size: 80px; 
+                            margin-bottom: 24px; 
+                            animation: bounce 2s infinite;
+                            line-height: 1;
+                        }
+                        .title { 
+                            font-size: 32px; 
+                            font-weight: bold; 
+                            margin-bottom: 24px; 
+                            color: ${isDark ? '#ffffff' : '#000000'};
+                        }
+                        .message { 
+                            font-size: 20px; 
+                            font-weight: normal; 
+                            opacity: 0.9; 
+                            line-height: 1.6;
+                            word-wrap: break-word;
+                            max-width: 90%;
+                        }
+                        @keyframes bounce {
+                            0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
+                            40% {transform: translateY(-20px);}
+                            60% {transform: translateY(-10px);}
+                        }
+                        @keyframes fadeIn {
+                            from { opacity: 0; transform: scale(0.9); }
+                            to { opacity: 1; transform: scale(1); }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="icon">${icon}</div>
+                        <div class="title">${title}</div>
+                        <div class="message">${message}</div>
+                    </div>
+                </body>
+                </html>
+            `;
+
+            // 监听 ready-to-show 事件后再显示窗口，防止闪烁
+            this.randomNotificationWindow.once('ready-to-show', () => {
+                if (this.randomNotificationWindow) {
+                    this.randomNotificationWindow.show();
+                    this.randomNotificationWindow.focus();
+                    // 强制置顶
+                    this.randomNotificationWindow.setAlwaysOnTop(true, "screen-saver");
+                }
+            });
+
+            this.randomNotificationWindow.on('closed', () => {
+                this.randomNotificationWindow = null;
+            });
+
+            // 防止窗口被意外导航
+            this.randomNotificationWindow.webContents.on('will-navigate', (e: any) => {
+                e.preventDefault();
+            });
+
+            this.randomNotificationWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent));
+
+            if (autoCloseDelay) {
+                setTimeout(() => {
+                    this.closeRandomNotificationWindow();
+                }, autoCloseDelay * 1000);
+            }
+
+            console.log('[PomodoroTimer] Notification window created', { title, autoCloseDelay });
+
+        } catch (e) {
+            console.error("[PomodoroTimer] Failed to open random notification window", e);
         }
     }
 
@@ -3460,6 +3679,9 @@ export class PomodoroTimer {
                 await this.safePlayAudio(this.workEndAudio);
             }
 
+            // 打开番茄钟结束弹窗（如果启用）
+            this.openPomodoroEndWindow();
+
             // 显示系统弹窗通知
             if (this.systemNotificationEnabled) {
                 const eventTitle = this.reminder.title || '番茄专注';
@@ -3596,6 +3818,10 @@ export class PomodoroTimer {
 
         if (this.isWorkPhase) {
             // 工作阶段结束，停止随机提示音
+
+            // 打开番茄钟结束弹窗（如果启用）
+            this.openPomodoroEndWindow();
+
             // 显示系统弹窗通知
             if (this.systemNotificationEnabled) {
                 const eventTitle = this.reminder.title || '番茄专注';

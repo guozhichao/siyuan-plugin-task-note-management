@@ -178,6 +178,23 @@
                     description: t('todayStartDesc'),
                     placeholder: '03:00',
                 },
+                {
+                    key: 'showPomodoroInSummary',
+                    value: settings.showPomodoroInSummary,
+                    type: 'checkbox',
+                    title: t('showPomodoroInSummary') || '在摘要中显示番茄钟统计',
+                    description:
+                        t('showPomodoroInSummaryDesc') ||
+                        '开启后，任务摘要将包含番茄钟专注时长统计',
+                },
+                {
+                    key: 'showHabitInSummary',
+                    value: settings.showHabitInSummary,
+                    type: 'checkbox',
+                    title: t('showHabitInSummary') || '在摘要中显示习惯打卡统计',
+                    description:
+                        t('showHabitInSummaryDesc') || '开启后，任务摘要将包含习惯打卡情况统计',
+                },
             ],
         },
         {
@@ -299,6 +316,13 @@
                     description: t('pomodoroSystemNotificationDesc'),
                 },
                 {
+                    key: 'pomodoroEndPopupWindow',
+                    value: settings.pomodoroEndPopupWindow,
+                    type: 'checkbox',
+                    title: t('pomodoroEndPopupWindow') || '启用番茄钟结束全局弹窗提醒',
+                    description: t('pomodoroEndPopupWindowDesc') || '开启后，番茄钟工作结束时会在屏幕中央显示弹窗提醒，10秒后自动关闭',
+                },
+                {
                     key: 'dailyFocusGoal',
                     value: settings.dailyFocusGoal,
                     type: 'number',
@@ -372,6 +396,13 @@
                     description: t('randomNotificationSystemNotificationDesc'),
                 },
                 {
+                    key: 'randomNotificationPopupWindow',
+                    value: settings.randomNotificationPopupWindow,
+                    type: 'checkbox',
+                    title: t('randomNotificationPopupWindow') || '启用全局弹窗提醒',
+                    description: t('randomNotificationPopupWindowDesc') || '开启后，随机提示音开始时会在屏幕中央显示弹窗提醒，结束后自动关闭',
+                },
+                {
                     key: 'randomNotificationMinInterval',
                     value: settings.randomNotificationMinInterval,
                     type: 'number',
@@ -408,28 +439,7 @@
                 },
             ],
         },
-        {
-            name: t('summarySettings') || '📋摘要设置',
-            items: [
-                {
-                    key: 'showPomodoroInSummary',
-                    value: settings.showPomodoroInSummary,
-                    type: 'checkbox',
-                    title: t('showPomodoroInSummary') || '在摘要中显示番茄钟统计',
-                    description:
-                        t('showPomodoroInSummaryDesc') ||
-                        '开启后，任务摘要将包含番茄钟专注时长统计',
-                },
-                {
-                    key: 'showHabitInSummary',
-                    value: settings.showHabitInSummary,
-                    type: 'checkbox',
-                    title: t('showHabitInSummary') || '在摘要中显示习惯打卡统计',
-                    description:
-                        t('showHabitInSummaryDesc') || '开启后，任务摘要将包含习惯打卡情况统计',
-                },
-            ],
-        },
+
         {
             name: '📁' + t('dataStorageLocation'),
             items: [

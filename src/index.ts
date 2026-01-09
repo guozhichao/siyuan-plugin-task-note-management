@@ -68,6 +68,7 @@ export const DEFAULT_SETTINGS = {
     pomodoroWorkEndSound: '/plugins/siyuan-plugin-task-note-management/audios/work_end.mp3',
     pomodoroBreakEndSound: '/plugins/siyuan-plugin-task-note-management/audios/end_music.mp3',
     pomodoroSystemNotification: true, // 新增：番茄结束后系统弹窗
+    pomodoroEndPopupWindow: false, // 新增：番茄钟结束弹窗提醒，默认关闭
     reminderSystemNotification: true, // 新增：事件到期提醒系统弹窗
     // 支持 HH:MM 格式，例如 '09:00'，向后兼容旧的数字（如 8 -> '08:00'）
     dailyNotificationTime: '08:00', // 新增：每日通知时间，默认08:00
@@ -79,6 +80,7 @@ export const DEFAULT_SETTINGS = {
     randomNotificationSounds: '/plugins/siyuan-plugin-task-note-management/audios/random_start.mp3',
     randomNotificationEndSound: '/plugins/siyuan-plugin-task-note-management/audios/random_end.mp3',
     randomNotificationSystemNotification: true, // 新增：随机提示音系统通知
+    randomNotificationPopupWindow: false, // 新增：随机提示音弹窗提醒，默认关闭
     dailyFocusGoal: 6,
     autoDetectDateTime: false, // 新增：是否自动识别日期时间
     newDocNotebook: '', // 新增：新建文档的笔记本ID
@@ -471,7 +473,9 @@ export default class ReminderPlugin extends Plugin {
             randomNotificationSounds: settings.randomNotificationSounds,
             randomNotificationEndSound: settings.randomNotificationEndSound,
             randomNotificationSystemNotification: settings.randomNotificationSystemNotification, // 新增
-            dailyFocusGoal: settings.dailyFocusGoal
+            dailyFocusGoal: settings.dailyFocusGoal,
+            randomNotificationPopupWindow: settings.randomNotificationPopupWindow,
+            pomodoroEndPopupWindow: settings.pomodoroEndPopupWindow
         };
     }
 
