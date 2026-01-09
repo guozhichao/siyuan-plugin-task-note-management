@@ -29,7 +29,7 @@ export class TaskSummaryDialog {
   public async showTaskSummaryDialog() {
     try {
       this.currentFilter = 'current';
-      
+
       // 创建弹窗
       this.currentDialog = new Dialog({
         title: t("taskSummary") || "任务摘要",
@@ -53,7 +53,7 @@ export class TaskSummaryDialog {
 
     const dateRange = this.getFilterDateRange();
     const events = await this.getEventsForRange(dateRange.start, dateRange.end);
-    
+
     // 过滤在当前视图范围内的任务
     const filteredEvents = this.filterEventsByDateRange(events, dateRange);
 
@@ -64,7 +64,7 @@ export class TaskSummaryDialog {
     const stats = await this.calculateStats(dateRange.start, dateRange.end);
 
     container.innerHTML = this.generateSummaryContent(groupedTasks, dateRange, stats);
-    
+
     this.bindSummaryEvents(groupedTasks);
   }
 
@@ -114,7 +114,7 @@ export class TaskSummaryDialog {
                 endTime: instance.endTime,
                 completed: isInstanceCompleted,
                 note: instanceMod?.note || '',
-                docTitle: reminder.docTitle 
+                docTitle: reminder.docTitle
               };
 
               const uniqueInstanceId = `${reminder.id}_instance_${originalKey}`;
@@ -152,16 +152,16 @@ export class TaskSummaryDialog {
       if (record) {
         totalPomodoros += record.workSessions || 0;
         totalMinutes += record.totalWorkTime || 0;
-        
+
         const taskStats: { [id: string]: { count: number, minutes: number } } = {};
         if (record.sessions) {
-            record.sessions.forEach((s: any) => {
-                if (s.type === 'work' && s.completed) {
-                    if (!taskStats[s.eventId]) taskStats[s.eventId] = { count: 0, minutes: 0 };
-                    taskStats[s.eventId].count++;
-                    taskStats[s.eventId].minutes += s.duration || 0;
-                }
-            });
+          record.sessions.forEach((s: any) => {
+            if (s.type === 'work' && s.completed) {
+              if (!taskStats[s.eventId]) taskStats[s.eventId] = { count: 0, minutes: 0 };
+              taskStats[s.eventId].count++;
+              taskStats[s.eventId].minutes += s.duration || 0;
+            }
+          });
         }
 
         pomodoroByDate[getLocalDateString(current)] = {
@@ -198,24 +198,24 @@ export class TaskSummaryDialog {
           }
 
           if (!habitsByDate[dateStr]) habitsByDate[dateStr] = [];
-          
+
           // 获取当天的打卡emoji
           const checkIn = habit.checkIns?.[dateStr];
           const emojis: string[] = [];
           if (checkIn) {
-              if (checkIn.entries && checkIn.entries.length > 0) {
-                  checkIn.entries.forEach((entry: any) => {
-                      if (entry.emoji) emojis.push(entry.emoji);
-                  });
-              } else if (checkIn.status && checkIn.status.length > 0) {
-                  emojis.push(...checkIn.status);
-              }
+            if (checkIn.entries && checkIn.entries.length > 0) {
+              checkIn.entries.forEach((entry: any) => {
+                if (entry.emoji) emojis.push(entry.emoji);
+              });
+            } else if (checkIn.status && checkIn.status.length > 0) {
+              emojis.push(...checkIn.status);
+            }
           }
 
           // 获取成功打卡的次数
           const successCount = emojis.filter(emoji => {
-              const emojiConfig = habit.checkInEmojis?.find((e: any) => e.emoji === emoji);
-              return emojiConfig ? (emojiConfig.countsAsSuccess !== false) : true;
+            const emojiConfig = habit.checkInEmojis?.find((e: any) => e.emoji === emoji);
+            return emojiConfig ? (emojiConfig.countsAsSuccess !== false) : true;
           }).length;
 
           habitsByDate[dateStr].push({
@@ -349,16 +349,16 @@ export class TaskSummaryDialog {
 
     const emojis: string[] = [];
     if (checkIn.entries && checkIn.entries.length > 0) {
-        checkIn.entries.forEach((entry: any) => {
-            if (entry.emoji) emojis.push(entry.emoji);
-        });
+      checkIn.entries.forEach((entry: any) => {
+        if (entry.emoji) emojis.push(entry.emoji);
+      });
     } else if (checkIn.status && checkIn.status.length > 0) {
-        emojis.push(...checkIn.status);
+      emojis.push(...checkIn.status);
     }
 
     const successEmojis = emojis.filter(emoji => {
-        const emojiConfig = habit.checkInEmojis?.find((e: any) => e.emoji === emoji);
-        return emojiConfig ? (emojiConfig.countsAsSuccess !== false) : true;
+      const emojiConfig = habit.checkInEmojis?.find((e: any) => e.emoji === emoji);
+      return emojiConfig ? (emojiConfig.countsAsSuccess !== false) : true;
     });
 
     return successEmojis.length >= (habit.target || 1);
@@ -367,59 +367,59 @@ export class TaskSummaryDialog {
   private getRange(type: string): { start: string, end: string, label: string } {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     let start = new Date(today);
     let end = new Date(today);
     let label = '';
 
     switch (type) {
-        case 'today':
-            label = t('today');
-            break;
-        case 'tomorrow':
-            start.setDate(today.getDate() + 1);
-            end.setDate(today.getDate() + 1);
-            label = t('tomorrow');
-            break;
-        case 'yesterday':
-            start.setDate(today.getDate() - 1);
-            end.setDate(today.getDate() - 1);
-            label = t('yesterday');
-            break;
-        case 'thisWeek': {
-            const day = today.getDay();
-            const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-            start.setDate(diff);
-            end.setDate(diff + 6);
-            label = `${t('thisWeek')} (${getLocalDateString(start)} ~ ${getLocalDateString(end)})`;
-            break;
-        }
-        case 'nextWeek': {
-            const day = today.getDay();
-            const diff = today.getDate() - day + (day === 0 ? 1 : 8);
-            start.setDate(diff);
-            end.setDate(diff + 6);
-            label = `${t('nextWeek')} (${getLocalDateString(start)} ~ ${getLocalDateString(end)})`;
-            break;
-        }
-        case 'lastWeek': {
-            const day = today.getDay();
-            const diff = today.getDate() - day + (day === 0 ? -13 : -6);
-            start.setDate(diff);
-            end.setDate(diff + 6);
-            label = `${t('lastWeek')} (${getLocalDateString(start)} ~ ${getLocalDateString(end)})`;
-            break;
-        }
-        case 'thisMonth':
-            start = new Date(today.getFullYear(), today.getMonth(), 1);
-            end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-            label = t('thisMonth');
-            break;
-        case 'lastMonth':
-            start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-            end = new Date(today.getFullYear(), today.getMonth(), 0);
-            label = t('lastMonth');
-            break;
+      case 'today':
+        label = t('today');
+        break;
+      case 'tomorrow':
+        start.setDate(today.getDate() + 1);
+        end.setDate(today.getDate() + 1);
+        label = t('tomorrow');
+        break;
+      case 'yesterday':
+        start.setDate(today.getDate() - 1);
+        end.setDate(today.getDate() - 1);
+        label = t('yesterday');
+        break;
+      case 'thisWeek': {
+        const day = today.getDay();
+        const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+        start.setDate(diff);
+        end.setDate(diff + 6);
+        label = `${t('thisWeek')} (${getLocalDateString(start)} ~ ${getLocalDateString(end)})`;
+        break;
+      }
+      case 'nextWeek': {
+        const day = today.getDay();
+        const diff = today.getDate() - day + (day === 0 ? 1 : 8);
+        start.setDate(diff);
+        end.setDate(diff + 6);
+        label = `${t('nextWeek')} (${getLocalDateString(start)} ~ ${getLocalDateString(end)})`;
+        break;
+      }
+      case 'lastWeek': {
+        const day = today.getDay();
+        const diff = today.getDate() - day + (day === 0 ? -13 : -6);
+        start.setDate(diff);
+        end.setDate(diff + 6);
+        label = `${t('lastWeek')} (${getLocalDateString(start)} ~ ${getLocalDateString(end)})`;
+        break;
+      }
+      case 'thisMonth':
+        start = new Date(today.getFullYear(), today.getMonth(), 1);
+        end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        label = t('thisMonth');
+        break;
+      case 'lastMonth':
+        start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        end = new Date(today.getFullYear(), today.getMonth(), 0);
+        label = t('lastMonth');
+        break;
     }
     return { start: getLocalDateString(start), end: getLocalDateString(end), label };
   }
@@ -782,15 +782,15 @@ export class TaskSummaryDialog {
    */
   public generateSummaryContent(groupedTasks: Map<string, Map<string, any[]>>, dateRange: { start: string, end: string, label: string }, stats: any): string {
     const filters = [
-        { id: 'current', label: t('currentView') || '当前视图' },
-        { id: 'today', label: t('today') },
-        { id: 'tomorrow', label: t('tomorrow') },
-        { id: 'yesterday', label: t('yesterday') },
-        { id: 'thisWeek', label: t('thisWeek') },
-        { id: 'nextWeek', label: t('nextWeek') },
-        { id: 'lastWeek', label: t('lastWeek') },
-        { id: 'thisMonth', label: t('thisMonth') },
-        { id: 'lastMonth', label: t('lastMonth') },
+      { id: 'current', label: t('currentView') || '当前视图' },
+      { id: 'today', label: t('today') },
+      { id: 'tomorrow', label: t('tomorrow') },
+      { id: 'yesterday', label: t('yesterday') },
+      { id: 'thisWeek', label: t('thisWeek') },
+      { id: 'nextWeek', label: t('nextWeek') },
+      { id: 'lastWeek', label: t('lastWeek') },
+      { id: 'thisMonth', label: t('thisMonth') },
+      { id: 'lastMonth', label: t('lastMonth') },
     ];
 
     let html = `
@@ -857,7 +857,7 @@ export class TaskSummaryDialog {
     const sortedDates = Array.from(allDates).sort();
 
     if (sortedDates.length === 0) {
-        html += `<div style="text-align: center; padding: 40px; color: var(--b3-theme-on-surface-light);">${t('noTasks') || '暂无任务'}</div>`;
+      html += `<div style="text-align: center; padding: 40px; color: var(--b3-theme-on-surface-light);">${t('noTasks') || '暂无任务'}</div>`;
     }
 
     sortedDates.forEach(date => {
@@ -892,11 +892,11 @@ export class TaskSummaryDialog {
         hList.forEach(habit => {
           // 只需要显示一个✅和⬜，代表打卡完成和打卡未完成
           const progress = habit.completed ? '✅' : '⬜';
-          
+
           // 习惯打卡名称后改为：名称（频率：xxx，目标次数，今天打卡： emoji），如果今日没打卡，今日打卡改为无
           const emojiStr = habit.emojis.length > 0 ? habit.emojis.join('') : (t('noneVal') || '无');
           const completedClass = habit.completed ? 'completed' : '';
-          
+
           const freqText = t('frequency') || '频率';
           const targetText = t('targetTimes') || '目标次数';
           const todayCheckInText = t('todayCheckIn') || '今天打卡';
@@ -926,8 +926,8 @@ export class TaskSummaryDialog {
             // 获取番茄钟统计
             let pomodoroStr = '';
             if (stats.pomodoro.byDate[date] && stats.pomodoro.byDate[date].taskStats && stats.pomodoro.byDate[date].taskStats[task.id]) {
-                const tStat = stats.pomodoro.byDate[date].taskStats[task.id];
-                pomodoroStr = ` (🍅 ${tStat.count} | 🕒 ${tStat.minutes}m)`;
+              const tStat = stats.pomodoro.byDate[date].taskStats[task.id];
+              pomodoroStr = ` (🍅 ${tStat.count} | 🕒 ${tStat.minutes}m)`;
             }
 
             html += `
@@ -1033,13 +1033,13 @@ export class TaskSummaryDialog {
 
     // 筛选按钮事件
     container.querySelectorAll('.filter-buttons button').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const filter = btn.getAttribute('data-filter');
-            if (filter) {
-                this.currentFilter = filter;
-                this.renderSummary();
-            }
-        });
+      btn.addEventListener('click', () => {
+        const filter = btn.getAttribute('data-filter');
+        if (filter) {
+          this.currentFilter = filter;
+          this.renderSummary();
+        }
+      });
     });
 
     // 复制按钮事件
@@ -1048,13 +1048,13 @@ export class TaskSummaryDialog {
     const copyPlainBtn = document.getElementById('copy-plain-btn');
 
     if (copyRichBtn) {
-        copyRichBtn.addEventListener('click', () => this.executeCopy('rich', groupedTasks));
+      copyRichBtn.addEventListener('click', () => this.executeCopy('rich', groupedTasks));
     }
     if (copyMdBtn) {
-        copyMdBtn.addEventListener('click', () => this.executeCopy('markdown', groupedTasks));
+      copyMdBtn.addEventListener('click', () => this.executeCopy('markdown', groupedTasks));
     }
     if (copyPlainBtn) {
-        copyPlainBtn.addEventListener('click', () => this.executeCopy('plain', groupedTasks));
+      copyPlainBtn.addEventListener('click', () => this.executeCopy('plain', groupedTasks));
     }
   }
 

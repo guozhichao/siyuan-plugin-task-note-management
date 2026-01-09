@@ -409,14 +409,17 @@
                     value: settings.showPomodoroInSummary,
                     type: 'checkbox',
                     title: t('showPomodoroInSummary') || '在摘要中显示番茄钟统计',
-                    description: t('showPomodoroInSummaryDesc') || '开启后，任务摘要将包含番茄钟专注时长统计',
+                    description:
+                        t('showPomodoroInSummaryDesc') ||
+                        '开启后，任务摘要将包含番茄钟专注时长统计',
                 },
                 {
                     key: 'showHabitInSummary',
                     value: settings.showHabitInSummary,
                     type: 'checkbox',
                     title: t('showHabitInSummary') || '在摘要中显示习惯打卡统计',
-                    description: t('showHabitInSummaryDesc') || '开启后，任务摘要将包含习惯打卡情况统计',
+                    description:
+                        t('showHabitInSummaryDesc') || '开启后，任务摘要将包含习惯打卡情况统计',
                 },
             ],
         },
