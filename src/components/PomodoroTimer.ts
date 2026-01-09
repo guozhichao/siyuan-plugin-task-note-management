@@ -4114,12 +4114,9 @@ export class PomodoroTimer {
             let value = input.value;
             value = value.replace(/[^0-9:]/g, '')
 
-            if (value.length > 5) {
-                value = value.substring(0, 5);
-            }
-
-            if (value.length === 2 && value.indexOf(':') === -1) {
-                value += ':';
+            // 增加长度限制，支持到 999:59
+            if (value.length > 6) {
+                value = value.substring(0, 6);
             }
 
             input.value = value;
@@ -4134,11 +4131,13 @@ export class PomodoroTimer {
 
         if (timeStr.includes(':')) {
             const parts = timeStr.split(':');
-            if (parts.length !== 2) return null;
+            if (parts.length > 2) return null;
 
-            minutes = parseInt(parts[0], 10);
-            seconds = parseInt(parts[1], 10);
+            // 处理像 "25:" 或 ":30" 这样的输入
+            minutes = parts[0] ? parseInt(parts[0], 10) : 0;
+            seconds = parts[1] ? parseInt(parts[1], 10) : 0;
         } else {
+            // 纯数字输入，视为分钟
             minutes = parseInt(timeStr, 10);
             seconds = 0;
         }
