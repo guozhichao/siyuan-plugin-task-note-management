@@ -258,6 +258,7 @@ export class ProjectDialog {
             const inputBlockId = rawBlockVal ? (this.extractBlockId(rawBlockVal) || rawBlockVal) : null;
 
             const project = {
+                ...(existingProject || {}),
                 id: projectId,
                 blockId: inputBlockId || null,
                 title: title,
@@ -270,13 +271,13 @@ export class ProjectDialog {
                 endDate: endDate || null,
                 // 保持向后兼容
                 archived: statusEl.value === 'archived',
-                createdTime: existingProject?.createdTime || new Date().toISOString(),
                 updatedTime: new Date().toISOString(),
-                sort: existingProject?.sort || 0,
-                // 保留现有的看板模式和自定义分组
-                kanbanMode: existingProject?.kanbanMode,
-                customGroups: existingProject?.customGroups
             };
+
+            if (!existingProject) {
+                project.createdTime = project.updatedTime;
+                project.sort = 0;
+            }
 
             projectData[projectId] = project;
             await writeProjectData(projectData);
