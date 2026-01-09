@@ -80,7 +80,7 @@ export class ProjectDialog {
                     <div class="form-group">
                         <label>${t("bindToBlock") || '块或文档 ID'}:</label>
                         <div style="display: flex; gap: 8px;">
-                            <input type="text" id="projectBlockInput" class="b3-text-field" value="${existingProject?.blockId || this.blockId || ''}" placeholder="${t("enterBlockId") || '请输入块或文档 ID'}" style="flex: 1;">
+                            <input type="text" id="projectBlockInput" class="b3-text-field" value="${existingProject ? (existingProject.blockId || '') : (this.blockId || '')}" placeholder="${t("enterBlockId") || '请输入块或文档 ID'}" style="flex: 1;">
                             <button type="button" id="projectPasteBlockRefBtn" class="b3-button b3-button--outline" title="${t("pasteBlockRef")}">
                                 <svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg>
                             </button>
