@@ -1194,6 +1194,10 @@
     overflow: hidden;
 }
 
+/* 日历 all-day 区域样式 */
+.fc-daygrid-body {
+    max-height: 150px;
+}
 
 
 .fc-event.completed .reminder-calendar-event-content {
@@ -2281,4 +2285,8 @@
 
 .reminder-calendar-view .filter-dropdown-menu > div:hover{
     background-color: var(--b3-list-hover) !important;
+}
+
+.fc-daygrid-body{
+    max-height: 150px !important;
 }
