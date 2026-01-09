@@ -96,6 +96,9 @@ export const DEFAULT_SETTINGS = {
     enableReminderDockBadge: true,
     enableProjectDockBadge: true,
     enableHabitDockBadge: true,
+    // 摘要设置
+    showPomodoroInSummary: true,
+    showHabitInSummary: true,
     // 排序配置
     sortMethod: 'time',
     sortOrder: 'asc',

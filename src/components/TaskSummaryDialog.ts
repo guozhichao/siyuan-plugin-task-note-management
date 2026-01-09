@@ -1,19 +1,26 @@
 import { Dialog, showMessage, Menu } from "siyuan";
 import { t } from "../utils/i18n";
-import { getLocalDateString } from "../utils/dateUtils";
+import { getLocalDateString, getLogicalDateString } from "../utils/dateUtils";
 import { ProjectManager } from "../utils/projectManager";
-import { readReminderData } from "@/api";
+import { readReminderData, readHabitData } from "@/api";
 import { generateRepeatInstances } from "@/utils/repeatUtils";
 import { CalendarView } from "@/components/CalendarView";
+import { PomodoroRecordManager } from "@/utils/pomodoroRecord";
+import { SETTINGS_FILE } from "../index";
 
 export class TaskSummaryDialog {
   private calendarView: CalendarView;
   private projectManager: ProjectManager;
   private calendar: any;
+  private plugin: any;
+
+  private currentDialog: Dialog;
+  private currentFilter: string = 'current'; // 'current', 'today', 'tomorrow', 'yesterday', 'thisWeek', 'nextWeek', 'lastWeek', 'thisMonth', 'lastMonth'
 
   constructor(calendar?: any, plugin?: any) {
     this.projectManager = ProjectManager.getInstance(plugin);
     this.calendar = calendar;
+    this.plugin = plugin;
   }
 
   /**
@@ -21,34 +28,400 @@ export class TaskSummaryDialog {
    */
   public async showTaskSummaryDialog() {
     try {
-      const events = await this.getEvents();
-
-
-      // 获取当前日历视图的日期范围
-      const dateRange = this.getCurrentViewDateRange();
-
-
-      // 过滤在当前视图范围内的任务
-      const filteredEvents = this.filterEventsByDateRange(events, dateRange);
-
-
-      // 按日期和项目分组任务
-      const groupedTasks = this.groupTasksByDateAndProject(filteredEvents, dateRange);
-
-      // 获取当前视图类型信息
-      const viewInfo = this.getCurrentViewInfo();
-
+      this.currentFilter = 'current';
+      
       // 创建弹窗
-      const dialog = new Dialog({
-        title: `${t("taskSummary") || "任务摘要"} - ${viewInfo}`,
-        content: this.generateSummaryContent(groupedTasks, dateRange),
-        width: "80vw",
-        height: "70vh"
+      this.currentDialog = new Dialog({
+        title: t("taskSummary") || "任务摘要",
+        content: `<div id="task-summary-dialog-container" style="height: 100%; display: flex; flex-direction: column;"></div>`,
+        width: "90vw",
+        height: "85vh"
       });
+
+      this.renderSummary();
     } catch (error) {
       console.error('显示任务摘要失败:', error);
       showMessage(t("showSummaryFailed") || "显示摘要失败");
     }
+  }
+
+  private async renderSummary() {
+    const container = this.currentDialog.element.querySelector('#task-summary-dialog-container') as HTMLElement;
+    if (!container) return;
+
+    container.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; height: 100%;"><svg class="ft__loading"><use xlink:href="#iconLoading"></use></svg></div>`;
+
+    const dateRange = this.getFilterDateRange();
+    const events = await this.getEventsForRange(dateRange.start, dateRange.end);
+    
+    // 过滤在当前视图范围内的任务
+    const filteredEvents = this.filterEventsByDateRange(events, dateRange);
+
+    // 按日期和项目分组任务
+    const groupedTasks = this.groupTasksByDateAndProject(filteredEvents, dateRange);
+
+    // 获取统计数据
+    const stats = await this.calculateStats(dateRange.start, dateRange.end);
+
+    container.innerHTML = this.generateSummaryContent(groupedTasks, dateRange, stats);
+    
+    this.bindSummaryEvents(groupedTasks);
+  }
+
+  private getFilterDateRange(): { start: string, end: string, label: string } {
+    if (this.currentFilter === 'current') {
+      const range = this.getCurrentViewDateRange();
+      return { ...range, label: this.getCurrentViewInfo() };
+    }
+    return this.getRange(this.currentFilter);
+  }
+
+  private async getEventsForRange(startDate: string, endDate: string) {
+    try {
+      const reminderData = await readReminderData();
+      const events = [];
+
+      for (const reminder of Object.values(reminderData) as any[]) {
+        if (!reminder || typeof reminder !== 'object') continue;
+
+        // 应用分类过滤
+        if (this.calendarView && !this.calendarView.passesCategoryFilter(reminder)) continue;
+
+        // 添加原始事件
+        this.addEventToList(events, reminder, reminder.id, false);
+
+        // 如果有重复设置，生成重复事件实例
+        if (reminder.repeat?.enabled) {
+          const repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
+          repeatInstances.forEach(instance => {
+            // 跳过与原始事件相同日期的实例
+            if (instance.date !== reminder.date) {
+              const originalKey = instance.date;
+
+              // 检查实例级别的完成状态
+              const completedInstances = reminder.repeat?.completedInstances || [];
+              const isInstanceCompleted = completedInstances.includes(originalKey);
+
+              // 检查实例级别的修改
+              const instanceModifications = reminder.repeat?.instanceModifications || {};
+              const instanceMod = instanceModifications[originalKey];
+
+              const instanceReminder = {
+                ...reminder,
+                date: instance.date,
+                endDate: instance.endDate,
+                time: instance.time,
+                endTime: instance.endTime,
+                completed: isInstanceCompleted,
+                note: instanceMod?.note || '',
+                docTitle: reminder.docTitle 
+              };
+
+              const uniqueInstanceId = `${reminder.id}_instance_${originalKey}`;
+              this.addEventToList(events, instanceReminder, uniqueInstanceId, true, reminder.id);
+            }
+          });
+        }
+      }
+
+      return events;
+    } catch (error) {
+      console.error('获取事件数据失败:', error);
+      return [];
+    }
+  }
+
+  private async calculateStats(startDate: string, endDate: string) {
+    const settings = this.plugin?.data[SETTINGS_FILE] || {};
+
+    // 1. 番茄钟统计
+    const pomodoroManager = PomodoroRecordManager.getInstance();
+    await pomodoroManager.initialize();
+
+    let totalPomodoros = 0;
+    let totalMinutes = 0;
+    const pomodoroByDate: { [date: string]: { count: number, minutes: number } } = {};
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const current = new Date(start);
+
+    while (current <= end) {
+      const dateStr = getLogicalDateString(current);
+      const record = (pomodoroManager as any).records[dateStr];
+      if (record) {
+        totalPomodoros += record.workSessions || 0;
+        totalMinutes += record.totalWorkTime || 0;
+        
+        const taskStats: { [id: string]: { count: number, minutes: number } } = {};
+        if (record.sessions) {
+            record.sessions.forEach((s: any) => {
+                if (s.type === 'work' && s.completed) {
+                    if (!taskStats[s.eventId]) taskStats[s.eventId] = { count: 0, minutes: 0 };
+                    taskStats[s.eventId].count++;
+                    taskStats[s.eventId].minutes += s.duration || 0;
+                }
+            });
+        }
+
+        pomodoroByDate[getLocalDateString(current)] = {
+          count: record.workSessions || 0,
+          minutes: record.totalWorkTime || 0,
+          taskStats: taskStats
+        };
+      }
+      current.setDate(current.getDate() + 1);
+    }
+
+    // 2. 习惯打卡统计
+    const habitData = await readHabitData();
+    let totalHabitTargetDays = 0;
+    let completedHabitDays = 0;
+    const habitsByDate: { [date: string]: any[] } = {};
+
+    const habits = Object.values(habitData) as any[];
+
+    const dateList: string[] = [];
+    const tempDate = new Date(start);
+    while (tempDate <= end) {
+      dateList.push(getLocalDateString(tempDate));
+      tempDate.setDate(tempDate.getDate() + 1);
+    }
+
+    habits.forEach(habit => {
+      dateList.forEach(dateStr => {
+        if (this.shouldCheckInOnDate(habit, dateStr)) {
+          totalHabitTargetDays++;
+          const isComplete = this.isHabitComplete(habit, dateStr);
+          if (isComplete) {
+            completedHabitDays++;
+          }
+
+          if (!habitsByDate[dateStr]) habitsByDate[dateStr] = [];
+          
+          // 获取当天的打卡emoji
+          const checkIn = habit.checkIns?.[dateStr];
+          const emojis: string[] = [];
+          if (checkIn) {
+              if (checkIn.entries && checkIn.entries.length > 0) {
+                  checkIn.entries.forEach((entry: any) => {
+                      if (entry.emoji) emojis.push(entry.emoji);
+                  });
+              } else if (checkIn.status && checkIn.status.length > 0) {
+                  emojis.push(...checkIn.status);
+              }
+          }
+
+          // 获取成功打卡的次数
+          const successCount = emojis.filter(emoji => {
+              const emojiConfig = habit.checkInEmojis?.find((e: any) => e.emoji === emoji);
+              return emojiConfig ? (emojiConfig.countsAsSuccess !== false) : true;
+          }).length;
+
+          habitsByDate[dateStr].push({
+            title: habit.title,
+            completed: isComplete,
+            target: habit.target || 1,
+            successCount,
+            emojis: emojis.slice(0, 10), // 最多显示10个
+            frequencyLabel: this.getFrequencyLabel(habit)
+          });
+        }
+      });
+    });
+
+    return {
+      settings: {
+        showPomodoro: settings.showPomodoroInSummary !== false,
+        showHabit: settings.showHabitInSummary !== false
+      },
+      pomodoro: {
+        totalCount: totalPomodoros,
+        totalHours: (totalMinutes / 60).toFixed(1),
+        byDate: pomodoroByDate
+      },
+      habit: {
+        total: totalHabitTargetDays,
+        completed: completedHabitDays,
+        byDate: habitsByDate
+      }
+    };
+  }
+
+  private getFrequencyLabel(habit: any): string {
+    const { frequency } = habit;
+    if (!frequency) return t('daily');
+
+    let label = '';
+    const interval = frequency.interval || 1;
+
+    switch (frequency.type) {
+      case 'daily':
+        label = interval === 1 ? t('daily') : `${t('every')}${interval}${t('days')}`;
+        break;
+      case 'weekly':
+        if (frequency.weekdays && frequency.weekdays.length > 0) {
+          const days = frequency.weekdays.map((d: number) => {
+            const keys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            return t(keys[d]);
+          }).join('、');
+          label = `${t('weekly')} (${days})`;
+        } else {
+          label = interval === 1 ? t('weekly') : `${t('every')}${interval}${t('weeks')}`;
+        }
+        break;
+      case 'monthly':
+        if (frequency.monthDays && frequency.monthDays.length > 0) {
+          label = `${t('monthly')} (${frequency.monthDays.join('、')}${t('day')})`;
+        } else {
+          label = interval === 1 ? t('monthly') : `${t('every')}${interval}${t('months')}`;
+        }
+        break;
+      case 'yearly':
+        label = t('yearly');
+        break;
+      default:
+        label = t('daily');
+    }
+    return label;
+  }
+
+  private shouldCheckInOnDate(habit: any, date: string): boolean {
+    if (habit.startDate > date) return false;
+    if (habit.endDate && habit.endDate < date) return false;
+
+    const { frequency } = habit;
+    const checkDate = new Date(date);
+    const startDate = new Date(habit.startDate);
+
+    switch (frequency?.type) {
+      case 'daily':
+        if (frequency.interval) {
+          const daysDiff = Math.floor((checkDate.getTime() - startDate.getTime()) / 86400000);
+          return daysDiff % frequency.interval === 0;
+        }
+        return true;
+
+      case 'weekly':
+        if (frequency.weekdays && frequency.weekdays.length > 0) {
+          return frequency.weekdays.includes(checkDate.getDay());
+        }
+        if (frequency.interval) {
+          const weeksDiff = Math.floor((checkDate.getTime() - startDate.getTime()) / (86400000 * 7));
+          return weeksDiff % frequency.interval === 0 && checkDate.getDay() === startDate.getDay();
+        }
+        return checkDate.getDay() === startDate.getDay();
+
+      case 'monthly':
+        if (frequency.monthDays && frequency.monthDays.length > 0) {
+          return frequency.monthDays.includes(checkDate.getDate());
+        }
+        if (frequency.interval) {
+          const monthsDiff = (checkDate.getFullYear() - startDate.getFullYear()) * 12 +
+            (checkDate.getMonth() - startDate.getMonth());
+          return monthsDiff % frequency.interval === 0 && checkDate.getDate() === startDate.getDate();
+        }
+        return checkDate.getDate() === startDate.getDate();
+
+      case 'yearly':
+        if (frequency.months && frequency.months.length > 0) {
+          if (!frequency.months.includes(checkDate.getMonth() + 1)) return false;
+          if (frequency.monthDays && frequency.monthDays.length > 0) {
+            return frequency.monthDays.includes(checkDate.getDate());
+          }
+          return checkDate.getDate() === startDate.getDate();
+        }
+        if (frequency.interval) {
+          const yearsDiff = checkDate.getFullYear() - startDate.getFullYear();
+          return yearsDiff % frequency.interval === 0 &&
+            checkDate.getMonth() === startDate.getMonth() &&
+            checkDate.getDate() === startDate.getDate();
+        }
+        return checkDate.getMonth() === startDate.getMonth() &&
+          checkDate.getDate() === startDate.getDate();
+    }
+    return true;
+  }
+
+  private isHabitComplete(habit: any, dateStr: string): boolean {
+    const checkIn = habit.checkIns?.[dateStr];
+    if (!checkIn) return false;
+
+    const emojis: string[] = [];
+    if (checkIn.entries && checkIn.entries.length > 0) {
+        checkIn.entries.forEach((entry: any) => {
+            if (entry.emoji) emojis.push(entry.emoji);
+        });
+    } else if (checkIn.status && checkIn.status.length > 0) {
+        emojis.push(...checkIn.status);
+    }
+
+    const successEmojis = emojis.filter(emoji => {
+        const emojiConfig = habit.checkInEmojis?.find((e: any) => e.emoji === emoji);
+        return emojiConfig ? (emojiConfig.countsAsSuccess !== false) : true;
+    });
+
+    return successEmojis.length >= (habit.target || 1);
+  }
+
+  private getRange(type: string): { start: string, end: string, label: string } {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    let start = new Date(today);
+    let end = new Date(today);
+    let label = '';
+
+    switch (type) {
+        case 'today':
+            label = t('today');
+            break;
+        case 'tomorrow':
+            start.setDate(today.getDate() + 1);
+            end.setDate(today.getDate() + 1);
+            label = t('tomorrow');
+            break;
+        case 'yesterday':
+            start.setDate(today.getDate() - 1);
+            end.setDate(today.getDate() - 1);
+            label = t('yesterday');
+            break;
+        case 'thisWeek': {
+            const day = today.getDay();
+            const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+            start.setDate(diff);
+            end.setDate(diff + 6);
+            label = `${t('thisWeek')} (${getLocalDateString(start)} ~ ${getLocalDateString(end)})`;
+            break;
+        }
+        case 'nextWeek': {
+            const day = today.getDay();
+            const diff = today.getDate() - day + (day === 0 ? 1 : 8);
+            start.setDate(diff);
+            end.setDate(diff + 6);
+            label = `${t('nextWeek')} (${getLocalDateString(start)} ~ ${getLocalDateString(end)})`;
+            break;
+        }
+        case 'lastWeek': {
+            const day = today.getDay();
+            const diff = today.getDate() - day + (day === 0 ? -13 : -6);
+            start.setDate(diff);
+            end.setDate(diff + 6);
+            label = `${t('lastWeek')} (${getLocalDateString(start)} ~ ${getLocalDateString(end)})`;
+            break;
+        }
+        case 'thisMonth':
+            start = new Date(today.getFullYear(), today.getMonth(), 1);
+            end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            label = t('thisMonth');
+            break;
+        case 'lastMonth':
+            start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            end = new Date(today.getFullYear(), today.getMonth(), 0);
+            label = t('lastMonth');
+            break;
+    }
+    return { start: getLocalDateString(start), end: getLocalDateString(end), label };
   }
 
   private async getEvents() {
@@ -341,6 +714,7 @@ export class TaskSummaryDialog {
         this.projectManager.getProjectName(projectId) || projectId;
 
       const taskData = {
+        id: event.extendedProps.originalId || event.extendedProps.blockId || event.id,
         title: event.originalTitle || event.title,
         completed: event.extendedProps.completed,
         priority: event.extendedProps.priority,
@@ -406,51 +780,87 @@ export class TaskSummaryDialog {
   /**
    * 生成摘要内容HTML
    */
-  public generateSummaryContent(groupedTasks: Map<string, Map<string, any[]>>, dateRange?: { start: string, end: string }): string {
+  public generateSummaryContent(groupedTasks: Map<string, Map<string, any[]>>, dateRange: { start: string, end: string, label: string }, stats: any): string {
+    const filters = [
+        { id: 'current', label: t('currentView') || '当前视图' },
+        { id: 'today', label: t('today') },
+        { id: 'tomorrow', label: t('tomorrow') },
+        { id: 'yesterday', label: t('yesterday') },
+        { id: 'thisWeek', label: t('thisWeek') },
+        { id: 'nextWeek', label: t('nextWeek') },
+        { id: 'lastWeek', label: t('lastWeek') },
+        { id: 'thisMonth', label: t('thisMonth') },
+        { id: 'lastMonth', label: t('lastMonth') },
+    ];
+
     let html = `
-            <div class="task-summary-container">
-                <div class="task-summary-header" style="
-                    display: flex;
-                    justify-content: flex-end;
-                    gap: 8px;
-                    margin-bottom: 16px;
-                ">
-                    <button class="b3-button b3-button--outline" id="copy-rich-text-btn" style="
-                        display: flex;
-                        align-items: center;
-                        gap: 4px;
-                        padding: 6px 6px;
-                        font-size: 13px;
-                    " title="复制富文本">
-                        <svg class="b3-button__icon"><use xlink:href="#iconCopy"></use></svg>
+        <div class="task-summary-wrapper" style="display: flex; flex-direction: column; height: 100%; padding: 16px;">
+            <div class="task-summary-toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+                <div class="filter-buttons" style="display: flex; gap: 4px; flex-wrap: wrap;">
+                    ${filters.map(f => `
+                        <button class="b3-button ${this.currentFilter === f.id ? '' : 'b3-button--outline'}" 
+                                data-filter="${f.id}" 
+                                style="padding: 4px 8px; font-size: 12px;">
+                            ${f.label}
+                        </button>
+                    `).join('')}
+                </div>
+                <div class="action-buttons" style="display: flex; gap: 8px;">
+                    <button class="b3-button b3-button--outline" id="copy-rich-text-btn" style="display: flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 12px; height: 28px;">
+                        <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconCopy"></use></svg>
+                        ${t("copyRichText") || "复制富文本"}
                     </button>
-                    <button class="b3-button b3-button--outline" id="more-menu-btn" style="
-                        display: flex;
-                        align-items: center;
-                        gap: 4px;
-                        padding: 6px 6px;
-                        font-size: 13px;
-                    " title="${t('more') || '更多'}">
-                        <svg class="b3-button__icon"><use xlink:href="#iconMore"></use></svg>
+                    <button class="b3-button b3-button--outline" id="copy-markdown-btn" style="display: flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 12px; height: 28px;">
+                        <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconCopy"></use></svg>
+                        ${t("copyAll") || "Markdown"}
+                    </button>
+                    <button class="b3-button b3-button--outline" id="copy-plain-btn" style="display: flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 12px; height: 28px;">
+                        <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconCopy"></use></svg>
+                        ${t("copyPlainText") || "复制纯文本"}
                     </button>
                 </div>
-                <div class="task-summary-content" id="summary-content">
-        `;
+            </div>
+
+            <div class="task-summary-info-cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                <div class="info-card" style="padding: 12px; background: var(--b3-theme-surface); border-radius: 8px; border: 1px solid var(--b3-border-color);">
+                    <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">${t('currentRange') || '当前范围'}</div>
+                    <div style="font-size: 14px; font-weight: bold; margin-top: 4px;">${dateRange.label}</div>
+                </div>
+                ${stats.settings.showPomodoro ? `
+                <div class="info-card" style="padding: 12px; background: var(--b3-theme-surface); border-radius: 8px; border: 1px solid var(--b3-border-color);">
+                    <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">🍅 ${t('pomodoroFocus') || '番茄专注'}</div>
+                    <div style="font-size: 14px; font-weight: bold; margin-top: 4px;">
+                        ${stats.pomodoro.totalCount} 个番茄钟，共 ${stats.pomodoro.totalHours} 小时
+                    </div>
+                </div>
+                ` : ''}
+                ${stats.settings.showHabit ? `
+                <div class="info-card" style="padding: 12px; background: var(--b3-theme-surface); border-radius: 8px; border: 1px solid var(--b3-border-color);">
+                    <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">💪 ${t('habitCheckIn') || '习惯打卡'}</div>
+                    <div style="font-size: 14px; font-weight: bold; margin-top: 4px;">
+                        已完成 ${stats.habit.completed} / ${stats.habit.total} 次打卡
+                    </div>
+                </div>
+                ` : ''}
+            </div>
+
+            <div class="task-summary-content" id="summary-content" style="flex: 1; overflow-y: auto;">
+    `;
+
+    // 获取所有涉及的日期 (任务日期 + 习惯/番茄统计日期)
+    const allDates = new Set<string>();
+    groupedTasks.forEach((_, date) => allDates.add(date));
+    if (stats.settings.showPomodoro) Object.keys(stats.pomodoro.byDate).forEach(date => allDates.add(date));
+    if (stats.settings.showHabit) Object.keys(stats.habit.byDate).forEach(date => allDates.add(date));
 
     // 按日期排序
-    const sortedDates = Array.from(groupedTasks.keys()).sort();
+    const sortedDates = Array.from(allDates).sort();
 
-    // 检查当前是否为日视图
-    const isDayView = this.calendar && this.calendar.view.type === 'timeGridDay';
+    if (sortedDates.length === 0) {
+        html += `<div style="text-align: center; padding: 40px; color: var(--b3-theme-on-surface-light);">${t('noTasks') || '暂无任务'}</div>`;
+    }
 
-    // 在日视图下，只显示当前日期的任务
-    const datesToShow = isDayView && dateRange ? [dateRange.start] : sortedDates;
-
-    datesToShow.forEach(date => {
-      // 在日视图下，确保只处理存在的日期
-      if (isDayView && !groupedTasks.has(date)) {
-        return;
-      }
+    sortedDates.forEach(date => {
       const dateProjects = groupedTasks.get(date);
       const dateObj = new Date(date);
       const formattedDate = dateObj.toLocaleDateString('zh-CN', {
@@ -463,28 +873,75 @@ export class TaskSummaryDialog {
       html += `<div class="task-date-group">`;
       html += `<h3 class="task-date-title">${formattedDate}</h3>`;
 
-      // 按项目分组
-      dateProjects.forEach((tasks, projectName) => {
-        html += `<div class="task-project-group">`;
-        html += `<h4 class="task-project-title">${projectName}</h4>`;
-        html += `<ul class="task-list">`;
+      // 1. 显示番茄钟统计
+      if (stats.settings.showPomodoro && stats.pomodoro.byDate[date]) {
+        const pRecord = stats.pomodoro.byDate[date];
+        html += `
+          <div class="summary-stat-row" style="margin-bottom: 8px; font-size: 13px; color: var(--b3-theme-on-surface-light); padding-left: 16px;">
+            🍅 专注：${pRecord.count} 个番茄钟 (${(pRecord.minutes / 60).toFixed(1)} 小时)
+          </div>
+        `;
+      }
 
-        tasks.forEach(task => {
-          const completedClass = task.completed ? 'completed' : '';
-          const priorityClass = `priority-${task.priority}`;
-          const timeStr = task.time ? ` (${task.time})` : '';
+      // 2. 显示习惯打卡情况
+      if (stats.settings.showHabit && stats.habit.byDate[date]) {
+        const hList = stats.habit.byDate[date];
+        html += `<div class="task-project-group">`;
+        html += `<h4 class="task-project-title">💪 习惯打卡</h4>`;
+        html += `<ul class="task-list">`;
+        hList.forEach(habit => {
+          // 只需要显示一个✅和⬜，代表打卡完成和打卡未完成
+          const progress = habit.completed ? '✅' : '⬜';
+          
+          // 习惯打卡名称后改为：名称（频率：xxx，目标次数，今天打卡： emoji），如果今日没打卡，今日打卡改为无
+          const emojiStr = habit.emojis.length > 0 ? habit.emojis.join('') : (t('noneVal') || '无');
+          const completedClass = habit.completed ? 'completed' : '';
+          
+          const freqText = t('frequency') || '频率';
+          const targetText = t('targetTimes') || '目标次数';
+          const todayCheckInText = t('todayCheckIn') || '今天打卡';
 
           html += `
+            <li class="task-item habit-item ${completedClass}">
+              <span class="task-checkbox">${progress}</span>
+              <span class="task-title">${habit.title} (${freqText}：${habit.frequencyLabel}，${targetText}：${habit.target}，${todayCheckInText}：${emojiStr})</span>
+            </li>
+          `;
+        });
+        html += `</ul></div>`;
+      }
+
+      // 3. 按项目分组显示任务
+      if (dateProjects) {
+        dateProjects.forEach((tasks, projectName) => {
+          html += `<div class="task-project-group">`;
+          html += `<h4 class="task-project-title">${projectName}</h4>`;
+          html += `<ul class="task-list">`;
+
+          tasks.forEach(task => {
+            const completedClass = task.completed ? 'completed' : '';
+            const priorityClass = `priority-${task.priority}`;
+            const timeStr = task.time ? ` (${task.time})` : '';
+
+            // 获取番茄钟统计
+            let pomodoroStr = '';
+            if (stats.pomodoro.byDate[date] && stats.pomodoro.byDate[date].taskStats && stats.pomodoro.byDate[date].taskStats[task.id]) {
+                const tStat = stats.pomodoro.byDate[date].taskStats[task.id];
+                pomodoroStr = ` (🍅 ${tStat.count} | 🕒 ${tStat.minutes}m)`;
+            }
+
+            html += `
                         <li class="task-item ${completedClass} ${priorityClass}">
                             <span class="task-checkbox">${task.completed ? '✅' : '⬜'}</span>
-                            <span class="task-title">${task.title}${timeStr}</span>
+                            <span class="task-title">${task.title}${timeStr}${pomodoroStr}</span>
                             ${task.note ? `<div class="task-note">${task.note}</div>` : ''}
                         </li>
                     `;
-        });
+          });
 
-        html += `</ul></div>`;
-      });
+          html += `</ul></div>`;
+        });
+      }
 
       html += `</div>`;
     });
@@ -493,12 +950,6 @@ export class TaskSummaryDialog {
                 </div>
             </div>
             <style>
-                .task-summary-container {
-                    padding: 16px;
-                    max-height: 60vh;
-                    overflow-y: auto;
-                }
-
                 .task-date-group {
                     margin-bottom: 24px;
                 }
@@ -507,6 +958,8 @@ export class TaskSummaryDialog {
                     border-bottom: 2px solid var(--b3-theme-primary);
                     padding-bottom: 8px;
                     margin-bottom: 16px;
+                    font-size: 16px;
+                    margin-top: 0;
                 }
                 .task-project-group {
                     margin-bottom: 16px;
@@ -515,6 +968,8 @@ export class TaskSummaryDialog {
                 .task-project-title {
                     color: var(--b3-theme-secondary);
                     margin-bottom: 8px;
+                    font-size: 14px;
+                    margin-top: 0;
                 }
                 .task-list {
                     list-style: none;
@@ -524,7 +979,7 @@ export class TaskSummaryDialog {
                 .task-item {
                     display: flex;
                     align-items: flex-start;
-                    padding: 8px 0;
+                    padding: 6px 0;
                     border-bottom: 1px solid var(--b3-border-color);
                 }
                 .task-item.completed {
@@ -540,11 +995,12 @@ export class TaskSummaryDialog {
                 .task-title {
                     flex: 1;
                     word-break: break-word;
+                    font-size: 14px;
                 }
                 .task-note {
                     font-size: 12px;
                     color: var(--b3-theme-on-surface-light);
-                    margin-top: 4px;
+                    margin-top: 2px;
                     margin-left: 24px;
                 }
                 .priority-high .task-title {
@@ -559,88 +1015,46 @@ export class TaskSummaryDialog {
                 }
                 
                 /* 重置复制按钮中 SVG 图标的 margin-right */
-                .task-summary-container .b3-button svg.b3-button__icon {
+                .task-summary-wrapper .b3-button svg.b3-button__icon {
                     margin-right: 0;
                 }
             </style>
         `;
 
-    // 添加更多菜单功能
-    setTimeout(() => {
-      this.bindMoreMenuEvents(groupedTasks);
-    }, 100);
-
     return html;
   }
 
   /**
-   * 绑定更多菜单事件
+   * 绑定摘要事件
    */
-  private bindMoreMenuEvents(groupedTasks: Map<string, Map<string, any[]>>) {
-    const moreMenuBtn = document.getElementById('more-menu-btn');
-    const copyRichTextBtn = document.getElementById('copy-rich-text-btn');
+  private bindSummaryEvents(groupedTasks: Map<string, Map<string, any[]>>) {
+    const container = this.currentDialog.element.querySelector('#task-summary-dialog-container');
+    if (!container) return;
 
-    if (!moreMenuBtn) return;
-
-    moreMenuBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      this.showMoreMenu(e as MouseEvent, groupedTasks);
+    // 筛选按钮事件
+    container.querySelectorAll('.filter-buttons button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const filter = btn.getAttribute('data-filter');
+            if (filter) {
+                this.currentFilter = filter;
+                this.renderSummary();
+            }
+        });
     });
 
-    // 添加复制富文本按钮事件监听器
-    if (copyRichTextBtn) {
-      copyRichTextBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.executeCopy('rich', groupedTasks);
-      });
+    // 复制按钮事件
+    const copyRichBtn = document.getElementById('copy-rich-text-btn');
+    const copyMdBtn = document.getElementById('copy-markdown-btn');
+    const copyPlainBtn = document.getElementById('copy-plain-btn');
+
+    if (copyRichBtn) {
+        copyRichBtn.addEventListener('click', () => this.executeCopy('rich', groupedTasks));
     }
-  }
-
-  /**
-   * 显示更多菜单
-   */
-  private showMoreMenu(event: MouseEvent, groupedTasks: Map<string, Map<string, any[]>>) {
-    try {
-      const menu = new Menu("taskSummaryMoreMenu");
-
-      // 添加复制富文本选项
-      menu.addItem({
-        icon: 'iconCopy',
-        label: t("copyRichText") || "复制富文本",
-        click: () => this.executeCopy('rich', groupedTasks)
-      });
-
-      // 添加复制 Markdown 选项
-      menu.addItem({
-        icon: 'iconCopy',
-        label: t("copyAll") || "复制 Markdown",
-        click: () => this.executeCopy('markdown', groupedTasks)
-      });
-
-      // 添加复制纯文本选项
-      menu.addItem({
-        icon: 'iconCopy',
-        label: t("copyPlainText") || "复制纯文本",
-        click: () => this.executeCopy('plain', groupedTasks)
-      });
-
-      // 显示菜单
-      if (event.target instanceof HTMLElement) {
-        const rect = event.target.getBoundingClientRect();
-        menu.open({
-          x: rect.left,
-          y: rect.bottom + 4
-        });
-      } else {
-        menu.open({
-          x: event.clientX,
-          y: event.clientY
-        });
-      }
-    } catch (error) {
-      console.error('显示更多菜单失败:', error);
+    if (copyMdBtn) {
+        copyMdBtn.addEventListener('click', () => this.executeCopy('markdown', groupedTasks));
+    }
+    if (copyPlainBtn) {
+        copyPlainBtn.addEventListener('click', () => this.executeCopy('plain', groupedTasks));
     }
   }
 
