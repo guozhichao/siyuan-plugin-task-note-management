@@ -5299,19 +5299,25 @@ export class ProjectKanbanView {
                 // 对于重复实例，使用不同的完成逻辑
                 await this.toggleRepeatInstanceCompletion(task, completed);
             } else {
-                // 对于普通任务，使用直接更新优化性能
-                const updates: any = {
-                    completed: completed
-                };
+                // 对于普通任务
+                const reminderData = await readReminderData();
+                if (reminderData[task.id]) {
+                    reminderData[task.id].completed = completed;
+                    if (completed) {
+                        reminderData[task.id].completedTime = getLocalDateTimeString(new Date());
+                        // 父任务完成时，自动完成所有子任务
+                        await this.completeAllChildTasks(task.id, reminderData);
+                    } else {
+                        delete reminderData[task.id].completedTime;
+                        // 取消完成父任务时，通常不自动取消子任务
+                    }
 
-                if (completed) {
-                    updates.completedTime = getLocalDateTimeString(new Date());
-                } else {
-                    updates.completedTime = null;
+                    await saveReminders(this.plugin, reminderData);
+
+                    // 广播更新事件并刷新
+                    this.dispatchReminderUpdate(true);
+                    await this.queueLoadTasks();
                 }
-
-                // 使用直接更新方法
-                await this.updateTaskDirectly(task.id, updates);
             }
         } catch (error) {
             console.error('切换任务完成状态失败:', error);
@@ -5353,6 +5359,9 @@ export class ProjectKanbanView {
                     originalReminder.repeat.instanceCompletedTimes = {};
                 }
                 originalReminder.repeat.instanceCompletedTimes[instanceDate] = getLocalDateTimeString(new Date());
+
+                // 递归完成所有子任务的对应实例或本身
+                await this.completeAllChildInstances(task.originalId, instanceDate, reminderData);
             } else {
                 // 从完成列表中移除
                 const index = completedInstances.indexOf(instanceDate);
@@ -5455,8 +5464,8 @@ export class ProjectKanbanView {
                             reminderData[actualTaskId].repeat.completedInstances.push(task.date);
                         }
 
-                        // 周期实例完成时，不自动完成子任务（因为每个实例都是独立的）
-                        // 如果需要完成子任务，用户应该在右键菜单中选择"完成任务及所有子任务"
+                        // 周期实例完成时，也自动完成所有子任务的对应实例
+                        await this.completeAllChildInstances(actualTaskId, task.date, reminderData);
                     } else {
                         // 取消完成周期实例或修改其他状态（long_term, short_term, doing）
                         if (reminderData[actualTaskId].repeat?.completedInstances) {
@@ -5590,6 +5599,66 @@ export class ProjectKanbanView {
             }
         } catch (error) {
             console.error('自动完成子任务失败:', error);
+            // 不要阻止父任务的完成，只是记录错误
+        }
+    }
+
+    /**
+     * 当周期任务实例完成时，自动完成所有子任务的对应实例或子任务本身
+     * @param parentId 父任务原始ID
+     * @param date 实例日期
+     * @param reminderData 全量任务数据
+     */
+    private async completeAllChildInstances(parentId: string, date: string, reminderData: any): Promise<void> {
+        try {
+            const descendantIds = this.getAllDescendantIds(parentId, reminderData);
+            if (descendantIds.length === 0) return;
+
+            const currentTime = getLocalDateTimeString(new Date());
+            let completedCount = 0;
+
+            for (const childId of descendantIds) {
+                const childTask = reminderData[childId];
+                if (!childTask) continue;
+
+                if (childTask.repeat?.enabled) {
+                    // 子任务是周期任务，完成该日期的实例
+                    if (!childTask.repeat.completedInstances) {
+                        childTask.repeat.completedInstances = [];
+                    }
+                    if (!childTask.repeat.completedInstances.includes(date)) {
+                        childTask.repeat.completedInstances.push(date);
+
+                        // 记录实例完成时间
+                        if (!childTask.repeat.instanceCompletedTimes) {
+                            childTask.repeat.instanceCompletedTimes = {};
+                        }
+                        childTask.repeat.instanceCompletedTimes[date] = currentTime;
+                        completedCount++;
+                    }
+                } else {
+                    // 子任务是普通任务，直接完成
+                    if (!childTask.completed) {
+                        childTask.completed = true;
+                        childTask.completedTime = currentTime;
+                        completedCount++;
+
+                        if (childTask.blockId || childTask.docId) {
+                            try {
+                                await updateBlockReminderBookmark(childTask.blockId || childTask.docId);
+                            } catch (error) {
+                                console.warn(`更新子任务 ${childId} 的块书签失败: `, error);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (completedCount > 0) {
+                showMessage(t('autoCompleteSubtasks', { count: String(completedCount) }), 2000);
+            }
+        } catch (error) {
+            console.error('自动完成子任务实例失败:', error);
             // 不要阻止父任务的完成，只是记录错误
         }
     }
