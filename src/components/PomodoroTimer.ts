@@ -117,8 +117,8 @@ export class PomodoroTimer {
         // 初始化随机提示音设置
         this.randomNotificationEnabled = settings.randomNotificationEnabled || false;
         this.randomNotificationSystemNotificationEnabled = settings.randomNotificationSystemNotification !== false; // 新增
-        this.randomNotificationAutoClose = true; 
-        this.randomNotificationAutoCloseDelay = 5; 
+        this.randomNotificationAutoClose = true;
+        this.randomNotificationAutoCloseDelay = 5;
 
         // 初始化自动模式设置
         this.autoMode = settings.autoMode || false;
@@ -3419,7 +3419,7 @@ export class PomodoroTimer {
                 // 使用浏览器通知作为备选方案
                 const notification = new Notification(title, {
                     body: message,
-                    requireInteraction: true, 
+                    requireInteraction: true,
                     silent: false
                 });
 
@@ -4291,7 +4291,7 @@ export class PomodoroTimer {
             this.randomNotificationEnabled = settings.randomNotificationEnabled || false;
             this.randomNotificationSystemNotificationEnabled = settings.randomNotificationSystemNotification !== false;
             this.randomNotificationAutoClose = false; // 新增
-            this.randomNotificationAutoCloseDelay =  5; // 新增
+            this.randomNotificationAutoCloseDelay = 5; // 新增
             this.autoMode = settings.autoMode || false;
             this.longBreakInterval = Math.max(1, settings.longBreakInterval || 4);
         } catch (e) {
