@@ -1444,7 +1444,7 @@ export default class ReminderPlugin extends Plugin {
                     }
 
                     // 移除现有前缀并添加新前缀
-                    if (prefix != ''){
+                    if (prefix != '') {
                         const originalText = textElement.textContent || '';
                         const newText = prefix + originalText.replace(/^[✅⏰]\s*/, '');
 
