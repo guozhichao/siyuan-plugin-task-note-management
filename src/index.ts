@@ -1444,11 +1444,13 @@ export default class ReminderPlugin extends Plugin {
                     }
 
                     // 移除现有前缀并添加新前缀
-                    const originalText = textElement.textContent || '';
-                    const newText = prefix + originalText.replace(/^[✅⏰]\s*/, '');
+                    if (prefix != ''){
+                        const originalText = textElement.textContent || '';
+                        const newText = prefix + originalText.replace(/^[✅⏰]\s*/, '');
 
-                    if (textElement.textContent !== newText) {
-                        textElement.textContent = newText;
+                        if (textElement.textContent !== newText) {
+                            textElement.textContent = newText;
+                        }
                     }
                 }
             });
@@ -3100,7 +3102,7 @@ export default class ReminderPlugin extends Plugin {
 
                     for (const node of allBlocks) {
                         const blockId = this._getBlockIdFromElement(node);
-                        if (!blockId || this.processingBlockButtons.has(blockId)) continue;
+                        if (!blockId) continue;
 
                         const rawAttr = node.getAttribute('custom-task-projectid');
                         if (!rawAttr) continue;
@@ -3120,6 +3122,7 @@ export default class ReminderPlugin extends Plugin {
 
                     // 批量处理块
                     for (const [blockId, info] of blocksToProcess) {
+                        if (this.processingBlockButtons.has(blockId)) continue;
                         this.processingBlockButtons.add(blockId);
                         try {
                             await this._processBlockButtons(protyle, blockId, info);
@@ -3212,26 +3215,21 @@ export default class ReminderPlugin extends Plugin {
 
         // 处理项目按钮
         const existingProjectButtons = new Map<string, HTMLElement>();
-        blockEl.querySelectorAll('.block-project-btn').forEach((btn: HTMLElement) => {
+        // 搜索整个 protyle 以发现该块的所有项目按钮，避免重复
+        protyle.element.querySelectorAll(`.block-project-btn[data-block-id="${blockId}"]`).forEach((btn: HTMLElement) => {
             const pid = btn.dataset.projectId;
             if (pid) existingProjectButtons.set(pid, btn);
         });
 
-        // 添加新按钮
+        // 添加或更新项目按钮
         for (const pid of info.projectIds) {
-            if (!existingProjectButtons.has(pid)) {
-                // 如果在当前 protyle 中已经存在相同的按钮（可能被添加到不同容器），则跳过
-                try {
-                    const selector = `.block-project-btn[data-project-id="${pid}"][data-block-id="${blockId}"]`;
-                    if (protyle.element && protyle.element.querySelector(selector)) {
-                        continue;
-                    }
-                } catch (e) {
-                    // ignore selector errors
-                }
-
+            const existingBtn = existingProjectButtons.get(pid);
+            if (!existingBtn) {
                 const btn = this._createProjectButton(pid, blockId);
                 container.appendChild(btn);
+            } else if (existingBtn.parentElement !== container) {
+                // 如果已存在但不在当前期望的容器中，则移动它
+                container.appendChild(existingBtn);
             }
         }
 
@@ -3243,11 +3241,16 @@ export default class ReminderPlugin extends Plugin {
         }
 
         // 处理绑定按钮
-        const existingBindBtn = blockEl.querySelector('.block-bind-reminders-btn');
-        if (info.hasBind && !existingBindBtn) {
-            const bindBtn = this._createBindButton(blockId);
-            container.appendChild(bindBtn);
-        } else if (!info.hasBind && existingBindBtn) {
+        const existingBindBtn = protyle.element.querySelector(`.block-bind-reminders-btn[data-block-id="${blockId}"]`) as HTMLElement;
+        if (info.hasBind) {
+            if (!existingBindBtn) {
+                const bindBtn = this._createBindButton(blockId);
+                container.appendChild(bindBtn);
+            } else if (existingBindBtn.parentElement !== container) {
+                // 如果位置不正确，移动到正确容器
+                container.appendChild(existingBindBtn);
+            }
+        } else if (existingBindBtn) {
             existingBindBtn.remove();
         }
     }
