@@ -1886,12 +1886,23 @@ export class QuickReminderDialog {
             e.preventDefault();
             const pastedText = e.clipboardData?.getData('text') || '';
             const lines = pastedText.split('\n').map(line => line.trim()).filter(line => line);
+
             if (lines.length > 0) {
-                titleInput.value = lines[0];
+                // 插入第一行到光标处
+                const start = titleInput.selectionStart || 0;
+                const end = titleInput.selectionEnd || 0;
+                const before = titleInput.value.substring(0, start);
+                const after = titleInput.value.substring(end);
+                titleInput.value = before + lines[0] + after;
+                titleInput.selectionStart = titleInput.selectionEnd = start + lines[0].length;
+
+                // 如果有多行，后面的行放到备注
                 if (lines.length > 1) {
                     const noteInput = this.dialog.element.querySelector('#quickReminderNote') as HTMLTextAreaElement;
                     if (noteInput) {
-                        noteInput.value = lines.slice(1).join('\n');
+                        const existingNote = noteInput.value.trim();
+                        const newNote = lines.slice(1).join('\n');
+                        noteInput.value = existingNote ? existingNote + '\n' + newNote : newNote;
                     }
                 }
             }
@@ -1921,11 +1932,6 @@ export class QuickReminderDialog {
 
                     // 显示识别消息（始终推送，当启用自动识别时即使已有时间也会覆盖/提示）
                     showMessage(`✨ 已识别并设置：${new Date(detected.date + 'T00:00:00').toLocaleDateString('zh-CN')}${detected.time ? ` ${detected.time}` : ''}`);
-
-                    // 使用清理后的标题
-                    if (detected.cleanTitle && detected.cleanTitle.trim()) {
-                        titleInput.value = detected.cleanTitle;
-                    }
                 }
             }
         });
