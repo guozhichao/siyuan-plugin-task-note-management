@@ -5,7 +5,7 @@ import multiMonthPlugin from '@fullcalendar/multimonth';
 import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
-import { refreshSql, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark, openBlock, readProjectData } from "../api";
+import { refreshSql, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark, openBlock, readProjectData, readReminderData, writeReminderData } from "../api";
 import { getLocalDateString, getLocalDateTime, getLocalDateTimeString, compareDateStrings, getLogicalDateString, getRelativeDateString } from "../utils/dateUtils";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
@@ -1671,7 +1671,7 @@ export class CalendarView {
             iconHTML: "📅",
             label: t("createCopy"),
             click: () => {
-                this.createTomorrowCopy(calendarEvent);
+                this.createCopy(calendarEvent);
             }
         });
 
@@ -1943,48 +1943,74 @@ export class CalendarView {
     // 添加创建明日副本功能
     private async createCopy(calendarEvent: any, targetDate?: Date) {
         try {
-            // 如果没有指定目标日期，则使用当前日期
-            const copyDate = targetDate || new Date();
-            const dateStr = getLocalDateString(copyDate);
-
             // 获取事件的原始信息
-            const originalProps = calendarEvent.extendedProps;
+            const props = calendarEvent.extendedProps;
+            const originalId = (props.isRepeated || props.repeat?.enabled) ? props.originalId : calendarEvent.id;
 
-            // 获取事件标题（移除可能存在的分类图标前缀）
-            let title = calendarEvent.title || t("unnamedNote");
-            if (originalProps.categoryId) {
-                const category = this.categoryManager.getCategoryById(originalProps.categoryId);
-                if (category && category.icon) {
-                    const iconPrefix = `${category.icon} `;
-                    if (title.startsWith(iconPrefix)) {
-                        title = title.substring(iconPrefix.length);
-                    }
-                }
+            const reminderData = await readReminderData();
+            const originalReminder = reminderData[originalId];
+
+            if (!originalReminder) {
+                showMessage(t("operationFailed"));
+                return;
             }
 
-            // 创建 QuickReminderDialog，传入目标日期和预填充数据
-            const quickDialog = new QuickReminderDialog(
-                dateStr, // 目标日期
-                undefined, // 不设置具体时间，默认为全天
-                async () => {
-                    // 刷新日历事件
-                    await this.refreshEvents();
-                    showMessage(t("copyCreated") || "副本已创建");
-                },
-                undefined, // 时间段选项
-                {
-                    defaultProjectId: originalProps.projectId,
-                    defaultTitle: title,
-                    defaultNote: originalProps.note || '',
-                    defaultCategoryId: originalProps.categoryId,
-                    defaultPriority: originalProps.priority || 'none',
-                    defaultBlockId: originalProps.blockId,
-                    plugin: this.plugin // 传入plugin实例
-                }
-            );
+            // 如果没有指定目标日期，则使用原事件日期
+            let dateStr: string;
+            if (targetDate) {
+                dateStr = getLocalDateString(targetDate);
+            } else {
+                dateStr = props.date || originalReminder.date;
+            }
 
-            // 显示对话框
-            quickDialog.show();
+            // 构造新提醒对象
+            const newReminderId = `quick_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+            // 复制字段，排除管理字段和实例特有字段
+            const newReminder: any = {
+                ...originalReminder,
+                id: newReminderId,
+                date: dateStr,
+                completed: false, // 复制出来的始终是未完成
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                isQuickReminder: true,
+                notifiedTime: false,
+                notifiedCustomTime: false,
+                repeat: undefined, // 复制为普通副本，不继承重复性
+                parentId: originalReminder.parentId || null
+            };
+
+            // 删除实例特有属性和不必要的管理字段
+            delete newReminder.isRepeated;
+            delete newReminder.originalId;
+            delete newReminder.instanceDate;
+            delete newReminder.completedTime;
+            delete newReminder.notified;
+
+            // 处理跨天事件的时间位移
+            if (originalReminder.endDate && targetDate) {
+                const originalStart = new Date(originalReminder.date);
+                const originalEnd = new Date(originalReminder.endDate);
+                const dayDiff = Math.round((originalEnd.getTime() - originalStart.getTime()) / (1000 * 60 * 60 * 24)); // Wait, 1000*1000 is wrong, it should be 1000*60*60*24
+
+                const newEnd = new Date(targetDate);
+                newEnd.setDate(newEnd.getDate() + dayDiff);
+                newReminder.endDate = getLocalDateString(newEnd);
+            }
+
+            // 保存数据
+            reminderData[newReminderId] = newReminder;
+            await writeReminderData(reminderData);
+
+            // 如果有绑定块，更新块的书签状态
+            if (newReminder.blockId) {
+                await updateBlockReminderBookmark(newReminder.blockId);
+            }
+
+            // 刷新日历事件
+            await this.refreshEvents();
+            showMessage(t("copyCreated") || "副本已创建");
 
         } catch (error) {
             console.error('创建副本失败:', error);
@@ -1992,12 +2018,6 @@ export class CalendarView {
         }
     }
 
-    private async createTomorrowCopy(calendarEvent: any) {
-        // 计算明日日期并调用通用创建副本方法
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        await this.createCopy(calendarEvent, tomorrow);
-    }
 
     private async setPriority(calendarEvent: any, priority: string) {
         try {
