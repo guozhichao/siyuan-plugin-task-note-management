@@ -50,7 +50,6 @@ const EISENHOWER_TAB_TYPE = "reminder_eisenhower_tab";
 export const PROJECT_KANBAN_TAB_TYPE = "project_kanban_tab";
 const POMODORO_TAB_TYPE = "pomodoro_timer_tab";
 export const STORAGE_NAME = "siyuan-plugin-task-note-management";
-const BROADCAST_CHANNEL_NAME = "siyuan-plugin-task-note-management-pomodoro";
 
 
 // 默认设置
@@ -160,15 +159,6 @@ export default class ReminderPlugin extends Plugin {
     // Set used to track blocks currently being processed to avoid duplicate work and race conditions
     private processingBlockButtons: Set<string> = new Set();
 
-    // 广播通信相关
-    private windowId: string;
-    private websocket: WebSocket | null = null;
-    private reconnectInterval = 3000;
-    private reconnectTimer: number | null = null;
-    private otherWindowIds: Set<string> = new Set();
-    private pomodoroWindowId: string | null = null; // 存储番茄钟独立窗口的ID
-    private lastPomodoroSettings: any | null = null; // 存储上一次的番茄钟设置用于比较
-
     // ICS 云端同步相关
     private icsSyncTimer: number | null = null;
     private isPerformingIcsSync: boolean = false;
@@ -225,16 +215,6 @@ export default class ReminderPlugin extends Plugin {
         // 初始化系统通知权限
         this.initSystemNotificationPermission();
 
-        // 初始化广播通信
-        await this.initBroadcastChannel();
-
-        // 初始化 lastPomodoroSettings 用于后续判断
-        try {
-            this.lastPomodoroSettings = await this.getPomodoroSettings();
-        } catch (err) {
-            this.lastPomodoroSettings = null;
-        }
-
         // 监听设置变更，动态显示/隐藏侧边停靠栏
         window.addEventListener('reminderSettingsUpdated', async () => {
             try {
@@ -279,7 +259,7 @@ export default class ReminderPlugin extends Plugin {
                         return;
                     }
 
-                    // 有实例且相关设置发生改变，进行更新并广播
+                    // 有实例且相关设置发生改变，进行更新
                     let updatedCount = 0;
                     if (currentPomodoro && typeof currentPomodoro.getCurrentState === 'function' && typeof currentPomodoro.updateState === 'function') {
                         const state = currentPomodoro.getCurrentState();
@@ -303,9 +283,6 @@ export default class ReminderPlugin extends Plugin {
                         }
                     }
 
-                    // 向其他窗口广播：广播中其他窗口也会判断并跳过正在运行的计时器
-                    this.broadcastMessage('pomodoro_settings_updated', { settings: pomodoroSettings }, true);
-                    this.lastPomodoroSettings = pomodoroSettings;
                     // 仅在至少有一个实例实际被更新时提示用户（跳过运行中计时器时不提示）
                     if (updatedCount > 0) {
                         try { showMessage(t('pomodoroSettingsApplied') || '番茄钟设置已应用到打开的计时器', 1500); } catch (e) { }
@@ -680,7 +657,6 @@ export default class ReminderPlugin extends Plugin {
                 const settings = tab.data?.settings;
                 const isCountUp = tab.data?.isCountUp || false;
                 const inheritState = tab.data?.inheritState;
-                const isStandaloneWindow = tab.data?.isStandaloneWindow || false;
 
                 if (!reminder || !settings) {
                     console.error('番茄钟Tab缺少必要数据');
@@ -696,35 +672,15 @@ export default class ReminderPlugin extends Plugin {
                     // 使用统一的tabId格式保存番茄钟实例引用
                     const standardTabId = this.name + POMODORO_TAB_TYPE;
                     this.tabViews.set(standardTabId, pomodoroTimer);
-
-
-                    // 如果这是一个独立窗口，延迟通知其他窗口（确保广播通道已建立）
-                    if (isStandaloneWindow) {
-
-                        // 延迟发送，确保广播通道已建立
-                        setTimeout(() => {
-                            this.broadcastMessage("pomodoro_window_opened", {
-                                windowId: this.windowId
-                            }, true);  // 强制发送
-                        }, 500);
-                    }
                 });
             }) as any,
             destroy: (() => {
-                // 当番茄钟Tab关闭时，清除标记并通知其他窗口
+                // 当番茄钟Tab关闭时，清除标记
 
                 // 清理tabViews中的引用
                 const standardTabId = this.name + POMODORO_TAB_TYPE;
                 if (this.tabViews.has(standardTabId)) {
                     this.tabViews.delete(standardTabId);
-                }
-
-                if (this.pomodoroWindowId === this.windowId) {
-                    this.pomodoroWindowId = null;
-                    // 通知其他窗口番茄钟窗口已关闭
-                    this.broadcastMessage("pomodoro_window_closed", {
-                        windowId: this.windowId
-                    }, true);
                 }
             }) as any
         });
@@ -3501,9 +3457,6 @@ export default class ReminderPlugin extends Plugin {
 
     onunload() {
         console.log('任务笔记管理插件禁用，开始清理资源...');
-        // 清理广播通信
-        this.cleanupBroadcastChannel();
-
         // 清理音频资源
         if (this.preloadedAudio) {
             this.preloadedAudio.pause();
@@ -3609,437 +3562,6 @@ export default class ReminderPlugin extends Plugin {
      * @param isCountUp 是否正计时模式
      * @param inheritState 继承的状态
      */
-    async openPomodoroWindow(reminder: any, settings: any, isCountUp: boolean, inheritState?: any) {
-        try {
-            // 先检查是否已有独立窗口
-            if (this.pomodoroWindowId) {
-
-                // 通过广播更新已有窗口的番茄钟状态
-                // 如果没有提供inheritState，设置标志让独立窗口继承自己当前的状态
-                this.broadcastMessage("pomodoro_update", {
-                    reminder,
-                    settings,
-                    isCountUp,
-                    inheritState,
-                    shouldInheritCurrentState: !inheritState  // 如果没有提供inheritState，则应该继承当前状态
-                });
-
-                showMessage(t('pomodoroWindowUpdated') || '已更新独立窗口中的番茄钟', 2000);
-                return;
-            }
-
-            // 如果没有独立窗口，则打开新窗口
-            const tabId = this.name + POMODORO_TAB_TYPE;
-
-            // 创建tab
-            const tab = openTab({
-                app: this.app,
-                custom: {
-                    icon: 'iconClock',
-                    title: reminder?.title || t('pomodoroTimer') || '番茄钟',
-                    id: tabId,
-                    data: {
-                        reminder: reminder,
-                        settings: settings,
-                        isCountUp: isCountUp,
-                        inheritState: inheritState,
-                        isStandaloneWindow: true  // 标记这是一个独立窗口
-                    }
-                },
-            });
-
-            // 在新窗口中打开tab
-            openWindow({
-                height: 230,
-                width: 240,
-                tab: await tab,
-            });
-
-
-        } catch (error) {
-            console.error('打开独立窗口失败:', error);
-            showMessage(t('openWindowFailed') || '打开窗口失败', 2000);
-        }
-    }
-
-    // ================================ 广播通信相关方法 ================================
-
-    /**
-     * 初始化广播通信
-     */
-    private async initBroadcastChannel() {
-        // 生成当前窗口的唯一标识符
-        this.windowId = BROADCAST_CHANNEL_NAME + "-" + window.Lute.NewNodeID();
-
-        // 订阅广播频道
-        await this.subscribeToBroadcastChannel();
-
-
-        // 发送初始化消息到其他窗口（用于发现其他窗口）
-        this.broadcastMessage("window_online", {
-            windowId: this.windowId,
-            timestamp: Date.now(),
-        }, true);
-
-        // 等待一小段时间，让其他窗口响应
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-
-        // 监听页面卸载事件，确保窗口关闭时发送下线通知
-        window.addEventListener("beforeunload", () => {
-            this.sendOfflineNotification();
-        });
-    }
-
-    /**
-     * 订阅广播频道
-     */
-    private async subscribeToBroadcastChannel(): Promise<void> {
-        return new Promise((resolve, reject) => {
-            try {
-                // 构建 WebSocket URL
-                const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-                const wsUrl = `${protocol}//${window.location.host}/ws/broadcast?channel=${encodeURIComponent(BROADCAST_CHANNEL_NAME)}`;
-
-                // 创建 WebSocket 连接
-                this.websocket = new WebSocket(wsUrl);
-
-                // 监听连接打开
-                this.websocket.onopen = () => {
-                    this.clearReconnectTimer();
-                    resolve();
-                };
-
-                // 监听消息
-                this.websocket.onmessage = (event) => {
-                    try {
-                        const data = JSON.parse(event.data);
-                        this.handleBroadcastMessage(data);
-                    } catch (error) {
-                        console.error("Failed to parse broadcast message:", error);
-                    }
-                };
-
-                // 监听连接错误
-                this.websocket.onerror = (error) => {
-                    console.error("Broadcast channel connection error:", error);
-                    this.scheduleReconnect();
-                    reject(error);
-                };
-
-                // 监听连接关闭
-                this.websocket.onclose = (event) => {
-                    this.scheduleReconnect();
-                };
-
-            } catch (error) {
-                console.error("Failed to subscribe to broadcast channel:", error);
-                this.scheduleReconnect();
-                reject(error);
-            }
-        });
-    }
-
-    /**
-     * 安排重连
-     */
-    private scheduleReconnect() {
-        this.clearReconnectTimer();
-        this.reconnectTimer = window.setTimeout(() => {
-            this.subscribeToBroadcastChannel().catch(error => {
-                console.error("Failed to reconnect to broadcast channel:", error);
-            });
-        }, this.reconnectInterval);
-    }
-
-    /**
-     * 清除重连定时器
-     */
-    private clearReconnectTimer() {
-        if (this.reconnectTimer) {
-            clearTimeout(this.reconnectTimer);
-            this.reconnectTimer = null;
-        }
-    }
-
-    /**
-     * 处理窗口下线通知
-     */
-    private handleWindowOffline(windowId: string) {
-        this.otherWindowIds.delete(windowId);
-
-        // 如果是番茄钟窗口下线，清除标记
-        if (this.pomodoroWindowId === windowId) {
-            this.pomodoroWindowId = null;
-        }
-
-    }
-
-    /**
-     * 发送窗口下线通知
-     */
-    private sendOfflineNotification() {
-        try {
-            this.broadcastMessage("window_offline", {
-                windowId: this.windowId,
-                timestamp: Date.now(),
-            }, true);
-        } catch (error) {
-            console.error("Failed to send offline notification:", error);
-        }
-    }
-
-    /**
-     * 清理广播频道连接
-     */
-    private cleanupBroadcastChannel() {
-        // 发送窗口下线通知
-        this.sendOfflineNotification();
-
-        this.clearReconnectTimer();
-
-        // 清理窗口跟踪数据
-        this.otherWindowIds.clear();
-        this.pomodoroWindowId = null;
-
-        if (this.websocket) {
-            this.websocket.close();
-            this.websocket = null;
-        }
-    }
-
-    /**
-     * 处理来自其他窗口的广播消息
-     */
-    private async handleBroadcastMessage(data: any) {
-
-        // 忽略来自当前窗口的消息
-        if (data.windowId === this.windowId) {
-            return;
-        }
-
-        // 记录其他窗口 ID
-        this.otherWindowIds.add(data.windowId);
-
-        switch (data.type) {
-            case "window_online":
-                // 向新上线的窗口发送反馈，告知自己的存在
-                this.broadcastMessage("window_online_feedback", {
-                    windowId: this.windowId,
-                    timestamp: Date.now(),
-                });
-                // 如果当前窗口是番茄钟窗口，告知新窗口
-                if (this.tabViews.has(this.name + POMODORO_TAB_TYPE)) {
-                    this.broadcastMessage("pomodoro_window_opened", {
-                        windowId: this.windowId
-                    });
-                }
-                break;
-            case "window_online_feedback":
-                this.otherWindowIds.add(data.windowId);
-                break;
-            case "window_offline":
-                this.handleWindowOffline(data.windowId);
-                break;
-            case "pomodoro_window_opened":
-                // 记录番茄钟窗口ID
-                this.pomodoroWindowId = data.windowId;
-                break;
-            case "pomodoro_window_closed":
-                // 清除番茄钟窗口ID
-                if (this.pomodoroWindowId === data.windowId) {
-                    this.pomodoroWindowId = null;
-                }
-                break;
-            case "pomodoro_update":
-                // 如果当前是番茄钟独立窗口，更新番茄钟状态
-                await this.updatePomodoroState(data);
-                break;
-            case "pomodoro_settings_updated":
-                // 其他窗口广播番茄钟设置更新，更新本窗口的所有番茄钟实例
-                try {
-                    const newSettings = data.settings;
-                    // 更新通过 PomodoroManager 管理的当前番茄钟
-                    const currentPomodoro = PomodoroManager.getInstance().getCurrentPomodoroTimer();
-                    let updatedCount = 0;
-                    if (currentPomodoro && typeof currentPomodoro.getCurrentState === 'function' && typeof currentPomodoro.updateState === 'function') {
-                        const state = currentPomodoro.getCurrentState();
-                        if (!(state.isRunning && !state.isPaused)) {
-                            const reminder = { id: state.reminderId, title: state.reminderTitle };
-                            await currentPomodoro.updateState(reminder, newSettings, state.isCountUp, state, false, true);
-                            updatedCount++;
-                        }
-                    }
-
-                    // 更新 tabViews 中的所有番茄钟视图
-                    for (const [tabId, view] of this.tabViews) {
-                        if (view && typeof view.updateState === 'function' && typeof view.getCurrentState === 'function') {
-                            try {
-                                const state = view.getCurrentState();
-                                if (state.isRunning && !state.isPaused) continue;
-                                const reminder = { id: state.reminderId, title: state.reminderTitle };
-                                await view.updateState(reminder, newSettings, state.isCountUp, state, false, true);
-                                updatedCount++;
-                            } catch (e) {
-                                console.warn('广播更新番茄钟设置到 tab 失败:', e);
-                            }
-                        }
-                    }
-                    // 更新本窗口 lastPomodoroSettings
-                    this.lastPomodoroSettings = newSettings;
-                } catch (err) {
-                    console.warn('处理pomodoro_settings_updated广播时出错:', err);
-                }
-                break;
-            default:
-        }
-    }
-
-    /**
-     * 更新番茄钟状态（在独立窗口中）
-     */
-    private async updatePomodoroState(data: any) {
-        try {
-            const { reminder, settings, isCountUp, inheritState, shouldInheritCurrentState } = data;
-
-
-            // 查找当前窗口的番茄钟Tab
-            const tabId = this.name + POMODORO_TAB_TYPE;
-
-            const pomodoroView = this.tabViews.get(tabId);
-
-            if (pomodoroView) {
-
-                // 如果需要继承当前状态，先获取当前状态
-                let finalInheritState = inheritState;
-                if (shouldInheritCurrentState && typeof pomodoroView.getCurrentState === 'function') {
-                    finalInheritState = pomodoroView.getCurrentState();
-
-                } else if (inheritState) {
-                } else {
-                }
-
-                if (typeof pomodoroView.updateState === 'function') {
-                    // 如果番茄钟视图有更新状态的方法，调用它（强制更新，覆盖运行状态，用于任务切换等跨窗口同步）
-                    await pomodoroView.updateState(reminder, settings, isCountUp, finalInheritState, true, true);
-                } else {
-                    console.warn('番茄钟视图不支持updateState方法，尝试重新创建');
-                    // 如果视图不支持更新，销毁并重建
-                    if (typeof pomodoroView.destroy === 'function') {
-                        pomodoroView.destroy();
-                    }
-                    this.tabViews.delete(tabId);
-
-                    // 重新创建番茄钟
-                    await this.recreatePomodoroTimer(tabId, reminder, settings, isCountUp, finalInheritState);
-                }
-            } else {
-                // 如果没有现有的番茄钟视图，尝试创建新的
-                await this.recreatePomodoroTimer(tabId, reminder, settings, isCountUp, inheritState);
-            }
-        } catch (error) {
-            console.error('更新番茄钟状态失败:', error);
-            showMessage('更新番茄钟失败，请检查控制台', 3000);
-        }
-    }
-
-    /**
-     * 重新创建番茄钟计时器
-     */
-    private async recreatePomodoroTimer(
-        tabId: string,
-        reminder: any,
-        settings: any,
-        isCountUp: boolean,
-        inheritState?: any
-    ) {
-        try {
-
-            // 动态导入PomodoroTimer
-            const { PomodoroTimer } = await import("./components/PomodoroTimer");
-
-            // 查找番茄钟容器
-            const container = document.querySelector(`[data-id="${tabId}"]`) as HTMLElement;
-            if (!container) {
-                console.error('未找到番茄钟容器, tabId:', tabId);
-                // 尝试其他方式查找容器
-                const allContainers = document.querySelectorAll('[data-type="' + POMODORO_TAB_TYPE + '"]');
-
-                if (allContainers.length > 0) {
-                    const targetContainer = allContainers[0] as HTMLElement;
-
-                    // 清空容器
-                    targetContainer.innerHTML = '';
-
-                    // 创建新的番茄钟实例
-                    const pomodoroTimer = new PomodoroTimer(
-                        reminder,
-                        settings,
-                        isCountUp,
-                        inheritState,
-                        this,
-                        targetContainer
-                    );
-
-                    this.tabViews.set(tabId, pomodoroTimer);
-                } else {
-                    console.error('完全找不到番茄钟容器');
-                }
-                return;
-            }
-
-
-            // 清空容器
-            container.innerHTML = '';
-
-            // 创建新的番茄钟实例
-            const pomodoroTimer = new PomodoroTimer(
-                reminder,
-                settings,
-                isCountUp,
-                inheritState,
-                this,
-                container
-            );
-
-            this.tabViews.set(tabId, pomodoroTimer);
-        } catch (error) {
-            console.error('重新创建番茄钟失败:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * 发送广播消息到其他窗口
-     */
-    private broadcastMessage(type: string, data: any = {}, force = false) {
-        // 如果不是强制发送且不存在其他窗口，则跳过广播
-        if (!force && this.otherWindowIds.size === 0) {
-            return;
-        }
-
-        const message = {
-            type,
-            windowId: this.windowId,
-            timestamp: Date.now(),
-            ...data
-        };
-
-        // 通过 WebSocket 连接发送消息
-        this.postBroadcastMessage(JSON.stringify(message));
-    }
-
-    /**
-     * 通过 WebSocket 连接发送广播消息
-     */
-    private postBroadcastMessage(message: string) {
-        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-            this.websocket.send(message);
-        } else {
-            console.error("WebSocket connection is not ready, cannot send message");
-        }
-    }
-
     // 初始化ICS云端同步
     private async initIcsSync() {
         const settings = await this.loadSettings();
