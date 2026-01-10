@@ -1,4 +1,4 @@
-import { showMessage, confirm } from "siyuan";
+import { showMessage, confirm, getFrontend } from "siyuan";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
 import { readReminderData, writeReminderData, getBlockByID, openBlock } from "../api";
 import { t } from "../utils/i18n";
@@ -1372,13 +1372,25 @@ export class PomodoroTimer {
     }
 
     private createWindow(targetContainer?: HTMLElement) {
+        // 检测是否是移动端
+        const isMobile = getFrontend().endsWith('mobile');
+        
         // 如果提供了 targetContainer，则创建 DOM 元素（Tab 模式）
         if (this.isTabMode && targetContainer) {
             this.createDOMWindow(targetContainer);
             return;
         }
 
-        // 否则创建 BrowserWindow（全局窗口模式）
+        // 移动端强制使用 DOM 窗口（因为不支持 BrowserWindow）
+        if (isMobile) {
+            // 创建一个悬浮的 DOM 窗口
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            this.createDOMWindow(container);
+            return;
+        }
+
+        // 桌面端创建 BrowserWindow（全局窗口模式）
         this.createBrowserWindow();
     }
 
@@ -1462,7 +1474,7 @@ export class PomodoroTimer {
             align-items: center;
             justify-content: center;
         `;
-        this.minimizeBtn.innerHTML = '🍅';
+        this.minimizeBtn.innerHTML = '🔽';
         this.minimizeBtn.title = t('minimize') || '最小化'; // i18n
         this.minimizeBtn.addEventListener('click', (e) => {
             e.preventDefault();
@@ -1536,7 +1548,7 @@ export class PomodoroTimer {
         this.modeToggleBtn = document.createElement('button');
         this.modeToggleBtn.className = 'pomodoro-menu-item';
         this.modeToggleBtn.style.cssText = this.getMenuItemStyle();
-        this.modeToggleBtn.innerHTML = `${this.isCountUp ? '⏳' : '⏱️'} ${this.isCountUp ? (t('switchToCountdown') || '切换到倒计时') : (t('switchToCountUp') || '切换到正计时')}`;
+        this.modeToggleBtn.innerHTML = `${this.isCountUp ? '🍅' : '⏱️'} ${this.isCountUp ? (t('switchToCountdown') || '切换到倒计时') : (t('switchToCountUp') || '切换到正计时')}`;
         this.modeToggleBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -2811,7 +2823,7 @@ export class PomodoroTimer {
 
         // 更新图标
         if (this.isWorkPhase) {
-            this.minimizedIcon.innerHTML = '🍅';
+            this.minimizedIcon.innerHTML = this.isCountUp ? '⏱️' : '🍅';
         } else {
             this.minimizedIcon.innerHTML = this.isLongBreak ? '🧘' : '🍵';
         }
@@ -2997,7 +3009,7 @@ export class PomodoroTimer {
         if (!this.modeToggleBtn) return;
 
         // 更新计时模式切换按钮的文字
-        this.modeToggleBtn.innerHTML = `${this.isCountUp ? '⏳' : '⏱️'} ${this.isCountUp ? (t('switchToCountdown') || '切换到倒计时') : (t('switchToCountUp') || '切换到正计时')}`;
+        this.modeToggleBtn.innerHTML = `${this.isCountUp ? '🍅' : '⏱️'} ${this.isCountUp ? (t('switchToCountdown') || '切换到倒计时') : (t('switchToCountUp') || '切换到正计时')}`;
     }
 
     private toggleMode() {
@@ -3309,7 +3321,7 @@ export class PomodoroTimer {
         // 更新颜色和状态显示
         let color = '#FF6B6B';
         let statusText = t('pomodoroWork') || '工作时间';
-        let statusIconHtml = this.isCountUp ? '🍅' : '⏳';
+        let statusIconHtml = this.isCountUp ? '⏱️' : '🍅';
 
         if (!this.isWorkPhase) {
             if (this.isLongBreak) {
@@ -5547,11 +5559,11 @@ export class PomodoroTimer {
         <div class="titlebar-left">
             <div class="switch-container">
                 <button class="titlebar-btn" id="statusBtn" onclick="toggleSwitchMenu(event)">
-                    ${currentState.isWorkPhase ? (currentState.isCountUp ? '⏱' : '🍅') : (currentState.isLongBreak ? '🧘' : '🍵')}
+                    ⚙️
                 </button>
                 <div class="switch-menu" id="switchMenu">
                     <button class="menu-item" onclick="callMethod('toggleMode')">
-                        ${currentState.isCountUp ? '⏳' : '⏱️'} ${currentState.isCountUp ? '切换到倒计时' : '切换到正计时'}
+                        ${currentState.isCountUp ? '⏱️' : '🍅'} ${currentState.isCountUp ? '切换到倒计时' : '切换到正计时'}
                     </button>
                     <button class="menu-item" onclick="callMethod('startWorkTime')">💪 工作时间</button>
                     <button class="menu-item" onclick="callMethod('startShortBreak')">🍵 短时休息</button>
@@ -5955,11 +5967,11 @@ export class PomodoroTimer {
         <div class="titlebar-left">
             <div class="switch-container">
                 <button class="titlebar-btn" id="statusBtn" onclick="toggleSwitchMenu(event)">
-                    ${currentState.isWorkPhase ? (currentState.isCountUp ? '⏱' : '🍅') : (currentState.isLongBreak ? '🧘' : '🍵')}
+                    ⚙️
                 </button>
                 <div class="switch-menu" id="switchMenu">
                     <button class="menu-item" onclick="callMethod('toggleMode')">
-                        ${currentState.isCountUp ? '⏳' : '⏱️'} ${currentState.isCountUp ? '切换到倒计时' : '切换到正计时'}
+                        ${currentState.isCountUp ? '🍅' : '⏱️'} ${currentState.isCountUp ? '切换到倒计时' : '切换到正计时'}
                     </button>
                     <button class="menu-item" onclick="callMethod('startWorkTime')">💪 工作时间</button>
                     <button class="menu-item" onclick="callMethod('startShortBreak')">🍵 短时休息</button>
@@ -6195,7 +6207,6 @@ export class PomodoroTimer {
                     const diceIcon = document.getElementById('diceIcon');
                     const stopBtn = document.getElementById('stopBtn');
                     const playPauseBtn = document.querySelector('.circle-control-btn');
-                    const statusBtn = document.getElementById('statusBtn');
                     
                     if (timeDisplay) timeDisplay.textContent = '${timeStr}';
                     if (statusDisplay) statusDisplay.textContent = '${statusText}';
@@ -6220,9 +6231,6 @@ export class PomodoroTimer {
                     }
                     if (playPauseBtn) {
                         playPauseBtn.textContent = '${playPauseIcon}';
-                    }
-                    if (statusBtn) {
-                        statusBtn.textContent = '${statusBtnText}';
                     }
                 } catch(e) {
                     console.error('Update display failed:', e);
