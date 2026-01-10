@@ -4686,7 +4686,7 @@ export class PomodoroTimer {
             // 如果是DOM元素
             this.container.parentNode.removeChild(this.container);
         }
-        
+
         // 清理 pending 设置
         this.pendingSettings = null;
     }
@@ -5005,35 +5005,35 @@ export class PomodoroTimer {
 
             // 检查是否已有BrowserWindow实例
             let pomodoroWindow = PomodoroTimer.browserWindowInstance;
-            
+
             if (pomodoroWindow && !pomodoroWindow.isDestroyed()) {
                 // 复用已有窗口，更新内容
                 console.log('[PomodoroTimer] 复用现有BrowserWindow窗口');
-                
+
                 // 如果有之前的Timer实例，先清理它的状态
                 if (PomodoroTimer.browserWindowTimer && PomodoroTimer.browserWindowTimer !== this) {
                     // 保存旧实例的状态用于可能的继承
                     const oldState = PomodoroTimer.browserWindowTimer.getCurrentState();
                     console.log('[PomodoroTimer] 从旧实例获取状态:', oldState);
                 }
-                
+
                 // 更新当前实例引用
                 PomodoroTimer.browserWindowTimer = this;
                 this.container = pomodoroWindow;
-                
+
                 // 重新生成并加载HTML内容
                 await this.updateBrowserWindowContent(pomodoroWindow);
-                
+
                 // 显示窗口
                 pomodoroWindow.show();
                 pomodoroWindow.focus();
-                
+
                 return;
             }
-            
+
             // 创建新窗口
             console.log('[PomodoroTimer] 创建新的BrowserWindow窗口');
-            
+
             const screen = remote.screen || electron.screen;
             if (!screen) {
                 console.error("[PomodoroTimer] Failed to get screen object");
@@ -5448,7 +5448,7 @@ export class PomodoroTimer {
                 this.isWindowClosed = true;
                 this.stopAllAudio();
                 this.stopRandomNotificationTimer();
-                
+
                 // 清理静态变量引用
                 if (PomodoroTimer.browserWindowInstance === pomodoroWindow) {
                     PomodoroTimer.browserWindowInstance = null;
@@ -5456,7 +5456,7 @@ export class PomodoroTimer {
                 if (PomodoroTimer.browserWindowTimer === this) {
                     PomodoroTimer.browserWindowTimer = null;
                 }
-                
+
                 // 清理计时器
                 if (this.timer) {
                     clearInterval(this.timer);
@@ -5466,9 +5466,9 @@ export class PomodoroTimer {
                     clearTimeout(this.autoTransitionTimer);
                     this.autoTransitionTimer = null;
                 }
-                
+
                 this.detachAudioUnlockListeners();
-                
+
                 // 移除IPC监听器
                 ipcMain?.removeListener(actionChannel, actionHandler);
                 ipcMain?.removeListener(controlChannel, controlHandler);
@@ -5813,8 +5813,8 @@ export class PomodoroTimer {
             await pomodoroWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent));
 
             // 设置窗口事件监听器（如果需要重新注册）
-            const ipcMain = (window as any).require?.('electron')?.remote?.ipcMain || 
-                           (window as any).require?.('@electron/remote')?.ipcMain;
+            const ipcMain = (window as any).require?.('electron')?.remote?.ipcMain ||
+                (window as any).require?.('@electron/remote')?.ipcMain;
 
             if (ipcMain) {
                 // 清理旧的监听器
