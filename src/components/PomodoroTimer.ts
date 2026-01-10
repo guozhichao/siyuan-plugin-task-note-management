@@ -3202,6 +3202,9 @@ export class PomodoroTimer {
             this.initializeAudioPlayback();
         }
 
+        // 检查是否是 BrowserWindow 模式
+        const isBrowserWindow = !this.isTabMode && this.container && typeof (this.container as any).webContents !== 'undefined';
+
         if (!this.isRunning) {
             this.startTimer();
         } else {
@@ -3209,24 +3212,28 @@ export class PomodoroTimer {
                 this.resumeTimer();
             } else {
                 this.pauseTimer();
-                // 暂停后立即显示继续和停止按钮，使用自适应间距
-                const statusIcon = this.container.querySelector('.pomodoro-status-icon') as HTMLElement;
-                if (statusIcon) {
-                    statusIcon.style.opacity = '0.3';
+                
+                // 只在非 BrowserWindow 模式下直接操作 DOM
+                if (!isBrowserWindow) {
+                    // 暂停后立即显示继续和停止按钮，使用自适应间距
+                    const statusIcon = this.container.querySelector('.pomodoro-status-icon') as HTMLElement;
+                    if (statusIcon) {
+                        statusIcon.style.opacity = '0.3';
+                    }
+
+                    // 根据按钮大小自适应计算间距
+                    const startBtnWidth = parseFloat(getComputedStyle(this.startPauseBtn).width) || 32;
+                    const stopBtnWidth = parseFloat(getComputedStyle(this.stopBtn).width) || 28;
+                    const gap = Math.max(4, startBtnWidth * 0.15); // 按钮之间的间距，至少4px
+                    const startOffset = -(stopBtnWidth / 2 + gap / 2);
+                    const stopOffset = startBtnWidth / 2 + gap / 2;
+
+                    this.startPauseBtn.style.opacity = '1';
+                    this.stopBtn.style.opacity = '1';
+                    this.stopBtn.style.display = 'flex';
+                    this.startPauseBtn.style.transform = `translate(-50%, -50%) translateX(${startOffset}px)`;
+                    this.stopBtn.style.transform = `translate(-50%, -50%) translateX(${stopOffset}px)`;
                 }
-
-                // 根据按钮大小自适应计算间距
-                const startBtnWidth = parseFloat(getComputedStyle(this.startPauseBtn).width) || 32;
-                const stopBtnWidth = parseFloat(getComputedStyle(this.stopBtn).width) || 28;
-                const gap = Math.max(4, startBtnWidth * 0.15); // 按钮之间的间距，至少4px
-                const startOffset = -(stopBtnWidth / 2 + gap / 2);
-                const stopOffset = startBtnWidth / 2 + gap / 2;
-
-                this.startPauseBtn.style.opacity = '1';
-                this.stopBtn.style.opacity = '1';
-                this.stopBtn.style.display = 'flex';
-                this.startPauseBtn.style.transform = `translate(-50%, -50%) translateX(${startOffset}px)`;
-                this.stopBtn.style.transform = `translate(-50%, -50%) translateX(${stopOffset}px)`;
             }
         }
 
@@ -4635,11 +4642,16 @@ export class PomodoroTimer {
 
         this.isCountUp = isCountUp;
 
-        // 更新模式切换按钮标题
-        this.modeToggleBtn.title = this.isCountUp ? '切换到倒计时' : '切换到正计时';
+        // 检查是否是 BrowserWindow 模式
+        const isBrowserWindow = !this.isTabMode && this.container && typeof (this.container as any).webContents !== 'undefined';
+        
+        if (!isBrowserWindow && this.modeToggleBtn) {
+            // 更新模式切换按钮标题
+            this.modeToggleBtn.title = this.isCountUp ? '切换到倒计时' : '切换到正计时';
+        }
 
-        // 更新标题图标
-        const titleIcon = this.container.querySelector('.pomodoro-title span');
+        // 更新标题图标（仅在非 BrowserWindow 模式）
+        const titleIcon = !isBrowserWindow ? this.container.querySelector('.pomodoro-title span') : null;
         if (titleIcon) {
             titleIcon.textContent = this.isCountUp ? '🍅' : '🍅';
         }
@@ -4829,13 +4841,18 @@ export class PomodoroTimer {
             this.currentPhaseOriginalDuration = settings.workDuration;
         }
 
-        // 更新事件标题显示（在更新其他显示之前）
-        const eventTitle = this.container.querySelector('.pomodoro-event-title') as HTMLElement;
-        if (eventTitle) {
-            eventTitle.textContent = reminder.title || "未命名笔记";
-            eventTitle.title = "打开笔记: " + (reminder.title || "未命名笔记");
-        } else {
-            console.warn('PomodoroTimer: 未找到标题元素');
+        // 检查是否是 BrowserWindow 模式
+        const isBrowserWindow = !this.isTabMode && this.container && typeof (this.container as any).webContents !== 'undefined';
+        
+        // 更新事件标题显示（在更新其他显示之前，仅在非 BrowserWindow 模式）
+        if (!isBrowserWindow) {
+            const eventTitle = this.container.querySelector('.pomodoro-event-title') as HTMLElement;
+            if (eventTitle) {
+                eventTitle.textContent = reminder.title || "未命名笔记";
+                eventTitle.title = "打开笔记: " + (reminder.title || "未命名笔记");
+            } else {
+                console.warn('PomodoroTimer: 未找到标题元素');
+            }
         }
 
         // 更新显示
