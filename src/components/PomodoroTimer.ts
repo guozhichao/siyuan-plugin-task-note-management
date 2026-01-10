@@ -32,7 +32,6 @@ export class PomodoroTimer {
     private restoreBtn: HTMLElement;
     private fullscreenBtn: HTMLElement; // 新增：全屏模式按钮
     private exitFullscreenBtn: HTMLElement; // 新增：退出全屏按钮
-    private openWindowBtn: HTMLElement; // 新增：打开独立窗口按钮
     private plugin: any; // 插件实例引用，用于调用插件方法
 
     private isRunning: boolean = false;
@@ -1169,6 +1168,17 @@ export class PomodoroTimer {
     }
 
     private createWindow(targetContainer?: HTMLElement) {
+        // 如果提供了 targetContainer，则创建 DOM 元素（Tab 模式）
+        if (this.isTabMode && targetContainer) {
+            this.createDOMWindow(targetContainer);
+            return;
+        }
+
+        // 否则创建 BrowserWindow（全局窗口模式）
+        this.createBrowserWindow();
+    }
+
+    private createDOMWindow(targetContainer: HTMLElement) {
         // 创建番茄钟容器
         this.container = document.createElement('div');
         this.container.className = 'pomodoro-timer-window';
@@ -1457,31 +1467,7 @@ export class PomodoroTimer {
             this.toggleFullscreen();
         });
 
-        // 独立窗口按钮
-        this.openWindowBtn = document.createElement('button');
-        this.openWindowBtn.className = 'pomodoro-window-btn';
-        this.openWindowBtn.style.cssText = `
-            background: none;
-            border: none;
-            color: var(--b3-theme-on-surface);
-            cursor: pointer;
-            padding: 4px;
-            border-radius: 4px;
-            font-size: 14px;
-            line-height: 1;
-            opacity: 0.7;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        `;
-        this.openWindowBtn.innerHTML = '↗️';
-        this.openWindowBtn.title = t('openInNewWindow') || '在新窗口中打开';
-        this.openWindowBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            this.openPomodoroWindow();
-        });
+
 
         const closeBtn = document.createElement('button');
         closeBtn.className = 'pomodoro-close';
@@ -1508,7 +1494,6 @@ export class PomodoroTimer {
         headerButtons.appendChild(switchContainer);
         headerButtons.appendChild(this.expandToggleBtn);
         headerButtons.appendChild(this.fullscreenBtn); // 添加全屏按钮
-        headerButtons.appendChild(this.openWindowBtn); // 添加独立窗口按钮
         headerButtons.appendChild(closeBtn);
         header.appendChild(title);
         header.appendChild(headerButtons);
@@ -2005,7 +1990,6 @@ export class PomodoroTimer {
             // Tab模式下隐藏某些不需要的按钮
             this.minimizeBtn.style.display = 'none';
             this.fullscreenBtn.style.display = 'none';
-            this.openWindowBtn.style.display = 'none';
             closeBtn.style.display = 'none'; // 隐藏关闭按钮
 
             // Tab模式下默认隐藏header，不占用空间
@@ -2365,17 +2349,27 @@ export class PomodoroTimer {
     private toggleBackgroundAudio() {
         this.isBackgroundAudioMuted = !this.isBackgroundAudioMuted;
 
-        // 更新按钮显示
-        this.soundControlBtn.innerHTML = this.isBackgroundAudioMuted ? '🔇' : '🔊';
-        this.soundControlBtn.title = this.isBackgroundAudioMuted ? t('enableBackgroundAudio') || '开启背景音' : t('muteBackgroundAudio') || '静音背景音';
+        // 判断是否为 BrowserWindow 模式
+        const isBrowserWindow = !this.isTabMode && this.container && typeof (this.container as any).webContents !== 'undefined';
+
+        if (isBrowserWindow) {
+            // BrowserWindow 模式：更新窗口显示
+            this.updateBrowserWindowDisplay(this.container as any);
+        } else {
+            // DOM 模式：更新按钮显示
+            if (this.soundControlBtn) {
+                this.soundControlBtn.innerHTML = this.isBackgroundAudioMuted ? '🔇' : '🔊';
+                this.soundControlBtn.title = this.isBackgroundAudioMuted ? t('enableBackgroundAudio') || '开启背景音' : t('muteBackgroundAudio') || '静音背景音';
+            }
+        }
 
         // 更新音频音量
         this.updateAudioVolume();
 
         // 如果取消静音，确保音量控制事件正常工作
-        if (!this.isBackgroundAudioMuted) {
+        if (!this.isBackgroundAudioMuted && !isBrowserWindow) {
             // 重新更新音量滑块显示
-            const volumePercent = this.volumeContainer.querySelector('span:last-child');
+            const volumePercent = this.volumeContainer?.querySelector('span:last-child');
             if (volumePercent) {
                 volumePercent.textContent = Math.round(this.backgroundVolume * 100) + '%';
             }
@@ -2385,7 +2379,7 @@ export class PomodoroTimer {
         }
 
         // 立即隐藏音量控制（如果是静音）
-        if (this.isBackgroundAudioMuted && this.volumeContainer) {
+        if (this.isBackgroundAudioMuted && this.volumeContainer && !isBrowserWindow) {
             this.volumeContainer.style.display = 'none';
         }
 
@@ -2995,6 +2989,26 @@ export class PomodoroTimer {
             const todayTime = this.recordManager.getTodayFocusTime();
             const weekTime = this.recordManager.getWeekFocusTime();
 
+            // BrowserWindow 模式：更新窗口内容
+            if (!this.isTabMode && this.container && (this.container as any).webContents) {
+                const todayTimeStr = this.recordManager.formatTime(todayTime);
+                const weekTimeStr = this.recordManager.formatTime(weekTime);
+                (this.container as any).webContents.executeJavaScript(`
+                    if (document.getElementById('todayFocusTime')) {
+                        document.getElementById('todayFocusTime').textContent = '${todayTimeStr}';
+                    }
+                    if (document.getElementById('weekFocusTime')) {
+                        document.getElementById('weekFocusTime').textContent = '${weekTimeStr}';
+                    }
+                `);
+                return;
+            }
+
+            // DOM 模式：直接更新元素
+            if (!this.todayFocusDisplay || !this.weekFocusDisplay) {
+                return;
+            }
+
             this.todayFocusDisplay.textContent = this.recordManager.formatTime(todayTime);
             this.weekFocusDisplay.textContent = this.recordManager.formatTime(weekTime);
 
@@ -3002,7 +3016,9 @@ export class PomodoroTimer {
             if (dailyFocusGoalHours > 0) {
                 const goalMinutes = dailyFocusGoalHours * 60;
                 const progress = Math.min((todayTime / goalMinutes) * 100, 100);
-                this.statsContainer.style.background = `linear-gradient(to right, var(--b3-card-success-background) ${progress}%, var(--b3-theme-surface) ${progress}%)`;
+                if (this.statsContainer) {
+                    this.statsContainer.style.background = `linear-gradient(to right, var(--b3-card-success-background) ${progress}%, var(--b3-theme-surface) ${progress}%)`;
+                }
 
                 if (todayTime >= goalMinutes) {
                     this.todayFocusDisplay.style.color = 'rgb(76, 175, 80)';
@@ -3010,13 +3026,15 @@ export class PomodoroTimer {
                     this.todayFocusDisplay.style.color = '#FF6B6B';
                 }
             } else {
-                this.statsContainer.style.background = 'var(--b3-theme-surface)';
+                if (this.statsContainer) {
+                    this.statsContainer.style.background = 'var(--b3-theme-surface)';
+                }
                 this.todayFocusDisplay.style.color = '#FF6B6B';
             }
         } catch (error) {
             console.error('更新统计显示失败:', error);
-            this.todayFocusDisplay.textContent = '0m';
-            this.weekFocusDisplay.textContent = '0m';
+            if (this.todayFocusDisplay) this.todayFocusDisplay.textContent = '0m';
+            if (this.weekFocusDisplay) this.weekFocusDisplay.textContent = '0m';
         }
     }
 
@@ -3045,7 +3063,18 @@ export class PomodoroTimer {
             seconds = displayTime % 60;
         }
 
-        this.timeDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        const timeStr = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+        // BrowserWindow 模式：使用统一的更新方法
+        if (!this.isTabMode && this.container && (this.container as any).webContents) {
+            this.updateBrowserWindowDisplay(this.container);
+            return;
+        }
+
+        // DOM 模式：直接更新元素
+        if (!this.timeDisplay) return;
+        
+        this.timeDisplay.textContent = timeStr;
 
         // 进度条逻辑
         let progress: number;
@@ -3069,7 +3098,9 @@ export class PomodoroTimer {
         }
 
         const offset = circumference * (1 - progress);
-        this.circularProgress.style.strokeDashoffset = offset.toString();
+        if (this.circularProgress) {
+            this.circularProgress.style.strokeDashoffset = offset.toString();
+        }
 
         // 更新颜色和状态显示
         let color = '#FF6B6B';
@@ -3088,22 +3119,26 @@ export class PomodoroTimer {
             }
         }
 
-        this.circularProgress.setAttribute('stroke', color);
-        this.statusDisplay.textContent = statusText;
+        if (this.circularProgress) {
+            this.circularProgress.setAttribute('stroke', color);
+        }
+        if (this.statusDisplay) {
+            this.statusDisplay.textContent = statusText;
+        }
 
         // 更新状态图标
-        const statusIcon = this.container.querySelector('.pomodoro-status-icon');
+        const statusIcon = this.container?.querySelector('.pomodoro-status-icon');
         if (statusIcon) {
             statusIcon.innerHTML = statusIconHtml;
         }
 
         // 更新番茄数量
-        const pomodoroCountElement = this.container.querySelector('#pomodoroCount');
+        const pomodoroCountElement = this.container?.querySelector('#pomodoroCount');
         if (pomodoroCountElement) {
             pomodoroCountElement.textContent = this.completedPomodoros.toString();
         }
         // 同步骰子图标显示状态
-        const diceEl = this.container.querySelector('.pomodoro-dice') as HTMLElement | null;
+        const diceEl = this.container?.querySelector('.pomodoro-dice') as HTMLElement | null;
         if (diceEl) {
             try {
                 diceEl.style.display = this.randomNotificationEnabled ? 'inline' : 'none';
@@ -3112,7 +3147,7 @@ export class PomodoroTimer {
             }
         }
         // 更新随机提示音计数显示
-        const randomCountEl = this.container.querySelector('#randomNotificationCount') as HTMLElement | null;
+        const randomCountEl = this.container?.querySelector('#randomNotificationCount') as HTMLElement | null;
         if (randomCountEl) {
             try {
                 randomCountEl.textContent = this.randomNotificationCount.toString();
@@ -3123,22 +3158,26 @@ export class PomodoroTimer {
         }
 
         // 更新按钮状态和位置
+        if (!this.startPauseBtn) return;
+        
         if (!this.isRunning) {
             this.startPauseBtn.innerHTML = '▶️';
             // 重置按钮位置
             this.startPauseBtn.style.transform = 'translate(-50%, -50%)';
-            this.stopBtn.style.display = 'none';
+            if (this.stopBtn) this.stopBtn.style.display = 'none';
         } else if (this.isPaused) {
             this.startPauseBtn.innerHTML = '▶️';
-            this.stopBtn.style.display = 'flex';
-            // 暂停状态下自动设置按钮位置，避免重叠
-            const startBtnWidth = parseFloat(getComputedStyle(this.startPauseBtn).width) || 32;
-            const stopBtnWidth = parseFloat(getComputedStyle(this.stopBtn).width) || 28;
-            const gap = Math.max(4, startBtnWidth * 0.15);
-            const startOffset = -(stopBtnWidth / 2 + gap / 2);
-            const stopOffset = startBtnWidth / 2 + gap / 2;
-            this.startPauseBtn.style.transform = `translate(-50%, -50%) translateX(${startOffset}px)`;
-            this.stopBtn.style.transform = `translate(-50%, -50%) translateX(${stopOffset}px)`;
+            if (this.stopBtn) {
+                this.stopBtn.style.display = 'flex';
+                // 暂停状态下自动设置按钮位置，避免重叠
+                const startBtnWidth = parseFloat(getComputedStyle(this.startPauseBtn).width) || 32;
+                const stopBtnWidth = parseFloat(getComputedStyle(this.stopBtn).width) || 28;
+                const gap = Math.max(4, startBtnWidth * 0.15);
+                const startOffset = -(stopBtnWidth / 2 + gap / 2);
+                const stopOffset = startBtnWidth / 2 + gap / 2;
+                this.startPauseBtn.style.transform = `translate(-50%, -50%) translateX(${startOffset}px)`;
+                this.stopBtn.style.transform = `translate(-50%, -50%) translateX(${stopOffset}px)`;
+            }
         } else {
             this.startPauseBtn.innerHTML = '⏸';
             // 重置按钮位置
@@ -3559,7 +3598,11 @@ export class PomodoroTimer {
         this.startTime = 0; // 重置开始时间
         // 注释掉清空番茄计数的代码，保持总计数
         // this.completedPomodoros = 0;
-        this.statusDisplay.textContent = '工作时间';
+        
+        // BrowserWindow 模式下没有 statusDisplay DOM 元素
+        if (this.statusDisplay) {
+            this.statusDisplay.textContent = '工作时间';
+        }
 
         // 重置当前阶段的原始时长为工作时长
         this.currentPhaseOriginalDuration = this.settings.workDuration;
@@ -3579,10 +3622,14 @@ export class PomodoroTimer {
             this.totalTime = this.timeLeft;
         }
 
-        // 重置按钮位置
-        this.startPauseBtn.style.transform = 'translate(-50%, -50%)';
-        this.stopBtn.style.display = 'none';
-        this.stopBtn.style.transform = 'translate(-50%, -50%) translateX(16px)';
+        // 重置按钮位置（仅 DOM 模式）
+        if (this.startPauseBtn) {
+            this.startPauseBtn.style.transform = 'translate(-50%, -50%)';
+        }
+        if (this.stopBtn) {
+            this.stopBtn.style.display = 'none';
+            this.stopBtn.style.transform = 'translate(-50%, -50%) translateX(16px)';
+        }
 
         this.updateDisplay();
         this.updateMainSwitchButton(); // 更新主按钮显示
@@ -4189,6 +4236,12 @@ export class PomodoroTimer {
     }
 
     private editTime() {
+        // 如果是BrowserWindow模式，使用专门的编辑方法
+        if (!this.isTabMode && this.container && typeof (this.container as any).webContents !== 'undefined') {
+            this.editTimeInBrowserWindow(this.container as any);
+            return;
+        }
+
         // 如果正在运行且未暂停，则不允许编辑
         if (this.isRunning && !this.isPaused) {
 
@@ -4240,14 +4293,15 @@ export class PomodoroTimer {
             `;
         } else {
             input.style.cssText = `
-                font-size: 24px;
+                font-size: clamp(18px, 10vmin, 16vh);
                 font-weight: 700;
                 color: var(--b3-theme-on-surface);
                 background: var(--b3-theme-surface);
                 border: 2px solid var(--b3-theme-primary);
                 border-radius: 4px;
                 padding: 2px 4px;
-                width: 80px;
+                width: clamp(80px, 30vw, 200px);
+                max-width: 200px;
                 text-align: center;
                 font-variant-numeric: tabular-nums;
                 outline: none;
@@ -4347,6 +4401,213 @@ export class PomodoroTimer {
 
             input.value = value;
         });
+    }
+
+    private parseTimeStringToSeconds(timeStr: string): number | null {
+        if (!timeStr) return null;
+
+        let minutes = 0;
+        let seconds = 0;
+
+        if (timeStr.includes(':')) {
+            const parts = timeStr.split(':');
+            if (parts.length > 2) return null;
+
+            // 处理像 "25:" 或 ":30" 这样的输入
+            minutes = parts[0] ? parseInt(parts[0], 10) : 0;
+            seconds = parts[1] ? parseInt(parts[1], 10) : 0;
+        } else {
+            // 纯数字输入，视为分钟
+            minutes = parseInt(timeStr, 10);
+            seconds = 0;
+        }
+
+        if (isNaN(minutes) || isNaN(seconds)) return null;
+        if (minutes < 0 || seconds < 0) return null;
+        if (seconds >= 60) return null;
+
+        return minutes * 60 + seconds;
+    }
+
+    /**
+     * 在BrowserWindow中编辑时间
+     */
+    private editTimeInBrowserWindow(window: any) {
+        if (!window || window.isDestroyed()) {
+            return;
+        }
+
+        // 如果正在运行且未暂停，则不允许编辑
+        if (this.isRunning && !this.isPaused) {
+            showMessage('请先暂停计时器再编辑时间', 2000);
+            return;
+        }
+
+        let currentTimeString: string;
+        if (this.isCountUp) {
+            if (this.isWorkPhase) {
+                return; // 正计时工作模式，不允许编辑
+            } else {
+                const currentMinutes = Math.floor(this.breakTimeLeft / 60);
+                const currentSeconds = this.breakTimeLeft % 60;
+                currentTimeString = `${currentMinutes.toString().padStart(2, '0')}:${currentSeconds.toString().padStart(2, '0')}`;
+            }
+        } else {
+            const currentMinutes = Math.floor(this.timeLeft / 60);
+            const currentSeconds = this.timeLeft % 60;
+            currentTimeString = `${currentMinutes.toString().padStart(2, '0')}:${currentSeconds.toString().padStart(2, '0')}`;
+        }
+
+        const editScript = `
+            (function() {
+                const timeDisplay = document.getElementById('timeDisplay');
+                if (!timeDisplay) return;
+
+                const parent = timeDisplay.parentNode;
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = '${currentTimeString}';
+                input.placeholder = 'MM:SS';
+                input.style.cssText = \`
+                    font-size: clamp(18px, 10vmin, 16vh);
+                    font-weight: 700;
+                    color: var(--b3-theme-on-surface);
+                    background: var(--b3-theme-surface);
+                    border: 2px solid var(--b3-theme-primary);
+                    border-radius: 4px;
+                    padding: 2px 4px;
+                    width: clamp(80px, 30vw, 200px);
+                    max-width: 200px;
+                    text-align: center;
+                    font-variant-numeric: tabular-nums;
+                    outline: none;
+                    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+                \`;
+
+                parent.replaceChild(input, timeDisplay);
+                input.focus();
+                input.select();
+
+                let isEditingFinished = false;
+
+                const finishEdit = () => {
+                    if (isEditingFinished) return;
+                    isEditingFinished = true;
+
+                    if (input.parentNode !== parent) return;
+
+                    const inputValue = input.value.trim();
+                    parent.replaceChild(timeDisplay, input);
+
+                    // 通知主进程应用新时间
+                    require('electron').ipcRenderer.send('pomodoro-time-edit-${window.id}', inputValue);
+                };
+
+                const cancelEdit = () => {
+                    if (isEditingFinished) return;
+                    isEditingFinished = true;
+                    if (input.parentNode === parent) {
+                        parent.replaceChild(timeDisplay, input);
+                    }
+                };
+
+                input.addEventListener('blur', finishEdit);
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        finishEdit();
+                    } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        cancelEdit();
+                    }
+                });
+
+                input.addEventListener('input', () => {
+                    let value = input.value;
+                    value = value.replace(/[^0-9:]/g, '');
+                    if (value.length > 6) {
+                        value = value.substring(0, 6);
+                    }
+                    input.value = value;
+                });
+            })();
+        `;
+
+        try {
+            // 先设置 IPC 监听器，再执行 JavaScript
+            let electron: any;
+            try {
+                electron = (window as any).require('electron');
+            } catch (e) {
+                try {
+                    electron = (global as any).require('electron');
+                } catch (e2) {
+                    console.error('[PomodoroTimer] Cannot get electron module');
+                    return;
+                }
+            }
+
+            let remote = electron.remote;
+            if (!remote) {
+                try {
+                    remote = (window as any).require('@electron/remote');
+                } catch (e) {
+                    try {
+                        remote = (global as any).require('@electron/remote');
+                    } catch (e2) {
+                        console.error('[PomodoroTimer] Cannot get remote module');
+                        return;
+                    }
+                }
+            }
+
+            const ipcMain = remote?.ipcMain;
+            if (!ipcMain) {
+                console.error('[PomodoroTimer] Cannot get ipcMain');
+                return;
+            }
+
+            const editHandler = (_event: any, inputValue: string) => {
+                console.log('[PomodoroTimer] Received time edit:', inputValue);
+                const newTimeInSeconds = this.parseTimeStringToSeconds(inputValue);
+
+                if (newTimeInSeconds === null) {
+                    showMessage('时间格式不正确，请使用 MM:SS 格式', 2000);
+                    this.updateBrowserWindowDisplay(window);
+                    return;
+                }
+
+                if (newTimeInSeconds < 1 || newTimeInSeconds > 59999) {
+                    showMessage('时间范围应在 00:01 到 999:59 之间', 2000);
+                    this.updateBrowserWindowDisplay(window);
+                    return;
+                }
+
+                if (this.isCountUp && !this.isWorkPhase) {
+                    this.breakTimeLeft = newTimeInSeconds;
+                } else if (!this.isCountUp) {
+                    this.timeLeft = newTimeInSeconds;
+                    this.totalTime = newTimeInSeconds;
+                }
+
+                this.updateBrowserWindowDisplay(window);
+
+                const minutes = Math.floor(newTimeInSeconds / 60);
+                const seconds = newTimeInSeconds % 60;
+                const phaseText = this.isWorkPhase ? (t('pomodoroWork') || '工作时间') : (this.isLongBreak ? (t('pomodoroLongBreak') || '长时休息') : (t('pomodoroBreak') || '短时休息'));
+                showMessage(`${phaseText}${t('setTo') || '已设置为'} ${minutes}:${seconds.toString().padStart(2, '0')}`, 2000);
+
+                // 移除监听器
+                ipcMain.removeListener(`pomodoro-time-edit-${window.id}`, editHandler);
+            };
+
+            ipcMain.once(`pomodoro-time-edit-${window.id}`, editHandler);
+
+            // 执行 JavaScript 创建输入框
+            window.webContents.executeJavaScript(editScript);
+        } catch (error) {
+            console.error('[PomodoroTimer] editTimeInBrowserWindow error:', error);
+        }
     }
 
     private parseTimeStringToSeconds(timeStr: string): number | null {
@@ -4721,33 +4982,640 @@ export class PomodoroTimer {
         }
     }
 
+    private async createBrowserWindow() {
+        try {
+            let electron: any;
+            try {
+                electron = (window as any).require('electron');
+            } catch (e) {
+                console.error("[PomodoroTimer] Failed to require electron", e);
+                showMessage('无法创建番茄钟窗口', 2000);
+                return;
+            }
+
+            let remote = electron.remote;
+            if (!remote) {
+                try {
+                    remote = (window as any).require('@electron/remote');
+                } catch (e) { }
+            }
+
+            if (!remote) {
+                console.error("[PomodoroTimer] Failed to get electron remote");
+                showMessage('无法创建番茄钟窗口', 2000);
+                return;
+            }
+
+            const BrowserWindowConstructor = remote.BrowserWindow;
+            if (!BrowserWindowConstructor) {
+                console.error("[PomodoroTimer] Failed to get BrowserWindow constructor");
+                showMessage('无法创建番茄钟窗口', 2000);
+                return;
+            }
+
+            const screen = remote.screen || electron.screen;
+            if (!screen) {
+                console.error("[PomodoroTimer] Failed to get screen object");
+                showMessage('无法创建番茄钟窗口', 2000);
+                return;
+            }
+
+            const primaryDisplay = screen.getPrimaryDisplay();
+            const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+            const winWidth = 240;
+            const winHeight = 227;
+            const x = screenWidth - winWidth - 20;
+            const y = screenHeight - winHeight - 20;
+
+            const pomodoroWindow = new BrowserWindowConstructor({
+                width: winWidth,
+                height: winHeight,
+                x: x,
+                y: y,
+                frame: false,
+                alwaysOnTop: true,
+                resizable: true,
+                movable: true,
+                skipTaskbar: false,
+                hasShadow: true,
+                transparent: false,
+                webPreferences: {
+                    nodeIntegration: true,
+                    contextIsolation: false,
+                    webSecurity: false,
+                    enableRemoteModule: true
+                },
+                show: false,
+                backgroundColor: (this.settings.darkMode || document.body.classList.contains('theme-dark')) ? '#1e1e1e' : '#ffffff'
+            });
+
+            // 确保新窗口启用 @electron/remote，否则子窗口内无法获取 remote 导致按钮失效
+            try {
+                const remoteMain = (window as any).require?.('@electron/remote/main');
+                if (remoteMain?.enable && pomodoroWindow?.webContents) {
+                    remoteMain.enable(pomodoroWindow.webContents);
+                }
+            } catch (err) {
+                console.warn('[PomodoroTimer] enable remote for window failed:', err);
+            }
+
+            pomodoroWindow.setMenu(null);
+
+            const isDark = (this.settings.darkMode || document.body.classList.contains('theme-dark'));
+            const bgColor = isDark ? '#1e1e1e' : '#ffffff';
+            const textColor = isDark ? '#e0e0e0' : '#333333';
+            const surfaceColor = isDark ? '#2a2a2a' : '#f5f5f5';
+            const borderColor = isDark ? '#3a3a3a' : '#e0e0e0';
+            const hoverColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)';
+
+            const currentState = this.getCurrentState();
+            const timeStr = this.formatTime(currentState.isCountUp ? currentState.timeElapsed : currentState.timeLeft);
+            const statusText = currentState.isWorkPhase ? (t('pomodoroWork') || '工作时间') :
+                (currentState.isLongBreak ? (t('pomodoroLongBreak') || '长时休息') : (t('pomodoroBreak') || '短时休息'));
+
+            const todayTimeStr = this.recordManager.formatTime(this.recordManager.getTodayFocusTime());
+            const weekTimeStr = this.recordManager.formatTime(this.recordManager.getWeekFocusTime());
+
+            const actionChannel = `pomodoro-action-${pomodoroWindow.id}`;
+            const controlChannel = `pomodoro-control-${pomodoroWindow.id}`;
+            const ipcMain = remote.ipcMain;
+
+            const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: ${bgColor};
+            color: ${textColor};
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+            user-select: none;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .custom-titlebar {
+            -webkit-app-region: drag;
+            padding: 6px;
+            background: ${surfaceColor};
+            border-bottom: 1px solid ${borderColor};
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .titlebar-left, .titlebar-buttons { display: flex; align-items: center; gap: 4px; }
+        .titlebar-btn {
+            -webkit-app-region: no-drag;
+            background: none;
+            border: none;
+            color: ${textColor};
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            font-size: clamp(12px, 3vmin, 2.4vh);
+            opacity: 0.7;
+            transition: all 0.2s;
+        }
+        .titlebar-btn:hover { opacity: 1; background: ${hoverColor}; }
+        .titlebar-btn.close-btn:hover { background: #e81123; color: white; }
+        .switch-container { position: relative; }
+        .switch-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: ${surfaceColor};
+            border: 1px solid ${borderColor};
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            padding: 4px;
+            min-width: 120px;
+            margin-top: 4px;
+        }
+        .switch-menu.show { display: flex; }
+        .menu-item {
+            background: none;
+            border: none;
+            color: ${textColor};
+            cursor: pointer;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: clamp(11px, 2.8vmin, 1.3vh);
+            text-align: left;
+            transition: background 0.2s;
+        }
+        .menu-item:hover { background: ${hoverColor}; }
+        .pomodoro-content {
+            flex: 1;
+            padding: 0 16px 6px;
+            display: flex;
+            flex-direction: column;
+        }
+        .pomodoro-event-title {
+            font-size: clamp(12px, 3vmin, 5vh);
+            font-weight: 600;
+            text-align: center;
+            border-radius: 6px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-bottom: 5px;
+            cursor: pointer;
+            padding: 4px 8px;
+            transition: all 0.2s;
+        }
+        .pomodoro-event-title:hover { background: ${hoverColor}; border-color: #4CAF50; }
+        .pomodoro-main-container { display: flex; align-items: center; justify-content: center; gap: clamp(16px, 4vw, 8vw); margin-bottom: 10px; flex: 1; }
+        .progress-container { position: relative; width: clamp(30px, 35vmin, 30vh); height: clamp(30px, 35vmin, 30vh); flex-shrink: 1; min-width: 30px; }
+        .progress-ring { width: 100%; height: 100%; transform: rotate(-90deg); }
+        .progress-ring-bg { fill: none; stroke: ${borderColor}; stroke-width: 6; opacity: 0.3; }
+        .progress-ring-circle {
+            fill: none;
+            stroke: #FF6B6B;
+            stroke-width: 6;
+            stroke-linecap: round;
+            stroke-dasharray: 226.19;
+            stroke-dashoffset: 226.19;
+            transition: stroke-dashoffset 0.5s ease, stroke 0.3s ease;
+        }
+        .center-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 75%;
+            height: 75%;
+        }
+        .pomodoro-status-icon {
+            font-size: clamp(14px, 10vmin, 8vh);
+            transition: opacity 0.2s;
+            position: absolute;
+            z-index: 1;
+        }
+        .control-buttons {
+            display: flex;
+            gap: 4px;
+            position: absolute;
+            z-index: 2;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .progress-container:hover .control-buttons { opacity: 1; }
+        .progress-container:hover .pomodoro-status-icon { opacity: 0.3; }
+        .circle-control-btn {
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            cursor: pointer;
+            font-size: clamp(10px, 7vmin, 4vh);
+            color: #333;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: clamp(18px, 13vmin, 8vh);
+            height: clamp(18px, 13vmin, 8vh);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s;
+        }
+        .circle-control-btn:hover { transform: scale(1.1); }
+        .time-info { display: flex; flex-direction: column; gap: 4px; }
+        .pomodoro-status {
+            font-size: clamp(10px, 2.5vmin, 3vh);
+            opacity: 0.7;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .pomodoro-time {
+            font-size: clamp(18px, 10vmin, 16vh);
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            line-height: 1.2;
+            cursor: pointer;
+            border-radius: 4px;
+            padding: 2px 4px;
+            transition: background 0.2s;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            max-width: 40vw;
+            text-align: center;
+        }
+        .pomodoro-time:hover { background: ${hoverColor}; }
+        .pomodoro-count {
+            font-size: clamp(12px, 3vmin, 2.5vh);
+            opacity: 0.7;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .pomodoro-dice { margin-left: 8px; font-size: clamp(12px, 3vmin, 2.5vh); opacity: 0.9; }
+        .pomodoro-stats {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px;
+            background: ${surfaceColor};
+            border-radius: 8px;
+        }
+        .stat-item { flex: 1; text-align: center; padding: 0 8px; }
+        .stat-item:first-child { border-right: 1px solid ${borderColor}; }
+        .stat-label { font-size: clamp(9px, 2.2vmin, 1.8vh); opacity: 0.7; margin-bottom: 4px; }
+        .stat-value { font-size: clamp(14px, 3.5vmin, 2.8vh); font-weight: 600; color: #FF6B6B; }
+    </style>
+</head>
+<body>
+    <div class="custom-titlebar">
+        <div class="titlebar-left">
+            <div class="switch-container">
+                <button class="titlebar-btn" id="statusBtn" onclick="toggleSwitchMenu(event)">
+                    ${currentState.isWorkPhase ? (currentState.isCountUp ? '⏱' : '🍅') : (currentState.isLongBreak ? '🧘' : '🍵')}
+                </button>
+                <div class="switch-menu" id="switchMenu">
+                    <button class="menu-item" onclick="callMethod('toggleMode')">
+                        ${currentState.isCountUp ? '⏳' : '⏱️'} ${currentState.isCountUp ? '切换到倒计时' : '切换到正计时'}
+                    </button>
+                    <button class="menu-item" onclick="callMethod('startWorkTime')">💪 工作时间</button>
+                    <button class="menu-item" onclick="callMethod('startShortBreak')">🍵 短时休息</button>
+                    <button class="menu-item" onclick="callMethod('startLongBreak')">🧘 长时休息</button>
+                </div>
+            </div>
+            <button class="titlebar-btn" id="soundBtn" onclick="callMethod('toggleBackgroundAudio')">
+                ${this.isBackgroundAudioMuted ? '🔇' : '🔊'}
+            </button>
+        </div>
+        <div class="titlebar-buttons">
+            <button class="titlebar-btn pin-btn" onclick="togglePin()">📌</button>
+            <button class="titlebar-btn" onclick="minimizeWindow()">─</button>
+            <button class="titlebar-btn close-btn" onclick="closeWindow()">×</button>
+        </div>
+    </div>
+    <div class="pomodoro-content">
+        <div class="pomodoro-event-title" onclick="callMethod('openRelatedNote')">
+            ${this.reminder.title || '未命名笔记'}
+        </div>
+        <div class="pomodoro-main-container">
+            <div class="progress-container">
+                <svg class="progress-ring" viewBox="0 0 80 80">
+                    <circle class="progress-ring-bg" cx="40" cy="40" r="36"></circle>
+                    <circle class="progress-ring-circle" id="progressCircle" cx="40" cy="40" r="36"></circle>
+                </svg>
+                <div class="center-content">
+                    <div class="pomodoro-status-icon" id="statusIcon">🍅</div>
+                    <div class="control-buttons">
+                        <button class="circle-control-btn" onclick="callMethod('toggleTimer')">▶️</button>
+                        <button class="circle-control-btn" id="stopBtn" onclick="callMethod('resetTimer')" style="display:none">⏹</button>
+                    </div>
+                </div>
+            </div>
+            <div class="time-info">
+                <div class="pomodoro-status" id="statusDisplay">${statusText}</div>
+                <div class="pomodoro-time" id="timeDisplay" ondblclick="callMethod('editTime')">${timeStr}</div>
+                <div class="pomodoro-count">
+                    <span>🍅</span>
+                    <span id="pomodoroCount">${currentState.completedPomodoros}</span>
+                    <span class="pomodoro-dice" id="diceIcon" style="display:${this.randomNotificationEnabled ? 'inline' : 'none'}">🎲</span>
+                    <span id="randomCount" style="display:${this.randomNotificationEnabled ? 'inline' : 'none'}">${this.randomNotificationCount}</span>
+                </div>
+            </div>
+        </div>
+        <div class="pomodoro-stats">
+            <div class="stat-item">
+                <div class="stat-label">今日专注</div>
+                <div class="stat-value" id="todayFocusTime">${todayTimeStr}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">本周专注</div>
+                <div class="stat-value" id="weekFocusTime">${weekTimeStr}</div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const { ipcRenderer } = require('electron');
+        let isPinned = true;
+
+        function callMethod(method) {
+            ipcRenderer.send('${actionChannel}', method);
+            closeSwitchMenu();
+        }
+        
+        function closeSwitchMenu() {
+            const m = document.getElementById('switchMenu');
+            if (m) m.classList.remove('show');
+        }
+        
+        document.addEventListener('click', e => {
+            if (!e.target.closest('.switch-container')) closeSwitchMenu();
+        });
+        
+        function toggleSwitchMenu(e) {
+            e.stopPropagation();
+            const m = document.getElementById('switchMenu');
+            if (m) m.classList.toggle('show');
+        }
+        
+        function togglePin() {
+            isPinned = !isPinned;
+            ipcRenderer.send('${controlChannel}', 'pin', isPinned);
+            const btn = document.querySelector('.pin-btn');
+            if (btn) {
+                btn.style.opacity = isPinned ? '1' : '0.5';
+                btn.title = isPinned ? '取消置顶' : '置顶窗口';
+            }
+        }
+        
+        function minimizeWindow() {
+            ipcRenderer.send('${controlChannel}', 'minimize');
+        }
+        
+        function closeWindow() {
+            ipcRenderer.send('${controlChannel}', 'close');
+        }
+    </script>
+</body>
+</html>`;
+
+            this.container = pomodoroWindow as any;
+
+            pomodoroWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent));
+
+            // 监听渲染进程的操作请求（通过主进程 IPC）
+            const actionHandler = (_event: any, method: string) => {
+                this.callMethod(method);
+            };
+            const controlHandler = (_event: any, action: string, pinState?: boolean) => {
+                switch (action) {
+                    case 'pin':
+                        pomodoroWindow.setAlwaysOnTop(!!pinState);
+                        break;
+                    case 'minimize':
+                        pomodoroWindow.minimize();
+                        break;
+                    case 'close':
+                        pomodoroWindow.close();
+                        break;
+                    default:
+                        break;
+                }
+            };
+
+            ipcMain?.on(actionChannel, actionHandler);
+            ipcMain?.on(controlChannel, controlHandler);
+
+            pomodoroWindow.once('ready-to-show', () => {
+                pomodoroWindow.show();
+                
+                // 渲染完毕后推送当前状态
+                const self = this;
+                setTimeout(() => {
+                    if (pomodoroWindow && !pomodoroWindow.isDestroyed()) {
+                        self.updateBrowserWindowDisplay(pomodoroWindow);
+                    }
+                }, 200);
+            });
+
+            pomodoroWindow.on('closed', () => {
+                this.isWindowClosed = true;
+                ipcMain?.removeListener(actionChannel, actionHandler);
+                ipcMain?.removeListener(controlChannel, controlHandler);
+            });
+
+        } catch (error) {
+            console.error('创建番茄钟窗口失败:', error);
+            showMessage('创建番茄钟窗口失败', 2000);
+        }
+    }
+
     /**
-     * 打开番茄钟独立窗口
+     * 更新独立窗口的显示
      */
-    private async openPomodoroWindow() {
-        if (!this.plugin) {
-            showMessage('插件实例不可用', 2000);
+    private updateBrowserWindowDisplay(window: any) {
+        if (!window || window.isDestroyed()) {
             return;
         }
 
         try {
-            // 获取当前状态用于传递给新窗口
             const currentState = this.getCurrentState();
+            
+            // 计算显示时间
+            let displayTime: number;
+            if (this.isCountUp) {
+                displayTime = this.isWorkPhase ? this.timeElapsed : this.breakTimeLeft;
+            } else {
+                displayTime = this.timeLeft;
+            }
+            const timeStr = this.formatTime(displayTime);
+            
+            // 计算状态文本和图标
+            let statusText = t('pomodoroWork') || '工作时间';
+            let statusIcon = '🍅';
+            let color = '#FF6B6B';
+            
+            if (!this.isWorkPhase) {
+                if (this.isLongBreak) {
+                    statusText = t('pomodoroLongBreak') || '长时休息';
+                    statusIcon = '🧘';
+                    color = '#9C27B0';
+                } else {
+                    statusText = t('pomodoroBreak') || '短时休息';
+                    statusIcon = '🍵';
+                    color = '#4CAF50';
+                }
+            }
+            
+            const todayTimeStr = this.recordManager.formatTime(this.recordManager.getTodayFocusTime());
+            const weekTimeStr = this.recordManager.formatTime(this.recordManager.getWeekFocusTime());
 
-            // 调用插件实例的方法打开独立窗口
-            await this.plugin.openPomodoroWindow(
-                this.reminder,
-                this.settings,
-                this.isCountUp,
-                currentState
-            );
+            // 计算进度
+            let progress: number;
+            if (this.isCountUp && this.isWorkPhase) {
+                const pomodoroLength = this.settings.workDuration * 60;
+                const currentCycleTime = this.timeElapsed % pomodoroLength;
+                progress = currentCycleTime / pomodoroLength;
+            } else if (this.isCountUp && !this.isWorkPhase) {
+                const totalBreakTime = this.isLongBreak ?
+                    this.settings.longBreakDuration * 60 :
+                    this.settings.breakDuration * 60;
+                progress = (totalBreakTime - this.breakTimeLeft) / totalBreakTime;
+            } else {
+                progress = ((this.totalTime - this.timeLeft) / this.totalTime);
+            }
+            
+            const circumference = 226.19;
+            const offset = circumference * (1 - progress);
 
-            // 成功打开新窗口后，关闭当前番茄钟窗口
-            this.close();
+            // 计算控制按钮显示
+            let playPauseIcon = '▶️';
+            let showStopBtn = false;
+            
+            if (this.isRunning) {
+                if (this.isPaused) {
+                    playPauseIcon = '▶️';
+                    showStopBtn = true;
+                } else {
+                    playPauseIcon = '⏸';
+                    showStopBtn = false;
+                }
+            }
+
+            // 准备动态值
+            const soundBtnText = this.isBackgroundAudioMuted ? '🔇' : '🔊';
+            const randomCountDisplay = this.randomNotificationEnabled ? 'inline' : 'none';
+            const stopBtnDisplay = showStopBtn ? 'inline-flex' : 'none';
+            const statusBtnText = currentState.isWorkPhase ? (currentState.isCountUp ? '⏱' : '🍅') : (currentState.isLongBreak ? '🧘' : '🍵');
+
+            const updateScript = `
+                try {
+                    const timeDisplay = document.getElementById('timeDisplay');
+                    const statusDisplay = document.getElementById('statusDisplay');
+                    const statusIcon = document.getElementById('statusIcon');
+                    const pomodoroCount = document.getElementById('pomodoroCount');
+                    const todayFocusTime = document.getElementById('todayFocusTime');
+                    const weekFocusTime = document.getElementById('weekFocusTime');
+                    const progressCircle = document.getElementById('progressCircle');
+                    const soundBtn = document.getElementById('soundBtn');
+                    const randomCount = document.getElementById('randomCount');
+                    const diceIcon = document.getElementById('diceIcon');
+                    const stopBtn = document.getElementById('stopBtn');
+                    const playPauseBtn = document.querySelector('.circle-control-btn');
+                    const statusBtn = document.getElementById('statusBtn');
+                    
+                    if (timeDisplay) timeDisplay.textContent = '${timeStr}';
+                    if (statusDisplay) statusDisplay.textContent = '${statusText}';
+                    if (statusIcon) statusIcon.textContent = '${statusIcon}';
+                    if (pomodoroCount) pomodoroCount.textContent = '${this.completedPomodoros}';
+                    if (todayFocusTime) todayFocusTime.textContent = '${todayTimeStr}';
+                    if (weekFocusTime) weekFocusTime.textContent = '${weekTimeStr}';
+                    if (progressCircle) {
+                        progressCircle.style.strokeDashoffset = '${offset}';
+                        progressCircle.style.stroke = '${color}';
+                    }
+                    if (soundBtn) soundBtn.textContent = '${soundBtnText}';
+                    if (randomCount) {
+                        randomCount.textContent = '${this.randomNotificationCount}';
+                        randomCount.style.display = '${randomCountDisplay}';
+                    }
+                    if (diceIcon) {
+                        diceIcon.style.display = '${randomCountDisplay}';
+                    }
+                    if (stopBtn) {
+                        stopBtn.style.display = '${stopBtnDisplay}';
+                    }
+                    if (playPauseBtn) {
+                        playPauseBtn.textContent = '${playPauseIcon}';
+                    }
+                    if (statusBtn) {
+                        statusBtn.textContent = '${statusBtnText}';
+                    }
+                } catch(e) {
+                    console.error('Update display failed:', e);
+                }
+            `;
+
+            window.webContents.executeJavaScript(updateScript).catch((err: any) => {
+                console.error('[PomodoroTimer] Failed to update display:', err);
+            });
         } catch (error) {
-            console.error('打开独立窗口失败:', error);
-            showMessage(t('openWindowFailed') || '打开窗口失败', 2000);
+            console.error('[PomodoroTimer] updateBrowserWindowDisplay error:', error);
         }
     }
-}
 
+    /**
+     * 供 BrowserWindow 调用的方法
+     */
+    public callMethod(method: string, ...args: any[]) {
+        console.log('[PomodoroTimer] callMethod:', method);
+        try {
+            switch (method) {
+                case 'toggleTimer':
+                    this.toggleTimer();
+                    break;
+                case 'resetTimer':
+                    this.resetTimer();
+                    break;
+                case 'startWorkTime':
+                    this.startWorkTime();
+                    break;
+                case 'startShortBreak':
+                    this.startShortBreak();
+                    break;
+                case 'startLongBreak':
+                    this.startLongBreak();
+                    break;
+                case 'toggleMode':
+                    this.toggleMode();
+                    break;
+                case 'openRelatedNote':
+                    this.openRelatedNote();
+                    break;
+                case 'editTime':
+                    this.editTime();
+                    break;
+                case 'toggleBackgroundAudio':
+                    this.toggleBackgroundAudio();
+                    break;
+                default:
+                    console.warn('[PomodoroTimer] Unknown method:', method);
+            }
+            
+            // 方法调用后更新窗口显示
+            if (this.container && typeof (this.container as any).webContents !== 'undefined') {
+                const self = this;
+                setTimeout(() => self.updateBrowserWindowDisplay(self.container), 100);
+            }
+        } catch (error) {
+            console.error('[PomodoroTimer] callMethod error:', method, error);
+        }
+    }
+
+    private formatTime(seconds: number): string {
+        const mins = Math.floor(Math.abs(seconds) / 60);
+        const secs = Math.floor(Math.abs(seconds) % 60);
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+}
