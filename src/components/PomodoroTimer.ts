@@ -5331,7 +5331,7 @@ export class PomodoroTimer {
             const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
             const winWidth = 240;
-            const winHeight = 227;
+            const winHeight = 235;
             const x = screenWidth - winWidth - 20;
             const y = screenHeight - winHeight - 20;
 
@@ -6285,7 +6285,7 @@ export class PomodoroTimer {
                     pomodoroWindow.setBounds(this.normalWindowBounds);
                     this.normalWindowBounds = null;
                 } else {
-                    pomodoroWindow.setSize(240, 227);
+                    pomodoroWindow.setSize(240, 235);
                 }
                 pomodoroWindow.setResizable(true);
 
@@ -6355,7 +6355,7 @@ export class PomodoroTimer {
                     pomodoroWindow.setBounds(this.normalWindowBounds);
                     this.normalWindowBounds = null;
                 } else {
-                    pomodoroWindow.setSize(240, 227);
+                    pomodoroWindow.setSize(240, 235);
                 }
                 pomodoroWindow.setResizable(true);
 

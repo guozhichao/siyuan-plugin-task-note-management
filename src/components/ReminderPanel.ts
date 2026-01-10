@@ -3923,6 +3923,11 @@ export class ReminderPanel {
                 label: t("startCountUp") || "开始正向计时",
                 click: () => this.startPomodoroCountUp(reminder)
             });
+            menu.addItem({
+                iconHTML: "📊",
+                label: t("viewPomodoros") || "查看番茄钟",
+                click: () => this.showPomodoroSessions(reminder)
+            });
 
             menu.addSeparator();
 
@@ -4169,6 +4174,11 @@ export class ReminderPanel {
                 label: t("startCountUp"),
                 click: () => this.startPomodoroCountUp(reminder)
             });
+            menu.addItem({
+                iconHTML: "📊",
+                label: t("viewPomodoros") || "查看番茄钟",
+                click: () => this.showPomodoroSessions(reminder)
+            });
 
         } else if (reminder.repeat?.enabled) {
             // --- Menu for the ORIGINAL RECURRING EVENT ---
@@ -4247,6 +4257,11 @@ export class ReminderPanel {
                 label: t("startCountUp"),
                 click: () => this.startPomodoroCountUp(reminder)
             });
+            menu.addItem({
+                iconHTML: "📊",
+                label: t("viewPomodoros") || "查看番茄钟",
+                click: () => this.showPomodoroSessions(reminder)
+            });
 
         } else {
             // --- Menu for a SIMPLE, NON-RECURRING EVENT ---
@@ -4310,7 +4325,12 @@ export class ReminderPanel {
                 click: () => this.startPomodoroCountUp(reminder)
             });
             menu.addItem({
-                iconHTML: "🗑️",
+                iconHTML: "📊",
+                label: t("viewPomodoros") || "查看番茄钟",
+                click: () => this.showPomodoroSessions(reminder)
+            });
+            menu.addItem({
+                iconHTML: "🗑",
                 label: t("deleteReminder"),
                 click: () => this.deleteReminder(reminder)
             });
@@ -7152,5 +7172,23 @@ export class ReminderPanel {
         `;
 
         return html;
+    }
+
+    /**
+     * 显示任务的番茄钟会话记录
+     */
+    private async showPomodoroSessions(reminder: any) {
+        // 动态导入 PomodoroSessionsDialog
+        const { PomodoroSessionsDialog } = await import("./PomodoroSessionsDialog");
+        
+        // 获取提醒ID（处理重复实例的情况）
+        const reminderId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
+        
+        const dialog = new PomodoroSessionsDialog(reminderId, this.plugin, () => {
+            // 番茄钟更新后的回调，可选择性刷新界面
+            // this.loadReminders();
+        });
+        
+        dialog.show();
     }
 }

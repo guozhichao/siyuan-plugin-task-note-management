@@ -9,6 +9,8 @@ import { getRepeatDescription } from "../utils/repeatUtils";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { BlockBindingDialog } from "./BlockBindingDialog";
 import { SubtasksDialog } from "./SubtasksDialog";
+import { PomodoroRecordManager } from "../utils/pomodoroRecord";
+import { PomodoroSessionsDialog } from "./PomodoroSessionsDialog";
 import * as chrono from 'chrono-node';
 import { parseLunarDateText, getCurrentYearLunarToSolar, solarToLunar } from "../utils/lunarUtils";
 
@@ -25,6 +27,7 @@ export class QuickReminderDialog {
     private repeatConfig: RepeatConfig;
     private categoryManager: CategoryManager;
     private projectManager: ProjectManager;
+    private pomodoroRecordManager: PomodoroRecordManager;
     private chronoParser: any; // chrono解析器实例
     private autoDetectDateTime?: boolean; // 是否自动识别日期时间（undefined 表示未指定，使用插件设置）
     private defaultProjectId?: string;
@@ -133,6 +136,7 @@ export class QuickReminderDialog {
 
         this.categoryManager = CategoryManager.getInstance(this.plugin);
         this.projectManager = ProjectManager.getInstance(this.plugin);
+        this.pomodoroRecordManager = PomodoroRecordManager.getInstance(this.plugin);
         this.repeatConfig = this.reminder?.repeat || {
             enabled: false,
             type: 'daily',
@@ -594,6 +598,7 @@ export class QuickReminderDialog {
         // 如果是编辑模式，更新子任务入口显示
         if (this.mode === 'edit' && this.reminder) {
             this.updateSubtasksDisplay();
+            this.updatePomodorosDisplay();
         }
     }
 
@@ -614,6 +619,41 @@ export class QuickReminderDialog {
 
         if (subtasksCountText) {
             subtasksCountText.textContent = `${t("viewSubtasks") || "查看子任务"}${count > 0 ? ` (${count})` : ''}`;
+        }
+    }
+
+    /**
+     * 更新番茄钟入口显示
+     */
+    private async updatePomodorosDisplay() {
+        const pomodorosGroup = this.dialog.element.querySelector('#quickPomodorosGroup') as HTMLElement;
+        const pomodorosCountText = this.dialog.element.querySelector('#quickPomodorosCountText') as HTMLElement;
+
+        if (!pomodorosGroup || !this.reminder) return;
+
+        pomodorosGroup.style.display = 'block';
+
+        await this.pomodoroRecordManager.initialize();
+        
+        // 统计该提醒的番茄钟数量
+        let count = 0;
+        let totalMinutes = 0;
+        
+        const records = (this.pomodoroRecordManager as any).records;
+        for (const date in records) {
+            const record = records[date];
+            if (record && record.sessions) {
+                const sessions = record.sessions.filter((s: any) => 
+                    s.eventId === this.reminder.id && s.type === 'work' && s.completed
+                );
+                count += sessions.length;
+                totalMinutes += sessions.reduce((sum: number, s: any) => sum + (s.duration || 0), 0);
+            }
+        }
+
+        if (pomodorosCountText) {
+            const timeStr = totalMinutes > 0 ? ` (${Math.floor(totalMinutes / 60)}h${totalMinutes % 60}m)` : '';
+            pomodorosCountText.textContent = `${t("viewPomodoros") || "查看番茄钟"}${count > 0 ? ` ${count}🍅${timeStr}` : ''}`;
         }
     }
 
@@ -1156,6 +1196,14 @@ export class QuickReminderDialog {
                                 <button type="button" id="quickViewSubtasksBtn" class="b3-button b3-button--outline" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
                                     <svg class="b3-button__icon"><use xlink:href="#iconBulletedList"></use></svg>
                                     <span id="quickSubtasksCountText">${t("viewSubtasks") || "查看子任务"}</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="b3-form__group" id="quickPomodorosGroup" style="display: none;">
+                            <label class="b3-form__label">${t("pomodoros") || "番茄钟"}</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <button type="button" id="quickViewPomodorosBtn" class="b3-button b3-button--outline" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                    <span id="quickPomodorosCountText">${t("viewPomodoros") || "查看番茄钟"}</span>
                                 </button>
                             </div>
                         </div>
@@ -1870,6 +1918,7 @@ export class QuickReminderDialog {
         const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
         const dateTimeDesc = this.dialog.element.querySelector('#quickDateTimeDesc') as HTMLElement;
         const viewSubtasksBtn = this.dialog.element.querySelector('#quickViewSubtasksBtn') as HTMLButtonElement;
+        const viewPomodorosBtn = this.dialog.element.querySelector('#quickViewPomodorosBtn') as HTMLButtonElement;
 
         // 查看子任务
         viewSubtasksBtn?.addEventListener('click', () => {
@@ -1878,6 +1927,16 @@ export class QuickReminderDialog {
                     this.updateSubtasksDisplay();
                 });
                 subtasksDialog.show();
+            }
+        });
+
+        // 查看番茄钟
+        viewPomodorosBtn?.addEventListener('click', () => {
+            if (this.reminder && this.reminder.id) {
+                const pomodorosDialog = new PomodoroSessionsDialog(this.reminder.id, this.plugin, () => {
+                    this.updatePomodorosDisplay();
+                });
+                pomodorosDialog.show();
             }
         });
 
