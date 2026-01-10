@@ -4697,9 +4697,18 @@ export class PomodoroTimer {
             minutes = parts[0] ? parseInt(parts[0], 10) : 0;
             seconds = parts[1] ? parseInt(parts[1], 10) : 0;
         } else {
-            // 纯数字输入，视为分钟
-            minutes = parseInt(timeStr, 10);
-            seconds = 0;
+            // 纯数字输入
+            const numStr = timeStr.trim();
+
+            // 如果是4位数字，自动识别为 MMSS 格式（如 0010 = 00:10）
+            if (numStr.length === 4 && /^\d{4}$/.test(numStr)) {
+                minutes = parseInt(numStr.substring(0, 2), 10);
+                seconds = parseInt(numStr.substring(2, 4), 10);
+            } else {
+                // 其他情况视为分钟数
+                minutes = parseInt(numStr, 10);
+                seconds = 0;
+            }
         }
 
         if (isNaN(minutes) || isNaN(seconds)) return null;
