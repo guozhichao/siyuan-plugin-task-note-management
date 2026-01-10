@@ -2697,7 +2697,7 @@ export class CalendarView {
         const view = this.calendar.view;
 
         // 只在周视图和日视图中启用当前时间吸附
-        if (view.type !== 'timeGridWeek' && view.type !== 'timeGridDay') {
+        if (view.type !== 'timeGridWeek' && view.type !== 'timeGridDay' && view.type !== 'timeGridMultiDays7') {
             return true;
         }
 
@@ -2748,7 +2748,7 @@ export class CalendarView {
             const view = this.calendar.view;
 
             // 只在周视图和日视图中启用缩放
-            if (view.type !== 'timeGridWeek' && view.type !== 'timeGridDay' && view.type !== 'timeGridFourDay') {
+            if (view.type !== 'timeGridWeek' && view.type !== 'timeGridDay' && view.type !== 'timeGridMultiDays7') {
                 return;
             }
 
