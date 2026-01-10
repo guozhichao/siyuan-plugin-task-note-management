@@ -499,6 +499,19 @@ export class ReminderPanel {
                 }
             }
 
+            // 特殊处理：按时间排序时，无日期任务始终排在最后（不受升降序影响）
+            if (sortType === 'time') {
+                const hasDateA = !!a.date;
+                const hasDateB = !!b.date;
+                
+                if (!hasDateA && !hasDateB) {
+                    // 两个都没有日期，按优先级排序
+                    return this.compareByPriorityValue(a, b);
+                }
+                if (!hasDateA) return 1;  // a 无日期，排在后面
+                if (!hasDateB) return -1; // b 无日期，排在后面
+            }
+
             // 应用用户选择的排序方式
             switch (sortType) {
                 case 'time':
@@ -2657,6 +2670,11 @@ export class ReminderPanel {
     }
     // 按时间比较（考虑跨天事件和优先级）
     private compareByTime(a: any, b: any): number {
+        // 注意：无日期任务的处理已在 sortReminders 中提前处理
+        // 这里假设传入的 a 和 b 都有日期
+        
+        // 都有日期时，按日期时间排序
+        // 对于重复任务实例，a.date 已经是实例的日期，而不是原始任务的日期
         const dateA = new Date(a.date + (a.time ? `T${a.time}` : 'T00:00'));
         const dateB = new Date(b.date + (b.time ? `T${b.time}` : 'T00:00'));
 
