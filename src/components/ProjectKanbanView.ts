@@ -5296,7 +5296,7 @@ export class ProjectKanbanView {
     private async toggleTaskCompletion(task: any, completed: boolean) {
         try {
             if (task.isRepeatInstance && task.originalId) {
-                // 对于重复实例，使用不同的完成逻辑
+                // 对于重复实例,使用不同的完成逻辑
                 await this.toggleRepeatInstanceCompletion(task, completed);
             } else {
                 // 对于普通任务
@@ -5313,6 +5313,11 @@ export class ProjectKanbanView {
                     }
 
                     await saveReminders(this.plugin, reminderData);
+
+                    // 更新绑定块的书签状态
+                    if (task.blockId || task.docId) {
+                        await updateBlockReminderBookmark(task.blockId || task.docId);
+                    }
 
                     // 广播更新事件并刷新
                     this.dispatchReminderUpdate(true);
