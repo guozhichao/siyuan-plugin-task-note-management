@@ -973,7 +973,7 @@ export class PomodoroTimer {
                 alwaysOnTop: false,
                 center: true,
                 resizable: true,
-                movable: false,
+                movable: true,
                 skipTaskbar: true,
                 hasShadow: true,
                 transparent: false,
@@ -1069,6 +1069,19 @@ export class PomodoroTimer {
                     this.pomodoroEndWindow.show();
                     this.pomodoroEndWindow.focus();
                     this.pomodoroEndWindow.setAlwaysOnTop(true, "screen-saver");
+
+                    // 延迟将番茄钟BrowserWindow也置顶，确保在弹窗之上
+                    setTimeout(() => {
+                        if (PomodoroTimer.browserWindowInstance && !PomodoroTimer.browserWindowInstance.isDestroyed()) {
+                            try {
+                                PomodoroTimer.browserWindowInstance.moveTop();
+                                PomodoroTimer.browserWindowInstance.showInactive();
+                                console.log('[PomodoroTimer] 番茄钟窗口已置顶');
+                            } catch (e) {
+                                console.warn('[PomodoroTimer] 无法置顶番茄钟窗口:', e);
+                            }
+                        }
+                    }, 100);
                 }
             });
 
@@ -1140,9 +1153,9 @@ export class PomodoroTimer {
                 width: winWidth,
                 height: winHeight,
                 frame: true,
-                alwaysOnTop: true,
+                alwaysOnTop: false,
                 center: true,
-                resizable: false,
+                resizable: true,
                 movable: true,
                 skipTaskbar: true,
                 hasShadow: true,
@@ -1243,6 +1256,20 @@ export class PomodoroTimer {
                     this.randomNotificationWindow.focus();
                     // 强制置顶
                     this.randomNotificationWindow.setAlwaysOnTop(true, "screen-saver");
+
+                    // 延迟将番茄钟BrowserWindow也置顶，确保在弹窗之上
+                    setTimeout(() => {
+                        if (PomodoroTimer.browserWindowInstance && !PomodoroTimer.browserWindowInstance.isDestroyed()) {
+                            try {
+                                PomodoroTimer.browserWindowInstance.setAlwaysOnTop(true, "screen-saver", 1);
+                                PomodoroTimer.browserWindowInstance.moveTop();
+                                PomodoroTimer.browserWindowInstance.showInactive();
+                                console.log('[PomodoroTimer] 番茄钟窗口已置顶');
+                            } catch (e) {
+                                console.warn('[PomodoroTimer] 无法置顶番茄钟窗口:', e);
+                            }
+                        }
+                    }, 100);
                 }
             });
 
