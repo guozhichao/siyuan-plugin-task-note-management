@@ -3927,7 +3927,7 @@ export class PomodoroTimer {
                 // 使用浏览器通知作为备选方案
                 const notification = new Notification(title, {
                     body: message,
-                    requireInteraction: true,
+                    requireInteraction: !autoCloseDelay,
                     silent: false
                 });
 
