@@ -634,16 +634,16 @@ export class QuickReminderDialog {
         pomodorosGroup.style.display = 'block';
 
         await this.pomodoroRecordManager.initialize();
-        
+
         // 统计该提醒的番茄钟数量
         let count = 0;
         let totalMinutes = 0;
-        
+
         const records = (this.pomodoroRecordManager as any).records;
         for (const date in records) {
             const record = records[date];
             if (record && record.sessions) {
-                const sessions = record.sessions.filter((s: any) => 
+                const sessions = record.sessions.filter((s: any) =>
                     s.eventId === this.reminder.id && s.type === 'work' && s.completed
                 );
                 count += sessions.length;

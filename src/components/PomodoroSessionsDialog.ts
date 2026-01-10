@@ -59,24 +59,24 @@ export class PomodoroSessionsDialog {
      */
     private async loadSessions() {
         await this.recordManager.initialize();
-        
+
         // 获取所有日期范围内的会话
         const allSessions: PomodoroSession[] = [];
-        
+
         // 遍历所有日期的记录
         for (const date in (this.recordManager as any).records) {
             const record = (this.recordManager as any).records[date];
             if (record && record.sessions) {
                 // 筛选出属于当前提醒的会话
-                const eventSessions = record.sessions.filter((session: PomodoroSession) => 
+                const eventSessions = record.sessions.filter((session: PomodoroSession) =>
                     session.eventId === this.reminderId
                 );
                 allSessions.push(...eventSessions);
             }
         }
-        
+
         // 按开始时间降序排列（最新的在前）
-        this.sessions = allSessions.sort((a, b) => 
+        this.sessions = allSessions.sort((a, b) =>
             new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
         );
     }
@@ -136,25 +136,25 @@ export class PomodoroSessionsDialog {
     private renderSessionItem(session: PomodoroSession): string {
         const startTime = new Date(session.startTime);
         const endTime = new Date(session.endTime);
-        
-        const dateStr = startTime.toLocaleDateString('zh-CN', { 
-            year: 'numeric', 
-            month: '2-digit', 
-            day: '2-digit' 
+
+        const dateStr = startTime.toLocaleDateString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
         });
-        
-        const startTimeStr = startTime.toLocaleTimeString('zh-CN', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
+
+        const startTimeStr = startTime.toLocaleTimeString('zh-CN', {
+            hour: '2-digit',
+            minute: '2-digit'
         });
-        
-        const endTimeStr = endTime.toLocaleTimeString('zh-CN', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
+
+        const endTimeStr = endTime.toLocaleTimeString('zh-CN', {
+            hour: '2-digit',
+            minute: '2-digit'
         });
 
         const typeIcon = this.getTypeIcon(session.type);
-        const statusBadge = session.completed 
+        const statusBadge = session.completed
             ? '<span style="background: #4caf50; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;">✓ 完成</span>'
             : '<span style="background: #ff9800; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;">⊗ 中断</span>';
 
@@ -216,7 +216,7 @@ export class PomodoroSessionsDialog {
 
     private bindEvents() {
         const addBtn = this.dialog.element.querySelector("#addPomodoroBtn") as HTMLButtonElement;
-        
+
         addBtn?.addEventListener("click", () => {
             this.addNewSession();
         });
@@ -230,7 +230,7 @@ export class PomodoroSessionsDialog {
         let workDuration = 25;
         let breakDuration = 5;
         let longBreakDuration = 15;
-        
+
         if (this.plugin && typeof this.plugin.loadSettings === 'function') {
             try {
                 const settings = await this.plugin.loadSettings();
@@ -286,7 +286,7 @@ export class PomodoroSessionsDialog {
         // 类型选择改变时更新默认时长
         const typeSelect = addDialog.element.querySelector("#sessionType") as HTMLSelectElement;
         const durationInput = addDialog.element.querySelector("#sessionDuration") as HTMLInputElement;
-        
+
         typeSelect.addEventListener("change", () => {
             switch (typeSelect.value) {
                 case "work":
@@ -345,7 +345,7 @@ export class PomodoroSessionsDialog {
                 // 手动添加到记录中
                 const { getLogicalDateString } = await import("../utils/dateUtils");
                 const logicalDate = getLogicalDateString(startTime);
-                
+
                 // 获取或创建该日期的记录
                 const records = (this.recordManager as any).records;
                 if (!records[logicalDate]) {
@@ -375,14 +375,14 @@ export class PomodoroSessionsDialog {
                 await (this.recordManager as any).saveRecords();
 
                 showMessage("✅ " + (t("addPomodoroSuccess") || "补录番茄钟成功"), 3000, "info");
-                
+
                 addDialog.destroy();
                 await this.loadSessions();
                 this.renderSessions();
-                
+
                 // 触发reminderUpdated事件以更新界面
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                
+
                 if (this.onUpdate) this.onUpdate();
             } catch (error) {
                 console.error("补录番茄钟失败:", error);
@@ -440,10 +440,10 @@ export class PomodoroSessionsDialog {
         const completedCheckbox = editDialog.element.querySelector("#editSessionCompleted") as HTMLInputElement;
 
         typeSelect.value = session.type;
-        
+
         const startTime = new Date(session.startTime);
         startTimeInput.value = `${startTime.getFullYear()}-${String(startTime.getMonth() + 1).padStart(2, '0')}-${String(startTime.getDate()).padStart(2, '0')}T${String(startTime.getHours()).padStart(2, '0')}:${String(startTime.getMinutes()).padStart(2, '0')}`;
-        
+
         durationInput.value = session.duration.toString();
         completedCheckbox.checked = session.completed;
 
@@ -492,7 +492,7 @@ export class PomodoroSessionsDialog {
                 // 添加新会话
                 const { getLogicalDateString } = await import("../utils/dateUtils");
                 const logicalDate = getLogicalDateString(startTime);
-                
+
                 const records = (this.recordManager as any).records;
                 if (!records[logicalDate]) {
                     records[logicalDate] = {
@@ -518,14 +518,14 @@ export class PomodoroSessionsDialog {
                 await (this.recordManager as any).saveRecords();
 
                 showMessage("✅ " + (t("editPomodoroSuccess") || "修改番茄钟成功"), 3000, "info");
-                
+
                 editDialog.destroy();
                 await this.loadSessions();
                 this.renderSessions();
-                
+
                 // 触发reminderUpdated事件以更新界面
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                
+
                 if (this.onUpdate) this.onUpdate();
             } catch (error) {
                 console.error("修改番茄钟失败:", error);
@@ -565,16 +565,16 @@ export class PomodoroSessionsDialog {
         confirmDialog.element.querySelector("#confirmDeletePomodoro")?.addEventListener("click", async () => {
             try {
                 const success = await this.recordManager.deleteSession(sessionId);
-                
+
                 if (success) {
                     showMessage("✅ " + (t("deletePomodoroSuccess") || "删除番茄钟成功"), 3000, "info");
                     confirmDialog.destroy();
                     await this.loadSessions();
                     this.renderSessions();
-                    
+
                     // 触发reminderUpdated事件以更新界面
                     window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                    
+
                     if (this.onUpdate) this.onUpdate();
                 } else {
                     showMessage("❌ " + (t("deletePomodoroFailed") || "删除番茄钟失败"), 3000, "error");
