@@ -4022,11 +4022,15 @@ export class PomodoroTimer {
             // 倒计时模式：记录完成的工作番茄（每个实例独立记录）
             const eventId = this.reminder.id;
             const eventTitle = this.reminder.title || '番茄专注';
+            
+            // 计算实际完成的时间（分钟）
+            const actualDuration = Math.round(this.totalTime / 60);
+            
             await this.recordManager.recordWorkSession(
-                this.currentPhaseOriginalDuration,
+                actualDuration,
                 eventId,
                 eventTitle,
-                this.currentPhaseOriginalDuration,
+                actualDuration,
                 true
             );
             // 触发 reminderUpdated 事件
@@ -4152,11 +4156,15 @@ export class PomodoroTimer {
             const eventId = this.reminder.id;
             const eventTitle = this.reminder.title || '番茄专注';
 
+            // 计算实际完成的时间（分钟）
+            // 在倒计时模式下，实际完成时间 = totalTime（设定的总时间）
+            const actualDuration = Math.round(this.totalTime / 60);
+
             await this.recordManager.recordWorkSession(
-                this.currentPhaseOriginalDuration,
+                actualDuration,
                 eventId,
                 eventTitle,
-                this.currentPhaseOriginalDuration,
+                actualDuration,
                 true
             );
 
@@ -4187,7 +4195,10 @@ export class PomodoroTimer {
                     }
                     this.isWorkPhase = false;
                     this.isLongBreak = true;
-                    this.statusDisplay.textContent = '长时休息';
+                    // 只在 DOM 模式下更新 statusDisplay
+                    if (this.statusDisplay) {
+                        this.statusDisplay.textContent = '长时休息';
+                    }
                     this.timeLeft = this.settings.longBreakDuration * 60;
                     this.totalTime = this.timeLeft;
                     // 设置当前阶段的原始时长
@@ -4199,7 +4210,10 @@ export class PomodoroTimer {
                     }
                     this.isWorkPhase = false;
                     this.isLongBreak = false;
-                    this.statusDisplay.textContent = '短时休息';
+                    // 只在 DOM 模式下更新 statusDisplay
+                    if (this.statusDisplay) {
+                        this.statusDisplay.textContent = '短时休息';
+                    }
                     this.timeLeft = this.settings.breakDuration * 60;
                     this.totalTime = this.timeLeft;
                     // 设置当前阶段的原始时长
