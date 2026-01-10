@@ -97,6 +97,9 @@ export class PomodoroTimer {
     private escapeKeyHandler: ((e: KeyboardEvent) => void) | null = null; // 新增：ESC键监听器
     private isTabMode: boolean = false; // 是否为Tab模式
     private currentCircumference: number = 2 * Math.PI * 36; // 当前圆周长度，用于进度计算
+    private isMiniMode: boolean = false; // BrowserWindow 迷你模式状态
+    private isDocked: boolean = false; // BrowserWindow 吸附模式状态
+    private normalWindowBounds: { x: number; y: number; width: number; height: number } | null = null; // 保存正常窗口位置和大小
 
     constructor(reminder: any, settings: any, isCountUp: boolean = false, inheritState?: any, plugin?: any, container?: HTMLElement) {
         this.reminder = reminder;
@@ -5400,6 +5403,15 @@ export class PomodoroTimer {
                         // 响应心跳消息
                         _event.sender.send(`${controlChannel}-heartbeat-response`);
                         break;
+                    case 'toggleMiniMode':
+                        this.toggleBrowserWindowMiniMode(pomodoroWindow);
+                        break;
+                    case 'toggleDock':
+                        this.toggleBrowserWindowDock(pomodoroWindow, screen);
+                        break;
+                    case 'restoreFromDocked':
+                        this.restoreFromDocked(pomodoroWindow, screen);
+                        break;
                     default:
                         break;
                 }
@@ -5456,7 +5468,29 @@ export class PomodoroTimer {
         }
     }
 
-    private generateBrowserWindowHTML(actionChannel: string, controlChannel: string, currentState: any, timeStr: string, statusText: string, todayTimeStr: string, weekTimeStr: string, bgColor: string, textColor: string, surfaceColor: string, borderColor: string, hoverColor: string, reminderTitle: string, isBackgroundAudioMuted: boolean, randomNotificationEnabled: boolean, randomNotificationCount: number): string {
+    private generateBrowserWindowHTML(
+        actionChannel: string, 
+        controlChannel: string, 
+        currentState: any, 
+        timeStr: string, 
+        statusText: string, 
+        todayTimeStr: string, 
+        weekTimeStr: string, 
+        bgColor: string, 
+        textColor: string, 
+        surfaceColor: string, 
+        borderColor: string, 
+        hoverColor: string, 
+        reminderTitle: string, 
+        isBackgroundAudioMuted: boolean, 
+        randomNotificationEnabled: boolean, 
+        randomNotificationCount: number,
+        miniModeTitle?: string,
+        dockModeTitle?: string
+    ): string {
+        // 设置默认值
+        miniModeTitle = miniModeTitle || (t('miniMode') || '迷你模式');
+        dockModeTitle = dockModeTitle || (t('dockToRight') || '吸附到右侧');
         return `<!DOCTYPE html>
 <html>
 <head>
@@ -5547,7 +5581,7 @@ export class PomodoroTimer {
         }
         .pomodoro-event-title:hover { background: ${hoverColor}; border-color: #4CAF50; }
         .pomodoro-main-container { display: flex; align-items: center; justify-content: center; gap: clamp(16px, 4vw, 8vw); margin-bottom: 10px; flex: 1; }
-        .progress-container { position: relative; width: clamp(30px, 35vmin, 30vh); height: clamp(30px, 35vmin, 30vh); flex-shrink: 1; min-width: 30px; }
+        .progress-container { position: relative; width: clamp(80px, 45vmin, 40vh); height: clamp(80px, 45vmin, 40vh); flex-shrink: 1; min-width: 80px; }
         .progress-ring { width: 100%; height: 100%; transform: rotate(-90deg); }
         .progress-ring-bg { fill: none; stroke: ${borderColor}; stroke-width: 6; opacity: 0.3; }
         .progress-ring-circle {
@@ -5590,14 +5624,14 @@ export class PomodoroTimer {
             background: rgba(255, 255, 255, 0.9);
             border: none;
             cursor: pointer;
-            font-size: clamp(10px, 7vmin, 4vh);
+            font-size: clamp(16px, 9vmin, 6vh);
             color: #333;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            width: clamp(18px, 13vmin, 8vh);
-            height: clamp(18px, 13vmin, 8vh);
+            width: clamp(32px, 16vmin, 11vh);
+            height: clamp(32px, 16vmin, 11vh);
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             transition: all 0.2s;
         }
@@ -5643,11 +5677,117 @@ export class PomodoroTimer {
         .stat-item:first-child { border-right: 1px solid ${borderColor}; }
         .stat-label { font-size: clamp(9px, 2.2vmin, 1.8vh); opacity: 0.7; margin-bottom: 4px; }
         .stat-value { font-size: clamp(14px, 3.5vmin, 2.8vh); font-weight: 600; color: #FF6B6B; }
+        
+        /* 迷你模式样式 */
+        body.mini-mode .custom-titlebar { display: none; }
+        body.mini-mode .pomodoro-content { 
+            -webkit-app-region: drag;
+            padding: 0; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            cursor: move;
+        }
+        body.mini-mode .pomodoro-event-title,
+        body.mini-mode .time-info,
+        body.mini-mode .pomodoro-stats { display: none; }
+        body.mini-mode .pomodoro-main-container { 
+            -webkit-app-region: drag;
+            margin: 0; 
+        }
+        body.mini-mode .progress-container { 
+            -webkit-app-region: drag;
+            width: calc(100vw - 20px); 
+            height: calc(100vh - 20px); 
+            max-width: calc(100vh - 20px);
+            max-height: calc(100vw - 20px);
+            cursor: move;
+        }
+        body.mini-mode .center-content {
+            -webkit-app-region: no-drag;
+            cursor: pointer;
+        }
+        body.mini-mode .control-buttons {
+            -webkit-app-region: no-drag;
+        }
+        body.mini-mode .pomodoro-status-icon { 
+            -webkit-app-region: no-drag;
+            font-size: clamp(24px, 15vmin, 12vh);
+            cursor: pointer;
+        }
+        body.mini-mode .circle-control-btn { 
+            -webkit-app-region: no-drag;
+            width: clamp(24px, 18vmin, 12vh); 
+            height: clamp(24px, 18vmin, 12vh);
+            font-size: clamp(12px, 9vmin, 6vh);
+        }
+        .mini-restore-btn {
+            -webkit-app-region: no-drag;
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 24px;
+            height: 24px;
+            background: var(--b3-theme-primary, #4CAF50);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            transition: all 0.2s ease;
+            z-index: 100;
+            opacity: 0;
+        }
+        body:not(.mini-mode) .mini-restore-btn { display: none !important; }
+        body.mini-mode .progress-container:hover .mini-restore-btn {
+            display: flex;
+            opacity: 1;
+        }
+        .mini-restore-btn:hover {
+            background: var(--b3-theme-primary-light, #66BB6A);
+            transform: scale(1.1);
+        }
+        
+        /* 吸附模式样式 */
+        body.docked-mode { background: transparent; overflow: hidden; }
+        body.docked-mode .custom-titlebar,
+        body.docked-mode .pomodoro-event-title,
+        body.docked-mode .time-info,
+        body.docked-mode .pomodoro-stats,
+        body.docked-mode .pomodoro-main-container { display: none; }
+        body.docked-mode .pomodoro-content { padding: 0; height: 100vh; display: flex; align-items: stretch; }
+        body.docked-mode .progress-bar-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            width: 100%;
+            height: 100%;
+            background: rgba(128, 128, 128, 0.3);
+            cursor: pointer;
+            position: relative;
+        }
+        body.docked-mode .progress-bar-fill {
+            width: 100%;
+            height: 0%;
+            background: #4CAF50;
+            transition: height 0.5s ease, background-color 0.3s ease;
+        }
+        body:not(.docked-mode) .progress-bar-container { display: none; }
     </style>
 </head>
 <body>
     <div class="custom-titlebar">
         <div class="titlebar-left">
+            <button class="titlebar-btn" id="miniModeBtn" onclick="toggleMiniMode()" title="${miniModeTitle}">
+                ⭕
+            </button>
+            <button class="titlebar-btn" id="dockBtn" onclick="toggleDock()" title="${dockModeTitle}">
+                🧲
+            </button>
             <div class="switch-container">
                 <button class="titlebar-btn" id="statusBtn" onclick="toggleSwitchMenu(event)">
                     ⚙️
@@ -5672,6 +5812,9 @@ export class PomodoroTimer {
         </div>
     </div>
     <div class="pomodoro-content">
+        <div class="progress-bar-container" onclick="restoreFromDocked()">
+            <div class="progress-bar-fill" id="dockedProgressBar"></div>
+        </div>
         <div class="pomodoro-event-title" onclick="callMethod('openRelatedNote')">
             ${reminderTitle}
         </div>
@@ -5681,13 +5824,14 @@ export class PomodoroTimer {
                     <circle class="progress-ring-bg" cx="40" cy="40" r="36"></circle>
                     <circle class="progress-ring-circle" id="progressCircle" cx="40" cy="40" r="36"></circle>
                 </svg>
-                <div class="center-content">
+                <div class="center-content" ondblclick="handleDoubleClick()">
                     <div class="pomodoro-status-icon" id="statusIcon">🍅</div>
                     <div class="control-buttons">
                         <button class="circle-control-btn" onclick="callMethod('toggleTimer')">▶️</button>
                         <button class="circle-control-btn" id="stopBtn" onclick="callMethod('resetTimer')" style="display:none">⏹</button>
                     </div>
                 </div>
+                <button class="mini-restore-btn" onclick="toggleMiniMode()" title="恢复窗口">↗</button>
             </div>
             <div class="time-info">
                 <div class="pomodoro-status" id="statusDisplay">${statusText}</div>
@@ -5751,6 +5895,28 @@ export class PomodoroTimer {
         
         function closeWindow() {
             ipcRenderer.send('${controlChannel}', 'close');
+        }
+        
+        // 迷你模式切换
+        function toggleMiniMode() {
+            ipcRenderer.send('${controlChannel}', 'toggleMiniMode');
+        }
+        
+        // 吸附模式切换
+        function toggleDock() {
+            ipcRenderer.send('${controlChannel}', 'toggleDock');
+        }
+        
+        // 从吸附模式恢复
+        function restoreFromDocked() {
+            ipcRenderer.send('${controlChannel}', 'restoreFromDocked');
+        }
+        
+        // 处理双击事件（在mini模式下恢复窗口）
+        function handleDoubleClick() {
+            if (document.body.classList.contains('mini-mode')) {
+                ipcRenderer.send('${controlChannel}', 'toggleMiniMode');
+            }
         }
         
         // 连接检测机制
@@ -5926,8 +6092,12 @@ export class PomodoroTimer {
                     this.settings.breakDuration * 60;
                 progress = (totalBreakTime - this.breakTimeLeft) / totalBreakTime;
             } else {
-                progress = ((this.totalTime - this.timeLeft) / this.totalTime);
+                // 倒计时模式：progress = 已用时间 / 总时间
+                progress = this.totalTime > 0 ? ((this.totalTime - this.timeLeft) / this.totalTime) : 0;
             }
+            
+            // 确保进度在0-1之间
+            progress = Math.max(0, Math.min(1, progress));
 
             const circumference = 226.19;
             const offset = circumference * (1 - progress);
@@ -5966,6 +6136,7 @@ export class PomodoroTimer {
                     const diceIcon = document.getElementById('diceIcon');
                     const stopBtn = document.getElementById('stopBtn');
                     const playPauseBtn = document.querySelector('.circle-control-btn');
+                    const dockedProgressBar = document.getElementById('dockedProgressBar');
                     
                     if (timeDisplay) timeDisplay.textContent = '${timeStr}';
                     if (statusDisplay) statusDisplay.textContent = '${statusText}';
@@ -5990,6 +6161,10 @@ export class PomodoroTimer {
                     }
                     if (playPauseBtn) {
                         playPauseBtn.textContent = '${playPauseIcon}';
+                    }
+                    if (dockedProgressBar) {
+                        dockedProgressBar.style.height = '${(progress * 100).toFixed(2)}%';
+                        dockedProgressBar.style.background = '${color}';
                     }
                 } catch(e) {
                     console.error('Update display failed:', e);
@@ -6050,6 +6225,149 @@ export class PomodoroTimer {
         } catch (error) {
             console.error('[PomodoroTimer] callMethod error:', method, error);
         }
+    }
+
+    /**
+     * 切换 BrowserWindow 的迷你模式
+     */
+    private toggleBrowserWindowMiniMode(pomodoroWindow: any) {
+        if (!pomodoroWindow || pomodoroWindow.isDestroyed()) {
+            return;
+        }
+
+        try {
+            // 如果窗口是最大化状态，先退出最大化
+            if (pomodoroWindow.isMaximized && pomodoroWindow.isMaximized()) {
+                pomodoroWindow.unmaximize();
+                // 等待窗口恢复正常大小后再执行模式切换
+                setTimeout(() => {
+                    this.toggleBrowserWindowMiniMode(pomodoroWindow);
+                }, 300);
+                return;
+            }
+            
+            this.isMiniMode = !this.isMiniMode;
+
+            if (this.isMiniMode) {
+                // 进入迷你模式
+                // 保存当前窗口大小和位置
+                if (!this.normalWindowBounds) {
+                    this.normalWindowBounds = pomodoroWindow.getBounds();
+                }
+
+                // 设置为圆形小窗口
+                const size = 120;
+                pomodoroWindow.setSize(size, size);
+                pomodoroWindow.setResizable(false);
+
+                // 添加迷你模式样式
+                pomodoroWindow.webContents.executeJavaScript(`
+                    document.body.classList.add('mini-mode');
+                    document.body.classList.remove('docked-mode');
+                `);
+            } else {
+                // 退出迷你模式
+                if (this.normalWindowBounds) {
+                    pomodoroWindow.setBounds(this.normalWindowBounds);
+                    this.normalWindowBounds = null;
+                } else {
+                    pomodoroWindow.setSize(240, 227);
+                }
+                pomodoroWindow.setResizable(true);
+
+                // 移除迷你模式样式
+                pomodoroWindow.webContents.executeJavaScript(`
+                    document.body.classList.remove('mini-mode');
+                `);
+            }
+
+            // 更新显示
+            setTimeout(() => this.updateBrowserWindowDisplay(pomodoroWindow), 100);
+        } catch (error) {
+            console.error('[PomodoroTimer] toggleBrowserWindowMiniMode error:', error);
+        }
+    }
+
+    /**
+     * 切换 BrowserWindow 的吸附模式
+     */
+    private toggleBrowserWindowDock(pomodoroWindow: any, screen: any) {
+        if (!pomodoroWindow || pomodoroWindow.isDestroyed()) {
+            return;
+        }
+
+        try {
+            // 如果窗口是最大化状态，先退出最大化
+            if (pomodoroWindow.isMaximized && pomodoroWindow.isMaximized()) {
+                pomodoroWindow.unmaximize();
+                // 等待窗口恢复正常大小后再执行模式切换
+                setTimeout(() => {
+                    this.toggleBrowserWindowDock(pomodoroWindow, screen);
+                }, 300);
+                return;
+            }
+            
+            this.isDocked = !this.isDocked;
+
+            if (this.isDocked) {
+                // 进入吸附模式
+                // 保存当前窗口大小和位置
+                if (!this.normalWindowBounds) {
+                    this.normalWindowBounds = pomodoroWindow.getBounds();
+                }
+
+                // 获取屏幕尺寸
+                const primaryDisplay = screen.getPrimaryDisplay();
+                const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+                // 设置为屏幕右侧细条
+                const barWidth = 8;
+                pomodoroWindow.setBounds({
+                    x: screenWidth - barWidth,
+                    y: 0,
+                    width: barWidth,
+                    height: screenHeight
+                });
+                pomodoroWindow.setResizable(false);
+
+                // 添加吸附模式样式
+                pomodoroWindow.webContents.executeJavaScript(`
+                    document.body.classList.add('docked-mode');
+                    document.body.classList.remove('mini-mode');
+                `);
+            } else {
+                // 退出吸附模式
+                if (this.normalWindowBounds) {
+                    pomodoroWindow.setBounds(this.normalWindowBounds);
+                    this.normalWindowBounds = null;
+                } else {
+                    pomodoroWindow.setSize(240, 227);
+                }
+                pomodoroWindow.setResizable(true);
+
+                // 移除吸附模式样式
+                pomodoroWindow.webContents.executeJavaScript(`
+                    document.body.classList.remove('docked-mode');
+                `);
+            }
+
+            // 更新显示
+            setTimeout(() => this.updateBrowserWindowDisplay(pomodoroWindow), 100);
+        } catch (error) {
+            console.error('[PomodoroTimer] toggleBrowserWindowDock error:', error);
+        }
+    }
+
+    /**
+     * 从吸附模式恢复到正常模式
+     */
+    private restoreFromDocked(pomodoroWindow: any, screen: any) {
+        if (!pomodoroWindow || pomodoroWindow.isDestroyed() || !this.isDocked) {
+            return;
+        }
+
+        // 调用 toggleDock 来恢复
+        this.toggleBrowserWindowDock(pomodoroWindow, screen);
     }
 
     private formatTime(seconds: number): string {
