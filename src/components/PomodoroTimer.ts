@@ -1374,7 +1374,7 @@ export class PomodoroTimer {
     private createWindow(targetContainer?: HTMLElement) {
         // 检测是否是移动端
         const isMobile = getFrontend().endsWith('mobile');
-        
+
         // 如果提供了 targetContainer，则创建 DOM 元素（Tab 模式）
         if (this.isTabMode && targetContainer) {
             this.createDOMWindow(targetContainer);
