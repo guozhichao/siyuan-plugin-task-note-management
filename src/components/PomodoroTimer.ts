@@ -5396,6 +5396,10 @@ export class PomodoroTimer {
                     case 'close':
                         pomodoroWindow.close();
                         break;
+                    case 'heartbeat':
+                        // 响应心跳消息
+                        _event.sender.send(`${controlChannel}-heartbeat-response`);
+                        break;
                     default:
                         break;
                 }
@@ -5748,6 +5752,61 @@ export class PomodoroTimer {
         function closeWindow() {
             ipcRenderer.send('${controlChannel}', 'close');
         }
+        
+        // 连接检测机制
+        let heartbeatInterval;
+        let connectionLost = false;
+        
+        function startHeartbeat() {
+            heartbeatInterval = setInterval(() => {
+                try {
+                    // 发送心跳消息
+                    ipcRenderer.send('${controlChannel}', 'heartbeat');
+                    
+                    // 设置超时检测
+                    const timeout = setTimeout(() => {
+                        if (!connectionLost) {
+                            connectionLost = true;
+                            console.warn('[PomodoroTimer] 失去与主进程的连接，自动关闭窗口');
+                            if (window && typeof window.close === 'function') {
+                                window.close();
+                            }
+                        }
+                    }, 1000); // 1秒超时
+                    
+                    // 监听心跳响应
+                    ipcRenderer.once('${controlChannel}-heartbeat-response', () => {
+                        clearTimeout(timeout);
+                        if (connectionLost) {
+                            connectionLost = false;
+                            console.log('[PomodoroTimer] 重新连接到主进程');
+                        }
+                    });
+                } catch (error) {
+                    console.error('[PomodoroTimer] 心跳检测失败:', error);
+                    if (!connectionLost) {
+                        connectionLost = true;
+                        console.warn('[PomodoroTimer] 失去与主进程的连接，自动关闭窗口');
+                        if (window && typeof window.close === 'function') {
+                            window.close();
+                        }
+                    }
+                }
+            }, 500); // 每0.5秒检测一次
+        }
+        
+        function stopHeartbeat() {
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+                heartbeatInterval = null;
+            }
+        }
+        
+        // 页面加载完成后启动心跳检测
+        window.addEventListener('load', startHeartbeat);
+        
+        // 页面卸载时停止心跳检测
+        window.addEventListener('beforeunload', stopHeartbeat);
     </script>
 </body>
 </html>`;
@@ -5797,6 +5856,10 @@ export class PomodoroTimer {
                             break;
                         case 'close':
                             pomodoroWindow.close();
+                            break;
+                        case 'heartbeat':
+                            // 响应心跳消息
+                            _event.sender.send(`${controlChannel}-heartbeat-response`);
                             break;
                     }
                 };
