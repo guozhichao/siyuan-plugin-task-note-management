@@ -706,6 +706,206 @@ export class PomodoroTimer {
         );
     }
 
+    /**
+     * 创建 BrowserWindow 确认弹窗
+     * @param title 标题
+     * @param message 消息内容
+     * @param onConfirm 确认回调
+     * @param onCancel 取消回调（可选）
+     */
+    private openConfirmWindow(title: string, message: string, onConfirm: () => void, onCancel?: () => void) {
+        try {
+            let electron: any;
+            try {
+                electron = (window as any).require('electron');
+            } catch (e) {
+                console.error("[PomodoroTimer] Failed to require electron", e);
+                return;
+            }
+
+            let remote = electron.remote;
+            if (!remote) {
+                try {
+                    remote = (window as any).require('@electron/remote');
+                } catch (e) { }
+            }
+
+            if (!remote) {
+                console.error("[PomodoroTimer] Failed to get electron remote");
+                return;
+            }
+
+            const BrowserWindowConstructor = remote.BrowserWindow;
+            if (!BrowserWindowConstructor) {
+                console.error("[PomodoroTimer] Failed to get BrowserWindow constructor");
+                return;
+            }
+
+            const screen = remote.screen || electron.screen;
+            if (!screen) {
+                console.error("[PomodoroTimer] Failed to get screen object");
+                return;
+            }
+
+            const primaryDisplay = screen.getPrimaryDisplay();
+            const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+            const winWidth = 480;
+            const winHeight = 240;
+            const x = Math.floor((screenWidth - winWidth) / 2);
+            const y = Math.floor((screenHeight - winHeight) / 2);
+
+            const confirmWindow = new BrowserWindowConstructor({
+                width: winWidth,
+                height: winHeight,
+                x: x,
+                y: y,
+                frame: true,
+                alwaysOnTop: true,
+                resizable: false,
+                movable: true,
+                skipTaskbar: true,
+                hasShadow: true,
+                transparent: false,
+                webPreferences: {
+                    nodeIntegration: true,
+                    contextIsolation: false,
+                    webSecurity: false
+                },
+                title: title,
+                show: false,
+                backgroundColor: (this.settings.darkMode || document.body.classList.contains('theme-dark')) ? '#1e1e1e' : '#ffffff'
+            });
+
+            confirmWindow.setMenu(null);
+
+            const isDark = (this.settings.darkMode || document.body.classList.contains('theme-dark'));
+            const bgColor = isDark ? '#1e1e1e' : '#ffffff';
+            const textColor = isDark ? '#e0e0e0' : '#333333';
+            const btnBgColor = isDark ? '#3a3a3a' : '#f0f0f0';
+            const btnHoverBgColor = isDark ? '#4a4a4a' : '#e0e0e0';
+            const confirmBtnColor = '#4CAF50';
+            const confirmBtnHoverColor = '#45a049';
+
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <style>
+                        body {
+                            background-color: ${bgColor};
+                            color: ${textColor};
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            height: 100vh;
+                            margin: 0;
+                            font-family: "Segoe UI", "Microsoft YaHei", -apple-system, sans-serif;
+                            padding: 20px;
+                            box-sizing: border-box;
+                        }
+                        .container {
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            width: 100%;
+                        }
+                        .title {
+                            font-size: 20px;
+                            font-weight: bold;
+                            margin-bottom: 20px;
+                            color: ${isDark ? '#ffffff' : '#000000'};
+                        }
+                        .message {
+                            font-size: 16px;
+                            margin-bottom: 30px;
+                            text-align: center;
+                            line-height: 1.5;
+                        }
+                        .buttons {
+                            display: flex;
+                            gap: 12px;
+                        }
+                        button {
+                            padding: 10px 24px;
+                            font-size: 14px;
+                            border: none;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-family: inherit;
+                            transition: background-color 0.2s;
+                        }
+                        .btn-confirm {
+                            background-color: ${confirmBtnColor};
+                            color: white;
+                        }
+                        .btn-confirm:hover {
+                            background-color: ${confirmBtnHoverColor};
+                        }
+                        .btn-cancel {
+                            background-color: ${btnBgColor};
+                            color: ${textColor};
+                        }
+                        .btn-cancel:hover {
+                            background-color: ${btnHoverBgColor};
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="title">${title}</div>
+                        <div class="message">${message}</div>
+                        <div class="buttons">
+                            <button class="btn-confirm" onclick="handleConfirm()">确认</button>
+                            <button class="btn-cancel" onclick="handleCancel()">取消</button>
+                        </div>
+                    </div>
+                    <script>
+                        const { ipcRenderer } = require('electron');
+                        function handleConfirm() {
+                            ipcRenderer.send('confirm-result', true);
+                            window.close();
+                        }
+                        function handleCancel() {
+                            ipcRenderer.send('confirm-result', false);
+                            window.close();
+                        }
+                    </script>
+                </body>
+                </html>
+            `;
+
+            // 监听确认结果
+            const { ipcMain } = remote;
+            const handleConfirmResult = (_event: any, result: boolean) => {
+                if (result) {
+                    onConfirm();
+                } else if (onCancel) {
+                    onCancel();
+                }
+                ipcMain.removeListener('confirm-result', handleConfirmResult);
+            };
+            ipcMain.on('confirm-result', handleConfirmResult);
+
+            confirmWindow.once('ready-to-show', () => {
+                confirmWindow.show();
+                confirmWindow.focus();
+                confirmWindow.setAlwaysOnTop(true, "screen-saver");
+            });
+
+            confirmWindow.on('closed', () => {
+                ipcMain.removeListener('confirm-result', handleConfirmResult);
+            });
+
+            confirmWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent));
+
+        } catch (e) {
+            console.error("[PomodoroTimer] Failed to open confirm window", e);
+        }
+    }
+
     private openRandomNotificationWindowImpl(title: string, message: string, icon: string, autoCloseDelay?: number) {
         try {
             this.closeRandomNotificationWindow();
@@ -3212,7 +3412,7 @@ export class PomodoroTimer {
                 this.resumeTimer();
             } else {
                 this.pauseTimer();
-                
+
                 // 只在非 BrowserWindow 模式下直接操作 DOM
                 if (!isBrowserWindow) {
                     // 暂停后立即显示继续和停止按钮，使用自适应间距
@@ -3575,27 +3775,58 @@ export class PomodoroTimer {
                 const eventId = this.reminder.id;
                 const eventTitle = this.reminder.title || '番茄专注';
 
-                // 显示思源 confirm 弹窗，用户确认则保存记录
-                await confirm(
-                    t('pomodoroStopConfirmTitle') || '中断番茄钟',
-                    (t('pomodoroStopConfirmContent', { minutes }) || `检测到你已专注 ${minutes} 分钟，是否将此次专注记录为番茄？`),
-                    async () => {
-                        try {
-                            await this.recordManager.recordWorkSession(
-                                Math.max(1, minutes),
-                                eventId,
-                                eventTitle,
-                                this.currentPhaseOriginalDuration,
-                                false
-                            );
-                            this.updateStatsDisplay();
-                            showMessage(t('pomodoroRecorded') || '已记录此次专注', 2000);
-                        } catch (err) {
-                            console.error('记录番茄专注失败:', err);
-                            showMessage(t('pomodoroRecordFailed') || '记录失败', 3000);
+                // 检查是否是 BrowserWindow 模式
+                const isBrowserWindow = !this.isTabMode && this.container && typeof (this.container as any).webContents !== 'undefined';
+
+                if (isBrowserWindow) {
+                    // BrowserWindow 模式：使用自定义确认弹窗
+                    this.openConfirmWindow(
+                        t('pomodoroStopConfirmTitle') || '中断番茄钟',
+                        String(t('pomodoroStopConfirmContent', { minutes: minutes.toString() }) || `检测到你已专注 ${minutes} 分钟，是否将此次专注记录为番茄？`),
+                        async () => {
+                            try {
+                                await this.recordManager.recordWorkSession(
+                                    Math.max(1, minutes),
+                                    eventId,
+                                    eventTitle,
+                                    this.currentPhaseOriginalDuration,
+                                    false
+                                );
+                                this.updateStatsDisplay();
+                                showMessage(t('pomodoroRecorded') || '已记录此次专注', 2000);
+                                // 触发 reminderUpdated 事件
+                                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                            } catch (err) {
+                                console.error('记录番茄专注失败:', err);
+                                showMessage(t('pomodoroRecordFailed') || '记录失败', 3000);
+                            }
                         }
-                    }
-                );
+                    );
+                } else {
+                    // 普通模式：使用思源 confirm 弹窗
+                    await confirm(
+                        t('pomodoroStopConfirmTitle') || '中断番茄钟',
+                        String(t('pomodoroStopConfirmContent', { minutes: minutes.toString() }) || `检测到你已专注 ${minutes} 分钟，是否将此次专注记录为番茄？`),
+                        async () => {
+                            try {
+                                await this.recordManager.recordWorkSession(
+                                    Math.max(1, minutes),
+                                    eventId,
+                                    eventTitle,
+                                    this.currentPhaseOriginalDuration,
+                                    false
+                                );
+                                this.updateStatsDisplay();
+                                showMessage(t('pomodoroRecorded') || '已记录此次专注', 2000);
+                                // 触发 reminderUpdated 事件
+                                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                            } catch (err) {
+                                console.error('记录番茄专注失败:', err);
+                                showMessage(t('pomodoroRecordFailed') || '记录失败', 3000);
+                            }
+                        }
+                    );
+                }
             }
         }
 
@@ -3778,6 +4009,8 @@ export class PomodoroTimer {
                 this.currentPhaseOriginalDuration,
                 true
             );
+            // 触发 reminderUpdated 事件
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
         } else {
             // 正计时模式完成番茄后也要停止随机提示音
             this.stopRandomNotificationTimer();
@@ -3786,6 +4019,8 @@ export class PomodoroTimer {
         // 更新番茄数量（正计时和倒计时都需要）
         this.completedPomodoros++;
         await this.updateReminderPomodoroCount();
+        // 触发 reminderUpdated 事件
+        window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
         // 正计时模式下静默更新显示，不记录时间（时间在手动停止时统一记录）
         if (this.isCountUp) {
@@ -4644,7 +4879,7 @@ export class PomodoroTimer {
 
         // 检查是否是 BrowserWindow 模式
         const isBrowserWindow = !this.isTabMode && this.container && typeof (this.container as any).webContents !== 'undefined';
-        
+
         if (!isBrowserWindow && this.modeToggleBtn) {
             // 更新模式切换按钮标题
             this.modeToggleBtn.title = this.isCountUp ? '切换到倒计时' : '切换到正计时';
@@ -4843,7 +5078,7 @@ export class PomodoroTimer {
 
         // 检查是否是 BrowserWindow 模式
         const isBrowserWindow = !this.isTabMode && this.container && typeof (this.container as any).webContents !== 'undefined';
-        
+
         // 更新事件标题显示（在更新其他显示之前，仅在非 BrowserWindow 模式）
         if (!isBrowserWindow) {
             const eventTitle = this.container.querySelector('.pomodoro-event-title') as HTMLElement;
