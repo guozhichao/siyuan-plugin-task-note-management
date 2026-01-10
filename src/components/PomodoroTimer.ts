@@ -87,6 +87,7 @@ export class PomodoroTimer {
     private randomNotificationLastCheckTime: number = 0; // 上次检查时间
     private randomNotificationNextTriggerTime: number = 0; // 下次触发时间
     private randomNotificationWindow: any = null; // 新增：随机提示音弹窗
+    private pomodoroEndWindow: any = null; // 新增：番茄钟结束弹窗
 
     private systemNotificationEnabled: boolean = true; // 新增：系统弹窗开关
     private randomNotificationSystemNotificationEnabled: boolean = true; // 新增：随机提示音系统通知开关
@@ -679,6 +680,8 @@ export class PomodoroTimer {
         this.closeRandomNotificationWindow();
     }
 
+
+
     private closeRandomNotificationWindow() {
         if (this.randomNotificationWindow) {
             try {
@@ -692,11 +695,22 @@ export class PomodoroTimer {
 
     private openPomodoroEndWindow() {
         if (!this.settings.pomodoroEndPopupWindow) return;
-        this.openRandomNotificationWindowImpl(
+        this.openPomodoroEndWindowImpl(
             t('pomodoroWorkEnd') || '工作结束',
             t('pomodoroWorkEndDesc') || '工作时间结束，起来走走喝喝水吧！',
             '🍅'
         );
+    }
+
+    private closePomodoroEndWindow() {
+        if (this.pomodoroEndWindow) {
+            try {
+                this.pomodoroEndWindow.close();
+            } catch (e) {
+                // ignore
+            }
+            this.pomodoroEndWindow = null;
+        }
     }
 
     private openRandomNotificationWindow() {
@@ -909,8 +923,175 @@ export class PomodoroTimer {
         }
     }
 
+    private openPomodoroEndWindowImpl(title: string, message: string, icon: string) {
+        try {
+            // 关闭之前的番茄钟结束弹窗
+            this.closePomodoroEndWindow();
+
+            let electron: any;
+            try {
+                electron = (window as any).require('electron');
+            } catch (e) {
+                console.error("[PomodoroTimer] Failed to require electron", e);
+                return;
+            }
+
+            let remote = electron.remote;
+            if (!remote) {
+                try {
+                    remote = (window as any).require('@electron/remote');
+                } catch (e) { }
+            }
+
+            if (!remote) {
+                console.error("[PomodoroTimer] Failed to get electron remote");
+                return;
+            }
+
+            const BrowserWindowConstructor = remote.BrowserWindow;
+            if (!BrowserWindowConstructor) {
+                console.error("[PomodoroTimer] Failed to get BrowserWindow constructor");
+                return;
+            }
+
+            const screen = remote.screen || electron.screen;
+            if (!screen) {
+                console.error("[PomodoroTimer] Failed to get screen object");
+                return;
+            }
+
+            const primaryDisplay = screen.getPrimaryDisplay();
+            const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+            const winWidth = screenWidth;
+            const winHeight = screenHeight;
+
+            this.pomodoroEndWindow = new BrowserWindowConstructor({
+                width: winWidth,
+                height: winHeight,
+                frame: true,
+                alwaysOnTop: false,
+                center: true,
+                resizable: true,
+                movable: false,
+                skipTaskbar: true,
+                hasShadow: true,
+                transparent: false,
+                webPreferences: {
+                    nodeIntegration: false,
+                    contextIsolation: true,
+                    webSecurity: false
+                },
+                title: title,
+                show: false,
+                backgroundColor: (this.settings.darkMode || document.body.classList.contains('theme-dark')) ? '#1e1e1e' : '#ffffff'
+            });
+
+            this.pomodoroEndWindow.setMenu(null);
+
+            const isDark = (this.settings.darkMode || document.body.classList.contains('theme-dark'));
+            const bgColor = isDark ? '#1e1e1e' : '#ffffff';
+            const textColor = isDark ? '#e0e0e0' : '#333333';
+
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:;">
+                    <style>
+                        body {
+                            background-color: ${bgColor};
+                            color: ${textColor};
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            height: 100vh;
+                            margin: 0;
+                            font-family: "Segoe UI", "Microsoft YaHei", -apple-system, sans-serif;
+                            overflow: hidden;
+                            user-select: none;
+                            box-sizing: border-box;
+                            padding: 20px;
+                            text-align: center;
+                        }
+                        .container {
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            animation: fadeIn 0.5s ease;
+                            width: 100%;
+                        }
+                        .icon { 
+                            font-size: 80px; 
+                            margin-bottom: 24px; 
+                            animation: bounce 2s infinite;
+                            line-height: 1;
+                        }
+                        .title { 
+                            font-size: 32px; 
+                            font-weight: bold; 
+                            margin-bottom: 24px; 
+                            color: ${isDark ? '#ffffff' : '#000000'};
+                        }
+                        .message { 
+                            font-size: 20px; 
+                            font-weight: normal; 
+                            opacity: 0.9; 
+                            line-height: 1.6;
+                            word-wrap: break-word;
+                            max-width: 90%;
+                        }
+                        @keyframes bounce {
+                            0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
+                            40% {transform: translateY(-20px);}
+                            60% {transform: translateY(-10px);}
+                        }
+                        @keyframes fadeIn {
+                            from { opacity: 0; transform: scale(0.9); }
+                            to { opacity: 1; transform: scale(1); }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="icon">${icon}</div>
+                        <div class="title">${title}</div>
+                        <div class="message">${message}</div>
+                    </div>
+                </body>
+                </html>
+            `;
+
+            this.pomodoroEndWindow.once('ready-to-show', () => {
+                if (this.pomodoroEndWindow) {
+                    this.pomodoroEndWindow.show();
+                    this.pomodoroEndWindow.focus();
+                    this.pomodoroEndWindow.setAlwaysOnTop(true, "screen-saver");
+                }
+            });
+
+            this.pomodoroEndWindow.on('closed', () => {
+                this.pomodoroEndWindow = null;
+            });
+
+            this.pomodoroEndWindow.webContents.on('will-navigate', (e: any) => {
+                e.preventDefault();
+            });
+
+            this.pomodoroEndWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent));
+
+            console.log('[PomodoroTimer] Pomodoro end window created', { title });
+
+        } catch (e) {
+            console.error("[PomodoroTimer] Failed to open pomodoro end window", e);
+        }
+    }
+
     private openRandomNotificationWindowImpl(title: string, message: string, icon: string, autoCloseDelay?: number) {
         try {
+            // 只关闭之前的随机提示音弹窗，不关闭番茄钟弹窗
             this.closeRandomNotificationWindow();
 
             let electron: any;
@@ -952,8 +1133,8 @@ export class PomodoroTimer {
             const primaryDisplay = screen.getPrimaryDisplay();
             const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
-            const winWidth = Math.floor(screenWidth / 2);
-            const winHeight = Math.floor(screenHeight / 2);
+            const winWidth = screenWidth;
+            const winHeight = screenHeight;
 
             this.randomNotificationWindow = new BrowserWindowConstructor({
                 width: winWidth,
@@ -3988,7 +4169,7 @@ export class PomodoroTimer {
                 await this.safePlayAudio(this.workEndAudio);
             }
 
-            // 打开番茄钟结束弹窗（如果启用）
+            // 打开番茄钟结束弹窗（如果启用），休息结束后才关闭
             this.openPomodoroEndWindow();
 
             // 显示系统弹窗通知
@@ -4064,6 +4245,9 @@ export class PomodoroTimer {
         this.stopAllAudio();
         this.stopRandomNotificationTimer(); // 添加停止随机提示音
 
+        // 休息结束，关闭番茄钟结束弹窗
+        this.closePomodoroEndWindow();
+
         // 播放休息结束提示音
         if (this.breakEndAudio) {
             await this.safePlayAudio(this.breakEndAudio);
@@ -4136,7 +4320,7 @@ export class PomodoroTimer {
         if (this.isWorkPhase) {
             // 工作阶段结束，停止随机提示音
 
-            // 打开番茄钟结束弹窗（如果启用）
+            // 打开番茄钟结束弹窗（如果启用），休息结束后才关闭
             this.openPomodoroEndWindow();
 
             // 显示系统弹窗通知
@@ -4224,6 +4408,9 @@ export class PomodoroTimer {
                 this.updateDisplay();
             }
         } else {
+            // 休息结束，关闭番茄钟结束弹窗
+            this.closePomodoroEndWindow();
+
             // 播放休息结束提示音
             if (this.breakEndAudio) {
                 await this.safePlayAudio(this.breakEndAudio);
