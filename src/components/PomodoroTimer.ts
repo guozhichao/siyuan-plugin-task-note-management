@@ -5469,21 +5469,21 @@ export class PomodoroTimer {
     }
 
     private generateBrowserWindowHTML(
-        actionChannel: string, 
-        controlChannel: string, 
-        currentState: any, 
-        timeStr: string, 
-        statusText: string, 
-        todayTimeStr: string, 
-        weekTimeStr: string, 
-        bgColor: string, 
-        textColor: string, 
-        surfaceColor: string, 
-        borderColor: string, 
-        hoverColor: string, 
-        reminderTitle: string, 
-        isBackgroundAudioMuted: boolean, 
-        randomNotificationEnabled: boolean, 
+        actionChannel: string,
+        controlChannel: string,
+        currentState: any,
+        timeStr: string,
+        statusText: string,
+        todayTimeStr: string,
+        weekTimeStr: string,
+        bgColor: string,
+        textColor: string,
+        surfaceColor: string,
+        borderColor: string,
+        hoverColor: string,
+        reminderTitle: string,
+        isBackgroundAudioMuted: boolean,
+        randomNotificationEnabled: boolean,
         randomNotificationCount: number,
         miniModeTitle?: string,
         dockModeTitle?: string
@@ -6095,7 +6095,7 @@ export class PomodoroTimer {
                 // 倒计时模式：progress = 已用时间 / 总时间
                 progress = this.totalTime > 0 ? ((this.totalTime - this.timeLeft) / this.totalTime) : 0;
             }
-            
+
             // 确保进度在0-1之间
             progress = Math.max(0, Math.min(1, progress));
 
@@ -6245,7 +6245,7 @@ export class PomodoroTimer {
                 }, 300);
                 return;
             }
-            
+
             this.isMiniMode = !this.isMiniMode;
 
             if (this.isMiniMode) {
@@ -6306,7 +6306,7 @@ export class PomodoroTimer {
                 }, 300);
                 return;
             }
-            
+
             this.isDocked = !this.isDocked;
 
             if (this.isDocked) {
