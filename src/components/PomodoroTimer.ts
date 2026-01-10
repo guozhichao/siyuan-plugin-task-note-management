@@ -4022,10 +4022,10 @@ export class PomodoroTimer {
             // 倒计时模式：记录完成的工作番茄（每个实例独立记录）
             const eventId = this.reminder.id;
             const eventTitle = this.reminder.title || '番茄专注';
-            
+
             // 计算实际完成的时间（分钟）
             const actualDuration = Math.round(this.totalTime / 60);
-            
+
             await this.recordManager.recordWorkSession(
                 actualDuration,
                 eventId,
