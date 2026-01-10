@@ -28,10 +28,12 @@ export class ReminderPanel {
     private categoryFilterSelect: HTMLSelectElement; // 添加分类过滤选择器
     private categoryFilterButton: HTMLButtonElement;
     private sortButton: HTMLButtonElement;
+    private searchInput: HTMLInputElement;
     private plugin: any;
     private currentTab: string = 'today';
     private currentCategoryFilter: string = 'all'; // 添加当前分类过滤
     private selectedCategories: string[] = [];
+    private currentSearchQuery: string = '';
     private currentSort: string = 'time';
     private currentSortOrder: 'asc' | 'desc' = 'asc';
     private reminderUpdatedHandler: () => void;
@@ -319,6 +321,8 @@ export class ReminderPanel {
             <option value="futureAll">${t("futureReminders")}</option>
             <option value="overdue">${t("overdueReminders")}</option>
             <option value="all">${t("past7Reminders")}</option>
+            <option value="allUncompleted">${t("allUncompletedReminders")}</option>
+            <option value="noDate">${t("noDateReminders")}</option>
             <option value="todayCompleted">${t("todayCompletedReminders")}</option>
             <option value="yesterdayCompleted">${t("yesterdayCompletedReminders")}</option>
             <option value="completed">${t("completedReminders")}</option>
@@ -412,6 +416,31 @@ export class ReminderPanel {
         // 将开关单独一行放在 controls 下面
         header.appendChild(showCompletedContainer);
         this.showCompletedContainer = showCompletedContainer;
+
+        // 搜索框（参考ProjectPanel的实现）
+        const searchContainer = document.createElement('div');
+        searchContainer.className = 'reminder-search';
+        searchContainer.style.cssText = `
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        `;
+
+        this.searchInput = document.createElement('input');
+        this.searchInput.className = 'b3-text-field';
+        this.searchInput.type = 'text';
+        this.searchInput.placeholder = t("searchTasks") || "搜索任务...";
+        this.searchInput.style.cssText = `
+            flex: 1;
+        `;
+        this.searchInput.addEventListener('input', () => {
+            this.currentSearchQuery = this.searchInput.value.trim();
+            this.loadReminders();
+        });
+
+        searchContainer.appendChild(this.searchInput);
+        header.appendChild(searchContainer);
+
         this.container.appendChild(header);
 
         // 提醒列表容器
@@ -732,6 +761,26 @@ export class ReminderPanel {
         return reminders.filter(reminder => {
             const categoryId = reminder.categoryId || 'none';
             return this.selectedCategories.includes(categoryId);
+        });
+    }
+
+    private applySearchFilter(reminders: any[]): any[] {
+        if (!this.currentSearchQuery) {
+            return reminders;
+        }
+
+        // 将搜索查询按空格分割成多个词，实现AND搜索
+        const searchTerms = this.currentSearchQuery.trim().split(/\s+/).filter(term => term.length > 0);
+
+        return reminders.filter(reminder => {
+            const searchableText = [
+                reminder.title || '',
+                reminder.note || '',
+                reminder.categoryId || ''
+            ].join(' ').toLowerCase();
+
+            // 所有搜索词都必须匹配（AND逻辑）
+            return searchTerms.every(term => searchableText.includes(term.toLowerCase()));
         });
     }
 
@@ -1298,6 +1347,9 @@ export class ReminderPanel {
             // 修改：从所有提醒中筛选，而不是从分类过滤后的提醒中筛选
             // 这样可以确保祖先任务即使不满足分类筛选也能显示
             let displayReminders = allRemindersWithInstances.filter(r => idsToRender.has(r.id));
+
+            // 5. 应用搜索过滤
+            displayReminders = this.applySearchFilter(displayReminders);
 
             this.sortReminders(displayReminders);
             this.currentRemindersCache = [...displayReminders];
@@ -2070,8 +2122,14 @@ export class ReminderPanel {
 
     private generateAllRemindersWithInstances(reminderData: any, today: string): any[] {
         const reminders = Object.values(reminderData).filter((reminder: any) => {
+            // 包含以下任务：
+            // 1. 有日期的任务
+            // 2. 有父任务的任务（子任务）
+            // 3. 有子任务的任务（父任务）
+            // 4. 已完成的任务
+            // 5. 没有日期的独立任务（既不是父任务也不是子任务，用于"无日期任务"筛选）
             const shouldInclude = reminder && typeof reminder === 'object' && reminder.id &&
-                (reminder.date || reminder.parentId || this.hasChildren(reminder.id, reminderData) || reminder.completed);
+                (reminder.date || reminder.parentId || this.hasChildren(reminder.id, reminderData) || reminder.completed || (!reminder.date && !reminder.parentId));
 
             if (reminder && reminder.id) {
                 // console.log(`任务 ${reminder.id} (${reminder.title}):`, {
@@ -2268,6 +2326,10 @@ export class ReminderPanel {
         yesterdayDate.setDate(yesterdayDate.getDate() - 1);
         const yesterdayStr = getLocalDateString(yesterdayDate);
 
+        // 构建提醒映射，用于查找父任务
+        const reminderMap = new Map<string, any>();
+        reminders.forEach(r => reminderMap.set(r.id, r));
+
         const isEffectivelyCompleted = (reminder: any) => {
             // 如果任务已标记为完成，直接返回 true
             if (reminder.completed) return true;
@@ -2279,6 +2341,41 @@ export class ReminderPanel {
 
             // 其他情况返回 false
             return false;
+        };
+
+        // 检查任务是否因为父任务完成而应该被视为完成
+        const isCompletedDueToParent = (reminder: any): boolean => {
+            if (!reminder.parentId) return false;
+            
+            let currentId = reminder.parentId;
+            while (currentId) {
+                const parent = reminderMap.get(currentId);
+                if (!parent) break;
+                
+                // 如果找到已完成的父任务，则当前任务视为完成
+                if (isEffectivelyCompleted(parent)) {
+                    return true;
+                }
+                
+                // 继续向上查找
+                currentId = parent.parentId;
+            }
+            
+            return false;
+        };
+
+        // 获取任务的顶级父任务（如果没有父任务，返回自己）
+        const getTopLevelParent = (reminder: any): any => {
+            if (!reminder.parentId) return reminder;
+            
+            let current = reminder;
+            while (current.parentId) {
+                const parent = reminderMap.get(current.parentId);
+                if (!parent) break;
+                current = parent;
+            }
+            
+            return current;
         };
 
         switch (this.currentTab) {
@@ -2357,6 +2454,23 @@ export class ReminderPanel {
                 });
             case 'all': // Past 7 days
                 return reminders.filter(r => r.date && compareDateStrings(sevenDaysAgo, r.date) <= 0 && compareDateStrings(r.endDate || r.date, today) < 0);
+            case 'allUncompleted': // 所有未完成任务
+                return reminders.filter(r => !isEffectivelyCompleted(r) && !isCompletedDueToParent(r));
+            case 'noDate': // 无日期任务（根据顶级父任务是否有日期来判断）
+                return reminders.filter(r => {
+                    // 排除已完成的任务和因父任务完成而视为完成的任务
+                    if (isEffectivelyCompleted(r) || isCompletedDueToParent(r)) return false;
+                    
+                    // 获取顶级父任务（如果任务没有父任务，则返回自己）
+                    const topLevelParent = getTopLevelParent(r);
+                    
+                    // 如果顶级父任务没有日期，则显示该任务及其所有子孙任务
+                    // 这包括：
+                    // 1. 没有父任务且没有子任务的独立任务（如果没有日期）
+                    // 2. 没有父任务但有子任务的顶级父任务（如果没有日期）及其所有子孙
+                    // 3. 属于无日期顶级父任务的所有子任务（无论子任务本身是否有日期）
+                    return !topLevelParent.date;
+                });
             default:
                 return [];
         }
@@ -2448,7 +2562,9 @@ export class ReminderPanel {
                 'completed': t("noCompletedReminders"),
                 'todayCompleted': "今日暂无已完成任务",
                 'yesterdayCompleted': "昨日暂无已完成任务",
-                'all': t("noPast7Reminders")
+                'all': t("noPast7Reminders"),
+                'allUncompleted': t("noAllUncompletedReminders"),
+                'noDate': t("noNoDateReminders")
             };
             this.remindersContainer.innerHTML = `<div class="reminder-empty">${filterNames[this.currentTab] || t("noReminders")}</div>`;
             return;
