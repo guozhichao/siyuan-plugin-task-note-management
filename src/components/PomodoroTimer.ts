@@ -140,6 +140,11 @@ export class PomodoroTimer {
         // 在用户首次交互时解锁音频播放
         this.attachAudioUnlockListeners();
 
+        // 在 BrowserWindow 模式下，设置定期音频权限检查
+        if (!this.isTabMode) {
+            this.setupBrowserWindowAudioMaintenance();
+        }
+
         // 如果有继承状态，应用继承的状态
         if (inheritState && inheritState.isRunning) {
             this.applyInheritedState(inheritState);
@@ -1546,20 +1551,27 @@ export class PomodoroTimer {
             console.warn('音频播放失败:', error);
 
             if (error && error.name === 'NotAllowedError') {
-                console.log('尝试重新获取音频播放权限...');
+                console.log('检测到音频播放权限错误，强制重新初始化...');
                 this.audioInitialized = false;
-                // 尝试重新初始化并再次播放（如果可能）
+                // 在 BrowserWindow 模式下，更积极地重新初始化
+                const isBrowserWindow = !this.isTabMode && this.container && typeof (this.container as any).webContents !== 'undefined';
+                if (isBrowserWindow) {
+                    console.log('BrowserWindow 模式，强制重新获取音频权限');
+                }
+                // 强制重新初始化音频播放权限
                 try {
-                    await this.initializeAudioPlayback();
+                    await this.initializeAudioPlayback(true);
+                    // 重新尝试播放
                     if (audio.readyState >= 3) {
                         try {
                             audio.currentTime = 0;
                         } catch { }
                         await audio.play();
+                        console.log('重新初始化后音频播放成功');
                         return true;
                     }
                 } catch (retryError) {
-                    console.warn('重试音频播放失败:', retryError);
+                    console.warn('强制重新初始化后播放仍失败:', retryError);
                 }
                 // 不抛出异常，返回 false 让调用方决定后续动作
                 return false;
@@ -3682,10 +3694,8 @@ export class PomodoroTimer {
         this.isRunning = true;
         this.isPaused = false;
 
-        // 确保音频播放权限已被获取（特别是为了结束提示音）
-        if (!this.audioInitialized) {
-            await this.initializeAudioPlayback();
-        }
+        // 确保音频播放权限已被获取（特别是为了结束提示音），强制重新初始化以处理权限丢失
+        await this.initializeAudioPlayback(true);
 
         // 改进的时间继承逻辑
         if (this.startTime === 0) {
@@ -3817,10 +3827,8 @@ export class PomodoroTimer {
     private async resumeTimer() {
         this.isPaused = false;
 
-        // 确保音频播放权限已被获取（特别是为了结束提示音）
-        if (!this.audioInitialized) {
-            await this.initializeAudioPlayback();
-        }
+        // 确保音频播放权限已被获取（特别是为了结束提示音），强制重新初始化以处理权限丢失
+        await this.initializeAudioPlayback(true);
 
         // 重新计算开始时间，保持已暂停的时间
         // 注意：startTime 应该是"如果从0开始计时应该在什么时候开始"
@@ -6616,5 +6624,37 @@ export class PomodoroTimer {
         const mins = Math.floor(Math.abs(seconds) / 60);
         const secs = Math.floor(Math.abs(seconds) % 60);
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    /**
+     * 在 BrowserWindow 模式下设置音频权限维护机制
+     * 定期检查和重新初始化音频权限，防止中途丢失
+     */
+    private setupBrowserWindowAudioMaintenance() {
+        // 每5分钟检查一次音频权限并重新初始化
+        setInterval(async () => {
+            if (this.isRunning && !this.isPaused && !this.isWindowClosed) {
+                try {
+                    console.log('[PomodoroTimer] BrowserWindow 模式：定期检查音频权限');
+                    await this.initializeAudioPlayback(true);
+                } catch (error) {
+                    console.warn('[PomodoroTimer] 定期音频权限检查失败:', error);
+                }
+            }
+        }, 5 * 60 * 1000); // 5分钟
+
+        // 监听窗口焦点事件，当窗口重新获得焦点时重新初始化音频
+        if (typeof window !== 'undefined' && window.addEventListener) {
+            window.addEventListener('focus', async () => {
+                if (!this.isWindowClosed) {
+                    try {
+                        console.log('[PomodoroTimer] BrowserWindow 重新获得焦点，检查音频权限');
+                        await this.initializeAudioPlayback(true);
+                    } catch (error) {
+                        console.warn('[PomodoroTimer] 窗口焦点事件音频权限检查失败:', error);
+                    }
+                }
+            });
+        }
     }
 }
