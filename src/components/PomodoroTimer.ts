@@ -700,12 +700,12 @@ export class PomodoroTimer {
 
     private openPomodoroEndWindow() {
         if (!this.settings.pomodoroEndPopupWindow) return;
-        
+
         const frontend = getFrontend();
         const isMobile = frontend.endsWith('mobile');
         const isBrowserDesktop = frontend === 'browser-desktop';
         if (isMobile || isBrowserDesktop) return; // 仅在桌面端启用
-        
+
         this.openPomodoroEndWindowImpl(
             t('pomodoroWorkEnd') || '工作结束',
             t('pomodoroWorkEndDesc') || '工作时间结束，起来走走喝喝水吧！',
@@ -726,12 +726,12 @@ export class PomodoroTimer {
 
     private openRandomNotificationWindow() {
         if (!this.settings.randomNotificationPopupWindow) return;
-        
+
         const frontend = getFrontend();
         const isMobile = frontend.endsWith('mobile');
         const isBrowserDesktop = frontend === 'browser-desktop';
         if (isMobile || isBrowserDesktop) return; // 仅在桌面端启用
-        
+
         console.log('[PomodoroTimer] 打开随机提示音弹窗');
         this.openRandomNotificationWindowImpl(
             t('randomNotificationSettings') || '随机提示音',
