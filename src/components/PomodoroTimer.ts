@@ -269,7 +269,7 @@ export class PomodoroTimer {
     private async initComponents(container?: HTMLElement) {
         await this.recordManager.initialize();
         this.initAudio();
-        this.createWindow(container);
+        await this.createWindow(container);
         this.updateStatsDisplay();
     }
 
@@ -1582,9 +1582,11 @@ export class PomodoroTimer {
         }
     }
 
-    private createWindow(targetContainer?: HTMLElement) {
-        // 检测是否是移动端
-        const isMobile = getFrontend().endsWith('mobile');
+    private async createWindow(targetContainer?: HTMLElement) {
+        // 检测前端类型
+        const frontend = getFrontend();
+        const isMobile = frontend.endsWith('mobile');
+        const isBrowserDesktop = frontend === 'browser-desktop';
 
         // 如果提供了 targetContainer，则创建 DOM 元素（Tab 模式）
         if (this.isTabMode && targetContainer) {
@@ -1592,8 +1594,8 @@ export class PomodoroTimer {
             return;
         }
 
-        // 移动端强制使用 DOM 窗口（因为不支持 BrowserWindow）
-        if (isMobile) {
+        // 移动端或浏览器桌面端强制使用 DOM 窗口（因为不支持 BrowserWindow）
+        if (isMobile || isBrowserDesktop) {
             // 创建一个悬浮的 DOM 窗口
             const container = document.createElement('div');
             document.body.appendChild(container);
@@ -1602,7 +1604,11 @@ export class PomodoroTimer {
         }
 
         // 桌面端创建 BrowserWindow（全局窗口模式）
-        this.createBrowserWindow();
+        try {
+            await this.createBrowserWindow();
+        } catch (e) {
+            this.createDOMWindow(targetContainer);
+        }
     }
 
     private createDOMWindow(targetContainer: HTMLElement) {
@@ -5488,8 +5494,7 @@ export class PomodoroTimer {
                 electron = (window as any).require('electron');
             } catch (e) {
                 console.error("[PomodoroTimer] Failed to require electron", e);
-                showMessage('无法创建番茄钟窗口', 2000);
-                return;
+                throw new Error('Cannot require electron');
             }
 
             let remote = electron.remote;
@@ -5501,15 +5506,13 @@ export class PomodoroTimer {
 
             if (!remote) {
                 console.error("[PomodoroTimer] Failed to get electron remote");
-                showMessage('无法创建番茄钟窗口', 2000);
-                return;
+                throw new Error('Cannot get electron remote');
             }
 
             const BrowserWindowConstructor = remote.BrowserWindow;
             if (!BrowserWindowConstructor) {
                 console.error("[PomodoroTimer] Failed to get BrowserWindow constructor");
-                showMessage('无法创建番茄钟窗口', 2000);
-                return;
+                throw new Error('Cannot get BrowserWindow constructor');
             }
 
             // 检查是否已有BrowserWindow实例
@@ -5546,8 +5549,7 @@ export class PomodoroTimer {
             const screen = remote.screen || electron.screen;
             if (!screen) {
                 console.error("[PomodoroTimer] Failed to get screen object");
-                showMessage('无法创建番茄钟窗口', 2000);
-                return;
+                throw new Error('Cannot get screen object');
             }
 
             const primaryDisplay = screen.getPrimaryDisplay();
@@ -5701,7 +5703,7 @@ export class PomodoroTimer {
 
         } catch (error) {
             console.error('创建番茄钟窗口失败:', error);
-            showMessage('创建番茄钟窗口失败', 2000);
+            throw error;
         }
     }
 
