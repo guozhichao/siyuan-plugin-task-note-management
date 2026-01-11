@@ -784,6 +784,7 @@ export class PomodoroTimer {
                 skipTaskbar: true,
                 hasShadow: true,
                 transparent: false,
+                parent: null, // 确保独立窗口，不依赖主窗口
                 webPreferences: {
                     nodeIntegration: true,
                     contextIsolation: false,
@@ -977,6 +978,7 @@ export class PomodoroTimer {
                 skipTaskbar: true,
                 hasShadow: true,
                 transparent: false,
+                parent: null, // 确保独立窗口，不依赖主窗口
                 webPreferences: {
                     nodeIntegration: false,
                     contextIsolation: true,
@@ -1160,6 +1162,7 @@ export class PomodoroTimer {
                 skipTaskbar: true,
                 hasShadow: true,
                 transparent: false,
+                parent: null, // 确保独立窗口，不依赖主窗口
                 webPreferences: {
                     nodeIntegration: false,
                     contextIsolation: true,
