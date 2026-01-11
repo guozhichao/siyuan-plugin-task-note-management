@@ -3492,6 +3492,11 @@ export class PomodoroTimer {
     }
 
     private updateDisplay() {
+        // 如果窗口已关闭，不执行任何更新
+        if (this.isWindowClosed) {
+            return;
+        }
+
         let displayTime: number;
         let minutes: number;
         let seconds: number;
@@ -3520,8 +3525,22 @@ export class PomodoroTimer {
 
         // BrowserWindow 模式：使用统一的更新方法
         if (!this.isTabMode && this.container && (this.container as any).webContents) {
-            this.updateBrowserWindowDisplay(this.container);
-            return;
+            try {
+                if (!this.container.isDestroyed()) {
+                    this.updateBrowserWindowDisplay(this.container);
+                    return;
+                } else {
+                    // BrowserWindow 被销毁（例如系统休眠恢复后），停止计时器
+                    console.warn('[PomodoroTimer] BrowserWindow was destroyed, stopping timer');
+                    this.close();
+                    return;
+                }
+            } catch (error) {
+                // 如果检查 isDestroyed() 时出错，也认为窗口已销毁
+                console.warn('[PomodoroTimer] Error checking window state, assuming destroyed:', error);
+                this.close();
+                return;
+            }
         }
 
         // DOM 模式：直接更新元素
@@ -3748,6 +3767,15 @@ export class PomodoroTimer {
         }
 
         this.timer = window.setInterval(() => {
+            // 如果窗口已关闭，停止定时器
+            if (this.isWindowClosed) {
+                if (this.timer) {
+                    clearInterval(this.timer);
+                    this.timer = null;
+                }
+                return;
+            }
+
             const currentTime = Date.now();
             const elapsedSinceStart = Math.floor((currentTime - this.startTime) / 1000);
 
@@ -5712,6 +5740,38 @@ export class PomodoroTimer {
                 ipcMain?.removeListener(controlChannel, controlHandler);
             });
 
+            // 监听窗口销毁事件（在系统休眠恢复等情况下可能先于closed事件触发）
+            pomodoroWindow.on('destroyed', () => {
+                console.warn('[PomodoroTimer] BrowserWindow was destroyed unexpectedly');
+                this.isWindowClosed = true;
+                this.stopAllAudio();
+                this.stopRandomNotificationTimer();
+
+                // 清理静态变量引用
+                if (PomodoroTimer.browserWindowInstance === pomodoroWindow) {
+                    PomodoroTimer.browserWindowInstance = null;
+                }
+                if (PomodoroTimer.browserWindowTimer === this) {
+                    PomodoroTimer.browserWindowTimer = null;
+                }
+
+                // 清理计时器
+                if (this.timer) {
+                    clearInterval(this.timer);
+                    this.timer = null;
+                }
+                if (this.autoTransitionTimer) {
+                    clearTimeout(this.autoTransitionTimer);
+                    this.autoTransitionTimer = null;
+                }
+
+                this.detachAudioUnlockListeners();
+
+                // 移除IPC监听器
+                ipcMain?.removeListener(actionChannel, actionHandler);
+                ipcMain?.removeListener(controlChannel, controlHandler);
+            });
+
         } catch (error) {
             console.error('创建番茄钟窗口失败:', error);
             throw error;
@@ -6294,7 +6354,18 @@ export class PomodoroTimer {
      * 更新独立窗口的显示
      */
     private updateBrowserWindowDisplay(window: any) {
-        if (!window || window.isDestroyed()) {
+        // 首先检查窗口是否存在且未销毁
+        if (!window) {
+            return;
+        }
+
+        try {
+            if (window.isDestroyed && window.isDestroyed()) {
+                console.warn('[PomodoroTimer] Window is destroyed, skipping display update');
+                return;
+            }
+        } catch (error) {
+            console.warn('[PomodoroTimer] Error checking if window is destroyed:', error);
             return;
         }
 
@@ -6421,8 +6492,20 @@ export class PomodoroTimer {
                 }
             `;
 
+            // 在执行JavaScript前再次检查窗口是否仍然有效
+            if (!window || window.isDestroyed()) {
+                console.warn('[PomodoroTimer] Window was destroyed before executing JavaScript');
+                return;
+            }
+
             window.webContents.executeJavaScript(updateScript).catch((err: any) => {
                 console.error('[PomodoroTimer] Failed to update display:', err);
+                // 如果是窗口销毁相关的错误，停止更新
+                if (err && err.message && err.message.includes('Object has been destroyed')) {
+                    console.warn('[PomodoroTimer] Window destroyed during display update, stopping updates');
+                    this.isWindowClosed = true;
+                    this.close();
+                }
             });
         } catch (error) {
             console.error('[PomodoroTimer] updateBrowserWindowDisplay error:', error);
