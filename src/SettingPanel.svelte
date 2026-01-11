@@ -322,7 +322,7 @@
                     title: t('pomodoroEndPopupWindow') || '启用番茄钟结束全局弹窗提醒',
                     description:
                         t('pomodoroEndPopupWindowDesc') ||
-                        '开启后，番茄钟工作结束时会在屏幕中央显示弹窗提醒，10秒后自动关闭',
+                        '开启后，番茄钟工作结束时会在屏幕中央显示弹窗提醒，10秒后自动关闭（仅电脑桌面端有效）',
                 },
                 {
                     key: 'dailyFocusGoal',
@@ -404,7 +404,7 @@
                     title: t('randomNotificationPopupWindow') || '启用全局弹窗提醒',
                     description:
                         t('randomNotificationPopupWindowDesc') ||
-                        '开启后，随机提示音开始时会在屏幕中央显示弹窗提醒，结束后自动关闭',
+                        '开启后，随机提示音开始时会在屏幕中央显示弹窗提醒，结束后自动关闭（仅电脑桌面端有效）',
                 },
                 {
                     key: 'randomNotificationMinInterval',
