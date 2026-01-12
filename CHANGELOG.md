@@ -1,3 +1,12 @@
+## v4.5.2 / 20260112
+- 📝 优化任务摘要
+- 🎨 优化番茄钟双击编辑样式
+- 🐛 BrowserWindow模式番茄钟：修复吸附模式和mini模式继承问题
+- 🎨 改进openPomodoroEndWindow和RandomNotificationWindow仅在电脑桌面端才启用，因为手机端和浏览器端没有electron环境无法打开
+- 🐛 番茄钟BrowserWindow模式中途会突然没有工作背景音声音
+- 🐛 番茄钟BrowserWindow模式，关闭随机提示音的BrowserWindo会错误把番茄钟也关闭
+- 🎨 番茄钟：如果无法创建BrowserWindow，改用DOMWindow
+
 ## v4.5.0 / 20260110
 - ✨ 任务侧栏支持筛选所有未完成和无日期任务
 - ✨ 任务支持查看番茄钟数据和补录番茄钟
