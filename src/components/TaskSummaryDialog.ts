@@ -16,11 +16,116 @@ export class TaskSummaryDialog {
 
   private currentDialog: Dialog;
   private currentFilter: string = 'current'; // 'current', 'today', 'tomorrow', 'yesterday', 'thisWeek', 'nextWeek', 'lastWeek', 'thisMonth', 'lastMonth'
+  private lastGroupedTasks: Map<string, Map<string, any[]>> | null = null;
+  private lastStats: any = null;
 
   constructor(calendar?: any, plugin?: any) {
     this.projectManager = ProjectManager.getInstance(plugin);
     this.calendar = calendar;
     this.plugin = plugin;
+  }
+
+  private getDisplayTimeForDate(task: any, date: string): string {
+    // 返回不带前后空格的时间区间字符串，例如 "(14:49-19:49)" 或 "(14:49-23:59)"，若无时间返回空字符串
+    const sd = task.fullStartDate;
+    const ed = task.fullEndDate;
+    const st = task.time;
+    const et = task.endTime;
+
+    const wrap = (s: string) => s ? ` (${s})` : '';
+
+    if (!sd && !ed) {
+      if (st) return wrap(st + (et ? `-${et}` : ''));
+      return '';
+    }
+
+    if (!ed || sd === ed) {
+      if (st && et) return wrap(`${st}-${et}`);
+      if (st) return wrap(st);
+      return '';
+    }
+
+    // 跨天任务
+    if (date === sd) {
+      if (st) return wrap(`${st}-23:59`);
+      return wrap('全天');
+    }
+
+    if (date === ed) {
+      if (et) return wrap(`00:00-${et}`);
+      return wrap('全天');
+    }
+
+    // 中间天
+    return wrap('00:00-23:59');
+  }
+
+  private formatMonthDay(dateStr: string): string {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    return `${d.getMonth() + 1}月${d.getDate()}日`;
+  }
+
+  private formatRepeatLabel(repeat: any, startDate?: string): string {
+    if (!repeat || !repeat.type) return '';
+    const interval = repeat.interval || 1;
+    switch (repeat.type) {
+      case 'daily':
+        return interval === 1 ? t('daily') || '每天' : `${t('every') || '每'}${interval}${t('days') || '天'}`;
+      case 'weekly': {
+        // 优先使用配置中的 weekDays
+        if (repeat.weekDays && repeat.weekDays.length > 0) {
+          const days = repeat.weekDays.map((d: number) => {
+            const keys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            return t(keys[d]);
+          }).join('、');
+          return `🔄 ${t('weekly') || '每周'} (${days})`;
+        }
+        // 如果没有显式 weekDays，尝试从 startDate 推断单一星期几
+        if (startDate) {
+          try {
+            const sd = new Date(startDate + 'T00:00:00');
+            const d = sd.getDay();
+            const keys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const dayLabel = t(keys[d]);
+            return `🔄 ${t('weekly') || '每周'}${dayLabel}`;
+          } catch (e) {
+            // fallback
+          }
+        }
+        return interval === 1 ? `🔄 ${t('weekly') || '每周'}` : `🔄 ${t('every') || '每'}${interval}${t('weeks') || '周'}`;
+      }
+      case 'monthly': {
+        if (repeat.monthDays && repeat.monthDays.length > 0) {
+          return `${t('monthly') || '每月'} (${repeat.monthDays.join('、')}${t('day') || '日'})`;
+        }
+        return interval === 1 ? t('monthly') || '每月' : `${t('every') || '每'}${interval}${t('months') || '月'}`;
+      }
+      case 'yearly':
+        return t('yearly') || '每年';
+      case 'custom': {
+        const parts: string[] = [];
+        if (repeat.weekDays && repeat.weekDays.length) {
+          const days = repeat.weekDays.map((d: number) => t(['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][d]));
+          parts.push(`${t('weekly') || '每周'}(${days.join('、')})`);
+        }
+        if (repeat.monthDays && repeat.monthDays.length) {
+          parts.push(`${t('monthly') || '每月'}(${repeat.monthDays.join('、')}${t('day') || '日'})`);
+        }
+        if (repeat.months && repeat.months.length) {
+          parts.push(`${t('yearly') || '每年'}(${repeat.months.join('、')}${t('month') || '月'})`);
+        }
+        return parts.join(' ');
+      }
+      case 'ebbinghaus':
+        return t('ebbinghaus') || '艾宾浩斯';
+      case 'lunar-monthly':
+        return t('lunarMonthly') || '农历每月';
+      case 'lunar-yearly':
+        return t('lunarYearly') || '农历每年';
+      default:
+        return '';
+    }
   }
 
   /**
@@ -63,9 +168,13 @@ export class TaskSummaryDialog {
     // 获取统计数据
     const stats = await this.calculateStats(dateRange.start, dateRange.end);
 
+    // 保存上次生成的数据，供复制使用
+    this.lastGroupedTasks = groupedTasks;
+    this.lastStats = stats;
+
     container.innerHTML = this.generateSummaryContent(groupedTasks, dateRange, stats);
 
-    this.bindSummaryEvents(groupedTasks);
+    this.bindSummaryEvents();
   }
 
   private getFilterDateRange(): { start: string, end: string, label: string } {
@@ -544,6 +653,7 @@ export class TaskSummaryDialog {
       extendedProps: {
         completed: isCompleted,
         note: reminder.note || '',
+        dailyCompletions: reminder.dailyCompletions || {},
         date: reminder.date,
         endDate: reminder.endDate || null,
         time: reminder.time || null,
@@ -713,18 +823,30 @@ export class TaskSummaryDialog {
         (t("noProject") || "无项目") :
         this.projectManager.getProjectName(projectId) || projectId;
 
+      const perDateCompleted = (d: string) => {
+        const dc = event.extendedProps.dailyCompletions || {};
+        return (event.extendedProps.completed === true) || (dc[d] === true);
+      };
+
       const taskData = {
         id: event.extendedProps.originalId || event.extendedProps.blockId || event.id,
         title: event.originalTitle || event.title,
+        // completed will be set per-date when adding to grouped map
         completed: event.extendedProps.completed,
         priority: event.extendedProps.priority,
         time: event.extendedProps.time,
+        endTime: event.extendedProps.endTime,
+        fullStartDate: event.extendedProps.date,
+        fullEndDate: event.extendedProps.endDate || null,
+        repeat: event.extendedProps.repeat || null,
+        repeatLabel: event.extendedProps.repeat ? this.formatRepeatLabel(event.extendedProps.repeat, event.extendedProps.date) : '',
         note: event.extendedProps.note,
-        docTitle: event.extendedProps.docTitle
+        docTitle: event.extendedProps.docTitle,
+        _perDateCompleted: perDateCompleted
       };
 
       // 如果有结束日期，说明是跨天任务，在每个相关日期都显示
-      if (endDate && endDate !== startDate) {
+          if (endDate && endDate !== startDate) {
         const start = new Date(Math.max(new Date(startDate).getTime(), new Date(dateRange.start).getTime()));
         const end = new Date(Math.min(new Date(endDate).getTime(), new Date(dateRange.end).getTime()));
 
@@ -742,7 +864,10 @@ export class TaskSummaryDialog {
             dateGroup.set(projectName, []);
           }
 
-          dateGroup.get(projectName).push(taskData);
+          // for cross-day tasks, set completed per-date
+          const item = { ...taskData };
+          item.completed = typeof taskData._perDateCompleted === 'function' ? taskData._perDateCompleted(dateStr) : taskData.completed;
+          dateGroup.get(projectName).push(item);
 
           // 移动到下一天
           currentDate.setDate(currentDate.getDate() + 1);
@@ -758,7 +883,11 @@ export class TaskSummaryDialog {
           dateGroup.set(projectName, []);
         }
 
-        dateGroup.get(projectName).push(taskData);
+        // 单日任务，按原来的逻辑处理
+        const item = { ...taskData };
+        const dateStr = startDate;
+        item.completed = typeof taskData._perDateCompleted === 'function' ? taskData._perDateCompleted(dateStr) : taskData.completed;
+        dateGroup.get(projectName).push(item);
       }
     });
 
@@ -793,6 +922,17 @@ export class TaskSummaryDialog {
       { id: 'lastMonth', label: t('lastMonth') },
     ];
 
+    // 统计任务完成/总数（按显示实例计数）
+    let totalTasks = 0;
+    let completedTasks = 0;
+    groupedTasks.forEach((projMap) => {
+      projMap.forEach((tasks) => {
+        totalTasks += tasks.length;
+        tasks.forEach((t: any) => { if (t.completed) completedTasks++; });
+      });
+    });
+    const completionText = `已完成 ${completedTasks}/${totalTasks} 任务`;
+
     let html = `
         <div class="task-summary-wrapper" style="display: flex; flex-direction: column; height: 100%; padding: 16px;">
             <div class="task-summary-toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
@@ -822,10 +962,14 @@ export class TaskSummaryDialog {
             </div>
 
             <div class="task-summary-info-cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px;">
-                <div class="info-card" style="padding: 12px; background: var(--b3-theme-surface); border-radius: 8px; border: 1px solid var(--b3-border-color);">
-                    <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">${t('currentRange') || '当前范围'}</div>
-                    <div style="font-size: 14px; font-weight: bold; margin-top: 4px;">${dateRange.label}</div>
-                </div>
+              <div class="info-card" style="padding: 12px; background: var(--b3-theme-surface); border-radius: 8px; border: 1px solid var(--b3-border-color);">
+                <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">${t('currentRange') || '当前范围'}</div>
+                <div style="font-size: 14px; font-weight: bold; margin-top: 4px;">${dateRange.label}</div>
+              </div>
+              <div class="info-card" id="task-completion-card" style="padding: 12px; background: var(--b3-theme-surface); border-radius: 8px; border: 1px solid var(--b3-border-color);">
+                <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">✅ 任务完成情况</div>
+                <div style="font-size: 14px; font-weight: bold; margin-top: 4px;">${completionText}</div>
+              </div>
                 ${stats.settings.showPomodoro ? `
                 <div class="info-card" style="padding: 12px; background: var(--b3-theme-surface); border-radius: 8px; border: 1px solid var(--b3-border-color);">
                     <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">🍅 ${t('pomodoroFocus') || '番茄专注'}</div>
@@ -855,6 +999,8 @@ export class TaskSummaryDialog {
 
     // 按日期排序
     const sortedDates = Array.from(allDates).sort();
+
+    
 
     if (sortedDates.length === 0) {
       html += `<div style="text-align: center; padding: 40px; color: var(--b3-theme-on-surface-light);">${t('noTasks') || '暂无任务'}</div>`;
@@ -921,7 +1067,12 @@ export class TaskSummaryDialog {
           tasks.forEach(task => {
             const completedClass = task.completed ? 'completed' : '';
             const priorityClass = `priority-${task.priority}`;
-            const timeStr = task.time ? ` (${task.time})` : '';
+            let timeStr = '';
+            if (task.fullEndDate && task.fullEndDate !== task.fullStartDate) {
+              timeStr = ` (${this.formatMonthDay(task.fullStartDate)}-${this.formatMonthDay(task.fullEndDate)})`;
+            } else {
+              timeStr = this.getDisplayTimeForDate(task, date);
+            }
 
             // 获取番茄钟统计
             let pomodoroStr = '';
@@ -931,12 +1082,12 @@ export class TaskSummaryDialog {
             }
 
             html += `
-                        <li class="task-item ${completedClass} ${priorityClass}">
-                            <span class="task-checkbox">${task.completed ? '✅' : '⬜'}</span>
-                            <span class="task-title">${task.title}${timeStr}${pomodoroStr}</span>
-                            ${task.note ? `<div class="task-note">${task.note}</div>` : ''}
-                        </li>
-                    `;
+                  <li class="task-item ${completedClass} ${priorityClass}">
+                    <span class="task-checkbox">${task.completed ? '✅' : '⬜'}</span>
+                    <span class="task-title">${task.title}${task.repeatLabel ? ` <span style="color:#888; font-size:12px;">(${task.repeatLabel})</span>` : ''}${timeStr}${pomodoroStr}</span>
+                    ${task.note ? `<div class="task-note">${task.note}</div>` : ''}
+                  </li>
+                `;
           });
 
           html += `</ul></div>`;
@@ -1027,7 +1178,7 @@ export class TaskSummaryDialog {
   /**
    * 绑定摘要事件
    */
-  private bindSummaryEvents(groupedTasks: Map<string, Map<string, any[]>>) {
+  private bindSummaryEvents() {
     const container = this.currentDialog.element.querySelector('#task-summary-dialog-container');
     if (!container) return;
 
@@ -1048,26 +1199,35 @@ export class TaskSummaryDialog {
     const copyPlainBtn = document.getElementById('copy-plain-btn');
 
     if (copyRichBtn) {
-      copyRichBtn.addEventListener('click', () => this.executeCopy('rich', groupedTasks));
+      copyRichBtn.addEventListener('click', () => this.executeCopy('rich'));
     }
     if (copyMdBtn) {
-      copyMdBtn.addEventListener('click', () => this.executeCopy('markdown', groupedTasks));
+      copyMdBtn.addEventListener('click', () => this.executeCopy('markdown'));
     }
     if (copyPlainBtn) {
-      copyPlainBtn.addEventListener('click', () => this.executeCopy('plain', groupedTasks));
+      copyPlainBtn.addEventListener('click', () => this.executeCopy('plain'));
     }
   }
 
   /**
    * 复制任务摘要到剪贴板
    */
-  public copyTaskSummary(groupedTasks: Map<string, Map<string, any[]>>) {
+  public copyTaskSummary(groupedTasks?: Map<string, Map<string, any[]>>, stats?: any) {
+    const g = groupedTasks || this.lastGroupedTasks || new Map();
+    const s = stats || this.lastStats || {};
+
     let text = '';
 
-    const sortedDates = Array.from(groupedTasks.keys()).sort();
+    // 合并日期来源：任务 + 番茄 + 习惯
+    const allDates = new Set<string>();
+    g.forEach((_, d) => allDates.add(d));
+    if (s && s.pomodoro && s.pomodoro.byDate) Object.keys(s.pomodoro.byDate).forEach(d => allDates.add(d));
+    if (s && s.habit && s.habit.byDate) Object.keys(s.habit.byDate).forEach(d => allDates.add(d));
+
+    const sortedDates = Array.from(allDates).sort();
 
     sortedDates.forEach(date => {
-      const dateProjects = groupedTasks.get(date);
+      const dateProjects = g.get(date) || new Map();
       const dateObj = new Date(date);
       const formattedDate = dateObj.toLocaleDateString('zh-CN', {
         year: 'numeric',
@@ -1077,10 +1237,29 @@ export class TaskSummaryDialog {
       });
 
       // 非日视图时才添加日期标题
-      if (this.calendar && this.calendar.view.type !== 'timeGridDay') {
+      if (this.calendar && this.calendar.view && this.calendar.view.type !== 'timeGridDay') {
         text += `## ${formattedDate}
 
 `;
+      }
+
+      // 番茄钟
+      if (s && s.pomodoro && s.pomodoro.byDate && s.pomodoro.byDate[date]) {
+        const p = s.pomodoro.byDate[date];
+        text += `🍅 专注：${p.count} 个番茄钟 (${(p.minutes / 60).toFixed(1)} 小时)
+\n`;
+      }
+
+      // 习惯
+      if (s && s.habit && s.habit.byDate && s.habit.byDate[date]) {
+        const hlist = s.habit.byDate[date];
+        text += `💪 ${t('habitCheckIn') || '习惯打卡'}\n\n`;
+        hlist.forEach((h: any) => {
+          const progress = h.completed ? '- [x]' : '- [ ]';
+          const emojiStr = h.emojis && h.emojis.length ? h.emojis.join('') : (t('noneVal') || '无');
+          text += `${progress} ${h.title} (${t('frequency') || '频率'}：${h.frequencyLabel}，${t('targetTimes') || '目标次数'}：${h.target}，${t('todayCheckIn') || '今天打卡'}：${emojiStr})\n`;
+        });
+        text += `\n`;
       }
 
       dateProjects.forEach((tasks, projectName) => {
@@ -1090,9 +1269,20 @@ export class TaskSummaryDialog {
 
         tasks.forEach(task => {
           const checkbox = task.completed ? '- [x]' : '- [ ]';
-          const timeStr = task.time ? ` (${task.time})` : '';
+          let timeStr = '';
+          if (task.fullEndDate && task.fullEndDate !== task.fullStartDate) {
+            timeStr = ` (${this.formatMonthDay(task.fullStartDate)}-${this.formatMonthDay(task.fullEndDate)})`;
+          } else {
+            timeStr = this.getDisplayTimeForDate(task, date);
+          }
+          // 获取番茄钟统计（如果有）
+          let pomodoroStr = '';
+          if (s && s.pomodoro && s.pomodoro.byDate && s.pomodoro.byDate[date] && s.pomodoro.byDate[date].taskStats && s.pomodoro.byDate[date].taskStats[task.id]) {
+            const tStat = s.pomodoro.byDate[date].taskStats[task.id];
+            pomodoroStr = ` (🍅 ${tStat.count} | 🕒 ${tStat.minutes}m)`;
+          }
 
-          text += `${checkbox} ${task.title}${timeStr}
+          text += `${checkbox} ${task.title}${task.repeatLabel ? ` (${task.repeatLabel})` : ''}${timeStr}${pomodoroStr}
 `;
           if (task.note) {
             text += `  > ${task.note}
@@ -1100,12 +1290,10 @@ export class TaskSummaryDialog {
           }
         });
 
-        text += `
-`;
+        text += `\n`;
       });
 
-      text += `
-`;
+      text += `\n`;
     });
 
     navigator.clipboard.writeText(text).then(() => {
@@ -1119,13 +1307,22 @@ export class TaskSummaryDialog {
   /**
    * 复制任务摘要纯文本到剪贴板（带编号）
    */
-  public copyTaskSummaryPlainText(groupedTasks: Map<string, Map<string, any[]>>) {
+  public copyTaskSummaryPlainText(groupedTasks?: Map<string, Map<string, any[]>>, stats?: any) {
+    const g = groupedTasks || this.lastGroupedTasks || new Map();
+    const s = stats || this.lastStats || {};
+
     let text = '';
 
-    const sortedDates = Array.from(groupedTasks.keys()).sort();
+    // 合并日期来源
+    const allDates = new Set<string>();
+    g.forEach((_, d) => allDates.add(d));
+    if (s && s.pomodoro && s.pomodoro.byDate) Object.keys(s.pomodoro.byDate).forEach(d => allDates.add(d));
+    if (s && s.habit && s.habit.byDate) Object.keys(s.habit.byDate).forEach(d => allDates.add(d));
+
+    const sortedDates = Array.from(allDates).sort();
 
     sortedDates.forEach(date => {
-      const dateProjects = groupedTasks.get(date);
+      const dateProjects = g.get(date) || new Map();
       const dateObj = new Date(date);
       const formattedDate = dateObj.toLocaleDateString('zh-CN', {
         year: 'numeric',
@@ -1135,32 +1332,58 @@ export class TaskSummaryDialog {
       });
 
       // 非日视图时才添加日期标题
-      if (this.calendar && this.calendar.view.type !== 'timeGridDay') {
+      if (this.calendar && this.calendar.view && this.calendar.view.type !== 'timeGridDay') {
         text += `${formattedDate}
 ${'-'.repeat(formattedDate.length)}
 
 `;
       }
 
+      // 番茄
+      if (s && s.pomodoro && s.pomodoro.byDate && s.pomodoro.byDate[date]) {
+        const p = s.pomodoro.byDate[date];
+        text += `🍅 专注：${p.count} 个番茄钟 (${(p.minutes / 60).toFixed(1)} 小时)\n\n`;
+      }
+
+      // 习惯
+      if (s && s.habit && s.habit.byDate && s.habit.byDate[date]) {
+        const hlist = s.habit.byDate[date];
+        text += `💪 ${t('habitCheckIn') || '习惯打卡'}\n`;
+        hlist.forEach((h: any) => {
+          const progress = h.completed ? '✅' : '⬜';
+          const emojiStr = h.emojis && h.emojis.length ? h.emojis.join('') : (t('noneVal') || '无');
+          text += `${progress} ${h.title} (${t('frequency') || '频率'}：${h.frequencyLabel}，${t('targetTimes') || '目标次数'}：${h.target}，${t('todayCheckIn') || '今天打卡'}：${emojiStr})\n`;
+        });
+        text += `\n`;
+      }
+
       dateProjects.forEach((tasks, projectName) => {
-        text += `【${projectName}】
-`;
+        text += `【${projectName}】\n`;
 
         let taskNumber = 1; // 全局任务编号
         tasks.forEach(task => {
-          const timeStr = task.time ? ` (${task.time})` : '';
+          let timeStr = '';
+          if (task.fullEndDate && task.fullEndDate !== task.fullStartDate) {
+            timeStr = ` (${this.formatMonthDay(task.fullStartDate)}-${this.formatMonthDay(task.fullEndDate)})`;
+          } else {
+            timeStr = this.getDisplayTimeForDate(task, date);
+          }
 
-          text += `${taskNumber}.  ${task.title}
-`;
-          taskNumber++;
+          // 番茄钟统计
+          let pomodoroStr = '';
+          if (s && s.pomodoro && s.pomodoro.byDate && s.pomodoro.byDate[date] && s.pomodoro.byDate[date].taskStats && s.pomodoro.byDate[date].taskStats[task.id]) {
+            const tStat = s.pomodoro.byDate[date].taskStats[task.id];
+            pomodoroStr = ` (🍅 ${tStat.count} | 🕒 ${tStat.minutes}m)`;
+          }
+
+          const checkbox = task.completed ? '✅' : '⬜';
+          text += `${checkbox} ${task.title}${task.repeatLabel ? ` (${task.repeatLabel})` : ''}${timeStr}${pomodoroStr}\n`;
         });
 
-        text += `
-`;
+        text += `\n`;
       });
 
-      text += `
-`;
+      text += `\n`;
     });
 
     navigator.clipboard.writeText(text).then(() => {
@@ -1175,14 +1398,23 @@ ${'-'.repeat(formattedDate.length)}
    * 复制任务摘要富文本到剪贴板（带编号，HTML格式）
    */
   public copyTaskSummaryRichText(groupedTasks: Map<string, Map<string, any[]>>) {
+    const g = groupedTasks || this.lastGroupedTasks || new Map();
+    const s = this.lastStats || {};
+
     let html = '';
 
-    const sortedDates = Array.from(groupedTasks.keys()).sort();
+    // 合并日期来源
+    const allDates = new Set<string>();
+    g.forEach((_, d) => allDates.add(d));
+    if (s && s.pomodoro && s.pomodoro.byDate) Object.keys(s.pomodoro.byDate).forEach(d => allDates.add(d));
+    if (s && s.habit && s.habit.byDate) Object.keys(s.habit.byDate).forEach(d => allDates.add(d));
+
+    const sortedDates = Array.from(allDates).sort();
 
     html += '<div style="font-family: Arial, sans-serif; line-height: 1.6;">';
 
     sortedDates.forEach(date => {
-      const dateProjects = groupedTasks.get(date);
+      const dateProjects = g.get(date) || new Map();
       const dateObj = new Date(date);
       const formattedDate = dateObj.toLocaleDateString('zh-CN', {
         year: 'numeric',
@@ -1192,21 +1424,53 @@ ${'-'.repeat(formattedDate.length)}
       });
 
       // 非日视图时才添加日期标题
-      if (this.calendar && this.calendar.view.type !== 'timeGridDay') {
+      if (this.calendar && this.calendar.view && this.calendar.view.type !== 'timeGridDay') {
         html += `<h2 style="color: #1976D2; margin: 20px 0 12px 0; font-size: 18px; border-bottom: 2px solid #1976D2; padding-bottom: 4px;">${formattedDate}</h2>`;
+      }
+
+      // 番茄
+      if (s && s.pomodoro && s.pomodoro.byDate && s.pomodoro.byDate[date]) {
+        const p = s.pomodoro.byDate[date];
+        html += `<div style="margin-left:16px; color:#555;">🍅 专注：${p.count} 个番茄钟 (${(p.minutes / 60).toFixed(1)} 小时)</div>`;
+      }
+
+      // 习惯
+      if (s && s.habit && s.habit.byDate && s.habit.byDate[date]) {
+        const hlist = s.habit.byDate[date];
+        html += `<div style="margin-left:16px; color:#555;">💪 习惯打卡：</div><ul>`;
+        hlist.forEach((h: any) => {
+          const progress = h.completed ? '✅' : '⬜';
+          const emojiStr = h.emojis && h.emojis.length ? h.emojis.join('') : (t('noneVal') || '无');
+          html += `<li style="margin:4px 0;">${progress} ${h.title} (${t('frequency') || '频率'}：${h.frequencyLabel}，${t('targetTimes') || '目标次数'}：${h.target}，${t('todayCheckIn') || '今天打卡'}：${emojiStr})</li>`;
+        });
+        html += `</ul>`;
       }
 
       dateProjects.forEach((tasks, projectName) => {
         html += `<h3 style="color: #2196F3; margin: 16px 0 8px 0; font-size: 16px;">【${projectName}】</h3>`;
-        html += '<ol style="margin: 0 0 16px 0; padding-left: 20px;">';
+        html += '<ul style="margin: 0 0 16px 0; padding-left: 20px;">';
 
         tasks.forEach(task => {
-          // const timeStr = task.time ? ` <span style="color: #666; font-size: 12px;">(${task.time})</span>` : '';
+          let timeHtml = '';
+          if (task.fullEndDate && task.fullEndDate !== task.fullStartDate) {
+            timeHtml = ` <span style="color: #666; font-size: 12px;">(${this.formatMonthDay(task.fullStartDate)}-${this.formatMonthDay(task.fullEndDate)})</span>`;
+          } else {
+            const dt = this.getDisplayTimeForDate(task, date);
+            if (dt) timeHtml = ` <span style="color: #666; font-size: 12px;">${dt.trim()}</span>`;
+          }
 
-          html += `<li style="margin: 4px 0; color: #333;">${task.title}</li>`;
+          // 番茄钟统计
+          let pomodoroHtml = '';
+          if (s && s.pomodoro && s.pomodoro.byDate && s.pomodoro.byDate[date] && s.pomodoro.byDate[date].taskStats && s.pomodoro.byDate[date].taskStats[task.id]) {
+            const tStat = s.pomodoro.byDate[date].taskStats[task.id];
+            pomodoroHtml = ` <span style="color:#888; font-size:12px;">(🍅 ${tStat.count} | 🕒 ${tStat.minutes}m)</span>`;
+          }
+
+          const checkbox = task.completed ? '✅' : '⬜';
+          html += `<li style="margin: 4px 0; color: #333;">${checkbox} ${task.title}${task.repeatLabel ? ` <span style="color:#888; font-size:12px;">(${task.repeatLabel})</span>` : ''}${timeHtml}${pomodoroHtml}</li>`;
         });
 
-        html += '</ol>';
+        html += '</ul>';
       });
 
       html += '<br>';
@@ -1237,18 +1501,21 @@ ${'-'.repeat(formattedDate.length)}
    * 执行复制操作
    */
   public executeCopy(copyType: string, groupedTasks: Map<string, Map<string, any[]>>) {
+    const g = groupedTasks || this.lastGroupedTasks || undefined;
+    const s = this.lastStats || undefined;
+
     switch (copyType) {
       case 'rich':
-        this.copyTaskSummaryRichText(groupedTasks);
+        this.copyTaskSummaryRichText(g || new Map());
         break;
       case 'markdown':
-        this.copyTaskSummary(groupedTasks);
+        this.copyTaskSummary(g, s);
         break;
       case 'plain':
-        this.copyTaskSummaryPlainText(groupedTasks);
+        this.copyTaskSummaryPlainText(g, s);
         break;
       default:
-        this.copyTaskSummaryRichText(groupedTasks);
+        this.copyTaskSummaryRichText(g || new Map());
     }
   }
 
