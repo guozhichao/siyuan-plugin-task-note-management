@@ -5573,11 +5573,30 @@ export class PomodoroTimer {
                 // 复用已有窗口，更新内容
                 console.log('[PomodoroTimer] 复用现有BrowserWindow窗口');
 
-                // 如果有之前的Timer实例，先清理它的状态
-                if (PomodoroTimer.browserWindowTimer && PomodoroTimer.browserWindowTimer !== this) {
-                    // 保存旧实例的状态用于可能的继承
-                    const oldState = PomodoroTimer.browserWindowTimer.getCurrentState();
-                    console.log('[PomodoroTimer] 从旧实例获取状态:', oldState);
+                // 如果有之前的Timer实例，先尝试从旧实例同步窗口模式状态
+                const oldTimer = PomodoroTimer.browserWindowTimer;
+                if (oldTimer && oldTimer !== this) {
+                    try {
+                        // 复制吸附/迷你与窗口 bounds 状态，保证新实例反映实际窗口行为
+                        this.isDocked = !!oldTimer.isDocked;
+                        this.isMiniMode = !!oldTimer.isMiniMode;
+                        this.normalWindowBounds = oldTimer.normalWindowBounds ? { ...oldTimer.normalWindowBounds } : null;
+                        console.log('[PomodoroTimer] 从旧实例同步窗口模式:', { isDocked: this.isDocked, isMiniMode: this.isMiniMode, normalWindowBounds: this.normalWindowBounds });
+                    } catch (err) {
+                        console.warn('[PomodoroTimer] 同步旧实例窗口模式失败:', err);
+                    }
+                } else {
+                    // 如果没有旧实例，尝试从窗口 DOM class 推断当前模式（作为兜底）
+                    try {
+                        const classes: string = await pomodoroWindow.webContents.executeJavaScript('Array.from(document.body.classList).join(" ")');
+                        if (classes && typeof classes === 'string') {
+                            this.isDocked = classes.includes('docked-mode');
+                            this.isMiniMode = classes.includes('mini-mode');
+                            console.log('[PomodoroTimer] 从窗口 DOM 推断模式:', classes, { isDocked: this.isDocked, isMiniMode: this.isMiniMode });
+                        }
+                    } catch (err) {
+                        // ignore
+                    }
                 }
 
                 // 更新当前实例引用
@@ -6319,9 +6338,60 @@ export class PomodoroTimer {
             // 重新加载窗口内容
             await pomodoroWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent));
 
+            // 加载完成后，根据当前实例的模式（迷你/吸附）修正窗口大小、bounds 和 DOM class
+            try {
+                if (this.isMiniMode) {
+                    if (!this.normalWindowBounds) {
+                        try { this.normalWindowBounds = pomodoroWindow.getBounds(); } catch (e) { this.normalWindowBounds = null; }
+                    }
+                    try {
+                        pomodoroWindow.setSize(120, 120);
+                        pomodoroWindow.setResizable(false);
+                    } catch (e) { }
+                    try {
+                        await pomodoroWindow.webContents.executeJavaScript(`document.body.classList.add('mini-mode');document.body.classList.remove('docked-mode');`);
+                    } catch (e) { }
+                } else if (this.isDocked) {
+                    if (!this.normalWindowBounds) {
+                        try { this.normalWindowBounds = pomodoroWindow.getBounds(); } catch (e) { this.normalWindowBounds = null; }
+                    }
+                    try {
+                        const electronReq = (window as any).require;
+                        const remote = electronReq?.('@electron/remote') || electronReq?.('electron')?.remote || (window as any).require('electron')?.remote;
+                        const screen = remote?.screen || (electronReq?.('electron')?.screen || null);
+                        if (screen && screen.getPrimaryDisplay) {
+                            const primary = screen.getPrimaryDisplay();
+                            const { width: sw, height: sh } = primary.workAreaSize;
+                            const barWidth = 8;
+                            pomodoroWindow.setBounds({ x: sw - barWidth, y: 0, width: barWidth, height: sh });
+                            pomodoroWindow.setResizable(false);
+                        }
+                    } catch (e) { }
+                    try {
+                        await pomodoroWindow.webContents.executeJavaScript(`document.body.classList.add('docked-mode');document.body.classList.remove('mini-mode');`);
+                    } catch (e) { }
+                } else {
+                    // 正常窗口，恢复可拖拽大小
+                    try {
+                        pomodoroWindow.setResizable(true);
+                        if (this.normalWindowBounds) {
+                            pomodoroWindow.setBounds(this.normalWindowBounds);
+                            this.normalWindowBounds = null;
+                        } else {
+                            pomodoroWindow.setSize(240, 235);
+                        }
+                    } catch (e) { }
+                    try {
+                        await pomodoroWindow.webContents.executeJavaScript(`document.body.classList.remove('mini-mode');document.body.classList.remove('docked-mode');`);
+                    } catch (e) { }
+                }
+            } catch (err) {
+                console.warn('[PomodoroTimer] 应用窗口模式到复用窗口时出错:', err);
+            }
+
             // 设置窗口事件监听器（如果需要重新注册）
-            const ipcMain = (window as any).require?.('electron')?.remote?.ipcMain ||
-                (window as any).require?.('@electron/remote')?.ipcMain;
+            const electronReq = (window as any).require;
+            const ipcMain = electronReq?.('electron')?.remote?.ipcMain || electronReq?.('@electron/remote')?.ipcMain || electronReq?.('electron')?.ipcMain;
 
             if (ipcMain) {
                 // 清理旧的监听器
@@ -6330,7 +6400,16 @@ export class PomodoroTimer {
                 ipcMain.removeAllListeners(oldActionChannel);
                 ipcMain.removeAllListeners(oldControlChannel);
 
-                // 添加新的监听器
+                // 解析 screen（用于 dock 操作）
+                let screen: any = null;
+                try {
+                    const remote = electronReq?.('@electron/remote') || electronReq?.('electron')?.remote || (window as any).require('electron')?.remote;
+                    screen = remote?.screen || electronReq?.('electron')?.screen || null;
+                } catch (e) {
+                    screen = null;
+                }
+
+                // 添加新的监听器，包含迷你/吸附/恢复等操作
                 const actionHandler = (_event: any, method: string) => {
                     this.callMethod(method);
                 };
@@ -6348,6 +6427,17 @@ export class PomodoroTimer {
                         case 'heartbeat':
                             // 响应心跳消息
                             _event.sender.send(`${controlChannel}-heartbeat-response`);
+                            break;
+                        case 'toggleMiniMode':
+                            this.toggleBrowserWindowMiniMode(pomodoroWindow);
+                            break;
+                        case 'toggleDock':
+                            this.toggleBrowserWindowDock(pomodoroWindow, screen);
+                            break;
+                        case 'restoreFromDocked':
+                            this.restoreFromDocked(pomodoroWindow, screen);
+                            break;
+                        default:
                             break;
                     }
                 };
