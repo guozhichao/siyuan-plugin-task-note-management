@@ -4844,14 +4844,14 @@ export class PomodoroTimer {
             `;
         } else {
             input.style.cssText = `
-                font-size: clamp(18px, 10vmin, 16vh);
+                font-size: 24px;
                 font-weight: 700;
                 color: var(--b3-theme-on-surface);
                 background: var(--b3-theme-surface);
                 border: 2px solid var(--b3-theme-primary);
                 border-radius: 4px;
                 padding: 2px 4px;
-                width: clamp(80px, 30vw, 200px);
+                width: 80px;
                 max-width: 200px;
                 text-align: center;
                 font-variant-numeric: tabular-nums;
@@ -5036,8 +5036,7 @@ export class PomodoroTimer {
                     border: 2px solid var(--b3-theme-primary);
                     border-radius: 4px;
                     padding: 2px 4px;
-                    width: clamp(80px, 30vw, 200px);
-                    max-width: 200px;
+                    width: clamp(80px, 30vw, 1000px);
                     text-align: center;
                     font-variant-numeric: tabular-nums;
                     outline: none;
