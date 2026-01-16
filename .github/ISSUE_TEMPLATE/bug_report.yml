@@ -12,6 +12,13 @@ body:
         请不要不经思考随意提大量 issue，因为这会打扰到我并浪费我的时间。
   - type: checkboxes
     attributes:
+      label: 是否已 Star 本仓库？
+      description: 未 Star 的用户 Issue 会被直接关闭。
+      options:
+        - label: 我已 Star 本仓库
+          required: true
+  - type: checkboxes
+    attributes:
       label: 是否已搜索现有 Issue？
       description: |
         请先在现有 Issue 中搜索，避免重复提交相同问题。
