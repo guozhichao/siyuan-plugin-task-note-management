@@ -75,10 +75,10 @@ export class ReminderPanel {
 
         // 创建事件处理器
         this.reminderUpdatedHandler = (event?: CustomEvent) => {
-            // 如果事件标记为跳过面板刷新（局部更新），则不刷新
-            if (event && event.detail?.skipPanelRefresh) {
-                return;
-            }
+            // 注释掉 skipPanelRefresh 检查，确保番茄完成后能够刷新显示
+            // if (event && event.detail?.skipPanelRefresh) {
+            //     return;
+            // }
 
             // 防抖处理，避免短时间内的多次更新
             if (this.loadTimeoutId) {
@@ -503,7 +503,7 @@ export class ReminderPanel {
             if (sortType === 'time') {
                 const hasDateA = !!a.date;
                 const hasDateB = !!b.date;
-                
+
                 if (!hasDateA && !hasDateB) {
                     // 两个都没有日期，按优先级排序
                     return this.compareByPriorityValue(a, b);
@@ -1851,7 +1851,7 @@ export class ReminderPanel {
 
         // 添加番茄钟计数显示（使用预处理的缓存数据），同时显示总专注时长
         const cachedData = asyncDataCache.get(reminder.id);
-        if (cachedData && ((cachedData.pomodoroCount && cachedData.pomodoroCount > 0) || (cachedData.todayPomodoroCount && cachedData.todayPomodoroCount > 0) || (cachedData.focusTime && cachedData.focusTime > 0) || (cachedData.todayFocusTime && cachedData.todayFocusTime > 0))) {
+        if (cachedData && ((cachedData.pomodoroCount && cachedData.pomodoroCount > 0) || (cachedData.todayPomodoroCount && cachedData.todayPomodoroCount > 0) || (cachedData.focusTime && cachedData.focusTime > 0) || (cachedData.todayFocusTime && cachedData.todayFocusTime > 0) || reminder.estimatedPomodoroDuration)) {
             const pomodoroDisplay = document.createElement('div');
             pomodoroDisplay.className = 'reminder-item__pomodoro-count';
             pomodoroDisplay.style.cssText = `
@@ -1884,12 +1884,17 @@ export class ReminderPanel {
             const totalFocusText = totalFocus > 0 ? ` ⏱ ${formatMinutesToString(totalFocus)}` : '';
             const todayFocusText = (todayFocus > 0 || totalCount > 0) ? ` ⏱ ${formatMinutesToString(todayFocus)}` : '';
 
-            // 第一行：累计/总计
-            const totalLine = (totalCount > 0 || totalFocus > 0) ? `<span title="累计完成的番茄钟: ${totalCount}">${formattedTotalTomato}${extraCount}</span><span title="总专注时长: ${totalFocus} 分钟" style="margin-left:8px; opacity:0.9;">${totalFocusText}</span>` : '';
-            // 第二行：今日数据（单独一行）
-            const todayLine = (todayCount > 0 || todayFocus > 0 || totalCount > 0) ? `<div style="margin-top:6px; font-size:12px; opacity:0.95;"><span title='今日完成的番茄钟: ${todayCount}'>今日: 🍅 ${todayCount}</span><span title='今日专注时长: ${todayFocus} 分钟' style='margin-left:8px'>${todayFocusText}</span></div>` : '';
+            // 第一行：预计番茄时长
+            const estimatedLine = reminder.estimatedPomodoroDuration ? `<span title='预计番茄时长'>预计: ${reminder.estimatedPomodoroDuration}</span>` : '';
+            // 第二行：累计/总计
+            const totalLine = (totalCount > 0 || totalFocus > 0) ? `<div style="margin-top:${estimatedLine ? '6px' : '0'}; font-size:12px;"><span title="累计完成的番茄钟: ${totalCount}">总共: ${formattedTotalTomato}${extraCount}</span><span title="总专注时长: ${totalFocus} 分钟" style="margin-left:8px; opacity:0.9;">${totalFocusText}</span></div>` : '';
 
-            pomodoroDisplay.innerHTML = `${totalLine}${todayLine}`;
+            // 第三行：今日数据（只在总番茄不等于今日番茄时显示，即有历史数据时）
+            // 判断条件：总数量大于今日数量，或者总时长大于今日时长
+            const hasHistoricalData = (totalCount > todayCount) || (totalFocus > todayFocus);
+            const todayLine = hasHistoricalData && (todayCount > 0 || todayFocus > 0) ? `<div style="margin-top:6px; font-size:12px; opacity:0.95;"><span title='今日完成的番茄钟: ${todayCount}'>今日: 🍅 ${todayCount}</span><span title='今日专注时长: ${todayFocus} 分钟' style='margin-left:8px'>${todayFocusText}</span></div>` : '';
+
+            pomodoroDisplay.innerHTML = `${estimatedLine}${totalLine}${todayLine}`;
 
             // 将番茄计数添加到 timeContainer 后面
             infoEl.appendChild(pomodoroDisplay);
@@ -2359,35 +2364,35 @@ export class ReminderPanel {
         // 检查任务是否因为父任务完成而应该被视为完成
         const isCompletedDueToParent = (reminder: any): boolean => {
             if (!reminder.parentId) return false;
-            
+
             let currentId = reminder.parentId;
             while (currentId) {
                 const parent = reminderMap.get(currentId);
                 if (!parent) break;
-                
+
                 // 如果找到已完成的父任务，则当前任务视为完成
                 if (isEffectivelyCompleted(parent)) {
                     return true;
                 }
-                
+
                 // 继续向上查找
                 currentId = parent.parentId;
             }
-            
+
             return false;
         };
 
         // 获取任务的顶级父任务（如果没有父任务，返回自己）
         const getTopLevelParent = (reminder: any): any => {
             if (!reminder.parentId) return reminder;
-            
+
             let current = reminder;
             while (current.parentId) {
                 const parent = reminderMap.get(current.parentId);
                 if (!parent) break;
                 current = parent;
             }
-            
+
             return current;
         };
 
@@ -2473,10 +2478,10 @@ export class ReminderPanel {
                 return reminders.filter(r => {
                     // 排除已完成的任务和因父任务完成而视为完成的任务
                     if (isEffectivelyCompleted(r) || isCompletedDueToParent(r)) return false;
-                    
+
                     // 获取顶级父任务（如果任务没有父任务，则返回自己）
                     const topLevelParent = getTopLevelParent(r);
-                    
+
                     // 如果顶级父任务没有日期，则显示该任务及其所有子孙任务
                     // 这包括：
                     // 1. 没有父任务且没有子任务的独立任务（如果没有日期）
@@ -2672,7 +2677,7 @@ export class ReminderPanel {
     private compareByTime(a: any, b: any): number {
         // 注意：无日期任务的处理已在 sortReminders 中提前处理
         // 这里假设传入的 a 和 b 都有日期
-        
+
         // 都有日期时，按日期时间排序
         // 对于重复任务实例，a.date 已经是实例的日期，而不是原始任务的日期
         const dateA = new Date(a.date + (a.time ? `T${a.time}` : 'T00:00'));
@@ -7425,15 +7430,15 @@ export class ReminderPanel {
     private async showPomodoroSessions(reminder: any) {
         // 动态导入 PomodoroSessionsDialog
         const { PomodoroSessionsDialog } = await import("./PomodoroSessionsDialog");
-        
+
         // 获取提醒ID（处理重复实例的情况）
         const reminderId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
-        
+
         const dialog = new PomodoroSessionsDialog(reminderId, this.plugin, () => {
             // 番茄钟更新后的回调，可选择性刷新界面
             // this.loadReminders();
         });
-        
+
         dialog.show();
     }
 }

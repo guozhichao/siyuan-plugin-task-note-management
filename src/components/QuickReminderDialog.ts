@@ -154,6 +154,10 @@ export class QuickReminderDialog {
             if (this.mode === 'block') {
                 this.loadExistingReminder();
             }
+            // 更新番茄钟显示（所有模式）
+            if (this.reminder) {
+                this.updatePomodorosDisplay();
+            }
         };
 
         this.sortConfigUpdatedHandler = (event: CustomEvent) => {
@@ -466,6 +470,12 @@ export class QuickReminderDialog {
             }
         } catch (e) {
             // ignore
+        }
+
+        // 填充预计番茄时长
+        const estimatedPomodoroDurationInput = this.dialog.element.querySelector('#quickEstimatedPomodoroDuration') as HTMLInputElement;
+        if (estimatedPomodoroDurationInput && this.reminder.estimatedPomodoroDuration) {
+            estimatedPomodoroDurationInput.value = this.reminder.estimatedPomodoroDuration;
         }
 
         // 填充日期和时间
@@ -1199,6 +1209,11 @@ export class QuickReminderDialog {
                                 </button>
                             </div>
                         </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${t("estimatedPomodoroDuration")}</label>
+                            <input type="text" id="quickEstimatedPomodoroDuration" class="b3-text-field" placeholder="${t("estimatedPomodoroDurationPlaceholder")}" style="width: 100%;">
+                            <div class="b3-form__desc">输入格式：XhXm（如 2h30m）</div>
+                        </div>
                         <div class="b3-form__group" id="quickPomodorosGroup" style="display: none;">
                             <label class="b3-form__label">${t("pomodoros") || "番茄钟"}</label>
                             <div style="display: flex; gap: 8px; align-items: center;">
@@ -1288,6 +1303,7 @@ export class QuickReminderDialog {
                             </div>
                             <div class="b3-form__desc" id="quickDateTimeDesc">${this.initialTime ? t("dateTimeDesc") : '可以不设置日期'}</div>
                         </div>
+
 
                         <div class="b3-form__group">
                             <label class="b3-form__label">自定义提醒时间 (可选，支持多个)</label>
@@ -2591,6 +2607,7 @@ export class QuickReminderDialog {
         const customGroupId = customGroupSelector?.value || undefined;
         const customReminderTime = (this.dialog.element.querySelector('#quickCustomReminderTime') as HTMLInputElement).value.trim() || undefined;
         const customReminderPreset = (this.dialog.element.querySelector('#quickCustomReminderPreset') as HTMLSelectElement)?.value || undefined;
+        const estimatedPomodoroDuration = (this.dialog.element.querySelector('#quickEstimatedPomodoroDuration') as HTMLInputElement)?.value.trim() || undefined;
 
         // 获取选中的标签ID（使用 selectedTagIds 属性）
         const tagIds = this.selectedTagIds;
@@ -2674,7 +2691,8 @@ export class QuickReminderDialog {
                 reminderTimes: this.customTimes.length > 0 ? [...this.customTimes] : undefined,
                 customReminderPreset: customReminderPreset,
                 repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined,
-                quadrant: this.defaultQuadrant
+                quadrant: this.defaultQuadrant,
+                estimatedPomodoroDuration: estimatedPomodoroDuration
             };
 
             if (this.onSaved) {
@@ -2706,7 +2724,8 @@ export class QuickReminderDialog {
                         notified: false, // 重置通知状态
                         // 提醒时间相关字段
                         reminderTimes: this.customTimes.length > 0 ? [...this.customTimes] : undefined,
-                        customReminderPreset: customReminderPreset
+                        customReminderPreset: customReminderPreset,
+                        estimatedPomodoroDuration: estimatedPomodoroDuration
                     };
 
                     // 调用实例修改保存方法
@@ -2753,6 +2772,7 @@ export class QuickReminderDialog {
                     reminder.customReminderPreset = customReminderPreset;
                     reminder.reminderTimes = this.customTimes.length > 0 ? [...this.customTimes] : undefined;
                     reminder.repeat = this.repeatConfig.enabled ? this.repeatConfig : undefined;
+                    reminder.estimatedPomodoroDuration = estimatedPomodoroDuration;
 
                     // 设置或删除 documentId
                     if (inputId) {
@@ -2933,7 +2953,8 @@ export class QuickReminderDialog {
                     quadrant: this.defaultQuadrant, // 添加象限信息
                     termType: termType, // 添加任务类型（短期/长期）
                     // 旧字段 `customReminderTime` 不再写入，新提醒统一保存到 `reminderTimes`
-                    reminderTimes: this.customTimes.length > 0 ? [...this.customTimes] : undefined
+                    reminderTimes: this.customTimes.length > 0 ? [...this.customTimes] : undefined,
+                    estimatedPomodoroDuration: estimatedPomodoroDuration
                 };
 
                 // 保存 preset 信息

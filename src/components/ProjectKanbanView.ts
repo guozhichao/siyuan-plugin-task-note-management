@@ -4382,8 +4382,8 @@ export class ProjectKanbanView {
             infoEl.appendChild(tagsContainer);
         }
 
-        // 番茄钟数量 + 总专注时长
-        if ((task.pomodoroCount && task.pomodoroCount > 0) || (typeof task.focusTime === 'number' && task.focusTime > 0)) {
+        // 番茄钟数量 + 总专注时长 + 预计番茄时长
+        if ((task.pomodoroCount && task.pomodoroCount > 0) || (typeof task.focusTime === 'number' && task.focusTime > 0) || task.estimatedPomodoroDuration) {
             const pomodoroDisplay = document.createElement('div');
             pomodoroDisplay.className = 'kanban-task-pomodoro-count';
             pomodoroDisplay.style.cssText = `
@@ -4406,10 +4406,12 @@ export class ProjectKanbanView {
             const focusText = focusMinutes > 0 ? ` ⏱ ${formatMinutesToString(focusMinutes)}` : '';
             const extraCount = '';
 
-            pomodoroDisplay.innerHTML = `
-                <span title="完成的番茄钟数量: ${task.pomodoroCount}">${tomatoEmojis}${extraCount}</span>
-                <span title="总专注时长: ${focusMinutes} 分钟" style="margin-left:8px; opacity:0.9;">${focusText}</span>
-            `;
+            // 预计番茄时长（第一行）
+            const estimatedLine = task.estimatedPomodoroDuration ? `<span title='预计番茄时长'>预计: ${task.estimatedPomodoroDuration}</span>` : '';
+            // 实际番茄钟数量和专注时长（第二行）
+            const actualLine = (task.pomodoroCount > 0 || focusMinutes > 0) ? `<div style="margin-top:${estimatedLine ? '6px' : '0'}"><span title="完成的番茄钟数量: ${task.pomodoroCount}">总共：${tomatoEmojis}${extraCount}</span><span title="总专注时长: ${focusMinutes} 分钟" style="margin-left:8px; opacity:0.9;">${focusText}</span></div>` : '';
+
+            pomodoroDisplay.innerHTML = `${estimatedLine}${actualLine}`;
 
             infoEl.appendChild(pomodoroDisplay);
         }
