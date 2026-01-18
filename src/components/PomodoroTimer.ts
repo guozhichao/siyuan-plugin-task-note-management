@@ -98,6 +98,7 @@ export class PomodoroTimer {
 
     private isFullscreen: boolean = false; // 新增：全屏模式状态
     private escapeKeyHandler: ((e: KeyboardEvent) => void) | null = null; // 新增：ESC键监听器
+    private lastPomodoroTriggerTime: number = -1; // 新增：防止重复触发番茄钟完成逻辑
     private isTabMode: boolean = false; // 是否为Tab模式
     private currentCircumference: number = 2 * Math.PI * 36; // 当前圆周长度，用于进度计算
     private isMiniMode: boolean = false; // BrowserWindow 迷你模式状态
@@ -3937,7 +3938,10 @@ export class PomodoroTimer {
                     const currentCycleTime = this.timeElapsed % pomodoroLength;
 
                     if (this.timeElapsed > 0 && currentCycleTime === 0) {
-                        this.completePomodoroPhase();
+                        if (this.lastPomodoroTriggerTime !== this.timeElapsed) {
+                            this.lastPomodoroTriggerTime = this.timeElapsed;
+                            this.completePomodoroPhase();
+                        }
                     }
                 } else {
                     // 正计时休息时间：倒计时显示
@@ -4040,7 +4044,10 @@ export class PomodoroTimer {
                     const currentCycleTime = this.timeElapsed % pomodoroLength;
 
                     if (this.timeElapsed > 0 && currentCycleTime === 0) {
-                        this.completePomodoroPhase();
+                        if (this.lastPomodoroTriggerTime !== this.timeElapsed) {
+                            this.lastPomodoroTriggerTime = this.timeElapsed;
+                            this.completePomodoroPhase();
+                        }
                     }
                 } else {
                     const totalBreakTime = this.isLongBreak ?
@@ -4090,6 +4097,7 @@ export class PomodoroTimer {
         this.isPaused = false;
         this.pausedTime = 0; // 重置暂停时间
         this.startTime = 0; // 重置开始时间
+        this.lastPomodoroTriggerTime = -1; // 重置上次触发时间
 
         // 设置当前阶段的原始时长
         this.currentPhaseOriginalDuration = this.settings.workDuration;
@@ -4127,6 +4135,7 @@ export class PomodoroTimer {
         this.isPaused = false;
         this.pausedTime = 0; // 重置暂停时间
         this.startTime = 0; // 重置开始时间
+        this.lastPomodoroTriggerTime = -1; // 重置上次触发时间
 
         // 设置当前阶段的原始时长
         this.currentPhaseOriginalDuration = this.settings.breakDuration;
@@ -4163,6 +4172,7 @@ export class PomodoroTimer {
         this.isPaused = false;
         this.pausedTime = 0; // 重置暂停时间
         this.startTime = 0; // 重置开始时间
+        this.lastPomodoroTriggerTime = -1; // 重置上次触发时间
 
         // 设置当前阶段的原始时长
         this.currentPhaseOriginalDuration = this.settings.longBreakDuration;
@@ -4205,7 +4215,7 @@ export class PomodoroTimer {
                                     eventId,
                                     eventTitle,
                                     this.currentPhaseOriginalDuration,
-                                    false
+                                    this.isCountUp
                                 );
                                 this.updateStatsDisplay();
                                 showMessage(t('pomodoroRecorded') || '已记录此次专注', 2000);
@@ -4229,7 +4239,7 @@ export class PomodoroTimer {
                                     eventId,
                                     eventTitle,
                                     this.currentPhaseOriginalDuration,
-                                    false
+                                    this.isCountUp
                                 );
                                 this.updateStatsDisplay();
                                 showMessage(t('pomodoroRecorded') || '已记录此次专注', 2000);
