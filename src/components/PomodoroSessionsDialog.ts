@@ -378,6 +378,7 @@ export class PomodoroSessionsDialog {
 
                 addDialog.destroy();
                 await this.loadSessions();
+                await this.syncReminderPomodoroCount();
                 this.renderSessions();
 
                 // 触发reminderUpdated事件以更新界面
@@ -521,6 +522,7 @@ export class PomodoroSessionsDialog {
 
                 editDialog.destroy();
                 await this.loadSessions();
+                await this.syncReminderPomodoroCount();
                 this.renderSessions();
 
                 // 触发reminderUpdated事件以更新界面
@@ -570,6 +572,7 @@ export class PomodoroSessionsDialog {
                     showMessage("✅ " + (t("deletePomodoroSuccess") || "删除番茄钟成功"), 3000, "info");
                     confirmDialog.destroy();
                     await this.loadSessions();
+                    await this.syncReminderPomodoroCount();
                     this.renderSessions();
 
                     // 触发reminderUpdated事件以更新界面
@@ -584,5 +587,28 @@ export class PomodoroSessionsDialog {
                 showMessage("❌ " + (t("deletePomodoroFailed") || "删除番茄钟失败"), 3000, "error");
             }
         });
+    }
+
+
+    /**
+     * 同步提醒的番茄钟数量到 reminder.json
+     */
+    private async syncReminderPomodoroCount() {
+        try {
+            const { readReminderData, writeReminderData } = await import("../api");
+            const reminderData = await readReminderData();
+
+            if (reminderData && reminderData[this.reminderId]) {
+                const count = this.sessions.filter(s => s.type === 'work' && s.completed).length;
+
+                // 只有当数量不一致时才更新
+                if (reminderData[this.reminderId].pomodoroCount !== count) {
+                    reminderData[this.reminderId].pomodoroCount = count;
+                    await writeReminderData(reminderData);
+                }
+            }
+        } catch (error) {
+            console.error("同步番茄钟数量失败:", error);
+        }
     }
 }
