@@ -71,7 +71,7 @@ export class TaskSummaryDialog {
     const interval = repeat.interval || 1;
     switch (repeat.type) {
       case 'daily':
-        return interval === 1 ? t('daily') || '每天' : `${t('every') || '每'}${interval}${t('days') || '天'}`;
+        return interval === 1 ? `🔄 ${t('daily') || '每天'}` : `🔄 ${t('every') || '每'}${interval}${t('days') || '天'}`;
       case 'weekly': {
         // 优先使用配置中的 weekDays
         if (repeat.weekDays && repeat.weekDays.length > 0) {
@@ -97,16 +97,16 @@ export class TaskSummaryDialog {
       }
       case 'monthly': {
         if (repeat.monthDays && repeat.monthDays.length > 0) {
-          return `${t('monthly') || '每月'} (${repeat.monthDays.join('、')}${t('day') || '日'})`;
+          return `🔄 ${t('monthly') || '每月'} (${repeat.monthDays.join('、')}${t('day') || '日'})`;
         }
-        return interval === 1 ? t('monthly') || '每月' : `${t('every') || '每'}${interval}${t('months') || '月'}`;
+        return interval === 1 ? `🔄 ${t('monthly') || '每月'}` : `🔄 ${t('every') || '每'}${interval}${t('months') || '月'}`;
       }
       case 'yearly':
-        return t('yearly') || '每年';
+        return `🔄 ${t('yearly') || '每年'}`;
       case 'custom': {
         const parts: string[] = [];
         if (repeat.weekDays && repeat.weekDays.length) {
-          const days = repeat.weekDays.map((d: number) => t(['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][d]));
+          const days = repeat.weekDays.map((d: number) => t(['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][d]));
           parts.push(`${t('weekly') || '每周'}(${days.join('、')})`);
         }
         if (repeat.monthDays && repeat.monthDays.length) {
@@ -115,14 +115,14 @@ export class TaskSummaryDialog {
         if (repeat.months && repeat.months.length) {
           parts.push(`${t('yearly') || '每年'}(${repeat.months.join('、')}${t('month') || '月'})`);
         }
-        return parts.join(' ');
+        return `🔄 ${parts.join(' ')}`;
       }
       case 'ebbinghaus':
-        return t('ebbinghaus') || '艾宾浩斯';
+        return `🔄 ${t('ebbinghaus') || '艾宾浩斯'}`;
       case 'lunar-monthly':
-        return t('lunarMonthly') || '农历每月';
+        return `🔄 ${t('lunarMonthly') || '农历每月'}`;
       case 'lunar-yearly':
-        return t('lunarYearly') || '农历每年';
+        return `🔄 ${t('lunarYearly') || '农历每年'}`;
       default:
         return '';
     }
@@ -242,6 +242,7 @@ export class TaskSummaryDialog {
 
   private async calculateStats(startDate: string, endDate: string) {
     const settings = this.plugin?.data[SETTINGS_FILE] || {};
+    const reminderData = await readReminderData(); // 读取提醒数据用于层级统计
 
     // 1. 番茄钟统计
     const pomodoroManager = PomodoroRecordManager.getInstance();
@@ -249,7 +250,7 @@ export class TaskSummaryDialog {
 
     let totalPomodoros = 0;
     let totalMinutes = 0;
-    const pomodoroByDate: { [date: string]: { count: number, minutes: number } } = {};
+    const pomodoroByDate: { [date: string]: { count: number, minutes: number, taskStats: any } } = {};
 
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -262,21 +263,58 @@ export class TaskSummaryDialog {
         totalPomodoros += record.workSessions || 0;
         totalMinutes += record.totalWorkTime || 0;
 
-        const taskStats: { [id: string]: { count: number, minutes: number } } = {};
+        // 原始统计
+        const rawTaskStats: { [id: string]: { count: number, minutes: number } } = {};
         if (record.sessions) {
           record.sessions.forEach((s: any) => {
             if (s.type === 'work' && s.completed) {
-              if (!taskStats[s.eventId]) taskStats[s.eventId] = { count: 0, minutes: 0 };
-              taskStats[s.eventId].count++;
-              taskStats[s.eventId].minutes += s.duration || 0;
+              // 兼容旧数据，有些session没有eventId
+              const evtId = s.eventId;
+              if (evtId) {
+                if (!rawTaskStats[evtId]) rawTaskStats[evtId] = { count: 0, minutes: 0 };
+                rawTaskStats[evtId].count += (typeof s.count === 'number' ? s.count : 1);
+                rawTaskStats[evtId].minutes += s.duration || 0;
+              }
             }
           });
         }
 
+        // 聚合统计（包含子任务数据）
+        const aggregatedTaskStats: { [id: string]: { count: number, minutes: number } } = {};
+
+        // 1. 先复制原始数据
+        Object.keys(rawTaskStats).forEach(id => {
+          if (!aggregatedTaskStats[id]) aggregatedTaskStats[id] = { count: 0, minutes: 0 };
+          aggregatedTaskStats[id].count += rawTaskStats[id].count;
+          aggregatedTaskStats[id].minutes += rawTaskStats[id].minutes;
+        });
+
+        // 2. 向上冒泡累加
+        Object.keys(rawTaskStats).forEach(sourceId => {
+          let currentId = sourceId;
+          const statsToAdd = rawTaskStats[sourceId];
+
+          // 防止死循环，设置最大深度
+          let depth = 0;
+          while (depth < 20) {
+            const reminder = reminderData[currentId];
+            if (!reminder || !reminder.parentId) break;
+
+            const parentId = reminder.parentId;
+            if (!aggregatedTaskStats[parentId]) aggregatedTaskStats[parentId] = { count: 0, minutes: 0 };
+
+            aggregatedTaskStats[parentId].count += statsToAdd.count;
+            aggregatedTaskStats[parentId].minutes += statsToAdd.minutes;
+
+            currentId = parentId;
+            depth++;
+          }
+        });
+
         pomodoroByDate[getLocalDateString(current)] = {
           count: record.workSessions || 0,
           minutes: record.totalWorkTime || 0,
-          taskStats: taskStats
+          taskStats: aggregatedTaskStats
         };
       }
       current.setDate(current.getDate() + 1);
@@ -662,12 +700,14 @@ export class TaskSummaryDialog {
         categoryId: reminder.categoryId,
         projectId: reminder.projectId,
         blockId: reminder.blockId || reminder.id,
+        parentId: reminder.parentId, // 添加父任务ID
         docId: reminder.docId, // 添加docId
         docTitle: reminder.docTitle, // 添加文档标题
         isRepeated: isRepeated,
         originalId: originalId || reminder.id,
         repeat: reminder.repeat,
-        isQuickReminder: reminder.isQuickReminder || false // 添加快速提醒标记
+        isQuickReminder: reminder.isQuickReminder || false, // 添加快速提醒标记
+        estimatedPomodoroDuration: reminder.estimatedPomodoroDuration // 预计番茄时长
       }
     };
 
@@ -710,7 +750,10 @@ export class TaskSummaryDialog {
         }
         eventObj.allDay = false;
       } else {
-        eventObj.start = reminder.date;
+        // 对于没有日期的任务，不设置 start，这样它们可以在后续被过滤器处理
+        if (reminder.date) {
+          eventObj.start = reminder.date;
+        }
         eventObj.allDay = true;
         eventObj.display = 'block';
       }
@@ -756,8 +799,11 @@ export class TaskSummaryDialog {
    * 根据日期范围过滤事件
    */
   private filterEventsByDateRange(events: any[], dateRange: { start: string, end: string }): any[] {
-    return events.filter(event => {
+    const includedEvents = events.filter(event => {
       const eventDate = event.extendedProps.date;
+      // Undated events don't pass standard filter
+      if (!eventDate) return false;
+
       if (event.extendedProps.endDate) {
         // 检查事件日期范围是否与给定日期范围有重叠
         const eventStart = eventDate;
@@ -772,6 +818,37 @@ export class TaskSummaryDialog {
       }
       return eventDate >= dateRange.start && eventDate <= dateRange.end;
     });
+
+    // 2. 额外逻辑：如果父任务被包含在内，且子任务未设置日期，则也显示该子任务
+    const additionalEvents: any[] = [];
+
+    // 筛选出所有未设置日期的潜在子任务
+    const undatedCandidates = events.filter(e => !e.extendedProps.date && e.extendedProps.parentId);
+
+    if (undatedCandidates.length > 0) {
+      includedEvents.forEach(parent => {
+        // 使用 originalId 或 blockId 作为父任务的 ID
+        const parentId = parent.extendedProps.originalId || parent.extendedProps.blockId || parent.id;
+        const parentDate = parent.extendedProps.date;
+
+        // 查找该父任务的未设置日期的子任务
+        const myChildren = undatedCandidates.filter(c => c.extendedProps.parentId === parentId);
+
+        myChildren.forEach(child => {
+          // 克隆子任务对象，以免修改原始引用影响其他逻辑
+          const newChild = { ...child };
+          newChild.extendedProps = { ...child.extendedProps };
+
+          // 将子任务的日期设置为父任务的日期，以便在分组时能正确归类到父任务所在日期
+          newChild.extendedProps.date = parentDate;
+          newChild.start = parentDate; // 保持一致性
+
+          additionalEvents.push(newChild);
+        });
+      });
+    }
+
+    return [...includedEvents, ...additionalEvents];
   }
 
   /**
@@ -842,11 +919,13 @@ export class TaskSummaryDialog {
         repeatLabel: event.extendedProps.repeat ? this.formatRepeatLabel(event.extendedProps.repeat, event.extendedProps.date) : '',
         note: event.extendedProps.note,
         docTitle: event.extendedProps.docTitle,
+        estimatedPomodoroDuration: event.extendedProps.estimatedPomodoroDuration,
+        extendedProps: event.extendedProps, // 保留完整的 extendedProps 以便层级排序使用
         _perDateCompleted: perDateCompleted
       };
 
       // 如果有结束日期，说明是跨天任务，在每个相关日期都显示
-          if (endDate && endDate !== startDate) {
+      if (endDate && endDate !== startDate) {
         const start = new Date(Math.max(new Date(startDate).getTime(), new Date(dateRange.start).getTime()));
         const end = new Date(Math.min(new Date(endDate).getTime(), new Date(dateRange.end).getTime()));
 
@@ -891,7 +970,70 @@ export class TaskSummaryDialog {
       }
     });
 
+
+
+    // 对每个分组内的任务进行层级排序
+    grouped.forEach((projectMap) => {
+      projectMap.forEach((tasks, projectName) => {
+        const sortedTasks = this.sortTasksByHierarchy(tasks);
+        projectMap.set(projectName, sortedTasks);
+      });
+    });
+
     return grouped;
+  }
+
+  /**
+   * 按层级排序任务，并计算深度
+   */
+  private sortTasksByHierarchy(tasks: any[]): any[] {
+    if (!tasks || tasks.length === 0) return [];
+
+    const taskMap = new Map<string, any>();
+    tasks.forEach(t => taskMap.set(t.id, t));
+
+    // 找出每个任务的子任务
+    const childrenMap = new Map<string, any[]>();
+    const roots: any[] = [];
+
+    tasks.forEach(task => {
+      task.depth = 0; // 初始化深度
+      const parentId = task.extendedProps?.parentId; // 从 extendedProps 获取 parentId
+
+      // 如果有父任务且父任务也在当前列表中，则是子任务
+      if (parentId && taskMap.has(parentId)) {
+        if (!childrenMap.has(parentId)) {
+          childrenMap.set(parentId, []);
+        }
+        childrenMap.get(parentId).push(task);
+      } else {
+        // 否则视为根任务（在当前视图范围内）
+        roots.push(task);
+      }
+    });
+
+    const result: any[] = [];
+
+    // 递归辅助函数，增加 completion 传递
+    const traverse = (nodes: any[], depth: number, parentCompleted: boolean) => {
+      nodes.forEach(node => {
+        // 如果父任务已完成，子任务也包括显示为完成
+        if (parentCompleted) {
+          node.completed = true;
+        }
+
+        node.depth = depth;
+        result.push(node);
+        const children = childrenMap.get(node.id);
+        if (children) {
+          // 子任务按原来的顺序（通常是时间或创建顺序）排列，也可以根据需要再次排序
+          traverse(children, depth + 1, node.completed);
+        }
+      });
+    };
+
+    traverse(roots, 0, false);
+    return result;
   }
 
 
@@ -1000,7 +1142,7 @@ export class TaskSummaryDialog {
     // 按日期排序
     const sortedDates = Array.from(allDates).sort();
 
-    
+
 
     if (sortedDates.length === 0) {
       html += `<div style="text-align: center; padding: 40px; color: var(--b3-theme-on-surface-light);">${t('noTasks') || '暂无任务'}</div>`;
@@ -1081,10 +1223,21 @@ export class TaskSummaryDialog {
               pomodoroStr = ` (🍅 ${tStat.count} | 🕒 ${tStat.minutes}m)`;
             }
 
+            // 预计番茄时长
+            let estStr = '';
+            if (task.estimatedPomodoroDuration) {
+              estStr = ` <span style="color:#888; font-size:12px;">(⏲️ 预计${task.estimatedPomodoroDuration})</span>`;
+            }
+
+            // 缩进
+            // 基础缩进0，每级深度增加20px
+            // task-item 默认 padding 是 6px 0，我们添加 padding-left
+            const indentStyle = task.depth > 0 ? `padding-left: ${task.depth * 20}px;` : '';
+
             html += `
-                  <li class="task-item ${completedClass} ${priorityClass}">
+                  <li class="task-item ${completedClass} ${priorityClass}" style="${indentStyle}">
                     <span class="task-checkbox">${task.completed ? '✅' : '⬜'}</span>
-                    <span class="task-title">${task.title}${task.repeatLabel ? ` <span style="color:#888; font-size:12px;">(${task.repeatLabel})</span>` : ''}${timeStr}${pomodoroStr}</span>
+                    <span class="task-title">${task.title}${task.repeatLabel ? ` <span style="color:#888; font-size:12px;">(${task.repeatLabel})</span>` : ''}${timeStr}${estStr}${pomodoroStr}</span>
                     ${task.note ? `<div class="task-note">${task.note}</div>` : ''}
                   </li>
                 `;
@@ -1282,10 +1435,19 @@ export class TaskSummaryDialog {
             pomodoroStr = ` (🍅 ${tStat.count} | 🕒 ${tStat.minutes}m)`;
           }
 
-          text += `${checkbox} ${task.title}${task.repeatLabel ? ` (${task.repeatLabel})` : ''}${timeStr}${pomodoroStr}
+          // 预计番茄时长
+          let estStr = '';
+          if (task.estimatedPomodoroDuration) {
+            estStr = ` (⏲️ 预计${task.estimatedPomodoroDuration})`;
+          }
+
+          // 缩进
+          const indent = '  '.repeat(task.depth || 0);
+
+          text += `${indent}${checkbox} ${task.title}${task.repeatLabel ? ` (${task.repeatLabel})` : ''}${timeStr}${estStr}${pomodoroStr}
 `;
           if (task.note) {
-            text += `  > ${task.note}
+            text += `${indent}  > ${task.note}
 `;
           }
         });
@@ -1360,7 +1522,7 @@ ${'-'.repeat(formattedDate.length)}
       dateProjects.forEach((tasks, projectName) => {
         text += `【${projectName}】\n`;
 
-        let taskNumber = 1; // 全局任务编号
+
         tasks.forEach(task => {
           let timeStr = '';
           if (task.fullEndDate && task.fullEndDate !== task.fullStartDate) {
@@ -1376,8 +1538,17 @@ ${'-'.repeat(formattedDate.length)}
             pomodoroStr = ` (🍅 ${tStat.count} | 🕒 ${tStat.minutes}m)`;
           }
 
+          // 预计番茄时长
+          let estStr = '';
+          if (task.estimatedPomodoroDuration) {
+            estStr = ` (⏲️ 预计${task.estimatedPomodoroDuration})`;
+          }
+
+          // 缩进
+          const indent = '  '.repeat(task.depth || 0);
+
           const checkbox = task.completed ? '✅' : '⬜';
-          text += `${checkbox} ${task.title}${task.repeatLabel ? ` (${task.repeatLabel})` : ''}${timeStr}${pomodoroStr}\n`;
+          text += `${indent}${checkbox} ${task.title}${task.repeatLabel ? ` (${task.repeatLabel})` : ''}${timeStr}${estStr}${pomodoroStr}\n`;
         });
 
         text += `\n`;
@@ -1448,29 +1619,63 @@ ${'-'.repeat(formattedDate.length)}
 
       dateProjects.forEach((tasks, projectName) => {
         html += `<h3 style="color: #2196F3; margin: 16px 0 8px 0; font-size: 16px;">【${projectName}】</h3>`;
-        html += '<ul style="margin: 0 0 16px 0; padding-left: 20px;">';
 
-        tasks.forEach(task => {
-          let timeHtml = '';
-          if (task.fullEndDate && task.fullEndDate !== task.fullStartDate) {
-            timeHtml = ` <span style="color: #666; font-size: 12px;">(${this.formatMonthDay(task.fullStartDate)}-${this.formatMonthDay(task.fullEndDate)})</span>`;
-          } else {
-            const dt = this.getDisplayTimeForDate(task, date);
-            if (dt) timeHtml = ` <span style="color: #666; font-size: 12px;">${dt.trim()}</span>`;
+        // 使用递归函数生成嵌套列表
+        const renderTaskList = (taskList: any[], currentDepth: number = 0) => {
+          if (taskList.length === 0) return '';
+
+          let listHtml = '<ul style="margin: 4px 0; padding-left: 20px; list-style-type: none;">';
+
+          for (let i = 0; i < taskList.length; i++) {
+            const task = taskList[i];
+
+            // 跳过已经作为子任务处理的任务
+            if (task._processed) continue;
+
+            // 只处理当前深度的任务
+            if ((task.depth || 0) !== currentDepth) continue;
+
+            let timeHtml = '';
+            if (task.fullEndDate && task.fullEndDate !== task.fullStartDate) {
+              timeHtml = ` <span style="color: #666; font-size: 12px;">(${this.formatMonthDay(task.fullStartDate)}-${this.formatMonthDay(task.fullEndDate)})</span>`;
+            } else {
+              const dt = this.getDisplayTimeForDate(task, date);
+              if (dt) timeHtml = ` <span style="color: #666; font-size: 12px;">${dt.trim()}</span>`;
+            }
+
+            // 番茄钟统计
+            let pomodoroHtml = '';
+            if (s && s.pomodoro && s.pomodoro.byDate && s.pomodoro.byDate[date] && s.pomodoro.byDate[date].taskStats && s.pomodoro.byDate[date].taskStats[task.id]) {
+              const tStat = s.pomodoro.byDate[date].taskStats[task.id];
+              pomodoroHtml = ` <span style="color:#888; font-size:12px;">(🍅 ${tStat.count} | 🕒 ${tStat.minutes}m)</span>`;
+            }
+
+            // 预计番茄时长
+            let estHtml = '';
+            if (task.estimatedPomodoroDuration) {
+              estHtml = ` <span style="color:#888; font-size:12px;">(⏲️ 预计${task.estimatedPomodoroDuration})</span>`;
+            }
+
+            const checkbox = task.completed ? '✅' : '⬜';
+            listHtml += `<li style="margin: 4px 0; color: #333;">${checkbox} ${task.title}${task.repeatLabel ? ` <span style="color:#888; font-size:12px;">(${task.repeatLabel})</span>` : ''}${timeHtml}${estHtml}${pomodoroHtml}`;
+
+            // 标记为已处理
+            task._processed = true;
+
+            // 查找并渲染子任务
+            const children = taskList.filter(t => !t._processed && (t.depth || 0) === currentDepth + 1);
+            if (children.length > 0) {
+              listHtml += renderTaskList(taskList, currentDepth + 1);
+            }
+
+            listHtml += '</li>';
           }
 
-          // 番茄钟统计
-          let pomodoroHtml = '';
-          if (s && s.pomodoro && s.pomodoro.byDate && s.pomodoro.byDate[date] && s.pomodoro.byDate[date].taskStats && s.pomodoro.byDate[date].taskStats[task.id]) {
-            const tStat = s.pomodoro.byDate[date].taskStats[task.id];
-            pomodoroHtml = ` <span style="color:#888; font-size:12px;">(🍅 ${tStat.count} | 🕒 ${tStat.minutes}m)</span>`;
-          }
+          listHtml += '</ul>';
+          return listHtml;
+        };
 
-          const checkbox = task.completed ? '✅' : '⬜';
-          html += `<li style="margin: 4px 0; color: #333;">${checkbox} ${task.title}${task.repeatLabel ? ` <span style="color:#888; font-size:12px;">(${task.repeatLabel})</span>` : ''}${timeHtml}${pomodoroHtml}</li>`;
-        });
-
-        html += '</ul>';
+        html += renderTaskList(tasks, 0);
       });
 
       html += '<br>';
@@ -1500,7 +1705,7 @@ ${'-'.repeat(formattedDate.length)}
   /**
    * 执行复制操作
    */
-  public executeCopy(copyType: string, groupedTasks: Map<string, Map<string, any[]>>) {
+  public executeCopy(copyType: string, groupedTasks?: Map<string, Map<string, any[]>>) {
     const g = groupedTasks || this.lastGroupedTasks || undefined;
     const s = this.lastStats || undefined;
 
