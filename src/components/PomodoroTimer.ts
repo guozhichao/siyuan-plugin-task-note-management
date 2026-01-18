@@ -1576,7 +1576,7 @@ export class PomodoroTimer {
                 return false;
             }
 
-            const safeSrc = src.replace(/`/g, '\\`');
+            const safeSrc = src.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/`/g, '\\`');
             const loop = !!(opts && opts.loop);
             const volume = typeof (opts && opts.volume) === 'number' ? (opts!.volume) : 1;
 
@@ -3588,19 +3588,21 @@ export class PomodoroTimer {
                     color = todayTime >= goalMinutes ? 'rgb(76, 175, 80)' : warnColor;
                 }
 
-                (this.container as any).webContents.executeJavaScript(`
-                    if (document.getElementById('todayFocusTime')) {
-                        document.getElementById('todayFocusTime').textContent = '${todayTimeStr}';
-                    }
-                    if (document.getElementById('weekFocusTime')) {
-                        document.getElementById('weekFocusTime').textContent = '${weekTimeStr}';
-                    }
-                    const stats=document.querySelector('.pomodoro-stats');
-                    if(stats) stats.style.background = 'linear-gradient(to right, ${successColor} ${progress}%, ${surfaceColor} ${progress}%)';
-                    const todayEl=document.getElementById('todayFocusTime'); if(todayEl) todayEl.style.color='${color}';
-                    // 如果处于吸附模式，更新进度条高度
-                    const dockFill = document.getElementById('dockedProgressBar');
-                    if(dockFill) dockFill.style.height = (Math.max(0, Math.min(100, ${progress})) + '%');
+                await (this.container as any).webContents.executeJavaScript(`
+                    try {
+                        if (document.getElementById('todayFocusTime')) {
+                            document.getElementById('todayFocusTime').textContent = '${todayTimeStr.replace(/'/g, "\\'")}';
+                        }
+                        if (document.getElementById('weekFocusTime')) {
+                            document.getElementById('weekFocusTime').textContent = '${weekTimeStr.replace(/'/g, "\\'")}';
+                        }
+                        const stats=document.querySelector('.pomodoro-stats');
+                        if(stats) stats.style.background = 'linear-gradient(to right, ${successColor} ${progress}%, ${surfaceColor} ${progress}%)';
+                        const todayEl=document.getElementById('todayFocusTime'); if(todayEl) todayEl.style.color='${color}';
+                        // 如果处于吸附模式，更新进度条高度
+                        const dockFill = document.getElementById('dockedProgressBar');
+                        if(dockFill) dockFill.style.height = (Math.max(0, Math.min(100, ${progress})) + '%');
+                    } catch(e) { console.error('[PomodoroTimer] updateStatsDisplay script error:', e); }
                 `);
                 return;
             }
@@ -5313,7 +5315,7 @@ export class PomodoroTimer {
             ipcMain.once(`pomodoro-time-edit-${window.id}`, editHandler);
 
             // 执行 JavaScript 创建输入框
-            window.webContents.executeJavaScript(editScript);
+            window.webContents.executeJavaScript(editScript).catch((e: any) => console.error(e));
         } catch (error) {
             console.error('[PomodoroTimer] editTimeInBrowserWindow error:', error);
         }
@@ -6782,7 +6784,7 @@ export class PomodoroTimer {
                 pomodoroWindow.webContents.executeJavaScript(`
                     document.body.classList.add('mini-mode');
                     document.body.classList.remove('docked-mode');
-                `);
+                `).catch((e: any) => console.error(e));
             } else {
                 // 退出迷你模式
                 if (this.normalWindowBounds) {
@@ -6796,7 +6798,7 @@ export class PomodoroTimer {
                 // 移除迷你模式样式
                 pomodoroWindow.webContents.executeJavaScript(`
                     document.body.classList.remove('mini-mode');
-                `);
+                `).catch((e: any) => console.error(e));
             }
 
             // 更新显示
@@ -6852,7 +6854,7 @@ export class PomodoroTimer {
                 pomodoroWindow.webContents.executeJavaScript(`
                     document.body.classList.add('docked-mode');
                     document.body.classList.remove('mini-mode');
-                `);
+                `).catch((e: any) => console.error(e));
             } else {
                 // 退出吸附模式
                 if (this.normalWindowBounds) {
@@ -6866,7 +6868,7 @@ export class PomodoroTimer {
                 // 移除吸附模式样式
                 pomodoroWindow.webContents.executeJavaScript(`
                     document.body.classList.remove('docked-mode');
-                `);
+                `).catch((e: any) => console.error(e));
             }
 
             // 更新显示
