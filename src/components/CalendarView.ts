@@ -47,6 +47,7 @@ export class CalendarView {
     private clickTimeout: number | null = null; // 添加单击延迟超时
     private refreshTimeout: number | null = null; // 添加刷新防抖超时
     private currentCompletionFilter: string = 'all'; // 当前完成状态过滤
+    private isDragging: boolean = false; // 标记是否正在拖动事件
 
     // 性能优化：颜色缓存
     private colorCache: Map<string, { backgroundColor: string; borderColor: string }> = new Map();
@@ -755,6 +756,15 @@ export class CalendarView {
             displayEventTime: true,
             eventContent: this.renderEventContent.bind(this),
             eventClick: this.handleEventClick.bind(this),
+            eventDragStart: () => {
+                this.isDragging = true;
+            },
+            eventDragStop: () => {
+                // 延迟重置拖动标志，防止拖动结束后立即触发点击
+                setTimeout(() => {
+                    this.isDragging = false;
+                }, 100);
+            },
             eventDrop: this.handleEventDrop.bind(this),
             eventResize: this.handleEventResize.bind(this),
             eventAllow: (dropInfo, draggedEvent) => {
@@ -2564,6 +2574,11 @@ export class CalendarView {
     }
 
     private async handleEventClick(info) {
+        // 如果正在拖动，不触发点击事件
+        if (this.isDragging) {
+            return;
+        }
+
         const reminder = info.event.extendedProps;
         const blockId = reminder.blockId || info.event.id; // 兼容旧数据格式
 
