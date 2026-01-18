@@ -1212,7 +1212,6 @@ export class QuickReminderDialog {
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("estimatedPomodoroDuration")}</label>
                             <input type="text" id="quickEstimatedPomodoroDuration" class="b3-text-field" placeholder="${t("estimatedPomodoroDurationPlaceholder")}" style="width: 100%;">
-                            <div class="b3-form__desc">输入格式：XhXm（如 2h30m）</div>
                         </div>
                         <div class="b3-form__group" id="quickPomodorosGroup" style="display: none;">
                             <label class="b3-form__label">${t("pomodoros") || "番茄钟"}</label>
