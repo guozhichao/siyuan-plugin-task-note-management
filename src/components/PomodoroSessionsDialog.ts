@@ -7,7 +7,7 @@
  * @Description  : 番茄钟会话管理对话框，用于查看、编辑、删除和补录番茄钟记录
  */
 
-import { Dialog, showMessage } from "siyuan";
+import { Dialog, confirm, showMessage } from "siyuan";
 import { PomodoroRecordManager, PomodoroSession } from "../utils/pomodoroRecord";
 import { t } from "../utils/i18n";
 
@@ -594,50 +594,38 @@ export class PomodoroSessionsDialog {
         const session = this.sessions.find(s => s.id === sessionId);
         if (!session) return;
 
-        const confirmDialog = new Dialog({
-            title: "⚠️ " + (t("confirmDelete") || "确认删除"),
-            content: `
-                <div style="padding: 16px;">
-                    <p>${t("confirmDeletePomodoro") || "确定要删除这个番茄钟记录吗？"}</p>
-                    <p style="color: var(--b3-theme-on-surface-light); font-size: 12px;">
-                        ${session.eventTitle} - ${new Date(session.startTime).toLocaleString('zh-CN')} (${session.duration}分钟)
-                    </p>
-                    <div class="b3-dialog__action" style="margin-top: 16px;">
-                        <button class="b3-button b3-button--cancel">${t("cancel")}</button>
-                        <button class="b3-button b3-button--primary" id="confirmDeletePomodoro">${t("delete")}</button>
-                    </div>
-                </div>
-            `,
-            width: "400px"
-        });
+        confirm(
+            "⚠️ " + (t("confirmDelete") || "确认删除"),
+            `<div style="padding: 16px;">
+                <p>${t("confirmDeletePomodoro") || "确定要删除这个番茄钟记录吗？"}</p>
+                <p style="color: var(--b3-theme-on-surface-light); font-size: 12px;">
+                    ${session.eventTitle} - ${new Date(session.startTime).toLocaleString('zh-CN')} (${session.duration}分钟)
+                </p>
+            </div>`,
+            async (dialog) => {
+                dialog.destroy();
+                try {
+                    const success = await this.recordManager.deleteSession(sessionId);
 
-        confirmDialog.element.querySelector(".b3-button--cancel")?.addEventListener("click", () => {
-            confirmDialog.destroy();
-        });
+                    if (success) {
+                        showMessage("✅ " + (t("deletePomodoroSuccess") || "删除番茄钟成功"), 3000, "info");
+                        await this.loadSessions();
+                        await this.syncReminderPomodoroCount();
+                        this.renderSessions();
 
-        confirmDialog.element.querySelector("#confirmDeletePomodoro")?.addEventListener("click", async () => {
-            try {
-                const success = await this.recordManager.deleteSession(sessionId);
+                        // 触发reminderUpdated事件以更新界面
+                        window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
-                if (success) {
-                    showMessage("✅ " + (t("deletePomodoroSuccess") || "删除番茄钟成功"), 3000, "info");
-                    confirmDialog.destroy();
-                    await this.loadSessions();
-                    await this.syncReminderPomodoroCount();
-                    this.renderSessions();
-
-                    // 触发reminderUpdated事件以更新界面
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
-
-                    if (this.onUpdate) this.onUpdate();
-                } else {
+                        if (this.onUpdate) this.onUpdate();
+                    } else {
+                        showMessage("❌ " + (t("deletePomodoroFailed") || "删除番茄钟失败"), 3000, "error");
+                    }
+                } catch (error) {
+                    console.error("删除番茄钟失败:", error);
                     showMessage("❌ " + (t("deletePomodoroFailed") || "删除番茄钟失败"), 3000, "error");
                 }
-            } catch (error) {
-                console.error("删除番茄钟失败:", error);
-                showMessage("❌ " + (t("deletePomodoroFailed") || "删除番茄钟失败"), 3000, "error");
             }
-        });
+        );
     }
 
 
