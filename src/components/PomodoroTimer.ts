@@ -79,22 +79,22 @@ export class PomodoroTimer {
     private isWindowClosed: boolean = false; // 新增：窗口关闭状态标记
     private pendingSettings: any = null; // pending settings when update skipped due to running
 
-    // 随机提示音相关（改为定期检查机制，类似index.ts）
+    // 随机微休息相关（改为定期检查机制，类似index.ts）
     private randomNotificationSounds: HTMLAudioElement[] = [];
     private randomNotificationEnabled: boolean = false;
     private randomNotificationEndSound: HTMLAudioElement = null;
     private randomNotificationEndSoundTimer: number = null; // 结束声音定时器
-    private randomNotificationCount: number = 0; // 随机提示音完成计数
+    private randomNotificationCount: number = 0; // 随机微休息完成计数
     private randomNotificationCheckTimer: number = null; // 定期检查定时器
     private randomNotificationLastCheckTime: number = 0; // 上次检查时间
     private randomNotificationNextTriggerTime: number = 0; // 下次触发时间
-    private randomNotificationWindow: any = null; // 新增：随机提示音弹窗
+    private randomNotificationWindow: any = null; // 新增：随机微休息弹窗
     private pomodoroEndWindow: any = null; // 新增：番茄钟结束弹窗
 
     private systemNotificationEnabled: boolean = true; // 新增：系统弹窗开关
-    private randomNotificationSystemNotificationEnabled: boolean = true; // 新增：随机提示音系统通知开关
-    private randomNotificationAutoClose: boolean = true // 新增：随机提示音系统通知自动关闭
-    private randomNotificationAutoCloseDelay: number = 5; // 新增：随机提示音系统通知自动关闭延迟
+    private randomNotificationSystemNotificationEnabled: boolean = true; // 新增：随机微休息系统通知开关
+    private randomNotificationAutoClose: boolean = true // 新增：随机微休息系统通知自动关闭
+    private randomNotificationAutoCloseDelay: number = 5; // 新增：随机微休息系统通知自动关闭延迟
 
     private isFullscreen: boolean = false; // 新增：全屏模式状态
     private escapeKeyHandler: ((e: KeyboardEvent) => void) | null = null; // 新增：ESC键监听器
@@ -124,7 +124,7 @@ export class PomodoroTimer {
         // 初始化系统弹窗设置
         this.systemNotificationEnabled = settings.systemNotification !== false;
 
-        // 初始化随机提示音设置
+        // 初始化随机微休息设置
         this.randomNotificationEnabled = settings.randomNotificationEnabled || false;
         this.randomNotificationSystemNotificationEnabled = settings.randomNotificationSystemNotification !== false; // 新增
         this.randomNotificationAutoClose = true;
@@ -339,12 +339,12 @@ export class PomodoroTimer {
             }
         }
 
-        // 初始化随机提示音
+        // 初始化随机微休息
         if (this.randomNotificationEnabled && this.settings.randomNotificationSounds) {
             this.initRandomNotificationSounds();
         }
 
-        // 初始化随机提示音结束声音
+        // 初始化随机微休息结束声音
         if (this.randomNotificationEnabled && this.settings.randomNotificationEndSound) {
             this.initRandomNotificationEndSound();
         }
@@ -390,7 +390,7 @@ export class PomodoroTimer {
             soundPaths.forEach((path, index) => {
                 try {
                     const audio = new Audio(path);
-                    audio.volume = 1; // 随机提示音固定音量，不受背景音静音影响
+                    audio.volume = 1; // 随机微休息固定音量，不受背景音静音影响
                     audio.preload = 'auto';
 
 
@@ -400,18 +400,18 @@ export class PomodoroTimer {
 
 
                     audio.addEventListener('error', (e) => {
-                        console.error(`随机提示音 ${index + 1} 加载失败: ${path}`, e);
+                        console.error(`随机微休息 ${index + 1} 加载失败: ${path}`, e);
                     });
 
 
                     this.randomNotificationSounds.push(audio);
                 } catch (error) {
-                    console.warn(`无法创建随机提示音 ${index + 1}: ${path}`, error);
+                    console.warn(`无法创建随机微休息 ${index + 1}: ${path}`, error);
                 }
             });
 
         } catch (error) {
-            console.warn('初始化随机提示音失败:', error);
+            console.warn('初始化随机微休息失败:', error);
         }
     }
 
@@ -429,19 +429,19 @@ export class PomodoroTimer {
 
 
                 this.randomNotificationEndSound.addEventListener('error', (e) => {
-                    console.error('随机提示音结束声音加载失败:', e);
+                    console.error('随机微休息结束声音加载失败:', e);
                 });
 
 
             }
         } catch (error) {
-            console.warn('无法创建随机提示音结束声音:', error);
+            console.warn('无法创建随机微休息结束声音:', error);
         }
     }
 
     private async playRandomNotificationSound() {
         if (!this.randomNotificationEnabled || this.randomNotificationSounds.length === 0) {
-            console.warn('随机提示音未启用或无可用音频文件');
+            console.warn('随机微休息未启用或无可用音频文件');
             return;
         }
 
@@ -456,7 +456,7 @@ export class PomodoroTimer {
 
             // 日志：输出触发信息，便于调试遗漏问题
             try {
-                console.log('[PomodoroTimer] 随机提示音触发', {
+                console.log('[PomodoroTimer] 随机微休息触发', {
                     time: new Date().toLocaleString(),
                     index: randomIndex,
                     src: selectedAudio && selectedAudio.src ? selectedAudio.src : null
@@ -485,7 +485,7 @@ export class PomodoroTimer {
                     retried++;
                 }
                 if (pluginAny.isPlayingNotificationSound) {
-                    console.warn('[PomodoroTimer] 检测到已有全局提示音在播放，跳过本次随机提示音以避免重叠');
+                    console.warn('[PomodoroTimer] 检测到已有全局提示音在播放，跳过本次随机微休息以避免重叠');
                     return;
                 }
             }
@@ -506,7 +506,7 @@ export class PomodoroTimer {
                 // 使用 safePlayAudio 以在权限不足时先尝试初始化并优雅处理错误
                 const played = await this.safePlayAudio(selectedAudio);
                 if (!played) {
-                    console.warn('随机提示音播放失败或被阻止');
+                    console.warn('随机微休息播放失败或被阻止');
                     // safePlayAudio 已经会在 NotAllowedError 时尝试初始化或附加解锁监听器
                     this.audioInitialized = false;
                     this.attachAudioUnlockListeners();
@@ -550,20 +550,20 @@ export class PomodoroTimer {
                         const playedEnd = await this.safePlayAudio(this.randomNotificationEndSound);
                         if (playedEnd) {
                         } else {
-                            console.warn('随机提示音结束声音被阻止或播放失败（等待用户交互以解锁）');
+                            console.warn('随机微休息结束声音被阻止或播放失败（等待用户交互以解锁）');
                         }
                     } catch (error) {
                         // safePlayAudio 应不会抛出，但以防万一记录警告
-                        console.warn('播放随机提示音结束声音时发生异常:', error);
+                        console.warn('播放随机微休息结束声音时发生异常:', error);
                     } finally {
                         this.closeRandomNotificationWindow();
-                        // 随机提示音微休息结束，增加计数并持久化
+                        // 随机微休息微休息结束，增加计数并持久化
                         try {
-                            // 随机提示音计数仅在内存中维护
+                            // 随机微休息计数仅在内存中维护
                             this.randomNotificationCount++;
                             this.updateDisplay();
                         } catch (err) {
-                            console.warn('更新随机提示音计数失败:', err);
+                            console.warn('更新随机微休息计数失败:', err);
                         }
                         // 无论音频是否播放成功，都显示系统通知
                         if (this.randomNotificationSystemNotificationEnabled) {
@@ -582,13 +582,13 @@ export class PomodoroTimer {
 
                 this.randomNotificationEndSoundTimer = window.setTimeout(() => {
                     this.closeRandomNotificationWindow();
-                    // 随机提示音微休息结束，增加计数并持久化
+                    // 随机微休息微休息结束，增加计数并持久化
                     try {
-                        // 随机提示音计数仅在内存中维护
+                        // 随机微休息计数仅在内存中维护
                         this.randomNotificationCount++;
                         this.updateDisplay();
                     } catch (err) {
-                        console.warn('更新随机提示音计数失败:', err);
+                        console.warn('更新随机微休息计数失败:', err);
                     }
                     if (this.randomNotificationSystemNotificationEnabled) {
                         this.showSystemNotification(
@@ -601,13 +601,13 @@ export class PomodoroTimer {
             }
 
         } catch (error) {
-            console.error('播放随机提示音失败:', error);
+            console.error('播放随机微休息失败:', error);
         }
     }
 
     /**
-     * 启动随机提示音的定期检查机制（类似index.ts的定时任务提醒）
-     * 每30秒检查一次是否需要播放随机提示音，确保不会遗漏
+     * 启动随机微休息的定期检查机制（类似index.ts的定时任务提醒）
+     * 每30秒检查一次是否需要播放随机微休息，确保不会遗漏
      */
     private startRandomNotificationTimer() {
         if (!this.randomNotificationEnabled || !this.isWorkPhase) {
@@ -632,7 +632,7 @@ export class PomodoroTimer {
     }
 
     /**
-     * 计算下次随机提示音的触发时间
+     * 计算下次随机微休息的触发时间
      */
     private calculateNextRandomNotificationTime(): number {
         const minInterval = (Number(this.settings.randomNotificationMinInterval) || 1) * 60 * 1000;
@@ -642,12 +642,12 @@ export class PomodoroTimer {
         // 在最小和最大间隔之间随机选择
         const randomInterval = minInterval + Math.random() * (actualMaxInterval - minInterval);
         // 提示音响起具体时间
-        console.log(`下次随机提示音将在 ${new Date(Date.now() + randomInterval).toLocaleTimeString()} 触发`);
+        console.log(`下次随机微休息将在 ${new Date(Date.now() + randomInterval).toLocaleTimeString()} 触发`);
         return Date.now() + randomInterval;
     }
 
     /**
-     * 检查是否需要触发随机提示音（定期检查机制）
+     * 检查是否需要触发随机微休息（定期检查机制）
      */
     private checkRandomNotificationTrigger() {
         if (!this.randomNotificationEnabled || !this.isWorkPhase || !this.isRunning || this.isPaused) {
@@ -658,9 +658,9 @@ export class PomodoroTimer {
 
         // 如果当前时间已达到或超过下次触发时间，则播放提示音
         if (now >= this.randomNotificationNextTriggerTime) {
-            // 播放随机提示音
+            // 播放随机微休息
             this.playRandomNotificationSound().catch(error => {
-                console.warn('播放随机提示音失败:', error);
+                console.warn('播放随机微休息失败:', error);
             });
 
             // 计算下次触发时间
@@ -672,7 +672,7 @@ export class PomodoroTimer {
     }
 
     /**
-     * 停止随机提示音的定期检查机制
+     * 停止随机微休息的定期检查机制
      */
     private stopRandomNotificationTimer() {
         if (this.randomNotificationCheckTimer) {
@@ -733,10 +733,8 @@ export class PomodoroTimer {
         const isMobile = frontend.endsWith('mobile');
         const isBrowserDesktop = frontend === 'browser-desktop';
         if (isMobile || isBrowserDesktop) return; // 仅在桌面端启用
-
-        console.log('[PomodoroTimer] 打开随机提示音弹窗');
         this.openRandomNotificationWindowImpl(
-            t('randomNotificationSettings') || '随机提示音',
+            '微休息',
             t('randomRest', { duration: this.settings.randomNotificationBreakDuration }) || 'Time for a quick break!',
             '🎲'
         );
@@ -1127,7 +1125,7 @@ export class PomodoroTimer {
 
     private openRandomNotificationWindowImpl(title: string, message: string, icon: string, autoCloseDelay?: number) {
         try {
-            // 只关闭之前的随机提示音弹窗，不关闭番茄钟弹窗
+            // 只关闭之前的随机微休息弹窗，不关闭番茄钟弹窗
             this.closeRandomNotificationWindow();
 
             let electron: any;
@@ -1450,17 +1448,17 @@ export class PomodoroTimer {
                         }
                     };
 
-                    // 对随机提示音数组尝试解锁
+                    // 对随机微休息数组尝试解锁
                     if (this.randomNotificationSounds && this.randomNotificationSounds.length > 0) {
                         this.randomNotificationSounds.forEach((a) => unlockAttempts.push(tryUnlockAudio(a)));
                     }
 
-                    // 对随机提示音结束声音尝试解锁
+                    // 对随机微休息结束声音尝试解锁
                     if (this.randomNotificationEndSound) {
                         unlockAttempts.push(tryUnlockAudio(this.randomNotificationEndSound));
                     }
 
-                    // 对工作/休息结束提示音也尝试解锁（以防用户选择这些作为随机提示音）
+                    // 对工作/休息结束提示音也尝试解锁（以防用户选择这些作为随机微休息）
                     if (this.workEndAudio) unlockAttempts.push(tryUnlockAudio(this.workEndAudio));
                     if (this.breakEndAudio) unlockAttempts.push(tryUnlockAudio(this.breakEndAudio));
 
@@ -2432,11 +2430,11 @@ export class PomodoroTimer {
         pomodoroCountLeft.appendChild(pomodoroIcon);
         pomodoroCountLeft.appendChild(pomodoroCountSpan);
 
-        // 随机提示音启用时显示骰子图标（靠右，紧邻番茄计数）
+        // 随机微休息启用时显示骰子图标（靠右，紧邻番茄计数）
         const diceEl = document.createElement('span');
         diceEl.className = 'pomodoro-dice';
         diceEl.textContent = '🎲';
-        diceEl.title = (t('randomNotificationSettings') || '随机提示音');
+        diceEl.title = (t('randomNotificationSettings') || '随机微休息');
         diceEl.style.cssText = `
             margin-left:8px;
             font-size:14px;
@@ -2446,7 +2444,7 @@ export class PomodoroTimer {
         `;
         pomodoroCountLeft.appendChild(diceEl);
 
-        // 随机提示音计数显示（紧邻骰子）
+        // 随机微休息计数显示（紧邻骰子）
         const randomCountEl = document.createElement('span');
         randomCountEl.id = 'randomNotificationCount';
         randomCountEl.textContent = this.randomNotificationCount.toString();
@@ -3774,7 +3772,7 @@ export class PomodoroTimer {
                 // 忽略DOM更新错误
             }
         }
-        // 更新随机提示音计数显示
+        // 更新随机微休息计数显示
         const randomCountEl = this.container?.querySelector('#randomNotificationCount') as HTMLElement | null;
         if (randomCountEl) {
             try {
@@ -3917,7 +3915,7 @@ export class PomodoroTimer {
             }
         }
 
-        // 启动随机提示音定时器（仅在工作时间）
+        // 启动随机微休息定时器（仅在工作时间）
         if (this.isWorkPhase) {
             this.startRandomNotificationTimer();
         }
@@ -3990,7 +3988,7 @@ export class PomodoroTimer {
         const currentTime = Date.now();
         this.pausedTime = Math.floor((currentTime - this.startTime) / 1000);
 
-        // 停止随机提示音定时器
+        // 停止随机微休息定时器
         this.stopRandomNotificationTimer();
 
         // 暂停所有背景音
@@ -4036,7 +4034,7 @@ export class PomodoroTimer {
             }
         }
 
-        // 重新启动随机提示音定时器（仅在工作时间）
+        // 重新启动随机微休息定时器（仅在工作时间）
         if (this.isWorkPhase) {
             this.startRandomNotificationTimer();
         }
@@ -4096,7 +4094,7 @@ export class PomodoroTimer {
         }
 
         this.stopAllAudio();
-        this.stopRandomNotificationTimer(); // 停止随机提示音
+        this.stopRandomNotificationTimer(); // 停止随机微休息
 
         this.isWorkPhase = true;
         this.isLongBreak = false;
@@ -4133,7 +4131,7 @@ export class PomodoroTimer {
         }
 
         this.stopAllAudio();
-        this.stopRandomNotificationTimer(); // 停止随机提示音
+        this.stopRandomNotificationTimer(); // 停止随机微休息
 
         this.isWorkPhase = false;
         this.isLongBreak = false;
@@ -4169,7 +4167,7 @@ export class PomodoroTimer {
         }
 
         this.stopAllAudio();
-        this.stopRandomNotificationTimer(); // 停止随机提示音
+        this.stopRandomNotificationTimer(); // 停止随机微休息
 
         this.isWorkPhase = false;
         this.isLongBreak = true;
@@ -4284,7 +4282,7 @@ export class PomodoroTimer {
         }
 
         this.stopAllAudio();
-        this.stopRandomNotificationTimer(); // 停止随机提示音
+        this.stopRandomNotificationTimer(); // 停止随机微休息
 
         if (this.isCountUp) {
             this.timeElapsed = 0;
@@ -4390,7 +4388,7 @@ export class PomodoroTimer {
             }
 
             this.stopAllAudio();
-            this.stopRandomNotificationTimer(); // 添加停止随机提示音
+            this.stopRandomNotificationTimer(); // 添加停止随机微休息
 
             // 播放工作结束提示音
             if (this.workEndAudio) {
@@ -4445,7 +4443,7 @@ export class PomodoroTimer {
             // 触发 reminderUpdated 事件
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
         } else {
-            // 正计时模式完成番茄后也要停止随机提示音
+            // 正计时模式完成番茄后也要停止随机微休息
             this.stopRandomNotificationTimer();
         }
 
@@ -4471,7 +4469,7 @@ export class PomodoroTimer {
             this.timer = null;
         }
         this.stopAllAudio();
-        this.stopRandomNotificationTimer(); // 添加停止随机提示音
+        this.stopRandomNotificationTimer(); // 添加停止随机微休息
 
         // 休息结束，关闭番茄钟结束弹窗
         this.closePomodoroEndWindow();
@@ -4543,10 +4541,10 @@ export class PomodoroTimer {
         }
 
         this.stopAllAudio();
-        this.stopRandomNotificationTimer(); // 添加停止随机提示音
+        this.stopRandomNotificationTimer(); // 添加停止随机微休息
 
         if (this.isWorkPhase) {
-            // 工作阶段结束，停止随机提示音
+            // 工作阶段结束，停止随机微休息
 
             // 打开番茄钟结束弹窗（如果启用），休息结束后才关闭
             this.openPomodoroEndWindow();
@@ -4826,7 +4824,7 @@ export class PomodoroTimer {
             await this.safePlayAudio(this.workAudio);
         }
 
-        // 启动随机提示音定时器
+        // 启动随机微休息定时器
         if (this.isWorkPhase) {
             this.startRandomNotificationTimer();
         }
@@ -5379,7 +5377,7 @@ export class PomodoroTimer {
         }
 
         this.stopAllAudio();
-        this.stopRandomNotificationTimer(); // 停止随机提示音
+        this.stopRandomNotificationTimer(); // 停止随机微休息
         this.detachAudioUnlockListeners();
 
         if (this.isFullscreen) {
@@ -5570,7 +5568,7 @@ export class PomodoroTimer {
             await this.resumeTimer();
         }
 
-        // 根据随机提示音开关，重新启动或停止随机提示音定时器
+        // 根据随机微休息开关，重新启动或停止随机微休息定时器
         if (this.randomNotificationEnabled) {
             if (this.isWorkPhase && this.isRunning && !this.isPaused) {
                 this.startRandomNotificationTimer();

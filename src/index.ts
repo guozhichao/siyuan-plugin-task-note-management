@@ -78,8 +78,8 @@ export const DEFAULT_SETTINGS = {
     randomNotificationBreakDuration: 10,
     randomNotificationSounds: '/plugins/siyuan-plugin-task-note-management/audios/random_start.mp3',
     randomNotificationEndSound: '/plugins/siyuan-plugin-task-note-management/audios/random_end.mp3',
-    randomNotificationSystemNotification: true, // 新增：随机提示音系统通知
-    randomNotificationPopupWindow: false, // 新增：随机提示音弹窗提醒，默认关闭
+    randomNotificationSystemNotification: true, // 新增：随机微休息系统通知
+    randomNotificationPopupWindow: false, // 新增：随机微休息弹窗提醒，默认关闭
     dailyFocusGoal: 6,
     autoDetectDateTime: false, // 新增：是否自动识别日期时间
     newDocNotebook: '', // 新增：新建文档的笔记本ID
@@ -2114,10 +2114,12 @@ export default class ReminderPlugin extends Plugin {
 
                 // 检查是否启用系统弹窗通知
                 const systemNotificationEnabled = await this.getReminderSystemNotificationEnabled();
-                const isMobile = getFrontend().endsWith('mobile');
+                const frontend = getFrontend();
+                const isMobile = frontend.endsWith('mobile');
+                const isBrowserDesktop = frontend === 'browser-desktop';
 
                 // 电脑端且开启了系统通知时，不显示思源内部通知；手机端始终显示内部通知
-                if (isMobile || !systemNotificationEnabled) {
+                if (isMobile || isBrowserDesktop || !systemNotificationEnabled) {
                     NotificationDialog.showAllDayReminders(sortedReminders);
                 }
 

@@ -20,7 +20,7 @@
 ## 📺视频与博客介绍
 
 - [为了在笔记软件里进行任务管理，我写了一个插件，代替滴答清单-哔哩哔哩 ](https://b23.tv/t8ECHHT)
-- [给笔记软件写了一个番茄钟+随机提示音插件，助力高效创作_哔哩哔哩_bilibili](https://www.bilibili.com/video/BV1eUNmzXEBE/?spm_id_from=0.0.upload.video_card.click)
+- [给笔记软件写了一个番茄钟+随机微休息插件，助力高效创作_哔哩哔哩_bilibili](https://www.bilibili.com/video/BV1eUNmzXEBE/?spm_id_from=0.0.upload.video_card.click)
 - [《防弹笔记法》阅读笔记：应该如何收集和处理资料 - 知乎](https://zhuanlan.zhihu.com/p/1959665210475417795)
 - [思源笔记任务笔记管理插件的使用技巧分享 - 知乎](https://zhuanlan.zhihu.com/p/1944797779588282139)
 - [思源笔记任务笔记管理插件 v3.0 更新丨支持项目日历视图 - 知乎](https://zhuanlan.zhihu.com/p/1972106898238051048)
