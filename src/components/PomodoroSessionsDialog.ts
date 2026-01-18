@@ -177,7 +177,7 @@ export class PomodoroSessionsDialog {
                     <div style="font-size: 12px; color: var(--b3-theme-on-surface-light); display: flex; gap: 12px;">
                         <span>📅 ${dateStr}</span>
                         <span>🕐 ${startTimeStr} - ${endTimeStr}</span>
-                        <span>⏱️ ${session.duration} 分钟 ${session.duration !== session.plannedDuration ? `(计划 ${session.plannedDuration} 分钟)` : ''}</span>
+                        <span>⏱️ ${session.duration} 分钟</span>
                     </div>
                 </div>
                 <div style="display: flex; gap: 4px;">
