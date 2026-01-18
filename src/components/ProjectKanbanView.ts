@@ -2291,6 +2291,7 @@ export class ProjectKanbanView {
             const pomodoroManager = PomodoroRecordManager.getInstance();
             // If repeat instance, use per-event total
             if (reminder && reminder.isRepeatInstance) {
+                if (!pomodoroManager['isInitialized']) await pomodoroManager.initialize();
                 if (typeof pomodoroManager.getEventTotalFocusTime === 'function') {
                     return pomodoroManager.getEventTotalFocusTime(reminderId);
                 }
@@ -2320,12 +2321,14 @@ export class ProjectKanbanView {
                     return await pomodoroManager.getAggregatedReminderFocusTime(reminderId);
                 }
                 if (typeof pomodoroManager.getEventTotalFocusTime === 'function') {
+                    if (!pomodoroManager['isInitialized']) await pomodoroManager.initialize();
                     return pomodoroManager.getEventTotalFocusTime(reminderId);
                 }
             }
 
             // default to per-event total
             if (typeof pomodoroManager.getEventTotalFocusTime === 'function') {
+                if (!pomodoroManager['isInitialized']) await pomodoroManager.initialize();
                 return pomodoroManager.getEventTotalFocusTime(reminderId);
             }
             return 0;

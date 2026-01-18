@@ -12,6 +12,8 @@ export interface PomodoroSession {
     duration: number; // 实际持续时间（分钟）
     plannedDuration: number; // 计划持续时间（分钟）
     completed: boolean; // 是否完成（未中途停止）
+    isCountUp?: boolean; // 是否为正计时模式
+    count?: number; // 完成的番茄钟数量（正计时模式下根据时长计算）
 }
 
 export interface PomodoroRecord {
@@ -117,7 +119,7 @@ export class PomodoroRecordManager {
         }
     }
 
-    async recordWorkSession(workMinutes: number, eventId: string = '', eventTitle: string = '番茄专注', plannedDuration: number = 25, completed: boolean = true) {
+    async recordWorkSession(workMinutes: number, eventId: string = '', eventTitle: string = '番茄专注', plannedDuration: number = 25, completed: boolean = true, isCountUp: boolean = false) {
         // 确保已初始化
         if (!this.isInitialized) {
             await this.initialize();
@@ -127,6 +129,16 @@ export class PomodoroRecordManager {
         this.ensureTodayRecord(today);
 
         // console.log('记录工作会话前:', JSON.stringify(this.records[today]));
+
+        let count = 0;
+        if (completed) {
+            const calculated = Math.round(workMinutes / Math.max(1, plannedDuration));
+            if (isCountUp) {
+                count = calculated;
+            } else {
+                count = Math.max(1, calculated);
+            }
+        }
 
         // 创建详细的会话记录
         const session: PomodoroSession = {
@@ -138,16 +150,17 @@ export class PomodoroRecordManager {
             endTime: new Date().toISOString(),
             duration: workMinutes,
             plannedDuration,
-            completed
+            completed,
+            isCountUp: isCountUp || false,
+            count
         };
 
         // 添加到会话记录
         this.records[today].sessions.push(session);
 
         // 更新统计数据
-        if (completed) {
-            this.records[today].workSessions += 1;
-        }
+        this.records[today].workSessions += count;
+
         this.records[today].totalWorkTime += workMinutes;
 
         // console.log('记录工作会话后:', JSON.stringify(this.records[today]));
@@ -217,52 +230,22 @@ export class PomodoroRecordManager {
     }
 
     /**
-     * 获取指定提醒的番茄数量
+     * 获取指定提醒的番茄数量 (Deprecated: prefer using getEventTotalPomodoroCount)
      */
     async getReminderPomodoroCount(reminderId: string): Promise<number> {
-        try {
-            const { readReminderData } = await import("../api");
-            const reminderData = await readReminderData();
-
-            if (!reminderData) return 0;
-
-            // 检查是否是重复实例ID（格式：originalId_date）
-            if (reminderId.includes('_')) {
-                // 可能是重复实例，尝试提取原始ID
-                const parts = reminderId.split('_');
-                if (parts.length >= 2) {
-                    // 最后一部分应该是日期，前面的部分组成原始ID
-                    const lastPart = parts[parts.length - 1];
-                    // 简单检查最后一部分是否像日期（YYYY-MM-DD格式）
-                    if (/^\d{4}-\d{2}-\d{2}$/.test(lastPart)) {
-                        // 这是一个重复实例ID
-                        const originalId = parts.slice(0, -1).join('_');
-                        const originalReminder = reminderData[originalId];
-
-                        if (originalReminder?.repeat?.instancePomodoroCount) {
-                            return originalReminder.repeat.instancePomodoroCount[reminderId] || 0;
-                        }
-                        return 0;
-                    }
-                }
-            }
-
-            // 普通任务或不是重复实例格式
-            if (reminderData[reminderId]) {
-                return reminderData[reminderId].pomodoroCount || 0;
-            }
-
-            return 0;
-        } catch (error) {
-            console.error('获取提醒番茄数量失败:', error);
-            return 0;
+        if (!this.isInitialized) {
+            await this.initialize();
         }
+        return this.getEventTotalPomodoroCount(reminderId);
     }
 
     /**
      * 获取指定提醒及其所有子任务的累计番茄数量
      */
     async getAggregatedReminderPomodoroCount(reminderId: string): Promise<number> {
+        if (!this.isInitialized) {
+            await this.initialize();
+        }
         try {
             const { readReminderData } = await import("../api");
             const reminderData = await readReminderData();
@@ -289,35 +272,18 @@ export class PomodoroRecordManager {
             const queue: string[] = [rootId];
             let total = 0;
 
+            // Using this.records to count
+            const countForId = (id: string) => {
+                return this.getEventTotalPomodoroCount(id);
+            };
+
             while (queue.length > 0) {
                 const current = queue.shift()!;
                 if (visited.has(current)) continue;
                 visited.add(current);
 
-                // accumulate count for this id
-                if (isInstanceId(current)) {
-                    // Instance id: find original reminder and count via repeat.instancePomodoroCount
-                    const parts = current.split('_');
-                    const original = parts.slice(0, -1).join('_');
-                    const originalReminder = reminderData[original];
-                    if (originalReminder?.repeat?.instancePomodoroCount) {
-                        total += originalReminder.repeat.instancePomodoroCount[current] || 0;
-                    }
-                } else {
-                    if (reminderData[current]) {
-                        total += reminderData[current].pomodoroCount || 0;
-                        // If this reminder has per-instance counts, include those as well
-                        if (reminderData[current].repeat && reminderData[current].repeat.instancePomodoroCount) {
-                            const obj = reminderData[current].repeat.instancePomodoroCount;
-                            Object.keys(obj).forEach(k => {
-                                try {
-                                    const v = obj[k];
-                                    if (typeof v === 'number') total += v;
-                                } catch (e) { }
-                            });
-                        }
-                    }
-                }
+                // accumulate count for this id from records
+                total += countForId(current);
 
                 // enqueue direct children
                 Object.keys(reminderData).forEach(k => {
@@ -414,26 +380,10 @@ export class PomodoroRecordManager {
      * 获取今日所有提醒的总番茄数
      */
     async getTodayTotalPomodoroCount(): Promise<number> {
-        try {
-            const { readReminderData } = await import("../api");
-            const reminderData = await readReminderData();
-
-            if (!reminderData) return 0;
-
-            const today = getLogicalDateString();
-            let totalCount = 0;
-
-            Object.values(reminderData).forEach((reminder: any) => {
-                if (reminder && reminder.date === today && reminder.pomodoroCount) {
-                    totalCount += reminder.pomodoroCount;
-                }
-            });
-
-            return totalCount;
-        } catch (error) {
-            console.error('获取今日总番茄数失败:', error);
-            return 0;
-        }
+        // Using records instead of reminderData
+        const today = getLogicalDateString();
+        const record = this.records[today];
+        return record ? record.workSessions : 0;
     }
 
     formatTime(minutes: number): string {
@@ -474,17 +424,38 @@ export class PomodoroRecordManager {
     }
 
     /**
-     * 获取指定事件的番茄钟数量
+     * 计算并获取指定日期的某个事件的番茄钟数量（兼容旧数据）
      */
-    getEventPomodoroCount(eventId: string, date?: string): number {
-        const targetDate = date || this.getToday();
-        const sessions = this.getDateSessions(targetDate);
+    getEventPomodoroCount(eventId: string, date: string): number {
+        if (!this.records[date]) {
+            return 0;
+        }
 
-        return sessions.filter(session =>
-            session.eventId === eventId &&
-            session.type === 'work' &&
-            session.completed
-        ).length;
+        return this.records[date].sessions.reduce((sum, session) => {
+            if (session.eventId === eventId && session.type === 'work' && session.completed) {
+                return sum + this.calculateSessionCount(session);
+            }
+            return sum;
+        }, 0);
+    }
+
+    /**
+     * 获取某个事件的总番茄钟数量（跨所有日期，兼容旧数据）
+     */
+    getEventTotalPomodoroCount(eventId: string): number {
+        let total = 0;
+        const records = Object.values(this.records);
+
+        for (const record of records) {
+            total += record.sessions.reduce((sum, session) => {
+                if (session.eventId === eventId && session.type === 'work' && session.completed) {
+                    return sum + this.calculateSessionCount(session);
+                }
+                return sum;
+            }, 0);
+        }
+
+        return total;
     }
 
     /**
@@ -504,16 +475,34 @@ export class PomodoroRecordManager {
      */
     getEventTotalFocusTime(eventId: string): number {
         let total = 0;
-        for (const date in this.records) {
-            const record = this.records[date];
-            if (!record || !record.sessions) continue;
-            for (const session of record.sessions) {
-                if (session && session.type === 'work' && session.eventId === eventId) {
-                    total += session.duration || 0;
+        const records = Object.values(this.records);
+
+        for (const record of records) {
+            total += record.sessions.reduce((sum, session) => {
+                if (session.eventId === eventId && session.type === 'work' && session.completed) {
+                    return sum + session.duration;
                 }
-            }
+                return sum;
+            }, 0);
         }
+
         return total;
+    }
+
+    getSaveData(): any {
+        return this.records;
+    }
+
+    /**
+     * 计算会话的番茄钟数量
+     * @param session 番茄钟会话
+     */
+    public calculateSessionCount(session: PomodoroSession): number {
+        // 按照用户需求：有count值的按count值统计，没有count值的都算一个番茄
+        if (typeof session.count === 'number') {
+            return session.count;
+        }
+        return 1;
     }
 
     /**
@@ -576,7 +565,8 @@ export class PomodoroRecordManager {
                 // 更新统计数据
                 if (session.type === 'work') {
                     if (session.completed) {
-                        record.workSessions = Math.max(0, record.workSessions - 1);
+                        const count = this.calculateSessionCount(session);
+                        record.workSessions = Math.max(0, record.workSessions - count);
                     }
                     record.totalWorkTime = Math.max(0, record.totalWorkTime - session.duration);
                 } else {
@@ -643,7 +633,7 @@ export class PomodoroRecordManager {
                 // 更新统计数据
                 if (session.type === 'work') {
                     if (session.completed) {
-                        this.records[logicalDate].workSessions += 1;
+                        this.records[logicalDate].workSessions += this.calculateSessionCount(session);
                     }
                     this.records[logicalDate].totalWorkTime += session.duration;
                 } else {

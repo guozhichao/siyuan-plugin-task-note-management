@@ -656,7 +656,7 @@ export class QuickReminderDialog {
                 const sessions = record.sessions.filter((s: any) =>
                     s.eventId === this.reminder.id && s.type === 'work' && s.completed
                 );
-                count += sessions.length;
+                count += sessions.reduce((sum: number, s: any) => sum + this.pomodoroRecordManager.calculateSessionCount(s), 0);
                 totalMinutes += sessions.reduce((sum: number, s: any) => sum + (s.duration || 0), 0);
             }
         }

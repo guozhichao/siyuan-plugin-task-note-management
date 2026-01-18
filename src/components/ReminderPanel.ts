@@ -84,8 +84,15 @@ export class ReminderPanel {
             if (this.loadTimeoutId) {
                 clearTimeout(this.loadTimeoutId);
             }
-            this.loadTimeoutId = window.setTimeout(() => {
+            this.loadTimeoutId = window.setTimeout(async () => {
                 if (!this.isLoading) {
+                    // 确保番茄钟数据是最新的
+                    try {
+                        const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
+                        await PomodoroRecordManager.getInstance().refreshData();
+                    } catch (e) {
+                        console.warn('刷新番茄钟数据失败:', e);
+                    }
                     this.loadReminders();
                 }
                 this.loadTimeoutId = null;
@@ -7004,6 +7011,7 @@ export class ReminderPanel {
             const pomodoroManager = PomodoroRecordManager.getInstance();
             // If this is a repeat instance, always use per-event total
             if (reminder && reminder.isRepeatInstance) {
+                if (!pomodoroManager['isInitialized']) await pomodoroManager.initialize();
                 if (typeof pomodoroManager.getEventTotalFocusTime === 'function') {
                     return pomodoroManager.getEventTotalFocusTime(reminderId);
                 }
@@ -7035,6 +7043,7 @@ export class ReminderPanel {
 
             // If it's a subtask/leaf or no descendants found, return per-event total
             if (typeof pomodoroManager.getEventTotalFocusTime === 'function') {
+                if (!pomodoroManager['isInitialized']) await pomodoroManager.initialize();
                 return pomodoroManager.getEventTotalFocusTime(reminderId);
             }
             return 0;
@@ -7061,6 +7070,7 @@ export class ReminderPanel {
             // If it's a repeat instance or an instance id (contains date), try direct event count
             if (reminder && reminder.isRepeatInstance) {
                 if (typeof pomodoroManager.getEventPomodoroCount === 'function') {
+                    if (!pomodoroManager['isInitialized']) await pomodoroManager.initialize();
                     return pomodoroManager.getEventPomodoroCount(reminderId, targetDate);
                 }
                 return 0;
@@ -7132,6 +7142,7 @@ export class ReminderPanel {
             for (const id of idsToQuery) {
                 try {
                     if (typeof pomodoroManager.getEventPomodoroCount === 'function') {
+                        if (!pomodoroManager['isInitialized']) await pomodoroManager.initialize();
                         total += pomodoroManager.getEventPomodoroCount(id, targetDate) || 0;
                     }
                 } catch (e) {
@@ -7158,6 +7169,7 @@ export class ReminderPanel {
             // If it's a repeat instance, use event-specific focus time
             if (reminder && reminder.isRepeatInstance) {
                 if (typeof pomodoroManager.getEventFocusTime === 'function') {
+                    if (!pomodoroManager['isInitialized']) await pomodoroManager.initialize();
                     return pomodoroManager.getEventFocusTime(reminderId, targetDate);
                 }
                 return 0;
@@ -7216,6 +7228,7 @@ export class ReminderPanel {
             for (const id of idsToQuery) {
                 try {
                     if (typeof pomodoroManager.getEventFocusTime === 'function') {
+                        if (!pomodoroManager['isInitialized']) await pomodoroManager.initialize();
                         total += pomodoroManager.getEventFocusTime(id, targetDate) || 0;
                     }
                 } catch (e) { }

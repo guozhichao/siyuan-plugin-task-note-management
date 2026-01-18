@@ -4217,6 +4217,7 @@ export class PomodoroTimer {
                                     eventId,
                                     eventTitle,
                                     this.currentPhaseOriginalDuration,
+                                    this.isCountUp,
                                     this.isCountUp
                                 );
                                 this.updateStatsDisplay();
@@ -4241,6 +4242,7 @@ export class PomodoroTimer {
                                     eventId,
                                     eventTitle,
                                     this.currentPhaseOriginalDuration,
+                                    this.isCountUp,
                                     this.isCountUp
                                 );
                                 this.updateStatsDisplay();
@@ -4438,7 +4440,8 @@ export class PomodoroTimer {
                 eventId,
                 eventTitle,
                 actualDuration,
-                true
+                true,
+                false
             );
             // 触发 reminderUpdated 事件
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -4575,7 +4578,8 @@ export class PomodoroTimer {
                 eventId,
                 eventTitle,
                 actualDuration,
-                true
+                true,
+                false
             );
 
             // 更新番茄数量计数

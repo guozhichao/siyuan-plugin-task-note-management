@@ -95,7 +95,12 @@ export class PomodoroSessionsDialog {
         }
 
         // 计算统计信息
-        const totalSessions = this.sessions.filter(s => s.type === 'work' && s.completed).length;
+        const totalSessions = this.sessions.reduce((sum, s) => {
+            if (s.type === 'work' && s.completed) {
+                return sum + this.recordManager.calculateSessionCount(s);
+            }
+            return sum;
+        }, 0);
         const totalFocusTime = this.sessions
             .filter(s => s.type === 'work')
             .reduce((sum, s) => sum + s.duration, 0);
@@ -158,6 +163,20 @@ export class PomodoroSessionsDialog {
             ? '<span style="background: #4caf50; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;">✓ 完成</span>'
             : '<span style="background: #ff9800; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;">⊗ 中断</span>';
 
+        let extraBadges = '';
+        if (session.type === 'work' && session.completed) {
+            const count = this.recordManager.calculateSessionCount(session);
+
+            if (session.isCountUp) {
+                extraBadges += `<span style="background: var(--b3-theme-secondary); color: var(--b3-theme-on-secondary); padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 4px;">⏱️ 正计时</span>`;
+                if (count > 0) {
+                    extraBadges += `<span style="background: var(--b3-theme-primary-light); color: var(--b3-theme-primary); padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 4px;">🍅 x${count}</span>`;
+                }
+            } else if (count > 1) {
+                extraBadges += `<span style="background: var(--b3-theme-primary-light); color: var(--b3-theme-primary); padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 4px;">🍅 x${count}</span>`;
+            }
+        }
+
         return `
             <div class="pomodoro-session-item" data-id="${session.id}" style="
                 display: flex;
@@ -173,6 +192,7 @@ export class PomodoroSessionsDialog {
                         <span style="font-size: 18px;">${typeIcon}</span>
                         <span style="font-weight: 500;">${session.eventTitle}</span>
                         ${statusBadge}
+                        ${extraBadges}
                     </div>
                     <div style="font-size: 12px; color: var(--b3-theme-on-surface-light); display: flex; gap: 12px;">
                         <span>📅 ${dateStr}</span>
@@ -269,6 +289,13 @@ export class PomodoroSessionsDialog {
                             <span class="b3-checkbox__label">${t("completed") || "已完成"}</span>
                         </label>
                     </div>
+                    <div class="b3-form__group" id="countUpGroup">
+                        <label class="b3-checkbox">
+                            <input type="checkbox" id="sessionIsCountUp">
+                            <span class="b3-checkbox__graphic"></span>
+                            <span class="b3-checkbox__label">${t("isCountUp") || "正计时 (自动计算番茄数)"}</span>
+                        </label>
+                    </div>
                     <div class="b3-dialog__action">
                         <button class="b3-button b3-button--cancel">${t("cancel")}</button>
                         <button class="b3-button b3-button--primary" id="confirmAddPomodoro">${t("save")}</button>
@@ -286,6 +313,18 @@ export class PomodoroSessionsDialog {
         // 类型选择改变时更新默认时长
         const typeSelect = addDialog.element.querySelector("#sessionType") as HTMLSelectElement;
         const durationInput = addDialog.element.querySelector("#sessionDuration") as HTMLInputElement;
+        const countUpGroup = addDialog.element.querySelector("#countUpGroup") as HTMLDivElement;
+
+        const updateUIState = () => {
+            const isWork = typeSelect.value === 'work';
+            if (isWork) {
+                countUpGroup.style.display = 'block';
+            } else {
+                countUpGroup.style.display = 'none';
+            }
+        };
+        // Initialize
+        updateUIState();
 
         typeSelect.addEventListener("change", () => {
             switch (typeSelect.value) {
@@ -299,6 +338,7 @@ export class PomodoroSessionsDialog {
                     durationInput.value = String(longBreakDuration);
                     break;
             }
+            updateUIState();
         });
 
         // 取消按钮
@@ -312,6 +352,7 @@ export class PomodoroSessionsDialog {
             const startTimeStr = (addDialog.element.querySelector("#sessionStartTime") as HTMLInputElement).value;
             const duration = parseInt((addDialog.element.querySelector("#sessionDuration") as HTMLInputElement).value);
             const completed = (addDialog.element.querySelector("#sessionCompleted") as HTMLInputElement).checked;
+            const isCountUp = (addDialog.element.querySelector("#sessionIsCountUp") as HTMLInputElement).checked;
 
             if (!startTimeStr || !duration || duration <= 0) {
                 showMessage(t("pleaseEnterValidInfo") || "请输入有效信息", 3000, "error");
@@ -329,6 +370,14 @@ export class PomodoroSessionsDialog {
                 const startTime = new Date(startTimeStr);
                 const endTime = new Date(startTime.getTime() + duration * 60000);
 
+                let count = 1;
+                let plannedDuration = duration;
+
+                if (type === 'work' && isCountUp) {
+                    plannedDuration = workDuration; // 正计时模式下，计划时长为单位时长
+                    count = Math.round(duration / Math.max(1, plannedDuration));
+                }
+
                 // 创建会话记录
                 const session: PomodoroSession = {
                     id: Date.now().toString(36) + Math.random().toString(36).substr(2),
@@ -338,8 +387,10 @@ export class PomodoroSessionsDialog {
                     startTime: startTime.toISOString(),
                     endTime: endTime.toISOString(),
                     duration,
-                    plannedDuration: duration,
-                    completed
+                    plannedDuration,
+                    completed,
+                    isCountUp,
+                    count
                 };
 
                 // 手动添加到记录中
@@ -364,7 +415,7 @@ export class PomodoroSessionsDialog {
                 // 更新统计
                 if (type === 'work') {
                     if (completed) {
-                        records[logicalDate].workSessions += 1;
+                        records[logicalDate].workSessions += this.recordManager.calculateSessionCount(session);
                     }
                     records[logicalDate].totalWorkTime += duration;
                 } else {
@@ -509,7 +560,7 @@ export class PomodoroSessionsDialog {
 
                 if (type === 'work') {
                     if (completed) {
-                        records[logicalDate].workSessions += 1;
+                        records[logicalDate].workSessions += this.recordManager.calculateSessionCount(newSession);
                     }
                     records[logicalDate].totalWorkTime += duration;
                 } else {
