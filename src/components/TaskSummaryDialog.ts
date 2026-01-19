@@ -68,24 +68,37 @@ export class TaskSummaryDialog {
 
   /**
    * 格式化完成时间
-   * @param completedAt 完成时间的ISO字符串
-   * @param isTodayView 是否为今天视图
+   * @param completedTime 完成时间字符串，格式为 "YYYY-MM-DD HH:mm" 或 ISO字符串
+   * @param taskDate 任务所在的日期（YYYY-MM-DD格式），这是任务的逻辑日期
    */
-  private formatCompletedTime(completedAt: string, isTodayView: boolean): string {
-    if (!completedAt) return '';
+  private formatCompletedTime(completedTime: string, taskDate: string): string {
+    if (!completedTime) return '';
 
-    const completed = new Date(completedAt);
-    const completedDateStr = completed.toISOString().split('T')[0];
+    // 提取实际完成日期（从原始字符串中提取，避免时区转换问题）
+    let actualCompletedDateStr: string;
+    // "YYYY-MM-DD HH:mm" 格式: "2026-01-20 01:31"
+    actualCompletedDateStr = completedTime.split(' ')[0];
+    // 处理 "YYYY-MM-DD HH:mm" 格式，转换为可解析的日期格式
+    let completed: Date;
+    completed = new Date(completedTime.replace(' ', 'T') + ':00');
+
     const timeStr = completed.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 
-    // 今天视图：只显示时间
-    if (isTodayView) {
-      return ` (完成于 ${timeStr})`;
-    }
+    // 使用 getLogicalDateString 获取完成时间的逻辑日期（仅用于比较）
+    // 例如：如果一天开始时间设置为03:00，则2026-01-20 02:30的逻辑日期是2026-01-19
+    const completedLogicalDate = getLogicalDateString(completed);
 
-    // 其他视图：显示日期+时间
-    const dateStr = this.formatMonthDay(completedDateStr);
-    return ` (完成于 ${dateStr} ${timeStr})`;
+    // 比较任务的逻辑日期和完成时间的逻辑日期是否为同一天
+    // taskDate 已经是任务的逻辑日期（从 reminder.date 获取）
+    if (completedLogicalDate === taskDate) {
+      // 同一天：只显示时间
+      return ` (完成于 ${timeStr})`;
+    } else {
+      // 不同天：显示实际完成日期+时间
+      // 注意：这里显示的是实际完成时间的日期（从原始字符串提取），而不是逻辑日期
+      const dateStr = this.formatMonthDay(actualCompletedDateStr);
+      return ` (完成于 ${dateStr} ${timeStr})`;
+    }
   }
 
   private formatRepeatLabel(repeat: any, startDate?: string): string {
@@ -534,63 +547,96 @@ export class TaskSummaryDialog {
   }
 
   private getRange(type: string): { start: string, end: string, label: string } {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // 使用逻辑日期来计算"今天"、"明天"、"昨天"
+    const logicalToday = getLogicalDateString();
 
-    let start = new Date(today);
-    let end = new Date(today);
+    let start: string;
+    let end: string;
     let label = '';
 
     switch (type) {
       case 'today':
+        start = logicalToday;
+        end = logicalToday;
         label = t('today');
         break;
-      case 'tomorrow':
-        start.setDate(today.getDate() + 1);
-        end.setDate(today.getDate() + 1);
+      case 'tomorrow': {
+        const tomorrowDate = new Date(logicalToday);
+        tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+        const tomorrow = getLocalDateString(tomorrowDate);
+        start = tomorrow;
+        end = tomorrow;
         label = t('tomorrow');
         break;
-      case 'yesterday':
-        start.setDate(today.getDate() - 1);
-        end.setDate(today.getDate() - 1);
+      }
+      case 'yesterday': {
+        const yesterdayDate = new Date(logicalToday);
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        const yesterday = getLocalDateString(yesterdayDate);
+        start = yesterday;
+        end = yesterday;
         label = t('yesterday');
         break;
+      }
       case 'thisWeek': {
-        const day = today.getDay();
-        const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-        start.setDate(diff);
-        end.setDate(diff + 6);
-        label = `${t('thisWeek')} (${getLocalDateString(start)} ~ ${getLocalDateString(end)})`;
+        const todayDate = new Date(logicalToday);
+        const day = todayDate.getDay();
+        const diff = todayDate.getDate() - day + (day === 0 ? -6 : 1);
+        const startDate = new Date(todayDate);
+        startDate.setDate(diff);
+        const endDate = new Date(startDate);
+        endDate.setDate(diff + 6);
+        start = getLocalDateString(startDate);
+        end = getLocalDateString(endDate);
+        label = `${t('thisWeek')} (${start} ~ ${end})`;
         break;
       }
       case 'nextWeek': {
-        const day = today.getDay();
-        const diff = today.getDate() - day + (day === 0 ? 1 : 8);
-        start.setDate(diff);
-        end.setDate(diff + 6);
-        label = `${t('nextWeek')} (${getLocalDateString(start)} ~ ${getLocalDateString(end)})`;
+        const todayDate = new Date(logicalToday);
+        const day = todayDate.getDay();
+        const diff = todayDate.getDate() - day + (day === 0 ? 1 : 8);
+        const startDate = new Date(todayDate);
+        startDate.setDate(diff);
+        const endDate = new Date(startDate);
+        endDate.setDate(diff + 6);
+        start = getLocalDateString(startDate);
+        end = getLocalDateString(endDate);
+        label = `${t('nextWeek')} (${start} ~ ${end})`;
         break;
       }
       case 'lastWeek': {
-        const day = today.getDay();
-        const diff = today.getDate() - day + (day === 0 ? -13 : -6);
-        start.setDate(diff);
-        end.setDate(diff + 6);
-        label = `${t('lastWeek')} (${getLocalDateString(start)} ~ ${getLocalDateString(end)})`;
+        const todayDate = new Date(logicalToday);
+        const day = todayDate.getDay();
+        const diff = todayDate.getDate() - day + (day === 0 ? -13 : -6);
+        const startDate = new Date(todayDate);
+        startDate.setDate(diff);
+        const endDate = new Date(startDate);
+        endDate.setDate(diff + 6);
+        start = getLocalDateString(startDate);
+        end = getLocalDateString(endDate);
+        label = `${t('lastWeek')} (${start} ~ ${end})`;
         break;
       }
-      case 'thisMonth':
-        start = new Date(today.getFullYear(), today.getMonth(), 1);
-        end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      case 'thisMonth': {
+        const todayDate = new Date(logicalToday);
+        const startDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
+        const endDate = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0);
+        start = getLocalDateString(startDate);
+        end = getLocalDateString(endDate);
         label = t('thisMonth');
         break;
-      case 'lastMonth':
-        start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        end = new Date(today.getFullYear(), today.getMonth(), 0);
+      }
+      case 'lastMonth': {
+        const todayDate = new Date(logicalToday);
+        const startDate = new Date(todayDate.getFullYear(), todayDate.getMonth() - 1, 1);
+        const endDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), 0);
+        start = getLocalDateString(startDate);
+        end = getLocalDateString(endDate);
         label = t('lastMonth');
         break;
+      }
     }
-    return { start: getLocalDateString(start), end: getLocalDateString(end), label };
+    return { start, end, label };
   }
 
   private async getEvents() {
@@ -712,7 +758,7 @@ export class TaskSummaryDialog {
       className: classNames,
       extendedProps: {
         completed: isCompleted,
-        completedAt: reminder.completedAt || null, // 添加完成时间
+        completedTime: reminder.completedTime || null, // 添加完成时间
         note: reminder.note || '',
         dailyCompletions: reminder.dailyCompletions || {},
         date: reminder.date,
@@ -734,14 +780,27 @@ export class TaskSummaryDialog {
       }
     };
 
+    // 计算任务的逻辑日期（如果有时间）
+    let taskLogicalDate = reminder.date;
+    if (reminder.time && reminder.date) {
+      try {
+        const dateTimeStr = `${reminder.date} ${reminder.time}`;
+        const taskDateTime = new Date(dateTimeStr.replace(' ', 'T') + ':00');
+        taskLogicalDate = getLogicalDateString(taskDateTime);
+      } catch (e) {
+        taskLogicalDate = reminder.date;
+      }
+    }
+
     // 处理跨天事件
     if (reminder.endDate) {
       if (reminder.time && reminder.endTime) {
-        eventObj.start = `${reminder.date}T${reminder.time}:00`;
+        // 使用逻辑日期作为开始日期
+        eventObj.start = `${taskLogicalDate}T${reminder.time}:00`;
         eventObj.end = `${reminder.endDate}T${reminder.endTime}:00`;
         eventObj.allDay = false;
       } else {
-        eventObj.start = reminder.date;
+        eventObj.start = taskLogicalDate;
         const endDate = new Date(reminder.endDate);
         endDate.setDate(endDate.getDate() + 1);
         eventObj.end = getLocalDateString(endDate);
@@ -753,12 +812,13 @@ export class TaskSummaryDialog {
       }
     } else {
       if (reminder.time) {
-        eventObj.start = `${reminder.date}T${reminder.time}:00`;
+        // 使用逻辑日期作为开始日期
+        eventObj.start = `${taskLogicalDate}T${reminder.time}:00`;
         if (reminder.endTime) {
-          eventObj.end = `${reminder.date}T${reminder.endTime}:00`;
+          eventObj.end = `${taskLogicalDate}T${reminder.endTime}:00`;
         } else {
           // 对于只有开始时间的提醒，设置30分钟的默认持续时间，但确保不跨天
-          const startTime = new Date(`${reminder.date}T${reminder.time}:00`);
+          const startTime = new Date(`${taskLogicalDate}T${reminder.time}:00`);
           const endTime = new Date(startTime);
           endTime.setMinutes(endTime.getMinutes() + 30);
 
@@ -769,13 +829,22 @@ export class TaskSummaryDialog {
           }
 
           const endTimeStr = endTime.toTimeString().substring(0, 5);
-          eventObj.end = `${reminder.date}T${endTimeStr}:00`;
+          eventObj.end = `${taskLogicalDate}T${endTimeStr}:00`;
         }
         eventObj.allDay = false;
       } else {
-        // 对于没有日期的任务，不设置 start，这样它们可以在后续被过滤器处理
+        // 对于没有时间的任务
         if (reminder.date) {
-          eventObj.start = reminder.date;
+          eventObj.start = taskLogicalDate;
+        } else if (reminder.completed && reminder.completedTime) {
+          // 对于没有日期但已完成且有完成时间的任务，使用完成时间的逻辑日期
+          try {
+            const completedDate = new Date(reminder.completedTime.replace(' ', 'T') + ':00');
+            const completedLogicalDate = getLogicalDateString(completedDate);
+            eventObj.start = completedLogicalDate;
+          } catch (e) {
+            // 解析失败，不设置 start
+          }
         }
         eventObj.allDay = true;
         eventObj.display = 'block';
@@ -823,7 +892,16 @@ export class TaskSummaryDialog {
    */
   private filterEventsByDateRange(events: any[], dateRange: { start: string, end: string }): any[] {
     const includedEvents = events.filter(event => {
-      const eventDate = event.extendedProps.date;
+      // 使用 event.start 而不是 extendedProps.date，因为 start 已经是逻辑日期
+      // 从 start 中提取日期部分（可能是 "YYYY-MM-DD" 或 "YYYY-MM-DDTHH:mm:ss"）
+      let eventDate: string;
+      if (event.start) {
+        eventDate = event.start.split('T')[0];
+      } else {
+        // 如果没有 start，使用原始日期
+        eventDate = event.extendedProps.date;
+      }
+
       // Undated events don't pass standard filter
       if (!eventDate) return false;
 
@@ -920,9 +998,13 @@ export class TaskSummaryDialog {
     const isDayView = this.calendar && this.calendar.view.type === 'timeGridDay';
     const grouped = new Map<string, Map<string, any[]>>();
 
+    // 用于去重：记录已经添加到某个日期的任务
+    const addedTasks = new Map<string, Set<string>>(); // Map<日期, Set<任务ID>>
+
     events.forEach(event => {
       const startDate = event.extendedProps.date;
       const endDate = event.extendedProps.endDate;
+      const time = event.extendedProps.time;
       const projectId = event.extendedProps.projectId || 'no-project';
       const projectName = projectId === 'no-project' ?
         (t("noProject") || "无项目") :
@@ -938,7 +1020,7 @@ export class TaskSummaryDialog {
         title: event.originalTitle || event.title,
         // completed will be set per-date when adding to grouped map
         completed: event.extendedProps.completed,
-        completedAt: event.extendedProps.completedAt || null, // 添加完成时间
+        completedTime: event.extendedProps.completedTime || null, // 添加完成时间
         priority: event.extendedProps.priority,
         time: event.extendedProps.time,
         endTime: event.extendedProps.endTime,
@@ -953,6 +1035,46 @@ export class TaskSummaryDialog {
         _perDateCompleted: perDateCompleted
       };
 
+      // 辅助函数：添加任务到指定日期，带去重检查
+      const addTaskToDate = (dateStr: string, taskItem: any) => {
+        const taskId = taskItem.id;
+
+        // 检查是否已经添加过
+        if (!addedTasks.has(dateStr)) {
+          addedTasks.set(dateStr, new Set());
+        }
+        if (addedTasks.get(dateStr).has(taskId)) {
+          return; // 已经添加过，跳过
+        }
+
+        // 添加到分组
+        if (!grouped.has(dateStr)) {
+          grouped.set(dateStr, new Map());
+        }
+        const dateGroup = grouped.get(dateStr);
+        if (!dateGroup.has(projectName)) {
+          dateGroup.set(projectName, []);
+        }
+        dateGroup.get(projectName).push(taskItem);
+
+        // 标记为已添加
+        addedTasks.get(dateStr).add(taskId);
+      };
+
+      // 计算任务的逻辑日期（如果有时间）
+      let taskLogicalDate = startDate;
+      if (time && startDate) {
+        try {
+          // 构建完整的日期时间字符串
+          const dateTimeStr = `${startDate} ${time}`;
+          const taskDateTime = new Date(dateTimeStr.replace(' ', 'T') + ':00');
+          taskLogicalDate = getLogicalDateString(taskDateTime);
+        } catch (e) {
+          // 解析失败，使用原始日期
+          taskLogicalDate = startDate;
+        }
+      }
+
       // 如果有结束日期，说明是跨天任务，在每个相关日期都显示
       if (endDate && endDate !== startDate) {
         const start = new Date(Math.max(new Date(startDate).getTime(), new Date(dateRange.start).getTime()));
@@ -963,39 +1085,44 @@ export class TaskSummaryDialog {
         while (currentDate <= end) {
           const dateStr = currentDate.toISOString().split('T')[0];
 
-          if (!grouped.has(dateStr)) {
-            grouped.set(dateStr, new Map());
-          }
-
-          const dateGroup = grouped.get(dateStr);
-          if (!dateGroup.has(projectName)) {
-            dateGroup.set(projectName, []);
-          }
-
-          // for cross-day tasks, set completed per-date
           const item = { ...taskData };
           item.completed = typeof taskData._perDateCompleted === 'function' ? taskData._perDateCompleted(dateStr) : taskData.completed;
-          dateGroup.get(projectName).push(item);
+          addTaskToDate(dateStr, item);
 
           // 移动到下一天
           currentDate.setDate(currentDate.getDate() + 1);
         }
-      } else {
-        // 单日任务，按原来的逻辑处理
-        if (!grouped.has(startDate)) {
-          grouped.set(startDate, new Map());
-        }
-
-        const dateGroup = grouped.get(startDate);
-        if (!dateGroup.has(projectName)) {
-          dateGroup.set(projectName, []);
-        }
-
-        // 单日任务，按原来的逻辑处理
+      } else if (startDate) {
+        // 单日任务（有日期），使用逻辑日期
         const item = { ...taskData };
-        const dateStr = startDate;
-        item.completed = typeof taskData._perDateCompleted === 'function' ? taskData._perDateCompleted(dateStr) : taskData.completed;
-        dateGroup.get(projectName).push(item);
+        item.completed = typeof taskData._perDateCompleted === 'function' ? taskData._perDateCompleted(taskLogicalDate) : taskData.completed;
+        addTaskToDate(taskLogicalDate, item);
+      }
+      // 注意：如果任务没有日期（!startDate），则不在这里添加，
+      // 而是在下面的完成时间逻辑中处理
+
+      // 如果任务已完成且有完成时间，检查完成时间的逻辑日期
+      if (event.extendedProps.completed && event.extendedProps.completedTime) {
+        try {
+          // 将完成时间转换为 Date 对象
+          const completedDate = new Date(event.extendedProps.completedTime.replace(' ', 'T') + ':00');
+          // 获取完成时间的逻辑日期
+          const completedLogicalDate = getLogicalDateString(completedDate);
+
+          // 如果任务没有日期，或者完成时间的逻辑日期与任务逻辑日期不同
+          // 且在dateRange范围内，则在完成日期显示
+          if ((!startDate || completedLogicalDate !== taskLogicalDate) &&
+            completedLogicalDate >= dateRange.start &&
+            completedLogicalDate <= dateRange.end) {
+
+            // 在完成日期也添加这个任务（带去重检查）
+            const completedItem = { ...taskData };
+            completedItem.completed = true;
+            addTaskToDate(completedLogicalDate, completedItem);
+          }
+        } catch (e) {
+          // 忽略解析错误
+        }
       }
     });
 
@@ -1262,9 +1389,8 @@ export class TaskSummaryDialog {
 
             // 完成时间
             let completedTimeStr = '';
-            if (task.completed && task.completedAt) {
-              const isTodayView = this.calendar && this.calendar.view.type === 'timeGridDay';
-              completedTimeStr = ` <span style="color:#888; font-size:12px;">${this.formatCompletedTime(task.completedAt, isTodayView)}</span>`;
+            if (task.completed && task.completedTime) {
+              completedTimeStr = ` <span style="color:#888; font-size:12px;">${this.formatCompletedTime(task.completedTime, date)}</span>`;
             }
 
             // 缩进
