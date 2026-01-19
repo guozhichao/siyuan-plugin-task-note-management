@@ -843,6 +843,11 @@ export class TaskSummaryDialog {
           newChild.extendedProps.date = parentDate;
           newChild.start = parentDate; // 保持一致性
 
+          // 如果父任务跨天，子任务也应该继承结束日期
+          if (parent.extendedProps.endDate) {
+            newChild.extendedProps.endDate = parent.extendedProps.endDate;
+          }
+
           additionalEvents.push(newChild);
         });
       });
@@ -1210,7 +1215,9 @@ export class TaskSummaryDialog {
             const completedClass = task.completed ? 'completed' : '';
             const priorityClass = `priority-${task.priority}`;
             let timeStr = '';
-            if (task.fullEndDate && task.fullEndDate !== task.fullStartDate) {
+            if (task.depth > 0 && !task.time) {
+              timeStr = '';
+            } else if (task.fullEndDate && task.fullEndDate !== task.fullStartDate) {
               timeStr = ` (${this.formatMonthDay(task.fullStartDate)}-${this.formatMonthDay(task.fullEndDate)})`;
             } else {
               timeStr = this.getDisplayTimeForDate(task, date);
@@ -1636,7 +1643,9 @@ ${'-'.repeat(formattedDate.length)}
             if ((task.depth || 0) !== currentDepth) continue;
 
             let timeHtml = '';
-            if (task.fullEndDate && task.fullEndDate !== task.fullStartDate) {
+            if (task.depth > 0 && !task.time) {
+              timeHtml = '';
+            } else if (task.fullEndDate && task.fullEndDate !== task.fullStartDate) {
               timeHtml = ` <span style="color: #666; font-size: 12px;">(${this.formatMonthDay(task.fullStartDate)}-${this.formatMonthDay(task.fullEndDate)})</span>`;
             } else {
               const dt = this.getDisplayTimeForDate(task, date);
