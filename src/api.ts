@@ -735,35 +735,7 @@ export async function currentTime(): Promise<number> {
 
 // **************************************** Reminder API ****************************************
 
-export async function writeReminderData(data: any): Promise<any> {
-    const content = JSON.stringify(data, null, 2);
-    const blob = new Blob([content], { type: 'application/json' });
-    return putFile('data/storage/petal/siyuan-plugin-task-note-management/reminder.json', false, blob);
-}
 
-export async function readReminderData(): Promise<any> {
-    try {
-        const content = await getFile('data/storage/petal/siyuan-plugin-task-note-management/reminder.json');
-        if (!content || content?.code === 404) {
-            await writeReminderData({});
-            return {};
-        }
-        return typeof content === 'string' ? JSON.parse(content) : content;
-    } catch (error) {
-        console.log('reminder.json文件不存在，返回空对象');
-        return {};
-    }
-}
-
-export async function ensureReminderDataFile(): Promise<void> {
-    try {
-        await readReminderData();
-    } catch (error) {
-        // 如果文件不存在，创建空的提醒数据文件
-        console.log('创建初始提醒数据文件');
-        await writeReminderData({});
-    }
-}
 
 // **************************************** Notification Record API ****************************************
 
@@ -999,7 +971,7 @@ function formatDate(date) {
  */
 export async function updateBlockReminderBookmark(blockId: string): Promise<void> {
     try {
-        const reminderData = await readReminderData();
+        const reminderData = await this.plugin.loadData('reminder.json');
 
         // 查找该块的所有提醒
         const blockReminders = Object.values(reminderData).filter((reminder: any) =>

@@ -3,7 +3,7 @@ import { PomodoroStatsView, getLastStatsMode } from "./PomodoroStatsView";
 import { TaskStatsView } from "./TaskStatsView";
 
 // 添加四象限面板常量
-import { readProjectData, writeProjectData, getBlockByID, openBlock, readReminderData, writeReminderData } from "../api";
+import { readProjectData, writeProjectData, getBlockByID, openBlock } from "../api";
 import { compareDateStrings, getLogicalDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { StatusManager } from "../utils/statusManager";
@@ -1708,7 +1708,7 @@ export class ProjectPanel {
     private async deleteProject(project: any) {
         // 首先检查是否有关联的任务
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await this.plugin.loadData('reminder.json');
             const projectTasks = Object.values(reminderData).filter((reminder: any) =>
                 reminder && reminder.projectId === project.id
             );
@@ -1767,7 +1767,7 @@ export class ProjectPanel {
 
             // 如果需要删除任务
             if (deleteTasks) {
-                const reminderData = await readReminderData();
+                const reminderData = await this.plugin.loadData('reminder.json');
                 let deletedCount = 0;
 
                 // 删除所有关联的任务
@@ -1780,7 +1780,7 @@ export class ProjectPanel {
                 });
 
                 if (deletedCount > 0) {
-                    await writeReminderData(reminderData);
+                    await this.plugin.saveData('reminder.json', reminderData);
                     window.dispatchEvent(new CustomEvent('reminderUpdated'));
                     showMessage(t("projectAndTasksDeleted")?.replace("${count}", deletedCount.toString()) || `项目及 ${deletedCount} 个任务已删除`);
                 } else {
@@ -1970,10 +1970,10 @@ export class ProjectPanel {
         try {
             const lastMode = getLastStatsMode();
             if (lastMode === 'task') {
-                const statsView = new TaskStatsView();
+                const statsView = new TaskStatsView(this.plugin);
                 statsView.show();
             } else {
-                const statsView = new PomodoroStatsView();
+                const statsView = new PomodoroStatsView(this.plugin);
                 statsView.show();
             }
         } catch (error) {

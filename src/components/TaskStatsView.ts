@@ -4,7 +4,7 @@ import { confirm } from "siyuan";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
 import { t } from "../utils/i18n";
 import { compareDateStrings, getLocalDateString, getLogicalDateString, getDayStartMinutes } from "../utils/dateUtils";
-import { readReminderData, readProjectData, getFile } from "../api";
+import { readProjectData, getFile } from "../api";
 import { generateRepeatInstances } from "../utils/repeatUtils";
 import { setLastStatsMode } from "./PomodoroStatsView";
 import { init, use, EChartsType } from 'echarts/core';
@@ -52,9 +52,10 @@ export class TaskStatsView {
     private currentDetailGroup: 'task' | 'project' | 'category' = 'task';
     private projectNameMap: Record<string, string> = {};
     private categoryNameMap: Record<string, string> = {};
-
-    constructor() {
+    private plugin: any;
+    constructor(plugin?: any) {
         this.timeFormatter = PomodoroRecordManager.getInstance();
+        this.plugin = plugin;
         this.createDialog();
     }
 
@@ -513,7 +514,7 @@ export class TaskStatsView {
         this.isLoading = true;
         try {
             const [reminderData, projectData, categories] = await Promise.all([
-                readReminderData(),
+                this.plugin.loadData('reminder.json'),
                 readProjectData(),
                 this.readCategoryData()
             ]);
@@ -910,27 +911,27 @@ export class TaskStatsView {
                 sessions.forEach(session => {
                     hasData = true;
                     const startTime = new Date(session.startTime as string);
-                const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
-                const dayStartMinutes = this.getLogicalTimelineStartMinutes();
-                const adjustedStartMinutes = (startMinutes - dayStartMinutes + 1440) % 1440;
-                const duration = session.duration;
+                    const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
+                    const dayStartMinutes = this.getLogicalTimelineStartMinutes();
+                    const adjustedStartMinutes = (startMinutes - dayStartMinutes + 1440) % 1440;
+                    const duration = session.duration;
 
-                let remainingDuration = duration;
-                let currentHour = Math.floor(adjustedStartMinutes / 60);
-                let currentMinute = adjustedStartMinutes % 60;
-                let minutesCovered = 0;
+                    let remainingDuration = duration;
+                    let currentHour = Math.floor(adjustedStartMinutes / 60);
+                    let currentMinute = adjustedStartMinutes % 60;
+                    let minutesCovered = 0;
 
-                while (remainingDuration > 0 && minutesCovered < 24 * 60) {
-                    const minutesLeftInHour = 60 - currentMinute;
-                    const durationInThisHour = Math.min(remainingDuration, minutesLeftInHour);
+                    while (remainingDuration > 0 && minutesCovered < 24 * 60) {
+                        const minutesLeftInHour = 60 - currentMinute;
+                        const durationInThisHour = Math.min(remainingDuration, minutesLeftInHour);
 
-                    hourlyStats[currentHour] += durationInThisHour;
-                    remainingDuration -= durationInThisHour;
-                    minutesCovered += durationInThisHour;
+                        hourlyStats[currentHour] += durationInThisHour;
+                        remainingDuration -= durationInThisHour;
+                        minutesCovered += durationInThisHour;
 
-                    currentHour = (currentHour + 1) % 24;
-                    currentMinute = 0;
-                }
+                        currentHour = (currentHour + 1) % 24;
+                        currentMinute = 0;
+                    }
                 });
 
                 if (hasData) {
@@ -1530,7 +1531,7 @@ export class TaskStatsView {
                                 const title = params.value[3];
                                 const startTime = this.formatTimelineHour(params.value[0]);
 
-return `${title}<br/>时间段: ${startTime}<br/>平均时长: ${duration}分钟`;
+                                return `${title}<br/>时间段: ${startTime}<br/>平均时长: ${duration}分钟`;
                             }
                         }
                     });
@@ -1599,7 +1600,7 @@ return `${title}<br/>时间段: ${startTime}<br/>平均时长: ${duration}分钟
                                     const title = params.value[3];
                                     const startTime = this.formatTimelineHour(params.value[0]);
 
-return `${title}<br/>开始时间: ${startTime}<br/>持续时间: ${duration}分钟`;
+                                    return `${title}<br/>开始时间: ${startTime}<br/>持续时间: ${duration}分钟`;
                                 }
                             }
                         });
@@ -1638,10 +1639,10 @@ return `${title}<br/>开始时间: ${startTime}<br/>持续时间: ${duration}分
                     max: 24,
                     interval: 2,
                     axisLabel: {
-                          formatter: (value) => {
-                              return this.formatTimelineHour(value);
-                          }
-                      },
+                        formatter: (value) => {
+                            return this.formatTimelineHour(value);
+                        }
+                    },
                     name: '时间',
                     nameLocation: 'middle',
                     nameGap: 30
@@ -1697,7 +1698,7 @@ return `${title}<br/>开始时间: ${startTime}<br/>持续时间: ${duration}分
                 setLastStatsMode('pomodoro');
                 this.dialog.destroy();
                 import("./PomodoroStatsView").then(({ PomodoroStatsView }) => {
-                    const statsView = new PomodoroStatsView();
+                    const statsView = new PomodoroStatsView(this.plugin);
                     statsView.show();
                 });
             }

@@ -2,7 +2,7 @@ import { Dialog, showMessage, Menu } from "siyuan";
 import { t } from "../utils/i18n";
 import { getLocalDateString, getLogicalDateString } from "../utils/dateUtils";
 import { ProjectManager } from "../utils/projectManager";
-import { readReminderData, readHabitData } from "@/api";
+import { readHabitData } from "@/api";
 import { generateRepeatInstances } from "@/utils/repeatUtils";
 import { CalendarView } from "@/components/CalendarView";
 import { PomodoroRecordManager } from "@/utils/pomodoroRecord";
@@ -64,6 +64,28 @@ export class TaskSummaryDialog {
     if (!dateStr) return '';
     const d = new Date(dateStr);
     return `${d.getMonth() + 1}月${d.getDate()}日`;
+  }
+
+  /**
+   * 格式化完成时间
+   * @param completedAt 完成时间的ISO字符串
+   * @param isTodayView 是否为今天视图
+   */
+  private formatCompletedTime(completedAt: string, isTodayView: boolean): string {
+    if (!completedAt) return '';
+
+    const completed = new Date(completedAt);
+    const completedDateStr = completed.toISOString().split('T')[0];
+    const timeStr = completed.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+    // 今天视图：只显示时间
+    if (isTodayView) {
+      return ` (完成于 ${timeStr})`;
+    }
+
+    // 其他视图：显示日期+时间
+    const dateStr = this.formatMonthDay(completedDateStr);
+    return ` (完成于 ${dateStr} ${timeStr})`;
   }
 
   private formatRepeatLabel(repeat: any, startDate?: string): string {
@@ -187,7 +209,7 @@ export class TaskSummaryDialog {
 
   private async getEventsForRange(startDate: string, endDate: string) {
     try {
-      const reminderData = await readReminderData();
+      const reminderData = await this.plugin.loadData('reminder.json');
       const events = [];
 
       for (const reminder of Object.values(reminderData) as any[]) {
@@ -242,7 +264,7 @@ export class TaskSummaryDialog {
 
   private async calculateStats(startDate: string, endDate: string) {
     const settings = this.plugin?.data[SETTINGS_FILE] || {};
-    const reminderData = await readReminderData(); // 读取提醒数据用于层级统计
+    const reminderData = await this.plugin.loadData('reminder.json');
 
     // 1. 番茄钟统计
     const pomodoroManager = PomodoroRecordManager.getInstance();
@@ -573,7 +595,7 @@ export class TaskSummaryDialog {
 
   private async getEvents() {
     try {
-      const reminderData = await readReminderData();
+      const reminderData = await this.plugin.loadData('reminder.json');
 
       const events = [];
 
@@ -690,6 +712,7 @@ export class TaskSummaryDialog {
       className: classNames,
       extendedProps: {
         completed: isCompleted,
+        completedAt: reminder.completedAt || null, // 添加完成时间
         note: reminder.note || '',
         dailyCompletions: reminder.dailyCompletions || {},
         date: reminder.date,
@@ -915,6 +938,7 @@ export class TaskSummaryDialog {
         title: event.originalTitle || event.title,
         // completed will be set per-date when adding to grouped map
         completed: event.extendedProps.completed,
+        completedAt: event.extendedProps.completedAt || null, // 添加完成时间
         priority: event.extendedProps.priority,
         time: event.extendedProps.time,
         endTime: event.extendedProps.endTime,
@@ -1236,6 +1260,13 @@ export class TaskSummaryDialog {
               estStr = ` <span style="color:#888; font-size:12px;">(⏲️ 预计${task.estimatedPomodoroDuration})</span>`;
             }
 
+            // 完成时间
+            let completedTimeStr = '';
+            if (task.completed && task.completedAt) {
+              const isTodayView = this.calendar && this.calendar.view.type === 'timeGridDay';
+              completedTimeStr = ` <span style="color:#888; font-size:12px;">${this.formatCompletedTime(task.completedAt, isTodayView)}</span>`;
+            }
+
             // 缩进
             // 基础缩进0，每级深度增加20px
             // task-item 默认 padding 是 6px 0，我们添加 padding-left
@@ -1244,7 +1275,7 @@ export class TaskSummaryDialog {
             html += `
                   <li class="task-item ${completedClass} ${priorityClass}" style="${indentStyle}">
                     <span class="task-checkbox">${task.completed ? '✅' : '⬜'}</span>
-                    <span class="task-title">${task.title}${task.repeatLabel ? ` <span style="color:#888; font-size:12px;">(${task.repeatLabel})</span>` : ''}${timeStr}${estStr}${pomodoroStr}</span>
+                    <span class="task-title">${task.title}${task.repeatLabel ? ` <span style="color:#888; font-size:12px;">(${task.repeatLabel})</span>` : ''}${timeStr}${estStr}${pomodoroStr}${completedTimeStr}</span>
                     ${task.note ? `<div class="task-note">${task.note}</div>` : ''}
                   </li>
                 `;

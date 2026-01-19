@@ -1,6 +1,6 @@
 import { Dialog, showMessage } from "siyuan";
 import { t } from "../utils/i18n";
-import { ensureReminderDataFile, updateBlockReminderBookmark, getBlockByID } from "../api";
+import { updateBlockReminderBookmark, getBlockByID } from "../api";
 import { getRepeatDescription } from "../utils/repeatUtils";
 import { getLocalDateString, getLocalTimeString, getLogicalDateString } from "../utils/dateUtils";
 import { RepeatConfig, RepeatSettingsDialog } from "./RepeatSettingsDialog";
@@ -1355,8 +1355,7 @@ class SmartBatchDialog {
 
     private async saveBatchReminders(dialog: Dialog) {
         try {
-            const { readReminderData, writeReminderData } = await import("../api");
-            const reminderData = await readReminderData();
+            const reminderData = await this.plugin.loadData('reminder.json');
 
             let successCount = 0;
             let failureCount = 0;
@@ -1461,7 +1460,7 @@ class SmartBatchDialog {
                 }
             }
 
-            await writeReminderData(reminderData);
+            await this.plugin.saveData('reminder.json', reminderData);
 
             // 为所有成功创建提醒的块添加书签
             for (const blockId of successfulBlockIds) {

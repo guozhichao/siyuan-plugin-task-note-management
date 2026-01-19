@@ -361,8 +361,7 @@ export class PomodoroSessionsDialog {
 
             try {
                 // 获取提醒信息
-                const { readReminderData } = await import("../api");
-                const reminderData = await readReminderData();
+                const reminderData = await this.plugin.loadData('reminder.json') || {};
                 const reminder = reminderData[this.reminderId];
                 const eventTitle = reminder?.title || "未知任务";
 
@@ -521,8 +520,7 @@ export class PomodoroSessionsDialog {
                 await this.recordManager.deleteSession(session.id);
 
                 // 创建新会话
-                const { readReminderData } = await import("../api");
-                const reminderData = await readReminderData();
+                const reminderData = await this.plugin.loadData('reminder.json') || {};
                 const reminder = reminderData[this.reminderId];
                 const eventTitle = reminder?.title || "未知任务";
 
@@ -634,8 +632,7 @@ export class PomodoroSessionsDialog {
      */
     private async syncReminderPomodoroCount() {
         try {
-            const { readReminderData, writeReminderData } = await import("../api");
-            const reminderData = await readReminderData();
+            const reminderData = await this.plugin.loadData('reminder.json') || {};
 
             if (reminderData && reminderData[this.reminderId]) {
                 const count = this.sessions.filter(s => s.type === 'work' && s.completed).length;
@@ -643,7 +640,7 @@ export class PomodoroSessionsDialog {
                 // 只有当数量不一致时才更新
                 if (reminderData[this.reminderId].pomodoroCount !== count) {
                     reminderData[this.reminderId].pomodoroCount = count;
-                    await writeReminderData(reminderData);
+                    await this.plugin.saveData('reminder.json', reminderData);
                 }
             }
         } catch (error) {

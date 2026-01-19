@@ -6763,10 +6763,10 @@ export class ReminderPanel {
         try {
             const lastMode = getLastStatsMode();
             if (lastMode === 'task') {
-                const statsView = new TaskStatsView();
+                const statsView = new TaskStatsView(this.plugin);
                 statsView.show();
             } else {
-                const statsView = new PomodoroStatsView();
+                const statsView = new PomodoroStatsView(this.plugin);
                 statsView.show();
             }
         } catch (error) {
@@ -6974,7 +6974,6 @@ export class ReminderPanel {
                     // If reminderData not provided, try to load global data
                     let rawData = reminderData;
                     if (!rawData) {
-                        const { readReminderData } = await import("../api");
                         rawData = await getAllReminders(this.plugin);
                     }
                     const reminderMap = rawData instanceof Map ? rawData : new Map(Object.values(rawData || {}).map((r: any) => [r.id, r]));
@@ -7091,7 +7090,6 @@ export class ReminderPanel {
                 dataMap = new Map(Object.values(raw).map((r: any) => [r.id, r]));
             } else {
                 try {
-                    const { readReminderData } = await import("../api");
                     const rd = await getAllReminders(this.plugin);
                     dataMap = new Map(Object.values(rd || {}).map((r: any) => [r.id, r]));
                 } catch (e) {
@@ -7187,7 +7185,6 @@ export class ReminderPanel {
                 dataMap = new Map(Object.values(raw).map((r: any) => [r.id, r]));
             } else {
                 try {
-                    const { readReminderData } = await import("../api");
                     const rd = await getAllReminders(this.plugin);
                     dataMap = new Map(Object.values(rd || {}).map((r: any) => [r.id, r]));
                 } catch (e) {

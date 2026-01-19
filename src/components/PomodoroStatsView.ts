@@ -52,9 +52,10 @@ export class PomodoroStatsView {
     private currentWeekOffset: number = 0; // 周偏移量，0表示本周，-1表示上周，1表示下周
     private currentMonthOffset: number = 0; // 月偏移量，0表示本月，-1表示上月，1表示下月
     private currentYearOffset: number = 0; // 年偏移量，0表示今年，-1表示去年，1表示明年
-
-    constructor() {
+    private plugin;
+    constructor(plugin) {
         this.recordManager = PomodoroRecordManager.getInstance();
+        this.plugin = plugin;
         this.createDialog();
     }
 
@@ -1582,7 +1583,7 @@ return `${title}<br/>开始时间: ${startTime}<br/>持续时间: ${duration}分
                 setLastStatsMode('task');
                 this.dialog.destroy();
                 import("./TaskStatsView").then(({ TaskStatsView }) => {
-                    const statsView = new TaskStatsView();
+                    const statsView = new TaskStatsView(this.plugin);
                     statsView.show();
                 });
             }

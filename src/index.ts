@@ -13,7 +13,7 @@ import { QuickReminderDialog } from "./components/QuickReminderDialog";
 import { ReminderPanel } from "./components/ReminderPanel";
 import { HabitPanel } from "./components/HabitPanel";
 import { BatchReminderDialog } from "./components/BatchReminderDialog";
-import { ensureReminderDataFile, ensureHabitDataFile, ensureHabitGroupDataFile } from "./api";
+import { ensureHabitDataFile, ensureHabitGroupDataFile } from "./api";
 import { CalendarView } from "./components/CalendarView";
 import { EisenhowerMatrixView } from "./components/EisenhowerMatrixView";
 import { CategoryManager } from "./utils/categoryManager";
@@ -186,8 +186,6 @@ export default class ReminderPlugin extends Plugin {
 
         // 添加dock栏和顶栏按钮
         await this.initializeUI();
-
-        await ensureReminderDataFile();
 
         // 初始化习惯数据文件
         await ensureHabitDataFile();
@@ -855,9 +853,8 @@ export default class ReminderPlugin extends Plugin {
 
     private async updateBadges() {
         try {
-            const { readReminderData } = await import("./api");
             const { generateRepeatInstances } = await import("./utils/repeatUtils");
-            const reminderData = await readReminderData();
+            const reminderData = await this.loadData('reminder.json') || {};
 
             if (!reminderData || typeof reminderData !== 'object') {
                 this.setDockBadge(0);
@@ -1872,16 +1869,16 @@ export default class ReminderPlugin extends Plugin {
 
     private async checkReminders() {
         try {
-            const { readReminderData, writeReminderData, hasNotifiedToday, markNotifiedToday } = await import("./api");
+            const { hasNotifiedToday, markNotifiedToday } = await import("./api");
             const { generateRepeatInstances } = await import("./utils/repeatUtils");
-            let reminderData = await readReminderData();
+            let reminderData = await this.loadData('reminder.json') || {};
 
             // 检查数据是否有效，如果数据被损坏（包含错误信息），重新初始化
             if (!reminderData || typeof reminderData !== 'object' ||
                 reminderData.hasOwnProperty('code') || reminderData.hasOwnProperty('msg')) {
                 console.warn('检测到损坏的提醒数据，重新初始化:', reminderData);
                 reminderData = {};
-                await writeReminderData(reminderData);
+                await this.saveData('reminder.json', reminderData);
                 return;
             }
 
@@ -2178,7 +2175,7 @@ export default class ReminderPlugin extends Plugin {
     // 检查单个时间提醒
     private async checkTimeReminders(reminderData: any, today: string, currentTime: string) {
         try {
-            const { writeReminderData } = await import("./api");
+            
             const { generateRepeatInstances } = await import("./utils/repeatUtils");
             let dataChanged = false;
 
@@ -2382,7 +2379,7 @@ export default class ReminderPlugin extends Plugin {
 
             // 如果数据有变化，保存到文件
             if (dataChanged) {
-                await writeReminderData(reminderData);
+                await this.saveData('reminder.json', reminderData);
             }
 
         } catch (error) {
@@ -3806,8 +3803,8 @@ export default class ReminderPlugin extends Plugin {
      */
     private async migrateBindBlockAttributes() {
         try {
-            const { readReminderData, setBlockAttrs } = await import('./api');
-            const reminderData = await readReminderData();
+            const { setBlockAttrs } = await import('./api');
+            const reminderData = await this.loadData('reminder.json') || {};
 
             if (!reminderData || typeof reminderData !== 'object') {
                 console.log('没有找到提醒数据，跳过迁移');

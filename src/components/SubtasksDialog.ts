@@ -1,5 +1,5 @@
 import { Dialog, showMessage } from "siyuan";
-import { readReminderData, writeReminderData } from "../api";
+import {  } from "../api";
 import { t } from "../utils/i18n";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 
@@ -45,7 +45,7 @@ export class SubtasksDialog {
     }
 
     private async loadSubtasks() {
-        const reminderData = await readReminderData();
+        const reminderData = await this.plugin.loadData('reminder.json') || {};
         this.subtasks = Object.values(reminderData).filter((r: any) => r.parentId === this.parentId);
         this.subtasks.sort((a, b) => (a.sort || 0) - (b.sort || 0));
     }
@@ -129,7 +129,7 @@ export class SubtasksDialog {
     }
 
     private async addSubtask() {
-        const reminderData = await readReminderData();
+        const reminderData = await this.plugin.loadData('reminder.json') || {};
         const parentTask = reminderData[this.parentId];
 
         const dialog = new QuickReminderDialog(undefined, undefined, async () => {
@@ -158,7 +158,7 @@ export class SubtasksDialog {
     }
 
     private async toggleSubtask(id: string, completed: boolean) {
-        const reminderData = await readReminderData();
+        const reminderData = await this.plugin.loadData('reminder.json') || {};
         if (reminderData[id]) {
             reminderData[id].completed = completed;
             if (completed) {
@@ -166,14 +166,14 @@ export class SubtasksDialog {
             } else {
                 delete reminderData[id].completedTime;
             }
-            await writeReminderData(reminderData);
+            await this.plugin.saveData('reminder.json', reminderData);
             await this.loadSubtasks();
             this.renderSubtasks();
         }
     }
 
     private async deleteSubtask(id: string) {
-        const reminderData = await readReminderData();
+        const reminderData = await this.plugin.loadData('reminder.json') || {};
         const task = reminderData[id];
         if (!task) return;
 
@@ -194,7 +194,7 @@ export class SubtasksDialog {
             };
 
             deleteRecursive(id);
-            await writeReminderData(reminderData);
+            await this.plugin.saveData('reminder.json', reminderData);
             await this.loadSubtasks();
             this.renderSubtasks();
             showMessage(t("deleteSuccess"));
@@ -257,7 +257,7 @@ export class SubtasksDialog {
         const [draggingTask] = this.subtasks.splice(draggingIndex, 1);
         this.subtasks.splice(targetIndex, 0, draggingTask);
 
-        const reminderData = await readReminderData();
+        const reminderData = await this.plugin.loadData('reminder.json') || {};
         // Update sort values in reminderData
         this.subtasks.forEach((task: any, index: number) => {
             const sortVal = index * 10;
@@ -267,7 +267,7 @@ export class SubtasksDialog {
             }
         });
 
-        await writeReminderData(reminderData);
+        await this.plugin.saveData('reminder.json', reminderData);
         this.renderSubtasks();
         showMessage(t("sortUpdated") || "排序已更新");
     }

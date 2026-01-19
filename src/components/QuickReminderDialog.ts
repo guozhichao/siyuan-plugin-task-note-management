@@ -1,5 +1,5 @@
 import { showMessage, Dialog } from "siyuan";
-import { readReminderData, writeReminderData, getBlockByID, getBlockDOM, updateBlockReminderBookmark } from "../api";
+import { getBlockByID, getBlockDOM, updateBlockReminderBookmark } from "../api";
 import { compareDateStrings, getLogicalDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
@@ -194,7 +194,7 @@ export class QuickReminderDialog {
         if (this.mode !== 'block' || !this.blockId) return;
 
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await this.plugin.loadData('reminder.json');
             const blockReminders = Object.values(reminderData).filter((reminder: any) =>
                 reminder.blockId === this.blockId
             ) as any[];
@@ -623,7 +623,7 @@ export class QuickReminderDialog {
 
         subtasksGroup.style.display = 'block';
 
-        const reminderData = await readReminderData();
+        const reminderData = await this.plugin.loadData('reminder.json');
         const subtasks = Object.values(reminderData).filter((r: any) => r.parentId === this.reminder.id);
         const count = subtasks.length;
 
@@ -2703,7 +2703,7 @@ export class QuickReminderDialog {
         }
 
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await this.plugin.loadData('reminder.json');
 
             let reminder: any;
             let reminderId: string;
@@ -2844,7 +2844,7 @@ export class QuickReminderDialog {
                     // 所以这里保留原有的 notified 字段值，不做重置或计算。
 
                     reminderData[reminderId] = reminder;
-                    await writeReminderData(reminderData);
+                    await this.plugin.saveData('reminder.json', reminderData);
 
                     // 处理块绑定变更
                     const oldBlockId = this.reminder.blockId;
@@ -3055,7 +3055,7 @@ export class QuickReminderDialog {
             }
 
             reminderData[reminderId] = reminder;
-            await writeReminderData(reminderData);
+            await this.plugin.saveData('reminder.json', reminderData);
 
             // 将绑定的块添加项目ID属性 custom-task-projectId（支持多项目）
             if (reminder.blockId) {
@@ -3114,11 +3114,10 @@ export class QuickReminderDialog {
      */
     private async saveInstanceModification(instanceData: any) {
         try {
-            const { readReminderData, writeReminderData } = await import("../api");
             const originalId = instanceData.originalId;
             const instanceDate = instanceData.instanceDate;
 
-            const reminderData = await readReminderData();
+            const reminderData = await this.plugin.loadData('reminder.json') || {};
 
             if (!reminderData[originalId]) {
                 throw new Error('原始事件不存在');
@@ -3164,7 +3163,7 @@ export class QuickReminderDialog {
                 modifiedAt: new Date().toISOString().split('T')[0]
             };
 
-            await writeReminderData(reminderData);
+            await this.plugin.saveData('reminder.json', reminderData);
 
         } catch (error) {
             console.error('保存实例修改失败:', error);
@@ -3216,7 +3215,7 @@ export class QuickReminderDialog {
 
         try {
             // 读取父任务数据
-            const reminderData = await readReminderData();
+            const reminderData = await this.plugin.loadData('reminder.json');
             const parentTask = reminderData[parentId];
 
             if (parentTask) {
@@ -3252,7 +3251,7 @@ export class QuickReminderDialog {
 
         try {
             // 读取父任务数据
-            const reminderData = await readReminderData();
+            const reminderData = await this.plugin.loadData('reminder.json');
             const parentTask = reminderData[parentId];
 
             if (!parentTask) {

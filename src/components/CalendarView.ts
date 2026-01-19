@@ -5,7 +5,7 @@ import multiMonthPlugin from '@fullcalendar/multimonth';
 import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
-import { refreshSql, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark, openBlock, readProjectData, readReminderData, writeReminderData } from "../api";
+import { refreshSql, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark, openBlock, readProjectData } from "../api";
 import { getLocalDateString, getLocalDateTime, getLocalDateTimeString, compareDateStrings, getLogicalDateString, getRelativeDateString } from "../utils/dateUtils";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
@@ -1965,7 +1965,7 @@ export class CalendarView {
             const props = calendarEvent.extendedProps;
             const originalId = (props.isRepeated || props.repeat?.enabled) ? props.originalId : calendarEvent.id;
 
-            const reminderData = await readReminderData();
+            const reminderData = await this.plugin.loadData('reminder.json') ;
             const originalReminder = reminderData[originalId];
 
             if (!originalReminder) {
@@ -2019,7 +2019,7 @@ export class CalendarView {
 
             // 保存数据
             reminderData[newReminderId] = newReminder;
-            await writeReminderData(reminderData);
+            await this.plugin.saveData('reminder.json', reminderData);
 
             // 如果有绑定块，更新块的书签状态
             if (newReminder.blockId) {

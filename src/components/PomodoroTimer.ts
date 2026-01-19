@@ -1,6 +1,6 @@
 import { showMessage, confirm, getFrontend } from "siyuan";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
-import { readReminderData, writeReminderData, getBlockByID, openBlock } from "../api";
+import { getBlockByID, openBlock } from "../api";
 import { t } from "../utils/i18n";
 
 
@@ -4933,7 +4933,7 @@ export class PomodoroTimer {
 
     private async updateReminderPomodoroCount() {
         try {
-            const reminderData = await readReminderData();
+            const reminderData = await this.plugin.loadData('reminder.json') || {};
 
             // 每个实例（包括重复实例）使用自己的ID来保存番茄钟计数
             const targetId = this.reminder.id;
@@ -4962,7 +4962,7 @@ export class PomodoroTimer {
                 }
                 originalReminder.repeat.instancePomodoroCount[targetId]++;
 
-                await writeReminderData(reminderData);
+                await this.plugin.saveData('reminder.json', reminderData);
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
             } else {
@@ -4973,7 +4973,7 @@ export class PomodoroTimer {
                     }
 
                     reminderData[targetId].pomodoroCount++;
-                    await writeReminderData(reminderData);
+                    await this.plugin.saveData('reminder.json', reminderData);
                     window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
                 } else {
@@ -5647,7 +5647,7 @@ export class PomodoroTimer {
 
             // 如果是重复事件实例，使用原始事件的blockId
             if (this.reminder.isRepeatInstance && this.reminder.originalId) {
-                const reminderData = await readReminderData();
+                const reminderData = await this.plugin.loadData('reminder.json') || {};
                 const originalReminder = reminderData[this.reminder.originalId];
                 if (originalReminder) {
                     blockId = originalReminder.blockId;

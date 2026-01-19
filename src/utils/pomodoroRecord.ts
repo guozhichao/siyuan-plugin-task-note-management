@@ -247,8 +247,7 @@ export class PomodoroRecordManager {
             await this.initialize();
         }
         try {
-            const { readReminderData } = await import("../api");
-            const reminderData = await readReminderData();
+            const reminderData = await this.plugin.loadData('reminder.json');
 
             if (!reminderData) return 0;
 
@@ -314,8 +313,8 @@ export class PomodoroRecordManager {
             if (!this.isInitialized) {
                 await this.initialize();
             }
-            const { readReminderData } = await import("../api");
-            const reminderData = await readReminderData();
+
+            const reminderData = await this.plugin.loadData('reminder.json');
             if (!reminderData) return 0;
 
             const isInstanceId = (id: string) => {
