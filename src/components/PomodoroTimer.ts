@@ -270,7 +270,10 @@ export class PomodoroTimer {
             completedPomodoros: this.completedPomodoros,
             reminderTitle: this.reminder.title,
             reminderId: this.reminder.id,
-            currentPhaseOriginalDuration: this.currentPhaseOriginalDuration
+            currentPhaseOriginalDuration: this.currentPhaseOriginalDuration,
+            startTime: this.startTime,
+            randomNotificationCount: this.randomNotificationCount,
+            randomNotificationEnabled: this.randomNotificationEnabled
         };
     }
 
@@ -6346,6 +6349,14 @@ export class PomodoroTimer {
     <script>
         const { ipcRenderer } = require('electron');
         let isPinned = true;
+        
+        // Initialize local state from arguments
+        let localState = ${JSON.stringify(currentState)};
+        let settings = ${JSON.stringify({
+            workDuration: this.settings.workDuration,
+            breakDuration: this.settings.breakDuration,
+            longBreakDuration: this.settings.longBreakDuration
+        })};
 
         function callMethod(method) {
             ipcRenderer.send('${actionChannel}', method);
@@ -6385,29 +6396,202 @@ export class PomodoroTimer {
             ipcRenderer.send('${controlChannel}', 'close');
         }
         
-        // 迷你模式切换
         function toggleMiniMode() {
             ipcRenderer.send('${controlChannel}', 'toggleMiniMode');
         }
         
-        // 吸附模式切换
         function toggleDock() {
             ipcRenderer.send('${controlChannel}', 'toggleDock');
         }
         
-        // 从吸附模式恢复
         function restoreFromDocked() {
             ipcRenderer.send('${controlChannel}', 'restoreFromDocked');
         }
         
-        // 处理双击事件（在mini模式下恢复窗口）
         function handleDoubleClick() {
             if (document.body.classList.contains('mini-mode')) {
                 ipcRenderer.send('${controlChannel}', 'toggleMiniMode');
             }
         }
+
+        // --- Independent Timer Logic ---
         
-        // 已移除心跳检测以避免向已销毁的主进程发送 IPC
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return \`\${m.toString().padStart(2, '0')}:\${s.toString().padStart(2, '0')}\`;
+        }
+
+        function calculateProgress(state) {
+            let progress = 0;
+            if (state.isCountUp && state.isWorkPhase) {
+                const pomodoroLength = settings.workDuration * 60;
+                const currentCycleTime = state.timeElapsed % pomodoroLength;
+                progress = currentCycleTime / pomodoroLength;
+            } else if (state.isCountUp && !state.isWorkPhase) {
+                const totalBreakTime = state.isLongBreak ?
+                    settings.longBreakDuration * 60 :
+                    settings.breakDuration * 60;
+                progress = (totalBreakTime - state.breakTimeLeft) / totalBreakTime;
+            } else {
+                progress = state.totalTime > 0 ? ((state.totalTime - state.timeLeft) / state.totalTime) : 0;
+            }
+            return Math.max(0, Math.min(1, progress));
+        }
+
+        function render() {
+            if (!localState) return;
+
+            // 1. Calculate Time to Display
+            let displayTime = 0;
+            if (localState.isCountUp) {
+                displayTime = localState.isWorkPhase ? localState.timeElapsed : localState.breakTimeLeft;
+            } else {
+                displayTime = localState.timeLeft;
+            }
+            const timeStr = formatTime(displayTime);
+            
+            // 2. Update Time Display
+            const timeDisplay = document.getElementById('timeDisplay');
+            if (timeDisplay && timeDisplay.textContent !== timeStr) {
+                timeDisplay.textContent = timeStr;
+            }
+
+            // 3. Update Progress Circle
+            const progress = calculateProgress(localState);
+            const circumference = 226.19;
+            const offset = circumference * (1 - progress);
+            const circle = document.getElementById('progressCircle');
+            if (circle) {
+                circle.style.strokeDashoffset = offset;
+            }
+            
+            // 4. Update Docked Mode Progress
+            const dockedBar = document.getElementById('dockedProgressBar');
+            if (dockedBar) {
+                dockedBar.style.height = (progress * 100) + '%';
+            }
+
+            // 5. Update Status Text/Icon
+             let statusText = '工作时间';
+            let statusIcon = '🍅';
+            let color = '#FF6B6B'; // Default red
+
+            if (!localState.isWorkPhase) {
+                if (localState.isLongBreak) {
+                    statusText = '长时休息';
+                    statusIcon = '🧘';
+                    color = '#9C27B0';
+                } else {
+                    statusText = '短时休息';
+                    statusIcon = '🍵';
+                    color = '#4CAF50';
+                }
+            } else {
+                // Work phase
+                 statusText = '工作时间';
+                 statusIcon = '🍅';
+                 color = '#FF6B6B';
+            }
+            
+            const statusDisplay = document.getElementById('statusDisplay');
+            if (statusDisplay && statusDisplay.textContent !== statusText) statusDisplay.textContent = statusText;
+            
+            const statusIconEl = document.getElementById('statusIcon');
+            if (statusIconEl && statusIconEl.textContent !== statusIcon) statusIconEl.textContent = statusIcon;
+
+            if (circle) circle.style.stroke = color;
+            if (dockedBar) dockedBar.style.backgroundColor = color;
+            
+            // 6. Update Controls
+            const stopBtn = document.getElementById('stopBtn');
+            const playBtn = document.querySelector('.circle-control-btn'); // First one is Play/Pause
+            
+            if (localState.isRunning) {
+                if (localState.isPaused) {
+                     if (playBtn) playBtn.textContent = '▶️';
+                     if (stopBtn) stopBtn.style.display = 'flex';
+                } else {
+                     if (playBtn) playBtn.textContent = '⏸';
+                     if (stopBtn) stopBtn.style.display = 'none';
+                }
+            } else {
+                 if (playBtn) playBtn.textContent = '▶️';
+                 if (stopBtn) stopBtn.style.display = 'none';
+            }
+            
+            // 7. Update Counts
+            const pomodoroCount = document.getElementById('pomodoroCount');
+            if (pomodoroCount) pomodoroCount.textContent = localState.completedPomodoros;
+
+            // 8. Update Stats and Title
+            if (localState.todayFocusTime) {
+                const el = document.getElementById('todayFocusTime');
+                if (el) el.textContent = localState.todayFocusTime;
+            }
+            if (localState.weekFocusTime) {
+                 const el = document.getElementById('weekFocusTime');
+                 if (el) el.textContent = localState.weekFocusTime;
+            }
+            if (localState.reminderTitle) {
+                 const el = document.querySelector('.pomodoro-event-title');
+                 if (el) {
+                     el.textContent = localState.reminderTitle;
+                     el.title = "打开笔记: " + localState.reminderTitle;
+                 }
+            }
+
+            // 9. Update Random Notification Count
+            const randomCountDisp = document.getElementById('randomCount');
+            const diceIcon = document.getElementById('diceIcon');
+            
+            if (localState.randomNotificationEnabled) {
+                 if (randomCountDisp) {
+                     randomCountDisp.textContent = localState.randomNotificationCount;
+                     randomCountDisp.style.display = 'inline';
+                 }
+                 if (diceIcon) diceIcon.style.display = 'inline';
+            } else {
+                 if (randomCountDisp) randomCountDisp.style.display = 'none';
+                 if (diceIcon) diceIcon.style.display = 'none';
+            }
+        }
+
+        // Main Timer Loop (independent of main window)
+        setInterval(() => {
+            if (localState.isRunning && !localState.isPaused) {
+                const now = Date.now();
+                // startTime is the timestamp when the timer logic says "start"
+                // elapsed = now - startTime (in seconds)
+                const elapsed = Math.floor((now - localState.startTime) / 1000);
+                
+                if (localState.isCountUp) {
+                     if (localState.isWorkPhase) {
+                         localState.timeElapsed = elapsed;
+                     } else {
+                         const totalBreakTime = localState.isLongBreak ? settings.longBreakDuration * 60 : settings.breakDuration * 60;
+                         localState.breakTimeLeft = Math.max(0, totalBreakTime - elapsed);
+                     }
+                } else {
+                     localState.timeLeft = Math.max(0, localState.totalTime - elapsed);
+                }
+                
+                render();
+            }
+        }, 100);
+
+        // API called by Main Process to update state
+        window.updateLocalState = (newState, newSettings) => {
+            localState = { ...localState, ...newState };
+            if (newSettings) {
+                settings = { ...settings, ...newSettings };
+            }
+            render();
+        }
+        
+        // Initial render
+        render();
+
     </script>
 </body>
 </html>`;
@@ -6546,163 +6730,34 @@ export class PomodoroTimer {
      * 更新独立窗口的显示
      */
     private updateBrowserWindowDisplay(window: any) {
-        // 首先检查窗口是否存在且未销毁
-        if (!window) {
-            return;
-        }
-
+        if (!window) return;
         try {
-            if (window.isDestroyed && window.isDestroyed()) {
-                console.warn('[PomodoroTimer] Window is destroyed, skipping display update');
-                return;
-            }
-        } catch (error) {
-            console.warn('[PomodoroTimer] Error checking if window is destroyed:', error);
-            return;
-        }
+            if (window.isDestroyed && window.isDestroyed()) return;
+        } catch (error) { return; }
 
         try {
             const currentState = this.getCurrentState();
 
-            // 计算显示时间
-            let displayTime: number;
-            if (this.isCountUp) {
-                displayTime = this.isWorkPhase ? this.timeElapsed : this.breakTimeLeft;
-            } else {
-                displayTime = this.timeLeft;
-            }
-            const timeStr = this.formatTime(displayTime);
+            // Add extra info needed for display
+            (currentState as any).todayFocusTime = this.recordManager.formatTime(this.recordManager.getTodayFocusTime());
+            (currentState as any).weekFocusTime = this.recordManager.formatTime(this.recordManager.getWeekFocusTime());
 
-            // 计算状态文本和图标
-            let statusText = t('pomodoroWork') || '工作时间';
-            let statusIcon = '🍅';
-            let color = '#FF6B6B';
+            const settingsUpdate = {
+                workDuration: this.settings.workDuration,
+                breakDuration: this.settings.breakDuration,
+                longBreakDuration: this.settings.longBreakDuration
+            };
 
-            if (!this.isWorkPhase) {
-                if (this.isLongBreak) {
-                    statusText = t('pomodoroLongBreak') || '长时休息';
-                    statusIcon = '🧘';
-                    color = '#9C27B0';
-                } else {
-                    statusText = t('pomodoroBreak') || '短时休息';
-                    statusIcon = '🍵';
-                    color = '#4CAF50';
-                }
-            }
+            // Send state to window using executeJavaScript
+            const script = `if(window.updateLocalState) window.updateLocalState(${JSON.stringify(currentState)}, ${JSON.stringify(settingsUpdate)});`;
 
-            const todayTimeStr = this.recordManager.formatTime(this.recordManager.getTodayFocusTime());
-            const weekTimeStr = this.recordManager.formatTime(this.recordManager.getWeekFocusTime());
+            window.webContents.executeJavaScript(script).catch(() => { });
 
-            // 计算进度
-            let progress: number;
-            if (this.isCountUp && this.isWorkPhase) {
-                const pomodoroLength = this.settings.workDuration * 60;
-                const currentCycleTime = this.timeElapsed % pomodoroLength;
-                progress = currentCycleTime / pomodoroLength;
-            } else if (this.isCountUp && !this.isWorkPhase) {
-                const totalBreakTime = this.isLongBreak ?
-                    this.settings.longBreakDuration * 60 :
-                    this.settings.breakDuration * 60;
-                progress = (totalBreakTime - this.breakTimeLeft) / totalBreakTime;
-            } else {
-                // 倒计时模式：progress = 已用时间 / 总时间
-                progress = this.totalTime > 0 ? ((this.totalTime - this.timeLeft) / this.totalTime) : 0;
-            }
-
-            // 确保进度在0-1之间
-            progress = Math.max(0, Math.min(1, progress));
-
-            const circumference = 226.19;
-            const offset = circumference * (1 - progress);
-
-            // 计算控制按钮显示
-            let playPauseIcon = '▶️';
-            let showStopBtn = false;
-
-            if (this.isRunning) {
-                if (this.isPaused) {
-                    playPauseIcon = '▶️';
-                    showStopBtn = true;
-                } else {
-                    playPauseIcon = '⏸';
-                    showStopBtn = false;
-                }
-            }
-
-            // 准备动态值
-            const soundBtnText = this.isBackgroundAudioMuted ? '🔇' : '🔊';
-            const randomCountDisplay = this.randomNotificationEnabled ? 'inline' : 'none';
-            const stopBtnDisplay = showStopBtn ? 'inline-flex' : 'none';
-            const statusBtnText = currentState.isWorkPhase ? (currentState.isCountUp ? '⏱' : '🍅') : (currentState.isLongBreak ? '🧘' : '🍵');
-
-            const updateScript = `
-                try {
-                    const timeDisplay = document.getElementById('timeDisplay');
-                    const statusDisplay = document.getElementById('statusDisplay');
-                    const statusIcon = document.getElementById('statusIcon');
-                    const pomodoroCount = document.getElementById('pomodoroCount');
-                    const todayFocusTime = document.getElementById('todayFocusTime');
-                    const weekFocusTime = document.getElementById('weekFocusTime');
-                    const progressCircle = document.getElementById('progressCircle');
-                    const soundBtn = document.getElementById('soundBtn');
-                    const randomCount = document.getElementById('randomCount');
-                    const diceIcon = document.getElementById('diceIcon');
-                    const stopBtn = document.getElementById('stopBtn');
-                    const playPauseBtn = document.querySelector('.circle-control-btn');
-                    const dockedProgressBar = document.getElementById('dockedProgressBar');
-                    
-                    if (timeDisplay) timeDisplay.textContent = '${timeStr}';
-                    if (statusDisplay) statusDisplay.textContent = '${statusText}';
-                    if (statusIcon) statusIcon.textContent = '${statusIcon}';
-                    if (pomodoroCount) pomodoroCount.textContent = '${this.completedPomodoros}';
-                    if (todayFocusTime) todayFocusTime.textContent = '${todayTimeStr}';
-                    if (weekFocusTime) weekFocusTime.textContent = '${weekTimeStr}';
-                    if (progressCircle) {
-                        progressCircle.style.strokeDashoffset = '${offset}';
-                        progressCircle.style.stroke = '${color}';
-                    }
-                    if (soundBtn) soundBtn.textContent = '${soundBtnText}';
-                    if (randomCount) {
-                        randomCount.textContent = '${this.randomNotificationCount}';
-                        randomCount.style.display = '${randomCountDisplay}';
-                    }
-                    if (diceIcon) {
-                        diceIcon.style.display = '${randomCountDisplay}';
-                    }
-                    if (stopBtn) {
-                        stopBtn.style.display = '${stopBtnDisplay}';
-                    }
-                    if (playPauseBtn) {
-                        playPauseBtn.textContent = '${playPauseIcon}';
-                    }
-                    if (dockedProgressBar) {
-                        dockedProgressBar.style.height = '${(progress * 100).toFixed(2)}%';
-                        dockedProgressBar.style.background = '${color}';
-                    }
-                } catch(e) {
-                    console.error('Update display failed:', e);
-                }
-            `;
-
-            // 在执行JavaScript前再次检查窗口是否仍然有效
-            if (!window || window.isDestroyed()) {
-                console.warn('[PomodoroTimer] Window was destroyed before executing JavaScript');
-                return;
-            }
-
-            window.webContents.executeJavaScript(updateScript).catch((err: any) => {
-                console.error('[PomodoroTimer] Failed to update display:', err);
-                // 如果是窗口销毁相关的错误，停止更新
-                if (err && err.message && err.message.includes('Object has been destroyed')) {
-                    console.warn('[PomodoroTimer] Window destroyed during display update, stopping updates');
-                    this.isWindowClosed = true;
-                    this.close();
-                }
-            });
         } catch (error) {
-            console.error('[PomodoroTimer] updateBrowserWindowDisplay error:', error);
+            console.warn('[PomodoroTimer] updateBrowserWindowDisplay failed', error);
         }
     }
+
 
     /**
      * 供 BrowserWindow 调用的方法
@@ -6786,9 +6841,9 @@ export class PomodoroTimer {
 
                 // 添加迷你模式样式
                 pomodoroWindow.webContents.executeJavaScript(`
-                    document.body.classList.add('mini-mode');
-                    document.body.classList.remove('docked-mode');
-                `).catch((e: any) => console.error(e));
+document.body.classList.add('mini-mode');
+document.body.classList.remove('docked-mode');
+`).catch((e: any) => console.error(e));
             } else {
                 // 退出迷你模式
                 if (this.normalWindowBounds) {
@@ -6801,8 +6856,8 @@ export class PomodoroTimer {
 
                 // 移除迷你模式样式
                 pomodoroWindow.webContents.executeJavaScript(`
-                    document.body.classList.remove('mini-mode');
-                `).catch((e: any) => console.error(e));
+document.body.classList.remove('mini-mode');
+`).catch((e: any) => console.error(e));
             }
 
             // 更新显示
@@ -6856,9 +6911,9 @@ export class PomodoroTimer {
 
                 // 添加吸附模式样式
                 pomodoroWindow.webContents.executeJavaScript(`
-                    document.body.classList.add('docked-mode');
-                    document.body.classList.remove('mini-mode');
-                `).catch((e: any) => console.error(e));
+document.body.classList.add('docked-mode');
+document.body.classList.remove('mini-mode');
+`).catch((e: any) => console.error(e));
             } else {
                 // 退出吸附模式
                 if (this.normalWindowBounds) {
@@ -6871,8 +6926,8 @@ export class PomodoroTimer {
 
                 // 移除吸附模式样式
                 pomodoroWindow.webContents.executeJavaScript(`
-                    document.body.classList.remove('docked-mode');
-                `).catch((e: any) => console.error(e));
+document.body.classList.remove('docked-mode');
+`).catch((e: any) => console.error(e));
             }
 
             // 更新显示
@@ -6897,7 +6952,7 @@ export class PomodoroTimer {
     private formatTime(seconds: number): string {
         const mins = Math.floor(Math.abs(seconds) / 60);
         const secs = Math.floor(Math.abs(seconds) % 60);
-        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')} `;
     }
 
     /**
