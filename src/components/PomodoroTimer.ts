@@ -615,10 +615,10 @@ export class PomodoroTimer {
         this.randomNotificationLastCheckTime = Date.now();
         this.randomNotificationNextTriggerTime = this.calculateNextRandomNotificationTime();
 
-        // 启动定期检查定时器（每30秒检查一次，类似index.ts）
+        // 启动定期检查定时器（每5秒检查一次，防止错过）
         this.randomNotificationCheckTimer = window.setInterval(() => {
             this.checkRandomNotificationTrigger();
-        }, 30000);
+        }, 5000);
 
         // 立即执行一次检查
         this.checkRandomNotificationTrigger();
@@ -634,8 +634,12 @@ export class PomodoroTimer {
 
         // 在最小和最大间隔之间随机选择
         const randomInterval = minInterval + Math.random() * (actualMaxInterval - minInterval);
+        const nextTime = Date.now() + randomInterval;
+
+        console.log(`[PomodoroTimer] 下次随机微休息时间: ${new Date(nextTime).toLocaleTimeString()} (间隔: ${Math.round(randomInterval / 1000 / 60)}分钟)`);
+
         // 提示音响起具体时间
-        return Date.now() + randomInterval;
+        return nextTime;
     }
 
     /**
@@ -728,7 +732,8 @@ export class PomodoroTimer {
         this.openRandomNotificationWindowImpl(
             '微休息',
             t('randomRest', { duration: this.settings.randomNotificationBreakDuration }) || 'Time for a quick break!',
-            '🎲'
+            '🎲',
+            Number(this.settings.randomNotificationBreakDuration)
         );
     }
 
@@ -1241,6 +1246,13 @@ export class PomodoroTimer {
                             word-wrap: break-word;
                             max-width: 90%;
                         }
+                        .countdown {
+                            font-size: 48px;
+                            font-weight: bold;
+                            margin-top: 30px;
+                            color: ${isDark ? '#888888' : '#666666'};
+                            font-family: monospace;
+                        }
                         @keyframes bounce {
                             0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
                             40% {transform: translateY(-20px);}
@@ -1257,7 +1269,26 @@ export class PomodoroTimer {
                         <div class="icon">${icon}</div>
                         <div class="title">${title}</div>
                         <div class="message">${message}</div>
+                        <div id="countdown" class="countdown"></div>
                     </div>
+                    <script>
+                        const delay = ${autoCloseDelay || 0};
+                        if (delay > 0) {
+                            let remaining = delay;
+                            const el = document.getElementById('countdown');
+                            if (el) {
+                                el.textContent = remaining;
+                                const timer = setInterval(() => {
+                                    remaining--;
+                                    if (remaining >= 0) {
+                                        el.textContent = remaining;
+                                    } else {
+                                        clearInterval(timer);
+                                    }
+                                }, 1000);
+                            }
+                        }
+                    </script>
                 </body>
                 </html>
             `;
@@ -1299,7 +1330,7 @@ export class PomodoroTimer {
             if (autoCloseDelay) {
                 setTimeout(() => {
                     this.closeRandomNotificationWindow();
-                }, autoCloseDelay * 1000);
+                }, (autoCloseDelay + 1) * 1000); // 增加1秒延迟，让倒计时显示为0
             }
 
 
@@ -3994,15 +4025,7 @@ export class PomodoroTimer {
         this.stopRandomNotificationTimer();
 
         // 暂停所有背景音
-        if (this.workAudio) {
-            this.workAudio.pause();
-        }
-        if (this.breakAudio) {
-            this.breakAudio.pause();
-        }
-        if (this.longBreakAudio) {
-            this.longBreakAudio.pause();
-        }
+        this.stopAllAudio();
 
         // 更新显示
         this.updateDisplay();

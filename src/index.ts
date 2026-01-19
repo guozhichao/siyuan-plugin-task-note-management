@@ -56,8 +56,8 @@ export const STORAGE_NAME = "siyuan-plugin-task-note-management";
 export const DEFAULT_SETTINGS = {
     notificationSound: '/plugins/siyuan-plugin-task-note-management/audios/notify.mp3',
     backgroundVolume: 0.5,
-    pomodoroWorkDuration: 25,
-    pomodoroBreakDuration: 5,
+    pomodoroWorkDuration: 45,
+    pomodoroBreakDuration: 10,
     pomodoroLongBreakDuration: 30,
     pomodoroLongBreakInterval: 4,
     pomodoroAutoMode: false,
