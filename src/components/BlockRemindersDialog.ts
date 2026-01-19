@@ -420,7 +420,7 @@ export class BlockRemindersDialog {
                 await this.plugin.saveData('reminder.json', reminderData);
 
                 // 更新块的书签状态
-                await updateBlockReminderBookmark(this.blockId);
+                await updateBlockReminderBookmark(this.blockId, this.plugin);
 
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -538,7 +538,7 @@ export class BlockRemindersDialog {
                     await this.plugin.saveData('reminder.json', reminderData);
 
                     // 更新块的书签状态
-                    await updateBlockReminderBookmark(this.blockId);
+                    await updateBlockReminderBookmark(this.blockId, this.plugin);
 
                     // 触发更新事件
                     window.dispatchEvent(new CustomEvent('reminderUpdated'));

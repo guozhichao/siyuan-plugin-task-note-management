@@ -4068,7 +4068,7 @@ export class EisenhowerMatrixView {
 
                 // 更新块的书签状态（添加⏰书签）
                 const { updateBlockReminderBookmark } = await import('../api');
-                await updateBlockReminderBookmark(blockId);
+                await updateBlockReminderBookmark(blockId, this.plugin);
 
                 await this.refresh();
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));

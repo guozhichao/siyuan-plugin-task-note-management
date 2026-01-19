@@ -1465,7 +1465,7 @@ class SmartBatchDialog {
             // 为所有成功创建提醒的块添加书签
             for (const blockId of successfulBlockIds) {
                 try {
-                    await updateBlockReminderBookmark(blockId);
+                    await updateBlockReminderBookmark(blockId,this.plugin);
                 } catch (error) {
                     console.error(`更新块 ${blockId} 书签失败:`, error);
                 }

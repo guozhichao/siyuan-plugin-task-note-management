@@ -923,7 +923,7 @@ export class DocumentReminderDialog {
             // 更新块的书签状态
             const blockId = reminder.blockId || reminder.id;
             if (blockId) {
-                await updateBlockReminderBookmark(blockId);
+                await updateBlockReminderBookmark(blockId, this.plugin);
             }
 
             // 触发全局更新事件
@@ -1138,7 +1138,7 @@ export class DocumentReminderDialog {
             // 更新块的书签状态
             const blockId = reminder.blockId || reminder.id;
             if (blockId) {
-                await updateBlockReminderBookmark(blockId);
+                await updateBlockReminderBookmark(blockId, this.plugin);
             }
 
             // 触发全局更新事件

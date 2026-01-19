@@ -2023,7 +2023,7 @@ export class CalendarView {
 
             // 如果有绑定块，更新块的书签状态
             if (newReminder.blockId) {
-                await updateBlockReminderBookmark(newReminder.blockId);
+                await updateBlockReminderBookmark(newReminder.blockId, this.plugin);
             }
 
             // 刷新日历事件
@@ -2104,7 +2104,7 @@ export class CalendarView {
 
                 // 更新块的书签状态
                 if (blockId) {
-                    await updateBlockReminderBookmark(blockId);
+                    await updateBlockReminderBookmark(blockId, this.plugin);
                 }
 
                 window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
@@ -2358,7 +2358,7 @@ export class CalendarView {
                     // 更新块的书签状态
                     const blockId = reminderData[originalId].blockId;
                     if (blockId) {
-                        await updateBlockReminderBookmark(blockId);
+                        await updateBlockReminderBookmark(blockId, this.plugin);
                         // 完成时自动处理任务列表
                         if (!isCompleted) {
                             await this.handleTaskListCompletion(blockId);
@@ -2394,7 +2394,7 @@ export class CalendarView {
 
                     // 更新块的书签状态
                     if (blockId) {
-                        await updateBlockReminderBookmark(blockId);
+                        await updateBlockReminderBookmark(blockId, this.plugin);
                         // 完成时自动处理任务列表
                         if (newCompletedState) {
                             await this.handleTaskListCompletion(blockId);
@@ -5397,7 +5397,7 @@ export class CalendarView {
                 }
 
                 // 更新块的书签状态（添加⏰书签）
-                await updateBlockReminderBookmark(blockId);
+                await updateBlockReminderBookmark(blockId, this.plugin);
 
                 // 触发更新事件（标记来源为日历，避免自我触发）
                 window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));

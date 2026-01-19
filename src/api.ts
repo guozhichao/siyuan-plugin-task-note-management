@@ -968,10 +968,11 @@ function formatDate(date) {
 /**
  * 检查并更新块的提醒书签状态
  * @param blockId 块ID
+ * @param plugin 插件实例
  */
-export async function updateBlockReminderBookmark(blockId: string): Promise<void> {
+export async function updateBlockReminderBookmark(blockId: string, plugin: any): Promise<void> {
     try {
-        const reminderData = await this.plugin.loadData('reminder.json');
+        const reminderData = await plugin.loadData('reminder.json');
 
         // 查找该块的所有提醒
         const blockReminders = Object.values(reminderData).filter((reminder: any) =>
