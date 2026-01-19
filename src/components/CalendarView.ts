@@ -1965,7 +1965,7 @@ export class CalendarView {
             const props = calendarEvent.extendedProps;
             const originalId = (props.isRepeated || props.repeat?.enabled) ? props.originalId : calendarEvent.id;
 
-            const reminderData = await this.plugin.loadData('reminder.json') ;
+            const reminderData = await this.plugin.loadData('reminder.json');
             const originalReminder = reminderData[originalId];
 
             if (!originalReminder) {
