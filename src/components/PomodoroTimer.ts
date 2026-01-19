@@ -2635,7 +2635,7 @@ export class PomodoroTimer {
                 transition: all 0.2s ease;
                 z-index: 999;
             `;
-            settingsBtn.innerHTML = '⚙️';
+            settingsBtn.innerHTML = '🔄';
             settingsBtn.title = t('settings') || '设置';
 
             // 设置按钮悬停效果
@@ -3346,7 +3346,7 @@ export class PomodoroTimer {
     private updateMainSwitchButton() {
         if (!this.mainSwitchBtn) return;
 
-        let icon = '⚙️'; // 默认设置图标
+        let icon = '🔄'; // 默认设置图标
         let title = t('switcherMenu') || '切换菜单';
 
 
@@ -4534,9 +4534,7 @@ export class PomodoroTimer {
 
         // 检查是否启用自动模式并进入下一阶段
         if (this.autoMode) {
-
             showMessage(`☕ ${breakType}结束！自动开始下一个工作阶段`, 3000);
-
 
             // 自动切换到工作阶段
             setTimeout(() => {
@@ -4545,16 +4543,28 @@ export class PomodoroTimer {
         } else {
             showMessage(`☕ ${breakType}结束！自动开始下一个工作阶段`, 3000);
 
-
-            // 切换到工作阶段
             this.isWorkPhase = true;
             this.isLongBreak = false;
             this.isRunning = false;
             this.isPaused = false;
             this.breakTimeLeft = 0;
 
+            // 更新 DOM 显示（如果存在）
+            if (this.statusDisplay) this.statusDisplay.textContent = '工作时间';
+            this.timeLeft = this.settings.workDuration * 60;
+            this.totalTime = this.timeLeft;
+            // 设置当前阶段的原始时长
+            this.currentPhaseOriginalDuration = this.settings.workDuration;
+
             this.updateDisplay();
             this.updateMainSwitchButton(); // 更新主按钮
+
+            // 如果是独立 BrowserWindow，额外推送一次状态更新
+            try {
+                if (!this.isTabMode && this.container && (this.container as any).webContents) {
+                    this.updateBrowserWindowDisplay(this.container);
+                }
+            } catch (e) { }
 
             setTimeout(() => {
                 this.updateStatsDisplay();
@@ -4706,13 +4716,13 @@ export class PomodoroTimer {
                     this.autoSwitchToWork();
                 }, 1000);
             } else {
-                // 只有在系统弹窗关闭时才显示思源笔记弹窗
+                // 非自动模式：切换到工作阶段（不自动开始）
                 if (!this.systemNotificationEnabled) {
-                    showMessage(`☕ ${breakType}结束！准备开始下一个番茄钟`, 3000);
+                    showMessage(`☕ ${breakType}结束！切换到工作时间（不自动开始）`, 3000);
                 }
                 this.isWorkPhase = true;
                 this.isLongBreak = false;
-                this.statusDisplay.textContent = '工作时间';
+                if (this.statusDisplay) this.statusDisplay.textContent = '工作时间';
                 this.timeLeft = this.settings.workDuration * 60;
                 this.totalTime = this.timeLeft;
                 // 设置当前阶段的原始时长
@@ -4720,6 +4730,12 @@ export class PomodoroTimer {
                 this.isRunning = false;
                 this.isPaused = false;
                 this.updateDisplay();
+                this.updateMainSwitchButton();
+                try {
+                    if (!this.isTabMode && this.container && (this.container as any).webContents) {
+                        this.updateBrowserWindowDisplay(this.container);
+                    }
+                } catch (e) { }
             }
         }
 
@@ -6304,7 +6320,7 @@ export class PomodoroTimer {
             </button>
             <div class="switch-container">
                 <button class="titlebar-btn" id="statusBtn" onclick="toggleSwitchMenu(event)">
-                    ⚙️
+                    🔄
                 </button>
                 <div class="switch-menu" id="switchMenu">
                     <button class="menu-item" onclick="callMethod('toggleMode')">
