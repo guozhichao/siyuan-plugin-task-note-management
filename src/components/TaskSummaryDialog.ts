@@ -1526,367 +1526,24 @@ export class TaskSummaryDialog {
     }
   }
 
-  /**
-   * 复制任务摘要到剪贴板
-   */
-  public copyTaskSummary(groupedTasks?: Map<string, Map<string, any[]>>, stats?: any) {
-    const g = groupedTasks || this.lastGroupedTasks || new Map();
-    const s = stats || this.lastStats || {};
-
-    let text = '';
-
-    // 合并日期来源：任务 + 番茄 + 习惯
-    const allDates = new Set<string>();
-    g.forEach((_, d) => allDates.add(d));
-    if (s && s.pomodoro && s.pomodoro.byDate) Object.keys(s.pomodoro.byDate).forEach(d => allDates.add(d));
-    if (s && s.habit && s.habit.byDate) Object.keys(s.habit.byDate).forEach(d => allDates.add(d));
-
-    const sortedDates = Array.from(allDates).sort();
-
-    sortedDates.forEach(date => {
-      const dateProjects = g.get(date) || new Map();
-      const dateObj = new Date(date);
-      const formattedDate = dateObj.toLocaleDateString('zh-CN', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        weekday: 'long'
-      });
-
-      // 非日视图时才添加日期标题
-      if (this.calendar && this.calendar.view && this.calendar.view.type !== 'timeGridDay') {
-        text += `## ${formattedDate}
-
-`;
-      }
-
-      // 番茄钟
-      if (s && s.pomodoro && s.pomodoro.byDate && s.pomodoro.byDate[date]) {
-        const p = s.pomodoro.byDate[date];
-        text += `🍅 专注：${p.count} 个番茄钟 (${(p.minutes / 60).toFixed(1)} 小时)
-\n`;
-      }
-
-      // 习惯
-      if (s && s.habit && s.habit.byDate && s.habit.byDate[date]) {
-        const hlist = s.habit.byDate[date];
-        text += `💪 ${t('habitCheckIn') || '习惯打卡'}\n\n`;
-        hlist.forEach((h: any) => {
-          const progress = h.completed ? '- [x]' : '- [ ]';
-          const emojiStr = h.emojis && h.emojis.length ? h.emojis.join('') : (t('noneVal') || '无');
-          text += `${progress} ${h.title} (${t('frequency') || '频率'}：${h.frequencyLabel}，${t('targetTimes') || '目标次数'}：${h.target}，${t('todayCheckIn') || '今天打卡'}：${emojiStr})\n`;
-        });
-        text += `\n`;
-      }
-
-      dateProjects.forEach((tasks, projectName) => {
-        text += `### ${projectName}
-
-`;
-
-        tasks.forEach(task => {
-          const checkbox = task.completed ? '- [x]' : '- [ ]';
-          let timeStr = '';
-          if (task.fullEndDate && task.fullEndDate !== task.fullStartDate) {
-            timeStr = ` (${this.formatMonthDay(task.fullStartDate)}-${this.formatMonthDay(task.fullEndDate)})`;
-          } else {
-            timeStr = this.getDisplayTimeForDate(task, date);
-          }
-          // 获取番茄钟统计（如果有）
-          let pomodoroStr = '';
-          if (s && s.pomodoro && s.pomodoro.byDate && s.pomodoro.byDate[date] && s.pomodoro.byDate[date].taskStats && s.pomodoro.byDate[date].taskStats[task.id]) {
-            const tStat = s.pomodoro.byDate[date].taskStats[task.id];
-            pomodoroStr = ` (🍅 ${tStat.count} | 🕒 ${tStat.minutes}m)`;
-          }
-
-          // 预计番茄时长
-          let estStr = '';
-          if (task.estimatedPomodoroDuration) {
-            estStr = ` (⏲️ 预计${task.estimatedPomodoroDuration})`;
-          }
-
-          // 缩进
-          const indent = '  '.repeat(task.depth || 0);
-
-          text += `${indent}${checkbox} ${task.title}${task.repeatLabel ? ` (${task.repeatLabel})` : ''}${timeStr}${estStr}${pomodoroStr}
-`;
-          if (task.note) {
-            text += `${indent}  > ${task.note}
-`;
-          }
-        });
-
-        text += `\n`;
-      });
-
-      text += `\n`;
-    });
-
-    navigator.clipboard.writeText(text).then(() => {
-      showMessage(t("copiedToClipboard") || "已复制到剪贴板");
-    }).catch(err => {
-      console.error('复制失败:', err);
-      showMessage(t("copyFailed") || "复制失败");
-    });
-  }
 
   /**
-   * 复制任务摘要纯文本到剪贴板（带编号）
-   */
-  public copyTaskSummaryPlainText(groupedTasks?: Map<string, Map<string, any[]>>, stats?: any) {
-    const g = groupedTasks || this.lastGroupedTasks || new Map();
-    const s = stats || this.lastStats || {};
-
-    let text = '';
-
-    // 合并日期来源
-    const allDates = new Set<string>();
-    g.forEach((_, d) => allDates.add(d));
-    if (s && s.pomodoro && s.pomodoro.byDate) Object.keys(s.pomodoro.byDate).forEach(d => allDates.add(d));
-    if (s && s.habit && s.habit.byDate) Object.keys(s.habit.byDate).forEach(d => allDates.add(d));
-
-    const sortedDates = Array.from(allDates).sort();
-
-    sortedDates.forEach(date => {
-      const dateProjects = g.get(date) || new Map();
-      const dateObj = new Date(date);
-      const formattedDate = dateObj.toLocaleDateString('zh-CN', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        weekday: 'long'
-      });
-
-      // 非日视图时才添加日期标题
-      if (this.calendar && this.calendar.view && this.calendar.view.type !== 'timeGridDay') {
-        text += `${formattedDate}
-${'-'.repeat(formattedDate.length)}
-
-`;
-      }
-
-      // 番茄
-      if (s && s.pomodoro && s.pomodoro.byDate && s.pomodoro.byDate[date]) {
-        const p = s.pomodoro.byDate[date];
-        text += `🍅 专注：${p.count} 个番茄钟 (${(p.minutes / 60).toFixed(1)} 小时)\n\n`;
-      }
-
-      // 习惯
-      if (s && s.habit && s.habit.byDate && s.habit.byDate[date]) {
-        const hlist = s.habit.byDate[date];
-        text += `💪 ${t('habitCheckIn') || '习惯打卡'}\n`;
-        hlist.forEach((h: any) => {
-          const progress = h.completed ? '✅' : '⬜';
-          const emojiStr = h.emojis && h.emojis.length ? h.emojis.join('') : (t('noneVal') || '无');
-          text += `${progress} ${h.title} (${t('frequency') || '频率'}：${h.frequencyLabel}，${t('targetTimes') || '目标次数'}：${h.target}，${t('todayCheckIn') || '今天打卡'}：${emojiStr})\n`;
-        });
-        text += `\n`;
-      }
-
-      dateProjects.forEach((tasks, projectName) => {
-        text += `【${projectName}】\n`;
-
-
-        tasks.forEach(task => {
-          let timeStr = '';
-          if (task.fullEndDate && task.fullEndDate !== task.fullStartDate) {
-            timeStr = ` (${this.formatMonthDay(task.fullStartDate)}-${this.formatMonthDay(task.fullEndDate)})`;
-          } else {
-            timeStr = this.getDisplayTimeForDate(task, date);
-          }
-
-          // 番茄钟统计
-          let pomodoroStr = '';
-          if (s && s.pomodoro && s.pomodoro.byDate && s.pomodoro.byDate[date] && s.pomodoro.byDate[date].taskStats && s.pomodoro.byDate[date].taskStats[task.id]) {
-            const tStat = s.pomodoro.byDate[date].taskStats[task.id];
-            pomodoroStr = ` (🍅 ${tStat.count} | 🕒 ${tStat.minutes}m)`;
-          }
-
-          // 预计番茄时长
-          let estStr = '';
-          if (task.estimatedPomodoroDuration) {
-            estStr = ` (⏲️ 预计${task.estimatedPomodoroDuration})`;
-          }
-
-          // 缩进
-          const indent = '  '.repeat(task.depth || 0);
-
-          const checkbox = task.completed ? '✅' : '⬜';
-          text += `${indent}${checkbox} ${task.title}${task.repeatLabel ? ` (${task.repeatLabel})` : ''}${timeStr}${estStr}${pomodoroStr}\n`;
-        });
-
-        text += `\n`;
-      });
-
-      text += `\n`;
-    });
-
-    navigator.clipboard.writeText(text).then(() => {
-      showMessage(t("copiedToClipboard") || "已复制到剪贴板");
-    }).catch(err => {
-      console.error('复制失败:', err);
-      showMessage(t("copyFailed") || "复制失败");
-    });
-  }
-
-  /**
-   * 复制任务摘要富文本到剪贴板（带编号，HTML格式）
-   */
-  public copyTaskSummaryRichText(groupedTasks: Map<string, Map<string, any[]>>) {
-    const g = groupedTasks || this.lastGroupedTasks || new Map();
-    const s = this.lastStats || {};
-
-    let html = '';
-
-    // 合并日期来源
-    const allDates = new Set<string>();
-    g.forEach((_, d) => allDates.add(d));
-    if (s && s.pomodoro && s.pomodoro.byDate) Object.keys(s.pomodoro.byDate).forEach(d => allDates.add(d));
-    if (s && s.habit && s.habit.byDate) Object.keys(s.habit.byDate).forEach(d => allDates.add(d));
-
-    const sortedDates = Array.from(allDates).sort();
-
-    html += '<div style="font-family: Arial, sans-serif; line-height: 1.6;">';
-
-    sortedDates.forEach(date => {
-      const dateProjects = g.get(date) || new Map();
-      const dateObj = new Date(date);
-      const formattedDate = dateObj.toLocaleDateString('zh-CN', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        weekday: 'long'
-      });
-
-      // 非日视图时才添加日期标题
-      if (this.calendar && this.calendar.view && this.calendar.view.type !== 'timeGridDay') {
-        html += `<h2 style="color: #1976D2; margin: 20px 0 12px 0; font-size: 18px; border-bottom: 2px solid #1976D2; padding-bottom: 4px;">${formattedDate}</h2>`;
-      }
-
-      // 番茄
-      if (s && s.pomodoro && s.pomodoro.byDate && s.pomodoro.byDate[date]) {
-        const p = s.pomodoro.byDate[date];
-        html += `<div style="margin-left:16px; color:#555;">🍅 专注：${p.count} 个番茄钟 (${(p.minutes / 60).toFixed(1)} 小时)</div>`;
-      }
-
-      // 习惯
-      if (s && s.habit && s.habit.byDate && s.habit.byDate[date]) {
-        const hlist = s.habit.byDate[date];
-        html += `<div style="margin-left:16px; color:#555;">💪 习惯打卡：</div><ul>`;
-        hlist.forEach((h: any) => {
-          const progress = h.completed ? '✅' : '⬜';
-          const emojiStr = h.emojis && h.emojis.length ? h.emojis.join('') : (t('noneVal') || '无');
-          html += `<li style="margin:4px 0;">${progress} ${h.title} (${t('frequency') || '频率'}：${h.frequencyLabel}，${t('targetTimes') || '目标次数'}：${h.target}，${t('todayCheckIn') || '今天打卡'}：${emojiStr})</li>`;
-        });
-        html += `</ul>`;
-      }
-
-      dateProjects.forEach((tasks, projectName) => {
-        html += `<h3 style="color: #2196F3; margin: 16px 0 8px 0; font-size: 16px;">【${projectName}】</h3>`;
-
-        // 使用递归函数生成嵌套列表
-        const renderTaskList = (taskList: any[], currentDepth: number = 0) => {
-          if (taskList.length === 0) return '';
-
-          let listHtml = '<ul style="margin: 4px 0; padding-left: 20px; list-style-type: none;">';
-
-          for (let i = 0; i < taskList.length; i++) {
-            const task = taskList[i];
-
-            // 跳过已经作为子任务处理的任务
-            if (task._processed) continue;
-
-            // 只处理当前深度的任务
-            if ((task.depth || 0) !== currentDepth) continue;
-
-            let timeHtml = '';
-            if (task.depth > 0 && !task.time) {
-              timeHtml = '';
-            } else if (task.fullEndDate && task.fullEndDate !== task.fullStartDate) {
-              timeHtml = ` <span style="color: #666; font-size: 12px;">(${this.formatMonthDay(task.fullStartDate)}-${this.formatMonthDay(task.fullEndDate)})</span>`;
-            } else {
-              const dt = this.getDisplayTimeForDate(task, date);
-              if (dt) timeHtml = ` <span style="color: #666; font-size: 12px;">${dt.trim()}</span>`;
-            }
-
-            // 番茄钟统计
-            let pomodoroHtml = '';
-            if (s && s.pomodoro && s.pomodoro.byDate && s.pomodoro.byDate[date] && s.pomodoro.byDate[date].taskStats && s.pomodoro.byDate[date].taskStats[task.id]) {
-              const tStat = s.pomodoro.byDate[date].taskStats[task.id];
-              pomodoroHtml = ` <span style="color:#888; font-size:12px;">(🍅 ${tStat.count} | 🕒 ${tStat.minutes}m)</span>`;
-            }
-
-            // 预计番茄时长
-            let estHtml = '';
-            if (task.estimatedPomodoroDuration) {
-              estHtml = ` <span style="color:#888; font-size:12px;">(⏲️ 预计${task.estimatedPomodoroDuration})</span>`;
-            }
-
-            const checkbox = task.completed ? '✅' : '⬜';
-            listHtml += `<li style="margin: 4px 0; color: #333;">${checkbox} ${task.title}${task.repeatLabel ? ` <span style="color:#888; font-size:12px;">(${task.repeatLabel})</span>` : ''}${timeHtml}${estHtml}${pomodoroHtml}`;
-
-            // 标记为已处理
-            task._processed = true;
-
-            // 查找并渲染子任务
-            const children = taskList.filter(t => !t._processed && (t.depth || 0) === currentDepth + 1);
-            if (children.length > 0) {
-              listHtml += renderTaskList(taskList, currentDepth + 1);
-            }
-
-            listHtml += '</li>';
-          }
-
-          listHtml += '</ul>';
-          return listHtml;
-        };
-
-        html += renderTaskList(tasks, 0);
-      });
-
-      html += '<br>';
-    });
-
-    html += '</div>';
-
-    // 创建一个临时的 ClipboardItem 来复制富文本
-    const blob = new Blob([html], { type: 'text/html' });
-    const clipboardItem = new ClipboardItem({ 'text/html': blob });
-
-    navigator.clipboard.write([clipboardItem]).then(() => {
-      showMessage(t("copiedToClipboard") || "已复制到剪贴板");
-    }).catch(err => {
-      console.error('富文本复制失败:', err);
-      // 如果富文本复制失败，尝试复制纯文本版本
-      const plainText = html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ');
-      navigator.clipboard.writeText(plainText).then(() => {
-        showMessage(t("copiedToClipboard") || "已复制到剪贴板（纯文本格式）");
-      }).catch(err2 => {
-        console.error('纯文本复制也失败:', err2);
-        showMessage(t("copyFailed") || "复制失败");
-      });
-    });
-  }
-
-  /**
-   * 执行复制操作
+   * 执行复制操作（基于当前视图HTML）
    */
   public executeCopy(copyType: string, groupedTasks?: Map<string, Map<string, any[]>>) {
-    const g = groupedTasks || this.lastGroupedTasks || undefined;
-    const s = this.lastStats || undefined;
-
+    // 使用新的基于视图的复制方法
     switch (copyType) {
       case 'rich':
-        this.copyTaskSummaryRichText(g || new Map());
+        this.copyFromCurrentView('html');
         break;
       case 'markdown':
-        this.copyTaskSummary(g, s);
+        this.copyFromCurrentView('markdown');
         break;
       case 'plain':
-        this.copyTaskSummaryPlainText(g, s);
+        this.copyFromCurrentView('plain');
         break;
       default:
-        this.copyTaskSummaryRichText(g || new Map());
+        this.copyFromCurrentView('html');
     }
   }
 
@@ -1894,17 +1551,208 @@ ${'-'.repeat(formattedDate.length)}
    * 复制当前视图的富文本任务摘要
    */
   public async copyCurrentViewRichText() {
-    try {
-      const events = await this.getEvents();
-      const dateRange = this.getCurrentViewDateRange();
-      const filteredEvents = this.filterEventsByDateRange(events, dateRange);
-      const groupedTasks = this.groupTasksByDateAndProject(filteredEvents, dateRange);
+    this.executeCopy('rich');
+  }
 
-      this.executeCopy('rich', groupedTasks);
+  /**
+   * 从当前视图的 HTML 提取内容并转换为指定格式
+   */
+  private copyFromCurrentView(format: 'html' | 'markdown' | 'plain') {
+    const container = this.currentDialog.element.querySelector('#task-summary-dialog-container');
+    if (!container) {
+      showMessage(t("copyFailed") || "复制失败");
+      return;
+    }
+
+    try {
+      let content = '';
+
+      if (format === 'html') {
+        content = this.extractHTMLContent(container as HTMLElement);
+      } else if (format === 'markdown') {
+        content = this.htmlToMarkdown(container as HTMLElement);
+      } else {
+        content = this.htmlToPlainText(container as HTMLElement);
+      }
+
+      // 复制到剪贴板
+      if (format === 'html') {
+        this.copyHTMLToClipboard(content);
+      } else {
+        navigator.clipboard.writeText(content).then(() => {
+          showMessage(t("copied") || "已复制");
+        });
+      }
     } catch (error) {
-      console.error('复制富文本失败:', error);
+      console.error('复制失败:', error);
       showMessage(t("copyFailed") || "复制失败");
     }
+  }
+
+  private extractHTMLContent(container: HTMLElement): string {
+    const clone = container.cloneNode(true) as HTMLElement;
+
+    // 检查是否为多天视图（通过日期组数量判断）
+    const dateGroups = container.querySelectorAll('.task-date-group');
+    const isMultiDayView = dateGroups.length > 1;
+
+    // 移除不需要复制到剪贴板的交互元素
+    // 移除筛选按钮组和操作按钮组（复制按钮等）
+    clone.querySelectorAll('.filter-buttons, .action-buttons, button').forEach(el => el.remove());
+
+    // 如果是单天视图，移除头部的汇总统计卡片
+    if (!isMultiDayView) {
+      clone.querySelectorAll('.task-summary-info-cards').forEach(el => el.remove());
+    }
+
+    return clone.innerHTML;
+  }
+
+  private htmlToMarkdown(container: HTMLElement): string {
+    let markdown = '';
+
+    // 检查是否为多天视图（通过日期组数量判断）
+    const dateGroups = container.querySelectorAll('.task-date-group');
+    const isMultiDayView = dateGroups.length > 1;
+
+    const title = container.querySelector('h2');
+    if (title) markdown += `# ${title.textContent?.trim()}\n\n`;
+
+    // 只在多天视图时包含统计信息卡片
+    if (isMultiDayView) {
+      const infoCards = container.querySelectorAll('.info-card');
+      if (infoCards.length > 0) {
+        infoCards.forEach(card => {
+          const divs = card.querySelectorAll('div');
+          if (divs.length >= 2) {
+            const label = divs[0].textContent?.trim();
+            const value = divs[1].textContent?.trim();
+            if (label && value) {
+              markdown += `**${label}**: ${value}\n`;
+            }
+          }
+        });
+        markdown += '\n';
+      }
+    }
+
+    dateGroups.forEach(dateGroup => {
+      const dateTitle = dateGroup.querySelector('.task-date-title');
+      if (dateTitle) markdown += `## ${dateTitle.textContent?.trim()}\n\n`;
+
+      const projectGroups = dateGroup.querySelectorAll('.task-project-group');
+      projectGroups.forEach(projectGroup => {
+        const projectTitle = projectGroup.querySelector('.task-project-title');
+        if (projectTitle) markdown += `### ${projectTitle.textContent?.trim()}\n\n`;
+
+        const tasks = projectGroup.querySelectorAll('.task-item');
+        tasks.forEach(task => {
+          const depth = parseInt(task.getAttribute('data-depth') || '0');
+          const indent = '  '.repeat(depth);
+          const checkbox = task.classList.contains('completed') ? '[x]' : '[ ]';
+          const title = task.querySelector('.task-title')?.textContent?.trim() || '';
+          markdown += `${indent}- ${checkbox} ${title}\n`;
+        });
+        markdown += '\n';
+      });
+    });
+    return markdown;
+  }
+
+  private htmlToPlainText(container: HTMLElement): string {
+    let text = '';
+
+    // 检查是否为多天视图（通过日期组数量判断）
+    const dateGroups = container.querySelectorAll('.task-date-group');
+    const isMultiDayView = dateGroups.length > 1;
+
+    // 提取标题（如果有）
+    const title = container.querySelector('h2');
+    if (title) {
+      const titleText = title.textContent?.trim();
+      if (titleText) {
+        text += `${titleText}\n${'-'.repeat(titleText.length)}\n\n`;
+      }
+    }
+
+    // 只在多天视图时包含统计信息卡片
+    if (isMultiDayView) {
+      const infoCards = container.querySelectorAll('.info-card');
+      if (infoCards.length > 0) {
+        infoCards.forEach(card => {
+          const divs = card.querySelectorAll('div');
+          if (divs.length >= 2) {
+            const label = divs[0].textContent?.trim();
+            // 清理内部空白字符，防止出现多余换行
+            const value = divs[1].textContent?.trim().replace(/\s+/g, ' ');
+            if (label && value) {
+              text += `${label}：${value}\n`;
+            }
+          }
+        });
+        text += '\n';
+      }
+    }
+
+    // 提取任务列表
+    dateGroups.forEach(dateGroup => {
+      const dateTitle = dateGroup.querySelector('.task-date-title');
+      if (dateTitle) {
+        const dateTitleText = dateTitle.textContent?.trim();
+        if (dateTitleText) {
+          text += `${dateTitleText}\n${'-'.repeat(dateTitleText.length)}\n\n`;
+        }
+      }
+
+      // 提取统计行（番茄钟等）
+      const statRows = dateGroup.querySelectorAll('.summary-stat-row');
+      statRows.forEach(row => {
+        const statText = row.textContent?.trim();
+        if (statText) {
+          text += `${statText}\n\n`;
+        }
+      });
+
+      const projectGroups = dateGroup.querySelectorAll('.task-project-group');
+      projectGroups.forEach(projectGroup => {
+        const projectTitle = projectGroup.querySelector('.task-project-title');
+        if (projectTitle) {
+          const projectTitleText = projectTitle.textContent?.trim();
+          if (projectTitleText) {
+            text += `【${projectTitleText}】\n`;
+          }
+        }
+
+        const tasks = projectGroup.querySelectorAll('.task-item');
+        tasks.forEach(task => {
+          const depth = parseInt(task.getAttribute('data-depth') || '0');
+          const indent = '  '.repeat(depth);
+          const checkbox = task.classList.contains('completed') ? '✅' : '⬜';
+
+          // 提取任务标题（包含所有内联元素）
+          const taskTitle = task.querySelector('.task-title');
+          const titleText = taskTitle?.textContent?.trim() || '';
+
+          text += `${indent}${checkbox} ${titleText}\n`;
+        });
+        text += '\n';
+      });
+
+      text += '\n';
+    });
+
+    return text;
+  }
+
+  private copyHTMLToClipboard(html: string) {
+    const blob = new Blob([html], { type: 'text/html' });
+    const clipboardItem = new ClipboardItem({ 'text/html': blob });
+    navigator.clipboard.write([clipboardItem]).then(() => {
+      showMessage(t("copied") || "已复制");
+    }).catch(error => {
+      console.error('复制富文本失败:', error);
+      showMessage(t("copyFailed") || "复制失败");
+    });
   }
 
 }
