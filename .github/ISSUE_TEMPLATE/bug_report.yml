@@ -77,6 +77,7 @@ body:
       label: 是否愿意打赏（必须，若愿意请说明金额）
       description: |
         为了加速实现，可选打赏支持，已打赏issue的处理优于未打赏。请说明是否愿意打赏支持及标注打赏金额，已打赏用户标注过去打赏过的金额。
+        请按规范填写，不愿意打赏就填不愿意，愿意打赏和已打赏需要填写具体金额，不按照规范填写issue会被直接关闭。
         ![打赏链接](https://fastly.jsdelivr.net/gh/Achuan-2/PicBed/assets/20241128221208-2024-11-28.png)
     validations:
       required: true
