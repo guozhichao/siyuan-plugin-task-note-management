@@ -2438,18 +2438,23 @@ export class ReminderPanel {
                 return reminders.filter(r => isEffectivelyCompleted(r));
             case 'todayCompleted':
                 return reminders.filter(r => {
-                    // 已标记为完成的：如果其日期范围包含今日，或其原始日期是今日，或其完成时间（completedTime）在今日，则视为今日已完成
+                    // 已标记为完成的：如果其完成时间的逻辑日期是今日，则视为今日已完成
                     if (r.completed) {
                         try {
                             const completedTime = this.getCompletedTime(r);
                             if (completedTime) {
-                                const completedDate = completedTime.split(' ')[0];
-                                if (completedDate === today) return true;
+                                // 将完成时间转换为 Date 对象
+                                let completedDate: Date;
+                                completedDate = new Date(completedTime.replace(' ', 'T') + ':00');
+                                // 使用 getLogicalDateString 获取完成时间的逻辑日期
+                                const completedLogicalDate = getLogicalDateString(completedDate);
+                                if (completedLogicalDate === today) return true;
                             }
                         } catch (e) {
                             // ignore and fallback to date checks
                         }
 
+                        // 回退逻辑：如果没有完成时间，检查任务日期
                         return (r.endDate && compareDateStrings(r.date, today) <= 0 && compareDateStrings(today, r.endDate) <= 0) || r.date === today;
                     }
 
