@@ -11,7 +11,7 @@ import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUt
 import { getSolarDateLunarString } from "../utils/lunarUtils";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { BlockBindingDialog } from "./BlockBindingDialog";
-import { getAllReminders, saveReminders } from "../utils/icsSubscription";
+import { getAllReminders, saveProjectReminders } from '../utils/icsSubscription';
 
 // 层级化任务接口
 interface HierarchicalTask {
@@ -91,6 +91,9 @@ export class ProjectKanbanView {
     // 记录最后一次渲染的模式和项目ID，用于判断是否需要全量清空
     private _lastRenderMode: string | null = null;
     private _lastRenderedProjectId: string | null = null;
+
+    // 缓存的任务数据
+    private reminderData: any = null;
 
     constructor(container: HTMLElement, plugin: any, projectId: string) {
         this.container = container;
@@ -188,11 +191,13 @@ export class ProjectKanbanView {
 
         // 监听提醒更新事件（使用防抖加载以避免频繁重绘导致滚动重置）
         // 只有外部触发的事件才重新加载任务
-        window.addEventListener('reminderUpdated', (e: CustomEvent) => {
+        window.addEventListener('reminderUpdated', async (e: CustomEvent) => {
             // 如果是自己触发的更新，忽略
             if (e.detail?.source === this.kanbanInstanceId) {
                 return;
             }
+            // 外部触发的更新，需要刷新缓存
+            await this.getReminders(true);
             this.queueLoadTasks();
         });
     }
@@ -1094,7 +1099,7 @@ export class ProjectKanbanView {
         }
 
         // 检查该分组下是否有任务
-        const reminderData = await this.plugin.loadData('reminder.json');
+        const reminderData = await this.getReminders();
         const tasksInGroup = Object.values(reminderData).filter((task: any) =>
             task && task.projectId === this.projectId && task.customGroupId === groupId
         );
@@ -1178,7 +1183,7 @@ export class ProjectKanbanView {
 
                 // 保存任务数据（如果有任务被修改或删除）
                 if (hasTasks) {
-                    await saveReminders(this.plugin, reminderData);
+                    await saveProjectReminders(this.plugin, this.projectId, reminderData);
                     this.dispatchReminderUpdate(true);
                 }
 
@@ -1364,7 +1369,10 @@ export class ProjectKanbanView {
         refreshBtn.className = 'b3-button b3-button--outline';
         refreshBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>';
         refreshBtn.title = t('refresh');
-        refreshBtn.addEventListener('click', () => this.queueLoadTasks());
+        refreshBtn.addEventListener('click', async () => {
+            await this.getReminders(true);
+            this.queueLoadTasks();
+        });
         controlsGroup.appendChild(refreshBtn);
 
         const calendarBtn = document.createElement('button');
@@ -1731,7 +1739,7 @@ export class ProjectKanbanView {
         try {
             // 归一化：确保 'ungrouped' 字符串也会被当作 null 处理
             if (groupId === 'ungrouped') groupId = null;
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.getReminders();
 
             if (!reminderData[task.id]) {
                 showMessage("任务不存在");
@@ -1764,7 +1772,7 @@ export class ProjectKanbanView {
                 return;
             }
 
-            await saveReminders(this.plugin, reminderData);
+            await saveProjectReminders(this.plugin, this.projectId, reminderData);
 
             // 广播更新事件
             this.dispatchReminderUpdate(true);
@@ -1791,7 +1799,7 @@ export class ProjectKanbanView {
      */
     private async toggleTaskTag(task: any, tagId: string) {
         try {
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.getReminders();
 
             if (!reminderData[task.id]) {
                 showMessage("任务不存在");
@@ -1839,7 +1847,7 @@ export class ProjectKanbanView {
                 }
             }
 
-            await saveReminders(this.plugin, reminderData);
+            await saveProjectReminders(this.plugin, this.projectId, reminderData);
 
             // 广播更新事件
             this.dispatchReminderUpdate(true);
@@ -1859,6 +1867,13 @@ export class ProjectKanbanView {
         }
     }
 
+    private async getReminders(forceRefresh: boolean = false): Promise<any> {
+        if (forceRefresh || !this.reminderData) {
+            this.reminderData = await getAllReminders(this.plugin, this.projectId);
+        }
+        return this.reminderData;
+    }
+
     private async loadTasks() {
         if (this.isLoading) {
             return;
@@ -1869,7 +1884,7 @@ export class ProjectKanbanView {
             // 保存当前滚动状态，避免界面刷新时丢失滚动位置
             this.captureScrollState();
 
-            const reminderData = await getAllReminders(this.plugin);
+            const reminderData = await this.getReminders();
             const projectTasks = Object.values(reminderData).filter((reminder: any) => reminder && reminder.projectId === this.projectId);
             // 修复遗留：如果任务中存在 customGroupId === 'ungrouped'，视为未分组（删除该字段）
             projectTasks.forEach((t: any) => {
@@ -2253,7 +2268,7 @@ export class ProjectKanbanView {
                 try {
                     let rawData = reminderData;
                     if (!rawData) {
-                        rawData = this.plugin.loadData('reminder.json');
+                        rawData = await this.getReminders();
                     }
                     const reminderMap = rawData instanceof Map ? rawData : new Map(Object.values(rawData || {}).map((r: any) => [r.id, r]));
                     hasDescendants = this.getAllDescendantIds(reminder.id, reminderMap).length > 0;
@@ -2305,7 +2320,7 @@ export class ProjectKanbanView {
                 try {
                     let rawData = reminderData;
                     if (!rawData) {
-                        rawData = await this.plugin.loadData('reminder.json');
+                        rawData = await this.getReminders();
                     }
                     const reminderMap = rawData instanceof Map ? rawData : new Map(Object.values(rawData || {}).map((r: any) => [r.id, r]));
                     hasDescendants = this.getAllDescendantIds(reminder.id, reminderMap).length > 0;
@@ -4342,10 +4357,10 @@ export class ProjectKanbanView {
                         // 异步清理无效标签
                         (async () => {
                             try {
-                                const reminderData = await this.plugin.loadData('reminder.json');
+                                const reminderData = await this.getReminders();
                                 if (reminderData[task.id]) {
                                     reminderData[task.id].tagIds = validTagIds;
-                                    await saveReminders(this.plugin, reminderData);
+                                    await saveProjectReminders(this.plugin, this.projectId, reminderData);
                                 }
                             } catch (error) {
                                 console.error('清理无效标签失败:', error);
@@ -5303,7 +5318,7 @@ export class ProjectKanbanView {
                 await this.toggleRepeatInstanceCompletion(task, completed);
             } else {
                 // 对于普通任务
-                const reminderData = await this.plugin.loadData('reminder.json');
+                const reminderData = await this.getReminders();
                 if (reminderData[task.id]) {
                     reminderData[task.id].completed = completed;
                     if (completed) {
@@ -5315,7 +5330,7 @@ export class ProjectKanbanView {
                         // 取消完成父任务时，通常不自动取消子任务
                     }
 
-                    await saveReminders(this.plugin, reminderData);
+                    await saveProjectReminders(this.plugin, this.projectId, reminderData);
 
                     // 更新绑定块的书签状态
                     if (task.blockId || task.docId) {
@@ -5340,7 +5355,7 @@ export class ProjectKanbanView {
      */
     private async toggleRepeatInstanceCompletion(task: any, completed: boolean) {
         try {
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.getReminders();
             const originalReminder = reminderData[task.originalId];
 
             if (!originalReminder) {
@@ -5383,7 +5398,7 @@ export class ProjectKanbanView {
                 }
             }
 
-            await saveReminders(this.plugin, reminderData);
+            await saveProjectReminders(this.plugin, this.projectId, reminderData);
 
             // 更新本地缓存
             const localTask = this.tasks.find(t => t.id === task.id);
@@ -5450,7 +5465,7 @@ export class ProjectKanbanView {
             } catch (err) {
                 // ignore parsing errors and continue
             }
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.getReminders();
 
             // 对于周期实例，使用 originalId；否则使用 task.id
             const actualTaskId = task.isRepeatInstance ? task.originalId : task.id;
@@ -5518,7 +5533,7 @@ export class ProjectKanbanView {
                     }
                 }
 
-                await saveReminders(this.plugin, reminderData);
+                await saveProjectReminders(this.plugin, this.projectId, reminderData);
 
                 // 更新块的书签状态（仅针对绑定块的任务）
                 if (task.blockId || task.docId) {
@@ -5962,7 +5977,7 @@ export class ProjectKanbanView {
             let taskToEdit = task;
 
             if (task.isRepeatInstance && task.originalId) {
-                const reminderData = await this.plugin.loadData('reminder.json');
+                const reminderData = await this.getReminders();
                 const originalReminder = reminderData[task.originalId];
                 if (!originalReminder) {
                     showMessage("原始周期事件不存在");
@@ -6147,7 +6162,7 @@ export class ProjectKanbanView {
      * @param customGroupId 自定义分组ID
      */
     private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[], parentIdForAllTopLevel?: string, customGroupId?: string) {
-        const reminderData = await this.plugin.loadData('reminder.json') || {};
+        const reminderData = await this.getReminders();
         const categoryId = this.project.categoryId; // 继承项目分类
 
         // 获取当前项目中所有任务的最大排序值
@@ -6250,7 +6265,7 @@ export class ProjectKanbanView {
             // 如果有父任务ID，获取父任务的优先级用于继承
             let parentPriority: string | undefined;
             if (topParent) {
-                const parentReminderData = await this.plugin.loadData('reminder.json') || {};
+                const parentReminderData = await this.getReminders();
                 const parentTask = parentReminderData[topParent];
                 parentPriority = parentTask?.priority;
             }
@@ -6411,7 +6426,7 @@ export class ProjectKanbanView {
             t('confirmDeleteRepeat', { title: task.title }) :
             t('confirmDeleteTask', { title: task.title });
         try {
-            const reminderDataForPreview = await this.plugin.loadData('reminder.json');
+            const reminderDataForPreview = await this.getReminders();
             const descendantIdsPreview = this.getAllDescendantIds(taskToDelete.id, reminderDataForPreview);
             if (descendantIdsPreview.length > 0) {
                 confirmMessage += `\n\n${t('includesNSubtasks', { count: String(descendantIdsPreview.length) })}`;
@@ -6426,7 +6441,7 @@ export class ProjectKanbanView {
             async () => {
                 try {
                     // 重读数据以确保删除时数据为最新
-                    const reminderData = await this.plugin.loadData('reminder.json');
+                    const reminderData = await this.getReminders();
 
                     // 获取所有后代任务ID（递归）
                     const descendantIds = this.getAllDescendantIds(taskToDelete.id, reminderData);
@@ -6451,7 +6466,7 @@ export class ProjectKanbanView {
                         }
                     }
 
-                    await saveReminders(this.plugin, reminderData);
+                    await saveProjectReminders(this.plugin, this.projectId, reminderData);
 
                     // 触发更新事件
                     this.dispatchReminderUpdate(true);
@@ -7583,7 +7598,7 @@ export class ProjectKanbanView {
     // 设置任务优先级
     private async setPriority(task: any, priority: string) {
         try {
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.getReminders();
 
             // 如果是重复实例，修改实例的优先级
             if (task.isRepeatInstance && task.originalId) {
@@ -7607,7 +7622,7 @@ export class ProjectKanbanView {
                 // 设置实例的优先级
                 originalReminder.repeat.instanceModifications[task.date].priority = priority;
 
-                await saveReminders(this.plugin, reminderData);
+                await saveProjectReminders(this.plugin, this.projectId, reminderData);
                 showMessage("实例优先级已更新");
             } else {
                 // 普通任务或原始重复事件，直接修改
@@ -7624,7 +7639,7 @@ export class ProjectKanbanView {
                         });
                     }
 
-                    await saveReminders(this.plugin, reminderData);
+                    await saveProjectReminders(this.plugin, this.projectId, reminderData);
                     showMessage("优先级已更新");
                 } else {
                     showMessage("任务不存在");
@@ -7688,7 +7703,7 @@ export class ProjectKanbanView {
      */
     private async bindReminderToBlock(reminder: any, blockId: string) {
         try {
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.getReminders();
             const reminderId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
 
             if (reminderData[reminderId]) {
@@ -7704,7 +7719,7 @@ export class ProjectKanbanView {
                 reminderData[reminderId].docId = block.root_id || blockId;
                 reminderData[reminderId].isQuickReminder = false; // 移除快速提醒标记
 
-                await saveReminders(this.plugin, reminderData);
+                await saveProjectReminders(this.plugin, this.projectId, reminderData);
 
                 // 将绑定的块添加项目ID属性 custom-task-projectId
                 const projectId = reminderData[reminderId].projectId;
@@ -7773,7 +7788,7 @@ export class ProjectKanbanView {
      */
     private async unbindTaskFromBlock(blockId: string) {
         try {
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.getReminders();
             let unboundCount = 0;
 
             // 找到所有绑定到该块的任务并解除绑定
@@ -7787,7 +7802,7 @@ export class ProjectKanbanView {
             });
 
             if (unboundCount > 0) {
-                await saveReminders(this.plugin, reminderData);
+                await saveProjectReminders(this.plugin, this.projectId, reminderData);
 
                 // 触发更新事件
                 this.dispatchReminderUpdate(true);
@@ -8052,7 +8067,7 @@ export class ProjectKanbanView {
      */
     private async setParentChildRelation(childTask: any, parentTask: any) {
         try {
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.getReminders();
 
             if (!reminderData[childTask.id]) {
                 throw new Error("子任务不存在");
@@ -8071,7 +8086,7 @@ export class ProjectKanbanView {
                 reminderData[childTask.id].kanbanStatus = 'doing';
             }
 
-            await saveReminders(this.plugin, reminderData);
+            await saveProjectReminders(this.plugin, this.projectId, reminderData);
 
             // 更新本地缓存
             const localChild = this.tasks.find(t => t.id === childTask.id);
@@ -8099,7 +8114,7 @@ export class ProjectKanbanView {
      */
     private async unsetParentChildRelation(childTask: any) {
         try {
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.getReminders();
 
             if (!reminderData[childTask.id]) {
                 throw new Error("任务不存在");
@@ -8116,7 +8131,7 @@ export class ProjectKanbanView {
             // 移除父任务ID
             delete reminderData[childTask.id].parentId;
 
-            await saveReminders(this.plugin, reminderData);
+            await saveProjectReminders(this.plugin, this.projectId, reminderData);
 
             // 更新本地缓存
             const localTask = this.tasks.find(t => t.id === childTask.id);
@@ -8165,7 +8180,7 @@ export class ProjectKanbanView {
         if (!draggedTask || !targetTask || !targetTask.parentId) return;
 
         try {
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.getReminders();
             const draggedTaskInDb = reminderData[draggedTask.id];
             if (!draggedTaskInDb) {
                 throw new Error("Dragged task not found in data");
@@ -8235,7 +8250,7 @@ export class ProjectKanbanView {
                 reminderData[task.id].sort = index * 10;
             });
 
-            await saveReminders(this.plugin, reminderData);
+            await saveProjectReminders(this.plugin, this.projectId, reminderData);
 
             // 更新本地缓存的 sort 值，避免编辑时使用旧值
             siblingTasks.forEach((task: any) => {
@@ -8255,7 +8270,7 @@ export class ProjectKanbanView {
 
     private async reorderTasks(draggedTask: any, targetTask: any, insertBefore: boolean) {
         try {
-            const reminderData = await getAllReminders(this.plugin);
+            const reminderData = await this.getReminders();
 
             const draggedId = draggedTask.id;
             const targetId = targetTask.id;
@@ -8346,7 +8361,7 @@ export class ProjectKanbanView {
                     reminderData[task.id].sort = index * 10;
                 });
 
-                await saveReminders(this.plugin, reminderData);
+                await saveProjectReminders(this.plugin, this.projectId, reminderData);
 
                 // 更新本地缓存的 sort 值，避免编辑时使用旧值
                 targetList.forEach((task: any) => {
@@ -8390,7 +8405,7 @@ export class ProjectKanbanView {
                     reminderData[task.id].sort = index * 10;
                 });
 
-                await saveReminders(this.plugin, reminderData);
+                await saveProjectReminders(this.plugin, this.projectId, reminderData);
 
                 // 更新本地缓存的 sort 值，避免编辑时使用旧值
                 siblingTasks.forEach((task: any) => {
@@ -8459,7 +8474,7 @@ export class ProjectKanbanView {
                 reminderData[task.id].sort = index * 10;
             });
 
-            await saveReminders(this.plugin, reminderData);
+            await saveProjectReminders(this.plugin, this.projectId, reminderData);
 
             // 更新本地缓存的 sort 值，避免编辑时使用旧值
             targetList.forEach((task: any) => {
@@ -8522,7 +8537,7 @@ export class ProjectKanbanView {
      */
     private async editInstanceReminder(task: any) {
         try {
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.getReminders();
             const originalReminder = reminderData[task.originalId];
 
             if (!originalReminder) {
@@ -8606,7 +8621,7 @@ export class ProjectKanbanView {
      */
     private async addExcludedDate(originalId: string, excludeDate: string) {
         try {
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.getReminders();
 
             if (reminderData[originalId]) {
                 if (!reminderData[originalId].repeat) {
@@ -8623,7 +8638,7 @@ export class ProjectKanbanView {
                     reminderData[originalId].repeat.excludeDates.push(excludeDate);
                 }
 
-                await saveReminders(this.plugin, reminderData);
+                await saveProjectReminders(this.plugin, this.projectId, reminderData);
             } else {
                 throw new Error('原始事件不存在');
             }
@@ -8898,10 +8913,10 @@ export class ProjectKanbanView {
             this.updateTaskElementDOM(taskId, updates);
 
             // 3. 保存到磁盘
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.getReminders();
             if (reminderData[taskId]) {
                 Object.assign(reminderData[taskId], updates);
-                await saveReminders(this.plugin, reminderData);
+                await saveProjectReminders(this.plugin, this.projectId, reminderData);
             }
 
             // 4. 触发带源标识的事件（其他组件需要更新）

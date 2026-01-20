@@ -129,17 +129,32 @@ export async function saveSubscriptionTasks(subscriptionId: string, tasks: any):
  * Get all reminders including subscriptions
  * This merges reminder.json with all subscription files
  */
-export async function getAllReminders(plugin: any): Promise<any> {
+export async function getAllReminders(plugin: any, projectId?: string): Promise<any> {
     try {
         // Load main reminders
         const mainReminders = (await plugin.loadData('reminder.json')) || {};
 
+        let filteredMainReminders = mainReminders;
+        if (projectId) {
+            filteredMainReminders = {};
+            Object.keys(mainReminders).forEach(key => {
+                const reminder = mainReminders[key];
+                if (reminder && reminder.projectId === projectId) {
+                    filteredMainReminders[key] = reminder;
+                }
+            });
+        }
+
         // Load subscription metadata
         const subscriptionData = await loadSubscriptions(plugin);
-        const subscriptions = Object.values(subscriptionData.subscriptions);
+        let subscriptions = Object.values(subscriptionData.subscriptions);
+
+        if (projectId) {
+            subscriptions = subscriptions.filter(sub => sub.projectId === projectId);
+        }
 
         // Load and merge all subscription tasks
-        let allReminders = { ...mainReminders };
+        let allReminders = { ...filteredMainReminders };
         let needsSave = false;
 
         const today = getLocalDateString();
@@ -277,6 +292,75 @@ export async function saveReminders(plugin: any, allReminders: any): Promise<voi
         }
     } catch (error) {
         console.error('Failed to save reminders:', error);
+        throw error;
+    }
+}
+
+/**
+ * Save project reminders safely.
+ * This method is used when we only have the reminders for a specific project loaded in memory.
+ * It ensures that we don't accidentally delete reminders from other projects when saving.
+ */
+export async function saveProjectReminders(plugin: any, projectId: string, projectReminders: any): Promise<void> {
+    try {
+        const subRemindersBySubId: { [subId: string]: any } = {};
+        const newLocalProjectReminders: any = {};
+
+        // Validate projectId
+        if (!projectId) {
+            throw new Error('Project ID is required to save project reminders safely.');
+        }
+
+        // 1. Separate updated project reminders into Local and Subscription
+        Object.keys(projectReminders).forEach(id => {
+            const reminder = projectReminders[id];
+            if (reminder.isSubscribed && reminder.subscriptionId) {
+                if (!subRemindersBySubId[reminder.subscriptionId]) {
+                    subRemindersBySubId[reminder.subscriptionId] = {};
+                }
+                const { isSubscribed, ...cleanReminder } = reminder;
+                subRemindersBySubId[reminder.subscriptionId][id] = cleanReminder;
+            } else {
+                // IMPORTANT: Only collect reminders that belong to the current project
+                // This might seem redundant if projectReminders is already filtered, but it's a safety check
+                if (reminder.projectId === projectId) {
+                    newLocalProjectReminders[id] = reminder;
+                }
+            }
+        });
+
+        // 2. Load CURRENT full local reminders from disk
+        const currentAllLocalReminders = (await plugin.loadData('reminder.json')) || {};
+
+        // 3. Merge: Remove old tasks for this project, and add new ones (this supports updates and deletions)
+        const finalLocalReminders: any = {};
+
+        // Add tasks from other projects
+        Object.keys(currentAllLocalReminders).forEach(id => {
+            const reminder = currentAllLocalReminders[id];
+            if (reminder.projectId !== projectId) {
+                finalLocalReminders[id] = reminder;
+            }
+        });
+
+        // Add updated tasks for this project
+        Object.assign(finalLocalReminders, newLocalProjectReminders);
+
+        // 4. Save full local reminders
+        await plugin.saveData('reminder.json', finalLocalReminders);
+
+        // 5. Save Subscription Tasks (only for modified subscriptions)
+        // Subscription data separation ensures we don't touch other projects' subscriptions
+        const subscriptionData = await loadSubscriptions(plugin);
+        for (const subId of Object.keys(subRemindersBySubId)) {
+            // Verify subscription exists and belongs to this project (double safety)
+            if (subscriptionData.subscriptions[subId] && subscriptionData.subscriptions[subId].projectId === projectId) {
+                await saveSubscriptionTasks(subId, subRemindersBySubId[subId]);
+            }
+        }
+
+    } catch (error) {
+        console.error('Failed to save project reminders:', error);
         throw error;
     }
 }
