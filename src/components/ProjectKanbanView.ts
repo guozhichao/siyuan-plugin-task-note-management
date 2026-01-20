@@ -6483,6 +6483,43 @@ export class ProjectKanbanView {
             t('deleteTask'),
             confirmMessage,
             async () => {
+                // --- Optimistic UI Update ---
+                try {
+                    const idsToRemove = new Set<string>();
+
+                    // 1. Identify main tasks to remove
+                    if (task.isRepeatInstance) {
+                        // If deleting all instances of a recurring task, find all instances in the current view
+                        const originalId = task.originalId;
+                        this.tasks.forEach(t => {
+                            if (t.id === originalId || t.originalId === originalId) {
+                                idsToRemove.add(t.id);
+                            }
+                        });
+                    } else {
+                        idsToRemove.add(taskToDelete.id);
+                    }
+
+                    // 2. Identify descendants (using local cache)
+                    const initialTargets = Array.from(idsToRemove);
+                    for (const parentId of initialTargets) {
+                        const descendantIds = this.getAllDescendantIds(parentId, this.tasks);
+                        descendantIds.forEach(id => idsToRemove.add(id));
+                    }
+
+                    // 3. Remove from DOM and local cache
+                    idsToRemove.forEach(id => {
+                        const el = this.container.querySelector(`[data-task-id="${id}"]`);
+                        if (el) el.remove();
+                    });
+
+                    this.tasks = this.tasks.filter(t => !idsToRemove.has(t.id));
+
+                } catch (e) {
+                    console.error("Optimistic UI update failed:", e);
+                }
+                // -----------------------------
+
                 try {
                     // 重读数据以确保删除时数据为最新
                     const reminderData = await this.getReminders();
@@ -6515,13 +6552,15 @@ export class ProjectKanbanView {
                     // 触发更新事件
                     this.dispatchReminderUpdate(true);
 
-                    // 重新加载任务（使用防抖队列）
+                    // 重新加载任务（使用防抖队列，确保最终一致性）
                     await this.queueLoadTasks();
 
                     // showMessage("任务已删除");
                 } catch (error) {
                     console.error('删除任务失败:', error);
                     showMessage("删除任务失败");
+                    // Keep UI consistent or facilitate retry by reloading
+                    await this.queueLoadTasks();
                 }
             }
         );
@@ -8647,6 +8686,16 @@ export class ProjectKanbanView {
             t('deleteThisInstance'),
             t('confirmDeleteInstanceOf', { title: task.title, date: task.date }),
             async () => {
+                // --- Optimistic UI Update ---
+                try {
+                    const el = this.container.querySelector(`[data-task-id="${task.id}"]`);
+                    if (el) el.remove();
+                    this.tasks = this.tasks.filter(t => t.id !== task.id);
+                } catch (e) {
+                    console.error("Optimistic UI update failed (instance):", e);
+                }
+                // -----------------------------
+
                 try {
                     const originalId = task.originalId;
                     const instanceDate = task.date;
@@ -8659,6 +8708,7 @@ export class ProjectKanbanView {
                 } catch (error) {
                     console.error('删除周期实例失败:', error);
                     showMessage("删除实例失败");
+                    await this.queueLoadTasks();
                 }
             }
         );
