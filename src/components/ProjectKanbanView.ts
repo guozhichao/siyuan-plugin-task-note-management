@@ -5926,9 +5926,53 @@ export class ProjectKanbanView {
         const quickDialog = new QuickReminderDialog(
             undefined, // 项目看板创建任务默认不设置日期
             undefined, // 无初始时间
-            () => {
-                // 保存成功后刷新看板（防抖）
-                this.queueLoadTasks();
+            async (savedTask: any) => {
+                // 保存成功后尝试增量更新 DOM
+                if (savedTask && typeof savedTask === 'object') {
+                    try {
+                        // 1. 更新本地缓存
+                        if (this.reminderData) {
+                            this.reminderData[savedTask.id] = savedTask;
+                        }
+                        // 确保 task 不重复添加
+                        const existingIndex = this.tasks.findIndex(t => t.id === savedTask.id);
+                        if (existingIndex >= 0) {
+                            this.tasks[existingIndex] = savedTask;
+                        } else {
+                            this.tasks.push(savedTask);
+                        }
+
+                        // 2. 刷新对应列（增量渲染）
+                        if (this.kanbanMode === 'custom') {
+                            const group = this.project?.customGroups?.find((g: any) => g.id === savedTask.customGroupId);
+                            if (group) {
+                                const groupTasks = this.tasks.filter(t => t.customGroupId === group.id);
+                                this.renderCustomGroupColumn(group, groupTasks);
+                            } else {
+                                const ungroupedTasks = this.tasks.filter(t => !t.customGroupId);
+                                this.renderUngroupedColumn(ungroupedTasks);
+                            }
+                        } else {
+                            const status = savedTask.kanbanStatus || 'todo';
+                            // 过滤出该状态列的所有任务（包含对 backlog/stable 分组的考虑默认由 renderColumn 处理）
+                            // 注意：renderColumn 内部会处理 augmentTasksWithDescendants
+                            // 这里我们需要传入属于该状态的所有顶层任务（和 renderKanban 中的逻辑一致）
+                            const tasksInColumn = this.tasks.filter(t => {
+                                const tStatus = t.kanbanStatus || 'todo';
+                                const targetColumn = t.customGroupId && !['doing', 'short_term', 'long_term', 'completed'].includes(t.customGroupId) ? t.customGroupId : tStatus;
+                                return targetColumn === status;
+                            });
+                            this.renderColumn(status, tasksInColumn);
+                        }
+
+                        this.dispatchReminderUpdate(true);
+                    } catch (e) {
+                        console.error("增量更新新任务失败，回退到完整重载", e);
+                        this.queueLoadTasks();
+                    }
+                } else {
+                    this.queueLoadTasks();
+                }
             },
             undefined, // 无时间段选项
             {
@@ -8162,6 +8206,10 @@ export class ProjectKanbanView {
 
             // 如果是订阅任务且试图改变状态（KanbanStatus），则由于只读限制应阻止（除了同状态内的排序）
             // 但如果 reorderTasks 中处理了这些逻辑，我们直接调用
+
+            // Optimistic UI update: 直接在 DOM 层面移动元素，无需等待后台保存
+            this.reorderTasksDOM(this.draggedTask.id, targetTask.id, insertBefore);
+
             await this.reorderTasks(this.draggedTask, targetTask, insertBefore);
 
         } catch (error) {
