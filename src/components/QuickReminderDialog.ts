@@ -646,24 +646,16 @@ export class QuickReminderDialog {
         await this.pomodoroRecordManager.initialize();
 
         // 统计该提醒的番茄钟数量
-        let count = 0;
-        let totalMinutes = 0;
-
-        const records = (this.pomodoroRecordManager as any).records;
-        for (const date in records) {
-            const record = records[date];
-            if (record && record.sessions) {
-                const sessions = record.sessions.filter((s: any) =>
-                    s.eventId === this.reminder.id && s.type === 'work' && s.completed
-                );
-                count += sessions.reduce((sum: number, s: any) => sum + this.pomodoroRecordManager.calculateSessionCount(s), 0);
-                totalMinutes += sessions.reduce((sum: number, s: any) => sum + (s.duration || 0), 0);
-            }
-        }
+        const count = this.pomodoroRecordManager.getEventTotalPomodoroCount(this.reminder.id);
+        const totalMinutes = this.pomodoroRecordManager.getEventTotalFocusTime(this.reminder.id);
 
         if (pomodorosCountText) {
             const timeStr = totalMinutes > 0 ? ` (${Math.floor(totalMinutes / 60)}h${totalMinutes % 60}m)` : '';
-            pomodorosCountText.textContent = `${t("viewPomodoros") || "查看番茄钟"}${count > 0 ? ` ${count}🍅${timeStr}` : ''}`;
+            if (count > 0 || totalMinutes > 0) {
+                pomodorosCountText.textContent = `${t("viewPomodoros") || "查看番茄钟"} ${count}🍅${timeStr}`;
+            } else {
+                pomodorosCountText.textContent = `${t("viewPomodoros") || "查看番茄钟"}`;
+            }
         }
     }
 

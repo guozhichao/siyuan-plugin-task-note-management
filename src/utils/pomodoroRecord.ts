@@ -168,7 +168,7 @@ export class PomodoroRecordManager {
         await this.saveRecords();
     }
 
-    async recordBreakSession(breakMinutes: number, eventId: string = '', eventTitle: string = '休息时间', plannedDuration: number = 5, isLongBreak: boolean = false, completed: boolean = true) {
+    async recordBreakSession(breakMinutes: number, eventId: string = '', _eventTitle: string = '休息时间', plannedDuration: number = 5, isLongBreak: boolean = false, completed: boolean = true) {
         // 确保已初始化
         if (!this.isInitialized) {
             await this.initialize();
@@ -478,8 +478,8 @@ export class PomodoroRecordManager {
 
         for (const record of records) {
             total += record.sessions.reduce((sum, session) => {
-                if (session.eventId === eventId && session.type === 'work' && session.completed) {
-                    return sum + session.duration;
+                if (session.eventId === eventId && session.type === 'work') {
+                    return sum + (session.duration || 0);
                 }
                 return sum;
             }, 0);
