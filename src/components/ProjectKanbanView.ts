@@ -1702,8 +1702,24 @@ export class ProjectKanbanView {
             if (this.isDragging && this.draggedTask) {
                 // 获取当前任务的状态
                 const currentStatus = this.getTaskStatus(this.draggedTask);
-                // 如果当前状态与目标状态不同，则允许放置
-                if (currentStatus !== targetStatus) {
+
+                // 获取目标分组ID（从DOM中提取）
+                const statusGroup = element.closest('.custom-status-group') as HTMLElement;
+                let targetGroupId: string | null | undefined = undefined;
+                if (statusGroup && statusGroup.dataset.groupId) {
+                    const groupId = statusGroup.dataset.groupId;
+                    targetGroupId = groupId === 'ungrouped' ? null : groupId;
+                }
+
+                // 获取当前任务的分组ID
+                const currentGroupRaw = this.draggedTask.customGroupId;
+                const currentGroupId = (currentGroupRaw === undefined || currentGroupRaw === 'ungrouped') ? null : currentGroupRaw;
+
+                // 允许放置的条件：状态不同 OR 分组不同
+                const statusChanged = currentStatus !== targetStatus;
+                const groupChanged = targetGroupId !== undefined && currentGroupId !== targetGroupId;
+
+                if (statusChanged || groupChanged) {
                     e.preventDefault();
                     if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
                     element.classList.add('kanban-drop-zone-active');
@@ -1718,15 +1734,100 @@ export class ProjectKanbanView {
             }
         });
 
-        element.addEventListener('drop', (e) => {
+        element.addEventListener('drop', async (e) => {
             if (this.isDragging && this.draggedTask) {
                 e.preventDefault();
                 // 关键：阻止事件冒泡，防止触发父级（整个自定义分组）的drop事件
                 e.stopPropagation();
                 element.classList.remove('kanban-drop-zone-active');
 
-                // 改变任务状态
-                this.changeTaskStatus(this.draggedTask, targetStatus);
+                // CRITICAL FIX: Extract customGroupId from the DOM element
+                const statusGroup = element.closest('.custom-status-group') as HTMLElement;
+
+                let targetGroupId: string | null | undefined = undefined;
+                if (statusGroup && statusGroup.dataset.groupId) {
+                    const groupId = statusGroup.dataset.groupId;
+                    targetGroupId = groupId === 'ungrouped' ? null : groupId;
+                }
+
+                const draggedTaskId = this.draggedTask.id;
+
+                // Optimistic UI update: Update local cache immediately
+                const localTask = this.tasks.find(t => t.id === draggedTaskId);
+                if (localTask) {
+                    // Update status
+                    if (targetStatus === 'completed') {
+                        localTask.completed = true;
+                        localTask.completedTime = new Date().toISOString();
+                    } else {
+                        localTask.completed = false;
+                        delete localTask.completedTime;
+                        if (targetStatus === 'long_term' || targetStatus === 'short_term') {
+                            localTask.termType = targetStatus;
+                            localTask.kanbanStatus = 'todo';
+                        } else if (targetStatus === 'doing') {
+                            localTask.kanbanStatus = 'doing';
+                            delete localTask.termType;
+                        }
+                    }
+
+                    // Update group
+                    if (targetGroupId !== undefined) {
+                        if (targetGroupId === null) {
+                            delete localTask.customGroupId;
+                        } else {
+                            localTask.customGroupId = targetGroupId;
+                        }
+                    }
+                }
+
+                // Trigger immediate re-render to move the task visually
+                // Use loadTasks() directly instead of queueLoadTasks() to avoid debounce delay
+                this.loadTasks().catch(err => {
+                    console.error('Failed to reload tasks:', err);
+                });
+
+                // Background data persistence
+                (async () => {
+                    try {
+                        const reminderData = await this.getReminders();
+                        const taskInDb = reminderData[draggedTaskId];
+
+                        if (taskInDb) {
+                            // Update status in DB
+                            if (targetStatus === 'completed') {
+                                taskInDb.completed = true;
+                                taskInDb.completedTime = new Date().toISOString();
+                            } else {
+                                taskInDb.completed = false;
+                                delete taskInDb.completedTime;
+                                if (targetStatus === 'long_term' || targetStatus === 'short_term') {
+                                    taskInDb.termType = targetStatus;
+                                    taskInDb.kanbanStatus = 'todo';
+                                } else if (targetStatus === 'doing') {
+                                    taskInDb.kanbanStatus = 'doing';
+                                    delete taskInDb.termType;
+                                }
+                            }
+
+                            // Update group in DB
+                            if (targetGroupId !== undefined) {
+                                if (targetGroupId === null) {
+                                    delete taskInDb.customGroupId;
+                                } else {
+                                    taskInDb.customGroupId = targetGroupId;
+                                }
+                            }
+
+                            await saveProjectReminders(this.plugin, this.projectId, reminderData);
+                            this.dispatchReminderUpdate(true);
+                        }
+                    } catch (error) {
+                        console.error('Background save failed:', error);
+                        // Reload to ensure consistency
+                        await this.queueLoadTasks();
+                    }
+                })();
             }
         });
     }
@@ -4579,72 +4680,37 @@ export class ProjectKanbanView {
                     return;
                 }
 
-                // --- [新逻辑：优先检查状态变更和分组变更] ---
-                let statusChanged = false;
-                if (this.kanbanMode === 'custom') {
-                    const targetSubGroup = taskEl.closest('.custom-status-group') as HTMLElement;
-                    let targetStatus = targetSubGroup?.dataset.status;
-                    // dataset.groupId 可能为 "ungrouped"（字符串），需要归一化为 null
-                    const targetGroupRaw = targetSubGroup?.dataset.groupId;
-                    const targetGroup = (targetGroupRaw === 'ungrouped') ? null : targetGroupRaw;
+                const rect = taskEl.getBoundingClientRect();
+                const mouseY = e.clientY;
+                const taskTop = rect.top;
+                const taskBottom = rect.bottom;
+                const taskHeight = rect.height;
 
-                    if (targetStatus) {
-                        const draggedStatus = this.getTaskStatus(this.draggedTask);
-                        // 归一化 draggedTask.customGroupId，针对字符串 'ungrouped' 视为 null
-                        const draggedGroupRaw = this.draggedTask.customGroupId as any;
-                        const draggedGroup = (draggedGroupRaw === undefined || draggedGroupRaw === 'ungrouped') ? null : draggedGroupRaw;
+                // 定义区域
+                const sortZoneHeight = taskHeight * 0.2;
+                const isInTopSortZone = mouseY <= taskTop + sortZoneHeight;
+                const isInBottomSortZone = mouseY >= taskBottom - sortZoneHeight;
+                const isInParentChildZone = !isInTopSortZone && !isInBottomSortZone;
 
-                        // 检查是否需要改变状态或分组
-                        const statusDifferent = draggedStatus !== targetStatus;
-                        const groupDifferent = draggedGroup !== targetGroup;
+                const canSort = this.canDropForSort(this.draggedTask, targetTask);
+                const canBecomeSibling = this.canBecomeSiblingOf(this.draggedTask, targetTask);
+                const canSetParentChild = this.canSetAsParentChild(this.draggedTask, targetTask);
 
-                        if (statusDifferent || groupDifferent) {
-                            // 如果分组不同，先改变分组
-                            if (groupDifferent) {
-                                this.setTaskCustomGroup(this.draggedTask, targetGroup);
-                            }
-
-                            // 如果状态不同，改变状态
-                            if (statusDifferent) {
-                                this.changeTaskStatus(this.draggedTask, targetStatus);
-                            }
-
-                            statusChanged = true;
-                        }
+                if ((isInTopSortZone || isInBottomSortZone)) {
+                    if (canSort) {
+                        // 执行排序
+                        this.handleSortDrop(targetTask, e);
+                    } else if (canBecomeSibling) {
+                        // 执行成为兄弟任务并排序的操作
+                        this.handleBecomeSiblingDrop(this.draggedTask, targetTask, e);
                     }
-                }
-                // --- [新逻辑结束] ---
-
-                // [修改]：仅在状态 *未* 发生改变时，才执行排序或父子逻辑
-                // （因为状态改变后看板会刷新，排序/父子逻辑已无意义）
-                if (!statusChanged) {
-                    const rect = taskEl.getBoundingClientRect();
-                    const mouseY = e.clientY;
-                    const taskTop = rect.top;
-                    const taskBottom = rect.bottom;
-                    const taskHeight = rect.height;
-
-                    // 定义区域
-                    const sortZoneHeight = taskHeight * 0.2;
-                    const isInTopSortZone = mouseY <= taskTop + sortZoneHeight;
-                    const isInBottomSortZone = mouseY >= taskBottom - sortZoneHeight;
-                    const isInParentChildZone = !isInTopSortZone && !isInBottomSortZone;
-
-                    const canSort = this.canDropForSort(this.draggedTask, targetTask);
-                    const canBecomeSibling = this.canBecomeSiblingOf(this.draggedTask, targetTask);
-                    const canSetParentChild = this.canSetAsParentChild(this.draggedTask, targetTask);
-
-                    if ((isInTopSortZone || isInBottomSortZone)) {
-                        if (canSort) {
-                            // 执行排序
-                            this.handleSortDrop(targetTask, e);
-                        } else if (canBecomeSibling) {
-                            // 执行成为兄弟任务并排序的操作
-                            this.handleBecomeSiblingDrop(this.draggedTask, targetTask, e);
-                        }
-                    } else if (isInParentChildZone && canSetParentChild) {
+                } else if (isInParentChildZone) {
+                    if (canSetParentChild) {
                         // 执行父子任务设置
                         this.handleParentChildDrop(targetTask);
+                    } else if (canSort) {
+                        // [Fallback] Cannot become child, but can sort (e.g. move across groups)
+                        this.handleSortDrop(targetTask, e);
                     }
                 }
             }
@@ -7901,10 +7967,37 @@ export class ProjectKanbanView {
         }
     }
 
+    /**
+     * Get task object from a task element, with customGroupId extracted from DOM
+     */
     private getTaskFromElement(element: HTMLElement): any {
         const taskId = element.dataset.taskId;
         if (!taskId) return null;
-        return this.tasks.find(t => t.id === taskId);
+
+        // Find the task in our tasks array
+        const task = this.tasks.find(t => t.id === taskId);
+        if (!task) return null;
+
+        // Clone the task to avoid modifying the original
+        const taskCopy = { ...task };
+
+        // Extract customGroupId from DOM structure
+        // Look for the closest custom-status-group element first
+        const statusGroup = element.closest('.custom-status-group') as HTMLElement;
+        if (statusGroup && statusGroup.dataset.groupId) {
+            // In custom mode with status sub-groups
+            const groupId = statusGroup.dataset.groupId;
+            taskCopy.customGroupId = groupId === 'ungrouped' ? undefined : groupId;
+        } else {
+            // Look for the closest kanban-column element
+            const column = element.closest('.kanban-column') as HTMLElement;
+            if (column && column.dataset.groupId) {
+                const groupId = column.dataset.groupId;
+                taskCopy.customGroupId = groupId === 'ungrouped' ? undefined : groupId;
+            }
+        }
+
+        return taskCopy;
     }
 
     private canDropForSort(draggedTask: any, targetTask: any): boolean {
@@ -8374,68 +8467,93 @@ export class ProjectKanbanView {
 
             // 如果当前为自定义分组看板模式，且目标任务所在分组与被拖拽任务不同，
             // 则将被拖拽任务移动到目标任务的分组（上下放置时也应修改分组）并在该分组内重新排序
+            // 如果当前为自定义分组看板模式，且目标任务所在分组与被拖拽任务不同，
+            // 则将被拖拽任务移动到目标任务的分组（上下放置时也应修改分组）并在该分组内重新排序
             if (this.kanbanMode === 'custom') {
+                // ... (existing code for custom mode) ... 
                 const draggedGroup = draggedTaskInDb.customGroupId === undefined ? null : draggedTaskInDb.customGroupId;
-                const targetGroup = targetTaskInDb.customGroupId === undefined ? null : targetTaskInDb.customGroupId;
 
-                // 如果分组不同，先更新分组字段
-                if (draggedGroup !== targetGroup) {
-                    if (targetGroup === null) {
+                // CRITICAL FIX: Use the customGroupId from the targetTask parameter (which was extracted from DOM)
+                // instead of from the database, because the DOM reflects the actual drop location
+                const actualTargetGroup = targetTask.customGroupId === undefined ? null : targetTask.customGroupId;
+
+                // 1. Update Group if different
+                if (draggedGroup !== actualTargetGroup) {
+                    if (actualTargetGroup === null) {
                         delete reminderData[draggedId].customGroupId;
                     } else {
-                        reminderData[draggedId].customGroupId = targetGroup;
+                        reminderData[draggedId].customGroupId = actualTargetGroup;
                     }
                 }
 
-                // --- [新增逻辑] 检查优先级变更 ---
+                // 2. Update Status if different
+                if (oldStatus !== newStatus) {
+                    if (newStatus === 'completed') {
+                        draggedTaskInDb.completed = true;
+                        draggedTaskInDb.completedTime = getLocalDateTimeString(new Date());
+                    } else {
+                        draggedTaskInDb.completed = false;
+                        delete draggedTaskInDb.completedTime;
+
+                        // Update termType/kanbanStatus based on newStatus
+                        if (newStatus === 'long_term' || newStatus === 'short_term') {
+                            draggedTaskInDb.termType = newStatus;
+                            draggedTaskInDb.kanbanStatus = 'todo';
+                        } else if (newStatus === 'doing') {
+                            draggedTaskInDb.kanbanStatus = 'doing';
+                            delete draggedTaskInDb.termType;
+                        }
+                    }
+                }
+
+                // ... (priority update and sorting logic for custom mode) ...
                 const oldPriority = draggedTaskInDb.priority || 'none';
                 const targetPriority = targetTaskInDb.priority || 'none';
                 let newPriority = oldPriority;
 
-                // 即使在自定义分组视图中，如果拖拽到了不同优先级的任务旁边，也更新优先级
                 if (oldPriority !== targetPriority) {
                     newPriority = targetPriority;
                     draggedTaskInDb.priority = newPriority;
                 }
 
-                // 根据完成状态选择子容器（incomplete/completed）来排序
-                const isCompleted = !!reminderData[draggedId].completed;
-
-                // 重新计算源分组的排序（如果分组发生变化 或 优先级发生变化）
-                // 解释：如果优先级变了，虽然它还在同一个"自定义分组"里，但可能影响了原逻辑上的排序稳定性，
-                // 不过在自定义分组视图里，通常是按所有任务混排或按状态排。
-                // 这里的 sourceList 逻辑主要是为了填补移走后的空缺重新排序，保证 continuous。
-                // 既然移走了，不管是换分组了还是仅仅在同组内通过 reorder，下面的 targetList 处理负责新位置。
-                // sourceList 负责清理旧位置（如果是跨组移动）。
-                // 如果只是同组内移动，sourceList 其实就是 targetList（除了被剔除的自己）。
-                // 但为了简单，如果分组变了才处理 sourceList 清理。
-                // 如果仅优先级变了但组没变，sourceList 和 targetList 指向同一个集合，
-                // 下面的 targetList 逻辑中 .filter(... id !== draggedId) 已经把旧的排除了，所以没问题。
-                if (draggedGroup !== targetGroup) {
+                // Source list cleanup - filter by BOTH group AND status
+                if (draggedGroup !== actualTargetGroup || oldStatus !== newStatus || oldPriority !== newPriority) {
                     const sourceList = Object.values(reminderData)
-                        .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && ((r.customGroupId === undefined) ? null : r.customGroupId) === draggedGroup)
-                        .filter((r: any) => !!r.completed === isCompleted) // 保持完成/未完成子分组一致
+                        .filter((r: any) => r && r.projectId === this.projectId && !r.parentId)
+                        .filter((r: any) => {
+                            const rGroup = (r.customGroupId === undefined) ? null : r.customGroupId;
+                            return rGroup === draggedGroup;
+                        })
+                        .filter((r: any) => {
+                            // Filter by status as well
+                            const rStatus = this.getTaskStatus(r);
+                            return rStatus === oldStatus;
+                        })
+                        .filter((r: any) => r.id !== draggedId) // Exclude the dragged task
                         .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
 
                     sourceList.forEach((t: any, index: number) => {
                         reminderData[t.id].sort = index * 10;
                     });
-
-                    // 更新本地缓存的 sort 值
+                    // update local cache for source list
                     sourceList.forEach((task: any) => {
                         const localTask = this.tasks.find(t => t.id === task.id);
-                        if (localTask) {
-                            localTask.sort = task.sort;
-                        }
+                        if (localTask) localTask.sort = task.sort;
                     });
                 }
 
-                // 目标分组列表（同一完成/未完成子组）
-                // 注意：在自定义分组视图中，通常是按 sort 排序显示的。
-                // 优先级变更已经直接修改了 draggedTaskInDb 对象。
+                // Target list update - filter by BOTH group AND status
                 const targetList = Object.values(reminderData)
-                    .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && ((r.customGroupId === undefined) ? null : r.customGroupId) === targetGroup)
-                    .filter((r: any) => !!r.completed === isCompleted)
+                    .filter((r: any) => r && r.projectId === this.projectId && !r.parentId)
+                    .filter((r: any) => {
+                        const rGroup = (r.customGroupId === undefined) ? null : r.customGroupId;
+                        return rGroup === actualTargetGroup;  // Use actualTargetGroup here too!
+                    })
+                    .filter((r: any) => {
+                        // Filter by status as well (using the NEW status after update)
+                        const rStatus = this.getTaskStatus(r);
+                        return rStatus === newStatus;
+                    })
                     .filter((r: any) => r.id !== draggedId)
                     .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
 
@@ -8450,33 +8568,40 @@ export class ProjectKanbanView {
 
                 await saveProjectReminders(this.plugin, this.projectId, reminderData);
 
-                // 更新本地缓存的 sort 值，避免编辑时使用旧值
+                // Update local cache
                 targetList.forEach((task: any) => {
                     const localTask = this.tasks.find(t => t.id === task.id);
-                    if (localTask) {
-                        localTask.sort = task.sort;
-                    }
+                    if (localTask) localTask.sort = task.sort;
                 });
 
-                // 尝试直接更新DOM,失败时才重新加载
+                // Optimistic DOM update
                 const domUpdated = this.reorderTasksDOM(draggedId, targetId, insertBefore);
-                if (!domUpdated) {
-                    await this.queueLoadTasks();
-                }
+                if (!domUpdated) await this.queueLoadTasks();
 
                 this.dispatchReminderUpdate(true);
                 return;
             }
 
-            // 检查是否为子任务排序
+            // --- Fallback (Status Mode) Logic ---
+
+            // 0. Update Custom Group if different (Enhanced Fallback)
+            const draggedGroup = draggedTaskInDb.customGroupId === undefined ? null : draggedTaskInDb.customGroupId;
+            const targetGroup = targetTaskInDb.customGroupId === undefined ? null : targetTaskInDb.customGroupId;
+            if (draggedGroup !== targetGroup) {
+                if (targetGroup === null) {
+                    delete reminderData[draggedId].customGroupId;
+                } else {
+                    reminderData[draggedId].customGroupId = targetGroup;
+                }
+            }
+
+            // ... (subtask check logic unchanged) ...
             const isSubtaskReorder = draggedTaskInDb.parentId && targetTaskInDb.parentId &&
                 draggedTaskInDb.parentId === targetTaskInDb.parentId;
 
             if (isSubtaskReorder) {
-                // 子任务排序逻辑
+                // ... (subtask existing logic) ...
                 const parentId = draggedTaskInDb.parentId;
-
-                // 获取同一父任务下的所有子任务
                 const siblingTasks = Object.values(reminderData)
                     .filter((r: any) => r && r.parentId === parentId && r.id !== draggedId)
                     .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
@@ -8484,46 +8609,32 @@ export class ProjectKanbanView {
                 const targetIndex = siblingTasks.findIndex((t: any) => t.id === targetId);
                 const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
 
-                // 插入被拖拽的任务
                 siblingTasks.splice(insertIndex, 0, draggedTaskInDb);
-
-                // 重新分配排序值
                 siblingTasks.forEach((task: any, index: number) => {
                     reminderData[task.id].sort = index * 10;
                 });
-
                 await saveProjectReminders(this.plugin, this.projectId, reminderData);
-
-                // 更新本地缓存的 sort 值，避免编辑时使用旧值
                 siblingTasks.forEach((task: any) => {
                     const localTask = this.tasks.find(t => t.id === task.id);
-                    if (localTask) {
-                        localTask.sort = task.sort;
-                    }
+                    if (localTask) localTask.sort = task.sort;
                 });
-
-                // 尝试直接更新DOM,失败时才重新加载
                 const domUpdated = this.reorderTasksDOM(draggedId, targetId, insertBefore);
-                if (!domUpdated) {
-                    await this.queueLoadTasks();
-                }
-
+                if (!domUpdated) await this.queueLoadTasks();
                 this.dispatchReminderUpdate(true);
-                return; // 子任务排序完成，直接返回
+                return;
             }
 
-            // 顶层任务排序逻辑
+            // ... (top level logic) ...
             const oldPriority = draggedTaskInDb.priority || 'none';
             const targetPriority = targetTaskInDb.priority || 'none';
             let newPriority = oldPriority;
 
-            // 检查优先级变更 - 如果拖拽到不同优先级任务的上方或下方，自动变更优先级
             if (oldPriority !== targetPriority) {
                 newPriority = targetPriority;
                 draggedTaskInDb.priority = newPriority;
             }
 
-            // --- Update status of dragged task ---
+            // --- Update status of dragged task (Enhanced) ---
             if (oldStatus !== newStatus) {
                 if (newStatus === 'completed') {
                     draggedTaskInDb.completed = true;
@@ -8531,11 +8642,20 @@ export class ProjectKanbanView {
                 } else {
                     draggedTaskInDb.completed = false;
                     delete draggedTaskInDb.completedTime;
-                    draggedTaskInDb.kanbanStatus = newStatus;
+
+                    // Correctly handle termType
+                    if (newStatus === 'long_term' || newStatus === 'short_term') {
+                        draggedTaskInDb.termType = newStatus;
+                        draggedTaskInDb.kanbanStatus = 'todo';
+                    } else if (newStatus === 'doing') {
+                        draggedTaskInDb.kanbanStatus = 'doing';
+                        // Clear termType when doing
+                        delete draggedTaskInDb.termType;
+                    }
                 }
             }
 
-            // --- Reorder source list (if status or priority changed) ---
+            // --- Reorder source list ---
             if (oldStatus !== newStatus || oldPriority !== newPriority) {
                 const sourceList = Object.values(reminderData)
                     .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && this.getTaskStatus(r) === oldStatus && (r.priority || 'none') === oldPriority && r.id !== draggedId)
@@ -8544,10 +8664,14 @@ export class ProjectKanbanView {
                 sourceList.forEach((task: any, index: number) => {
                     reminderData[task.id].sort = index * 10;
                 });
+                // update local cache for source
+                sourceList.forEach((task: any) => {
+                    const localTask = this.tasks.find(t => t.id === task.id);
+                    if (localTask) localTask.sort = task.sort;
+                });
             }
 
             // --- Reorder target list ---
-            // Target list defined by NEW status and NEW priority (which matches targetPriority)
             const targetList = Object.values(reminderData)
                 .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && this.getTaskStatus(r) === newStatus && (r.priority || 'none') === newPriority && r.id !== draggedId)
                 .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
@@ -8556,31 +8680,14 @@ export class ProjectKanbanView {
             const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
 
             targetList.splice(insertIndex, 0, draggedTaskInDb);
-
             targetList.forEach((task: any, index: number) => {
                 reminderData[task.id].sort = index * 10;
             });
-
             await saveProjectReminders(this.plugin, this.projectId, reminderData);
-
-            // 更新本地缓存的 sort 值，避免编辑时使用旧值
             targetList.forEach((task: any) => {
                 const localTask = this.tasks.find(t => t.id === task.id);
-                if (localTask) {
-                    localTask.sort = task.sort;
-                }
+                if (localTask) localTask.sort = task.sort;
             });
-            // 如果源列表也被重新排序了，也要更新它们的缓存
-            if (oldStatus !== newStatus || oldPriority !== newPriority) {
-                const sourceList = Object.values(reminderData)
-                    .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && this.getTaskStatus(r) === oldStatus && (r.priority || 'none') === oldPriority && r.id !== draggedId);
-                sourceList.forEach((task: any) => {
-                    const localTask = this.tasks.find(t => t.id === task.id);
-                    if (localTask) {
-                        localTask.sort = task.sort;
-                    }
-                });
-            }
 
             // 尝试直接更新DOM,失败时才重新加载
             const domUpdated = this.reorderTasksDOM(draggedId, targetId, insertBefore);
