@@ -7474,9 +7474,9 @@ export class ProjectKanbanView {
 
             /* 自定义分组样式 */
             .custom-group-in-status {
-                background: var(--b3-theme-surface-lighter);
+                background: var(--b3-theme-background);
                 border-radius: 8px;
-                border: 1px solid var(--b3-theme-border);
+                border: 1px solid var(--b3-border-color);
             }
 
             .custom-group-header {
