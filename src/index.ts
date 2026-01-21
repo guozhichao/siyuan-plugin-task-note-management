@@ -167,6 +167,9 @@ export default class ReminderPlugin extends Plugin {
     // ICS 订阅同步相关
     private icsSubscriptionSyncTimer: number | null = null;
 
+    // 缓存上一次的番茄钟设置，用于比较变更
+    private lastPomodoroSettings: any = null;
+
     async onload() {
         await this.loadData(STORAGE_NAME);
 
@@ -203,6 +206,9 @@ export default class ReminderPlugin extends Plugin {
 
         const pomodoroRecordManager = PomodoroRecordManager.getInstance(this);
         await pomodoroRecordManager.initialize();
+
+        // 初始化上次番茄钟设置缓存，避免第一次设置更新时误判
+        this.lastPomodoroSettings = await this.getPomodoroSettings();
 
         this.categoryManager = CategoryManager.getInstance(this);
         await this.categoryManager.initialize();
@@ -2176,7 +2182,7 @@ export default class ReminderPlugin extends Plugin {
     // 检查单个时间提醒
     private async checkTimeReminders(reminderData: any, today: string, currentTime: string) {
         try {
-            
+
             const { generateRepeatInstances } = await import("./utils/repeatUtils");
             let dataChanged = false;
 

@@ -928,8 +928,9 @@
         }
     };
 
-    async function saveSettings() {
+    async function saveSettings(emitEvent = true) {
         await plugin.saveData(SETTINGS_FILE, settings);
+        if (!emitEvent) return;
         // 通知其他组件（如日历视图）设置项已更新
         try {
             window.dispatchEvent(new CustomEvent('reminderSettingsUpdated'));
@@ -986,8 +987,8 @@
             settings.weekStartDay = isNaN(parsed) ? DEFAULT_SETTINGS.weekStartDay : parsed;
         }
         updateGroupItems();
-        // 确保设置已保存（可能包含新的默认值）
-        await saveSettings();
+        // 确保设置已保存（可能包含新的默认值），但不发出更新事件
+        await saveSettings(false);
         console.debug('加载配置文件完成');
     }
 
