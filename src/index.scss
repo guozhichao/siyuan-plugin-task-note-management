@@ -2275,3 +2275,48 @@
     background-color: var(--b3-list-hover) !important;
 }
 
+// 全天事件区域可调整高度样式
+.fc-allday-resizable-container {
+    position: relative;
+
+    .fc-scroller {
+        max-height: 200px; // 默认最大高度
+        overflow-y: auto !important;
+        transition: max-height 0.1s linear; // 平滑过渡，但不要太慢以免拖动迟滞
+    }
+}
+
+.fc-allday-resizer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 6px;
+    background: transparent;
+    cursor: row-resize;
+    z-index: 100;
+    transition: background 0.2s;
+
+    // 增加鼠标交互区域
+    &::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 2px;
+        height: 1px;
+        background-color: var(--b3-border-color);
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+
+    &:hover,
+    &.resizing {
+        background: rgba(var(--b3-theme-primary-rgb), 0.1);
+
+        &::after {
+            opacity: 1;
+            background-color: var(--b3-theme-primary);
+        }
+    }
+}

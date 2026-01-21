@@ -52,6 +52,12 @@ export class CalendarView {
     private currentCompletionFilter: string = 'all'; // 当前完成状态过滤
     private isDragging: boolean = false; // 标记是否正在拖动事件
 
+    // 全天事件区域调整相关
+    private allDayHeight: number = 200;
+    private isResizingAllDay: boolean = false;
+    private startResizeY: number = 0;
+    private startResizeHeight: number = 0;
+
     // 性能优化：颜色缓存
     private colorCache: Map<string, { backgroundColor: string; borderColor: string }> = new Map();
 
@@ -123,6 +129,86 @@ export class CalendarView {
             this.initialProjectFilter = data.projectFilter;
         }
         this.initUI();
+    }
+
+    private handleViewDidMount(arg: any) {
+        // 只在时间网格视图（周/日/多天）中处理全天事件区域
+        if (arg.view.type.startsWith('timeGrid')) {
+            this.setupAllDayResizer(arg.el);
+        }
+    }
+
+    private setupAllDayResizer(el: HTMLElement) {
+        // 查找包含 all-day daygrid 的 row
+        const allDayBody = el.querySelector('.fc-daygrid-body');
+        if (!allDayBody) return;
+
+        // 向上查找 wrapper
+        // 结构: tr.fc-scrollgrid-section > td > div.fc-scroller-harness > div.fc-scroller > div.fc-daygrid-body
+        const scroller = allDayBody.closest('.fc-scroller') as HTMLElement;
+        const harness = allDayBody.closest('.fc-scroller-harness') as HTMLElement;
+
+        if (scroller && harness) {
+            harness.classList.add('fc-allday-resizable-container');
+
+            // 应用当前高度设置
+            scroller.style.maxHeight = `${this.allDayHeight}px`;
+
+            // 检查是否已存在调整手柄
+            if (harness.querySelector('.fc-allday-resizer')) return;
+
+            const resizer = document.createElement('div');
+            resizer.className = 'fc-allday-resizer';
+            resizer.title = t("dragToResize") || "拖动调整高度";
+            harness.appendChild(resizer);
+
+            resizer.addEventListener('mousedown', (e: MouseEvent) => {
+                e.stopPropagation(); // 防止触发 FC 的点击日期事件
+                e.preventDefault();  // 防止选择文本
+
+                this.isResizingAllDay = true;
+                this.startResizeY = e.clientY;
+
+                // 获取当前计算后的最大高度，如果没有设置过 max-height，则可能需要获取 offsetHeight 或默认值
+                // 这里我们主要控制 maxHeight
+                const currentStyle = window.getComputedStyle(scroller);
+                const currentMaxHeight = parseInt(currentStyle.maxHeight);
+                // 如果是 none 或无效值，使用当前实际高度作为起点，或者默认值
+                if (isNaN(currentMaxHeight)) {
+                    this.startResizeHeight = scroller.offsetHeight;
+                } else {
+                    this.startResizeHeight = currentMaxHeight;
+                }
+
+                resizer.classList.add('resizing');
+                document.body.style.cursor = 'row-resize';
+
+                const moveHandler = (moveEvent: MouseEvent) => {
+                    if (!this.isResizingAllDay) return;
+
+                    const delta = moveEvent.clientY - this.startResizeY;
+                    const newHeight = Math.max(60, this.startResizeHeight + delta); // 最小高度 60px
+
+                    this.allDayHeight = newHeight;
+                    scroller.style.maxHeight = `${newHeight}px`;
+
+                    // 强制 fullcalendar 更新一下布局尺寸（如果需要）
+                    // view.calendar.updateSize(); // 可能导致重绘闪烁，暂时只要 CSS 生效即可
+                };
+
+                const upHandler = () => {
+                    this.isResizingAllDay = false;
+                    resizer.classList.remove('resizing');
+                    document.body.style.cursor = '';
+
+                    document.removeEventListener('mousemove', moveHandler);
+                    document.removeEventListener('mouseup', upHandler);
+                };
+
+                document.addEventListener('mousemove', moveHandler);
+                document.addEventListener('mouseup', upHandler);
+            });
+        }
     }
 
     private async initUI() {
@@ -797,6 +883,7 @@ export class CalendarView {
                 center: 'title',
                 right: ''
             },
+            viewDidMount: this.handleViewDidMount.bind(this),
             editable: true,
             selectable: true,
             selectMirror: true,
