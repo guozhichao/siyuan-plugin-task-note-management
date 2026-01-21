@@ -43,6 +43,7 @@ export class CalendarView {
     private tooltip: HTMLElement | null = null; // 添加提示框元素
     private dropIndicator: HTMLElement | null = null; // 拖放放置指示器
     private externalReminderUpdatedHandler: ((e: Event) => void) | null = null;
+    private settingUpdateHandler: ((e: Event) => void) | null = null;
     private hideTooltipTimeout: number | null = null; // 添加提示框隐藏超时控制
     private tooltipShowTimeout: number | null = null; // 添加提示框显示延迟控制
     private lastClickTime: number = 0; // 添加双击检测
@@ -64,6 +65,51 @@ export class CalendarView {
 
     // 使用全局番茄钟管理器
     private pomodoroManager: PomodoroManager = PomodoroManager.getInstance();
+
+    private async updateSettings() {
+        const settings = await this.plugin.loadSettings();
+        this.showCategoryAndProject = settings.calendarShowCategoryAndProject !== false;
+        this.showLunar = settings.calendarShowLunar !== false;
+
+        if (this.calendarConfigManager) {
+            await this.calendarConfigManager.initialize();
+            this.colorBy = this.calendarConfigManager.getColorBy();
+        }
+
+        const weekStartDay = await this.getWeekStartDay();
+        const dayStartTime = await this.getDayStartTime();
+        const todayStartTime = await this.getTodayStartTime();
+        const slotMaxTime = this.calculateSlotMaxTime(todayStartTime);
+
+        this.calendar.setOption('firstDay', weekStartDay);
+        this.calendar.setOption('slotMinTime', todayStartTime);
+        this.calendar.setOption('slotMaxTime', slotMaxTime);
+        this.calendar.setOption('scrollTime', dayStartTime);
+        this.calendar.setOption('nextDayThreshold', todayStartTime);
+
+        // 尝试即时滚动到新的一天起始时间
+        try {
+            this.calendar.scrollToTime(dayStartTime);
+        } catch (e) {
+            // ignore
+        }
+
+        // 刷新事件
+        await this.refreshEvents();
+
+        // 解决 FC v6 的重绘问题：仅仅 render() 或 changeView() 同类型视图可能不会销毁并重建 DOM
+        // 通过切换一个结构性选项（如 dayHeaders）并切回来，可以强制它完全重建内部网格，从而触发 Mount 钩子
+        const hasHeaders = this.calendar.getOption('dayHeaders');
+        this.calendar.setOption('dayHeaders', !hasHeaders);
+        this.calendar.setOption('dayHeaders', hasHeaders);
+
+        // 额外强制执行一次 render
+        this.calendar.render();
+
+        if (this.isCalendarVisible()) {
+            this.calendar.updateSize();
+        }
+    }
 
     constructor(container: HTMLElement, plugin: any, data?: { projectFilter?: string }) {
         this.container = container;
@@ -781,6 +827,12 @@ export class CalendarView {
             displayEventTime: true,
             // Custom Lunar Date Rendering using DidMount hooks to preserve default behavior
             dayCellDidMount: (arg) => {
+                // 清理可能已存在的农历元素，防止重复添加或在禁用后残留
+                const existingLunar = arg.el.querySelector('.day-lunar');
+                if (existingLunar) {
+                    existingLunar.remove();
+                }
+
                 if (!this.showLunar) return;
                 // Only for month views and multiMonthYear
                 if (arg.view.type === 'dayGridMonth' || arg.view.type === 'multiMonthYear') {
@@ -801,6 +853,12 @@ export class CalendarView {
                 }
             },
             dayHeaderDidMount: (arg) => {
+                // 清理可能已存在的农历元素
+                const existingLunar = arg.el.querySelector('.day-header-lunar');
+                if (existingLunar) {
+                    existingLunar.remove();
+                }
+
                 if (!this.showLunar) return;
 
                 const viewType = arg.view.type;
@@ -824,15 +882,11 @@ export class CalendarView {
                         lunarDiv.style.cssText = `font-size: 0.8em; margin-top: 2px; line-height: 1.2; ${isFestival ? 'color: var(--b3-theme-primary);' : 'color: var(--b3-theme-on-surface-light); opacity: 0.8;'}`;
 
                         // Ensure parent is flex column to stack nicely
-                        // Be careful not to break existing layout if it relies on other display
-                        // Usually sync-inner is flex or block.
                         const parent = cushion.parentElement as HTMLElement;
-                        if (!parent.style.flexDirection) {
-                            parent.style.display = 'flex';
-                            parent.style.flexDirection = 'column';
-                            parent.style.alignItems = 'center';
-                            parent.style.justifyContent = 'center';
-                        }
+                        parent.style.display = 'flex';
+                        parent.style.flexDirection = 'column';
+                        parent.style.alignItems = 'center';
+                        parent.style.justifyContent = 'center';
 
                         parent.appendChild(lunarDiv);
                     }
@@ -873,7 +927,7 @@ export class CalendarView {
             },
             eventDidMount: (info) => {
                 // List View Lunar Logic
-                if (this.showLunar && info.view.type.startsWith('list')) {
+                if (info.view.type.startsWith('list')) {
                     // Find the preceding list header
                     let prev = info.el.previousElementSibling;
                     let listHeader = null;
@@ -885,26 +939,31 @@ export class CalendarView {
                         prev = prev.previousElementSibling;
                     }
 
-                    if (listHeader && !listHeader.getAttribute('data-lunar-processed')) {
-                        const dateStr = listHeader.getAttribute('data-date');
-                        if (dateStr) {
-                            const date = new Date(dateStr);
-                            const { displayLunar, isFestival, fullLunarDate } = this.getLunarInfo(date);
+                    if (listHeader) {
+                        // 如果不更新农历，确保删除已有的农历元素
+                        if (!this.showLunar) {
+                            const existingLunar = listHeader.querySelector('.day-lunar');
+                            if (existingLunar) existingLunar.remove();
+                            listHeader.removeAttribute('data-lunar-processed');
+                        } else if (!listHeader.getAttribute('data-lunar-processed')) {
+                            const dateStr = listHeader.getAttribute('data-date');
+                            if (dateStr) {
+                                const date = new Date(dateStr);
+                                const { displayLunar, isFestival, fullLunarDate } = this.getLunarInfo(date);
 
-                            // Find the text container (usually in the first cell -> .fc-list-day-text or .fc-list-day-cushion)
-                            const textContainer = listHeader.querySelector('.fc-list-day-text') || listHeader.querySelector('.fc-list-day-cushion');
+                                const textContainer = listHeader.querySelector('.fc-list-day-text') || listHeader.querySelector('.fc-list-day-cushion');
 
-                            if (textContainer) {
-                                const lunarSpan = document.createElement('span');
-                                lunarSpan.className = `day-lunar ${isFestival ? 'festival' : ''}`;
-                                lunarSpan.textContent = displayLunar;
-                                lunarSpan.title = fullLunarDate;
-                                lunarSpan.style.cssText = `${isFestival ? 'color: var(--b3-theme-primary); font-weight: bold;' : 'color: var(--b3-theme-on-surface-light); opacity: 0.8; font-size: 0.9em;'} margin-left: 8px;`;
+                                if (textContainer) {
+                                    const lunarSpan = document.createElement('span');
+                                    lunarSpan.className = `day-lunar ${isFestival ? 'festival' : ''}`;
+                                    lunarSpan.textContent = displayLunar;
+                                    lunarSpan.title = fullLunarDate;
+                                    lunarSpan.style.cssText = `${isFestival ? 'color: var(--b3-theme-primary); font-weight: bold;' : 'color: var(--b3-theme-on-surface-light); opacity: 0.8; font-size: 0.9em;'} margin-left: 8px;`;
 
-                                // Append to the text container
-                                textContainer.appendChild(lunarSpan);
+                                    textContainer.appendChild(lunarSpan);
+                                }
+                                listHeader.setAttribute('data-lunar-processed', 'true');
                             }
-                            listHeader.setAttribute('data-lunar-processed', 'true');
                         }
                     }
                 }
@@ -1138,30 +1197,30 @@ export class CalendarView {
 
         // 监听提醒更新事件
         this.externalReminderUpdatedHandler = (e: Event) => {
-            try {
-                const ev = e as CustomEvent;
-                if (ev && ev.detail && ev.detail.source === 'calendar') {
-                    // 忽略由日历自身发出的更新，防止循环刷新
-                    return;
-                }
-            } catch (err) {
-                // ignore and proceed
+            // 获取事件详细信息
+            const detail = (e as CustomEvent).detail;
+
+            // 如果事件来源是日历本身，不进行刷新，避免循环刷新
+            if (detail && detail.source === 'calendar') {
+                return;
             }
-            this.refreshEvents();
+
+            if (this.isCalendarVisible()) {
+                this.refreshEvents();
+            }
         };
         window.addEventListener('reminderUpdated', this.externalReminderUpdatedHandler);
+
+        // 监听设置更新事件
+        this.settingUpdateHandler = async () => {
+            await this.updateSettings();
+        };
+        window.addEventListener('reminderSettingsUpdated', this.settingUpdateHandler);
+
         // 监听项目颜色更新事件
         window.addEventListener('projectColorUpdated', () => {
             this.colorCache.clear();
             this.refreshEvents();
-        });
-        // 监听设置更新事件（如：周开始日）
-        window.addEventListener('reminderSettingsUpdated', () => this.applyWeekStartDay());
-        window.addEventListener('reminderSettingsUpdated', () => this.applyDayStartTime());
-        window.addEventListener('reminderSettingsUpdated', async () => {
-            const settings = await this.plugin.loadSettings();
-            this.showCategoryAndProject = settings.calendarShowCategoryAndProject !== false;
-            this.calendar.render(); // 重新渲染日历内容
         });
 
         // 添加窗口大小变化监听器
@@ -1548,6 +1607,10 @@ export class CalendarView {
             if (this.tooltipShowTimeout) {
                 clearTimeout(this.tooltipShowTimeout);
             }
+            // 清理设置更新监听
+            if (this.settingUpdateHandler) {
+                window.removeEventListener('reminderSettingsUpdated', this.settingUpdateHandler);
+            }
         };
 
         // 将清理函数绑定到容器，以便在组件销毁时调用
@@ -1764,7 +1827,7 @@ export class CalendarView {
             { key: 'high', label: t("high"), color: '#e74c3c', icon: '🔴' },
             { key: 'medium', label: t("medium"), color: '#f39c12', icon: '🟡' },
             { key: 'low', label: t("low"), color: '#3498db', icon: '🔵' },
-            { key: 'none', label: t("none"), color: '#95a5a6', icon: '⚫' }
+            { key: 'none', label: t("none"), color: '#d1d5d5', icon: '⚫' }
         ];
 
         priorities.forEach(priority => {
@@ -3075,7 +3138,6 @@ export class CalendarView {
             reminderData[newId] = newReminder;
             await saveReminders(this.plugin, reminderData);
 
-            showMessage(t("eventTimeUpdated"));
             window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
 
         } catch (error) {
@@ -3353,7 +3415,6 @@ export class CalendarView {
 
                 await saveReminders(this.plugin, reminderData);
 
-                showMessage(t("eventTimeUpdated"));
             } else {
                 throw new Error('提醒数据不存在');
             }
@@ -4397,7 +4458,7 @@ export class CalendarView {
                     backgroundColor = color;
                     borderColor = color;
                 } else {
-                    backgroundColor = '#95a5a6';
+                    backgroundColor = '#d1d5d5';
                     borderColor = '#7f8c8d';
                 }
             } else if (this.colorBy === 'category') {
@@ -4406,7 +4467,7 @@ export class CalendarView {
                     backgroundColor = categoryStyle.backgroundColor;
                     borderColor = categoryStyle.borderColor;
                 } else {
-                    backgroundColor = '#95a5a6';
+                    backgroundColor = '#d1d5d5';
                     borderColor = '#7f8c8d';
                 }
             } else { // colorBy === 'priority'
@@ -4424,7 +4485,7 @@ export class CalendarView {
                         borderColor = '#2980b9';
                         break;
                     default:
-                        backgroundColor = '#95a5a6';
+                        backgroundColor = '#d1d5d5';
                         borderColor = '#7f8c8d';
                         break;
                 }
@@ -5871,37 +5932,7 @@ export class CalendarView {
     /**
      * 应用周开始日设置到日历
      */
-    private async applyWeekStartDay() {
-        try {
-            const weekStartDay = await this.getWeekStartDay();
-            // 更新日历的firstDay设置
-            this.calendar.setOption('firstDay', weekStartDay);
-        } catch (error) {
-            console.error('应用周开始日设置失败:', error);
-        }
-    }
 
-    /**
-     * 应用一天起始时间设置到日历
-     */
-    private async applyDayStartTime() {
-        try {
-            // 获取日历视图滚动位置
-            const dayStartTime = await this.getDayStartTime();
-
-            // 获取逻辑一天起始时间
-            const todayStartTime = await this.getTodayStartTime();
-            const slotMaxTime = this.calculateSlotMaxTime(todayStartTime);
-
-            // 更新日历的时间范围设置
-            this.calendar.setOption('scrollTime', dayStartTime); // 滚动位置
-            this.calendar.setOption('slotMinTime', todayStartTime); // 逻辑一天起始
-            this.calendar.setOption('slotMaxTime', slotMaxTime); // 逻辑一天结束
-            this.calendar.setOption('nextDayThreshold', todayStartTime); // 跨天阈值
-        } catch (error) {
-            console.error('应用一天起始时间设置失败:', error);
-        }
-    }
 }
 
 

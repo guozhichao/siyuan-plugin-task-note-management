@@ -107,7 +107,6 @@
     "reminderUpdated": "提醒已更新",
     "reminderDeleted": "提醒已删除",
     "prioritySet": "已设置为${priority}",
-    "eventTimeUpdated": "已更新事件时间",
     "changedToAllDay": "已修改为全天事件",
     "changedToTimed": "已修改为定时事件",
     "pleaseEnterTitle": "请输入事件标题",

@@ -4558,7 +4558,6 @@ export class ReminderPanel {
 
             // 局部刷新
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
-            showMessage(t("eventTimeUpdated") || "事件时间已更新");
         } catch (err) {
             console.error('设置基准日期失败:', err);
             showMessage(t("operationFailed"));

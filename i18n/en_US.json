@@ -106,7 +106,6 @@
     "reminderUpdated": "Reminder updated",
     "reminderDeleted": "Reminder deleted",
     "prioritySet": "Set to ${priority}",
-    "eventTimeUpdated": "Event time updated",
     "changedToAllDay": "Changed to all day event",
     "changedToTimed": "Changed to timed event",
     "pleaseEnterTitle": "Please enter event title",

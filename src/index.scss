@@ -1311,19 +1311,8 @@
     color: #FF9800; // 重复实例用橙色
 }
 
-// 绑定块和非绑定块的透明度区分
-.fc-event.no-block-binding {
-    opacity: 0.75;
-}
 
-.fc-event.has-block-binding {
-    opacity: 1;
-}
 
-// 已完成的非绑定块事件，透明度更低
-.fc-event.no-block-binding.completed {
-    opacity: 0.5;
-}
 
 // 提醒面板样式
 .reminder-panel {
