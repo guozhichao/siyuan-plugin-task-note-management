@@ -1999,7 +1999,7 @@ export class ProjectPanel {
         // make header sticky so it stays at top while scrolling within the panel
         // compute top offset based on the main header height to avoid overlapping
 
-        header.style.cssText = `display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 6px;   z-index:3; background: var(--b3-surface, #fff); border-bottom: 1px solid rgba(0,0,0,0.04);`;
+        header.style.cssText = `display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 6px;   z-index:3; background: var(--b3-theme-surface); border-bottom: 1px solid rgba(0,0,0,0.04);`;
 
         const left = document.createElement('div');
         left.style.cssText = 'display:flex; align-items:center; gap:8px;';
