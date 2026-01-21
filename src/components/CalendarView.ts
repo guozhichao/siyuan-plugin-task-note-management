@@ -51,6 +51,15 @@ export class CalendarView {
     private refreshTimeout: number | null = null; // 添加刷新防抖超时
     private currentCompletionFilter: string = 'all'; // 当前完成状态过滤
     private isDragging: boolean = false; // 标记是否正在拖动事件
+    private allDayDragState: {
+        draggedEvent: any;
+        targetEvent: { id: string; el: HTMLElement } | null;
+        isAbove: boolean;
+        date: string;
+        isLocked?: boolean;
+    } | null = null;
+    private allDayDragListener: ((e: MouseEvent) => void) | null = null;
+    private isAllDayReordering: boolean = false; // 标记是否正在处理全天重排序
 
     // 全天事件区域调整相关
     private allDayHeight: number = 200;
@@ -1005,10 +1014,18 @@ export class CalendarView {
             },
             eventContent: this.renderEventContent.bind(this),
             eventClick: this.handleEventClick.bind(this),
-            eventDragStart: () => {
+            eventDragStart: (info) => {
                 this.isDragging = true;
+                this.startAllDayDragTracking(info);
             },
-            eventDragStop: () => {
+            eventDragStop: (info) => {
+                // 如果是全天事件，执行追踪停止逻辑
+                if (info.event.allDay) {
+                    this.stopAllDayDragTracking(info);
+                } else {
+                    this.isDragging = false;
+                }
+
                 // 延迟重置拖动标志，防止拖动结束后立即触发点击
                 setTimeout(() => {
                     this.isDragging = false;
@@ -1799,6 +1816,7 @@ export class CalendarView {
 
 
     private handleEventMouseEnter(event: MouseEvent, calendarEvent: any) {
+        if (this.isDragging) return;
         // 当鼠标进入事件元素时，安排显示提示框
         // 如果已经有一个计划中的显示，则取消它
         if (this.tooltipShowTimeout) {
@@ -1966,7 +1984,7 @@ export class CalendarView {
             { key: 'high', label: t("high"), color: '#e74c3c', icon: '🔴' },
             { key: 'medium', label: t("medium"), color: '#f39c12', icon: '🟡' },
             { key: 'low', label: t("low"), color: '#3498db', icon: '🔵' },
-            { key: 'none', label: t("none"), color: '#d1d5d5', icon: '⚫' }
+            { key: 'none', label: t("none"), color: '#8f8f8f', icon: '⚫' }
         ];
 
         priorities.forEach(priority => {
@@ -2511,6 +2529,7 @@ export class CalendarView {
 
             // 添加悬浮事件显示块引弹窗（延迟500ms）
             textSpan.addEventListener('mouseenter', () => {
+                if (this.isDragging) return;
                 hoverTimeout = window.setTimeout(() => {
                     const rect = textSpan.getBoundingClientRect();
                     this.plugin.addFloatLayer({
@@ -2905,53 +2924,238 @@ export class CalendarView {
         }
     }
 
-    private async handleAllDayReorder(info: any) {
+    private startAllDayDragTracking(info: any) {
+        const event = info.event;
+        if (!event.allDay) return;
+
+        this.forceHideTooltip();
+
+        this.allDayDragState = {
+            draggedEvent: event,
+            targetEvent: null,
+            isAbove: false,
+            date: getLocalDateString(event.start)
+        };
+
+        this.allDayDragListener = (e: MouseEvent) => this.handleAllDayDragMove(e);
+        window.addEventListener('mousemove', this.allDayDragListener);
+    }
+
+    private async stopAllDayDragTracking(info?: any) {
+        if (!this.allDayDragState) return;
+
+        // 1. 立即移除监听器，切断未来的所有输入流
+        if (this.allDayDragListener) {
+            window.removeEventListener('mousemove', this.allDayDragListener);
+            this.allDayDragListener = null;
+        }
+
+        // 2. 最后一次同步释放点（即使失败也不影响后续清理）
+        if (info && info.jsEvent) {
+            try {
+                // 注意：此时 isLocked 还是 false，允许最后一次更新位置
+                this.handleAllDayDragMove(info.jsEvent);
+            } catch (err) {
+                console.warn('Final drag sync failed:', err);
+            }
+        }
+
+        // 3. 彻底锁定状态并显示层断开
+        this.isAllDayReordering = true;
+        this.allDayDragState.isLocked = true;
+        this.hideDropIndicator();
+
+        const stateToProcess = { ...this.allDayDragState };
+
+        // 4. 执行异步重排序
+        if (stateToProcess.targetEvent) {
+            try {
+                await this.handleAllDayReorder(stateToProcess);
+            } finally {
+                this.isAllDayReordering = false;
+                this.allDayDragState = null;
+            }
+        } else {
+            this.isAllDayReordering = false;
+            this.allDayDragState = null;
+        }
+    }
+
+    private handleAllDayDragMove(e: MouseEvent) {
+        // 如果状态已锁定或监听器已移除，停止处理，确保位置不再变化
+        if (!this.allDayDragState || this.allDayDragState.isLocked) return;
+        // 如果不是在 stop 阶段主动调用的同步，且监听器已不存在，则返回
+        if (!this.allDayDragListener && (!this.isDragging)) return;
+
+        // 查找鼠标下的事件 harness
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        const harness = el?.closest('.fc-daygrid-event-harness') as HTMLElement;
+
+        if (harness) {
+            const mainFrame = harness.querySelector('.fc-event-main-frame');
+            const eventId = mainFrame?.getAttribute('data-event-id');
+
+            // 排除正在拖动的事件自身
+            if (eventId && eventId !== this.allDayDragState.draggedEvent.id) {
+                const rect = harness.getBoundingClientRect();
+                const isAbove = e.clientY < rect.top + rect.height / 2;
+
+                const dayCell = harness.closest('.fc-daygrid-day') as HTMLElement;
+                const cellDate = dayCell?.getAttribute('data-date');
+
+                if (cellDate) {
+                    this.allDayDragState.targetEvent = { id: eventId, el: harness };
+                    this.allDayDragState.isAbove = isAbove;
+                    this.allDayDragState.date = cellDate;
+
+                    this.showAllDayDropIndicator(harness, isAbove);
+                    return;
+                }
+            }
+        }
+
+        // 如果不在 harness 上，检查是否在日期单元格上
+        const dayCell = el?.closest('.fc-daygrid-day') as HTMLElement;
+        const cellDate = dayCell?.getAttribute('data-date');
+        if (cellDate) {
+            this.allDayDragState.date = cellDate;
+        }
+
+        this.allDayDragState.targetEvent = null;
+        this.hideDropIndicator();
+    }
+
+    private showAllDayDropIndicator(harness: HTMLElement, isAbove: boolean) {
+        // 如果已锁定或状态已清理，严禁显示指示器
+        if (!this.allDayDragState || this.allDayDragState.isLocked) return;
+
+        if (!this.dropIndicator) {
+            this.dropIndicator = document.createElement('div');
+            this.dropIndicator.className = 'calendar-drop-indicator all-day-reorder-indicator';
+            document.body.appendChild(this.dropIndicator);
+        }
+
+        const rect = harness.getBoundingClientRect();
+        this.dropIndicator.style.display = 'block';
+        this.dropIndicator.style.width = `${rect.width}px`;
+        this.dropIndicator.style.height = '2px';
+        this.dropIndicator.style.backgroundColor = 'var(--b3-theme-primary)';
+        this.dropIndicator.style.position = 'fixed';
+        this.dropIndicator.style.left = `${rect.left}px`;
+        this.dropIndicator.style.top = isAbove ? `${rect.top}px` : `${rect.bottom}px`;
+        this.dropIndicator.style.zIndex = '10000';
+    }
+
+    private async handleAllDayReorder(state: any) {
         try {
-            const el = info.el;
-            const container = el.parentElement;
-            if (!container) return;
-
-            // 获取容器内的所有事件 harness
-            const harnesses = Array.from(container.querySelectorAll('.fc-daygrid-event-harness')) as HTMLElement[];
-            if (harnesses.length === 0) return;
-
             const reminderData = await getAllReminders(this.plugin);
-            let hasChanges = false;
+            const draggedId = state.draggedEvent.id.includes('_instance_')
+                ? state.draggedEvent.id.split('_instance_')[0]
+                : state.draggedEvent.id;
 
-            // 按垂直位置排序
-            const sortedHarnesses = harnesses.map(h => ({
-                el: h,
-                top: h.getBoundingClientRect().top
-            })).sort((a, b) => a.top - b.top);
+            const targetDate = state.date;
 
-            // 更新顺序
-            sortedHarnesses.forEach((item, index) => {
-                const mainFrame = item.el.querySelector('.fc-event-main-frame');
-                if (mainFrame) {
-                    const eventId = mainFrame.getAttribute('data-event-id');
-                    if (eventId) {
-                        // 解析 ID (处理重复事件实例)
-                        let realId = eventId;
-                        if (eventId.includes('_instance_')) {
-                            realId = eventId.split('_instance_')[0];
-                        }
+            // 获取该日期的所有全天事件实例，从而找出该天显示的所有模板
+            // 这样可以正确处理重复事件的排序
+            const calendarEvents = this.calendar.getEvents().filter(e => {
+                const eDate = getLocalDateString(e.start);
+                return eDate === targetDate && e.allDay;
+            });
 
-                        if (reminderData[realId]) {
-                            // 如果顺序改变了，更新数据
-                            if (reminderData[realId].sort !== index) {
-                                reminderData[realId].sort = index;
-                                hasChanges = true;
-                            }
-                        }
+            // 获取对应的提醒数据模板 ID (去重)
+            const dayTemplateIds = Array.from(new Set(calendarEvents.map(e => {
+                return e.extendedProps.originalId || e.id;
+            })));
+
+            const dayEvents = dayTemplateIds.map(id => reminderData[id]).filter(r => !!r);
+
+            // 按当前可见顺序排序 (优先级优先，sort 其次)
+            dayEvents.sort((a, b) => {
+                const priorityMap: { [key: string]: number } = {
+                    'high': 0,
+                    'medium': 1,
+                    'low': 2,
+                    'none': 3
+                };
+                const scoreA = priorityMap[a.priority || 'none'] ?? 3;
+                const scoreB = priorityMap[b.priority || 'none'] ?? 3;
+                if (scoreA !== scoreB) return scoreA - scoreB;
+                return (a.sort || 0) - (b.sort || 0);
+            });
+
+            // 获取当前拖拽的提醒模板
+            const currentEvent = reminderData[draggedId];
+            if (!currentEvent) return;
+
+            // 如果日期改变了，更新模板日期（处理跨天拖拽重排序）
+            const oldDate = currentEvent.date || '';
+            if (oldDate !== targetDate) {
+                currentEvent.date = targetDate;
+                if (currentEvent.endDate) {
+                    const diff = getDaysDifference(oldDate, targetDate);
+                    currentEvent.endDate = addDaysToDate(currentEvent.endDate, diff);
+                }
+            }
+
+            // 从待排序列表中移除当前事件
+            const filteredEvents = dayEvents.filter(r => r.id !== draggedId);
+
+            let newList: any[] = [];
+            if (state.targetEvent) {
+                const targetId = state.targetEvent.id.includes('_instance_')
+                    ? state.targetEvent.id.split('_instance_')[0]
+                    : state.targetEvent.id;
+
+                const targetIndex = filteredEvents.findIndex(r => r.id === targetId);
+                if (targetIndex !== -1) {
+                    // 计算插入位置
+                    const insertPos = state.isAbove ? targetIndex : targetIndex + 1;
+                    newList = [...filteredEvents.slice(0, insertPos), currentEvent, ...filteredEvents.slice(insertPos)];
+
+                    // --- 核心改进：根据插入位置自动调整优先级 ---
+                    // 逻辑：使被拖拽的任务优先级与它落点周围的任务一致
+                    // 如果列表只有一个，或者放在了首/尾，则参考邻居
+                    // 如果放在两个任务中间，则根据当前可见的排序规则调整
+                    if (state.isAbove) {
+                        // 拖动到了 targetEvent 的上方
+                        const targetEventInList = filteredEvents[targetIndex];
+                        currentEvent.priority = targetEventInList.priority || 'none';
+                    } else {
+                        // 拖动到了 targetEvent 的下方
+                        const targetEventInList = filteredEvents[targetIndex];
+                        currentEvent.priority = targetEventInList.priority || 'none';
                     }
+                } else {
+                    newList = [...filteredEvents, currentEvent];
+                }
+            } else {
+                newList = [...filteredEvents, currentEvent];
+            }
+
+            // 分配新的 sort 值
+            // 注意：为了让 FullCalendar 的 eventOrder (priority-first) 表现正常，
+            // 我们需要对全天列表在相同优先级块内部重新赋予递增的 sort
+            let currentPriority = '';
+            let prioritySort = 0;
+            newList.forEach((r) => {
+                if (r) {
+                    const p = r.priority || 'none';
+                    if (p !== currentPriority) {
+                        currentPriority = p;
+                        prioritySort = 0;
+                    }
+                    r.sort = prioritySort++;
                 }
             });
 
-            if (hasChanges) {
-                await saveReminders(this.plugin, reminderData);
-                // 刷新以应用新的顺序 (FullCalendar 需要重新获取事件才能应用 eventOrder)
-                await this.refreshEvents();
-            }
+            await saveReminders(this.plugin, reminderData);
+
+            // 刷新日历以应用新顺序
+            await this.refreshEvents();
+
+            // 通知外部更新
+            window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
+
         } catch (error) {
             console.error('全天事件重排序失败:', error);
             showMessage(t("operationFailed"));
@@ -2983,7 +3187,7 @@ export class CalendarView {
             console.error('打开笔记失败:', error);
 
             // 询问用户是否删除无效的提醒
-            const result = await confirm(
+            await confirm(
                 t("openNoteFailedDelete"),
                 t("noteBlockDeleted"),
                 async () => {
@@ -2998,10 +3202,8 @@ export class CalendarView {
     }
 
     private async handleEventDrop(info) {
-        // 检查是否为全天事件的同日重新排序
-        if (info.event.allDay && info.oldEvent.allDay &&
-            info.event.startStr === info.oldEvent.startStr) {
-            await this.handleAllDayReorder(info);
+        // 如果正在进行全天重排序，直接跳过通用的 eventDrop 处理
+        if (this.isAllDayReordering || (this.allDayDragState && this.allDayDragState.targetEvent)) {
             return;
         }
 
@@ -3892,6 +4094,16 @@ export class CalendarView {
                 text-decoration: line-through;
                 font-weight: 500;
             }
+
+            .all-day-reorder-indicator {
+                height: 2px !important;
+                background-color: var(--b3-theme-primary) !important;
+                box-shadow: 0 0 4px var(--b3-theme-primary);
+                border-radius: 2px;
+                /* 移除 transition 以免在隐藏或位置跳变时产生滑动感 */
+                transition: none !important;
+                pointer-events: none;
+            }
         `;
         document.head.appendChild(style);
     }
@@ -4661,7 +4873,7 @@ export class CalendarView {
                     backgroundColor = color;
                     borderColor = color;
                 } else {
-                    backgroundColor = '#d1d5d5';
+                    backgroundColor = '#8f8f8f';
                     borderColor = '#7f8c8d';
                 }
             } else if (this.colorBy === 'category') {
@@ -4670,7 +4882,7 @@ export class CalendarView {
                     backgroundColor = categoryStyle.backgroundColor;
                     borderColor = categoryStyle.borderColor;
                 } else {
-                    backgroundColor = '#d1d5d5';
+                    backgroundColor = '#8f8f8f';
                     borderColor = '#7f8c8d';
                 }
             } else { // colorBy === 'priority'
@@ -4688,7 +4900,7 @@ export class CalendarView {
                         borderColor = '#2980b9';
                         break;
                     default:
-                        backgroundColor = '#d1d5d5';
+                        backgroundColor = '#8f8f8f';
                         borderColor = '#7f8c8d';
                         break;
                 }
