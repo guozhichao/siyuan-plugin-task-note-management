@@ -989,23 +989,37 @@ export class CalendarView {
                     }
                 });
 
+                // Modern UI Style: Pale background, thick left border, dark text
+                const targetEl = info.el.querySelector('.fc-daygrid-event') as HTMLElement || info.el as HTMLElement;
+
+                // Force block display for month view non-all-day events
                 if (info.view.type === 'dayGridMonth' && !info.event.allDay) {
-                    const targetEl = info.el.querySelector('.fc-daygrid-event') as HTMLElement || info.el as HTMLElement;
                     targetEl.classList.remove('fc-daygrid-dot-event');
                     targetEl.classList.add('fc-daygrid-block-event');
-                    if (info.event.backgroundColor) {
-                        targetEl.style.backgroundColor = info.event.backgroundColor;
-                    }
-                    if (info.event.borderColor) {
+                }
+
+                if (!info.view.type.startsWith('list')) {
+                    const baseColor = info.event.backgroundColor || info.event.borderColor || 'var(--b3-theme-primary)';
+
+                    // Reset standard styles
+                    targetEl.style.border = 'none';
+                    // Adjust opacity based on theme mode
+                    const themeMode = document.querySelector('html')?.getAttribute('data-theme-mode');
+                    const opacity = themeMode === 'dark' ? '0.3' : '0.15';
+                    targetEl.style.backgroundColor = `rgba(from ${baseColor} r g b / ${opacity})`;
+
+                    // Add thick left border
+                    targetEl.style.borderLeft = `4px solid ${baseColor}`;
+                    targetEl.style.borderRadius = '3px';
+
+                    // Set text color to theme text color (black/dark in light mode, light in dark mode)
+                    // The user requested "Black text", which usually corresponds to the main text color in modern UIs
+                    targetEl.style.color = 'var(--b3-theme-on-background)';
+
+                    // Clean up potential overrides
+                    if (targetEl.style.borderColor === baseColor) {
                         targetEl.style.borderColor = 'transparent';
                     }
-                    if (info.event.textColor) {
-                        targetEl.style.color = info.event.textColor;
-                    }
-                }
-                if (info.view.type == 'dayGridMonth' && info.event.allDay) {
-                    const targetEl = info.el.querySelector('.fc-daygrid-event') as HTMLElement || info.el as HTMLElement;
-                    targetEl.style.borderWidth = '2px';
                 }
             },
             // 添加视图切换和日期变化的监听
@@ -1221,6 +1235,20 @@ export class CalendarView {
         window.addEventListener('projectColorUpdated', () => {
             this.colorCache.clear();
             this.refreshEvents();
+        });
+
+        // 监听主题变化
+        const themeObserver = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme-mode') {
+                    this.refreshEvents();
+                }
+            });
+        });
+
+        themeObserver.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['data-theme-mode']
         });
 
         // 添加窗口大小变化监听器
@@ -2363,7 +2391,7 @@ export class CalendarView {
             textSpan.style.display = 'inline-block';
             textSpan.style.boxSizing = 'border-box';
             textSpan.style.paddingBottom = '2px';
-            textSpan.style.borderBottom = `2px dashed ${textColor} `;
+            textSpan.style.borderBottom = `2px dashed currentColor `;
             textSpan.style.cursor = 'pointer';
             textSpan.title = '已绑定块';
 
@@ -3603,7 +3631,6 @@ export class CalendarView {
             .fc-event-title {
                 font-size: 12px;
                 line-height: 1.3;
-                font-weight: 600;
                 overflow: hidden;
                 text-overflow: ellipsis;
                 display: -webkit-box;
@@ -3643,6 +3670,10 @@ export class CalendarView {
                 word-break: break-all;
                 line-height: 1.2;
                 max-height: 3.6em;
+            }
+
+            .fc-h-event .fc-event-main {
+                color: var(--b3-theme-on-background);
             }
 
             /* 短事件布局优化 (TimeGrid 15-30min) */
@@ -4473,8 +4504,8 @@ export class CalendarView {
             } else { // colorBy === 'priority'
                 switch (priority) {
                     case 'high':
-                        backgroundColor = '#e74c3c';
-                        borderColor = '#c0392b';
+                        backgroundColor = '#ff0000';
+                        borderColor = '#ff0000';
                         break;
                     case 'medium':
                         backgroundColor = '#f39c12';
@@ -4511,7 +4542,7 @@ export class CalendarView {
             title: reminder.title || t("unnamedNote"),
             backgroundColor: colors.backgroundColor,
             borderColor: colors.borderColor,
-            textColor: isCompleted ? '#ffffffcc' : '#ffffff',
+            textColor: 'var(--b3-theme-on-background)',
             className: classNames,
             editable: !reminder.isSubscribed, // 如果是订阅任务，禁止编辑
             startEditable: !reminder.isSubscribed, // 如果是订阅任务，禁止拖动开始时间
