@@ -447,6 +447,10 @@ dock栏和顶栏点击按钮，可打开列表视图查看任务
 - chrono-node： 自然语言时间解析
 - 中国节假日、调休、补班日历：https://github.com/lanceliao/china-holiday-calender
 
+## ❤️项目贡献者
+
+见<a href="https://github.com/Achuan-2/siyuan-plugin-task-note-management/graphs/contributors">Github 贡献者页面</a>
+
 ## ❤️用爱发电
 
 如果喜欢我的插件，欢迎给GitHub仓库点star和微信赞赏，这会激励我继续完善此插件和开发新插件。
