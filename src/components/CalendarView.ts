@@ -911,6 +911,30 @@ export class CalendarView {
                 hour12: false
             },
             eventClassNames: 'reminder-calendar-event',
+            eventOrder: (a: any, b: any) => {
+                // 1. 优先根据优先级排序
+                const priorityMap: { [key: string]: number } = {
+                    'high': 0,
+                    'medium': 1,
+                    'low': 2,
+                    'none': 3
+                };
+
+                const pA = a.extendedProps.priority || 'none';
+                const pB = b.extendedProps.priority || 'none';
+
+                const scoreA = priorityMap[pA] ?? 3;
+                const scoreB = priorityMap[pB] ?? 3;
+
+                if (scoreA !== scoreB) {
+                    return scoreA - scoreB;
+                }
+
+                // 2. 同优先级内根据 sort 字段排序
+                const orderA = typeof a.extendedProps.sort === 'number' ? a.extendedProps.sort : 0;
+                const orderB = typeof b.extendedProps.sort === 'number' ? b.extendedProps.sort : 0;
+                return orderA - orderB;
+            },
             displayEventTime: true,
             // Custom Lunar Date Rendering using DidMount hooks to preserve default behavior
             dayCellDidMount: (arg) => {
@@ -2436,6 +2460,7 @@ export class CalendarView {
         // 创建主容器
         const mainFrame = document.createElement('div');
         mainFrame.className = 'fc-event-main-frame';
+        mainFrame.setAttribute('data-event-id', event.id);
 
         // 顶部行：放置复选框和任务标题（同一行）
         const topRow = document.createElement('div');
@@ -2880,6 +2905,59 @@ export class CalendarView {
         }
     }
 
+    private async handleAllDayReorder(info: any) {
+        try {
+            const el = info.el;
+            const container = el.parentElement;
+            if (!container) return;
+
+            // 获取容器内的所有事件 harness
+            const harnesses = Array.from(container.querySelectorAll('.fc-daygrid-event-harness')) as HTMLElement[];
+            if (harnesses.length === 0) return;
+
+            const reminderData = await getAllReminders(this.plugin);
+            let hasChanges = false;
+
+            // 按垂直位置排序
+            const sortedHarnesses = harnesses.map(h => ({
+                el: h,
+                top: h.getBoundingClientRect().top
+            })).sort((a, b) => a.top - b.top);
+
+            // 更新顺序
+            sortedHarnesses.forEach((item, index) => {
+                const mainFrame = item.el.querySelector('.fc-event-main-frame');
+                if (mainFrame) {
+                    const eventId = mainFrame.getAttribute('data-event-id');
+                    if (eventId) {
+                        // 解析 ID (处理重复事件实例)
+                        let realId = eventId;
+                        if (eventId.includes('_instance_')) {
+                            realId = eventId.split('_instance_')[0];
+                        }
+
+                        if (reminderData[realId]) {
+                            // 如果顺序改变了，更新数据
+                            if (reminderData[realId].sort !== index) {
+                                reminderData[realId].sort = index;
+                                hasChanges = true;
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (hasChanges) {
+                await saveReminders(this.plugin, reminderData);
+                // 刷新以应用新的顺序 (FullCalendar 需要重新获取事件才能应用 eventOrder)
+                await this.refreshEvents();
+            }
+        } catch (error) {
+            console.error('全天事件重排序失败:', error);
+            showMessage(t("operationFailed"));
+        }
+    }
+
     private async handleEventClick(info) {
         // 如果正在拖动，不触发点击事件
         if (this.isDragging) {
@@ -2920,6 +2998,13 @@ export class CalendarView {
     }
 
     private async handleEventDrop(info) {
+        // 检查是否为全天事件的同日重新排序
+        if (info.event.allDay && info.oldEvent.allDay &&
+            info.event.startStr === info.oldEvent.startStr) {
+            await this.handleAllDayReorder(info);
+            return;
+        }
+
         const reminderId = info.event.id;
         const originalReminder = info.event.extendedProps;
 
@@ -4646,6 +4731,7 @@ export class CalendarView {
                 projectId: reminder.projectId,
                 customGroupId: reminder.customGroupId,
                 customGroupName: reminder.customGroupName,
+                sort: typeof reminder.sort === 'number' ? reminder.sort : 0,
                 blockId: reminder.blockId || null,
                 docId: reminder.docId,
                 docTitle: reminder.docTitle,

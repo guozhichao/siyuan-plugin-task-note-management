@@ -2958,6 +2958,21 @@ export class QuickReminderDialog {
                     reminder.sort = this.defaultSort;
                 }
 
+                // 自动计算全天事件的 sort 值 (同日同优先级最后)
+                // 仅当新建事件、有日期、无时间（全天）、有优先级且未指定 sort 时生效
+                if (date && !time && priority && typeof reminder.sort !== 'number') {
+                    let maxSort = 0;
+                    // 遍历现有提醒寻找最大 sort 值
+                    Object.values(reminderData).forEach((r: any) => {
+                        // 比较日期、全天状态和优先级
+                        if (r.date === date && !r.time && (r.priority || 'none') === priority) {
+                            const s = typeof r.sort === 'number' ? r.sort : 0;
+                            if (s > maxSort) maxSort = s;
+                        }
+                    });
+                    reminder.sort = maxSort + 1;
+                }
+
                 // 根据任务类型设置看板状态
                 if (termType === 'doing') {
                     reminder.kanbanStatus = 'doing';
