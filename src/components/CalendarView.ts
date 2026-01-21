@@ -16,7 +16,7 @@ import { ProjectColorDialog } from "./ProjectColorDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { t } from "../utils/i18n";
 import { generateRepeatInstances, RepeatInstance, getDaysDifference, addDaysToDate } from "../utils/repeatUtils";
-import { getAllReminders, saveReminders } from "../utils/icsSubscription";
+import { getAllReminders, saveReminders, loadHolidays } from "../utils/icsSubscription";
 import { CalendarConfigManager } from "../utils/calendarConfigManager";
 import { TaskSummaryDialog } from "@/components/TaskSummaryDialog";
 import { PomodoroManager } from "../utils/pomodoroManager";
@@ -39,6 +39,8 @@ export class CalendarView {
     private initialProjectFilter: string | null = null;
     private showCategoryAndProject: boolean = true; // 是否显示分类和项目信息
     private showLunar: boolean = true; // 是否显示农历
+    private showHoliday: boolean = true; // 是否显示节假日
+    private holidays: { [date: string]: { title: string, type: 'holiday' | 'workday' } } = {}; // 节假日数据
     private colorBy: 'category' | 'priority' | 'project' = 'project'; // 按分类或优先级上色
     private tooltip: HTMLElement | null = null; // 添加提示框元素
     private dropIndicator: HTMLElement | null = null; // 拖放放置指示器
@@ -85,6 +87,8 @@ export class CalendarView {
         const settings = await this.plugin.loadSettings();
         this.showCategoryAndProject = settings.calendarShowCategoryAndProject !== false;
         this.showLunar = settings.calendarShowLunar !== false;
+        this.showHoliday = settings.calendarShowHoliday !== false;
+        this.holidays = await loadHolidays(this.plugin);
 
         if (this.calendarConfigManager) {
             await this.calendarConfigManager.initialize();
@@ -237,6 +241,8 @@ export class CalendarView {
         const settings = await this.plugin.loadSettings();
         this.showCategoryAndProject = settings.calendarShowCategoryAndProject !== false;
         this.showLunar = this.calendarConfigManager.getShowLunar();
+        this.showHoliday = settings.calendarShowHoliday !== false;
+        this.holidays = await loadHolidays(this.plugin);
 
         // 获取周开始日设置
         const weekStartDay = await this.getWeekStartDay();
@@ -945,70 +951,107 @@ export class CalendarView {
                 return orderA - orderB;
             },
             displayEventTime: true,
-            // Custom Lunar Date Rendering using DidMount hooks to preserve default behavior
+            // Custom Lunar Date and Holiday Rendering using DidMount hooks to preserve default behavior
             dayCellDidMount: (arg) => {
-                // 清理可能已存在的农历元素，防止重复添加或在禁用后残留
+                const existingExtra = arg.el.querySelector('.day-extra-info-wrapper');
+                if (existingExtra) existingExtra.remove();
                 const existingLunar = arg.el.querySelector('.day-lunar');
-                if (existingLunar) {
-                    existingLunar.remove();
-                }
+                if (existingLunar) existingLunar.remove();
+                const existingHoliday = arg.el.querySelector('.day-holiday');
+                if (existingHoliday) existingHoliday.remove();
 
-                if (!this.showLunar) return;
                 // Only for month views and multiMonthYear
                 if (arg.view.type === 'dayGridMonth' || arg.view.type === 'multiMonthYear') {
-                    const { displayLunar, isFestival, fullLunarDate } = this.getLunarInfo(arg.date);
-
-                    // Find day-top container
                     const topEl = arg.el.querySelector('.fc-daygrid-day-top');
                     if (topEl) {
-                        // Create lunar element
-                        const lunarSpan = document.createElement('span');
-                        lunarSpan.className = `day-lunar ${isFestival ? 'festival' : ''}`;
-                        lunarSpan.textContent = displayLunar;
-                        lunarSpan.title = fullLunarDate;
-                        lunarSpan.style.cssText = `${isFestival ? 'color: var(--b3-theme-primary); font-weight: bold;' : 'color: var(--b3-theme-on-surface-light); opacity: 0.8; font-size: 0.9em;'} z-index: 1; margin-top: 4px; line-height: 1;`;
+                        const dateStr = getLocalDateString(arg.date);
+                        const holidayName = this.holidays[dateStr];
 
-                        topEl.appendChild(lunarSpan);
+                        const extraInfoWrapper = document.createElement('div');
+                        extraInfoWrapper.className = 'day-extra-info-wrapper';
+                        extraInfoWrapper.style.cssText = 'display: flex; align-items: center; gap: 4px;  line-height: 1; margin-right: 4px;';
+
+                        if (this.showLunar) {
+                            const { displayLunar, isFestival, fullLunarDate } = this.getLunarInfo(arg.date);
+                            const lunarSpan = document.createElement('span');
+                            lunarSpan.className = `day-lunar ${isFestival ? 'festival' : ''}`;
+                            lunarSpan.textContent = displayLunar;
+                            lunarSpan.title = fullLunarDate;
+                            lunarSpan.style.cssText = `${isFestival ? 'color: var(--b3-theme-primary); font-weight: bold;' : 'color: var(--b3-theme-on-surface-light); opacity: 0.8; font-size: 0.9em;'} z-index: 1; line-height: 1;`;
+                            extraInfoWrapper.appendChild(lunarSpan);
+                        }
+
+                        if (this.showHoliday && holidayName) {
+                            const isWorkday = typeof holidayName === 'object' && holidayName.type === 'workday';
+                            const holidaySpan = document.createElement('span');
+                            holidaySpan.className = 'day-holiday';
+                            holidaySpan.textContent = isWorkday ? '(班)' : '(休)';
+                            holidaySpan.title = typeof holidayName === 'object' ? holidayName.title : holidayName;
+                            holidaySpan.style.cssText = `color: ${isWorkday ? 'var(--b3-theme-error)' : 'var(--b3-card-success-color)'}; font-size: 0.8em; cursor: help; font-weight: bold;`;
+                            extraInfoWrapper.appendChild(holidaySpan);
+                        }
+
+                        if (extraInfoWrapper.children.length > 0) {
+                            topEl.appendChild(extraInfoWrapper);
+                        }
                     }
                 }
             },
             dayHeaderDidMount: (arg) => {
-                // 清理可能已存在的农历元素
+                // 清理可能已存在的元素
+                const existingExtra = arg.el.querySelector('.day-header-extra-wrapper');
+                if (existingExtra) existingExtra.remove();
                 const existingLunar = arg.el.querySelector('.day-header-lunar');
-                if (existingLunar) {
-                    existingLunar.remove();
-                }
+                if (existingLunar) existingLunar.remove();
+                const existingHoliday = arg.el.querySelector('.day-header-holiday');
+                if (existingHoliday) existingHoliday.remove();
 
-                if (!this.showLunar) return;
+                if (!this.showLunar && !this.showHoliday) return;
 
                 const viewType = arg.view.type;
-                // Exclude list views explicitly
                 if (!viewType.startsWith('list') &&
                     (viewType === 'timeGridWeek' || viewType === 'timeGridDay' ||
                         viewType === 'dayGridWeek' || viewType === 'dayGridDay' ||
                         viewType.includes('MultiDays'))) {
 
-                    const { displayLunar, isFestival, fullLunarDate } = this.getLunarInfo(arg.date);
-
-                    // Find the main text part to append after
-                    // In Grid views, it's usually inside .fc-scrollgrid-sync-inner -> .fc-col-header-cell-cushion
                     const cushion = arg.el.querySelector('.fc-col-header-cell-cushion');
                     if (cushion && cushion.parentElement) {
-                        // Create lunar element container
-                        const lunarDiv = document.createElement('div');
-                        lunarDiv.className = `day-header-lunar ${isFestival ? 'festival' : ''}`;
-                        lunarDiv.textContent = displayLunar;
-                        lunarDiv.title = fullLunarDate;
-                        lunarDiv.style.cssText = `font-size: 0.8em; margin-top: 2px; line-height: 1.2; ${isFestival ? 'color: var(--b3-theme-primary);' : 'color: var(--b3-theme-on-surface-light); opacity: 0.8;'}`;
-
-                        // Ensure parent is flex column to stack nicely
                         const parent = cushion.parentElement as HTMLElement;
                         parent.style.display = 'flex';
                         parent.style.flexDirection = 'column';
                         parent.style.alignItems = 'center';
                         parent.style.justifyContent = 'center';
 
-                        parent.appendChild(lunarDiv);
+                        const dateStr = getLocalDateString(arg.date);
+                        const holidayName = this.holidays[dateStr];
+
+                        const extraInfoWrapper = document.createElement('div');
+                        extraInfoWrapper.className = 'day-header-extra-wrapper';
+                        extraInfoWrapper.style.cssText = 'display: flex; align-items: center; gap: 4px; margin-top: 2px; line-height: 1.2;';
+
+                        if (this.showLunar) {
+                            const { displayLunar, isFestival, fullLunarDate } = this.getLunarInfo(arg.date);
+                            const lunarSpan = document.createElement('span');
+                            lunarSpan.className = `day-header-lunar ${isFestival ? 'festival' : ''}`;
+                            lunarSpan.textContent = displayLunar;
+                            lunarSpan.title = fullLunarDate;
+                            lunarSpan.style.cssText = `font-size: 0.8em; ${isFestival ? 'color: var(--b3-theme-primary);' : 'color: var(--b3-theme-on-surface-light); opacity: 0.8;'}`;
+                            extraInfoWrapper.appendChild(lunarSpan);
+                        }
+
+                        if (this.showHoliday && holidayName) {
+                            const isWorkday = typeof holidayName === 'object' && holidayName.type === 'workday';
+                            const holidaySpan = document.createElement('span');
+                            holidaySpan.className = 'day-header-holiday';
+                            holidaySpan.textContent = isWorkday ? '(班)' : '(休)';
+                            holidaySpan.title = typeof holidayName === 'object' ? holidayName.title : holidayName;
+                            holidaySpan.style.cssText = `font-size: 0.75em; color: ${isWorkday ? 'var(--b3-theme-error)' : 'var(--b3-card-success-color)'}; cursor: help; font-weight: bold;`;
+                            extraInfoWrapper.appendChild(holidaySpan);
+                        }
+
+                        if (extraInfoWrapper.children.length > 0) {
+                            parent.appendChild(extraInfoWrapper);
+                        }
                     }
                 }
             },
@@ -1068,29 +1111,47 @@ export class CalendarView {
                     }
 
                     if (listHeader) {
-                        // 如果不更新农历，确保删除已有的农历元素
-                        if (!this.showLunar) {
-                            const existingLunar = listHeader.querySelector('.day-lunar');
-                            if (existingLunar) existingLunar.remove();
-                            listHeader.removeAttribute('data-lunar-processed');
-                        } else if (!listHeader.getAttribute('data-lunar-processed')) {
-                            const dateStr = listHeader.getAttribute('data-date');
-                            if (dateStr) {
-                                const date = new Date(dateStr);
-                                const { displayLunar, isFestival, fullLunarDate } = this.getLunarInfo(date);
+                        const dateStr = listHeader.getAttribute('data-date');
+                        if (dateStr) {
+                            const date = new Date(dateStr);
+                            const localDateStr = getLocalDateString(date);
+                            const holidayName = this.holidays[localDateStr];
+                            const textContainer = listHeader.querySelector('.fc-list-day-text') || listHeader.querySelector('.fc-list-day-cushion');
 
-                                const textContainer = listHeader.querySelector('.fc-list-day-text') || listHeader.querySelector('.fc-list-day-cushion');
-
+                            // Handle Lunar in List View
+                            if (!this.showLunar) {
+                                const existingLunar = listHeader.querySelector('.day-lunar');
+                                if (existingLunar) existingLunar.remove();
+                                listHeader.removeAttribute('data-lunar-processed');
+                            } else if (!listHeader.getAttribute('data-lunar-processed')) {
                                 if (textContainer) {
+                                    const { displayLunar, isFestival, fullLunarDate } = this.getLunarInfo(date);
                                     const lunarSpan = document.createElement('span');
                                     lunarSpan.className = `day-lunar ${isFestival ? 'festival' : ''}`;
                                     lunarSpan.textContent = displayLunar;
                                     lunarSpan.title = fullLunarDate;
                                     lunarSpan.style.cssText = `${isFestival ? 'color: var(--b3-theme-primary); font-weight: bold;' : 'color: var(--b3-theme-on-surface-light); opacity: 0.8; font-size: 0.9em;'} margin-left: 8px;`;
-
                                     textContainer.appendChild(lunarSpan);
                                 }
                                 listHeader.setAttribute('data-lunar-processed', 'true');
+                            }
+
+                            // Handle Holiday in List View
+                            if (!this.showHoliday) {
+                                const existingHoliday = listHeader.querySelector('.day-holiday');
+                                if (existingHoliday) existingHoliday.remove();
+                                listHeader.removeAttribute('data-holiday-processed');
+                            } else if (!listHeader.getAttribute('data-holiday-processed')) {
+                                if (textContainer && holidayName) {
+                                    const isWorkday = typeof holidayName === 'object' && holidayName.type === 'workday';
+                                    const holidaySpan = document.createElement('span');
+                                    holidaySpan.className = 'day-holiday';
+                                    holidaySpan.textContent = isWorkday ? '(班)' : '(休)';
+                                    holidaySpan.title = typeof holidayName === 'object' ? holidayName.title : holidayName;
+                                    holidaySpan.style.cssText = `color: ${isWorkday ? 'var(--b3-theme-error)' : 'var(--b3-card-success-color)'}; font-size: 0.8em; margin-left: 8px; cursor: help; font-weight: bold;`;
+                                    textContainer.appendChild(holidaySpan);
+                                }
+                                listHeader.setAttribute('data-holiday-processed', 'true');
                             }
                         }
                     }

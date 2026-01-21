@@ -138,6 +138,8 @@ export const DEFAULT_SETTINGS = {
     s3TlsVerify: true, // S3 TLS证书验证，true为启用验证（默认），false为禁用验证
     s3CustomDomain: '', // S3 自定义域名，用于生成外链
     enableOutlinePrefix: true, // 是否在大纲中为绑定标题添加任务状态前缀
+    calendarShowHoliday: true, // 是否显示节假日
+    calendarHolidayIcsUrl: 'https://www.shuyz.com/githubfiles/china-holiday-calender/master/holidayCal.ics?token=cb429c2a-81a6-4c26-8f35-4f4bf0c84b2c&compStart=*&compEnd=*', // 节假日ICS URL
     // 数据迁移标记
     datatransfer: {
         bindblockAddAttr: false, // 是否已迁移绑定块的 custom-bind-reminders 属性
@@ -3761,7 +3763,7 @@ export default class ReminderPlugin extends Plugin {
             // 如果到了同步时间
             if (now >= lastSyncMs + intervalMs) {
                 console.log(`[Timer] Syncing ICS subscription: ${sub.name}`);
-                const result = await syncSubscription(this, sub);
+                const result = await syncSubscription(sub);
 
                 // 更新订阅状态信息
                 sub.lastSync = new Date().toISOString();

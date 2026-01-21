@@ -19,6 +19,7 @@
     import { Constants } from 'siyuan';
     import { exportIcsFile, uploadIcsToCloud } from './utils/icsUtils';
     import { importIcsFile } from './utils/icsImport';
+    import { syncHolidays } from './utils/icsSubscription';
 
     export let plugin;
 
@@ -161,6 +162,43 @@
                     type: 'checkbox',
                     title: t('calendarShowLunar') || '显示农历',
                     description: t('calendarShowLunarDesc') || '在日历视图中显示农历日期和节日',
+                },
+                {
+                    key: 'calendarShowHoliday',
+                    value: settings.calendarShowHoliday,
+                    type: 'checkbox',
+                    title: t('calendarShowHoliday') || '显示节假日',
+                    description: t('calendarShowHolidayDesc') || '在日历视图中显示法定节假日（休）',
+                },
+                {
+                    key: 'calendarHolidayIcsUrl',
+                    value: settings.calendarHolidayIcsUrl,
+                    type: 'textinput',
+                    title: t('calendarHolidayIcsUrl') || '节假日 ICS URL',
+                    description: t('calendarHolidayIcsUrlDesc') || '设置节假日订阅的 ICS 链接',
+                },
+                {
+                    key: 'updateHoliday',
+                    value: '',
+                    type: 'button',
+                    title: t('updateHoliday') || '更新节假日',
+                    description: t('updateHolidayDesc') || '点击立即更新节假日数据',
+                    button: {
+                        label: t('updateHoliday') || '更新节假日',
+                        callback: async () => {
+                            await pushMsg(t('updatingHoliday') || '正在更新节假日...');
+                            const success = await syncHolidays(
+                                plugin,
+                                settings.calendarHolidayIcsUrl
+                            );
+                            if (success) {
+                                await pushMsg(t('holidayUpdateSuccess') || '节假日更新成功');
+                                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                            } else {
+                                await pushErrMsg(t('holidayUpdateFailed') || '节假日更新失败');
+                            }
+                        },
+                    },
                 },
                 {
                     key: 'calendarShowCategoryAndProject',
@@ -1457,13 +1495,13 @@
                     } else if (action === 'sync' && sub) {
                         btn.innerHTML =
                             '<svg class="b3-button__icon fn__rotate"><use xlink:href="#iconRefresh"></use></svg>';
-                        await syncSubscription(plugin, sub);
+                        await syncSubscription(sub);
                         renderSubscriptions();
                     } else if (action === 'edit' && sub) {
                         showEditSubscriptionDialog(sub);
                     } else if (action === 'delete' && sub) {
                         if (confirm(t('confirmDeleteSubscription').replace('${name}', sub.name))) {
-                            await removeSubscription(plugin, sub.id);
+                            await removeSubscription(sub.id);
                             delete data.subscriptions[sub.id];
                             await saveSubscriptions(plugin, data);
                             subscriptions.splice(

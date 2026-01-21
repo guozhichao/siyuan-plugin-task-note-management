@@ -155,7 +155,6 @@ export async function getAllReminders(plugin: any, projectId?: string): Promise<
 
         // Load and merge all subscription tasks
         let allReminders = { ...filteredMainReminders };
-        let needsSave = false;
 
         const today = getLocalDateString();
         const startDate = today; // 从今天开始生成实例
@@ -242,7 +241,6 @@ export async function getAllReminders(plugin: any, projectId?: string): Promise<
                 // Save updated subscription tasks if any were auto-completed
                 if (subTasksUpdated) {
                     await saveSubscriptionTasks(subscription.id, updatedSubTasks);
-                    needsSave = true;
                 }
             }
         }
@@ -403,7 +401,6 @@ async function fetchIcsContent(url: string): Promise<string> {
  * Sync a single ICS subscription
  */
 export async function syncSubscription(
-    plugin: any,
     subscription: IcsSubscription
 ): Promise<{ success: boolean; error?: string; eventsCount?: number }> {
     try {
@@ -471,7 +468,7 @@ export async function syncAllSubscriptions(plugin: any): Promise<void> {
         let errorCount = 0;
 
         for (const subscription of subscriptions) {
-            const result = await syncSubscription(plugin, subscription);
+            const result = await syncSubscription(subscription);
 
             // Update subscription status
             subscription.lastSync = new Date().toISOString();
@@ -521,7 +518,7 @@ export function getSyncIntervalMs(interval: IcsSubscription['syncInterval']): nu
 /**
  * Remove subscription and its tasks file
  */
-export async function removeSubscription(plugin: any, subscriptionId: string): Promise<void> {
+export async function removeSubscription(subscriptionId: string): Promise<void> {
     try {
         // Delete subscription tasks file
         await saveSubscriptionTasks(subscriptionId, {});
@@ -561,5 +558,61 @@ export async function updateSubscriptionTaskMetadata(
     } catch (error) {
         console.error('Failed to update subscription task metadata:', error);
         throw error;
+    }
+}
+
+/**
+ * Sync holidays from ICS URL
+ */
+export async function syncHolidays(plugin: any, url: string): Promise<boolean> {
+    try {
+        const icsContent = await fetchIcsContent(url);
+        const events = await parseIcsFile(icsContent);
+
+        const holidayData: { [date: string]: { title: string, type: 'holiday' | 'workday' } } = {};
+        for (const event of events) {
+            if (event.date) {
+                const title = event.title || '';
+                let type: 'holiday' | 'workday' = 'holiday';
+                // 通常节假日 ICS 中，补班会带有 “班” 字，放假带有 “休” 字
+                if (title.includes('班') || title.toLowerCase().includes('work')) {
+                    type = 'workday';
+                } else if (title.includes('休') || title.toLowerCase().includes('holiday') || title.toLowerCase().includes('off')) {
+                    type = 'holiday';
+                }
+                // 默认如果什么都没匹配到，也可以认为是假，因为这是节假日日历
+
+                holidayData[event.date] = { title, type };
+            }
+        }
+
+        await plugin.saveData('holiday.json', holidayData);
+        return true;
+    } catch (error) {
+        console.error('Failed to sync holidays:', error);
+        return false;
+    }
+}
+
+/**
+ * Load holidays
+ */
+export async function loadHolidays(plugin: any): Promise<{ [date: string]: { title: string, type: 'holiday' | 'workday' } }> {
+    try {
+        let data = await plugin.loadData('holiday.json');
+        if (!data || Object.keys(data).length === 0) {
+            // 如果数据不存在，检查设置，如果开启了节假日显示且有 URL，则自动同步
+            const settings = await plugin.loadSettings();
+            if (settings.calendarShowHoliday && settings.calendarHolidayIcsUrl) {
+                pushMsg('开始下载中国节假日和调休数据...');
+                const success = await syncHolidays(plugin, settings.calendarHolidayIcsUrl);
+                if (success) {
+                    data = await plugin.loadData('holiday.json');
+                }
+            }
+        }
+        return data || {};
+    } catch (error) {
+        return {};
     }
 }
