@@ -4505,6 +4505,13 @@ export class CalendarView {
 
         // 使用防抖机制，避免频繁刷新
         this.refreshTimeout = window.setTimeout(async () => {
+            // 1. 记录当前所有滚动容器的位置 (特别是月视图或时间轴视图中的滚动条)
+            const scrollerStates = Array.from(this.container.querySelectorAll('.fc-scroller')).map((el: HTMLElement) => ({
+                el,
+                scrollTop: el.scrollTop,
+                scrollLeft: el.scrollLeft
+            }));
+
             try {
                 // 先获取新的事件数据
                 const events = await this.getEvents();
@@ -4522,6 +4529,29 @@ export class CalendarView {
                 if (this.isCalendarVisible()) {
                     this.calendar.updateSize();
                     this.calendar.render();
+
+                    // 2. 恢复滚动位置
+                    // 注意：FullCalendar 重新渲染可能会保留部分 DOM 结构，如果 el 还在文档中则直接恢复
+                    // 如果 DOM 被完全销毁并重建，则需要通过索引或类名重新匹配。
+                    // 实践中 FC v6 调用 render() 往往会重用 scroller 容器。
+                    requestAnimationFrame(() => {
+                        scrollerStates.forEach(state => {
+                            if (state.el && this.container.contains(state.el)) {
+                                state.el.scrollTop = state.scrollTop;
+                                state.el.scrollLeft = state.scrollLeft;
+                            } else {
+                                // 如果旧的 el 已经失效，则根据索引恢复新 scroller 的位置
+                                // 这是一个备选方案
+                                const newScrollers = this.container.querySelectorAll('.fc-scroller');
+                                newScrollers.forEach((newEl: HTMLElement, index) => {
+                                    if (scrollerStates[index] && !this.container.contains(scrollerStates[index].el)) {
+                                        newEl.scrollTop = scrollerStates[index].scrollTop;
+                                        newEl.scrollLeft = scrollerStates[index].scrollLeft;
+                                    }
+                                });
+                            }
+                        });
+                    });
                 }
             } catch (error) {
                 console.error('刷新事件失败:', error);
