@@ -1674,19 +1674,19 @@ export class ReminderPanel {
         let borderColor = '';
         switch (priority) {
             case 'high':
-                backgroundColor = 'var(--b3-card-error-background)';
+                backgroundColor = 'rgba(from var(--b3-card-error-background) r g b / .5)';
                 borderColor = 'var(--b3-card-error-color)';
                 break;
             case 'medium':
-                backgroundColor = 'var(--b3-card-warning-background)';
+                backgroundColor = 'rgba(from var(--b3-card-warning-background) r g b / .5)';
                 borderColor = 'var(--b3-card-warning-color)';
                 break;
             case 'low':
-                backgroundColor = 'var(--b3-card-info-background)';
+                backgroundColor = 'rgba(from var(--b3-card-info-background) r g b / .7)';
                 borderColor = 'var(--b3-card-info-color)';
                 break;
             default:
-                backgroundColor = 'var(--b3-theme-surface-lighter)';
+                backgroundColor = 'background-color: rgba(from var(--b3-theme-background-light) r g b / .1);';
                 borderColor = 'var(--b3-theme-surface-lighter)';
         }
         reminderEl.style.backgroundColor = backgroundColor;
@@ -5412,19 +5412,19 @@ export class ReminderPanel {
                         let borderColor = '';
                         switch (priority) {
                             case 'high':
-                                backgroundColor = 'var(--b3-card-error-background)';
+                                backgroundColor = 'rgba(from var(--b3-card-error-background) r g b / .5)';
                                 borderColor = 'var(--b3-card-error-color)';
                                 break;
                             case 'medium':
-                                backgroundColor = 'var(--b3-card-warning-background)';
+                                backgroundColor = 'rgba(from var(--b3-card-warning-background) r g b / .5)';
                                 borderColor = 'var(--b3-card-warning-color)';
                                 break;
                             case 'low':
-                                backgroundColor = 'var(--b3-card-info-background)';
+                                backgroundColor = 'rgba(from var(--b3-card-info-background) r g b / .7)';
                                 borderColor = 'var(--b3-card-info-color)';
                                 break;
                             default:
-                                backgroundColor = 'var(--b3-theme-surface-lighter)';
+                                backgroundColor = 'background-color: rgba(from var(--b3-theme-background-light) r g b / .1);';
                                 borderColor = 'var(--b3-theme-surface-lighter)';
                         }
                         el.style.backgroundColor = backgroundColor;

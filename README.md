@@ -449,7 +449,11 @@ dock栏和顶栏点击按钮，可打开列表视图查看任务
 
 ## ❤️项目贡献者
 
-见<a href="https://github.com/Achuan-2/siyuan-plugin-task-note-management/graphs/contributors">Github 贡献者页面</a>
+<a href="https://github.com/Achuan-2/siyuan-plugin-task-note-management/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Achuan-2/siyuan-plugin-task-note-management" />
+</a>
+
+Made with [contrib.rocks](https://contrib.rocks).
 
 ## ❤️用爱发电
 

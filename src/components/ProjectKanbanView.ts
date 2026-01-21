@@ -1227,7 +1227,7 @@ export class ProjectKanbanView {
         // 如果项目有关联的笔记ID，添加点击跳转功能
         if (this.project?.blockId) {
             titleEl.style.cursor = 'pointer';
-            titleEl.style.textDecoration = 'underline';
+            titleEl.style.textDecoration = 'underline dotted';
             titleEl.style.textDecorationStyle = 'dotted';
             titleEl.title = t('clickToJumpToProjectNote');
             titleEl.setAttribute('data-has-note', 'true');
@@ -3473,7 +3473,7 @@ export class ProjectKanbanView {
             titleEl.dataset.type = 'a';
             titleEl.dataset.href = `siyuan://blocks/${group.blockId}`;
             titleEl.style.cursor = 'pointer';
-            titleEl.style.textDecoration = 'underline';
+            titleEl.style.textDecoration = 'underline dotted';
             titleEl.style.paddingBottom = '2px';
             titleEl.title = t('clickToJumpToBlock');
             titleEl.addEventListener('click', (e) => {
@@ -4059,19 +4059,19 @@ export class ProjectKanbanView {
         let borderColor = '';
         switch (task.priority) {
             case 'high':
-                backgroundColor = 'var(--b3-card-error-background)';
+                backgroundColor = 'rgba(from var(--b3-card-error-background) r g b / .5)';
                 borderColor = 'var(--b3-card-error-color)';
                 break;
             case 'medium':
-                backgroundColor = 'var(--b3-card-warning-background)';
+                backgroundColor = 'rgba(from var(--b3-card-warning-background) r g b / .5)';
                 borderColor = 'var(--b3-card-warning-color)';
                 break;
             case 'low':
-                backgroundColor = 'var(--b3-card-info-background)';
+                backgroundColor = 'rgba(from var(--b3-card-info-background) r g b / .7)';
                 borderColor = 'var(--b3-card-info-color)';
                 break;
             default:
-                backgroundColor = 'var(--b3-theme-surface-lighter)';
+                backgroundColor = 'rgba(from var(--b3-theme-background-light) r g b / .1)';
                 borderColor = 'var(--b3-theme-background-light)';
         }
 
@@ -4169,7 +4169,7 @@ export class ProjectKanbanView {
                 color: var(--b3-theme-primary);
                 line-height: 1.4;
                 cursor: pointer;
-                text-decoration: underline;
+                text-decoration: underline dotted;
                 text-decoration-style: dotted;
                 transition: color 0.2s ease;
                 width: fit-content;
@@ -6843,8 +6843,8 @@ export class ProjectKanbanView {
         style.textContent = `
             .project-kanban-view {
                 height: 100%;
-                                                display: flex;
-                                                flex-direction: column;
+                display: flex;
+                flex-direction: column;
                 background: var(--b3-theme-background);
             }
 
@@ -6854,7 +6854,7 @@ export class ProjectKanbanView {
                 align-items: flex-start;
                 padding: 16px 24px;
                 border-bottom: 1px solid var(--b3-theme-border);
-                background: var(--b3-theme-surface);
+                background: var(--b3-theme-background);
                 gap: 16px;
             }
 
@@ -6943,9 +6943,9 @@ export class ProjectKanbanView {
             }
 
             .kanban-column {
-                background: var(--b3-theme-surface);
+                background: var(--b3-theme-background);
                 border-radius: 8px;
-                border: 1px solid var(--b3-theme-border);
+                border: 1px solid var(--b3-border-color);
                 display: flex;
                 flex-direction: column;
                 min-width: 280px; /* 固定最小宽度 */
@@ -7308,7 +7308,7 @@ export class ProjectKanbanView {
             .kanban-task-block-info span[data-type="a"] {
                 cursor: pointer;
                 color: var(--b3-theme-primary);
-                text-decoration: underline;
+                text-decoration: underline dotted;
                 text-decoration-style: dotted;
                 flex: 1;
                 overflow: hidden;
@@ -7363,7 +7363,7 @@ export class ProjectKanbanView {
            .kanban-task-checkbox {
                 -webkit-appearance: none;
                 appearance: none;
-                background-color: var(--b3-theme-surface);
+                background-color: background-color: rgba(from var(--b3-theme-background-light) r g b / .1);
                 margin: 0;
                 margin-top: 5px; /* 微调对齐 */
                 font: inherit;
@@ -7438,7 +7438,7 @@ export class ProjectKanbanView {
             }
            
            .project-kanban-title h2[data-has-note="true"] {
-                text-decoration: underline;
+                text-decoration: underline dotted;
                 text-decoration-style: dotted;
             }
            
@@ -7525,9 +7525,9 @@ export class ProjectKanbanView {
             }
 
             .custom-status-group {
-                background: var(--b3-theme-surface-lighter);
+                background: var(--b3-theme-background);
                 border-radius: 8px;
-                border: 1px solid var(--b3-theme-border);
+                border: 1px solid var(--b3-border-color);
             }
 
             .custom-status-group-header {
@@ -9206,19 +9206,19 @@ export class ProjectKanbanView {
             let borderColor = '';
             switch (task.priority) {
                 case 'high':
-                    backgroundColor = 'var(--b3-card-error-background)';
+                    backgroundColor = 'rgba(from var(--b3-card-error-background) r g b / .5)';
                     borderColor = 'var(--b3-card-error-color)';
                     break;
                 case 'medium':
-                    backgroundColor = 'var(--b3-card-warning-background)';
+                    backgroundColor = 'rgba(from var(--b3-card-warning-background) r g b / .5)';
                     borderColor = 'var(--b3-card-warning-color)';
                     break;
                 case 'low':
-                    backgroundColor = 'var(--b3-card-info-background)';
+                    backgroundColor = 'rgba(from var(--b3-card-info-background) r g b / .7)';
                     borderColor = 'var(--b3-card-info-color)';
                     break;
                 default:
-                    backgroundColor = 'var(--b3-theme-surface-lighter)';
+                    backgroundColor = 'rgba(from var(--b3-theme-background-light) r g b / .1)';
                     borderColor = 'var(--b3-theme-background-light)';
             }
             taskEl.style.backgroundColor = backgroundColor;

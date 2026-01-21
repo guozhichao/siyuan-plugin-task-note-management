@@ -735,7 +735,7 @@
 
 /* 习惯卡片：淡色渐变背景，更现代的视觉效果 */
 .habit-card {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.6), rgba(240, 248, 255, 0.6));
+    background-color: rgba(from var(--b3-theme-background-light) r g b / .1);
     border: 2px solid var(--b3-theme-primary-light);
     border-radius: 8px;
     padding: 12px;
@@ -745,9 +745,6 @@
     backdrop-filter: blur(4px);
 }
 
-.b3-theme-dark .habit-card {
-    background: linear-gradient(135deg, rgba(40, 44, 52, 0.6), rgba(30, 34, 40, 0.6));
-}
 
 .habit-card:hover {
     transform: translateY(-4px);
