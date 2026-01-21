@@ -22,6 +22,7 @@ import { TaskSummaryDialog } from "@/components/TaskSummaryDialog";
 import { PomodoroManager } from "../utils/pomodoroManager";
 import { getNextLunarMonthlyDate, getNextLunarYearlyDate, getSolarDateLunarString } from "../utils/lunarUtils";
 import { BlockBindingDialog } from "./BlockBindingDialog";
+import { Solar } from 'lunar-typescript';
 export class CalendarView {
     private container: HTMLElement;
     private calendar: Calendar;
@@ -37,6 +38,7 @@ export class CalendarView {
     private currentProjectFilter: Set<string> = new Set(['all']); // 当前项目过滤（支持多选）
     private initialProjectFilter: string | null = null;
     private showCategoryAndProject: boolean = true; // 是否显示分类和项目信息
+    private showLunar: boolean = true; // 是否显示农历
     private colorBy: 'category' | 'priority' | 'project' = 'project'; // 按分类或优先级上色
     private tooltip: HTMLElement | null = null; // 添加提示框元素
     private dropIndicator: HTMLElement | null = null; // 拖放放置指示器
@@ -93,6 +95,7 @@ export class CalendarView {
         this.colorBy = this.calendarConfigManager.getColorBy();
         const settings = await this.plugin.loadSettings();
         this.showCategoryAndProject = settings.calendarShowCategoryAndProject !== false;
+        this.showLunar = this.calendarConfigManager.getShowLunar();
 
         // 获取周开始日设置
         const weekStartDay = await this.getWeekStartDay();
@@ -105,6 +108,23 @@ export class CalendarView {
         const slotMaxTime = this.calculateSlotMaxTime(todayStartTime);
 
         this.container.classList.add('reminder-calendar-view');
+
+        // 注入自定义样式，强制修正 FullCalendar 的顶部布局
+        const style = document.createElement('style');
+        style.textContent = `
+            .reminder-calendar-view .fc-daygrid-day-top {
+                flex-direction: row !important;
+                justify-content: space-between !important;
+                padding-right: 4px !important;
+            }
+            .reminder-calendar-view .fc-daygrid-day-number {
+                width: auto !important;
+                text-decoration: none !important;
+                padding: 4px !important;
+                z-index: 2;
+            }
+        `;
+        this.container.appendChild(style);
 
         // 创建工具栏
         const toolbar = document.createElement('div');
@@ -719,7 +739,11 @@ export class CalendarView {
             views: {
                 timeGridMultiDays7: { type: 'timeGrid', duration: { days: 7 } },
                 dayGridMultiDays7: { type: 'dayGrid', duration: { days: 7 } },
-                listMultiDays7: { type: 'list', duration: { days: 7 } }
+                listMultiDays7: { type: 'list', duration: { days: 7 }, listDayFormat: { weekday: 'short', month: 'numeric', day: 'numeric', omitCommas: true }, listDaySideFormat: false },
+                listDay: { listDayFormat: { weekday: 'short', month: 'numeric', day: 'numeric', omitCommas: true }, listDaySideFormat: false },
+                listWeek: { listDayFormat: { weekday: 'short', month: 'numeric', day: 'numeric', omitCommas: true }, listDaySideFormat: false },
+                listMonth: { listDayFormat: { weekday: 'short', month: 'numeric', day: 'numeric', omitCommas: true }, listDaySideFormat: false },
+                listYear: { listDayFormat: { weekday: 'short', month: 'numeric', day: 'numeric', omitCommas: true }, listDaySideFormat: false }
             },
             multiMonthMaxColumns: 1, // force a single column
             headerToolbar: {
@@ -741,6 +765,7 @@ export class CalendarView {
             nowIndicator: true, // 显示当前时间指示线
             snapDuration: '00:05:00', // 设置吸附间隔为5分钟
             slotDuration: '00:15:00', // 设置默认时间间隔为15分钟
+            allDayText: '全天', // 设置全天事件的文本
             slotLabelFormat: {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -754,6 +779,65 @@ export class CalendarView {
             },
             eventClassNames: 'reminder-calendar-event',
             displayEventTime: true,
+            // Custom Lunar Date Rendering using DidMount hooks to preserve default behavior
+            dayCellDidMount: (arg) => {
+                if (!this.showLunar) return;
+                // Only for month views and multiMonthYear
+                if (arg.view.type === 'dayGridMonth' || arg.view.type === 'multiMonthYear') {
+                    const { displayLunar, isFestival, fullLunarDate } = this.getLunarInfo(arg.date);
+
+                    // Find day-top container
+                    const topEl = arg.el.querySelector('.fc-daygrid-day-top');
+                    if (topEl) {
+                        // Create lunar element
+                        const lunarSpan = document.createElement('span');
+                        lunarSpan.className = `day-lunar ${isFestival ? 'festival' : ''}`;
+                        lunarSpan.textContent = displayLunar;
+                        lunarSpan.title = fullLunarDate;
+                        lunarSpan.style.cssText = `${isFestival ? 'color: var(--b3-theme-primary); font-weight: bold;' : 'color: var(--b3-theme-on-surface-light); opacity: 0.8; font-size: 0.9em;'} z-index: 1; margin-top: 4px; line-height: 1;`;
+
+                        topEl.appendChild(lunarSpan);
+                    }
+                }
+            },
+            dayHeaderDidMount: (arg) => {
+                if (!this.showLunar) return;
+
+                const viewType = arg.view.type;
+                // Exclude list views explicitly
+                if (!viewType.startsWith('list') &&
+                    (viewType === 'timeGridWeek' || viewType === 'timeGridDay' ||
+                        viewType === 'dayGridWeek' || viewType === 'dayGridDay' ||
+                        viewType.includes('MultiDays'))) {
+
+                    const { displayLunar, isFestival, fullLunarDate } = this.getLunarInfo(arg.date);
+
+                    // Find the main text part to append after
+                    // In Grid views, it's usually inside .fc-scrollgrid-sync-inner -> .fc-col-header-cell-cushion
+                    const cushion = arg.el.querySelector('.fc-col-header-cell-cushion');
+                    if (cushion && cushion.parentElement) {
+                        // Create lunar element container
+                        const lunarDiv = document.createElement('div');
+                        lunarDiv.className = `day-header-lunar ${isFestival ? 'festival' : ''}`;
+                        lunarDiv.textContent = displayLunar;
+                        lunarDiv.title = fullLunarDate;
+                        lunarDiv.style.cssText = `font-size: 0.8em; margin-top: 2px; line-height: 1.2; ${isFestival ? 'color: var(--b3-theme-primary);' : 'color: var(--b3-theme-on-surface-light); opacity: 0.8;'}`;
+
+                        // Ensure parent is flex column to stack nicely
+                        // Be careful not to break existing layout if it relies on other display
+                        // Usually sync-inner is flex or block.
+                        const parent = cushion.parentElement as HTMLElement;
+                        if (!parent.style.flexDirection) {
+                            parent.style.display = 'flex';
+                            parent.style.flexDirection = 'column';
+                            parent.style.alignItems = 'center';
+                            parent.style.justifyContent = 'center';
+                        }
+
+                        parent.appendChild(lunarDiv);
+                    }
+                }
+            },
             eventContent: this.renderEventContent.bind(this),
             eventClick: this.handleEventClick.bind(this),
             eventDragStart: () => {
@@ -788,6 +872,43 @@ export class CalendarView {
                 return [];
             },
             eventDidMount: (info) => {
+                // List View Lunar Logic
+                if (this.showLunar && info.view.type.startsWith('list')) {
+                    // Find the preceding list header
+                    let prev = info.el.previousElementSibling;
+                    let listHeader = null;
+                    while (prev) {
+                        if (prev.classList.contains('fc-list-day')) {
+                            listHeader = prev;
+                            break;
+                        }
+                        prev = prev.previousElementSibling;
+                    }
+
+                    if (listHeader && !listHeader.getAttribute('data-lunar-processed')) {
+                        const dateStr = listHeader.getAttribute('data-date');
+                        if (dateStr) {
+                            const date = new Date(dateStr);
+                            const { displayLunar, isFestival, fullLunarDate } = this.getLunarInfo(date);
+
+                            // Find the text container (usually in the first cell -> .fc-list-day-text or .fc-list-day-cushion)
+                            const textContainer = listHeader.querySelector('.fc-list-day-text') || listHeader.querySelector('.fc-list-day-cushion');
+
+                            if (textContainer) {
+                                const lunarSpan = document.createElement('span');
+                                lunarSpan.className = `day-lunar ${isFestival ? 'festival' : ''}`;
+                                lunarSpan.textContent = displayLunar;
+                                lunarSpan.title = fullLunarDate;
+                                lunarSpan.style.cssText = `${isFestival ? 'color: var(--b3-theme-primary); font-weight: bold;' : 'color: var(--b3-theme-on-surface-light); opacity: 0.8; font-size: 0.9em;'} margin-left: 8px;`;
+
+                                // Append to the text container
+                                textContainer.appendChild(lunarSpan);
+                            }
+                            listHeader.setAttribute('data-lunar-processed', 'true');
+                        }
+                    }
+                }
+
                 info.el.addEventListener('contextmenu', (e) => {
                     e.preventDefault();
                     this.showEventContextMenu(e, info.event);
@@ -1382,12 +1503,7 @@ export class CalendarView {
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
-        // 监听标签页激活事件
-        const handleTabShow = () => {
-            if (this.isCalendarVisible()) {
-                this.debounceResize();
-            }
-        };
+
 
         // 使用 MutationObserver 监听容器的显示状态变化
         const mutationObserver = new MutationObserver((mutations) => {
@@ -1466,6 +1582,19 @@ export class CalendarView {
 
         return isVisible && isDisplayed;
     }
+
+    private getLunarInfo(date: Date) {
+        const solar = Solar.fromYmd(date.getFullYear(), date.getMonth() + 1, date.getDate());
+        const lunar = solar.getLunar();
+        const lunarText = lunar.getDayInChinese();
+        const festival = lunar.getFestivals()[0] || solar.getFestivals()[0] || lunar.getJieQi() || "";
+        const displayLunar = festival ? festival : lunarText;
+        const isFestival = !!festival;
+        const fullLunarDate = lunar.getMonthInChinese() + '月' + lunar.getDayInChinese();
+        return { displayLunar, isFestival, dateNum: date.getDate(), fullLunarDate };
+    }
+
+
 
     private handleEventMouseEnter(event: MouseEvent, calendarEvent: any) {
         // 当鼠标进入事件元素时，安排显示提示框
@@ -1836,7 +1965,7 @@ export class CalendarView {
 
     private async deleteInstanceOnly(calendarEvent: any) {
         // 删除重复事件的单个实例
-        const result = await confirm(
+        await confirm(
             t("deleteThisInstance"),
             t("confirmDeleteInstance"),
             async () => {
@@ -1982,7 +2111,7 @@ export class CalendarView {
             }
 
             // 构造新提醒对象
-            const newReminderId = `quick_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            const newReminderId = `quick_${Date.now()}_${Math.random().toString(36).substr(2, 9)} `;
 
             // 复制字段，排除管理字段和实例特有字段
             const newReminder: any = {
@@ -2071,11 +2200,11 @@ export class CalendarView {
     }
 
     private async deleteEvent(calendarEvent: any) {
-        const reminder = calendarEvent.extendedProps;
+
 
         // 对于重复事件实例，删除的是整个系列
         if (calendarEvent.extendedProps.isRepeated) {
-            const result = await confirm(
+            await confirm(
                 t("deleteAllInstances"),
                 t("confirmDelete", { title: calendarEvent.title }),
                 () => {
@@ -2083,7 +2212,7 @@ export class CalendarView {
                 }
             );
         } else {
-            const result = await confirm(
+            await confirm(
                 t("deleteReminder"),
                 t("confirmDelete", { title: calendarEvent.title }),
                 () => {
@@ -2171,7 +2300,7 @@ export class CalendarView {
             textSpan.style.display = 'inline-block';
             textSpan.style.boxSizing = 'border-box';
             textSpan.style.paddingBottom = '2px';
-            textSpan.style.borderBottom = `2px dashed ${textColor}`;
+            textSpan.style.borderBottom = `2px dashed ${textColor} `;
             textSpan.style.cursor = 'pointer';
             textSpan.title = '已绑定块';
 
@@ -2252,7 +2381,7 @@ export class CalendarView {
                 // 如果有项目，显示项目名（带📂图标）
                 const project = this.projectManager.getProjectById(props.projectId);
                 if (project) {
-                    labelText = `📂 ${project.name}`;
+                    labelText = `📂 ${project.name} `;
                     labelColor = this.projectManager.getProjectColor(props.projectId);
 
                     // 如果有自定义分组，显示"项目/自定义分组"（使用预加载的名称）
@@ -3880,8 +4009,8 @@ export class CalendarView {
                 isTimeRange: true
             },
             {
-                defaultProjectId: this.currentProjectFilter !== 'all' && this.currentProjectFilter !== 'none' ? this.currentProjectFilter : undefined,
-                defaultCategoryId: this.currentCategoryFilter !== 'all' && this.currentCategoryFilter !== 'none' ? this.currentCategoryFilter : undefined,
+                defaultProjectId: !this.currentProjectFilter.has('all') && !this.currentProjectFilter.has('none') && this.currentProjectFilter.size === 1 ? Array.from(this.currentProjectFilter)[0] : undefined,
+                defaultCategoryId: !this.currentCategoryFilter.has('all') && !this.currentCategoryFilter.has('none') && this.currentCategoryFilter.size === 1 ? Array.from(this.currentCategoryFilter)[0] : undefined,
                 plugin: this.plugin // 传入plugin实例
             }
         );
@@ -4104,22 +4233,6 @@ export class CalendarView {
                 }
             }
 
-            // 批量查询获取docId（如果需要）
-            const blockIdToDocId = new Map<string, string>();
-            if (blockIdsToQuery.size > 0) {
-                const promises = Array.from(blockIdsToQuery).map(async (blockId) => {
-                    try {
-                        const blockInfo = await getBlockByID(blockId);
-                        if (blockInfo && blockInfo.root_id && blockInfo.root_id !== blockId) {
-                            blockIdToDocId.set(blockId, blockInfo.root_id);
-                            docIdsToQuery.add(blockInfo.root_id);
-                        }
-                    } catch (err) {
-                        console.warn(`获取块 ${blockId} 的文档ID失败:`, err);
-                    }
-                });
-                await Promise.all(promises);
-            }
 
             // 批量查询文档标题
             const docIdToTitle = new Map<string, string>();
@@ -4144,11 +4257,6 @@ export class CalendarView {
                 const blockId = reminder.blockId || reminder.id;
                 let docId = reminder.docId;
 
-                // 如果没有docId，从映射中获取
-                if (!docId && blockId && blockIdToDocId.has(blockId)) {
-                    docId = blockIdToDocId.get(blockId);
-                    reminder.docId = docId;
-                }
 
                 // 设置文档标题
                 if (docId && docId !== blockId && docIdToTitle.has(docId)) {
@@ -4211,63 +4319,7 @@ export class CalendarView {
         }
     }
 
-    /**
-     * 确保提醒对象包含文档标题（保留用于单个调用场景）
-     */
-    private async ensureDocTitle(reminder: any, docTitleCache: Map<string, string>) {
-        if (reminder.docTitle) {
-            return; // 已经有文档标题
-        }
 
-        try {
-            let docId = reminder.docId;
-            const blockId = reminder.blockId || reminder.id;
-
-            // 如果没有明确的docId，尝试从blockId获取
-            if (!docId && blockId) {
-                // 先检查缓存
-                if (docTitleCache.has(blockId)) {
-                    const cachedTitle = docTitleCache.get(blockId);
-                    reminder.docTitle = cachedTitle;
-                    return;
-                }
-
-                const blockInfo = await getBlockByID(blockId);
-                if (blockInfo && blockInfo.root_id && blockInfo.root_id !== blockId) {
-                    docId = blockInfo.root_id;
-                    reminder.docId = docId; // 同时设置docId
-                }
-            }
-
-            // 只有当docId存在且不等于blockId时才获取文档标题
-            if (docId && docId !== blockId) {
-                // 检查缓存
-                if (docTitleCache.has(docId)) {
-                    reminder.docTitle = docTitleCache.get(docId);
-                    return;
-                }
-
-                const docBlock = await getBlockByID(docId);
-                if (docBlock && docBlock.content) {
-                    const docTitle = docBlock.content.trim();
-                    reminder.docTitle = docTitle;
-                    docTitleCache.set(docId, docTitle);
-
-                    // 同时缓存blockId对应的文档标题
-                    if (blockId && blockId !== docId) {
-                        docTitleCache.set(blockId, docTitle);
-                    }
-                }
-            } else {
-                // 如果docId等于blockId，设置空字符串避免重复尝试
-                reminder.docTitle = '';
-            }
-        } catch (error) {
-            console.warn('获取文档标题失败:', error);
-            // 设置空字符串以避免重复尝试
-            reminder.docTitle = '';
-        }
-    }
 
 
     passesCategoryFilter(reminder: any, projectData: any = {}): boolean {
@@ -5437,7 +5489,7 @@ export class CalendarView {
                     `工作时间 ${Math.floor(currentState.timeElapsed / 60)}:${(currentState.timeElapsed % 60).toString().padStart(2, '0')}` :
                     `休息时间 ${Math.floor(currentState.timeLeft / 60)}:${(currentState.timeLeft % 60).toString().padStart(2, '0')}`;
 
-                confirmMessage += `\n\n\n选择"确定"将继承当前进度继续计时。`;
+                confirmMessage += `\n\n当前状态: ${timeDisplay}\n\n选择"确定"将继承当前进度继续计时。`;
             }
 
             // 显示确认对话框
@@ -5708,44 +5760,6 @@ export class CalendarView {
                 this.yearBtn.classList.add('b3-button--primary');
                 break;
         }
-    }
-
-    /**
-     * 从文本中提取思源块ID
-     * 支持以下格式：
-     * 1. Markdown链接：[标题](siyuan://blocks/blockId)
-     * 2. 块引用：((blockId '标题')) 或 ((blockId "标题"))
-     * 3. 简单块引用：((blockId))
-     */
-    private extractBlockIdFromText(text: string): string | undefined {
-        // 匹配 Markdown 链接格式：[标题](siyuan://blocks/blockId)
-        const markdownLinkMatch = text.match(/\[([^\]]+)\]\(siyuan:\/\/blocks\/([^)]+)\)/);
-        if (markdownLinkMatch) {
-            const blockId = markdownLinkMatch[2];
-            if (blockId && blockId.length >= 20) {
-                return blockId;
-            }
-        }
-
-        // 匹配块引用格式：((blockId '标题')) 或 ((blockId "标题"))
-        const blockRefWithTitleMatch = text.match(/\(\(([^)\s]+)\s+['"]([^'"]+)['"]\)\)/);
-        if (blockRefWithTitleMatch) {
-            const blockId = blockRefWithTitleMatch[1];
-            if (blockId && blockId.length >= 20) {
-                return blockId;
-            }
-        }
-
-        // 匹配简单块引用格式：((blockId))
-        const simpleBlockRefMatch = text.match(/\(\(([^)]+)\)\)/);
-        if (simpleBlockRefMatch) {
-            const blockId = simpleBlockRefMatch[1].trim();
-            if (blockId && blockId.length >= 20) {
-                return blockId;
-            }
-        }
-
-        return undefined;
     }
 
     /**

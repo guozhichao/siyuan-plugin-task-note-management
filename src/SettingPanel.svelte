@@ -156,6 +156,13 @@
                     },
                 },
                 {
+                    key: 'calendarShowLunar',
+                    value: settings.calendarShowLunar, // Default true
+                    type: 'checkbox',
+                    title: t('calendarShowLunar') || '显示农历',
+                    description: t('calendarShowLunarDesc') || '在日历视图中显示农历日期和节日',
+                },
+                {
                     key: 'calendarShowCategoryAndProject',
                     value: settings.calendarShowCategoryAndProject,
                     type: 'checkbox',
