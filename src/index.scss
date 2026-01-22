@@ -1165,7 +1165,7 @@
 // 选择时的临时事件样式（无优先级样式）
 .fc-event-mirror,.fc-highlight {
     border-color: var(--b3-theme-surface-lighter) !important;
-    background-color: rgba(from var(--b3-theme-surface-lighter) r g b / .1) !important;
+    background-color: rgba(from var(--b3-theme-surface-lighter) r g b / .3) !important;
     color: var(--b3-theme-on-background) !important;
     .fc-event-main {
             color: var(--b3-theme-on-background) !important;
