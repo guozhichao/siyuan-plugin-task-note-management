@@ -5835,11 +5835,18 @@ export class ReminderPanel {
             const editDialog = new QuickReminderDialog(
                 undefined,
                 undefined,
-                async () => {
-                    this.loadReminders();
-                    window.dispatchEvent(new CustomEvent('reminderUpdated', {
-                        detail: { skipPanelRefresh: true }
-                    }));
+                async (savedReminder?: any) => {
+                    try {
+                        if (savedReminder && typeof savedReminder === 'object') {
+                            await this.handleOptimisticSavedReminder(savedReminder);
+                        } else {
+                            await this.loadReminders();
+                        }
+                        window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { skipPanelRefresh: true } }));
+                    } catch (e) {
+                        console.error('实例编辑乐观更新失败，回退刷新', e);
+                        this.loadReminders();
+                    }
                 },
                 undefined,
                 {
@@ -5982,8 +5989,17 @@ export class ReminderPanel {
         const editDialog = new QuickReminderDialog(
             undefined,
             undefined,
-            () => {
-                this.loadReminders();
+            async (savedReminder?: any) => {
+                try {
+                    if (savedReminder && typeof savedReminder === 'object') {
+                        await this.handleOptimisticSavedReminder(savedReminder);
+                    } else {
+                        await this.loadReminders();
+                    }
+                } catch (e) {
+                    console.error('时间编辑乐观更新失败，回退刷新', e);
+                    await this.loadReminders();
+                }
             },
             undefined,
             {
@@ -6150,8 +6166,15 @@ export class ReminderPanel {
         const dialog = new QuickReminderDialog(
             undefined, // initialDate
             undefined, // initialTime
-            async () => { // onSaved
-                await this.loadReminders(true);
+            async (savedReminder?: any) => { // onSaved - optimistic update
+                try {
+                    if (savedReminder && typeof savedReminder === 'object') {
+                        await this.handleOptimisticSavedReminder(savedReminder);
+                    }
+                } catch (e) {
+                    console.error('乐观渲染子任务失败，回退到完整刷新', e);
+                    await this.loadReminders(true);
+                }
             },
             undefined, // 无时间段选项
             { // options
@@ -6163,6 +6186,7 @@ export class ReminderPanel {
                 defaultTitle: '', // 子任务标题默认为空
             }
         );
+        // 保留默认回调行为（QuickReminderDialog 内部仍会在后台保存并触发 reminderUpdated）
         dialog.show();
     }
 
@@ -6802,33 +6826,17 @@ export class ReminderPanel {
             const quickDialog = new QuickReminderDialog(
                 today, // 初始日期为今天
                 undefined, // 不指定初始时间
-                async () => {
-                    // 保存回调：局部更新而非刷新整个列表
+                async (savedReminder?: any) => {
+                    // 乐观渲染：快速在面板中插入或更新元素，后台仍由 dialog 持久化并触发 reminderUpdated
                     try {
-                        // 读取最新的提醒数据，找到刚创建的任务
-                        const reminderData = await getAllReminders(this.plugin);
-                        const allReminders = Object.values(reminderData);
-                        // 找到最新创建的任务（按created时间排序）
-                        const sortedReminders = allReminders
-                            .filter((r: any) => r && r.created)
-                            .sort((a: any, b: any) => {
-                                const timeA = new Date(a.created).getTime();
-                                const timeB = new Date(b.created).getTime();
-                                return timeB - timeA;
-                            });
-
-                        if (sortedReminders.length > 0) {
-                            const newReminder = sortedReminders[0];
-                            // 检查新任务是否应该在当前视图显示
-                            if (this.shouldShowInCurrentView(newReminder)) {
-                                // 局部更新DOM：添加新任务
-                                // await this.insertNewReminderDOM(newReminder);
-                                // 改为全局刷新以确保显示正确
-                                this.loadReminders();
-                            }
+                        if (savedReminder && typeof savedReminder === 'object') {
+                            await this.handleOptimisticSavedReminder(savedReminder);
+                        } else {
+                            // 兜底：完整加载
+                            await this.loadReminders();
                         }
                     } catch (error) {
-                        console.error('添加新任务DOM失败，使用全局刷新:', error);
+                        console.error('添加新任务乐观渲染失败，使用全局刷新:', error);
                         this.loadReminders();
                     }
                 },
@@ -6841,6 +6849,55 @@ export class ReminderPanel {
         } catch (error) {
             console.error('显示新建任务对话框失败:', error);
             showMessage("打开新建任务对话框失败");
+        }
+    }
+
+    /**
+     * 乐观渲染 QuickReminderDialog 保存后的提醒（在后台写入的同时立即更新 DOM）
+     */
+    private async handleOptimisticSavedReminder(savedReminder: any) {
+        try {
+            if (!savedReminder || typeof savedReminder !== 'object') return;
+
+            // 补齐 createdTime 字段以便排序显示
+            if (savedReminder.createdAt && !savedReminder.createdTime) {
+                savedReminder.createdTime = savedReminder.createdAt;
+            }
+
+            // 更新内部缓存
+            try {
+                this.allRemindersMap.set(savedReminder.id, savedReminder);
+            } catch (e) {
+                // ignore if map not ready
+            }
+
+            // 预处理异步数据以生成元素
+            const reminderDataFull: any = {};
+            reminderDataFull[savedReminder.id] = savedReminder;
+            const asyncDataCache = await this.preprocessAsyncData([savedReminder], reminderDataFull);
+
+            const today = getLogicalDateString();
+
+            const el = this.createReminderElementOptimized(savedReminder, asyncDataCache, today, 0, [savedReminder]);
+
+            // 将新元素插入到容器顶部（如果已存在，则替换）
+            if (!this.remindersContainer) return;
+
+            const existing = this.remindersContainer.querySelector(`[data-reminder-id="${savedReminder.id}"]`);
+            if (existing) {
+                existing.replaceWith(el);
+            } else {
+                this.remindersContainer.insertBefore(el, this.remindersContainer.firstChild);
+            }
+
+            // 确保空状态被移除
+            const emptyState = this.remindersContainer.querySelector('.empty-state');
+            if (emptyState) emptyState.remove();
+
+        } catch (error) {
+            console.error('handleOptimisticSavedReminder error:', error);
+            // 回退到完整刷新
+            try { await this.loadReminders(true); } catch (e) { /* ignore */ }
         }
     }
 
