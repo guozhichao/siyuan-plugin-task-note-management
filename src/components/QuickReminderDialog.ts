@@ -1,6 +1,6 @@
 import { showMessage, Dialog } from "siyuan";
 import { getBlockByID, getBlockDOM, refreshSql, updateBlockReminderBookmark } from "../api";
-import { compareDateStrings, getLogicalDateString } from "../utils/dateUtils";
+import { compareDateStrings, getLogicalDateString, parseNaturalDateTime, autoDetectDateTimeFromTitle, isValidDate } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
 import { t } from "../utils/i18n";
@@ -11,8 +11,6 @@ import { BlockBindingDialog } from "./BlockBindingDialog";
 import { SubtasksDialog } from "./SubtasksDialog";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
 import { PomodoroSessionsDialog } from "./PomodoroSessionsDialog";
-import * as chrono from 'chrono-node';
-import { parseLunarDateText, getCurrentYearLunarToSolar, solarToLunar } from "../utils/lunarUtils";
 
 export class QuickReminderDialog {
     private dialog: Dialog;
@@ -28,7 +26,6 @@ export class QuickReminderDialog {
     private categoryManager: CategoryManager;
     private projectManager: ProjectManager;
     private pomodoroRecordManager: PomodoroRecordManager;
-    private chronoParser: any; // chrono解析器实例
     private autoDetectDateTime?: boolean; // 是否自动识别日期时间（undefined 表示未指定，使用插件设置）
     private defaultProjectId?: string;
     private showKanbanStatus?: 'todo' | 'term' | 'none' = 'term'; // 看板状态显示模式，默认为 'term'
@@ -143,10 +140,6 @@ export class QuickReminderDialog {
             interval: 1,
             endType: 'never'
         };
-
-        // 初始化chrono解析器，配置中文支持
-        this.chronoParser = chrono.zh.casual.clone();
-        this.setupChronoParser();
 
         // 创建事件处理器
         this.reminderUpdatedHandler = () => {
@@ -726,224 +719,6 @@ export class QuickReminderDialog {
         }
     }
 
-    // 设置chrono解析器
-    private setupChronoParser() {
-        // 配置chrono选项
-        this.chronoParser.option = {
-            ...this.chronoParser.option,
-            forwardDate: false // 优先解析未来日期
-        };
-
-        // 添加自定义解析器来处理紧凑日期格式和其他特殊格式
-        this.chronoParser.refiners.push({
-            refine: (context, results) => {
-                results.forEach(result => {
-                    const text = result.text;
-
-                    // 处理YYYYMMDD格式
-                    const compactMatch = text.match(/^(\d{8})$/);
-                    if (compactMatch) {
-                        const dateStr = compactMatch[1];
-                        const year = parseInt(dateStr.substring(0, 4));
-                        const month = parseInt(dateStr.substring(4, 6));
-                        const day = parseInt(dateStr.substring(6, 8));
-
-                        // 验证日期有效性
-                        if (this.isValidDate(year, month, day)) {
-                            result.start.assign('year', year);
-                            result.start.assign('month', month);
-                            result.start.assign('day', day);
-                        }
-                    }
-
-                    // 处理其他数字格式
-                    const dashMatch = text.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
-                    if (dashMatch) {
-                        const year = parseInt(dashMatch[1]);
-                        const month = parseInt(dashMatch[2]);
-                        const day = parseInt(dashMatch[3]);
-
-                        if (this.isValidDate(year, month, day)) {
-                            result.start.assign('year', year);
-                            result.start.assign('month', month);
-                            result.start.assign('day', day);
-                        }
-                    }
-                });
-
-                return results;
-            }
-        });
-    }
-
-    // 添加日期有效性验证方法
-    private isValidDate(year: number, month: number, day: number): boolean {
-        // 基本范围检查
-        if (year < 1900 || year > 2100) return false;
-        if (month < 1 || month > 12) return false;
-        if (day < 1 || day > 31) return false;
-
-        // 创建Date对象进行更精确的验证
-        const date = new Date(year, month - 1, day);
-        return date.getFullYear() === year &&
-            date.getMonth() === month - 1 &&
-            date.getDate() === day;
-    }
-
-    // 解析自然语言日期时间
-    private parseNaturalDateTime(text: string): { date?: string; time?: string; hasTime?: boolean } {
-        try {
-            // 预处理文本，处理一些特殊格式
-            let processedText = text.trim();
-
-            // 处理包含8位数字日期的情况
-            const compactDateInTextMatch = processedText.match(/(?:^|.*?)(\d{8})(?:\s|$|.*)/);
-            if (compactDateInTextMatch) {
-                const dateStr = compactDateInTextMatch[1];
-                const year = dateStr.substring(0, 4);
-                const month = dateStr.substring(4, 6);
-                const day = dateStr.substring(6, 8);
-
-                // 验证日期有效性
-                if (this.isValidDate(parseInt(year), parseInt(month), parseInt(day))) {
-                    // 检查是否还有时间信息
-                    const textWithoutDate = processedText.replace(dateStr, '').trim();
-                    let timeResult = null;
-
-                    if (textWithoutDate) {
-                        // 尝试从剩余文本中解析时间
-                        const timeMatch = textWithoutDate.match(/(\d{1,2})[点时:](\d{1,2})?[分]?/);
-                        if (timeMatch) {
-                            const hour = parseInt(timeMatch[1]);
-                            const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-
-                            if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-                                const hourStr = hour.toString().padStart(2, '0');
-                                const minuteStr = minute.toString().padStart(2, '0');
-                                timeResult = `${hourStr}:${minuteStr}`;
-                            }
-                        }
-                    }
-
-                    return {
-                        date: `${year}-${month}-${day}`,
-                        time: timeResult || undefined,
-                        hasTime: !!timeResult
-                    };
-                }
-            }
-
-            // 处理YYYY-MM-DD或YYYY/MM/DD格式
-            const standardDateMatch = processedText.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
-            if (standardDateMatch) {
-                const year = parseInt(standardDateMatch[1]);
-                const month = parseInt(standardDateMatch[2]);
-                const day = parseInt(standardDateMatch[3]);
-
-                if (this.isValidDate(year, month, day)) {
-                    const monthStr = month.toString().padStart(2, '0');
-                    const dayStr = day.toString().padStart(2, '0');
-                    return {
-                        date: `${year}-${monthStr}-${dayStr}`,
-                        hasTime: false
-                    };
-                }
-            }
-
-            // 处理农历日期格式（例如：八月廿一、正月初一、农历七月十三）
-            // 如果文本包含“农历”关键字，则强制以农历解析（例如“农历7月13”、“农历七月二十”等）
-            if (/农历/.test(text) || /农历/.test(processedText)) {
-                const lunarDate = parseLunarDateText(processedText);
-                if (lunarDate) {
-                    // 如果只识别到日期（month === 0），使用当前月作为默认月
-                    if (lunarDate.month === 0) {
-                        try {
-                            const cur = solarToLunar(getLogicalDateString());
-                            lunarDate.month = cur.month;
-                        } catch (e) {
-                            // ignore and fall back
-                        }
-                    }
-
-                    if (lunarDate.month > 0) {
-                        const solarDate = getCurrentYearLunarToSolar(lunarDate.month, lunarDate.day);
-                        if (solarDate) {
-                            return {
-                                date: solarDate,
-                                hasTime: false
-                            };
-                        }
-                    }
-                }
-            }
-
-            // 使用chrono解析其他格式
-            const results = this.chronoParser.parse(processedText, new Date(), { forwardDate: false });
-
-            if (results.length === 0) {
-                return {};
-            }
-
-            const result = results[0];
-            const parsedDate = result.start.date();
-
-            // 格式化日期
-            const date = parsedDate.toISOString().split('T')[0];
-
-            // 检查是否包含时间信息
-            const hasTime = result.start.isCertain('hour') && result.start.isCertain('minute');
-            let time = undefined;
-
-            if (hasTime) {
-                const hours = parsedDate.getHours().toString().padStart(2, '0');
-                const minutes = parsedDate.getMinutes().toString().padStart(2, '0');
-                time = `${hours}:${minutes}`;
-            }
-
-            return { date, time, hasTime };
-        } catch (error) {
-            console.error('解析自然语言日期时间失败:', error);
-            return {};
-        }
-    }
-
-    // 从标题自动识别日期时间
-    private autoDetectDateTimeFromTitle(title: string): { date?: string; time?: string; hasTime?: boolean; cleanTitle?: string } {
-        const parseResult = this.parseNaturalDateTime(title);
-
-        if (!parseResult.date) {
-            return { cleanTitle: title };
-        }
-
-        // 尝试从标题中移除已识别的时间表达式
-        let cleanTitle = title;
-        const timeExpressions = [
-            /今天|今日/gi,
-            /明天|明日/gi,
-            /后天/gi,
-            /大后天/gi,
-            /下?周[一二三四五六日天]/gi,
-            /下?星期[一二三四五六日天]/gi,
-            /\d{1,2}月\d{1,2}[日号]/gi,
-            /\d{1,2}[点时]\d{0,2}[分]?/gi,
-            /\d+天[后以]后/gi,
-            /\d+小时[后以]后/gi,
-            /\d{8}/gi, // 8位数字日期
-        ];
-
-        timeExpressions.forEach(pattern => {
-            cleanTitle = cleanTitle.replace(pattern, '').trim();
-        });
-
-        // 清理多余的空格和标点
-        cleanTitle = cleanTitle.replace(/\s+/g, ' ').replace(/^[，。、\s]+|[，。、\s]+$/g, '');
-
-        return {
-            ...parseResult,
-            cleanTitle: cleanTitle || title // 如果清理后为空，则保持原标题
-        };
-    }
-
     // 显示自然语言输入对话框
     private showNaturalLanguageDialog() {
         // 获取标题输入框的内容作为默认值
@@ -980,7 +755,7 @@ export class QuickReminderDialog {
         const nlCancelBtn = nlDialog.element.querySelector('#quickNlCancelBtn') as HTMLButtonElement;
         const nlConfirmBtn = nlDialog.element.querySelector('#quickNlConfirmBtn') as HTMLButtonElement;
 
-        let currentParseResult: { date?: string; time?: string; hasTime?: boolean } = {};
+        let currentParseResult: any = {};
 
         // 实时解析输入
         const updatePreview = () => {
@@ -992,19 +767,18 @@ export class QuickReminderDialog {
                 return;
             }
 
-            currentParseResult = this.parseNaturalDateTime(text);
+            currentParseResult = parseNaturalDateTime(text);
 
-            if (currentParseResult.date) {
-                const dateStr = new Date(currentParseResult.date + 'T00:00:00').toLocaleDateString('zh-CN', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    weekday: 'long'
-                });
+            if (currentParseResult.date || currentParseResult.endDate) {
+                let previewText = `📅 ${currentParseResult.date || currentParseResult.endDate || ''}`;
+                if (currentParseResult.time || currentParseResult.endTime) {
+                    previewText += ` ⏰ ${currentParseResult.time || currentParseResult.endTime || ''}`;
+                }
 
-                let previewText = `📅 ${dateStr}`;
-                if (currentParseResult.time) {
-                    previewText += ` ⏰ ${currentParseResult.time}`;
+                if (currentParseResult.date && currentParseResult.endDate) {
+                    previewText = `📅 ${currentParseResult.date}${currentParseResult.time ? ' ' + currentParseResult.time : ''} ➡️ ${currentParseResult.endDate}${currentParseResult.endTime ? ' ' + currentParseResult.endTime : ''}`;
+                } else if (currentParseResult.endDate && !currentParseResult.date) {
+                    previewText = `🏁 截止：${currentParseResult.endDate}${currentParseResult.endTime ? ' ' + currentParseResult.endTime : ''}`;
                 }
 
                 nlPreview.textContent = previewText;
@@ -1046,31 +820,45 @@ export class QuickReminderDialog {
     }
 
     // 应用自然语言识别结果
-    private applyNaturalLanguageResult(result: { date?: string; time?: string; hasTime?: boolean }) {
-        if (!result.date) return;
+    private applyNaturalLanguageResult(result: {
+        date?: string;
+        time?: string;
+        hasTime?: boolean;
+        endDate?: string;
+        endTime?: string;
+        hasEndTime?: boolean;
+    }) {
+        if (!result.date && !result.endDate) return;
 
         const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
+        const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
         const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
 
         // 设置日期和时间
-        if (result.hasTime && result.time) {
-            // 有时间信息：先设置复选框状态，再切换输入框类型，最后设置值
-            noTimeCheckbox.checked = false;
-            this.toggleDateTimeInputs(false);
-            // 确保在切换类型后设置正确格式的值
-            dateInput.value = `${result.date}T${result.time}`;
-        } else {
-            // 只有日期信息：先设置复选框状态，再切换输入框类型，最后设置值
-            noTimeCheckbox.checked = true;
-            this.toggleDateTimeInputs(true);
-            // 确保在切换类型后设置正确格式的值
-            dateInput.value = result.date;
+        const hasAnyTime = result.hasTime || result.hasEndTime;
+        noTimeCheckbox.checked = !hasAnyTime;
+        this.toggleDateTimeInputs(!hasAnyTime);
+
+        if (result.date) {
+            dateInput.value = hasAnyTime && result.time ? `${result.date}T${result.time}` : result.date;
+        } else if (result.endDate) {
+            // 如果只有结束日期，通常是“截止”形式，将其作为起始日期以触发提醒
+            dateInput.value = hasAnyTime && result.endTime ? `${result.endDate}T${result.endTime}` : result.endDate;
+        }
+
+        if (result.endDate) {
+            endDateInput.value = hasAnyTime && result.endTime ? `${result.endDate}T${result.endTime}` : result.endDate;
         }
 
         // 触发日期变化事件以更新结束日期限制
         dateInput.dispatchEvent(new Event('change'));
 
-        showMessage(`✨ 已识别并设置：${new Date(result.date + 'T00:00:00').toLocaleDateString('zh-CN')}${result.time ? ` ${result.time}` : ''}`);
+        let msg = '✨ 已识别设置';
+        if (result.date) msg += `：${result.date}${result.time ? ' ' + result.time : ''}`;
+        if (result.endDate && result.endDate !== result.date) msg += ` 至 ${result.endDate}${result.endTime ? ' ' + result.endTime : ''}`;
+        if (result.endDate && !result.date) msg += ` 截止于 ${result.endDate}${result.endTime ? ' ' + result.endTime : ''}`;
+
+        showMessage(msg);
     }
 
     public async show() {
@@ -1397,7 +1185,7 @@ export class QuickReminderDialog {
                 // 如果启用了自动识别，从标题中提取日期/时间并填充到输入框
                 if (this.autoDetectDateTime) {
                     try {
-                        const detected = this.autoDetectDateTimeFromTitle(this.blockContent);
+                        const detected = autoDetectDateTimeFromTitle(this.blockContent);
                         if (detected && detected.date) {
                             const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
                             const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
@@ -1980,33 +1768,22 @@ export class QuickReminderDialog {
                         noteInput.value = existingNote ? existingNote + '\n' + newNote : newNote;
                     }
                 }
-            }
 
-            // 如果启用了自动识别，检测日期时间
-            if (this.autoDetectDateTime) {
-                // 使用粘贴的所有非空行进行识别，以便第二行或后续行中的自然语言也能被识别
-                const joined = lines.join(' ');
-                const detected = this.autoDetectDateTimeFromTitle(joined);
-                if (detected && detected.date) {
-                    const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
-                    const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
+                // 如果启用了自动识别，检测日期时间
+                if (this.autoDetectDateTime) {
+                    // 使用粘贴的所有非空行进行识别，以便第二行或后续行中的自然语言也能被识别
+                    const joined = lines.join(' ');
+                    const detected = autoDetectDateTimeFromTitle(joined);
+                    if (detected && (detected.date || detected.endDate)) {
+                        this.applyNaturalLanguageResult(detected);
 
-                    if (detected.hasTime && detected.time) {
-                        this.toggleDateTimeInputs(false);
-                        if (dateInput) {
-                            dateInput.value = `${detected.date}T${detected.time}`;
+                        // 如果识别出了内容，尝试清理标题输入框，仅保留任务描述部分
+                        if (detected.cleanTitle !== undefined && detected.cleanTitle !== joined) {
+                            // 重新计算 titleInput 的值，将粘贴的那部分替换为清理后的文本
+                            titleInput.value = before + detected.cleanTitle + after;
+                            titleInput.selectionStart = titleInput.selectionEnd = start + detected.cleanTitle.length;
                         }
-                        if (noTimeCheckbox) noTimeCheckbox.checked = false;
-                    } else {
-                        this.toggleDateTimeInputs(true);
-                        if (dateInput) {
-                            dateInput.value = detected.date;
-                        }
-                        if (noTimeCheckbox) noTimeCheckbox.checked = true;
                     }
-
-                    // 显示识别消息（始终推送，当启用自动识别时即使已有时间也会覆盖/提示）
-                    showMessage(`✨ 已识别并设置：${new Date(detected.date + 'T00:00:00').toLocaleDateString('zh-CN')}${detected.time ? ` ${detected.time}` : ''}`);
                 }
             }
         });
@@ -2564,7 +2341,7 @@ export class QuickReminderDialog {
         const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
         const currentTitle = titleInput?.value?.trim() || '';
 
-        const blockBindingDialog = new BlockBindingDialog(this.plugin,async (blockId: string) => {
+        const blockBindingDialog = new BlockBindingDialog(this.plugin, async (blockId: string) => {
             const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
             if (blockInput) {
                 blockInput.value = blockId;

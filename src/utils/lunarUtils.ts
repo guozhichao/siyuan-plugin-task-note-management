@@ -111,13 +111,22 @@ export function getNextLunarYearlyDate(currentDate: string, lunarMonth: number, 
 }
 
 /**
- * 解析农历日期文本，例如 "八月廿一"、"正月初一"、"农历七月十三"
+ * 解析农历日期文本，例如 "八月廿一"、"正月初一"、"农历七月十三"、"2000年 农历 七月初三"
  * @param text 农历日期文本
- * @returns {month: number, day: number} 或 null
+ * @returns {month: number, day: number, year?: number} 或 null
  */
-export function parseLunarDateText(text: string): { month: number; day: number } | null {
+export function parseLunarDateText(text: string): { month: number; day: number; year?: number } | null {
     // 预处理：移除出现的所有"农历"关键字（不局限于开头），并去除多余空白
     let processedText = text.replace(/农历/g, '').trim();
+
+    let year: number | undefined = undefined;
+
+    // 尝试匹配年份 (例如: "2000年", "2000")
+    const yearMatch = processedText.match(/^(\d{4})[年\s]*/);
+    if (yearMatch) {
+        year = parseInt(yearMatch[1], 10);
+        processedText = processedText.substring(yearMatch[0].length).trim();
+    }
 
     // 农历月份映射
     const lunarMonthMap: { [key: string]: number } = {
@@ -159,7 +168,7 @@ export function parseLunarDateText(text: string): { month: number; day: number }
         }
 
         if (!isNaN(month) && !isNaN(day)) {
-            return { month, day };
+            return { month, day, year };
         }
     }
 
@@ -183,14 +192,14 @@ export function parseLunarDateText(text: string): { month: number; day: number }
         }
 
         if (month && day) {
-            return { month, day };
+            return { month, day, year };
         }
     }
 
     // 只匹配日期 "廿一"、"初一" 等（没有提到月份的情况）
     const day = lunarDayMap[processedText];
     if (day) {
-        return { month: 0, day }; // month 为 0 表示只有日期
+        return { month: 0, day, year }; // month 为 0 表示只有日期
     }
 
     // 也尝试纯数字日期（如："13日"、"13号"、"13"）但不指定月份
@@ -198,7 +207,7 @@ export function parseLunarDateText(text: string): { month: number; day: number }
     if (numericDayMatch) {
         const dayNum = parseInt(numericDayMatch[1], 10);
         if (!isNaN(dayNum) && dayNum >= 1 && dayNum <= 30) {
-            return { month: 0, day: dayNum };
+            return { month: 0, day: dayNum, year };
         }
     }
 
