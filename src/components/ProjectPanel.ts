@@ -4,6 +4,7 @@ import { TaskStatsView } from "./TaskStatsView";
 
 // 添加四象限面板常量
 import { readProjectData, writeProjectData, getBlockByID, openBlock } from "../api";
+import { ProjectManager } from "../utils/projectManager";
 import { compareDateStrings, getLogicalDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { StatusManager } from "../utils/statusManager";
@@ -1545,6 +1546,13 @@ export class ProjectPanel {
             click: () => this.editProject(project)
         });
 
+        // 合并到其他项目
+        menu.addItem({
+            iconHTML: "🔀",
+            label: t("mergeProject") || "合并到其他项目",
+            click: () => this.showMergeDialog(project)
+        });
+
         // 设置优先级子菜单
         const createPriorityMenuItems = () => {
             const priorities = [
@@ -1660,6 +1668,241 @@ export class ProjectPanel {
     private editProject(project: any) {
         const dialog = new ProjectDialog(project.id, this.plugin);
         dialog.show();
+    }
+
+    /**
+     * 显示合并对话框：选择目标项目与分组（已有或新建），并可选择删除源项目
+     */
+    private async showMergeDialog(project: any) {
+        try {
+            const projectManager = ProjectManager.getInstance(this.plugin);
+            await projectManager.initialize();
+
+            let html = `
+                <div class="merge-project-dialog">
+                    <div class="b3-dialog__content" style="display:flex; flex-direction:column; gap:8px;">
+                        <label>目标项目</label>
+                        <select id="mergeTargetSelect" style="width:100%; padding:6px;"></select>
+
+                        <label>目标分组（可选，选择“新建分组”可输入新名称）</label>
+                        <select id="mergeGroupSelect" style="width:100%; padding:6px;"></select>
+                        <input id="mergeNewGroupInput" type="text" placeholder="新分组名称" style="display:none; padding:6px;" />
+
+                        <label style="display:flex; align-items:center; gap:8px;"><input id="mergeDeleteSource" type="checkbox" /> ${t("deleteSourceProjectAfterMerge") || '合并后删除源项目'}</label>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="mergeCancel">${t("cancel") || '取消'}</button>
+                        <button class="b3-button b3-button--primary" id="mergeConfirm">${t("confirm") || '确认'}</button>
+                    </div>
+                </div>
+            `;
+
+            const dialog = new Dialog({
+                title: t("mergeProject") || `合并项目: ${project.title}`,
+                content: html,
+                width: "520px",
+                height: "320px"
+            });
+
+            const targetSelect = dialog.element.querySelector('#mergeTargetSelect') as HTMLSelectElement;
+            const groupSelect = dialog.element.querySelector('#mergeGroupSelect') as HTMLSelectElement;
+            const newGroupInput = dialog.element.querySelector('#mergeNewGroupInput') as HTMLInputElement;
+            const cancelBtn = dialog.element.querySelector('#mergeCancel') as HTMLButtonElement;
+            const confirmBtn = dialog.element.querySelector('#mergeConfirm') as HTMLButtonElement;
+            const deleteCheckbox = dialog.element.querySelector('#mergeDeleteSource') as HTMLInputElement;
+
+            // 填充目标项目（使用 ProjectManager 的分组样式，完全照搬 QuickReminderDialog 的实现）
+            try {
+                const groupedProjects = projectManager.getProjectsGroupedByStatus();
+
+                // 添加空选项（与 QuickReminderDialog 一致）
+                const noProjectOption = document.createElement('option');
+                noProjectOption.value = '';
+                noProjectOption.textContent = t('noProject') || '无项目';
+                targetSelect.appendChild(noProjectOption);
+
+                Object.keys(groupedProjects).forEach(async statusKey => {
+                    const projects = groupedProjects[statusKey] || [];
+                    let nonArchivedProjects = projects.filter(p => {
+                        const projectStatus = projectManager.getProjectById(p.id)?.status || 'doing';
+                        return projectStatus !== 'archived';
+                    });
+
+                    if (nonArchivedProjects.length > 0) {
+                        // 按手动排序值（若存在）再按名称排序，保持展示顺序稳定
+                        try {
+                            const projectData = await readProjectData();
+                            nonArchivedProjects.sort((a: any, b: any) => {
+                                const sa = (projectData[a.id] && typeof projectData[a.id].sort === 'number') ? projectData[a.id].sort : 0;
+                                const sb = (projectData[b.id] && typeof projectData[b.id].sort === 'number') ? projectData[b.id].sort : 0;
+                                if (sa !== sb) return sa - sb;
+                                return (a.name || '').localeCompare(b.name || '', 'zh-CN');
+                            });
+                        } catch (e) {
+                            // fallback to name sort
+                            nonArchivedProjects.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '', 'zh-CN'));
+                        }
+
+                        const statusInfo = this.statusManager.getStatusById(statusKey);
+                        const statusName = statusInfo ? statusInfo.name : statusKey;
+                        const optgroup = document.createElement('optgroup');
+                        optgroup.label = statusName;
+
+                        nonArchivedProjects.forEach(p => {
+                            const option = document.createElement('option');
+                            option.value = p.id;
+                            option.textContent = p.name || (t('unnamedNote') || '未命名项目');
+                            optgroup.appendChild(option);
+                        });
+
+                        targetSelect.appendChild(optgroup);
+                    }
+                });
+
+            } catch (err) {
+                console.error('填充目标项目失败:', err);
+            }
+
+            const populateGroupOptions = async (targetId: string) => {
+                groupSelect.innerHTML = '';
+                const keepOpt = document.createElement('option');
+                keepOpt.value = '';
+                keepOpt.textContent = t("keepGroup") || '保持原分组';
+                groupSelect.appendChild(keepOpt);
+
+                const newOpt = document.createElement('option');
+                newOpt.value = '__new__';
+                newOpt.textContent = t("createNewGroup") || '新建分组...';
+                groupSelect.appendChild(newOpt);
+
+                if (targetId) {
+                    try {
+                        const groups = await projectManager.getProjectCustomGroups(targetId);
+                        groups.forEach((g: any) => {
+                            const o = document.createElement('option');
+                            o.value = g.id || g.name;
+                            o.textContent = g.name || g.id;
+                            groupSelect.appendChild(o);
+                        });
+                    } catch (e) {
+                        console.error('加载目标自定义分组失败:', e);
+                    }
+                }
+            };
+
+            // 初始填充
+            if (targetSelect.options.length > 0) {
+                // 如果第一个实际项目存在，则初始化 groups
+                const firstProjectVal = (targetSelect.querySelector('option[value]:not([value=""])') as HTMLOptionElement)?.value;
+                if (firstProjectVal) await populateGroupOptions(firstProjectVal);
+            }
+
+            targetSelect.addEventListener('change', async () => {
+                await populateGroupOptions(targetSelect.value);
+            });
+
+            groupSelect.addEventListener('change', () => {
+                if (groupSelect.value === '__new__') {
+                    newGroupInput.style.display = '';
+                } else {
+                    newGroupInput.style.display = 'none';
+                }
+            });
+
+            cancelBtn.addEventListener('click', () => dialog.destroy());
+
+            confirmBtn.addEventListener('click', async () => {
+                const targetId = targetSelect.value;
+                if (!targetId) {
+                    showMessage(t("selectTargetProject") || '请选择目标项目');
+                    return;
+                }
+
+                let groupId: string | null = null;
+                let newGroupName: string | null = null;
+                if (groupSelect.value === '__new__') {
+                    const name = (newGroupInput.value || '').trim();
+                    if (!name) {
+                        showMessage(t("enterNewGroupName") || '请输入新分组名称');
+                        return;
+                    }
+                    newGroupName = name;
+                } else if (groupSelect.value) {
+                    groupId = groupSelect.value;
+                }
+
+                const deleteSource = !!deleteCheckbox.checked;
+
+                dialog.destroy();
+
+                await this.mergeProject(project.id, targetId, { groupId, newGroupName, deleteSource });
+            });
+
+        } catch (error) {
+            console.error('显示合并对话框失败:', error);
+            showMessage(t("showMergeDialogFailed") || '显示合并对话框失败');
+        }
+    }
+
+    /**
+     * 合并项目实现：将 source 项目的所有提醒移动到 target，并可在 target 新建分组或选择已有分组；可删除源项目
+     */
+    private async mergeProject(sourceId: string, targetId: string, opts: { groupId?: string | null; newGroupName?: string | null; deleteSource?: boolean }) {
+        try {
+            const projectData = await readProjectData();
+            if (!projectData[sourceId] || !projectData[targetId]) {
+                showMessage(t("projectNotFound") || '项目未找到');
+                return;
+            }
+
+            // 如果需要新建分组，在目标项目中创建并返回新 id
+            let appliedGroupId: string | null = opts.groupId || null;
+            if (opts.newGroupName) {
+                const newId = `cg_${Date.now()}`;
+                const target = projectData[targetId];
+                if (!target.customGroups) target.customGroups = [];
+                target.customGroups.push({ id: newId, name: opts.newGroupName });
+                appliedGroupId = newId;
+            }
+
+            // 读取提醒数据并更新
+            const reminderData = await this.plugin.loadData('reminder.json') || {};
+            let movedCount = 0;
+            Object.values(reminderData).forEach((r: any) => {
+                if (r && r.projectId === sourceId) {
+                    r.projectId = targetId;
+                    if (appliedGroupId) {
+                        r.customGroupId = appliedGroupId;
+                    } else {
+                        // 如果选择保持原分组，则不改 customGroupId
+                    }
+                    movedCount++;
+                }
+            });
+
+            // 保存提醒与项目数据
+            await this.plugin.saveData('reminder.json', reminderData);
+            await writeProjectData(projectData);
+
+            // 可选删除源项目
+            if (opts.deleteSource) {
+                if (projectData[sourceId]) {
+                    delete projectData[sourceId];
+                    await writeProjectData(projectData);
+                }
+            }
+
+            // 触发更新
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            window.dispatchEvent(new CustomEvent('projectUpdated'));
+
+            showMessage((t("mergeSuccess") || '合并成功') + ` (${movedCount})`);
+            this.loadProjects();
+
+        } catch (error) {
+            console.error('合并项目失败:', error);
+            showMessage(t("mergeFailed") || '合并失败');
+        }
     }
 
     private async setPriority(projectId: string, priority: string) {
@@ -1804,7 +2047,6 @@ export class ProjectPanel {
 
                 if (deletedCount > 0) {
                     await this.plugin.saveData('reminder.json', reminderData);
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
                     showMessage(t("projectAndTasksDeleted")?.replace("${count}", deletedCount.toString()) || `项目及 ${deletedCount} 个任务已删除`);
                 } else {
                     showMessage(t("projectDeleted") || "项目删除成功");
@@ -1813,7 +2055,7 @@ export class ProjectPanel {
                 showMessage(t("projectDeleted") || "项目删除成功");
             }
 
-            window.dispatchEvent(new CustomEvent('projectUpdated'));
+            // 重新加载项目列表
             this.loadProjects();
         } catch (error) {
             console.error('删除项目失败:', error);
