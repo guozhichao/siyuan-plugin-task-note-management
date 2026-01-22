@@ -1611,6 +1611,38 @@ export class ReminderPanel {
     }
 
     /**
+     * 获取按深度优先（DFS）遍历的可见任务 ID 序列
+     * 逻辑与 renderRemindersIteratively 保持一致，用于确定乐观插入时的 DOM 位置
+     */
+    private getVisualOrderIds(reminders: any[]): string[] {
+        if (!reminders || reminders.length === 0) return [];
+
+        // 顶级任务：没有父任务，或者父任务不在当前显示列表中
+        const topLevelReminders = reminders.filter(r => !r.parentId || !reminders.some(p => p.id === r.parentId));
+
+        const order: string[] = [];
+        // 模拟 renderRemindersIteratively 的 DFS 渲染逻辑
+        const renderQueue: any[] = [...topLevelReminders];
+
+        while (renderQueue.length > 0) {
+            const reminder = renderQueue.shift();
+            order.push(reminder.id);
+
+            const children = reminders.filter(r => r.parentId === reminder.id);
+            const hasChildren = children.length > 0;
+
+            // 如果未折叠，则处理其子任务的遍历
+            if (hasChildren && !this.isTaskCollapsed(reminder.id, hasChildren)) {
+                // 按 sorted 顺序逆序插入队列前端，保证 shift 出的是 DFS 正序
+                for (let i = children.length - 1; i >= 0; i--) {
+                    renderQueue.unshift(children[i]);
+                }
+            }
+        }
+        return order;
+    }
+
+    /**
      * 创建优化的提醒元素，使用预处理的异步数据缓存
      * @param reminder 提醒对象
      * @param asyncDataCache 预处理的异步数据缓存
@@ -6859,44 +6891,122 @@ export class ReminderPanel {
         try {
             if (!savedReminder || typeof savedReminder !== 'object') return;
 
-            // 补齐 createdTime 字段以便排序显示
+            // 1. 补齐 createdTime 字段以便排序显示
             if (savedReminder.createdAt && !savedReminder.createdTime) {
                 savedReminder.createdTime = savedReminder.createdAt;
             }
 
-            // 更新内部缓存
-            try {
-                this.allRemindersMap.set(savedReminder.id, savedReminder);
-            } catch (e) {
-                // ignore if map not ready
+            // 2. 更新内部缓存
+            this.allRemindersMap.set(savedReminder.id, savedReminder);
+            const existingCacheIdx = this.currentRemindersCache.findIndex(r => r.id === savedReminder.id);
+            if (existingCacheIdx >= 0) {
+                this.currentRemindersCache[existingCacheIdx] = savedReminder;
+            } else {
+                this.currentRemindersCache.push(savedReminder);
             }
 
-            // 预处理异步数据以生成元素
+            // 3. 应用当前排序规则到缓存，确定 sibling 间的相对顺序
+            this.sortReminders(this.currentRemindersCache);
+
+            // 4. 如果任务不满足当前视图筛选条件，且 DOM 中已存在则移除，然后退出
+            if (!this.shouldShowInCurrentView(savedReminder)) {
+                const existing = this.remindersContainer.querySelector(`[data-reminder-id="${savedReminder.id}"]`);
+                if (existing) existing.remove();
+                return;
+            }
+
+            // 5. 如果是新建子任务，确保其父任务在视觉上展开，以便子任务可见
+            if (savedReminder.parentId) {
+                if (!this.userExpandedTasks.has(savedReminder.parentId)) {
+                    this.userExpandedTasks.add(savedReminder.parentId);
+                    this.collapsedTasks.delete(savedReminder.parentId);
+                }
+            }
+
+            // 6. 计算任务层级深度 (level)
+            let level = 0;
+            let temp = savedReminder;
+            while (temp && temp.parentId && this.allRemindersMap.has(temp.parentId)) {
+                level++;
+                temp = this.allRemindersMap.get(temp.parentId);
+            }
+
+            // 7. 预处理异步数据以生成元素（尽可能提供周边语境以准确计算子任务数等）
             const reminderDataFull: any = {};
-            reminderDataFull[savedReminder.id] = savedReminder;
+            this.currentRemindersCache.forEach(r => reminderDataFull[r.id] = r);
             const asyncDataCache = await this.preprocessAsyncData([savedReminder], reminderDataFull);
 
             const today = getLogicalDateString();
+            const el = this.createReminderElementOptimized(savedReminder, asyncDataCache, today, level, this.currentRemindersCache);
 
-            const el = this.createReminderElementOptimized(savedReminder, asyncDataCache, today, 0, [savedReminder]);
+            // 8. 查找视觉上的插入位置 (DFS 顺序)
+            const visualOrderIds = this.getVisualOrderIds(this.currentRemindersCache);
+            const myIndex = visualOrderIds.indexOf(savedReminder.id);
 
-            // 将新元素插入到容器顶部（如果已存在，则替换）
-            if (!this.remindersContainer) return;
-
-            const existing = this.remindersContainer.querySelector(`[data-reminder-id="${savedReminder.id}"]`);
-            if (existing) {
-                existing.replaceWith(el);
-            } else {
-                this.remindersContainer.insertBefore(el, this.remindersContainer.firstChild);
+            // 如果该任务由于某些原因（如祖先被折叠）不应出现在当前视觉列表中，则移除/不渲染
+            if (myIndex === -1) {
+                const existing = this.remindersContainer.querySelector(`[data-reminder-id="${savedReminder.id}"]`);
+                if (existing) existing.remove();
+                return;
             }
 
-            // 确保空状态被移除
-            const emptyState = this.remindersContainer.querySelector('.empty-state');
+            // 查找在我之后的第一个已渲染在 DOM 中的元素作为 nextEl
+            let nextEl: HTMLElement | null = null;
+            for (let i = myIndex + 1; i < visualOrderIds.length; i++) {
+                const targetId = visualOrderIds[i];
+                if (targetId === savedReminder.id) continue;
+                const targetEl = this.remindersContainer.querySelector(`[data-reminder-id="${targetId}"]`);
+                if (targetEl && targetEl !== el) {
+                    nextEl = targetEl as HTMLElement;
+                    break;
+                }
+            }
+
+            // 9. 执行 DOM 插入或位置校正
+            const existing = this.remindersContainer.querySelector(`[data-reminder-id="${savedReminder.id}"]`);
+            if (existing) {
+                // 如果当前位置不正确 (nextElementSibling 与预期的 nextEl 不符)，则重新插入
+                if (existing.nextElementSibling !== nextEl) {
+                    existing.remove();
+                    if (nextEl) {
+                        this.remindersContainer.insertBefore(el, nextEl);
+                    } else {
+                        this.remindersContainer.appendChild(el);
+                    }
+                } else {
+                    // 位置正确则仅替换内容
+                    existing.replaceWith(el);
+                }
+            } else {
+                if (nextEl) {
+                    this.remindersContainer.insertBefore(el, nextEl);
+                } else {
+                    // 找不到后项时，尝试找前项插入其后
+                    let prevEl: HTMLElement | null = null;
+                    for (let i = myIndex - 1; i >= 0; i--) {
+                        const targetId = visualOrderIds[i];
+                        const targetEl = this.remindersContainer.querySelector(`[data-reminder-id="${targetId}"]`);
+                        if (targetEl) {
+                            prevEl = targetEl as HTMLElement;
+                            break;
+                        }
+                    }
+                    if (prevEl) {
+                        prevEl.after(el);
+                    } else {
+                        // 连前项都没有，说明是列表首个元素
+                        this.remindersContainer.prepend(el);
+                    }
+                }
+            }
+
+            // 10. 清理空状态
+            const emptyState = this.remindersContainer.querySelector('.reminder-empty, .empty-state');
             if (emptyState) emptyState.remove();
 
         } catch (error) {
             console.error('handleOptimisticSavedReminder error:', error);
-            // 回退到完整刷新
+            // 乐观渲染失败，尝试通过全量刷新兜底
             try { await this.loadReminders(true); } catch (e) { /* ignore */ }
         }
     }
