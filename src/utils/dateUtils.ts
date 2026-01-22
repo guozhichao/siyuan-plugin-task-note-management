@@ -27,7 +27,7 @@ function parseTimeToMinutes(value?: string | number): number {
     return 0;
 }
 
-function getDayStartAdjustedDate(date: Date): Date {
+export function getDayStartAdjustedDate(date: Date): Date {
     if (!dayStartMinutes) return date;
     return new Date(date.getTime() - dayStartMinutes * 60 * 1000);
 }

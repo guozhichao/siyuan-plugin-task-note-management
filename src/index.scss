@@ -2327,3 +2327,7 @@
         }
     }
 }
+
+.fc .fc-button-primary:focus,.fc .fc-button:focus{
+    box-shadow: none !important;
+}

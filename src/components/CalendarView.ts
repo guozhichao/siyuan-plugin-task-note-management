@@ -6,7 +6,7 @@ import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
 import { refreshSql, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark, openBlock, readProjectData } from "../api";
-import { getLocalDateString, getLocalDateTime, getLocalDateTimeString, compareDateStrings, getLogicalDateString, getRelativeDateString } from "../utils/dateUtils";
+import { getLocalDateString, getLocalDateTime, getLocalDateTimeString, compareDateStrings, getLogicalDateString, getRelativeDateString, getDayStartAdjustedDate } from "../utils/dateUtils";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
@@ -885,7 +885,7 @@ export class CalendarView {
         this.calendar = new Calendar(calendarEl, {
             plugins: [dayGridPlugin, timeGridPlugin, multiMonthPlugin, listPlugin, interactionPlugin],
             initialView: initialViewMode,
-            initialDate: (initialViewMode && initialViewMode.includes('MultiDays')) ? multiDaysStartDate : undefined,
+            initialDate: (initialViewMode && initialViewMode.includes('MultiDays')) ? multiDaysStartDate : getLogicalDateString(),
             views: {
                 timeGridMultiDays7: { type: 'timeGrid', duration: { days: 7 } },
                 dayGridMultiDays7: { type: 'dayGrid', duration: { days: 7 } },
@@ -897,9 +897,17 @@ export class CalendarView {
             },
             multiMonthMaxColumns: 1, // force a single column
             headerToolbar: {
-                left: 'prev,next today',
+                left: 'prev,next myToday',
                 center: 'title',
                 right: ''
+            },
+            customButtons: {
+                myToday: {
+                    text: t("today"),
+                    click: () => {
+                        this.calendar.gotoDate(getDayStartAdjustedDate(new Date()));
+                    }
+                }
             },
             viewDidMount: this.handleViewDidMount.bind(this),
             editable: true,
@@ -913,6 +921,7 @@ export class CalendarView {
             slotMinTime: todayStartTime, // 逻辑一天的起始时间
             slotMaxTime: slotMaxTime, // 逻辑一天的结束时间（可能超过24小时）
             nextDayThreshold: todayStartTime, // 跨天事件的判断阈值
+            now: () => new Date(), // 使用当前时间，确保 nowIndicator 正确
             nowIndicator: true, // 显示当前时间指示线
             snapDuration: '00:05:00', // 设置吸附间隔为5分钟
             slotDuration: '00:15:00', // 设置默认时间间隔为15分钟
@@ -1091,10 +1100,19 @@ export class CalendarView {
             // 移除自动事件源，改为手动管理事件
             events: [],
             dayCellClassNames: (arg) => {
-                const today = new Date();
-                const cellDate = arg.date;
+                const today = getLogicalDateString();
+                const cellDate = getLocalDateString(arg.date);
 
-                if (cellDate.toDateString() === today.toDateString()) {
+                if (cellDate === today) {
+                    return ['fc-today-custom'];
+                }
+                return [];
+            },
+            dayHeaderClassNames: (arg) => {
+                const today = getLogicalDateString();
+                const cellDate = getLocalDateString(arg.date);
+
+                if (cellDate === today) {
                     return ['fc-today-custom'];
                 }
                 return [];
@@ -1155,6 +1173,13 @@ export class CalendarView {
                                     textContainer.appendChild(holidaySpan);
                                 }
                                 listHeader.setAttribute('data-holiday-processed', 'true');
+                            }
+
+                            // Handle Today highlighting in List View
+                            if (localDateStr === getLogicalDateString()) {
+                                listHeader.classList.add('fc-list-day-today-custom');
+                            } else {
+                                listHeader.classList.remove('fc-list-day-today-custom');
                             }
                         }
                     }
@@ -1297,8 +1322,8 @@ export class CalendarView {
 
                 // 若仍未找到，使用日历当前显示的日期作为回退
                 if (!dateEl) {
-                    const fallbackDate = this.calendar ? this.calendar.getDate() : new Date();
-                    const dateStrFallback = fallbackDate.toISOString().slice(0, 10);
+                    const fallbackDate = this.calendar ? this.calendar.getDate() : getDayStartAdjustedDate(new Date());
+                    const dateStrFallback = getLocalDateString(fallbackDate);
                     dateEl = null;
                     // 直接使用回退日期字符串
                     var dateStr = dateStrFallback;
@@ -3975,11 +4000,24 @@ export class CalendarView {
         const style = document.createElement('style');
         style.id = 'reminder-calendar-custom-styles';
         style.textContent = `
-            .fc-today-custom {
+            .fc-today-custom,
+            .fc-list-day-today-custom,
+            .fc-col-header-cell.fc-today-custom {
                 background-color: #a5bdc721 !important;
             }
             .fc-today-custom:hover {
                 background-color: var(--b3-theme-primary-lightest) !important;
+            }
+            
+            /* 隐藏默认的今日高亮 */
+            .fc-day-today:not(.fc-today-custom) {
+                background-color: transparent !important;
+            }
+            .fc-list-day-today:not(.fc-list-day-today-custom) {
+                background-color: transparent !important;
+            }
+            .fc-col-header-cell.fc-day-today:not(.fc-today-custom) {
+                background-color: transparent !important;
             }
             
             /* 当前时间指示线样式 */
