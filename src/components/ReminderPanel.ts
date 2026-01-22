@@ -472,8 +472,8 @@ export class ReminderPanel {
         const sortOrder = this.currentSortOrder;
         // console.log('应用排序方式:', sortType, sortOrder, '提醒数量:', reminders.length);
 
-        // 特殊处理已完成相关的筛选器
-        const isCompletedFilter = this.currentTab === 'completed' || this.currentTab === 'todayCompleted';
+        // 特殊处理已完成相关的筛选器（包括昨日已完成）
+        const isCompletedFilter = this.currentTab === 'completed' || this.currentTab === 'todayCompleted' || this.currentTab === 'yesterdayCompleted';
         const isPast7Filter = this.currentTab === 'all';
 
         // 如果当前视图是“今日已完成”或“全部已完成”，始终按完成时间降序显示
