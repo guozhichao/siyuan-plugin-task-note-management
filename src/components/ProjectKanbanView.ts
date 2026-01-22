@@ -1071,11 +1071,77 @@ export class ProjectKanbanView {
                     await projectManager.setProjectCustomGroups(this.projectId, currentGroups);
                 }
 
-                // 刷新分组列表
+                // 刷新分组列表（更新对话框中的列表）
                 await this.loadAndDisplayGroups(container);
 
-                // 刷新看板（使用防抖队列）
-                this.queueLoadTasks();
+                // 直接更新 Kanban DOM，避免重绘
+                const columnId = `custom-group-${group.id}`;
+                // kanban-column-{columnId} 是在 createCustomGroupColumn 中生成的
+                const column = this.container.querySelector(`.kanban-column.kanban-column-${columnId}`) as HTMLElement;
+
+                if (column) {
+                    // 1. 更新列头背景
+                    const header = column.querySelector('.kanban-column-header') as HTMLElement;
+                    if (header) {
+                        header.style.background = `${color}15`;
+                    }
+
+                    // 2. 更新列头标题区域（包含图标和标题）
+                    // 这里的结构参考 createCustomGroupColumn 中的 titleContainer
+                    // 需要找到 titleContainer，通常它是 header 的第一个子元素（包含 icon 和 h3）
+                    const titleContainer = header.querySelector('div') as HTMLElement; // titleContainer 是 header 的第一个 div 子元素
+                    if (titleContainer) {
+                        titleContainer.innerHTML = '';
+
+                        // 重建图标
+                        const groupIconEl = document.createElement('span');
+                        groupIconEl.className = 'custom-group-header-icon';
+                        groupIconEl.style.cssText = `margin-right:6px;`;
+                        groupIconEl.textContent = icon || '📋';
+                        titleContainer.appendChild(groupIconEl);
+
+                        // 重建标题
+                        const titleEl = document.createElement('h3');
+                        titleEl.textContent = name;
+                        titleEl.style.cssText = `
+                            margin: 0;
+                            font-size: 16px;
+                            font-weight: 600;
+                            color: ${color};
+                        `;
+
+                        // 处理 Block ID 绑定
+                        const newBlockId = blockId || undefined;
+                        if (newBlockId) {
+                            titleEl.dataset.type = 'a';
+                            titleEl.dataset.href = `siyuan://blocks/${newBlockId}`;
+                            titleEl.style.cursor = 'pointer';
+                            titleEl.style.textDecoration = 'underline dotted';
+                            titleEl.style.paddingBottom = '2px';
+                            titleEl.title = t('clickToJumpToBlock');
+                            titleEl.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                openBlock(newBlockId);
+                            });
+                        }
+
+                        titleContainer.appendChild(titleEl);
+                    }
+
+                    // 3. 更新计数的背景色
+                    const countEl = column.querySelector('.kanban-column-count') as HTMLElement;
+                    if (countEl) {
+                        countEl.style.background = color;
+                    }
+
+                    // 4. 更新子分组（进行中、短期、长期等）的样式
+                    // 这些是在 renderCustomGroupColumnWithFourStatus 中创建的
+                    const subGroupHeaders = column.querySelectorAll('.custom-status-group-header') as NodeListOf<HTMLElement>;
+                    subGroupHeaders.forEach(sh => {
+                        sh.style.background = `${color}15`;
+                        sh.style.border = `1px solid ${color}30`;
+                    });
+                }
 
                 showMessage(t('groupUpdated'));
                 dialog.destroy();
@@ -1190,6 +1256,8 @@ export class ProjectKanbanView {
                 // 刷新分组列表
                 await this.loadAndDisplayGroups(container);
 
+                // 强制触发看板重绘
+                this._lastRenderedProjectId = null;
                 // 刷新看板（使用防抖队列）
                 this.queueLoadTasks();
 
@@ -1370,7 +1438,12 @@ export class ProjectKanbanView {
         refreshBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>';
         refreshBtn.title = t('refresh');
         refreshBtn.addEventListener('click', async () => {
+            // 重新加载项目信息（包括分组信息）
+            await this.loadProject();
+            // 重新加载任务数据
             await this.getReminders(true);
+            // 强制触发看板重绘
+            this._lastRenderedProjectId = null;
             this.queueLoadTasks();
         });
         controlsGroup.appendChild(refreshBtn);
