@@ -219,7 +219,12 @@ export class BatchReminderDialog {
 
                     // 导出块内容
                     const res = await exportMdContent(blockId);
-                    exportedContent = res?.content || '';
+                    if (window.siyuan.config.export.addTitle) {
+                        // 需要去掉第一行，为没用的标题行
+                        exportedContent = res?.content?.split('\n').slice(1).join('\n') || '';
+                    } else {
+                        exportedContent = res?.content || '';
+                    }
 
                     // 统一处理：第一行作为标题，其余行作为备注
                     let content = '';
@@ -227,30 +232,36 @@ export class BatchReminderDialog {
 
                     if (exportedContent) {
                         const originalLines = exportedContent.split('\n');
+                        // 过滤掉空白行，找到真正的第一行内容
                         const lines = originalLines.map(line => line.trim()).filter(line => line.length > 0);
+
                         if (lines.length > 0) {
                             const firstLine = lines[0];
-                            if (firstLine.startsWith('#')) {
-                                // 如果第一行是标题，去掉#号作为标题，其余作为备注
-                                content = firstLine.replace(/^#+\s*/, '').trim();
-                                // 备注保留原始格式（包括缩进）
-                                const firstLineIndex = originalLines.findIndex(line => line.trim() === firstLine);
-                                if (firstLineIndex >= 0 && firstLineIndex < originalLines.length - 1) {
-                                    note = originalLines.slice(firstLineIndex + 1).join('\n').trim();
-                                }
-                            } else {
-                                // 如果第一行不是标题，去掉列表标记后作为标题，其余作为备注
-                                // 处理列表标记：- * + 1. 等
-                                content = firstLine.replace(/^[-*+]\s+/, '').replace(/^\d+\.\s+/, '').trim();
 
-                                // 备注保留原始格式（包括缩进和列表标记）
-                                const firstLineIndex = originalLines.findIndex(line => line.trim() === firstLine);
-                                if (firstLineIndex >= 0 && firstLineIndex < originalLines.length - 1) {
-                                    note = originalLines.slice(firstLineIndex + 1).join('\n').trim();
-                                }
+                            if (firstLine.startsWith('#')) {
+                                // 1. 处理标题行：去掉 # 号
+                                content = firstLine.replace(/^#+\s*/, '').trim();
+                            } else {
+                                // 2. 处理普通行或列表行
+                                // 这里的正则增加了对 - [ ] 和 - [x] 的支持
+                                // ^[-*+]\s+\[[ xX]\]\s+ : 匹配任务列表 - [ ] 或 - [x]
+                                // |^[-*+]\s+ : 匹配普通无序列表 - 或 * 或 +
+                                // |^\d+\.\s+ : 匹配有序列表 1.
+                                content = firstLine
+                                    .replace(/^[-*+]\s+\[[ xX]\]\s+/, '') // 先匹配任务列表标记
+                                    .replace(/^[-*+]\s+/, '')            // 再匹配普通无序列表标记
+                                    .replace(/^\d+\.\s+/, '')             // 再匹配有序列表标记
+                                    .trim();
+                            }
+
+                            // 提取备注：保留第一行之后的所有原始内容
+                            const firstLineIndex = originalLines.findIndex(line => line.trim() === firstLine);
+                            if (firstLineIndex >= 0 && firstLineIndex < originalLines.length - 1) {
+                                note = originalLines.slice(firstLineIndex + 1).join('\n').trim();
                             }
                         }
                     }
+
 
                     // 从标题中识别日期
                     const titleAuto = this.autoDetectDateTimeFromTitle(content);
@@ -288,113 +299,6 @@ export class BatchReminderDialog {
         return results;
     }
 
-    private async getBlockDetails(blockIds: string[]): Promise<BlockDetail[]> {
-        const details = [];
-        const { getBlockByID, getChildBlocks, exportMdContent } = await import("../api");
-
-        // 第一步：识别所有应该被跳过的子块ID
-        const blocksToSkip = new Set<string>();
-
-        for (const blockId of blockIds) {
-            try {
-                const block = await getBlockByID(blockId);
-                if (block && block.type === 'h') {
-                    // 获取这个标题的所有子块
-                    const childRes = await getChildBlocks(blockId);
-                    const childIds = childRes ? childRes.map(c => c.id) : [];
-
-                    // 如果子块也在选中列表中，标记为需要跳过
-                    for (const childId of childIds) {
-                        if (blockIds.includes(childId)) {
-                            blocksToSkip.add(childId);
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error(`检查块 ${blockId} 的子块失败:`, error);
-            }
-        }
-
-        // 第二步：处理未被跳过的块
-        for (const blockId of blockIds) {
-            // 跳过子块
-            if (blocksToSkip.has(blockId)) {
-                continue;
-            }
-            try {
-                const block = await getBlockByID(blockId);
-
-                if (block) {
-                    let exportedContent = '';
-
-                    // 导出块内容
-                    const res = await exportMdContent(blockId);
-                    exportedContent = res?.content || block?.fcontent || block?.content || '';
-
-                    // 统一处理：第一行作为标题，其余行作为备注
-                    let content = '';
-                    let note = '';
-
-                    if (exportedContent) {
-                        const originalLines = exportedContent.split('\n');
-                        const lines = originalLines.map(line => line.trim()).filter(line => line.length > 0);
-                        if (lines.length > 0) {
-                            const firstLine = lines[0];
-                            if (firstLine.startsWith('#')) {
-                                // 如果第一行是标题，去掉#号作为标题，其余作为备注
-                                content = firstLine.replace(/^#+\s*/, '').trim();
-                                // 备注保留原始格式（包括缩进）
-                                const firstLineIndex = originalLines.findIndex(line => line.trim() === firstLine);
-                                if (firstLineIndex >= 0 && firstLineIndex < originalLines.length - 1) {
-                                    note = originalLines.slice(firstLineIndex + 1).join('\n').trim();
-                                }
-                            } else {
-                                // 如果第一行不是标题，去掉列表标记后作为标题，其余作为备注
-                                // 处理列表标记：- * + 1. 等
-                                content = firstLine.replace(/^[-*+]\s+/, '').replace(/^\d+\.\s+/, '').trim();
-
-                                // 备注保留原始格式（包括缩进和列表标记）
-                                const firstLineIndex = originalLines.findIndex(line => line.trim() === firstLine);
-                                if (firstLineIndex >= 0 && firstLineIndex < originalLines.length - 1) {
-                                    note = originalLines.slice(firstLineIndex + 1).join('\n').trim();
-                                }
-                            }
-                        }
-                    }
-
-                    // 从标题中识别日期
-                    const titleAuto = this.autoDetectDateTimeFromTitle(content);
-                    // 从备注中识别日期，如果标题没有
-                    let date = titleAuto.date;
-                    let time = titleAuto.time;
-                    let hasTime = titleAuto.hasTime;
-                    if (!date) {
-                        const contentAuto = this.autoDetectDateTimeFromTitle(note);
-                        date = contentAuto.date;
-                        time = contentAuto.time;
-                        hasTime = contentAuto.hasTime;
-                    }
-
-                    details.push({
-                        blockId,
-                        content: content,
-                        docId: block.root_id || blockId,
-                        ...titleAuto,
-                        selectedDate: date || getLogicalDateString(),
-                        selectedTime: time || '',
-                        hasTime: hasTime || false,
-                        priority: 'none',
-                        categoryId: '',
-                        note: note
-                    });
-                }
-            } catch (error) {
-                console.error(`获取块 ${blockId} 详情失败:`, error);
-            }
-        }
-
-        return details;
-    }
 
     private autoDetectDateTimeFromTitle(title: string): { date?: string; time?: string; hasTime?: boolean; cleanTitle?: string } {
         const parseResult = this.parseNaturalDateTime(title);
