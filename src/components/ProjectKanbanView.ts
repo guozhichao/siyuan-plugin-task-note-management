@@ -3751,7 +3751,40 @@ export class ProjectKanbanView {
         `;
 
         groupHeader.appendChild(groupTitle);
-        groupHeader.appendChild(taskCount);
+
+        const headerRight = document.createElement('div');
+        headerRight.style.cssText = 'display:flex; align-items:center; gap:8px;';
+        headerRight.appendChild(taskCount);
+
+        // 为"进行中"、"短期"、"长期"添加新建按钮和粘贴新建按钮
+        if (['doing', 'short_term', 'long_term'].includes(status)) {
+            const addTaskBtn = document.createElement('button');
+            addTaskBtn.className = 'b3-button b3-button--text';
+            addTaskBtn.style.cssText = 'padding: 2px; margin-left: 4px;';
+            addTaskBtn.title = t('newTask');
+            addTaskBtn.innerHTML = `<svg style="width: 14px; height: 14px;"><use xlink:href="#iconAdd"></use></svg>`;
+            addTaskBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // 强制将 status 转换为合法的 termType
+                const termType = status as 'doing' | 'short_term' | 'long_term';
+                this.showCreateTaskDialog(undefined, group.id, termType);
+            });
+            headerRight.appendChild(addTaskBtn);
+
+            const pasteTaskBtn = document.createElement('button');
+            pasteTaskBtn.className = 'b3-button b3-button--text';
+            pasteTaskBtn.style.cssText = 'padding: 2px; margin-left: 2px;';
+            pasteTaskBtn.title = t('pasteNew');
+            pasteTaskBtn.innerHTML = `<svg style="width: 14px; height: 14px;"><use xlink:href="#iconPaste"></use></svg>`;
+            pasteTaskBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const termType = status as 'doing' | 'short_term' | 'long_term';
+                this.showPasteTaskDialog(undefined, group.id, termType);
+            });
+            headerRight.appendChild(pasteTaskBtn);
+        }
+
+        groupHeader.appendChild(headerRight);
 
         // 分组任务容器
         const groupTasksContainer = document.createElement('div');
@@ -6118,7 +6151,7 @@ export class ProjectKanbanView {
         }
     }
 
-    private showPasteTaskDialog(parentTask?: any, customGroupId?: string) {
+    private showPasteTaskDialog(parentTask?: any, customGroupId?: string, defaultTermType?: string) {
         const dialog = new Dialog({
             title: "粘贴列表新建任务",
             content: `
@@ -6168,9 +6201,9 @@ export class ProjectKanbanView {
             if (hierarchicalTasks.length > 0) {
                 // 如果传入 parentTask，则把所有顶级解析项作为 parentTask 的子任务
                 if (parentTask) {
-                    await this.batchCreateTasksWithHierarchy(hierarchicalTasks, parentTask.id, customGroupId);
+                    await this.batchCreateTasksWithHierarchy(hierarchicalTasks, parentTask.id, customGroupId, defaultTermType);
                 } else {
-                    await this.batchCreateTasksWithHierarchy(hierarchicalTasks, undefined, customGroupId);
+                    await this.batchCreateTasksWithHierarchy(hierarchicalTasks, undefined, customGroupId, defaultTermType);
                 }
                 dialog.destroy();
                 const totalTasks = this.countTotalTasks(hierarchicalTasks);
@@ -6278,7 +6311,7 @@ export class ProjectKanbanView {
      * @param parentIdForAllTopLevel 所有顶级任务的父任务ID
      * @param customGroupId 自定义分组ID
      */
-    private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[], parentIdForAllTopLevel?: string, customGroupId?: string) {
+    private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[], parentIdForAllTopLevel?: string, customGroupId?: string, defaultTermType?: string) {
         const reminderData = await this.getReminders();
         const categoryId = this.project.categoryId; // 继承项目分类
 
@@ -6311,7 +6344,7 @@ export class ProjectKanbanView {
                 projectId: this.projectId,
                 completed: false,
                 kanbanStatus: 'todo',
-                termType: 'short_term', // 默认为短期任务
+                termType: defaultTermType || 'short_term', // 优先使用传入的 defaultTermType，否则默认为短期任务
                 createdTime: new Date().toISOString(),
                 date: task.startDate,
                 endDate: task.endDate,
