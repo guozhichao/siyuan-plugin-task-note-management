@@ -2781,6 +2781,12 @@ export class ProjectKanbanView {
         const kanbanContainer = this.container.querySelector('.project-kanban-container') as HTMLElement;
         if (!kanbanContainer) return;
 
+        // 移除可能存在的空状态提示
+        const emptyState = kanbanContainer.querySelector('.empty-custom-group-state');
+        if (emptyState) {
+            emptyState.remove();
+        }
+
         // 将任务分为已完成和其他状态
         const completedTasks = this.tasks.filter(task => task.completed);
         const incompleteTasks = this.tasks.filter(task => !task.completed);
@@ -3227,7 +3233,7 @@ export class ProjectKanbanView {
         if (!kanbanContainer) return;
 
         kanbanContainer.innerHTML = `
-            <div style="
+            <div class="empty-custom-group-state" style="
                 display: flex;
                 flex-direction: column;
                 align-items: center;
@@ -3235,6 +3241,7 @@ export class ProjectKanbanView {
                 height: 300px;
                 color: var(--b3-theme-on-surface);
                 opacity: 0.6;
+                width: 100%;
             ">
                 <div style="font-size: 48px; margin-bottom: 16px;">📋</div>
                 <div style="font-size: 16px; margin-bottom: 8px;">暂无自定义分组</div>
