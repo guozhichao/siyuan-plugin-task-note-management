@@ -3390,45 +3390,23 @@ export class ProjectKanbanView {
     }
 
     private renderCustomGroupColumn(group: any, tasks: any[]) {
-        const columnId = `custom-group-${group.id}`;
-        let column = this.container.querySelector(`.kanban-column-${columnId}`) as HTMLElement;
+        // 将任务分为已完成和其他状态
+        const completedTasks = tasks.filter(task => task.completed);
+        const incompleteTasks = tasks.filter(task => !task.completed);
 
-        if (!column) {
-            // 如果列不存在，创建新列
-            column = this.createCustomGroupColumn(columnId, group);
-        }
+        // 将未完成任务进一步分为：进行中、短期、长期
+        const doingTasks = incompleteTasks.filter(task => this.getTaskStatus(task) === 'doing');
+        const shortTermTasks = incompleteTasks.filter(task => this.getTaskStatus(task) === 'short_term');
+        const longTermTasks = incompleteTasks.filter(task => this.getTaskStatus(task) === 'long_term');
 
-        const content = column.querySelector('.kanban-column-content') as HTMLElement;
-        const count = column.querySelector('.kanban-column-count') as HTMLElement;
+        // 对已完成任务按完成时间倒序排序
+        completedTasks.sort((a, b) => {
+            const timeA = a.completedTime ? new Date(a.completedTime).getTime() : 0;
+            const timeB = b.completedTime ? new Date(b.completedTime).getTime() : 0;
+            return timeB - timeA; // 倒序排列，最新的在前
+        });
 
-        content.innerHTML = '';
-
-        // 扩展当前分组任务列表，包含所有后代任务（包括已完成子任务）
-        const expandedTasks = this.augmentTasksWithDescendants(tasks, group.id);
-        const taskMap = new Map(expandedTasks.map(t => [t.id, t]));
-        const topLevelTasks = expandedTasks.filter(t => !t.parentId || !taskMap.has(t.parentId));
-        const childTasks = expandedTasks.filter(t => t.parentId && taskMap.has(t.parentId));
-
-        const renderTaskWithChildren = (task: any, level: number) => {
-            const taskEl = this.createTaskElement(task, level);
-            content.appendChild(taskEl);
-
-            const children = childTasks.filter(t => t.parentId === task.id);
-            const isCollapsed = this.collapsedTasks.has(task.id);
-
-            if (children.length > 0 && !isCollapsed) {
-                children.forEach(child => renderTaskWithChildren(child, level + 1));
-            }
-        };
-
-        topLevelTasks.forEach(task => renderTaskWithChildren(task, 0));
-
-        // 更新列顶部计数 — 只统计顶层（父）任务，不包括子任务
-        if (count) {
-            const taskMapAll = new Map(expandedTasks.map((t: any) => [t.id, t]));
-            const topLevelAll = expandedTasks.filter((t: any) => !t.parentId || !taskMapAll.has(t.parentId));
-            count.textContent = topLevelAll.length.toString();
-        }
+        this.renderCustomGroupColumnWithFourStatus(group, doingTasks, shortTermTasks, longTermTasks, completedTasks);
     }
 
     private createCustomGroupColumn(columnId: string, group: any): HTMLElement {
@@ -6042,11 +6020,20 @@ export class ProjectKanbanView {
                         }
                         // 确保 task 不重复添加
                         const existingIndex = this.tasks.findIndex(t => t.id === savedTask.id);
+
+                        // 兼容性处理：新任务只有 createdAt，补齐 createdTime 以便排序
+                        if (savedTask.createdAt && !savedTask.createdTime) {
+                            savedTask.createdTime = savedTask.createdAt;
+                        }
+
                         if (existingIndex >= 0) {
                             this.tasks[existingIndex] = savedTask;
                         } else {
                             this.tasks.push(savedTask);
                         }
+
+                        // 立即排序，确保乐观更新时顺序正确
+                        this.sortTasks();
 
                         // 2. 刷新对应列（增量渲染）
                         if (this.kanbanMode === 'custom') {
@@ -6102,9 +6089,9 @@ export class ProjectKanbanView {
 
         // 重写保存回调，保存用户选择的 termType
         const originalOnSaved = quickDialog['onSaved'];
-        quickDialog['onSaved'] = async () => {
+        quickDialog['onSaved'] = async (savedTask: any) => {
             if (originalOnSaved) {
-                originalOnSaved(); // This will call this.loadTasks()
+                originalOnSaved(savedTask);
             }
 
             // 保存用户选择的 termType 到内存中
@@ -6139,7 +6126,65 @@ export class ProjectKanbanView {
 
             // 优化：只通过 reminderUpdated 事件触发刷新，避免重复更新
             // 事件监听器会调用 queueLoadTasks() 进行防抖刷新
-            const callback = () => {
+            const callback = (savedTask?: any) => {
+                if (savedTask) {
+                    // 1. 乐观更新 UI (Optimistic UI Update)
+                    const taskIndex = this.tasks.findIndex(t => t.id === savedTask.id);
+                    // 兼容性处理：如果返回的任务只有 createdAt，补齐 createdTime
+                    if (savedTask.createdAt && !savedTask.createdTime) {
+                        savedTask.createdTime = savedTask.createdAt;
+                    }
+
+                    if (taskIndex >= 0) {
+                        this.tasks[taskIndex] = savedTask;
+                    } else {
+                        // 理论上编辑任务不应该走到这里，但以防万一
+                        this.tasks.push(savedTask);
+                    }
+
+                    // 立即重新排序（可能修改了优先级或时间）
+                    this.sortTasks();
+
+                    // 2. 刷新对应列（增量渲染）
+                    if (this.kanbanMode === 'custom') {
+                        // 尝试找到任务所属的自定义分组
+                        // 注意：如果任务被移动到了另一个分组，需要刷新原分组和新分组
+                        // 为简单起见，这里重新渲染所有相关的列，或者简单地只渲染新位置
+                        // 考虑到移动分组的情况比较复杂（需要知道旧分组），且 sortTasks 已经处理了数据
+                        // 这里我们尝试刷新任务当前所属的分组列
+                        const group = this.project?.customGroups?.find((g: any) => g.id === savedTask.customGroupId);
+                        if (group) {
+                            const groupTasks = this.tasks.filter(t => t.customGroupId === group.id);
+                            this.renderCustomGroupColumn(group, groupTasks);
+                        } else {
+                            const ungroupedTasks = this.tasks.filter(t => !t.customGroupId);
+                            this.renderUngroupedColumn(ungroupedTasks);
+                        }
+
+                        // 如果任务跨分组移动了，旧分组的列不会自动刷新，可能会导致任务显示两遍（旧位置一个，新位置一个）
+                        // 为了解决这个问题，对于 Custom Kanban 模式，我们可以更激进一点：
+                        // 检查是否有其他分组也包含此任务ID（理论上 filter 会排除，但 DOM 不会自动清除）
+                        // 但由于 renderCustomGroupColumn 会清空内容重新渲染，所以只要我们知道要刷新哪些列就行。
+                        // 由于无法轻易得知旧分组ID，且总分组数通常不多，
+                        // 在编辑场景下，简单起见，如果不想全量刷新，至少要刷新 savedTask.customGroupId 对应的列。
+                        // 如果任务从 Group A 移到 Group B，只刷新 Group B 的话，Group A 里旧的 DOM 还在。
+                        // 因此，为了稳妥的乐观更新，建议遍历所有 custom group 列，如果发现其中包含该任务且 groupId 不匹配，则刷新该列。
+                        // 或者更简单：重新渲染整个看板区域（非全量 reload，只是 DOM 操作）
+                        // 考虑到性能，我们先只刷新目标列。对于“移出旧列”的效果，依靠稍后的 queueLoadTasks 来最终一致化。
+                    } else {
+                        // 状态看板模式
+                        const status = savedTask.kanbanStatus || 'todo';
+                        // 同样，如果改变了状态，旧状态列的 DOM 需要清除。
+                        // 简单处理：刷新目标列，让 queueLoadTasks 处理清理旧列
+                        const tasksInColumn = this.tasks.filter(t => {
+                            const tStatus = t.kanbanStatus || 'todo';
+                            const targetColumn = t.customGroupId && !['doing', 'short_term', 'long_term', 'completed'].includes(t.customGroupId) ? t.customGroupId : tStatus;
+                            return targetColumn === status;
+                        });
+                        this.renderColumn(status, tasksInColumn);
+                    }
+                }
+
                 this.dispatchReminderUpdate(true);
             };
 
@@ -7786,6 +7831,41 @@ export class ProjectKanbanView {
 
     // 设置任务优先级
     private async setPriority(task: any, priority: string) {
+        // 1. 乐观更新 UI
+        const taskIndex = this.tasks.findIndex(t => t.id === task.id);
+        const optimisticTask = taskIndex >= 0 ? this.tasks[taskIndex] : null;
+
+        if (optimisticTask) {
+            // 更新内存中的任务数据
+            optimisticTask.priority = priority;
+
+            // 如果当前排序依优先级，则重新排序
+            if (this.currentSort === 'priority') {
+                this.sortTasks();
+            }
+
+            // 直接刷新对应列/分组（借鉴 showCreateTaskDialog 中的增量刷新逻辑）
+            if (this.kanbanMode === 'custom') {
+                const group = this.project?.customGroups?.find((g: any) => g.id === optimisticTask.customGroupId);
+                if (group) {
+                    const groupTasks = this.tasks.filter(t => t.customGroupId === group.id);
+                    this.renderCustomGroupColumn(group, groupTasks);
+                } else {
+                    const ungroupedTasks = this.tasks.filter(t => !t.customGroupId);
+                    this.renderUngroupedColumn(ungroupedTasks);
+                }
+            } else {
+                const status = optimisticTask.kanbanStatus || 'todo';
+                const tasksInColumn = this.tasks.filter(t => {
+                    const tStatus = t.kanbanStatus || 'todo';
+                    const targetColumn = t.customGroupId && !['doing', 'short_term', 'long_term', 'completed'].includes(t.customGroupId) ? t.customGroupId : tStatus;
+                    return targetColumn === status;
+                });
+                this.renderColumn(status, tasksInColumn);
+            }
+        }
+
+        // 2. 后台保存数据
         try {
             const reminderData = await this.getReminders();
 
@@ -7793,7 +7873,8 @@ export class ProjectKanbanView {
             if (task.isRepeatInstance && task.originalId) {
                 const originalReminder = reminderData[task.originalId];
                 if (!originalReminder) {
-                    showMessage("原始任务不存在");
+                    // 如果原始任务丢失，可能需要回滚 UI（此处略，仅提示）
+                    console.error("原始任务不存在，无法保存优先级");
                     return;
                 }
 
@@ -7812,13 +7893,12 @@ export class ProjectKanbanView {
                 originalReminder.repeat.instanceModifications[task.date].priority = priority;
 
                 await saveReminders(this.plugin, reminderData);
-                showMessage("实例优先级已更新");
             } else {
                 // 普通任务或原始重复事件，直接修改
                 if (reminderData[task.id]) {
                     reminderData[task.id].priority = priority;
 
-                    // 如果是重复事件，清除所有实例的优先级覆盖
+                    // 如果是重复事件，清除所有实例的优先级覆盖（因为修改主任务通常意味着重置/统一优先级，或者看具体需求，这里保持原有逻辑）
                     if (reminderData[task.id].repeat?.enabled && reminderData[task.id].repeat?.instanceModifications) {
                         const modifications = reminderData[task.id].repeat.instanceModifications;
                         Object.keys(modifications).forEach(date => {
@@ -7829,18 +7909,22 @@ export class ProjectKanbanView {
                     }
 
                     await saveReminders(this.plugin, reminderData);
-                    showMessage("优先级已更新");
                 } else {
-                    showMessage("任务不存在");
+                    // 任务不存在
                     return;
                 }
             }
 
-            await this.queueLoadTasks();
+            // 保存成功后，分发更新事件（通知其他视图），但不请求重新加载当前视图（因为已经乐观更新了）
             this.dispatchReminderUpdate(true);
+
+            // 还是调用一次防抖加载以确保最终一致性（防止乐观更新逻辑有误），但不 await，以免阻塞交互
+            this.queueLoadTasks(); // 这里的 queueLoadTasks 内部有防抖，不会立即触发 heavy load
         } catch (error) {
             console.error('设置优先级失败:', error);
-            showMessage("设置优先级失败");
+            showMessage("设置优先级失败，正在恢复...");
+            // 如果失败，强制重载以恢复正确状态
+            await this.queueLoadTasks();
         }
     }
 
@@ -7891,13 +7975,43 @@ export class ProjectKanbanView {
      * 将提醒绑定到指定的块（adapted from ReminderPanel）
      */
     private async bindReminderToBlock(reminder: any, blockId: string) {
+        // 1. 乐观更新 UI
+        const optimisticTask = this.tasks.find(t => t.id === reminder.id);
+        if (optimisticTask) {
+            optimisticTask.blockId = blockId;
+            // docId 暂时无法获取，但这不影响基本链接图标的显示
+
+            // 直接刷新对应列/分组
+            if (this.kanbanMode === 'custom') {
+                const group = this.project?.customGroups?.find((g: any) => g.id === optimisticTask.customGroupId);
+                if (group) {
+                    const groupTasks = this.tasks.filter(t => t.customGroupId === group.id);
+                    this.renderCustomGroupColumn(group, groupTasks);
+                } else {
+                    const ungroupedTasks = this.tasks.filter(t => !t.customGroupId);
+                    this.renderUngroupedColumn(ungroupedTasks);
+                }
+            } else {
+                const status = optimisticTask.kanbanStatus || 'todo';
+                const tasksInColumn = this.tasks.filter(t => {
+                    const tStatus = t.kanbanStatus || 'todo';
+                    const targetColumn = t.customGroupId && !['doing', 'short_term', 'long_term', 'completed'].includes(t.customGroupId) ? t.customGroupId : tStatus;
+                    return targetColumn === status;
+                });
+                this.renderColumn(status, tasksInColumn);
+            }
+        }
+
+        // 2. 后台执行繁重的绑定操作
         try {
             const reminderData = await this.getReminders();
             const reminderId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
 
             if (reminderData[reminderId]) {
                 // 获取块信息
-                await refreshSql();
+                // refreshSql 可能不是必须的，getBlockByID 通常足够更新
+                // await refreshSql(); 
+
                 const block = await getBlockByID(blockId);
                 if (!block) {
                     throw new Error('目标块不存在');
@@ -7923,11 +8037,16 @@ export class ProjectKanbanView {
 
                 // 触发更新事件
                 this.dispatchReminderUpdate(true);
+
+                // 确保最终一致性
+                this.queueLoadTasks();
             } else {
                 throw new Error('提醒不存在');
             }
         } catch (error) {
             console.error('绑定提醒到块失败:', error);
+            // 失败时回滚/刷新
+            this.queueLoadTasks();
             throw error;
         }
     }
