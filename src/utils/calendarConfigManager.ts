@@ -19,7 +19,7 @@ export class CalendarConfigManager {
     private constructor(plugin: Plugin) {
         this.plugin = plugin;
         this.config = {
-            colorBy: 'priority', // 默认按项目上色
+            colorBy: 'priority', // 默认按优先级上色
             viewMode: 'timeGridWeek', // 默认周视图
             viewType: 'timeline', // 默认视图类型
             showLunar: true // 默认显示农历
@@ -76,7 +76,7 @@ export class CalendarConfigManager {
             }
 
             this.config = {
-                colorBy: settings.calendarColorBy || 'project',
+                colorBy: settings.calendarColorBy || 'priority',
                 viewMode: settings.calendarViewMode || 'timeGridWeek',
                 viewType: settings.calendarViewType || 'timeline',
                 showLunar: settings.calendarShowLunar !== false // 默认为 true
@@ -84,7 +84,7 @@ export class CalendarConfigManager {
         } catch (error) {
             console.warn('Failed to load calendar config, using defaults:', error);
             this.config = {
-                colorBy: 'project',
+                colorBy: 'priority',
                 viewMode: 'timeGridWeek',
                 viewType: 'timeline',
                 showLunar: true

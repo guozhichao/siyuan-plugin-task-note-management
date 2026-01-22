@@ -41,7 +41,7 @@ export class CalendarView {
     private showLunar: boolean = true; // 是否显示农历
     private showHoliday: boolean = true; // 是否显示节假日
     private holidays: { [date: string]: { title: string, type: 'holiday' | 'workday' } } = {}; // 节假日数据
-    private colorBy: 'category' | 'priority' | 'project' = 'project'; // 按分类或优先级上色
+    private colorBy: 'category' | 'priority' | 'project' = 'priority'; // 按分类或优先级上色
     private tooltip: HTMLElement | null = null; // 添加提示框元素
     private dropIndicator: HTMLElement | null = null; // 拖放放置指示器
     private externalReminderUpdatedHandler: ((e: Event) => void) | null = null;
@@ -686,6 +686,16 @@ export class CalendarView {
         colorByContainer.style.position = 'relative';
         colorByContainer.style.display = 'inline-block';
 
+        // 定义上色选项
+        const colorByOptions = [
+            { value: 'project', text: t("colorByProject") },
+            { value: 'category', text: t("colorByCategory") },
+            { value: 'priority', text: t("colorByPriority") }
+        ];
+
+        // 根据当前colorBy设置按钮文本
+        const currentColorByText = colorByOptions.find(opt => opt.value === this.colorBy)?.text || t("colorByPriority");
+
         const colorByButton = document.createElement('button');
         colorByButton.className = 'b3-button b3-button--outline';
         colorByButton.style.width = '100px';
@@ -693,7 +703,7 @@ export class CalendarView {
         colorByButton.style.justifyContent = 'space-between';
         colorByButton.style.alignItems = 'center';
         colorByButton.style.textAlign = 'left';
-        colorByButton.innerHTML = `<span class="filter-button-text" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${t("colorByProject")}</span> <span style="margin-left: 4px; flex-shrink: 0;">▼</span>`;
+        colorByButton.innerHTML = `<span class="filter-button-text" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${currentColorByText}</span> <span style="margin-left: 4px; flex-shrink: 0;">▼</span>`;
         colorByContainer.appendChild(colorByButton);
 
         const colorByDropdown = document.createElement('div');
@@ -709,13 +719,6 @@ export class CalendarView {
         colorByDropdown.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
         colorByDropdown.style.minWidth = '150px';
         colorByDropdown.style.padding = '8px';
-
-        // 添加上色选项
-        const colorByOptions = [
-            { value: 'project', text: t("colorByProject") },
-            { value: 'category', text: t("colorByCategory") },
-            { value: 'priority', text: t("colorByPriority") }
-        ];
 
         colorByOptions.forEach(option => {
             const optionItem = document.createElement('div');
