@@ -34,7 +34,7 @@ export class ProjectPanel {
     private categoryManager: CategoryManager;
     private statusManager: StatusManager;
     private projectUpdatedHandler: () => void;
-    private reminderUpdatedHandler: () => void;
+    private reminderUpdatedHandler: (e: any) => void;
     // 添加拖拽相关属性
     private isDragging: boolean = false;
     private draggedElement: HTMLElement | null = null;
@@ -55,9 +55,32 @@ export class ProjectPanel {
             this.loadProjects();
         };
 
-        this.reminderUpdatedHandler = () => {
+        this.reminderUpdatedHandler = async (e: any) => {
             // 清空提醒缓存并重新加载计数
             this.reminderDataCache = null;
+
+            const detail = e.detail;
+            // 如果提供了 projectId，只更新该项目的统计数据
+            // 这样可以避免每次任务变动都重绘整个项目列表，防止滚动位置丢失和闪烁
+            if (detail && detail.projectId) {
+                const projectEl = this.projectsContainer.querySelector(`.project-item[data-project-id="${detail.projectId}"]`) as HTMLElement;
+                if (projectEl) {
+                    const doingEl = projectEl.querySelector('.project-count--doing') as HTMLElement;
+                    const shortTermEl = projectEl.querySelector('.project-count--short-term') as HTMLElement;
+                    const longTermEl = projectEl.querySelector('.project-count--long-term') as HTMLElement;
+                    const doneEl = projectEl.querySelector('.project-count--done') as HTMLElement;
+                    const pomodoroEl = projectEl.querySelector('.project-count--pomodoro') as HTMLElement;
+                    const progressBarInner = projectEl.querySelector('.project-progress-inner') as HTMLElement;
+                    const progressText = projectEl.querySelector('.project-progress-text') as HTMLElement;
+
+                    if (doingEl && shortTermEl && longTermEl && doneEl) {
+                        // 重新计算并更新该项目的统计信息
+                        await this.fillProjectTopLevelCounts(detail.projectId, doingEl, shortTermEl, longTermEl, doneEl, pomodoroEl, progressBarInner, progressText);
+                        return;
+                    }
+                }
+            }
+
             // 重新渲染当前已加载的项目计数
             // 如果项目已渲染，则触发一次重新加载以刷新计数显示
             this.loadProjects();

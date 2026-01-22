@@ -9136,42 +9136,13 @@ export class ProjectKanbanView {
     private dispatchReminderUpdate(skipSelfUpdate: boolean = true) {
         window.dispatchEvent(new CustomEvent('reminderUpdated', {
             detail: {
-                source: skipSelfUpdate ? this.kanbanInstanceId : null
+                source: skipSelfUpdate ? this.kanbanInstanceId : null,
+                projectId: this.projectId
             }
         }));
     }
 
-    /**
-     * 直接更新任务，不重新加载整个看板
-     * @param taskId 任务ID
-     * @param updates 更新的字段
-     */
-    private async updateTaskDirectly(taskId: string, updates: Partial<any>) {
-        try {
-            // 1. 更新本地缓存
-            const task = this.tasks.find(t => t.id === taskId);
-            if (task) {
-                Object.assign(task, updates);
-            }
 
-            // 2. 更新 DOM
-            this.updateTaskElementDOM(taskId, updates);
-
-            // 3. 保存到磁盘
-            const reminderData = await this.getReminders();
-            if (reminderData[taskId]) {
-                Object.assign(reminderData[taskId], updates);
-                await saveReminders(this.plugin, reminderData);
-            }
-
-            // 4. 触发带源标识的事件（其他组件需要更新）
-            this.dispatchReminderUpdate(true);
-        } catch (error) {
-            console.error('直接更新任务失败:', error);
-            // 如果失败，回退到完整重载
-            await this.queueLoadTasks();
-        }
-    }
 
     /**
      * 更新任务DOM元素

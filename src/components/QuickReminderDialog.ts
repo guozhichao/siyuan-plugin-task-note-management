@@ -2731,9 +2731,12 @@ export class QuickReminderDialog {
                     showMessage("实例编辑成功");
 
                     // 触发更新事件
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                    // 触发项目更新事件（包含块属性变更）
-                    window.dispatchEvent(new CustomEvent('projectUpdated'));
+                    window.dispatchEvent(new CustomEvent('reminderUpdated', {
+                        detail: {
+                            projectId: this.reminder.projectId
+                        }
+                    }));
+
 
                     // 调用保存回调（传递原始提醒数据）
                     if (this.onSaved) {
@@ -3101,10 +3104,15 @@ export class QuickReminderDialog {
                 // ignore
             }
 
+            // 如果项目发生了变更，不传递 projectId 以触发全量刷新；否则传递 projectId 进行增量刷新
+            const isProjectChanged = this.mode === 'edit' && this.reminder && this.reminder.projectId !== projectId;
+            const eventDetail = isProjectChanged ? {} : { projectId: projectId };
+
             // 触发更新事件
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
-            // 触发项目更新事件（包含块属性变更）
-            window.dispatchEvent(new CustomEvent('projectUpdated'));
+            window.dispatchEvent(new CustomEvent('reminderUpdated', {
+                detail: eventDetail
+            }));
+
 
             // 调用保存回调
             if (this.onSaved) {
