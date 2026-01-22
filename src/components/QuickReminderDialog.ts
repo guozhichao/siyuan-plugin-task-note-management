@@ -2771,7 +2771,8 @@ export class QuickReminderDialog {
                     }
                 } else {
                     // 创建模式：创建新提醒
-                    reminderId = `quick_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    // 使用之前生成的 tempId，确保乐观更新的 ID 与实际保存的 ID 一致
+                    reminderId = tempId;
                     reminder = {
                         id: reminderId,
                         parentId: this.defaultParentId,

@@ -8208,8 +8208,10 @@ export class ProjectKanbanView {
 
         // 2. 后台执行繁重的绑定操作
         try {
-            const reminderData = await this.getReminders();
-            const reminderId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
+            let reminderData = await this.getReminders();
+            let reminderId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
+
+
 
             if (reminderData[reminderId]) {
                 // 获取块信息
