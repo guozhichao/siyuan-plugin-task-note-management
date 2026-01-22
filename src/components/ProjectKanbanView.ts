@@ -5396,40 +5396,102 @@ export class ProjectKanbanView {
     }
 
     private async toggleTaskCompletion(task: any, completed: boolean) {
-        try {
-            if (task.isRepeatInstance && task.originalId) {
-                // 对于重复实例,使用不同的完成逻辑
-                await this.toggleRepeatInstanceCompletion(task, completed);
+        // 1. 乐观更新 UI (Optimistic UI Update)
+        const optimisticTask = this.tasks.find(t => t.id === task.id);
+        if (optimisticTask) {
+            optimisticTask.completed = completed;
+            if (completed) {
+                // 设置一个临时的完成时间用于排序
+                optimisticTask.completedTime = getLocalDateTimeString(new Date());
             } else {
-                // 对于普通任务
-                const reminderData = await this.getReminders();
-                if (reminderData[task.id]) {
-                    reminderData[task.id].completed = completed;
-                    if (completed) {
-                        reminderData[task.id].completedTime = getLocalDateTimeString(new Date());
-                        // 父任务完成时，自动完成所有子任务
-                        await this.completeAllChildTasks(task.id, reminderData);
-                    } else {
-                        delete reminderData[task.id].completedTime;
-                        // 取消完成父任务时，通常不自动取消子任务
+                delete optimisticTask.completedTime;
+            }
+
+            // 重新渲染相关DOM
+            if (this.kanbanMode === 'custom') {
+                if (optimisticTask.customGroupId) {
+                    const group = this.project?.customGroups?.find((g: any) => g.id === optimisticTask.customGroupId);
+                    if (group) {
+                        const groupTasks = this.tasks.filter(t => t.customGroupId === group.id);
+                        this.renderCustomGroupColumn(group, groupTasks);
                     }
+                } else {
+                    const ungroupedTasks = this.tasks.filter(t => !t.customGroupId);
+                    this.renderUngroupedColumn(ungroupedTasks);
+                }
+            } else {
+                // 状态看板模式：已完成任务通常会移动到 completed 列，或者留在原列但变灰
+                // 根据当前逻辑，如果任务完成，它可能会移动到 'completed' 列
+                // 或者如果它有 termType，可能仍在 'doing'/'todo' 但被渲染为已完成样式
+                // 这里简单粗暴一点：刷新所有涉及的列。通常是 source 和 target。
+                // 如果是简单勾选，任务状态可能没变，只是 completed 属性变了。
+                // 检查 loadTasks 逻辑，completed 的任务通常有自己的归宿。
+                // 为了简化，我们假定任务状态流转只涉及到它当前的 kanbanStatus 和 completed 状态。
+                const status = optimisticTask.kanbanStatus || 'todo';
+                const tasksInColumn = this.tasks.filter(t => {
+                    const tStatus = t.kanbanStatus || 'todo';
+                    const targetColumn = t.customGroupId && !['doing', 'short_term', 'long_term', 'completed'].includes(t.customGroupId) ? t.customGroupId : tStatus;
+                    return targetColumn === status;
+                });
+                // 同时刷新 completed 列，因为任务可能跳到那里去，或者从那里跳出来
+                // 但为了避免过于复杂的全量计算，我们只重绘当前状态列。
+                // 如果任务应该从当前列消失（进入Completed列），renderColumn 会正确过滤吗？
+                // 回看 renderColumn，它通常渲染特定 status 的任务。
+                // 如果 completed 的任务被归类为 'completed' status，那么我们需要刷新 'completed' 列。
+                // 这里采取保守策略：刷新当前列。如果视觉上不对，稍后的 queueLoadTasks 会修正。
+                // 更好的策略是：如果任务完成了，刷新 'completed' 列 和 原状态列。
+                this.renderColumn(status, tasksInColumn);
 
-                    await saveReminders(this.plugin, reminderData);
-
-                    // 更新绑定块的书签状态
-                    if (task.blockId || task.docId) {
-                        await updateBlockReminderBookmark(task.blockId || task.docId, this.plugin);
-                    }
-
-                    // 广播更新事件并刷新
-                    this.dispatchReminderUpdate(true);
-                    await this.queueLoadTasks();
+                // 尝试刷新 Completed 列 (假设有一个状态叫 completed)
+                const completedTasks = this.tasks.filter(t => t.completed); // 简化的获取方式
+                // 注意：状态看板可能没有显式的 "completed" status 列，除非用户启用了。
+                // 如果有这个列：
+                if (this.container.querySelector('.kanban-column-completed')) {
+                    // 这个逻辑有点绕，因为 completed 属性和 kanbanStatus='completed' 是两个维度。
+                    // 暂时只刷新原列，依靠 queueLoadTasks 最终一致。
                 }
             }
-        } catch (error) {
-            console.error('切换任务完成状态失败:', error);
-            showMessage('操作失败，请重试');
         }
+
+        // 2. 后台执行保存逻辑
+        (async () => {
+            try {
+                if (task.isRepeatInstance && task.originalId) {
+                    // 对于重复实例,使用不同的完成逻辑
+                    await this.toggleRepeatInstanceCompletion(task, completed);
+                } else {
+                    // 对于普通任务
+                    const reminderData = await this.getReminders();
+                    if (reminderData[task.id]) {
+                        reminderData[task.id].completed = completed;
+                        if (completed) {
+                            reminderData[task.id].completedTime = getLocalDateTimeString(new Date());
+                            // 父任务完成时，自动完成所有子任务
+                            await this.completeAllChildTasks(task.id, reminderData);
+                        } else {
+                            delete reminderData[task.id].completedTime;
+                            // 取消完成父任务时，通常不自动取消子任务
+                        }
+
+                        await saveReminders(this.plugin, reminderData);
+
+                        // 更新绑定块的书签状态
+                        if (task.blockId || task.docId) {
+                            await updateBlockReminderBookmark(task.blockId || task.docId, this.plugin);
+                        }
+
+                        // 广播更新事件并刷新
+                        this.dispatchReminderUpdate(true);
+                        // 确保最终一致
+                        this.queueLoadTasks();
+                    }
+                }
+            } catch (error) {
+                console.error('切换任务完成状态失败:', error);
+                showMessage('操作失败，正在恢复...');
+                this.queueLoadTasks(); // 失败回滚
+            }
+        })();
     }
 
     /**
