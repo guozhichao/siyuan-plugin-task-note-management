@@ -8144,8 +8144,7 @@ export class ProjectKanbanView {
 
             if (reminderData[reminderId]) {
                 // 获取块信息
-                // refreshSql 可能不是必须的，getBlockByID 通常足够更新
-                // await refreshSql(); 
+                await refreshSql(); 
 
                 const block = await getBlockByID(blockId);
                 if (!block) {
