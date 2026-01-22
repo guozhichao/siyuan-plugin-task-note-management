@@ -6952,7 +6952,7 @@ export class ProjectKanbanView {
             .kanban-column {
                 background: var(--b3-theme-background);
                 border-radius: 8px;
-                border: 1px solid var(--b3-border-color);
+                border: 2px solid var(--b3-border-color);
                 display: flex;
                 flex-direction: column;
                 min-width: 280px; /* 固定最小宽度 */
