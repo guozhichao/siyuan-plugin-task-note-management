@@ -1355,7 +1355,7 @@ class SmartBatchDialog {
 
     private async saveBatchReminders(dialog: Dialog) {
         try {
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.plugin.loadData('reminder.json') || {};
 
             let successCount = 0;
             let failureCount = 0;

@@ -194,7 +194,7 @@ export class QuickReminderDialog {
         if (this.mode !== 'block' || !this.blockId) return;
 
         try {
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.plugin.loadData('reminder.json') || {};
             const blockReminders = Object.values(reminderData).filter((reminder: any) =>
                 reminder.blockId === this.blockId
             ) as any[];
@@ -623,7 +623,7 @@ export class QuickReminderDialog {
 
         subtasksGroup.style.display = 'block';
 
-        const reminderData = await this.plugin.loadData('reminder.json');
+        const reminderData = await this.plugin.loadData('reminder.json') || {};
         const subtasks = Object.values(reminderData).filter((r: any) => r.parentId === this.reminder.id);
         const count = subtasks.length;
 
@@ -2695,7 +2695,7 @@ export class QuickReminderDialog {
         }
 
         try {
-            const reminderData = await this.plugin.loadData('reminder.json');
+            let reminderData: any = await this.plugin.loadData('reminder.json') || {};
 
             let reminder: any;
             let reminderId: string;
@@ -3222,7 +3222,7 @@ export class QuickReminderDialog {
 
         try {
             // 读取父任务数据
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.plugin.loadData('reminder.json') || {};
             const parentTask = reminderData[parentId];
 
             if (parentTask) {
@@ -3258,7 +3258,7 @@ export class QuickReminderDialog {
 
         try {
             // 读取父任务数据
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.plugin.loadData('reminder.json') || {};
             const parentTask = reminderData[parentId];
 
             if (!parentTask) {

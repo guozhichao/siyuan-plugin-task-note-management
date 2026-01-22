@@ -19,7 +19,7 @@ export class CalendarConfigManager {
     private constructor(plugin: Plugin) {
         this.plugin = plugin;
         this.config = {
-            colorBy: 'project', // 默认按项目上色
+            colorBy: 'priority', // 默认按项目上色
             viewMode: 'timeGridWeek', // 默认周视图
             viewType: 'timeline', // 默认视图类型
             showLunar: true // 默认显示农历

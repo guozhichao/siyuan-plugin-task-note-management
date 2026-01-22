@@ -214,7 +214,7 @@ export class DocumentReminderDialog {
             this.remindersContainer.innerHTML = `<div class="doc-reminder-loading">${t("loadingReminders")}</div>`;
 
             // 获取所有提醒数据
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.plugin.loadData('reminder.json') || {};
             if (!reminderData || typeof reminderData !== 'object') {
                 this.remindersContainer.innerHTML = `<div class="doc-reminder-empty">${t("noReminders")}</div>`;
                 this.countDisplay.textContent = `0 ${t("remindersCount")}`;
@@ -877,7 +877,7 @@ export class DocumentReminderDialog {
 
     private async toggleReminder(reminder: any, completed: boolean) {
         try {
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.plugin.loadData('reminder.json') || {};
 
             if (reminder.isRepeatInstance) {
                 // 处理重复事件实例
@@ -1123,7 +1123,7 @@ export class DocumentReminderDialog {
     private async performDeleteReminder(reminder: any) {
         // 用户确认删除
         try {
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.plugin.loadData('reminder.json') || {};
 
             if (reminder.isRepeatInstance) {
                 // 删除重复事件实例

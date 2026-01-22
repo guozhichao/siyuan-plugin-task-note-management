@@ -44,7 +44,7 @@ export class BlockRemindersDialog {
             }
 
             // 获取提醒数据
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.plugin.loadData('reminder.json') || {};
             const reminders = reminderIds
                 .map(id => reminderData[id])
                 .filter(r => r); // 过滤掉不存在的提醒

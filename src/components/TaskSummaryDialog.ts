@@ -222,7 +222,7 @@ export class TaskSummaryDialog {
 
   private async getEventsForRange(startDate: string, endDate: string) {
     try {
-      const reminderData = await this.plugin.loadData('reminder.json');
+      const reminderData = await this.plugin.loadData('reminder.json') || {};
       const events = [];
 
       for (const reminder of Object.values(reminderData) as any[]) {
@@ -277,7 +277,7 @@ export class TaskSummaryDialog {
 
   private async calculateStats(startDate: string, endDate: string) {
     const settings = this.plugin?.data[SETTINGS_FILE] || {};
-    const reminderData = await this.plugin.loadData('reminder.json');
+    const reminderData = await this.plugin.loadData('reminder.json') || {};
 
     // 1. 番茄钟统计
     const pomodoroManager = PomodoroRecordManager.getInstance();
@@ -641,7 +641,7 @@ export class TaskSummaryDialog {
 
   private async getEvents() {
     try {
-      const reminderData = await this.plugin.loadData('reminder.json');
+      const reminderData = await this.plugin.loadData('reminder.json') || {};
 
       const events = [];
 

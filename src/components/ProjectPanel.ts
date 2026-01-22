@@ -1708,7 +1708,7 @@ export class ProjectPanel {
     private async deleteProject(project: any) {
         // 首先检查是否有关联的任务
         try {
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.plugin.loadData('reminder.json') || {};
             const projectTasks = Object.values(reminderData).filter((reminder: any) =>
                 reminder && reminder.projectId === project.id
             );
@@ -1767,7 +1767,7 @@ export class ProjectPanel {
 
             // 如果需要删除任务
             if (deleteTasks) {
-                const reminderData = await this.plugin.loadData('reminder.json');
+                const reminderData = await this.plugin.loadData('reminder.json') || {};
                 let deletedCount = 0;
 
                 // 删除所有关联的任务

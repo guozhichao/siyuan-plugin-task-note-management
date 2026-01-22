@@ -66,6 +66,7 @@ export class PomodoroRecordManager {
                 // 如果返回的是错误对象或包含错误信息，则初始化为空记录
                 console.log('番茄钟记录文件不存在或格式错误，初始化空记录');
                 this.records = {};
+                await this.saveRecords();
             }
 
             // 确保每个日期记录都有 sessions 数组
@@ -247,7 +248,7 @@ export class PomodoroRecordManager {
             await this.initialize();
         }
         try {
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.plugin.loadData('reminder.json') || {};
 
             if (!reminderData) return 0;
 
@@ -314,7 +315,7 @@ export class PomodoroRecordManager {
                 await this.initialize();
             }
 
-            const reminderData = await this.plugin.loadData('reminder.json');
+            const reminderData = await this.plugin.loadData('reminder.json') || {};
             if (!reminderData) return 0;
 
             const isInstanceId = (id: string) => {
