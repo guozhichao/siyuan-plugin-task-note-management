@@ -1745,7 +1745,9 @@ export class QuickReminderDialog {
             const startValue = startDateInput.value;
             const endValue = endDateInput.value;
 
-            // 切换类型和max属性
+            // 先清空值以避免格式冲突，然后切换类型
+            startDateInput.value = '';
+            endDateInput.value = '';
             startDateInput.type = 'datetime-local';
             endDateInput.type = 'datetime-local';
             startDateInput.max = '9999-12-31T23:59';
