@@ -103,6 +103,26 @@ export class ProjectKanbanView {
         this.initializeAsync();
     }
 
+    /**
+     * 根据任务的日期和时间计算其“逻辑日期”（考虑一天起始时间设置）
+     */
+    private static getTaskLogicalDate(date?: string, time?: string): string {
+        if (!date) return getLogicalDateString();
+        if (time) {
+            try {
+                return getLogicalDateString(new Date(date + 'T' + time));
+            } catch (e) {
+                return date;
+            }
+        }
+        return date;
+    }
+
+    // 实例包装，保持现有实例调用不变
+    private getTaskLogicalDate(date?: string, time?: string): string {
+        return (this.constructor as typeof ProjectKanbanView).getTaskLogicalDate(date, time);
+    }
+
     private async createGroupDialog(container: HTMLElement) {
         const dialog = new Dialog({
             title: t('newGroup'),
@@ -2137,8 +2157,9 @@ export class ProjectKanbanView {
                             completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined
                         };
 
-                        // 按日期和完成状态分类
-                        const dateComparison = compareDateStrings(instance.date, today);
+                        // 按日期和完成状态分类（使用逻辑日期）
+                        const instanceLogical = this.getTaskLogicalDate(instance.date, instance.time);
+                        const dateComparison = compareDateStrings(instanceLogical, today);
 
                         if (dateComparison < 0) {
                             // 过去的日期
@@ -2572,7 +2593,8 @@ export class ProjectKanbanView {
                         const isInstanceCompleted = completedInstances.includes(originalKey);
                         const instanceMod = instanceModifications[originalKey] || {};
 
-                        const dateComparison = compareDateStrings(instance.date, today);
+                        const instanceLogical = this.getTaskLogicalDate(instance.date, instance.time);
+                        const dateComparison = compareDateStrings(instanceLogical, today);
 
                         if (isInstanceCompleted) {
                             // 所有已完成的实例都会显示在看板上，计入 completed
@@ -2624,7 +2646,8 @@ export class ProjectKanbanView {
                     }
 
                     if (r.date) {
-                        const dateComparison = compareDateStrings(r.date, today);
+                        const logicalR = this.getTaskLogicalDate(r.date, r.time);
+                        const dateComparison = compareDateStrings(logicalR, today);
                         if (dateComparison <= 0) { // 今天或过去
                             doing += 1;
                             return;
@@ -2653,7 +2676,7 @@ export class ProjectKanbanView {
         // 如果未完成的任务设置了日期，且日期为今天或过期，放入进行中列
         if (task.date) {
             const today = getLogicalDateString();
-            const dateComparison = compareDateStrings(task.date, today);
+            const dateComparison = compareDateStrings(this.getTaskLogicalDate(task.date, task.time), today);
             if (dateComparison <= 0) { // 今天或过去
                 return 'doing';
             }
@@ -4431,12 +4454,13 @@ export class ProjectKanbanView {
 
                     const today = getLogicalDateString();
                     const effectiveDate = datePart || task.date || today;
+                    const logicalEffective = this.getTaskLogicalDate(effectiveDate, timePart || undefined);
 
-                    // 比较日期（格式 YYYY-MM-DD 可直接字符串比较）
+                    // 比较逻辑日期
                     if (effectiveDate) {
-                        if (effectiveDate < today) {
+                        if (compareDateStrings(logicalEffective, today) < 0) {
                             // 过去：不显示 custom 时间
-                        } else if (effectiveDate === today) {
+                        } else if (compareDateStrings(logicalEffective, today) === 0) {
                             if (timePart) {
                                 const showTime = timePart.substring(0, 5);
                                 dateHtml += `<span> ⏰${showTime}</span>`;
@@ -4861,21 +4885,25 @@ export class ProjectKanbanView {
             return `<span class="countdown-badge countdown-normal" style="background-color: rgba(231, 76, 60, 0.15); color: #e74c3c; border: 1px solid rgba(231, 76, 60, 0.3);">${text}</span>`;
         };
 
-        // 如果只有截止时间，显示截止时间
+        // 使用逻辑日期判断（考虑一天起始时间）
+        const logicalStart = this.getTaskLogicalDate(task.date, task.time);
+        const logicalEnd = this.getTaskLogicalDate(task.endDate || task.date, task.endTime || task.time);
+
+        // 如果只有截止时间，显示截止时间（基于逻辑结束日判断过期/今天/明天）
         if (!task.date && task.endDate) {
             const endDate = new Date(task.endDate);
             const endYear = endDate.getFullYear();
 
-            // 检查是否过期
-            if (task.endDate < today) {
+            // 检查是否过期（使用逻辑结束日期）
+            if (compareDateStrings(logicalEnd, today) < 0) {
                 const daysDiff = getExpiredDays(task.endDate);
                 const dateStr = formatDateWithYear(task.endDate, endDate);
                 return `${dateStr} ${createExpiredBadge(daysDiff, !!task.completed)}`;
             }
 
-            if (task.endDate === today) {
+            if (logicalEnd === today) {
                 return t('todayDeadline');
-            } else if (task.endDate === tomorrowStr) {
+            } else if (logicalEnd === tomorrowStr) {
                 return t('tomorrowDeadline');
             } else {
                 const dateStr = formatDateWithYear(task.endDate, endDate);
@@ -4883,18 +4911,18 @@ export class ProjectKanbanView {
             }
         }
 
-        // 如果有开始时间，按原逻辑显示
+        // 如果有开始时间，按逻辑日期显示
         let dateStr = '';
-        if (task.date === today) {
+        if (logicalStart === today) {
             dateStr = t('today');
-        } else if (task.date === tomorrowStr) {
+        } else if (logicalStart === tomorrowStr) {
             dateStr = t('tomorrow');
         } else {
             const taskDate = new Date(task.date);
             const taskYear = taskDate.getFullYear();
 
-            // 检查是否过期
-            if (task.date < today) {
+            // 检查是否过期（使用逻辑起始日期）
+            if (compareDateStrings(logicalStart, today) < 0) {
                 const formattedDate = formatDateWithYear(task.date, taskDate);
                 // 如果任务有结束日期且和开始日期不同，避免在开始日期处显示过期徽章（只在结束日期处显示一次）
                 if (task.endDate && task.endDate !== task.date) {
@@ -4926,8 +4954,8 @@ export class ProjectKanbanView {
             const taskEndDate = new Date(task.endDate);
             const endYear = taskEndDate.getFullYear();
 
-            // 检查结束日期是否过期
-            if (task.endDate < today) {
+            // 检查结束日期是否过期（使用逻辑结束日期）
+            if (compareDateStrings(logicalEnd, today) < 0) {
                 const daysDiff = getExpiredDays(task.endDate);
                 const formattedEndDate = formatDateWithYear(task.endDate, taskEndDate);
                 endDateStr = `${formattedEndDate} ${createExpiredBadge(daysDiff, !!task.completed)} `;
@@ -4949,14 +4977,19 @@ export class ProjectKanbanView {
     }
 
     private getTaskCountdownInfo(task: any): { text: string; days: number; type: 'start' | 'end' | 'none' } {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // 使用逻辑日期计算天数差（考虑一天起始时间）
+        const today = getLogicalDateString();
+
+        const calcDays = (targetLogicalDate: string) => {
+            const target = new Date(targetLogicalDate + 'T00:00:00');
+            const base = new Date(today + 'T00:00:00');
+            return Math.ceil((target.getTime() - base.getTime()) / (1000 * 60 * 60 * 24));
+        };
 
         // 如果同时有开始日期和结束日期，则仅基于结束日期显示倒计时（避免同时显示开始和结束倒计时）
         if (task.date && task.endDate) {
-            const endDate = new Date(task.endDate);
-            endDate.setHours(0, 0, 0, 0);
-            const endDays = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            const logicalEnd = this.getTaskLogicalDate(task.endDate, task.endTime || task.time);
+            const endDays = calcDays(logicalEnd);
 
             if (endDays >= 0) {
                 return {
@@ -4970,9 +5003,8 @@ export class ProjectKanbanView {
 
         // 如果只有开始日期
         if (task.date) {
-            const startDate = new Date(task.date);
-            startDate.setHours(0, 0, 0, 0);
-            const startDays = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            const logicalStart = this.getTaskLogicalDate(task.date, task.time);
+            const startDays = calcDays(logicalStart);
 
             // 如果还没开始
             if (startDays > 0) {
@@ -4985,9 +5017,8 @@ export class ProjectKanbanView {
 
             // 否则没有有效的开始倒计时，继续检查结束日期（如果存在）
             if (task.endDate) {
-                const endDate = new Date(task.endDate);
-                endDate.setHours(0, 0, 0, 0);
-                const endDays = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                const logicalEnd = this.getTaskLogicalDate(task.endDate, task.endTime || task.time);
+                const endDays = calcDays(logicalEnd);
 
                 if (endDays >= 0) {
                     return {
@@ -5001,9 +5032,8 @@ export class ProjectKanbanView {
 
         // 只有结束日期的情况
         if (task.endDate) {
-            const endDate = new Date(task.endDate);
-            endDate.setHours(0, 0, 0, 0);
-            const endDays = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            const logicalEnd = this.getTaskLogicalDate(task.endDate, task.endTime || task.time);
+            const endDays = calcDays(logicalEnd);
 
             if (endDays >= 0) {
                 return {
@@ -5653,7 +5683,7 @@ export class ProjectKanbanView {
             // 则阻止直接把它移出 "进行中"，提示用户需要修改任务时间才能移出。
             try {
                 const today = getLogicalDateString();
-                if (this.isDragging && task && task.date && compareDateStrings(task.date, today) <= 0 && newStatus !== 'doing' && newStatus !== 'completed') {
+                if (this.isDragging && task && task.date && compareDateStrings(this.getTaskLogicalDate(task.date, task.time), today) <= 0 && newStatus !== 'doing' && newStatus !== 'completed') {
                     const dialog = new Dialog({
                         title: '提示',
                         content: `
@@ -8144,7 +8174,7 @@ export class ProjectKanbanView {
 
             if (reminderData[reminderId]) {
                 // 获取块信息
-                await refreshSql(); 
+                await refreshSql();
 
                 const block = await getBlockByID(blockId);
                 if (!block) {
@@ -9193,7 +9223,8 @@ export class ProjectKanbanView {
             hasUncompletedFutureInstance = repeatInstances.some(instance => {
                 const instanceIdStr = (instance as any).instanceId || `${reminder.id}_${instance.date}`;
                 const originalKey = instanceIdStr.split('_').pop() || instance.date;
-                return compareDateStrings(instance.date, today) > 0 && !completedInstances.includes(originalKey);
+                const instanceLogical = this.getTaskLogicalDate(instance.date, instance.time);
+                return compareDateStrings(instanceLogical, today) > 0 && !completedInstances.includes(originalKey);
             });
 
             if (!hasUncompletedFutureInstance) {
