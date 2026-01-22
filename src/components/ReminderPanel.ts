@@ -1,6 +1,6 @@
 import { showMessage, confirm, Dialog, Menu, openTab } from "siyuan";
 import { refreshSql, sql, updateBlock, getBlockKramdown, getBlockByID, updateBlockReminderBookmark, openBlock, createDocWithMd, renderSprig, readProjectData } from "../api";
-import { getLocalDateString, compareDateStrings, getLocalDateTime, getLocalDateTimeString, getLogicalDateString, getRelativeDateString } from "../utils/dateUtils";
+import { getLocalDateString, compareDateStrings, getLocalDateTime, getLocalDateTimeString, getLogicalDateString, getRelativeDateString, autoDetectDateTimeFromTitle } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
@@ -6294,7 +6294,8 @@ export class ReminderPanel {
                 return;
             }
 
-            const hierarchicalTasks = this.parseHierarchicalTaskList(text);
+            const autoDetect = await this.plugin.getAutoDetectDateTimeEnabled();
+            const hierarchicalTasks = this.parseHierarchicalTaskList(text, autoDetect);
 
             if (hierarchicalTasks.length > 0) {
                 await this.batchCreateSubtasksWithHierarchy(hierarchicalTasks, parentReminder.id);
@@ -6306,7 +6307,7 @@ export class ReminderPanel {
     }
 
     // 复用 ProjectKanbanView 的解析方法，适配为在 ReminderPanel 创建子任务
-    private parseHierarchicalTaskList(text: string): any[] {
+    private parseHierarchicalTaskList(text: string, autoDetect: boolean = false): any[] {
         const lines = text.split('\n');
         const tasks: any[] = [];
         const stack: Array<{ task: any; level: number }> = [];
@@ -6319,7 +6320,7 @@ export class ReminderPanel {
 
             if (!cleanLine || (!cleanLine.startsWith('-') && level === 0 && !cleanLine.match(/^\s*-/))) {
                 if (cleanLine && level === 0) {
-                    const taskData = this.parseTaskLine(cleanLine);
+                    const taskData = this.parseTaskLine(cleanLine, autoDetect);
                     const task = { ...taskData, level: 0, children: [] };
                     tasks.push(task);
                     stack.length = 0;
@@ -6338,7 +6339,7 @@ export class ReminderPanel {
             const taskContent = cleanLine.replace(/^[-*+]+\s*/, '');
             if (!taskContent) continue;
 
-            const taskData = this.parseTaskLine(taskContent);
+            const taskData = this.parseTaskLine(taskContent, autoDetect);
             const task = { ...taskData, level: combinedLevel, children: [] };
 
             while (stack.length > 0 && stack[stack.length - 1].level >= combinedLevel) {
@@ -6366,12 +6367,23 @@ export class ReminderPanel {
         return Math.floor(spaces / 2);
     }
 
-    private parseTaskLine(line: string): { title: string; priority?: string; startDate?: string; endDate?: string; blockId?: string; completed?: boolean } {
+    private parseTaskLine(line: string, autoDetect: boolean = false): {
+        title: string;
+        priority?: string;
+        startDate?: string;
+        time?: string;
+        endDate?: string;
+        endTime?: string;
+        blockId?: string;
+        completed?: boolean
+    } {
         const paramMatch = line.match(/@(.*)$/);
         let title = line;
         let priority: string | undefined;
         let startDate: string | undefined;
+        let time: string | undefined;
         let endDate: string | undefined;
+        let endTime: string | undefined;
         let blockId: string | undefined;
         let completed: boolean | undefined;
 
@@ -6397,20 +6409,31 @@ export class ReminderPanel {
             title = leadingCheckboxMatch[2];
         }
 
+        if (autoDetect) {
+            const detected = autoDetectDateTimeFromTitle(title);
+            if (detected.date || detected.endDate) {
+                title = detected.cleanTitle || title;
+                startDate = detected.date;
+                time = detected.time;
+                endDate = detected.endDate;
+                endTime = detected.endTime;
+            }
+        }
+
         if (paramMatch) {
             title = title.replace(/@(.*)$/, '').trim();
             const paramString = paramMatch[1];
             const params = new URLSearchParams(paramString);
             priority = params.get('priority') || undefined;
-            startDate = params.get('startDate') || undefined;
-            endDate = params.get('endDate') || undefined;
+            startDate = params.get('startDate') || startDate;
+            endDate = params.get('endDate') || endDate;
             if (priority && !['high', 'medium', 'low', 'none'].includes(priority)) priority = 'none';
             const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
             if (startDate && !dateRegex.test(startDate)) startDate = undefined;
             if (endDate && !dateRegex.test(endDate)) endDate = undefined;
         }
 
-        return { title: title.trim() || '未命名任务', priority, startDate, endDate, blockId, completed };
+        return { title: title.trim() || '未命名任务', priority, startDate, time, endDate, endTime, blockId, completed };
     }
 
     private async batchCreateSubtasksWithHierarchy(tasks: any[], parentIdForAllTopLevel: string) {
@@ -6437,7 +6460,9 @@ export class ReminderPanel {
                 title: task.title,
                 note: '',
                 date: task.startDate || undefined,
+                time: task.time || undefined,
                 endDate: task.endDate || undefined,
+                endTime: task.endTime || undefined,
                 // 如果子任务没指定优先级，继承父任务的优先级
                 priority: task.priority && task.priority !== 'none' ? task.priority : (parent ? parent.priority : undefined),
                 categoryId: parent ? parent.categoryId : undefined,

@@ -241,7 +241,10 @@ export function parseNaturalDateTime(text: string): ParseResult {
                             endDate: endDate,
                             endTime: endResult.time,
                             hasEndTime: endResult.hasTime || !!endResult.time,
-                            hasEndDate: hasEndDate
+                            hasEndDate: hasEndDate,
+                            // 继承年份逻辑：如果结束日期识别到了但没有年份（或者识别为今年）而开始日期有不同年份
+                            // 实际场景：2025.12.30-01.02，需要把 endDate 改为 2026
+                            // 此处简化处理，由后续逻辑统一处理日期连贯性
                         };
                     }
                 }
@@ -249,6 +252,43 @@ export function parseNaturalDateTime(text: string): ParseResult {
         }
 
         // 原有的单日期解析逻辑...
+
+        // --- 优先提取末尾时间 (针对 "任务0：14:20" 这种场景) ---
+        // 匹配模式：(起始/空格/中英文冒号) + (1-2位数字) + (中英文冒号/点) + (2位数字) + (可选分) + 结尾
+        const trailingTimePattern = /(?:^|[\s:：])(\d{1,2})[:：点](\d{2})(?:分)?$/;
+        const trailingTimeMatch = processedText.match(trailingTimePattern);
+        if (trailingTimeMatch) {
+            const h = parseInt(trailingTimeMatch[1]);
+            const m = parseInt(trailingTimeMatch[2]);
+            if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+                const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+
+                // 检查剩余部分是否包含日期信息
+                // 获取匹配开始的位置（包括前缀空格或冒号）
+                const matchIndex = trailingTimeMatch.index || 0;
+                const remainingText = processedText.substring(0, matchIndex).trim();
+
+                if (remainingText) {
+                    // 尝试解析剩余部分的日期
+                    const dateResult = parseNaturalDateTime(remainingText);
+                    if (dateResult.date) {
+                        return {
+                            ...dateResult,
+                            time: timeStr,
+                            hasTime: true
+                        };
+                    }
+                }
+
+                // 没识别到日期，默认今天
+                return {
+                    date: getLogicalDateString(),
+                    time: timeStr,
+                    hasTime: true,
+                    hasDate: false
+                };
+            }
+        }
 
         // 处理包含8位数字日期的情况
         const compactDateInTextMatch = processedText.match(/(?:^|.*?)(\d{8})(?:\s|$|.*)/);
@@ -293,7 +333,7 @@ export function parseNaturalDateTime(text: string): ParseResult {
         const datePattern = /(\d{4})[-\/\.年](\d{1,2})[-\/\.月日](\d{1,2})[日号]?/;
         const timePattern = /(?:\s+|T)?(\d{1,2})[:点](\d{1,2})?(?:分)?/;
 
-        const fullMatch = processedText.match(new RegExp(`^${datePattern.source}(?:${timePattern.source})?$`));
+        const fullMatch = processedText.match(new RegExp(datePattern.source + "(?:" + timePattern.source + ")?"));
         if (fullMatch) {
             const year = parseInt(fullMatch[1]);
             const month = parseInt(fullMatch[2]);
@@ -322,8 +362,9 @@ export function parseNaturalDateTime(text: string): ParseResult {
         }
 
         // 处理 月/日 格式 (MM-DD, MM/DD, MM.DD, MM月DD日, MM日DD日)
-        const monthDayPattern = /^(\d{1,2})[-\/\.月日](\d{1,2})[日号]?/;
-        const monthDayMatch = processedText.match(new RegExp(`^${monthDayPattern.source}(?:${timePattern.source})?$`));
+        // 移除了 ^ 和 $ 锚点
+        const monthDayPattern = /(\d{1,2})[-\/\.月日](\d{1,2})[日号]?/;
+        const monthDayMatch = processedText.match(new RegExp(monthDayPattern.source + "(?:" + timePattern.source + ")?"));
         if (monthDayMatch) {
             const year = new Date().getFullYear();
             const month = parseInt(monthDayMatch[1]);

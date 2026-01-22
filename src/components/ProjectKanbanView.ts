@@ -2,7 +2,7 @@ import { showMessage, confirm, Menu, Dialog } from "siyuan";
 
 import { refreshSql, readProjectData, getBlockByID, updateBlockReminderBookmark, openBlock } from "../api";
 import { t } from "../utils/i18n";
-import { getLocalDateString, getLocalDateTimeString, compareDateStrings, getLogicalDateString, getRelativeDateString } from "../utils/dateUtils";
+import { getLocalDateString, getLocalDateTimeString, compareDateStrings, getLogicalDateString, getRelativeDateString, autoDetectDateTimeFromTitle } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroManager } from "../utils/pomodoroManager";
@@ -18,7 +18,9 @@ interface HierarchicalTask {
     title: string;
     priority?: string;
     startDate?: string;
+    time?: string;
     endDate?: string;
+    endTime?: string;
     blockId?: string;
     level: number;
     children: HierarchicalTask[];
@@ -4965,12 +4967,21 @@ export class ProjectKanbanView {
             }
         }
 
+        if (task.time) {
+            dateStr += ` ${task.time}`;
+        }
+
         if (endDateStr) {
+            // 如果有截止时间，加到截止日期后面
+            if (task.endTime) {
+                endDateStr += ` ${task.endTime}`;
+            }
             return `${dateStr} → ${endDateStr} `;
         }
 
-        if (task.time) {
-            return `${dateStr} ${task.time} `;
+        // 如果是同一天，但是有结束时间（比如 14:00 - 16:00）
+        if (task.endTime && task.endTime !== task.time) {
+            return `${dateStr} - ${task.endTime}`;
         }
 
         return dateStr || "未设置日期";
@@ -6405,8 +6416,10 @@ export class ProjectKanbanView {
                 return;
             }
 
+
             // 使用新的层级解析方法
-            const hierarchicalTasks = this.parseHierarchicalTaskList(text);
+            const autoDetect = await this.plugin.getAutoDetectDateTimeEnabled();
+            const hierarchicalTasks = this.parseHierarchicalTaskList(text, autoDetect);
 
             if (hierarchicalTasks.length > 0) {
                 // 如果传入 parentTask，则把所有顶级解析项作为 parentTask 的子任务
@@ -6427,7 +6440,7 @@ export class ProjectKanbanView {
      * @param text 输入的文本
      * @returns 层级化的任务结构
      */
-    private parseHierarchicalTaskList(text: string): HierarchicalTask[] {
+    private parseHierarchicalTaskList(text: string, autoDetect: boolean = false): HierarchicalTask[] {
         const lines = text.split('\n');
         const tasks: HierarchicalTask[] = [];
         const stack: Array<{ task: HierarchicalTask; level: number }> = [];
@@ -6443,7 +6456,7 @@ export class ProjectKanbanView {
             if (!cleanLine || (!cleanLine.startsWith('-') && level === 0 && !cleanLine.match(/^\s*-/))) {
                 // 如果不是列表项但有内容，作为顶级任务处理
                 if (cleanLine && level === 0) {
-                    const taskData = this.parseTaskLine(cleanLine);
+                    const taskData = this.parseTaskLine(cleanLine, autoDetect);
                     const task: HierarchicalTask = {
                         ...taskData,
                         level: 0,
@@ -6472,7 +6485,7 @@ export class ProjectKanbanView {
             const taskContent = cleanLine.replace(/^[-*+]+\s*/, '');
             if (!taskContent) continue;
 
-            const taskData = this.parseTaskLine(taskContent);
+            const taskData = this.parseTaskLine(taskContent, autoDetect);
             const task: HierarchicalTask = {
                 ...taskData,
                 level: combinedLevel,
@@ -6557,7 +6570,9 @@ export class ProjectKanbanView {
                 termType: defaultTermType || 'short_term', // 优先使用传入的 defaultTermType，否则默认为短期任务
                 createdTime: new Date().toISOString(),
                 date: task.startDate,
+                time: task.time,
                 endDate: task.endDate,
+                endTime: task.endTime,
                 sort: sortCounter,
             };
 
@@ -6659,13 +6674,24 @@ export class ProjectKanbanView {
         return count;
     }
 
-    private parseTaskLine(line: string): { title: string; priority?: string; startDate?: string; endDate?: string; blockId?: string; completed?: boolean } {
+    private parseTaskLine(line: string, autoDetect: boolean = false): {
+        title: string;
+        priority?: string;
+        startDate?: string;
+        time?: string;
+        endDate?: string;
+        endTime?: string;
+        blockId?: string;
+        completed?: boolean
+    } {
         // 查找参数部分 @priority=high&startDate=2025-08-12&endDate=2025-08-30
         const paramMatch = line.match(/@(.+)$/);
         let title = line;
         let priority: string | undefined;
         let startDate: string | undefined;
+        let time: string | undefined;
         let endDate: string | undefined;
+        let endTime: string | undefined;
         let blockId: string | undefined;
         let completed: boolean | undefined;
 
@@ -6700,6 +6726,17 @@ export class ProjectKanbanView {
             title = leadingCheckboxMatch[2];
         }
 
+        if (autoDetect) {
+            const detected = autoDetectDateTimeFromTitle(title);
+            if (detected.date || detected.endDate) {
+                title = detected.cleanTitle || title;
+                startDate = detected.date;
+                time = detected.time;
+                endDate = detected.endDate;
+                endTime = detected.endTime;
+            }
+        }
+
         if (paramMatch) {
             // 移除参数部分，获取纯标题
             title = title.replace(/@(.+)$/, '').trim();
@@ -6709,8 +6746,8 @@ export class ProjectKanbanView {
             const params = new URLSearchParams(paramString);
 
             priority = params.get('priority') || undefined;
-            startDate = params.get('startDate') || undefined;
-            endDate = params.get('endDate') || undefined;
+            startDate = params.get('startDate') || startDate;
+            endDate = params.get('endDate') || endDate;
 
             // 验证优先级值
             if (priority && !['high', 'medium', 'low', 'none'].includes(priority)) {
@@ -6731,7 +6768,9 @@ export class ProjectKanbanView {
             title: title.trim() || t('noContentHint'),
             priority,
             startDate,
+            time,
             endDate,
+            endTime,
             blockId
             , completed
         };
