@@ -1,5 +1,5 @@
 import { showMessage, Dialog } from "siyuan";
-import { getBlockByID, getBlockDOM, updateBlockReminderBookmark } from "../api";
+import { getBlockByID, getBlockDOM, refreshSql, updateBlockReminderBookmark } from "../api";
 import { compareDateStrings, getLogicalDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
@@ -1352,7 +1352,7 @@ export class QuickReminderDialog {
         await this.renderTagsSelector();
 
         // 确保日期和时间输入框正确设置初始值
-        setTimeout(() => {
+        setTimeout(async () => {
             const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
             const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
             const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
@@ -1447,6 +1447,13 @@ export class QuickReminderDialog {
 
             // 自动聚焦标题输入框
             titleInput?.focus();
+
+            // 如果有初始块 ID，触发预览
+            const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
+            if (blockInput && blockInput.value && this.mode !== 'edit') {
+                await refreshSql();
+                this.updateBlockPreview(blockInput.value);
+            }
         }, 50);
     }
 
@@ -2557,10 +2564,13 @@ export class QuickReminderDialog {
         const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
         const currentTitle = titleInput?.value?.trim() || '';
 
-        const blockBindingDialog = new BlockBindingDialog(this.plugin, (blockId: string) => {
+        const blockBindingDialog = new BlockBindingDialog(this.plugin,async (blockId: string) => {
             const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
             if (blockInput) {
                 blockInput.value = blockId;
+                await refreshSql();
+                // 触发块预览
+                this.updateBlockPreview(blockId);
             }
             showMessage('✓ 已选择块');
         }, {
