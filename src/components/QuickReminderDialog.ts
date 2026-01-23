@@ -412,6 +412,22 @@ export class QuickReminderDialog {
         const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
         const customReminderTimeInput = this.dialog.element.querySelector('#quickCustomReminderTime') as HTMLInputElement;
 
+        // 填充每日可做
+        const isAvailableTodayCheckbox = this.dialog.element.querySelector('#quickIsAvailableToday') as HTMLInputElement;
+        const availableStartDateInput = this.dialog.element.querySelector('#quickAvailableStartDate') as HTMLInputElement;
+        const availableDateGroup = this.dialog.element.querySelector('#quickAvailableDateGroup') as HTMLElement;
+
+        if (isAvailableTodayCheckbox && this.reminder.isAvailableToday) {
+            isAvailableTodayCheckbox.checked = true;
+            if (availableDateGroup) availableDateGroup.style.display = 'block';
+        }
+        if (availableStartDateInput && this.reminder.availableStartDate) {
+            availableStartDateInput.value = this.reminder.availableStartDate;
+        } else if (availableStartDateInput) {
+            availableStartDateInput.value = getLogicalDateString();
+        }
+
+
         // 填充标题
         if (titleInput && this.reminder.title) {
             titleInput.value = this.reminder.title;
@@ -1078,6 +1094,18 @@ export class QuickReminderDialog {
                             </div>
                         </div>
                         <div class="b3-form__group">
+                            <label class="b3-checkbox">
+                                <input type="checkbox" id="quickIsAvailableToday">
+                                <span class="b3-checkbox__graphic"></span>
+                                <span class="b3-checkbox__label">🍰 每日可做</span>
+                            </label>
+                        </div>
+                        <div class="b3-form__group" id="quickAvailableDateGroup" style="display: none; margin-left: 28px;">
+                            <label class="b3-form__label" style="font-size: 12px;">起始日期</label>
+                            <input type="date" id="quickAvailableStartDate" class="b3-text-field" style="width: 100%;">
+                        </div>
+                        <div class="b3-form__group">
+
                             <label class="b3-checkbox">
                                 <input type="checkbox" id="quickNoSpecificTime" ${this.initialTime ? '' : 'checked'}>
                                 <span class="b3-checkbox__graphic"></span>
@@ -2113,6 +2141,21 @@ export class QuickReminderDialog {
             // ignore
         }
 
+        // Available Today checkbox event
+        const isAvailableTodayCheckbox = this.dialog.element.querySelector('#quickIsAvailableToday') as HTMLInputElement;
+        const availableDateGroup = this.dialog.element.querySelector('#quickAvailableDateGroup') as HTMLElement;
+        const availableStartDateInput = this.dialog.element.querySelector('#quickAvailableStartDate') as HTMLInputElement;
+
+        isAvailableTodayCheckbox?.addEventListener('change', () => {
+            if (availableDateGroup) {
+                availableDateGroup.style.display = isAvailableTodayCheckbox.checked ? 'block' : 'none';
+                if (isAvailableTodayCheckbox.checked && availableStartDateInput && !availableStartDateInput.value) {
+                    // Set default start date to today if empty
+                    availableStartDateInput.value = getLogicalDateString();
+                }
+            }
+        });
+
         // 自定义提醒时间：如果为空且任务已设置日期+时间，聚焦/点击时用任务的日期时间初始化
         try {
             const customReminderInput = this.dialog.element.querySelector('#quickCustomReminderTime') as HTMLInputElement;
@@ -2412,6 +2455,11 @@ export class QuickReminderDialog {
         const customReminderPreset = (this.dialog.element.querySelector('#quickCustomReminderPreset') as HTMLSelectElement)?.value || undefined;
         const estimatedPomodoroDuration = (this.dialog.element.querySelector('#quickEstimatedPomodoroDuration') as HTMLInputElement)?.value.trim() || undefined;
 
+        // 每日可做
+        const isAvailableToday = (this.dialog.element.querySelector('#quickIsAvailableToday') as HTMLInputElement)?.checked || false;
+        const availableStartDate = (this.dialog.element.querySelector('#quickAvailableStartDate') as HTMLInputElement)?.value || undefined;
+
+
         // 获取选中的标签ID（使用 selectedTagIds 属性）
         const tagIds = this.selectedTagIds;
 
@@ -2495,7 +2543,9 @@ export class QuickReminderDialog {
                 customReminderPreset: customReminderPreset,
                 repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined,
                 quadrant: this.defaultQuadrant,
-                estimatedPomodoroDuration: estimatedPomodoroDuration
+                estimatedPomodoroDuration: estimatedPomodoroDuration,
+                isAvailableToday: isAvailableToday,
+                availableStartDate: availableStartDate
             };
 
             if (this.onSaved) {
@@ -2537,6 +2587,8 @@ export class QuickReminderDialog {
             optimisticReminder.repeat = this.repeatConfig.enabled ? this.repeatConfig : undefined;
             optimisticReminder.estimatedPomodoroDuration = estimatedPomodoroDuration;
             optimisticReminder.termType = termType;
+            optimisticReminder.isAvailableToday = isAvailableToday;
+            optimisticReminder.availableStartDate = availableStartDate;
 
             // 看板状态推断 (仅用于 UI 显示)
             if (termType === 'doing') optimisticReminder.kanbanStatus = 'doing';
@@ -2673,6 +2725,8 @@ export class QuickReminderDialog {
                         reminder.reminderTimes = this.customTimes.length > 0 ? [...this.customTimes] : undefined;
                         reminder.repeat = this.repeatConfig.enabled ? this.repeatConfig : undefined;
                         reminder.estimatedPomodoroDuration = estimatedPomodoroDuration;
+                        reminder.isAvailableToday = isAvailableToday;
+                        reminder.availableStartDate = availableStartDate;
 
                         // 设置或删除 documentId
                         if (inputId) {
@@ -2815,6 +2869,8 @@ export class QuickReminderDialog {
                         isQuickReminder: true, // 标记为快速创建的提醒
                         quadrant: this.defaultQuadrant, // 添加象限信息
                         termType: termType, // 添加任务类型（短期/长期）
+                        isAvailableToday: isAvailableToday,
+                        availableStartDate: availableStartDate,
                         // 旧字段 `customReminderTime` 不再写入，新提醒统一保存到 `reminderTimes`
                         reminderTimes: this.customTimes.length > 0 ? [...this.customTimes] : undefined,
                         estimatedPomodoroDuration: estimatedPomodoroDuration
