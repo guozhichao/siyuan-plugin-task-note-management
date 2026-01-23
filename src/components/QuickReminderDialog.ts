@@ -1,6 +1,6 @@
 import { showMessage, Dialog } from "siyuan";
 import { getBlockByID, getBlockDOM, refreshSql, updateBlockReminderBookmark } from "../api";
-import { compareDateStrings, getLogicalDateString, parseNaturalDateTime, autoDetectDateTimeFromTitle, isValidDate } from "../utils/dateUtils";
+import { compareDateStrings, getLogicalDateString, parseNaturalDateTime, autoDetectDateTimeFromTitle } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
 import { t } from "../utils/i18n";
@@ -490,7 +490,13 @@ export class QuickReminderDialog {
                 if (this.reminder.endTime) {
                     endDateInput.value = `${this.reminder.endDate}T${this.reminder.endTime}`;
                 } else {
-                    endDateInput.value = this.reminder.endDate;
+                    // 如果是时间模式（有开始时间），但只有结束日期没有结束时间，需要补全时间以适配 datetime-local
+                    if (this.reminder.time) {
+                        // 默认使用开始时间作为结束时间，或者是 23:59
+                        endDateInput.value = `${this.reminder.endDate}T${this.reminder.time}`;
+                    } else {
+                        endDateInput.value = this.reminder.endDate;
+                    }
                 }
             } else if (this.reminder.endTime) {
                 // 如果有 endTime 但没有 endDate，默认 endDate 为任务的开始日期或今天
@@ -1228,8 +1234,8 @@ export class QuickReminderDialog {
                 }
             }
 
-            // 如果是编辑模式，填充现有提醒数据
-            if (this.mode === 'edit' && this.reminder) {
+            // 如果是编辑模式或批量编辑模式，填充现有提醒数据
+            if ((this.mode === 'edit' || this.mode === 'batch_edit') && this.reminder) {
                 this.populateEditForm();
             }
 
