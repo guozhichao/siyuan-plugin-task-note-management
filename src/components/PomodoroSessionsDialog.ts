@@ -67,10 +67,16 @@ export class PomodoroSessionsDialog {
         for (const date in (this.recordManager as any).records) {
             const record = (this.recordManager as any).records[date];
             if (record && record.sessions) {
-                // 筛选出属于当前提醒的会话
-                const eventSessions = record.sessions.filter((session: PomodoroSession) =>
-                    session.eventId === this.reminderId
-                );
+                // 筛选出属于当前提醒的会话 (包括作为重复任务实例的会话)
+                const eventSessions = record.sessions.filter((session: PomodoroSession) => {
+                    if (session.eventId === this.reminderId) return true;
+                    // Check if session.eventId is an instance of this.reminderId (reminderId_YYYY-MM-DD)
+                    if (session.eventId.startsWith(this.reminderId + '_')) {
+                        const suffix = session.eventId.substring(this.reminderId.length + 1);
+                        return /^\d{4}-\d{2}-\d{2}$/.test(suffix);
+                    }
+                    return false;
+                });
                 allSessions.push(...eventSessions);
             }
         }

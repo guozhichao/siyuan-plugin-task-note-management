@@ -2221,11 +2221,27 @@ export class ProjectKanbanView {
                 // 获取番茄钟计数（支持重复实例的单独计数）
                 const pomodoroCount = await this.getReminderPomodoroCount(reminder.id, reminder, reminderData);
                 const focusTime = await this.getReminderFocusTime(reminder.id, reminder, reminderData);
+
+                let totalRepeatingPomodoroCount = 0;
+                let totalRepeatingFocusTime = 0;
+                if (reminder.isRepeatInstance) {
+                    const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
+                    const pomodoroManager = PomodoroRecordManager.getInstance();
+                    if (typeof pomodoroManager.getRepeatingEventTotalPomodoroCount === 'function') {
+                        totalRepeatingPomodoroCount = pomodoroManager.getRepeatingEventTotalPomodoroCount(reminder.originalId);
+                    }
+                    if (typeof pomodoroManager.getRepeatingEventTotalFocusTime === 'function') {
+                        totalRepeatingFocusTime = pomodoroManager.getRepeatingEventTotalFocusTime(reminder.originalId);
+                    }
+                }
+
                 return {
                     ...reminder,
                     status: status,
                     pomodoroCount: pomodoroCount,
-                    focusTime: focusTime || 0
+                    focusTime: focusTime || 0,
+                    totalRepeatingPomodoroCount,
+                    totalRepeatingFocusTime
                 };
             }));
 
@@ -4617,7 +4633,7 @@ export class ProjectKanbanView {
         }
 
         // 番茄钟数量 + 总专注时长 + 预计番茄时长
-        if ((task.pomodoroCount && task.pomodoroCount > 0) || (typeof task.focusTime === 'number' && task.focusTime > 0) || task.estimatedPomodoroDuration) {
+        if ((task.pomodoroCount && task.pomodoroCount > 0) || (typeof task.focusTime === 'number' && task.focusTime > 0) || task.estimatedPomodoroDuration || (task.totalRepeatingPomodoroCount && task.totalRepeatingPomodoroCount > 0)) {
             const pomodoroDisplay = document.createElement('div');
             pomodoroDisplay.className = 'kanban-task-pomodoro-count';
             pomodoroDisplay.style.cssText = `
@@ -4642,8 +4658,31 @@ export class ProjectKanbanView {
 
             // 预计番茄时长（第一行）
             const estimatedLine = task.estimatedPomodoroDuration ? `<span title='预计番茄时长'>预计: ${task.estimatedPomodoroDuration}</span>` : '';
+
             // 实际番茄钟数量和专注时长（第二行）
-            const actualLine = (task.pomodoroCount > 0 || focusMinutes > 0) ? `<div style="margin-top:${estimatedLine ? '6px' : '0'}"><span title="完成的番茄钟数量: ${task.pomodoroCount}">总共：${tomatoEmojis}${extraCount}</span><span title="总专注时长: ${focusMinutes} 分钟" style="margin-left:8px; opacity:0.9;">${focusText}</span></div>` : '';
+            let actualLine = '';
+
+            if (task.isRepeatInstance) {
+                const repeatingTotal = task.totalRepeatingPomodoroCount || 0;
+                const repeatingFocus = task.totalRepeatingFocusTime || 0;
+                const instanceCount = task.pomodoroCount || 0;
+
+                const repeatingFocusText = repeatingFocus > 0 ? ` ⏱ ${formatMinutesToString(repeatingFocus)}` : '';
+                const instanceFocusText = focusMinutes > 0 ? ` ⏱ ${formatMinutesToString(focusMinutes)}` : '';
+
+                actualLine = `<div style="margin-top:${estimatedLine ? '6px' : '0'}">
+                    <div title="系列累计番茄钟: ${repeatingTotal}">
+                        <span>系列: 🍅 ${repeatingTotal}</span>
+                        <span style="margin-left:8px; opacity:0.9;">${repeatingFocusText}</span>
+                    </div>
+                    <div title="本实例番茄钟: ${instanceCount}" style="margin-top:4px; opacity:0.95;">
+                        <span>本次: 🍅 ${instanceCount}</span>
+                        <span style="margin-left:8px; opacity:0.9;">${instanceFocusText}</span>
+                    </div>
+                 </div>`;
+            } else {
+                actualLine = (task.pomodoroCount > 0 || focusMinutes > 0) ? `<div style="margin-top:${estimatedLine ? '6px' : '0'}"><span title="完成的番茄钟数量: ${task.pomodoroCount}">总共：${tomatoEmojis}${extraCount}</span><span title="总专注时长: ${focusMinutes} 分钟" style="margin-left:8px; opacity:0.9;">${focusText}</span></div>` : '';
+            }
 
             pomodoroDisplay.innerHTML = `${estimatedLine}${actualLine}`;
 

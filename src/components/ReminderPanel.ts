@@ -1499,12 +1499,21 @@ export class ReminderPanel {
                 // focusTime in minutes
                 const focusTime = await this.getReminderFocusTime(reminder.id, reminder, fullData);
                 // 今日番茄钟计数（使用今天的日期，而不是任务的截止日期）
+                // 今日番茄钟计数（使用今天的日期，而不是任务的截止日期）
                 const todayCount = await this.getReminderTodayPomodoroCount(reminder.id, reminder, fullData);
                 const todayFocus = await this.getReminderTodayFocusTime(reminder.id, reminder, fullData);
-                return { id: reminder.id, pomodoroCount: count, focusTime, todayPomodoroCount: todayCount, todayFocusTime: todayFocus };
+
+                let totalRepeatingCount = 0;
+                let totalRepeatingFocus = 0;
+                if (reminder.isRepeatInstance) {
+                    totalRepeatingCount = await this.getReminderRepeatingTotalPomodoroCount(reminder.originalId);
+                    totalRepeatingFocus = await this.getReminderRepeatingTotalFocusTime(reminder.originalId);
+                }
+
+                return { id: reminder.id, pomodoroCount: count, focusTime, todayPomodoroCount: todayCount, todayFocusTime: todayFocus, totalRepeatingPomodoroCount: totalRepeatingCount, totalRepeatingFocusTime: totalRepeatingFocus };
             } catch (error) {
                 console.warn(`获取任务 ${reminder.id} 的番茄钟计数失败:`, error);
-                return { id: reminder.id, pomodoroCount: 0, focusTime: 0, todayPomodoroCount: 0, todayFocusTime: 0 };
+                return { id: reminder.id, pomodoroCount: 0, focusTime: 0, todayPomodoroCount: 0, todayFocusTime: 0, totalRepeatingPomodoroCount: 0, totalRepeatingFocusTime: 0 };
             }
         });
 
@@ -1535,6 +1544,8 @@ export class ReminderPanel {
                 focusTime: result.focusTime || 0,
                 todayPomodoroCount: result.todayPomodoroCount || 0,
                 todayFocusTime: result.todayFocusTime || 0,
+                totalRepeatingPomodoroCount: result.totalRepeatingPomodoroCount || 0,
+                totalRepeatingFocusTime: result.totalRepeatingFocusTime || 0,
                 project: null
             });
         });
@@ -1892,7 +1903,7 @@ export class ReminderPanel {
 
         // 添加番茄钟计数显示（使用预处理的缓存数据），同时显示总专注时长
         const cachedData = asyncDataCache.get(reminder.id);
-        if (cachedData && ((cachedData.pomodoroCount && cachedData.pomodoroCount > 0) || (cachedData.todayPomodoroCount && cachedData.todayPomodoroCount > 0) || (cachedData.focusTime && cachedData.focusTime > 0) || (cachedData.todayFocusTime && cachedData.todayFocusTime > 0) || reminder.estimatedPomodoroDuration)) {
+        if (cachedData && ((cachedData.pomodoroCount && cachedData.pomodoroCount > 0) || (cachedData.todayPomodoroCount && cachedData.todayPomodoroCount > 0) || (cachedData.focusTime && cachedData.focusTime > 0) || (cachedData.todayFocusTime && cachedData.todayFocusTime > 0) || (cachedData.totalRepeatingPomodoroCount && cachedData.totalRepeatingPomodoroCount > 0) || (cachedData.totalRepeatingFocusTime && cachedData.totalRepeatingFocusTime > 0) || reminder.estimatedPomodoroDuration)) {
             const pomodoroDisplay = document.createElement('div');
             pomodoroDisplay.className = 'reminder-item__pomodoro-count';
             pomodoroDisplay.style.cssText = `
@@ -1928,12 +1939,45 @@ export class ReminderPanel {
             // 第一行：预计番茄时长
             const estimatedLine = reminder.estimatedPomodoroDuration ? `<span title='预计番茄时长'>预计: ${reminder.estimatedPomodoroDuration}</span>` : '';
             // 第二行：累计/总计
-            const totalLine = (totalCount > 0 || totalFocus > 0) ? `<div style="margin-top:${estimatedLine ? '6px' : '0'}; font-size:12px;"><span title="累计完成的番茄钟: ${totalCount}">总共: ${formattedTotalTomato}${extraCount}</span><span title="总专注时长: ${totalFocus} 分钟" style="margin-left:8px; opacity:0.9;">${totalFocusText}</span></div>` : '';
+            // 第二行：累计/总计
+            let totalLine = '';
+            let todayLine = '';
 
-            // 第三行：今日数据（只在总番茄不等于今日番茄时显示，即有历史数据时）
-            // 判断条件：总数量大于今日数量，或者总时长大于今日时长
-            const hasHistoricalData = (totalCount > todayCount) || (totalFocus > todayFocus);
-            const todayLine = hasHistoricalData && (todayCount > 0 || todayFocus > 0) ? `<div style="margin-top:6px; font-size:12px; opacity:0.95;"><span title='今日完成的番茄钟: ${todayCount}'>今日: 🍅 ${todayCount}</span><span title='今日专注时长: ${todayFocus} 分钟' style='margin-left:8px'>${todayFocusText}</span></div>` : '';
+            if (reminder.isRepeatInstance) {
+                const repeatingTotal = cachedData.totalRepeatingPomodoroCount || 0;
+                const repeatingFocus = cachedData.totalRepeatingFocusTime || 0;
+                const instanceCount = totalCount;
+
+                const formatMinutesToString = (minutes: number) => {
+                    const hours = Math.floor(minutes / 60);
+                    const mins = Math.floor(minutes % 60);
+                    if (hours > 0) return `${hours}h ${mins}m`;
+                    return `${mins}m`;
+                };
+                const repeatingFocusText = repeatingFocus > 0 ? ` ⏱ ${formatMinutesToString(repeatingFocus)}` : '';
+                const instanceFocusText = totalFocus > 0 ? ` ⏱ ${formatMinutesToString(totalFocus)}` : '';
+
+                totalLine = `<div style="margin-top:${estimatedLine ? '6px' : '0'}; font-size:12px;">
+                    <div title="系列累计番茄钟: ${repeatingTotal}">
+                        <span>系列: 🍅 ${repeatingTotal}</span>
+                        <span style="margin-left:8px; opacity:0.9;">${repeatingFocusText}</span>
+                    </div>
+                    <div title="本实例番茄钟: ${instanceCount}" style="margin-top:4px; opacity:0.95;">
+                        <span>本次: 🍅 ${instanceCount}</span>
+                        <span style="margin-left:8px; opacity:0.9;">${instanceFocusText}</span>
+                    </div>
+                 </div>`;
+
+                // Do not show todayLine for repeat instances as requested
+                todayLine = '';
+            } else {
+                totalLine = (totalCount > 0 || totalFocus > 0) ? `<div style="margin-top:${estimatedLine ? '6px' : '0'}; font-size:12px;"><span title="累计完成的番茄钟: ${totalCount}">总共: ${formattedTotalTomato}${extraCount}</span><span title="总专注时长: ${totalFocus} 分钟" style="margin-left:8px; opacity:0.9;">${totalFocusText}</span></div>` : '';
+
+                // 第三行：今日数据（只在总番茄不等于今日番茄时显示，即有历史数据时）
+                // 判断条件：总数量大于今日数量，或者总时长大于今日时长
+                const hasHistoricalData = (totalCount > todayCount) || (totalFocus > todayFocus);
+                todayLine = hasHistoricalData && (todayCount > 0 || todayFocus > 0) ? `<div style="margin-top:6px; font-size:12px; opacity:0.95;"><span title='今日完成的番茄钟: ${todayCount}'>今日: 🍅 ${todayCount}</span><span title='今日专注时长: ${todayFocus} 分钟' style='margin-left:8px'>${todayFocusText}</span></div>` : '';
+            }
 
             pomodoroDisplay.innerHTML = `${estimatedLine}${totalLine}${todayLine}`;
 
@@ -7241,6 +7285,34 @@ export class ReminderPanel {
             return await pomodoroManager.getReminderPomodoroCount(reminderId);
         } catch (error) {
             console.error('获取番茄钟计数失败:', error);
+            return 0;
+        }
+    }
+
+    private async getReminderRepeatingTotalPomodoroCount(originalId: string): Promise<number> {
+        try {
+            const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
+            const pomodoroManager = PomodoroRecordManager.getInstance();
+            if (typeof pomodoroManager.getRepeatingEventTotalPomodoroCount === 'function') {
+                return pomodoroManager.getRepeatingEventTotalPomodoroCount(originalId);
+            }
+            return 0;
+        } catch (error) {
+            console.error('获取重复事件总番茄钟计数失败:', error);
+            return 0;
+        }
+    }
+
+    private async getReminderRepeatingTotalFocusTime(originalId: string): Promise<number> {
+        try {
+            const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
+            const pomodoroManager = PomodoroRecordManager.getInstance();
+            if (typeof pomodoroManager.getRepeatingEventTotalFocusTime === 'function') {
+                return pomodoroManager.getRepeatingEventTotalFocusTime(originalId);
+            }
+            return 0;
+        } catch (error) {
+            console.error('获取重复事件总专注时长失败:', error);
             return 0;
         }
     }

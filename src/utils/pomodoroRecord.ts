@@ -459,6 +459,40 @@ export class PomodoroRecordManager {
     }
 
     /**
+     * 获取重复事件的所有实例的总番茄数
+     */
+    getRepeatingEventTotalPomodoroCount(originalId: string): number {
+        let total = 0;
+        const records = Object.values(this.records);
+
+        for (const record of records) {
+            if (!record.sessions) continue;
+            total += record.sessions.reduce((sum, session) => {
+                // Check if session.eventId matches originalId or originalId_YYYY-MM-DD
+                const eventId = session.eventId;
+                if (!eventId) return sum;
+
+                let match = false;
+                if (eventId === originalId) {
+                    match = true;
+                } else if (eventId.startsWith(originalId + '_')) {
+                    // Verify suffix is a date
+                    const suffix = eventId.substring(originalId.length + 1);
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(suffix)) {
+                        match = true;
+                    }
+                }
+
+                if (match && session.type === 'work' && session.completed) {
+                    return sum + this.calculateSessionCount(session);
+                }
+                return sum;
+            }, 0);
+        }
+        return total;
+    }
+
+    /**
      * 获取指定事件的总专注时间
      */
     getEventFocusTime(eventId: string, date?: string): number {
@@ -486,6 +520,40 @@ export class PomodoroRecordManager {
             }, 0);
         }
 
+        return total;
+    }
+
+    /**
+     * 获取重复事件的所有实例的总专注时长（分钟）
+     */
+    getRepeatingEventTotalFocusTime(originalId: string): number {
+        let total = 0;
+        const records = Object.values(this.records);
+
+        for (const record of records) {
+            if (!record.sessions) continue;
+            total += record.sessions.reduce((sum, session) => {
+                // Check if session.eventId matches originalId or originalId_YYYY-MM-DD
+                const eventId = session.eventId;
+                if (!eventId) return sum;
+
+                let match = false;
+                if (eventId === originalId) {
+                    match = true;
+                } else if (eventId.startsWith(originalId + '_')) {
+                    // Verify suffix is a date
+                    const suffix = eventId.substring(originalId.length + 1);
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(suffix)) {
+                        match = true;
+                    }
+                }
+
+                if (match && session.type === 'work') {
+                    return sum + (session.duration || 0);
+                }
+                return sum;
+            }, 0);
+        }
         return total;
     }
 

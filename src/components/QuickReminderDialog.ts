@@ -644,9 +644,14 @@ export class QuickReminderDialog {
 
         await this.pomodoroRecordManager.initialize();
 
-        // 统计该提醒的番茄钟数量
-        const count = this.pomodoroRecordManager.getEventTotalPomodoroCount(this.reminder.id);
-        const totalMinutes = this.pomodoroRecordManager.getEventTotalFocusTime(this.reminder.id);
+        // 统计该提醒的番茄钟数量（如果是重复任务，统计所有实例）
+        let targetId = this.reminder.id;
+        if (this.reminder.originalId) {
+            targetId = this.reminder.originalId;
+        }
+
+        const count = this.pomodoroRecordManager.getRepeatingEventTotalPomodoroCount(targetId);
+        const totalMinutes = this.pomodoroRecordManager.getRepeatingEventTotalFocusTime(targetId);
 
         if (pomodorosCountText) {
             const timeStr = totalMinutes > 0 ? ` (${Math.floor(totalMinutes / 60)}h${totalMinutes % 60}m)` : '';
@@ -1743,7 +1748,19 @@ export class QuickReminderDialog {
         // 查看番茄钟
         viewPomodorosBtn?.addEventListener('click', () => {
             if (this.reminder && this.reminder.id) {
-                const pomodorosDialog = new PomodoroSessionsDialog(this.reminder.id, this.plugin, () => {
+                let targetId = this.reminder.id;
+                // 如果是重复任务实例，使用 originalId 作为目标ID，以便查看所有相关记录
+                if (this.reminder.originalId) {
+                    targetId = this.reminder.originalId;
+                } else if (this.reminder.isInstance && this.reminder.id.includes('_')) {
+                    // 尝试从ID中提取原始ID (fallback)
+                    const parts = this.reminder.id.split('_');
+                    if (parts.length > 1 && /^\d{4}-\d{2}-\d{2}$/.test(parts[parts.length - 1])) {
+                        targetId = parts.slice(0, -1).join('_');
+                    }
+                }
+
+                const pomodorosDialog = new PomodoroSessionsDialog(targetId, this.plugin, () => {
                     this.updatePomodorosDisplay();
                 });
                 pomodorosDialog.show();
