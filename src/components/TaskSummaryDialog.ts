@@ -311,7 +311,7 @@ export class TaskSummaryDialog {
         const rawTaskStats: { [id: string]: { count: number, minutes: number } } = {};
         if (record.sessions) {
           record.sessions.forEach((s: any) => {
-            if (s.type === 'work' && s.completed) {
+            if (s.type === 'work' && (s.completed || s.duration > 0)) {
               // 兼容旧数据，有些session没有eventId
               const evtId = s.eventId;
               if (evtId) {

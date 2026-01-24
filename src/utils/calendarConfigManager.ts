@@ -10,6 +10,7 @@ export interface CalendarConfig {
     viewType: 'timeline' | 'kanban' | 'list';
     showLunar: boolean;
     showPomodoro: boolean;
+    completionFilter: 'all' | 'completed' | 'incomplete';
 }
 
 export class CalendarConfigManager {
@@ -47,6 +48,7 @@ export class CalendarConfigManager {
             settings.calendarViewType = this.config.viewType;
             settings.calendarShowLunar = this.config.showLunar;
             settings.calendarShowPomodoro = this.config.showPomodoro;
+            settings.calendarCompletionFilter = this.config.completionFilter;
             await this.plugin.saveData(SETTINGS_FILE, settings);
         } catch (error) {
             console.error('Failed to save calendar config:', error);
@@ -83,7 +85,8 @@ export class CalendarConfigManager {
                 viewMode: settings.calendarViewMode || 'timeGridWeek',
                 viewType: settings.calendarViewType || 'timeline',
                 showLunar: settings.calendarShowLunar !== false, // 默认为 true
-                showPomodoro: settings.calendarShowPomodoro !== false // 默认为 true
+                showPomodoro: settings.calendarShowPomodoro !== false, // 默认为 true
+                completionFilter: (settings.calendarCompletionFilter as any) || 'all'
             };
         } catch (error) {
             console.warn('Failed to load calendar config, using defaults:', error);
@@ -92,7 +95,8 @@ export class CalendarConfigManager {
                 viewMode: 'timeGridWeek',
                 viewType: 'timeline',
                 showLunar: true,
-                showPomodoro: true
+                showPomodoro: true,
+                completionFilter: 'all'
             };
             try {
                 await this.saveConfig();
@@ -104,6 +108,11 @@ export class CalendarConfigManager {
 
     public async setColorBy(colorBy: 'category' | 'priority' | 'project') {
         this.config.colorBy = colorBy;
+        await this.saveConfig();
+    }
+
+    public async setCompletionFilter(filter: 'all' | 'completed' | 'incomplete') {
+        this.config.completionFilter = filter;
         await this.saveConfig();
     }
 
@@ -127,6 +136,10 @@ export class CalendarConfigManager {
 
     public getViewType(): 'timeline' | 'kanban' | 'list' {
         return this.config.viewType;
+    }
+
+    public getCompletionFilter(): 'all' | 'completed' | 'incomplete' {
+        return this.config.completionFilter || 'all';
     }
 
     public async setShowLunar(showLunar: boolean) {
