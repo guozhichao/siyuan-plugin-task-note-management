@@ -8,6 +8,7 @@ import { t } from "../utils/i18n";
 export class ProjectDialog {
     private dialog: Dialog;
     private blockId: string;
+    private selectedCategoryIds: string[] = [];
     private categoryManager: CategoryManager;
     private statusManager: StatusManager;
     private plugin?: any;
@@ -24,6 +25,9 @@ export class ProjectDialog {
             let blockContent = '';
             const projectData = await readProjectData();
             const existingProject = this.blockId ? projectData[this.blockId] : undefined;
+
+            // 初始化选中的分类
+            this.selectedCategoryIds = existingProject?.categoryId ? existingProject.categoryId.split(',') : [];
 
             if (this.blockId && !existingProject) {
                 // Block being converted to project
@@ -52,13 +56,7 @@ export class ProjectDialog {
 
     private generateDialogHTML(title: string, existingProject?: any): string {
         const today = getLogicalDateString();
-        const categories = this.categoryManager.getCategories();
         const statuses = this.statusManager.getStatuses();
-
-        const categoryOptions = categories.map(cat =>
-            `<option value="${cat.id}" ${existingProject?.categoryId === cat.id ? 'selected' : ''}>${cat.icon ? cat.icon + ' ' : ''}${cat.name}</option>`
-        ).join('');
-
         const statusOptions = statuses.map(status =>
             `<option value="${status.id}" ${existingProject?.status === status.id ? 'selected' : ''}>${status.icon ? status.icon + ' ' : ''}${status.name}</option>`
         ).join('');
@@ -106,10 +104,9 @@ export class ProjectDialog {
                     
                     <div class="form-group">
                         <label>${t("category") || "分类"}:</label>
-                        <select id="projectCategory" class="b3-select">
-                            <option value="" ${!existingProject?.categoryId ? 'selected' : ''}>${t("noCategory") || "无分类"}</option>
-                            ${categoryOptions}
-                        </select>
+                        <div id="category-selector" class="category-selector" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">
+                            <!-- 分类选择器将在这里渲染 -->
+                        </div>
                     </div>
                     
                     <div class="form-group">
@@ -165,6 +162,7 @@ export class ProjectDialog {
     }
 
     private bindEvents() {
+        this.renderCategorySelector();
         const saveBtn = this.dialog.element.querySelector('#saveBtn') as HTMLButtonElement;
         const cancelBtn = this.dialog.element.querySelector('#cancelBtn') as HTMLButtonElement;
         const pasteBlockRefBtn = this.dialog.element.querySelector('#projectPasteBlockRefBtn') as HTMLButtonElement;
@@ -203,6 +201,87 @@ export class ProjectDialog {
         });
     }
 
+    private renderCategorySelector() {
+        const categorySelector = this.dialog.element.querySelector('#category-selector') as HTMLElement;
+        if (!categorySelector) return;
+
+        try {
+            const categories = this.categoryManager.getCategories();
+            categorySelector.innerHTML = '';
+
+            // 添加无分类选项
+            const noCategoryEl = document.createElement('div');
+            noCategoryEl.className = 'category-option';
+            noCategoryEl.setAttribute('data-category', '');
+            noCategoryEl.innerHTML = `<span>${t("noCategory") || "无分类"}</span>`;
+
+            if (this.selectedCategoryIds.length === 0) {
+                noCategoryEl.classList.add('selected');
+            }
+
+            // 点击事件
+            noCategoryEl.addEventListener('click', () => {
+                this.selectedCategoryIds = [];
+                this.updateCategorySelectionUI();
+            });
+
+            categorySelector.appendChild(noCategoryEl);
+
+            // 添加所有分类选项
+            categories.forEach(category => {
+                const categoryEl = document.createElement('div');
+                categoryEl.className = 'category-option';
+                categoryEl.setAttribute('data-category', category.id);
+                categoryEl.style.backgroundColor = category.color;
+
+                categoryEl.innerHTML = `<span>${category.icon ? category.icon + ' ' : ''}${category.name}</span>`;
+
+                if (this.selectedCategoryIds.includes(category.id)) {
+                    categoryEl.classList.add('selected');
+                }
+
+                // 点击事件
+                categoryEl.addEventListener('click', () => {
+                    const isSelected = this.selectedCategoryIds.includes(category.id);
+                    if (isSelected) {
+                        this.selectedCategoryIds = this.selectedCategoryIds.filter(id => id !== category.id);
+                    } else {
+                        this.selectedCategoryIds.push(category.id);
+                    }
+                    this.updateCategorySelectionUI();
+                });
+
+                categorySelector.appendChild(categoryEl);
+            });
+
+        } catch (error) {
+            console.error('渲染分类选择器失败:', error);
+            categorySelector.innerHTML = '<div class="category-error">加载分类失败</div>';
+        }
+    }
+
+    private updateCategorySelectionUI() {
+        const categorySelector = this.dialog.element.querySelector('#category-selector') as HTMLElement;
+        if (!categorySelector) return;
+
+        const buttons = categorySelector.querySelectorAll('.category-option');
+        buttons.forEach(btn => {
+            const id = btn.getAttribute('data-category');
+            if (this.selectedCategoryIds.length === 0) {
+                // 如果没有选中的，高亮“无分类”
+                if (!id) btn.classList.add('selected');
+                else btn.classList.remove('selected');
+            } else {
+                // 如果有选中的，根据ID高亮
+                if (id && this.selectedCategoryIds.includes(id)) {
+                    btn.classList.add('selected');
+                } else {
+                    btn.classList.remove('selected');
+                }
+            }
+        });
+    }
+
     // 提取块ID的辅助方法
     private extractBlockId(text: string): string | null {
         // 匹配 siyuan://blocks/xxx 格式
@@ -226,7 +305,6 @@ export class ProjectDialog {
             const noteEl = this.dialog.element.querySelector('#projectNote') as HTMLTextAreaElement;
             const statusEl = this.dialog.element.querySelector('#projectStatus') as HTMLSelectElement;
             const priorityEl = this.dialog.element.querySelector('#projectPriority') as HTMLSelectElement;
-            const categoryEl = this.dialog.element.querySelector('#projectCategory') as HTMLSelectElement;
             const colorEl = this.dialog.element.querySelector('#projectColor') as HTMLInputElement;
             const startDateEl = this.dialog.element.querySelector('#projectStartDate') as HTMLInputElement;
             const endDateEl = this.dialog.element.querySelector('#projectEndDate') as HTMLInputElement;
@@ -265,7 +343,7 @@ export class ProjectDialog {
                 note: noteEl.value.trim(),
                 status: statusEl.value,
                 priority: priorityEl.value,
-                categoryId: categoryEl.value || null,
+                categoryId: this.selectedCategoryIds.join(','),
                 color: colorEl.value,
                 startDate: startDate,
                 endDate: endDate || null,

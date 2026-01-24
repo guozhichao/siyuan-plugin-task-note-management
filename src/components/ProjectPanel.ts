@@ -537,8 +537,10 @@ export class ProjectPanel {
         }
 
         return projects.filter(project => {
-            const categoryId = project.categoryId || 'none';
-            return this.selectedCategories.includes(categoryId);
+            const categoryIds = project.categoryId ? project.categoryId.split(',').filter((id: string) => id.trim()) : ['none'];
+            if (categoryIds.length === 0) categoryIds.push('none');
+            // Check if any of the project's categories are in the selected categories list
+            return categoryIds.some((id: string) => this.selectedCategories.includes(id));
         });
     }
 
@@ -553,18 +555,19 @@ export class ProjectPanel {
         return projects.filter(project => {
             // 构建搜索文本：标题 + 分类名称 + 自定义分组名称
             const title = (project.title || '').toLowerCase();
-            let categoryName = '';
+            let categoryNames = '';
             if (project.categoryId) {
-                const category = this.categoryManager.getCategoryById(project.categoryId);
-                if (category) {
-                    categoryName = (category.name || '').toLowerCase();
-                }
+                const ids = project.categoryId.split(',').filter((id: string) => id.trim());
+                categoryNames = ids.map((id: string) => {
+                    const category = this.categoryManager.getCategoryById(id);
+                    return category ? (category.name || '').toLowerCase() : '';
+                }).join(' ');
             }
             let customGroupNames = '';
             if (project.customGroups && Array.isArray(project.customGroups)) {
                 customGroupNames = project.customGroups.map((group: any) => (group.name || '').toLowerCase()).join(' ');
             }
-            const searchText = title + ' ' + categoryName + ' ' + customGroupNames;
+            const searchText = title + ' ' + categoryNames + ' ' + customGroupNames;
 
             // 检查所有搜索词是否都包含在搜索文本中
             return searchTerms.every(term => searchText.includes(term.toLowerCase()));
@@ -963,48 +966,59 @@ export class ProjectPanel {
         });
         // 分类显示
         if (project.categoryId) {
-            const category = this.categoryManager.getCategoryById(project.categoryId);
-            if (category) {
+            const categoryIds = project.categoryId.split(',').filter((id: string) => id.trim());
+
+            if (categoryIds.length > 0) {
                 const categoryContainer = document.createElement('div');
                 categoryContainer.className = 'project-item__category-container';
                 categoryContainer.style.cssText = `
                     margin-top: 4px;
-                `;
-
-                const categoryEl = document.createElement('div');
-                categoryEl.className = 'project-category-tag';
-                categoryEl.style.cssText = `
-                    display: inline-flex;
-                    align-items: center;
+                    display: flex;
+                    flex-wrap: wrap;
                     gap: 4px;
-                    padding: 2px 6px;
-                    background-color: ${category.color};
-                    border: 1px solid ${category.color}40;
-                    border-radius: 5px;
-                    font-size: 11px;
-                    color: #fff;
                 `;
 
-                if (category.icon) {
-                    const iconSpan = document.createElement('span');
-                    iconSpan.textContent = category.icon;
-                    iconSpan.style.cssText = `
-                        font-size: 12px;
-                        line-height: 1;
-                    `;
-                    categoryEl.appendChild(iconSpan);
+                categoryIds.forEach((id: string) => {
+                    const category = this.categoryManager.getCategoryById(id);
+                    if (category) {
+                        const categoryEl = document.createElement('div');
+                        categoryEl.className = 'project-category-tag';
+                        categoryEl.style.cssText = `
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 4px;
+                            padding: 2px 6px;
+                            background-color: ${category.color};
+                            border: 1px solid ${category.color}40;
+                            border-radius: 5px;
+                            font-size: 11px;
+                            color: #fff;
+                        `;
+
+                        if (category.icon) {
+                            const iconSpan = document.createElement('span');
+                            iconSpan.textContent = category.icon;
+                            iconSpan.style.cssText = `
+                                font-size: 12px;
+                                line-height: 1;
+                            `;
+                            categoryEl.appendChild(iconSpan);
+                        }
+
+                        const nameSpan = document.createElement('span');
+                        nameSpan.textContent = category.name;
+                        nameSpan.style.cssText = `
+                            font-size: 11px;
+                            font-weight: 500;
+                        `;
+                        categoryEl.appendChild(nameSpan);
+                        categoryContainer.appendChild(categoryEl);
+                    }
+                });
+
+                if (categoryContainer.hasChildNodes()) {
+                    infoEl.appendChild(categoryContainer);
                 }
-
-                const nameSpan = document.createElement('span');
-                nameSpan.textContent = category.name;
-                nameSpan.style.cssText = `
-                    font-size: 11px;
-                    font-weight: 500;
-                `;
-                categoryEl.appendChild(nameSpan);
-
-                categoryContainer.appendChild(categoryEl);
-                infoEl.appendChild(categoryContainer);
             }
         }
 
