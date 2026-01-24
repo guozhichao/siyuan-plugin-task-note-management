@@ -292,9 +292,54 @@ export class TaskSummaryDialog {
     const pomodoroManager = PomodoroRecordManager.getInstance();
     await pomodoroManager.initialize();
 
+
     let totalPomodoros = 0;
     let totalMinutes = 0;
     const pomodoroByDate: { [date: string]: { count: number, minutes: number, taskStats: any } } = {};
+
+    // 1.1 计算所有任务的历史累计数据 (All-time stats)
+    const allRecords = (pomodoroManager as any).records || {};
+    const rawAllTimeStats: { [id: string]: { count: number, minutes: number } } = {};
+
+    Object.keys(allRecords).forEach(dateStr => {
+      const record = allRecords[dateStr];
+      if (record && record.sessions) {
+        record.sessions.forEach((s: any) => {
+          if (s.type === 'work' && (s.completed || s.duration > 0)) {
+            const evtId = s.eventId;
+            if (evtId) {
+              if (!rawAllTimeStats[evtId]) rawAllTimeStats[evtId] = { count: 0, minutes: 0 };
+              rawAllTimeStats[evtId].count += (typeof s.count === 'number' ? s.count : 1);
+              rawAllTimeStats[evtId].minutes += s.duration || 0;
+            }
+          }
+        });
+      }
+    });
+
+    // 1.2 向上冒泡累加 All-time Stats
+    const allTimeTaskStats: { [id: string]: { count: number, minutes: number } } = {};
+    Object.keys(rawAllTimeStats).forEach(id => {
+      if (!allTimeTaskStats[id]) allTimeTaskStats[id] = { count: 0, minutes: 0 };
+      allTimeTaskStats[id].count += rawAllTimeStats[id].count;
+      allTimeTaskStats[id].minutes += rawAllTimeStats[id].minutes;
+    });
+
+    Object.keys(rawAllTimeStats).forEach(sourceId => {
+      let currentId = sourceId;
+      const statsToAdd = rawAllTimeStats[sourceId];
+      let depth = 0;
+      while (depth < 20) {
+        const reminder = reminderData[currentId];
+        if (!reminder || !reminder.parentId) break;
+        const parentId = reminder.parentId;
+        if (!allTimeTaskStats[parentId]) allTimeTaskStats[parentId] = { count: 0, minutes: 0 };
+        allTimeTaskStats[parentId].count += statsToAdd.count;
+        allTimeTaskStats[parentId].minutes += statsToAdd.minutes;
+        currentId = parentId;
+        depth++;
+      }
+    });
 
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -430,7 +475,8 @@ export class TaskSummaryDialog {
         totalCount: totalPomodoros,
         totalHours: (totalMinutes / 60).toFixed(1),
         totalMinutes: totalMinutes,
-        byDate: pomodoroByDate
+        byDate: pomodoroByDate,
+        allTimeTaskStats: allTimeTaskStats // Return all-time stats
       },
       habit: {
         total: totalHabitTargetDays,
@@ -1442,9 +1488,37 @@ export class TaskSummaryDialog {
 
             // 获取番茄钟统计
             let pomodoroStr = '';
-            if (stats.pomodoro.byDate[date] && stats.pomodoro.byDate[date].taskStats && stats.pomodoro.byDate[date].taskStats[task.id]) {
-              const tStat = stats.pomodoro.byDate[date].taskStats[task.id];
-              pomodoroStr = ` (🍅 ${tStat.count} | 🕒 ${this.formatDuration(tStat.minutes)})`;
+            // 当天统计
+            const dayStats = stats.pomodoro.byDate[date];
+            let dailyCount = 0;
+            let dailyMinutes = 0;
+
+            if (dayStats && dayStats.taskStats && dayStats.taskStats[task.id]) {
+              const tStat = dayStats.taskStats[task.id];
+              dailyCount = tStat.count;
+              dailyMinutes = tStat.minutes;
+            }
+
+            if (dailyCount > 0 || dailyMinutes > 0) {
+              pomodoroStr = ` (🍅 ${dailyCount} | 🕒 ${this.formatDuration(dailyMinutes)}`;
+
+              // 检查历史总计，如果总计大于今日，则补充显示总计
+              // 注意：allTimeTaskStats 包含今日，所以应该是 > dailyMinutes 才显示 '总'
+              if (stats.pomodoro.allTimeTaskStats && stats.pomodoro.allTimeTaskStats[task.id]) {
+                const allStat = stats.pomodoro.allTimeTaskStats[task.id];
+                if (allStat.minutes > dailyMinutes + 1) { // +1 避免浮点误差导致的微小差异
+                  pomodoroStr += ` / 总: 🍅 ${allStat.count} | 🕒 ${this.formatDuration(allStat.minutes)}`;
+                }
+              }
+              pomodoroStr += `)`;
+            } else {
+              // 如果今日没有数据，但历史有数据（比如多天任务，今天没做，但显示出来了），也显示总计
+              if (stats.pomodoro.allTimeTaskStats && stats.pomodoro.allTimeTaskStats[task.id]) {
+                const allStat = stats.pomodoro.allTimeTaskStats[task.id];
+                if (allStat.minutes > 0) {
+                  pomodoroStr = ` (总: 🍅 ${allStat.count} | 🕒 ${this.formatDuration(allStat.minutes)})`;
+                }
+              }
             }
 
             // 预计番茄时长
