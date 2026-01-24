@@ -1685,7 +1685,7 @@ export default class ReminderPlugin extends Plugin {
                 iconHTML: "📋",
                 label: t("viewDocumentAllReminders"),
                 click: () => {
-                    const documentReminderDialog = new DocumentReminderDialog(documentIds[0]);
+                    const documentReminderDialog = new DocumentReminderDialog(documentIds[0],this);
                     documentReminderDialog.show();
                 }
             });
@@ -1756,7 +1756,7 @@ export default class ReminderPlugin extends Plugin {
             label: t("documentReminderManagement"),
             click: () => {
                 if (documentId) {
-                    const documentReminderDialog = new DocumentReminderDialog(documentId);
+                    const documentReminderDialog = new DocumentReminderDialog(documentId,this);
                     documentReminderDialog.show();
                 }
             }
