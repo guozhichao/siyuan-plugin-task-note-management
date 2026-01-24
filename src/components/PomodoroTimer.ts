@@ -6207,11 +6207,23 @@ export class PomodoroTimer {
                 if (recoveredState.reminderId) timer.reminder.id = recoveredState.reminderId;
                 if (recoveredState.blockId) timer.reminder.blockId = recoveredState.blockId;
 
+
                 // Resume logic loop if needed
                 if (timer.isRunning && !timer.isPaused) {
                     timer.startTickLoop();
                 } else {
                     // If paused or stopped, ensure UI reflects it
+                }
+
+                // Try to recover mode (docked/mini) from DOM classes
+                try {
+                    const classes: string = await win.webContents.executeJavaScript('Array.from(document.body.classList).join(" ")');
+                    if (classes && typeof classes === 'string') {
+                        (timer as any).isDocked = classes.includes('docked-mode');
+                        (timer as any).isMiniMode = classes.includes('mini-mode');
+                    }
+                } catch (err) {
+                    console.warn('[PomodoroTimer] Failed to detect window mode during recovery', err);
                 }
 
                 // Force UI update to match the restored state immediately
