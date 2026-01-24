@@ -7536,46 +7536,6 @@ export class ProjectKanbanView {
                 }
             }
 
-            .reminder-dialog .b3-form__group {
-                margin-bottom: 16px;
-            }
-            .reminder-dialog .b3-form__label {
-                display: block;
-                margin-bottom: 8px;
-                font-weight: 500;
-            }
-            .priority-selector {
-                display: flex;
-                gap: 8px;
-            }
-            .priority-option {
-                display: flex;
-                align-items: center;
-                gap: 6px;
-                padding: 6px 12px;
-                border-radius: 16px;
-                cursor: pointer;
-                border: 1px solid var(--b3-theme-border);
-                transition: all 0.2s ease;
-            }
-            .priority-option:hover {
-                background-color: var(--b3-theme-surface-lighter);
-            }
-            .priority-option.selected {
-                font-weight: 600;
-                border-color: var(--b3-theme-primary);
-                background-color: var(--b3-theme-primary-lightest);
-                color: var(--b3-theme-primary);
-            }
-            .priority-option .priority-dot {
-                width: 10px;
-                height: 10px;
-                border-radius: 50%;
-            }
-            .priority-option .priority-dot.high { background-color: #e74c3c; }
-            .priority-option .priority-dot.medium { background-color: #f39c12; }
-            .priority-option .priority-dot.low { background-color: #3498db; }
-            .priority-option .priority-dot.none { background-color: #95a5a6; }
             
             .term-type-selector {
                 display: flex;
@@ -7603,36 +7563,6 @@ export class ProjectKanbanView {
                 color: var(--b3-theme-primary);
             }
 
-            
-            .category-selector .category-option {
-                padding: 4px 10px;
-                border-radius: 14px;
-                cursor: pointer;
-                transition: transform 0.15s ease;
-                border: 1px solid transparent;
-                color: white;
-            }
-            .category-selector .category-option.selected {
-                transform: scale(1.05);
-                box-shadow: 0 0 0 2px var(--b3-theme-primary-lightest);
-                font-weight: bold;
-            }
-            .category-selector .category-option[data-category=""] {
-                background-color: var(--b3-theme-surface-lighter);
-                color: var(--b3-theme-on-surface);
-            }
-            .reminder-date-container {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-            .reminder-date-container .b3-text-field {
-                flex: 1;
-            }
-            .reminder-arrow {
-                color: var(--b3-theme-on-surface);
-                opacity: 0.7;
-            }
 
             .kanban-task-block-info {
                 font-size: 11px;

@@ -6977,7 +6977,7 @@ export class ReminderPanel {
 
             .category-selector .category-option {
                 padding: 4px 10px;
-                border-radius: 14px;
+                border-radius: 8px;
                 cursor: pointer;
                 transition: transform 0.15s ease;
                 border: 1px solid transparent;
