@@ -105,7 +105,7 @@ export class PomodoroTimer {
     private isDocked: boolean = false; // BrowserWindow 吸附模式状态
     private normalWindowBounds: { x: number; y: number; width: number; height: number } | null = null; // 保存正常窗口位置和大小
 
-    constructor(reminder: any, settings: any, isCountUp: boolean = false, inheritState?: any, plugin?: any, container?: HTMLElement) {
+    constructor(reminder: any, settings: any, isCountUp: boolean = false, inheritState?: any, plugin?: any, container?: HTMLElement, orphanedWindow?: any) {
         this.reminder = reminder;
         this.settings = settings;
         this.isCountUp = isCountUp; // 设置计时模式
@@ -153,7 +153,30 @@ export class PomodoroTimer {
             this.applyInheritedState(inheritState);
         }
 
-        this.initComponents(container);
+        if (orphanedWindow) {
+            PomodoroTimer.browserWindowInstance = orphanedWindow;
+            this.container = orphanedWindow;
+            PomodoroTimer.browserWindowTimer = this;
+            this.registerIPCListeners(orphanedWindow);
+            this.updateBrowserWindowDisplay(orphanedWindow);
+            // CRITICAL: Restore the tick loop if it was running and we recovered state
+            // (State recovery happens in recoverOrphanedWindow before constructor for properties,
+            // but we need to start the loop if it was running)
+            // Check inheritState or just local properties?
+            // Since we passed dummyReminder which was populated with title/id,
+            // but 'isRunning' etc. were NOT passed to constructor directly via inheritState in recoverOrphanedWindow.
+            // We need to sync them in recoverOrphanedWindow or here.
+            // Let's assume recoverOrphanedWindow updated the properties on the 'timer' instance AFTER creation?
+            // NO, `new` returns the instance. 
+            // We need to apply state in constructor if possible, OR allow recoverOrphanedWindow to update it.
+            // But valid tick loop needs to start.
+
+            // Let's defer "init components" which loads audio etc.
+            this.initComponents(container, orphanedWindow);
+        } else {
+            this.findAndAttachOrphanedWindow();
+            this.initComponents(container);
+        }
     }
 
     /**
@@ -322,10 +345,18 @@ export class PomodoroTimer {
         };
     }
 
-    private async initComponents(container?: HTMLElement) {
+    private async initComponents(container?: HTMLElement, orphanedWindow?: any) {
         await this.recordManager.initialize();
         this.initAudio();
-        await this.createWindow(container);
+
+        if (orphanedWindow) {
+            // If recovering, we already have the window (orphanedWindow).
+            // We just need to update stats and perhaps ensure listeners (which we did in constructor).
+            // NO call to createWindow here.
+        } else {
+            await this.createWindow(container);
+        }
+
         this.updateStatsDisplay();
     }
 
@@ -3801,7 +3832,7 @@ export class PomodoroTimer {
         // BrowserWindow 模式：使用统一的更新方法
         if (!this.isTabMode && this.container && (this.container as any).webContents) {
             try {
-                if (!this.container.isDestroyed()) {
+                if (!(this.container as any).isDestroyed()) {
                     this.updateBrowserWindowDisplay(this.container);
                     return;
                 } else {
@@ -6088,6 +6119,270 @@ export class PomodoroTimer {
         }
     }
 
+    public static async recoverOrphanedWindow(plugin: any, settings: any): Promise<PomodoroTimer | null> {
+        // Scan first, BEFORE creating any instance to avoid side effects (like opening a new window)
+        const win = await PomodoroTimer.scanForOrphanedWindow();
+
+        if (win) {
+            console.log('[PomodoroTimer] Found orphan during recovery scan', win.id);
+
+            let recoveredReminder = { id: 'recovered', title: 'Recovering...' };
+            let recoveredState = null;
+
+            // Try to recover state BEFORE creating the instance
+            try {
+                recoveredState = await win.webContents.executeJavaScript('window.localState');
+                if (recoveredState) {
+                    if (recoveredState.reminderTitle) recoveredReminder.title = recoveredState.reminderTitle;
+                    if (recoveredState.reminderId) recoveredReminder.id = recoveredState.reminderId;
+                    if (recoveredState.blockId) (recoveredReminder as any).blockId = recoveredState.blockId;
+                }
+            } catch (e) {
+                console.warn('[PomodoroTimer] Failed to pre-recover state', e);
+            }
+
+            // Create timer with potentially recovered info, PASSING THE FOUND WINDOW
+            const timer = new PomodoroTimer(recoveredReminder, settings, false, null, plugin, undefined, win);
+
+            // Apply full state if available
+            if (recoveredState) {
+                timer.isRunning = recoveredState.isRunning;
+                timer.isPaused = recoveredState.isPaused;
+                timer.isWorkPhase = recoveredState.isWorkPhase;
+                timer.isLongBreak = recoveredState.isLongBreak;
+                timer.isCountUp = recoveredState.isCountUp;
+
+                timer.timeLeft = recoveredState.timeLeft || 0;
+                timer.timeElapsed = recoveredState.timeElapsed || 0;
+                timer.breakTimeLeft = recoveredState.breakTimeLeft || 0;
+                timer.totalTime = recoveredState.totalTime || 0;
+
+                timer.completedPomodoros = recoveredState.completedPomodoros || 0;
+                timer.startTime = recoveredState.startTime || Date.now();
+                timer.pausedTime = recoveredState.pausedTime || 0;
+                timer.currentPhaseOriginalDuration = recoveredState.currentPhaseOriginalDuration || settings.workDuration;
+
+                // Restore Reminder/Block IDs explicitly
+                if (recoveredState.reminderId) timer.reminder.id = recoveredState.reminderId;
+                if (recoveredState.blockId) timer.reminder.blockId = recoveredState.blockId;
+
+                // Resume logic loop if needed
+                if (timer.isRunning && !timer.isPaused) {
+                    timer.startTickLoop();
+                } else {
+                    // If paused or stopped, ensure UI reflects it
+                }
+
+                // Force UI update to match the restored state immediately
+                timer.updateBrowserWindowDisplay(win);
+            }
+
+            return timer;
+        }
+        return null;
+    }
+
+    private static async scanForOrphanedWindow(): Promise<any> {
+        try {
+            let remote: any;
+            try { remote = (window as any).require('@electron/remote'); }
+            catch (e) { try { remote = (window as any).require('electron').remote; } catch (e2) { } }
+            if (!remote) return null;
+
+            const wins = remote.BrowserWindow.getAllWindows();
+            for (const win of wins) {
+                if (win.isDestroyed()) continue;
+                try {
+                    // Method 1: Check injected flag
+                    let isPomodoro = await win.webContents.executeJavaScript('window.isPomodoroWindow === true').catch(() => false);
+
+                    // Method 2: Check window title (fallback)
+                    if (!isPomodoro) {
+                        try {
+                            const title = win.getTitle();
+                            if (title === 'Pomodoro Timer') {
+                                isPomodoro = true;
+                            }
+                        } catch (e) { }
+                    }
+
+                    if (isPomodoro) return win;
+                } catch (e) { }
+            }
+        } catch (e) { }
+        return null;
+    }
+
+    private async findAndAttachOrphanedWindow() {
+        if (this.isTabMode) return;
+
+        if (PomodoroTimer.browserWindowInstance) return;
+
+        try {
+            const win = await PomodoroTimer.scanForOrphanedWindow();
+            if (win) {
+                if (PomodoroTimer.browserWindowInstance === win) return;
+
+                console.log('[PomodoroTimer] Found orphaned window, attaching...', win.id);
+
+                // 1. Recover State FROM the window
+                try {
+                    const recoveredState = await win.webContents.executeJavaScript('window.localState');
+                    console.log('[PomodoroTimer] Recovered state:', recoveredState);
+
+                    if (recoveredState) {
+                        this.isRunning = recoveredState.isRunning;
+                        this.isPaused = recoveredState.isPaused;
+                        this.isWorkPhase = recoveredState.isWorkPhase;
+                        this.isLongBreak = recoveredState.isLongBreak;
+                        this.isCountUp = recoveredState.isCountUp;
+                        this.timeLeft = recoveredState.timeLeft;
+                        this.timeElapsed = recoveredState.timeElapsed;
+                        this.breakTimeLeft = recoveredState.breakTimeLeft || 0;
+                        this.totalTime = recoveredState.totalTime;
+                        this.completedPomodoros = recoveredState.completedPomodoros || 0;
+                        this.startTime = recoveredState.startTime || 0;
+                        this.pausedTime = recoveredState.pausedTime || 0;
+                        this.currentPhaseOriginalDuration = recoveredState.currentPhaseOriginalDuration || this.settings.workDuration;
+
+                        if (recoveredState.reminderTitle) {
+                            this.reminder.title = recoveredState.reminderTitle;
+                        }
+                        if (recoveredState.reminderId) {
+                            this.reminder.id = recoveredState.reminderId;
+                        }
+                        if (recoveredState.blockId) {
+                            this.reminder.blockId = recoveredState.blockId;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[PomodoroTimer] Failed to extract state from orphaned window', e);
+                }
+
+                PomodoroTimer.browserWindowInstance = win;
+                this.container = win;
+                PomodoroTimer.browserWindowTimer = this;
+
+                this.registerIPCListeners(win);
+
+                this.updateBrowserWindowDisplay(win);
+
+                if (this.isRunning && !this.isPaused) {
+                    this.startTickLoop();
+                }
+            }
+        } catch (e) {
+            console.error('Error scanning for orphaned windows:', e);
+        }
+    }
+
+    private startTickLoop() {
+        if (this.timer) clearInterval(this.timer);
+        this.timer = window.setInterval(() => {
+            if (this.isWindowClosed) {
+                if (this.timer) { clearInterval(this.timer); this.timer = null; }
+                return;
+            }
+            const currentTime = Date.now();
+            const elapsedSinceStart = Math.floor((currentTime - this.startTime) / 1000);
+
+            if (this.isCountUp) {
+                if (this.isWorkPhase) {
+                    this.timeElapsed = elapsedSinceStart;
+                    const pomodoroLength = this.settings.workDuration * 60;
+                    if (this.timeElapsed > 0 && this.timeElapsed % pomodoroLength === 0) {
+                        if (this.lastPomodoroTriggerTime !== this.timeElapsed) {
+                            this.lastPomodoroTriggerTime = this.timeElapsed;
+                            this.completePomodoroPhase();
+                        }
+                    }
+                } else {
+                    const totalBreakTime = this.isLongBreak ? this.settings.longBreakDuration * 60 : this.settings.breakDuration * 60;
+                    this.breakTimeLeft = totalBreakTime - elapsedSinceStart;
+                    if (this.breakTimeLeft <= 0) {
+                        this.breakTimeLeft = 0;
+                        this.completeBreakPhase();
+                    }
+                }
+            } else {
+                this.timeLeft = this.totalTime - elapsedSinceStart;
+                if (this.timeLeft <= 0) {
+                    this.timeLeft = 0;
+                    this.completePhase();
+                }
+            }
+        }, 500);
+    }
+
+    private registerIPCListeners(pomodoroWindow: any) {
+        if (!pomodoroWindow || pomodoroWindow.isDestroyed()) return;
+
+        try {
+            const electronReq = (window as any).require;
+            const remote = electronReq?.('@electron/remote') || electronReq?.('electron')?.remote;
+            const ipcMain = remote?.ipcMain;
+
+            if (!ipcMain) return;
+
+            const actionChannel = `pomodoro-action-${pomodoroWindow.id}`;
+            const controlChannel = `pomodoro-control-${pomodoroWindow.id}`;
+
+            // Remove old listeners just in case
+            ipcMain.removeAllListeners(actionChannel);
+            ipcMain.removeAllListeners(controlChannel);
+
+            let screen: any = null;
+            try {
+                screen = remote?.screen;
+            } catch (e) { }
+
+            const actionHandler = (_event: any, method: string) => {
+                this.callMethod(method);
+            };
+
+            const controlHandler = (_event: any, action: string, pinState?: boolean) => {
+                switch (action) {
+                    case 'pin':
+                        pomodoroWindow.setAlwaysOnTop(!!pinState);
+                        break;
+                    case 'minimize':
+                        pomodoroWindow.minimize();
+                        break;
+                    case 'close':
+                        pomodoroWindow.close();
+                        break;
+                    case 'toggleMiniMode':
+                        this.toggleBrowserWindowMiniMode(pomodoroWindow);
+                        break;
+                    case 'toggleDock':
+                        this.toggleBrowserWindowDock(pomodoroWindow, screen);
+                        break;
+                    case 'restoreFromDocked':
+                        this.restoreFromDocked(pomodoroWindow, screen);
+                        break;
+                    default:
+                        break;
+                }
+            };
+
+            ipcMain.on(actionChannel, actionHandler);
+            ipcMain.on(controlChannel, controlHandler);
+
+            // Clean up on close
+            pomodoroWindow.once('closed', () => {
+                ipcMain.removeListener(actionChannel, actionHandler);
+                ipcMain.removeListener(controlChannel, controlHandler);
+            });
+            pomodoroWindow.once('destroyed', () => {
+                ipcMain.removeListener(actionChannel, actionHandler);
+                ipcMain.removeListener(controlChannel, controlHandler);
+            });
+
+        } catch (e) {
+            console.error('Error registering IPC listeners:', e);
+        }
+    }
+
     private generateBrowserWindowHTML(
         actionChannel: string,
         controlChannel: string,
@@ -6116,6 +6411,8 @@ export class PomodoroTimer {
 <html>
 <head>
     <meta charset="UTF-8">
+    <title>Pomodoro Timer</title>
+    <script>window.isPomodoroWindow = true;</script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -6478,10 +6775,34 @@ export class PomodoroTimer {
     </div>
     <script>
         const { ipcRenderer } = require('electron');
+        let remote;
+        
+        // Robustly try to get remote
+        try {
+            remote = require('@electron/remote');
+        } catch (e) {
+            try {
+                remote = require('electron').remote;
+            } catch (e2) {
+                if (typeof window.require === 'function') {
+                    try {
+                        remote = window.require('@electron/remote');
+                    } catch (e3) {
+                        try {
+                            remote = window.require('electron').remote;
+                        } catch (e4) {}
+                    }
+                }
+            }
+        }
+
         let isPinned = true;
         
         // Initialize local state from arguments
         let localState = ${JSON.stringify(currentState)};
+        // Expose localState globally for recovery
+        window.localState = localState;
+        
         let settings = ${JSON.stringify({
             workDuration: this.settings.workDuration,
             breakDuration: this.settings.breakDuration,
@@ -6720,6 +7041,9 @@ export class PomodoroTimer {
         // API called by Main Process to update state
         window.updateLocalState = (newState, newSettings) => {
             localState = { ...localState, ...newState };
+            // Update global exposed state
+            window.localState = localState;
+            
             if (newSettings) {
                 settings = { ...settings, ...newSettings };
             }
@@ -6747,8 +7071,29 @@ export class PomodoroTimer {
             const currentState = this.getCurrentState();
             const actionChannel = `pomodoro-action-${pomodoroWindow.id}`;
             const controlChannel = `pomodoro-control-${pomodoroWindow.id}`;
+            const colors = this.getPomodoroColors();
+            const borderColor = this.adjustColor(colors.surface, 20);
+            const hoverColor = this.adjustColor(colors.surface, 10);
 
-            const htmlContent = this.generateBrowserWindowHTML(actionChannel, controlChannel, currentState, this.formatTime(currentState.isCountUp ? currentState.timeElapsed : currentState.timeLeft), currentState.isWorkPhase ? (t('pomodoroWork') || '工作时间') : (currentState.isLongBreak ? (t('pomodoroLongBreak') || '长时休息') : (t('pomodoroBreak') || '短时休息')), this.recordManager.formatTime(this.recordManager.getTodayFocusTime()), this.recordManager.formatTime(this.recordManager.getWeekFocusTime()), this.getPomodoroColors().background, this.getPomodoroColors().text, this.getPomodoroColors().surface, this.getPomodoroColors().border, this.getPomodoroColors().hover, this.reminder.title || '未命名笔记', this.isBackgroundAudioMuted, this.randomNotificationEnabled, this.randomNotificationCount);
+            const htmlContent = this.generateBrowserWindowHTML(
+                actionChannel,
+                controlChannel,
+                currentState,
+                this.formatTime(currentState.isCountUp ? currentState.timeElapsed : currentState.timeLeft),
+                currentState.isWorkPhase ? (t('pomodoroWork') || '工作时间') : (currentState.isLongBreak ? (t('pomodoroLongBreak') || '长时休息') : (t('pomodoroBreak') || '短时休息')),
+                this.recordManager.formatTime(this.recordManager.getTodayFocusTime()),
+                this.recordManager.formatTime(this.recordManager.getWeekFocusTime()),
+                colors.background,
+                colors.onBackground,
+                colors.surface,
+                borderColor,
+                hoverColor,
+                colors.backgroundLight,
+                this.reminder.title || '未命名笔记',
+                this.isBackgroundAudioMuted,
+                this.randomNotificationEnabled,
+                this.randomNotificationCount
+            );
 
             // 重新加载窗口内容
             await pomodoroWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent));

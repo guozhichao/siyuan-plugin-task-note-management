@@ -323,6 +323,25 @@ export default class ReminderPlugin extends Plugin {
 
         // 执行数据迁移
         await this.performDataMigration();
+        // 
+        const frontend = getFrontend();
+        const isMobile = frontend.endsWith('mobile');
+        const isBrowserDesktop = frontend === 'browser-desktop';
+        if (!isMobile && !isBrowserDesktop) {
+            // 尝试恢复已存在的番茄钟已独立窗口
+            import("./components/PomodoroTimer").then(async ({ PomodoroTimer }) => {
+                try {
+                    const settings = await this.getPomodoroSettings();
+                    const timer = await PomodoroTimer.recoverOrphanedWindow(this, settings);
+                    if (timer) {
+                        PomodoroManager.getInstance().setCurrentPomodoroTimer(timer);
+                    }
+                } catch (e) {
+                    console.warn('恢复独立番茄钟窗口失败:', e);
+                }
+            });
+        }
+
     }
 
     private enableAudioOnUserInteraction() {
@@ -1685,7 +1704,7 @@ export default class ReminderPlugin extends Plugin {
                 iconHTML: "📋",
                 label: t("viewDocumentAllReminders"),
                 click: () => {
-                    const documentReminderDialog = new DocumentReminderDialog(documentIds[0],this);
+                    const documentReminderDialog = new DocumentReminderDialog(documentIds[0], this);
                     documentReminderDialog.show();
                 }
             });
@@ -1756,7 +1775,7 @@ export default class ReminderPlugin extends Plugin {
             label: t("documentReminderManagement"),
             click: () => {
                 if (documentId) {
-                    const documentReminderDialog = new DocumentReminderDialog(documentId,this);
+                    const documentReminderDialog = new DocumentReminderDialog(documentId, this);
                     documentReminderDialog.show();
                 }
             }
