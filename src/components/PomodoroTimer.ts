@@ -278,18 +278,48 @@ export class PomodoroTimer {
     }
 
     /**
-     * 判断当前是否为暗色主题（基于 html[data-theme-mode]）
+     * 获取CSS变量的值
      */
-    private isDarkTheme(): boolean {
+    private getCssVariable(variableName: string): string {
         try {
-            if (typeof document === 'undefined') return false;
-
-            // 检查 data-theme-mode（优先）
-            const mode = (document.documentElement && document.documentElement.getAttribute) ? document.documentElement.getAttribute('data-theme-mode') : null;
-            return mode === 'dark';
+            if (typeof document === 'undefined' || typeof window === 'undefined') return '';
+            const root = document.documentElement;
+            const styles = window.getComputedStyle(root);
+            return styles.getPropertyValue(variableName).trim();
         } catch {
-            return false;
+            return '';
         }
+    }
+
+    /**
+     * 调整颜色亮度（简单实现）
+     */
+    private adjustColor(color: string, amount: number): string {
+        // 简单实现：如果有透明度或复杂颜色，直接返回原色
+        if (color.includes('rgba') || color.includes('hsl')) return color;
+        // 对于十六进制颜色，简单调整
+        if (color.startsWith('#')) {
+            const num = parseInt(color.slice(1), 16);
+            const r = Math.min(255, Math.max(0, (num >> 16) + amount));
+            const g = Math.min(255, Math.max(0, ((num >> 8) & 0x00FF) + amount));
+            const b = Math.min(255, Math.max(0, (num & 0x0000FF) + amount));
+            return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, '0')}`;
+        }
+        return color;
+    }
+
+    /**
+     * 获取番茄钟配色方案
+     */
+    private getPomodoroColors() {
+        return {
+            background: this.getCssVariable('--b3-theme-background'),
+            onBackground: this.getCssVariable('--b3-theme-on-background'),
+            surface: this.getCssVariable('--b3-theme-surface'),
+            backgroundLight: this.getCssVariable('--b3-theme-background-light'),
+            successBackground: this.getCssVariable('--b3-card-success-background'),
+            errorColor: this.getCssVariable('--b3-card-error-color')
+        };
     }
 
     private async initComponents(container?: HTMLElement) {
@@ -822,16 +852,16 @@ export class PomodoroTimer {
                 },
                 title: title,
                 show: false,
-                backgroundColor: this.isDarkTheme() ? '#1e1e1e' : 'var(--b3-theme-background)'
+                backgroundColor: this.getCssVariable('--b3-theme-background')
             });
 
             confirmWindow.setMenu(null);
 
-            const isDark = this.isDarkTheme();
-            const bgColor = isDark ? '#1e1e1e' : '#ffffff';
-            const textColor = isDark ? '#e0e0e0' : '#333333';
-            const btnBgColor = isDark ? '#3a3a3a' : '#f0f0f0';
-            const btnHoverBgColor = isDark ? '#4a4a4a' : '#e0e0e0';
+            const colors = this.getPomodoroColors();
+            const bgColor = colors.background || '#ffffff';
+            const textColor = colors.onBackground || '#333333';
+            const btnBgColor = colors.surface || '#f0f0f0';
+            const btnHoverBgColor = colors.surface ? this.adjustColor(colors.surface, -10) : '#e0e0e0';
             const confirmBtnColor = '#4CAF50';
             const confirmBtnHoverColor = '#45a049';
 
@@ -864,7 +894,7 @@ export class PomodoroTimer {
                             font-size: 20px;
                             font-weight: bold;
                             margin-bottom: 20px;
-                            color: ${isDark ? '#ffffff' : '#000000'};
+                            color: ${textColor};
                         }
                         .message {
                             font-size: 16px;
@@ -1017,14 +1047,13 @@ export class PomodoroTimer {
                 },
                 title: title,
                 show: false,
-                backgroundColor: this.isDarkTheme() ? '#1e1e1e' : '#ffffff'
+                backgroundColor: this.getCssVariable('--b3-theme-background')
             });
 
             this.pomodoroEndWindow.setMenu(null);
 
-            const isDark = this.isDarkTheme();
-            const bgColor = isDark ? '#1e1e1e' : '#ffffff';
-            const textColor = isDark ? '#e0e0e0' : '#333333';
+            const bgColor = this.getCssVariable('--b3-theme-background');
+            const textColor = this.getCssVariable('--b3-theme-on-background');
 
             const htmlContent = `
                 <!DOCTYPE html>
@@ -1066,7 +1095,7 @@ export class PomodoroTimer {
                             font-size: 32px; 
                             font-weight: bold; 
                             margin-bottom: 24px; 
-                            color: ${isDark ? '#ffffff' : '#000000'};
+                            color: ${textColor};
                         }
                         .message { 
                             font-size: 20px; 
@@ -1200,15 +1229,14 @@ export class PomodoroTimer {
                 },
                 title: title,
                 show: false,
-                backgroundColor: this.isDarkTheme() ? '#1e1e1e' : '#ffffff'
+                backgroundColor: this.getCssVariable('--b3-theme-background')
             });
 
             // 移除默认菜单
             this.randomNotificationWindow.setMenu(null);
 
-            const isDark = this.isDarkTheme();
-            const bgColor = isDark ? '#1e1e1e' : '#ffffff';
-            const textColor = isDark ? '#e0e0e0' : '#333333';
+            const bgColor = this.getCssVariable('--b3-theme-background');
+            const textColor = this.getCssVariable('--b3-theme-on-background');
 
             const htmlContent = `
                 <!DOCTYPE html>
@@ -1251,7 +1279,7 @@ export class PomodoroTimer {
                             font-size: 32px; 
                             font-weight: bold; 
                             margin-bottom: 24px; 
-                            color: ${isDark ? '#ffffff' : '#000000'};
+                            color: ${textColor};
                         }
                         .message { 
                             font-size: 20px; 
@@ -1265,7 +1293,7 @@ export class PomodoroTimer {
                             font-size: 48px;
                             font-weight: bold;
                             margin-top: 30px;
-                            color: ${isDark ? '#888888' : '#666666'};
+                            color: ${textColor};
                             font-family: monospace;
                         }
                         @keyframes bounce {
@@ -3626,8 +3654,8 @@ export class PomodoroTimer {
                 const weekTimeStr = this.recordManager.formatTime(weekTime);
                 // BrowserWindow 中没有主题变量，使用内联颜色以保证进度可见
                 const dailyFocusGoalHours = this.settings.dailyFocusGoal ?? 0;
-                const surfaceColor = this.isDarkTheme() ? '#2a2a2a' : '#f5f5f5';
-                const successColor = '#e5fae5';
+                const surfaceColor = this.getCssVariable('--b3-theme-surface');
+                const successColor = this.getCssVariable('--b3-card-success-background');
                 const warnColor = '#FF6B6B';
                 let progress = 0;
                 let color = warnColor;
@@ -5856,7 +5884,7 @@ export class PomodoroTimer {
                     autoplayPolicy: 'no-user-gesture-required'
                 },
                 show: false,
-                backgroundColor: this.isDarkTheme() ? '#1e1e1e' : '#ffffff'
+                backgroundColor: this.getCssVariable('--b3-theme-background')
             });
 
             // 确保新窗口启用 @electron/remote，否则子窗口内无法获取 remote 导致按钮失效
@@ -5871,12 +5899,11 @@ export class PomodoroTimer {
 
             pomodoroWindow.setMenu(null);
 
-            const isDark = this.isDarkTheme();
-            const bgColor = isDark ? '#1e1e1e' : '#ffffff';
-            const textColor = isDark ? '#e0e0e0' : '#333333';
-            const surfaceColor = isDark ? '#2a2a2a' : '#f5f5f5';
-            const borderColor = isDark ? '#3a3a3a' : '#e0e0e0';
-            const hoverColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)';
+            const bgColor = this.getCssVariable('--b3-theme-background');
+            const textColor = this.getCssVariable('--b3-theme-on-background');
+            const surfaceColor = this.getCssVariable('--b3-theme-surface');
+            const borderColor = this.adjustColor(this.getCssVariable('--b3-theme-surface'), 20);
+            const hoverColor = this.adjustColor(this.getCssVariable('--b3-theme-surface'), 10);
 
             const currentState = this.getCurrentState();
             const timeStr = this.formatTime(currentState.isCountUp ? currentState.timeElapsed : currentState.timeLeft);
@@ -5890,7 +5917,7 @@ export class PomodoroTimer {
             const controlChannel = `pomodoro-control-${pomodoroWindow.id}`;
             const ipcMain = remote.ipcMain;
 
-            const htmlContent = this.generateBrowserWindowHTML(actionChannel, controlChannel, currentState, timeStr, statusText, todayTimeStr, weekTimeStr, bgColor, textColor, surfaceColor, borderColor, hoverColor, this.reminder.title || '未命名笔记', this.isBackgroundAudioMuted, this.randomNotificationEnabled, this.randomNotificationCount);
+            const htmlContent = this.generateBrowserWindowHTML(actionChannel, controlChannel, currentState, timeStr, statusText, todayTimeStr, weekTimeStr, bgColor, textColor, surfaceColor, borderColor, hoverColor, this.getCssVariable('--b3-theme-background-light'), this.reminder.title || '未命名笔记', this.isBackgroundAudioMuted, this.randomNotificationEnabled, this.randomNotificationCount);
 
             this.container = pomodoroWindow as any;
 
@@ -6026,6 +6053,7 @@ export class PomodoroTimer {
         surfaceColor: string,
         borderColor: string,
         hoverColor: string,
+        backgroundLightColor: string,
         reminderTitle: string,
         isBackgroundAudioMuted: boolean,
         randomNotificationEnabled: boolean,
@@ -6128,7 +6156,7 @@ export class PomodoroTimer {
         .pomodoro-main-container { display: flex; align-items: center; justify-content: center; gap: clamp(16px, 4vw, 8vw); margin-bottom: 10px; flex: 1; }
         .progress-container { position: relative; width: clamp(80px, 45vmin, 40vh); height: clamp(80px, 45vmin, 40vh); flex-shrink: 1; min-width: 80px; }
         .progress-ring { width: 100%; height: 100%; transform: rotate(-90deg); }
-        .progress-ring-bg { fill: none; stroke: ${borderColor}; stroke-width: 6; opacity: 0.3; }
+        .progress-ring-bg { fill: none; stroke: ${backgroundLightColor}; stroke-width: 6; opacity: 0.3; }
         .progress-ring-circle {
             fill: none;
             stroke: #FF6B6B;
@@ -6665,7 +6693,7 @@ export class PomodoroTimer {
             const actionChannel = `pomodoro-action-${pomodoroWindow.id}`;
             const controlChannel = `pomodoro-control-${pomodoroWindow.id}`;
 
-            const htmlContent = this.generateBrowserWindowHTML(actionChannel, controlChannel, currentState, this.formatTime(currentState.isCountUp ? currentState.timeElapsed : currentState.timeLeft), currentState.isWorkPhase ? (t('pomodoroWork') || '工作时间') : (currentState.isLongBreak ? (t('pomodoroLongBreak') || '长时休息') : (t('pomodoroBreak') || '短时休息')), this.recordManager.formatTime(this.recordManager.getTodayFocusTime()), this.recordManager.formatTime(this.recordManager.getWeekFocusTime()), this.isDarkTheme() ? '#1e1e1e' : '#ffffff', this.isDarkTheme() ? '#e0e0e0' : '#333333', this.isDarkTheme() ? '#2a2a2a' : '#f5f5f5', this.isDarkTheme() ? '#3a3a3a' : '#e0e0e0', this.isDarkTheme() ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)', this.reminder.title || '未命名笔记', this.isBackgroundAudioMuted, this.randomNotificationEnabled, this.randomNotificationCount);
+            const htmlContent = this.generateBrowserWindowHTML(actionChannel, controlChannel, currentState, this.formatTime(currentState.isCountUp ? currentState.timeElapsed : currentState.timeLeft), currentState.isWorkPhase ? (t('pomodoroWork') || '工作时间') : (currentState.isLongBreak ? (t('pomodoroLongBreak') || '长时休息') : (t('pomodoroBreak') || '短时休息')), this.recordManager.formatTime(this.recordManager.getTodayFocusTime()), this.recordManager.formatTime(this.recordManager.getWeekFocusTime()), this.getPomodoroColors().background, this.getPomodoroColors().text, this.getPomodoroColors().surface, this.getPomodoroColors().border, this.getPomodoroColors().hover, this.reminder.title || '未命名笔记', this.isBackgroundAudioMuted, this.randomNotificationEnabled, this.randomNotificationCount);
 
             // 重新加载窗口内容
             await pomodoroWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent));
