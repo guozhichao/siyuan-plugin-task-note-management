@@ -25,6 +25,15 @@ export class TaskSummaryDialog {
     this.plugin = plugin;
   }
 
+  private formatDuration(minutes: number): string {
+    const h = Math.floor(minutes / 60);
+    const m = Math.round(minutes % 60);
+    if (h > 0) {
+      return `${h} h ${m} m`;
+    }
+    return `${m} m`;
+  }
+
   private getDisplayTimeForDate(task: any, date: string): string {
     // 返回不带前后空格的时间区间字符串，例如 "(14:49-19:49)" 或 "(14:49-23:59)"，若无时间返回空字符串
     const sd = task.fullStartDate;
@@ -194,14 +203,14 @@ export class TaskSummaryDialog {
     const dateRange = this.getFilterDateRange();
     const events = await this.getEventsForRange(dateRange.start, dateRange.end);
 
+    // 获取统计数据 (stats need to be calculated first to identify tasks worked on)
+    const stats = await this.calculateStats(dateRange.start, dateRange.end);
+
     // 过滤在当前视图范围内的任务
     const filteredEvents = this.filterEventsByDateRange(events, dateRange);
 
     // 按日期和项目分组任务
-    const groupedTasks = this.groupTasksByDateAndProject(filteredEvents, dateRange);
-
-    // 获取统计数据
-    const stats = await this.calculateStats(dateRange.start, dateRange.end);
+    const groupedTasks = this.groupTasksByDateAndProject(filteredEvents, dateRange, stats, events);
 
     // 保存上次生成的数据，供复制使用
     this.lastGroupedTasks = groupedTasks;
@@ -420,6 +429,7 @@ export class TaskSummaryDialog {
       pomodoro: {
         totalCount: totalPomodoros,
         totalHours: (totalMinutes / 60).toFixed(1),
+        totalMinutes: totalMinutes,
         byDate: pomodoroByDate
       },
       habit: {
@@ -993,7 +1003,7 @@ export class TaskSummaryDialog {
   /**
    * 按日期和项目分组任务
    */
-  private groupTasksByDateAndProject(events: any[], dateRange: { start: string; end: string; }) {
+  private groupTasksByDateAndProject(events: any[], dateRange: { start: string; end: string; }, stats?: any, allEvents?: any[]) {
     // 检查当前是否为日视图
     const isDayView = this.calendar && this.calendar.view.type === 'timeGridDay';
     const grouped = new Map<string, Map<string, any[]>>();
@@ -1001,25 +1011,18 @@ export class TaskSummaryDialog {
     // 用于去重：记录已经添加到某个日期的任务
     const addedTasks = new Map<string, Set<string>>(); // Map<日期, Set<任务ID>>
 
-    events.forEach(event => {
-      const startDate = event.extendedProps.date;
-      const endDate = event.extendedProps.endDate;
-      const time = event.extendedProps.time;
-      const projectId = event.extendedProps.projectId || 'no-project';
-      const projectName = projectId === 'no-project' ?
-        (t("noProject") || "无项目") :
-        this.projectManager.getProjectName(projectId) || projectId;
-
+    // 辅助函数：将Event对象转换为taskData
+    const createItemFromEvent = (event: any, dateStrForPerDateCompleted: string) => {
       const perDateCompleted = (d: string) => {
         const dc = event.extendedProps.dailyCompletions || {};
         return (event.extendedProps.completed === true) || (dc[d] === true);
       };
 
-      const taskData = {
+      return {
         id: event.extendedProps.originalId || event.extendedProps.blockId || event.id,
         title: event.originalTitle || event.title,
         // completed will be set per-date when adding to grouped map
-        completed: event.extendedProps.completed,
+        completed: typeof perDateCompleted === 'function' ? perDateCompleted(dateStrForPerDateCompleted) : event.extendedProps.completed,
         completedTime: event.extendedProps.completedTime || null, // 添加完成时间
         priority: event.extendedProps.priority,
         time: event.extendedProps.time,
@@ -1034,32 +1037,47 @@ export class TaskSummaryDialog {
         extendedProps: event.extendedProps, // 保留完整的 extendedProps 以便层级排序使用
         _perDateCompleted: perDateCompleted
       };
+    };
 
-      // 辅助函数：添加任务到指定日期，带去重检查
-      const addTaskToDate = (dateStr: string, taskItem: any) => {
-        const taskId = taskItem.id;
+    // 辅助函数：添加任务到指定日期，带去重检查
+    const addTaskToDate = (dateStr: string, taskItem: any) => {
+      const taskId = taskItem.id;
+      // 检查是否已经添加过
+      if (!addedTasks.has(dateStr)) {
+        addedTasks.set(dateStr, new Set());
+      }
+      if (addedTasks.get(dateStr).has(taskId)) {
+        return; // 已经添加过，跳过
+      }
 
-        // 检查是否已经添加过
-        if (!addedTasks.has(dateStr)) {
-          addedTasks.set(dateStr, new Set());
-        }
-        if (addedTasks.get(dateStr).has(taskId)) {
-          return; // 已经添加过，跳过
-        }
+      const projectId = taskItem.extendedProps?.projectId || 'no-project';
+      const projectName = projectId === 'no-project' ?
+        (t("noProject") || "无项目") :
+        this.projectManager.getProjectName(projectId) || projectId;
 
-        // 添加到分组
-        if (!grouped.has(dateStr)) {
-          grouped.set(dateStr, new Map());
-        }
-        const dateGroup = grouped.get(dateStr);
-        if (!dateGroup.has(projectName)) {
-          dateGroup.set(projectName, []);
-        }
-        dateGroup.get(projectName).push(taskItem);
+      // 添加到分组
+      if (!grouped.has(dateStr)) {
+        grouped.set(dateStr, new Map());
+      }
+      const dateGroup = grouped.get(dateStr);
+      if (!dateGroup.has(projectName)) {
+        dateGroup.set(projectName, []);
+      }
+      dateGroup.get(projectName).push(taskItem);
 
-        // 标记为已添加
-        addedTasks.get(dateStr).add(taskId);
-      };
+      // 标记为已添加
+      addedTasks.get(dateStr).add(taskId);
+    };
+
+    events.forEach(event => {
+      const startDate = event.extendedProps.date;
+      const endDate = event.extendedProps.endDate;
+      const time = event.extendedProps.time;
+      // const projectId... (moved to addTaskToDate)
+
+      const taskData = createItemFromEvent(event, startDate);
+
+      // (We removed addTaskToDate definition here to lift it up)
 
       // 计算任务的逻辑日期（如果有时间）
       let taskLogicalDate = startDate;
@@ -1125,6 +1143,54 @@ export class TaskSummaryDialog {
         }
       }
     });
+
+    // 额外的逻辑：如果任务虽未在当天计划，但当天有番茄钟专注记录，也显示在当天
+    if (stats && stats.pomodoro && stats.pomodoro.byDate && allEvents) {
+      // 创建ID到事件的映射，方便查找 (使用 reminder.id 作为 key)
+      const eventMap = new Map<string, any>();
+      allEvents.forEach(e => {
+        // 优先使用 reminder.id (即 startEvent 里的 ID)
+        // 注意：addEventToList生成的 id 可能是 "xxxx" 或 "xxxx_instance_yyyy"
+        // 我们这里主要想通过原始ID查找到任何一个与其关联的事件对象即可，
+        // 最好是原始对象，或者该日期对应的对象
+
+        // 简单起见，我们存储原始ID对应的事件对象。
+        // 如果有多个实例，我们优先取原始对象（isRepeated=false），或者随便取一个
+        const oid = e.extendedProps.originalId || e.id;
+        if (!eventMap.has(oid)) {
+          eventMap.set(oid, e);
+        } else {
+          // 如果已经有了，且当前这个是否是原始对象(非重复)，则覆盖
+          if (!e.extendedProps.isRepeated) {
+            eventMap.set(oid, e);
+          }
+        }
+      });
+
+      // 遍历所有涉及的日期 (stats logic dates)
+      Object.keys(stats.pomodoro.byDate).forEach(dateStr => {
+        // 只处理在 view range 范围内的日期
+        if (dateStr < dateRange.start || dateStr > dateRange.end) return;
+
+        const dayStats = stats.pomodoro.byDate[dateStr];
+        if (dayStats && dayStats.taskStats) {
+          Object.keys(dayStats.taskStats).forEach(taskId => {
+            // taskId 是 reminder.id
+            const event = eventMap.get(taskId);
+            if (event) {
+              // 创建 taskData 并添加到该日期
+              // 注意：这里我们使用 event 的信息，但日期强制归类到 dateStr
+              const item = createItemFromEvent(event, dateStr);
+
+              // 如果该任务本来不属于这一天（比如 scheduled date != dateStr），
+              // 我们仍然把它加进来。
+              // 为了区分，或许可以添加一个标记，但目前需求只是显示。
+              addTaskToDate(dateStr, item);
+            }
+          });
+        }
+      });
+    }
 
 
 
@@ -1272,7 +1338,7 @@ export class TaskSummaryDialog {
                 <div class="info-card" style="padding: 12px; background: var(--b3-theme-surface); border-radius: 8px; border: 1px solid var(--b3-border-color);">
                     <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">🍅 ${t('pomodoroFocus') || '番茄专注'}</div>
                     <div style="font-size: 14px; font-weight: bold; margin-top: 4px;">
-                        ${stats.pomodoro.totalCount} 个番茄钟，共 ${stats.pomodoro.totalHours} 小时
+                        ${stats.pomodoro.totalCount} 个番茄钟，共 ${this.formatDuration(stats.pomodoro.totalMinutes)}
                     </div>
                 </div>
                 ` : ''}
@@ -1322,7 +1388,7 @@ export class TaskSummaryDialog {
         const pRecord = stats.pomodoro.byDate[date];
         html += `
           <div class="summary-stat-row" style="margin-bottom: 8px; font-size: 13px; color: var(--b3-theme-on-surface-light); padding-left: 16px;">
-            🍅 专注：${pRecord.count} 个番茄钟 (${(pRecord.minutes / 60).toFixed(1)} 小时)
+            🍅 专注：${pRecord.count} 个番茄钟 (${this.formatDuration(pRecord.minutes)})
           </div>
         `;
       }
@@ -1378,7 +1444,7 @@ export class TaskSummaryDialog {
             let pomodoroStr = '';
             if (stats.pomodoro.byDate[date] && stats.pomodoro.byDate[date].taskStats && stats.pomodoro.byDate[date].taskStats[task.id]) {
               const tStat = stats.pomodoro.byDate[date].taskStats[task.id];
-              pomodoroStr = ` (🍅 ${tStat.count} | 🕒 ${tStat.minutes}m)`;
+              pomodoroStr = ` (🍅 ${tStat.count} | 🕒 ${this.formatDuration(tStat.minutes)})`;
             }
 
             // 预计番茄时长

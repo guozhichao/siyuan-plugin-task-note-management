@@ -97,6 +97,11 @@ export class CalendarView {
         if (this.calendarConfigManager) {
             await this.calendarConfigManager.initialize();
             this.colorBy = this.calendarConfigManager.getColorBy();
+            try {
+                this.currentCompletionFilter = this.calendarConfigManager.getCompletionFilter();
+            } catch (e) {
+                this.currentCompletionFilter = 'all';
+            }
         }
 
         const weekStartDay = await this.getWeekStartDay();
@@ -684,6 +689,17 @@ export class CalendarView {
             { value: 'completed', text: t("completed") || "已完成" }
         ];
 
+        // 从配置中读取初始完成状态过滤器并更新按钮文案
+        try {
+            const savedFilter = this.calendarConfigManager?.getCompletionFilter?.() || 'all';
+            this.currentCompletionFilter = savedFilter;
+            const savedText = completionOptions.find(o => o.value === savedFilter)?.text || completionOptions[0].text;
+            const textSpanInit = completionFilterButton.querySelector('.filter-button-text');
+            if (textSpanInit) textSpanInit.textContent = savedText;
+        } catch (e) {
+            // ignore
+        }
+
         completionOptions.forEach(option => {
             const optionItem = document.createElement('div');
             optionItem.style.padding = '6px 12px';
@@ -691,16 +707,21 @@ export class CalendarView {
             optionItem.style.borderRadius = '4px';
             optionItem.textContent = option.text;
 
-
-            optionItem.addEventListener('click', (e) => {
+            optionItem.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 this.currentCompletionFilter = option.value;
                 const textSpan = completionFilterButton.querySelector('.filter-button-text');
                 if (textSpan) {
                     textSpan.textContent = option.text;
                 }
+                // 持久化选择
+                try {
+                    await this.calendarConfigManager?.setCompletionFilter?.(option.value as any);
+                } catch (err) {
+                    console.warn('Failed to save completion filter', err);
+                }
                 completionDropdown.style.display = 'none';
-                this.refreshEvents();
+                await this.refreshEvents();
             });
 
             completionDropdown.appendChild(optionItem);
