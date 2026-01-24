@@ -2577,6 +2577,7 @@ export class QuickReminderDialog {
             const reminderData = {
                 title: title,
                 blockId: inputId || this.defaultBlockId || null,
+                docId: undefined,
                 url: url || undefined,
                 date: date || undefined,
                 time: time,
@@ -2598,6 +2599,16 @@ export class QuickReminderDialog {
                 availableStartDate: availableStartDate
             };
 
+            // 如果有绑定块，尝试获取并设置 docId
+            if (reminderData.blockId) {
+                try {
+                    const blk = await getBlockByID(reminderData.blockId);
+                    reminderData.docId = blk?.root_id || (blk?.type === 'd' ? blk?.id : null);
+                } catch (err) {
+                    console.warn('获取块信息失败 (batch_edit):', err);
+                }
+            }
+
             if (this.onSaved) {
                 this.onSaved(reminderData);
             }
@@ -2612,7 +2623,17 @@ export class QuickReminderDialog {
         const tempId = (this.mode === 'edit' && this.reminder) ? this.reminder.id : `quick_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const nowStr = new Date().toISOString();
 
+        // 预先解析并获取绑定块的 docId（用于乐观 UI）
         let optimisticReminder: any = null;
+        let optimisticDocId: string | null = null;
+        if (inputId) {
+            try {
+                const blk = await getBlockByID(inputId);
+                optimisticDocId = blk?.root_id || (blk?.type === 'd' ? blk?.id : null);
+            } catch (err) {
+                console.warn('获取绑定块 root_id 失败（乐观）:', err);
+            }
+        }
 
         if (this.mode === 'edit' && this.reminder) {
             // 编辑模式：克隆旧对象并覆盖新值
@@ -2640,6 +2661,9 @@ export class QuickReminderDialog {
             optimisticReminder.isAvailableToday = isAvailableToday;
             optimisticReminder.availableStartDate = availableStartDate;
 
+            // 同步 docId 用于 UI 显示
+            optimisticReminder.docId = optimisticDocId !== null ? optimisticDocId : (this.reminder?.docId || undefined);
+
             // 看板状态推断 (仅用于 UI 显示)
             if (termType === 'doing') optimisticReminder.kanbanStatus = 'doing';
             else if (termType === 'long_term') { optimisticReminder.kanbanStatus = 'todo'; optimisticReminder.termType = 'long_term'; }
@@ -2657,6 +2681,7 @@ export class QuickReminderDialog {
                 id: tempId,
                 parentId: this.defaultParentId,
                 blockId: inputId || this.defaultBlockId || null,
+                docId: optimisticDocId || null,
                 title: title,
                 url: url,
                 date: date,
@@ -3041,6 +3066,19 @@ export class QuickReminderDialog {
 
                 reminderData[reminderId] = reminder;
                 await this.plugin.saveData('reminder.json', reminderData);
+
+                // 在保存后，如果绑定了块，确保 reminder 包含 docId（root_id）
+                if (reminder.blockId && !reminder.docId) {
+                    try {
+                        const block = await getBlockByID(reminder.blockId);
+                        reminder.docId = block?.root_id || (block?.type === 'd' ? block?.id : reminder.blockId);
+                        // 更新持久化数据以包含 docId
+                        reminderData[reminderId] = reminder;
+                        await this.plugin.saveData('reminder.json', reminderData);
+                    } catch (err) {
+                        console.warn('获取块信息失败（保存 docId）:', err);
+                    }
+                }
 
                 // 将绑定的块添加项目ID属性 custom-task-projectId（支持多项目）
                 if (reminder.blockId) {
