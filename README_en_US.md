@@ -2,7 +2,15 @@
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Achuan-2/siyuan-plugin-task-note-management&type=Date)](https://star-history.com/Achuan-2/siyuan-plugin-task-note-management&Date)
 
+## ❤️ Support with Love
 
+If you like my plugin, please feel free to star the GitHub repository and donate. This will motivate me to continue improving this plugin and developing new plugins.
+
+Maintaining the plugin takes time and effort, open source is for sharing, not for me to waste my time providing free customer service to users.
+
+The current interface is primarily developed based on Chinese. If you wish for an English interface,  welcome to donate any amount. Once the total donations reach a certain level, I will optimize the interface.
+
+![Image](https://github.com/user-attachments/assets/08f5a8c0-40e2-48d4-b5b7-d48df5cd9ea1)
 
 
 ## Plugin Introduction
@@ -456,13 +464,7 @@ How to use the Pomodoro timer:
 - echarts: Pomodoro data visualization
 - chrono-node: Natural language time parsing
 
-## ❤️ Support with Love
 
-If you like my plugin, please feel free to star the GitHub repository and donate. This will motivate me to continue improving this plugin and developing new plugins.
-
-Maintaining the plugin takes time and effort, open source is for sharing, not for me to waste my time providing free customer service to users.
-
-I will slowly improve the functions I need (donations can speed up), some functions that I think can be improved but are not necessary at present need donations to improve (will be marked with donation tags and required donation amount), functions that are not needed or very troublesome to implement will directly close the issue without consideration.
 
 Friends who accumulate 50 yuan in donations, if you want to add me on WeChat, you can send an email to achuan-2@outlook.com to apply for friends (donations less than 50 yuan, I will not reply to emails and add friends)
 
