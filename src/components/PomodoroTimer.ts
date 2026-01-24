@@ -1710,6 +1710,37 @@ export class PomodoroTimer {
         }
     }
 
+    private async setBrowserWindowAudioVolume(volume: number, playIfNeeded: boolean = false): Promise<void> {
+        try {
+            const win = PomodoroTimer.browserWindowInstance;
+            if (!win || (win.isDestroyed && win.isDestroyed())) return;
+            const script = `(function(){
+                try {
+                    const nodes = Array.from(document.querySelectorAll('[id^="pomodoro-audio-"]'));
+                    nodes.forEach(n => {
+                        try {
+                            n.volume = ${Number('' + 0)}; // placeholder
+                        } catch(e) {}
+                    });
+                    // set volume in a safe loop to support dynamic volume
+                    nodes.forEach(n => {
+                        try { n.volume = ${volume}; } catch(e) {}
+                        try {
+                            if (${playIfNeeded}) {
+                                n.play().catch(()=>{});
+                            } else {
+                                if (${volume} === 0) { n.pause(); }
+                            }
+                        } catch(e) {}
+                    });
+                } catch(e) {}
+            })()`;
+            await win.webContents.executeJavaScript(script, true);
+        } catch (e) {
+            console.warn('[PomodoroTimer] setBrowserWindowAudioVolume failed', e);
+        }
+    }
+
     private async safePlayAudio(audio: HTMLAudioElement): Promise<boolean> {
         if (!audio) return false;
 
@@ -3008,6 +3039,14 @@ export class PomodoroTimer {
 
         if (isBrowserWindow) {
             // BrowserWindow 模式：更新窗口显示
+            // 在窗口中同步音量
+            try {
+                if (this.isBackgroundAudioMuted) {
+                    this.setBrowserWindowAudioVolume(0, false);
+                } else {
+                    this.setBrowserWindowAudioVolume(this.backgroundVolume, true);
+                }
+            } catch (e) { }
             this.updateBrowserWindowDisplay(this.container as any);
         } else {
             // DOM 模式：更新按钮显示
@@ -3019,6 +3058,15 @@ export class PomodoroTimer {
 
         // 更新音频音量
         this.updateAudioVolume();
+
+        // 如果是 BrowserWindow 模式且存在窗口，也同步窗口内的音频元素音量
+        try {
+            const isBrowserWindow2 = !this.isTabMode && PomodoroTimer.browserWindowInstance;
+            if (isBrowserWindow2) {
+                const vol = this.isBackgroundAudioMuted ? 0 : this.backgroundVolume;
+                this.setBrowserWindowAudioVolume(vol, !this.isBackgroundAudioMuted);
+            }
+        } catch (e) { }
 
         // 如果取消静音，确保音量控制事件正常工作
         if (!this.isBackgroundAudioMuted && !isBrowserWindow) {
@@ -6637,6 +6685,13 @@ export class PomodoroTimer {
                  if (randomCountDisp) randomCountDisp.style.display = 'none';
                  if (diceIcon) diceIcon.style.display = 'none';
             }
+
+            // 10. Update Sound Button (reflect mute state)
+            const soundBtn = document.getElementById('soundBtn');
+            if (soundBtn) {
+                soundBtn.textContent = localState.isBackgroundAudioMuted ? '🔇' : '🔊';
+                soundBtn.title = localState.isBackgroundAudioMuted ? '开启背景音' : '静音背景音';
+            }
         }
 
         // Main Timer Loop (independent of main window)
@@ -6831,7 +6886,8 @@ export class PomodoroTimer {
             };
 
             // Send state to window using executeJavaScript
-            const script = `if(window.updateLocalState) window.updateLocalState(${JSON.stringify(currentState)}, ${JSON.stringify(settingsUpdate)});`;
+            const enhancedState = Object.assign({}, currentState, { isBackgroundAudioMuted: this.isBackgroundAudioMuted });
+            const script = `if(window.updateLocalState) window.updateLocalState(${JSON.stringify(enhancedState)}, ${JSON.stringify(settingsUpdate)});`;
 
             window.webContents.executeJavaScript(script).catch(() => { });
 
