@@ -2488,7 +2488,7 @@ export class QuickReminderDialog {
         const selectedTermType = this.dialog.element.querySelector('#quickTermTypeSelector .term-type-option.selected') as HTMLElement;
         const customGroupSelector = this.dialog.element.querySelector('#quickCustomGroupSelector') as HTMLSelectElement;
 
-        const title = titleInput.value.trim();
+        let title = titleInput.value.trim();
         const rawBlockVal = blockInput?.value?.trim() || undefined;
         const inputId = rawBlockVal ? (this.extractBlockId(rawBlockVal) || rawBlockVal) : undefined;
         const url = urlInput?.value?.trim() || undefined;
@@ -2549,8 +2549,8 @@ export class QuickReminderDialog {
         }
 
         if (!title) {
-            showMessage(t("pleaseEnterTitle"));
-            return;
+            // 无论新建或编辑，均允许空标题并替换为未命名标题
+            title = '未命名任务';
         }
 
         // 允许不设置日期
