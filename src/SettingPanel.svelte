@@ -862,8 +862,9 @@
 
                         <div style="margin-top:12px;">
                             <img src="plugins/siyuan-plugin-task-note-management/assets/donate.png" alt="donate" style="max-width:260px; height:auto; border:1px solid var(--b3-border-color);"/>
-                            Non-Chinese users can use Wise to donate to me
-                            <img src="https://fastly.jsdelivr.net/gh/Achuan-2/PicBed@pic/assets/1769244988940Alipay.jpg"alt="donate" style="max-width:260px; height:auto; border:1px solid var(--b3-border-color);"/>
+
+                            <p style="margin-top:12px;">Non-Chinese users can use Wise to donate to me</p>
+                            <img src="plugins/siyuan-plugin-task-note-management/assets/Alipay.jpg"alt="donate" style="max-width:260px; height:auto; border:1px solid var(--b3-border-color);"/>
                         </div>
                     `,
                 },
