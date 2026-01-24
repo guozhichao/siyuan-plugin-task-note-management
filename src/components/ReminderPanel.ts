@@ -1654,7 +1654,7 @@ export class ReminderPanel {
                                 const separator = document.createElement('div');
                                 separator.id = separatorId;
                                 separator.className = 'reminder-separator daily-dessert-separator';
-                                separator.innerHTML = `<span style="background:var(--b3-theme-background); padding:0 8px; color:var(--b3-theme-on-surface-light);">🍰 每日可做 </span>`;
+                                separator.innerHTML = `<span style="padding:0 8px; color:var(--b3-theme-on-surface-light);">🍰 每日可做 </span>`;
                                 separator.style.cssText = `
                                      display: flex; 
                                      align-items: center; 
@@ -1662,7 +1662,6 @@ export class ReminderPanel {
                                      margin: 16px 0 8px 0; 
                                      font-size: 12px; 
                                      color: var(--b3-theme-on-surface-light);
-                                     border-bottom: 1px dashed var(--b3-theme-surface-lighter);
                                      line-height: 0.1em;
                                      opacity: 0.8;
                                  `;

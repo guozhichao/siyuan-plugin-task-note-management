@@ -9,6 +9,7 @@ export interface CalendarConfig {
     viewMode: 'multiMonthYear' | 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay' | 'dayGridWeek' | 'dayGridDay' | 'listDay' | 'listWeek' | 'listMonth' | 'listYear' | 'timeGridMultiDays7' | 'dayGridMultiDays7' | 'listMultiDays7';
     viewType: 'timeline' | 'kanban' | 'list';
     showLunar: boolean;
+    showPomodoro: boolean;
 }
 
 export class CalendarConfigManager {
@@ -22,7 +23,8 @@ export class CalendarConfigManager {
             colorBy: 'priority', // 默认按优先级上色
             viewMode: 'timeGridWeek', // 默认周视图
             viewType: 'timeline', // 默认视图类型
-            showLunar: true // 默认显示农历
+            showLunar: true, // 默认显示农历
+            showPomodoro: true // 默认显示番茄专注时间
         };
     }
 
@@ -44,6 +46,7 @@ export class CalendarConfigManager {
             settings.calendarViewMode = this.config.viewMode;
             settings.calendarViewType = this.config.viewType;
             settings.calendarShowLunar = this.config.showLunar;
+            settings.calendarShowPomodoro = this.config.showPomodoro;
             await this.plugin.saveData(SETTINGS_FILE, settings);
         } catch (error) {
             console.error('Failed to save calendar config:', error);
@@ -79,7 +82,8 @@ export class CalendarConfigManager {
                 colorBy: settings.calendarColorBy || 'priority',
                 viewMode: settings.calendarViewMode || 'timeGridWeek',
                 viewType: settings.calendarViewType || 'timeline',
-                showLunar: settings.calendarShowLunar !== false // 默认为 true
+                showLunar: settings.calendarShowLunar !== false, // 默认为 true
+                showPomodoro: settings.calendarShowPomodoro !== false // 默认为 true
             };
         } catch (error) {
             console.warn('Failed to load calendar config, using defaults:', error);
@@ -87,7 +91,8 @@ export class CalendarConfigManager {
                 colorBy: 'priority',
                 viewMode: 'timeGridWeek',
                 viewType: 'timeline',
-                showLunar: true
+                showLunar: true,
+                showPomodoro: true
             };
             try {
                 await this.saveConfig();
@@ -131,6 +136,15 @@ export class CalendarConfigManager {
 
     public getShowLunar(): boolean {
         return this.config.showLunar;
+    }
+
+    public async setShowPomodoro(showPomodoro: boolean) {
+        this.config.showPomodoro = showPomodoro;
+        await this.saveConfig();
+    }
+
+    public getShowPomodoro(): boolean {
+        return this.config.showPomodoro;
     }
 
     public getConfig(): CalendarConfig {

@@ -170,6 +170,7 @@
                     title: t('calendarShowHoliday') || '显示节假日',
                     description: t('calendarShowHolidayDesc') || '在日历视图中显示法定节假日（休）',
                 },
+
                 {
                     key: 'calendarHolidayIcsUrl',
                     value: settings.calendarHolidayIcsUrl,

@@ -139,6 +139,7 @@ export const DEFAULT_SETTINGS = {
     s3CustomDomain: '', // S3 自定义域名，用于生成外链
     enableOutlinePrefix: true, // 是否在大纲中为绑定标题添加任务状态前缀
     calendarShowHoliday: true, // 是否显示节假日
+    calendarShowPomodoro: true, // 是否显示番茄专注时间
     calendarHolidayIcsUrl: 'https://www.shuyz.com/githubfiles/china-holiday-calender/master/holidayCal.ics?token=cb429c2a-81a6-4c26-8f35-4f4bf0c84b2c&compStart=*&compEnd=*', // 节假日ICS URL
     // 数据迁移标记
     datatransfer: {

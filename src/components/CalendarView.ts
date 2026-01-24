@@ -22,6 +22,7 @@ import { TaskSummaryDialog } from "@/components/TaskSummaryDialog";
 import { PomodoroManager } from "../utils/pomodoroManager";
 import { getNextLunarMonthlyDate, getNextLunarYearlyDate, getSolarDateLunarString } from "../utils/lunarUtils";
 import { BlockBindingDialog } from "./BlockBindingDialog";
+import { PomodoroRecordManager } from "../utils/pomodoroRecord";
 import { Solar } from 'lunar-typescript';
 export class CalendarView {
     private container: HTMLElement;
@@ -40,6 +41,8 @@ export class CalendarView {
     private showCategoryAndProject: boolean = true; // 是否显示分类和项目信息
     private showLunar: boolean = true; // 是否显示农历
     private showHoliday: boolean = true; // 是否显示节假日
+    private showPomodoro: boolean = true; // 是否显示番茄专注时间
+    private pomodoroToggleBtn: HTMLElement | null = null; // Pomodoro toggle button
     private holidays: { [date: string]: { title: string, type: 'holiday' | 'workday' } } = {}; // 节假日数据
     private colorBy: 'category' | 'priority' | 'project' = 'priority'; // 按分类或优先级上色
     private tooltip: HTMLElement | null = null; // 添加提示框元素
@@ -88,6 +91,7 @@ export class CalendarView {
         this.showCategoryAndProject = settings.calendarShowCategoryAndProject !== false;
         this.showLunar = settings.calendarShowLunar !== false;
         this.showHoliday = settings.calendarShowHoliday !== false;
+        this.showPomodoro = settings.calendarShowPomodoro;
         this.holidays = await loadHolidays(this.plugin);
 
         if (this.calendarConfigManager) {
@@ -242,6 +246,8 @@ export class CalendarView {
         this.showCategoryAndProject = settings.calendarShowCategoryAndProject !== false;
         this.showLunar = this.calendarConfigManager.getShowLunar();
         this.showHoliday = settings.calendarShowHoliday !== false;
+        this.showHoliday = settings.calendarShowHoliday !== false;
+        this.showPomodoro = this.calendarConfigManager.getShowPomodoro(); // Use config manager for pomodoro state
         this.holidays = await loadHolidays(this.plugin);
 
         // 获取周开始日设置
@@ -299,6 +305,7 @@ export class CalendarView {
             await this.calendarConfigManager.setViewMode(viewMode as any);
             this.calendar.changeView(viewMode);
             this.updateViewButtonStates();
+            this.updatePomodoroButtonVisibility();
         });
         viewGroup.appendChild(this.yearBtn);
         this.monthBtn = document.createElement('button');
@@ -316,6 +323,7 @@ export class CalendarView {
             await this.calendarConfigManager.setViewMode(viewMode as any);
             this.calendar.changeView(viewMode);
             this.updateViewButtonStates();
+            this.updatePomodoroButtonVisibility();
         });
         viewGroup.appendChild(this.monthBtn);
 
@@ -335,6 +343,7 @@ export class CalendarView {
             await this.calendarConfigManager.setViewMode(viewMode as any);
             this.calendar.changeView(viewMode);
             this.updateViewButtonStates();
+            this.updatePomodoroButtonVisibility();
         });
         viewGroup.appendChild(this.weekBtn);
 
@@ -359,6 +368,7 @@ export class CalendarView {
             await this.calendarConfigManager.setViewMode(viewMode as any);
             this.calendar.changeView(viewMode, startDate);
             this.updateViewButtonStates();
+            this.updatePomodoroButtonVisibility();
         });
         viewGroup.appendChild(this.multiDaysBtn);
 
@@ -378,6 +388,7 @@ export class CalendarView {
             await this.calendarConfigManager.setViewMode(viewMode as any);
             this.calendar.changeView(viewMode);
             this.updateViewButtonStates();
+            this.updatePomodoroButtonVisibility();
         });
         viewGroup.appendChild(this.dayBtn);
 
@@ -505,10 +516,10 @@ export class CalendarView {
                     }
                 }
 
-                await this.calendarConfigManager.setViewType(selectedViewType);
                 await this.calendarConfigManager.setViewMode(newViewMode as any);
                 this.calendar.changeView(newViewMode);
                 this.updateViewButtonStates();
+                this.updatePomodoroButtonVisibility();
 
                 const textSpan = viewTypeButton.querySelector('.filter-button-text');
                 if (textSpan) {
@@ -521,8 +532,26 @@ export class CalendarView {
         });
 
         viewTypeContainer.appendChild(viewTypeDropdown);
+        // Create Pomodoro toggle button
+        this.pomodoroToggleBtn = document.createElement('button');
+        this.pomodoroToggleBtn.className = 'b3-button b3-button--outline';
+        this.pomodoroToggleBtn.style.padding = '4px 8px';
+        this.pomodoroToggleBtn.style.marginRight = '8px';
+        this.pomodoroToggleBtn.style.display = 'none'; // Initially hidden, logic controls visibility based on view
+        this.pomodoroToggleBtn.innerHTML = '🍅';
+        this.pomodoroToggleBtn.title = t("togglePomodoroRecords") || "显示/隐藏番茄专注记录";
+        this.pomodoroToggleBtn.onclick = async () => {
+            this.showPomodoro = !this.showPomodoro;
+            await this.calendarConfigManager.setShowPomodoro(this.showPomodoro);
+            this.updatePomodoroButtonState();
+            this.refreshEvents();
+        };
         viewGroup.appendChild(viewTypeContainer);
+        viewGroup.appendChild(this.pomodoroToggleBtn);
 
+
+        // 初始化按钮状态
+        this.updatePomodoroButtonState();
 
         // 添加统一过滤器
         const filterGroup = document.createElement('div');
@@ -1247,6 +1276,8 @@ export class CalendarView {
         });
 
         this.calendar.render();
+        // Update Pomodoro button visibility after initial render
+        this.updatePomodoroButtonVisibility();
 
         // 支持从提醒面板将任务拖拽到日历上以调整任务时间
         // 接受 mime-type: 'application/x-reminder' (JSON) 或纯文本 reminder id
@@ -1949,6 +1980,66 @@ export class CalendarView {
 
         const menu = new Menu("calendarEventContextMenu");
 
+        // Handle Pomodoro events specifically
+        if (calendarEvent.extendedProps.type === 'pomodoro') {
+            menu.addItem({
+                iconHTML: "📝",
+                label: t("viewPomodoroTask") || "查看所属任务",
+                click: async () => {
+                    try {
+                        const eventId = calendarEvent.extendedProps.eventId;
+                        if (!eventId) return;
+
+                        const reminderData = await getAllReminders(this.plugin);
+                        const reminder = reminderData[eventId];
+
+                        if (reminder) {
+                            const dialog = new QuickReminderDialog(
+                                reminder.date,
+                                reminder.time,
+                                undefined,
+                                undefined,
+                                {
+                                    reminder: reminder,
+                                    mode: 'edit', // Allow edit as user might want to adjust the task
+                                    plugin: this.plugin,
+                                    onSaved: () => {
+                                        this.refreshEvents();
+                                        window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
+                                    }
+                                }
+                            );
+                            dialog.show();
+                        } else {
+                            showMessage(t("reminderNotExist"));
+                        }
+                    } catch (e) {
+                        console.error(e);
+                    }
+                }
+            });
+
+            menu.addItem({
+                iconHTML: "🗑️",
+                label: t("deletePomodoroRecord") || "删除记录",
+                click: async () => {
+                    confirm(t("deletePomodoroRecord"), t("confirmDelete"), async () => {
+                        const pomodoroManager = PomodoroRecordManager.getInstance(this.plugin);
+                        // session id format in prompt: pomodoro-ID
+                        const sessionId = calendarEvent.id.replace('pomodoro-', '');
+                        await pomodoroManager.deleteSession(sessionId);
+                        this.refreshEvents();
+                    });
+                }
+            });
+
+            menu.open({
+                x: event.clientX,
+                y: event.clientY
+            });
+            return;
+        }
+
         if (calendarEvent.extendedProps.isSubscribed) {
             menu.addItem({
                 iconHTML: "ℹ️",
@@ -2563,6 +2654,27 @@ export class CalendarView {
     private renderEventContent(eventInfo) {
         const { event, timeText } = eventInfo;
         const props = event.extendedProps;
+
+        // Special rendering for Pomodoro events
+        if (props.type === 'pomodoro') {
+            const mainFrame = document.createElement('div');
+            mainFrame.className = 'fc-event-main-frame';
+            mainFrame.style.padding = '2px 4px';
+
+            if (timeText) {
+                const timeEl = document.createElement('div');
+                timeEl.className = 'fc-event-time';
+                timeEl.textContent = timeText;
+                mainFrame.appendChild(timeEl);
+            }
+
+            const titleEl = document.createElement('div');
+            titleEl.className = 'fc-event-title';
+            titleEl.textContent = event.title;
+            mainFrame.appendChild(titleEl);
+
+            return { domNodes: [mainFrame] };
+        }
 
         // 创建主容器
         const mainFrame = document.createElement('div');
@@ -3254,6 +3366,12 @@ export class CalendarView {
     private async handleEventClick(info) {
         // 如果正在拖动，不触发点击事件
         if (this.isDragging) {
+            return;
+        }
+
+        // Pomodoro events should act as read-only in click handler
+        // Right-click context menu is available for them
+        if (info.event.extendedProps.type === 'pomodoro') {
             return;
         }
 
@@ -4192,9 +4310,17 @@ export class CalendarView {
                 opacity: 0.8 !important;
             }
             
-            .fc-event.completed .fc-event-title {
+            .fc-event.completed .fc-event-title,
+            .fc-event.completed .fc-event-title span{
                 text-decoration: line-through;
-                font-weight: 500;
+            }
+
+            /* Pomodoro Event Styles */
+            .pomodoro-event {
+                border: none !important;
+                border-left: none !important;
+                box-shadow: none !important;
+                opacity: 0.7 !important;
             }
 
             .all-day-reorder-indicator {
@@ -4810,6 +4936,53 @@ export class CalendarView {
                 }
             }
 
+            // Add Pomodoro records if enabled and in Day/Week view
+            if (this.showPomodoro && this.calendar && this.calendar.view) {
+                const viewType = this.calendar.view.type;
+                if (viewType === 'timeGridDay' || viewType === 'timeGridWeek' || viewType === 'timeGridMultiDays7') {
+                    const pomodoroManager = PomodoroRecordManager.getInstance(this.plugin);
+                    const sessions = await pomodoroManager.getDateRangeSessions(startDate, endDate);
+
+                    for (const session of sessions) {
+                        // Ensure session has necessary data
+                        if (!session.startTime || !session.endTime) continue;
+
+                        // Construct title: "<TomatoIcon> TaskName"
+                        const title = `🍅 ${session.eventTitle || t('unnamedTask')}`;
+
+                        // Determine colors based on session type
+                        let backgroundColor = '#f23145'; // Default to work type
+                        if (session.type === 'shortBreak' || session.type === 'longBreak') {
+                            backgroundColor = '#00b36b';
+                        }
+
+                        const eventObj = {
+                            id: `pomodoro-${session.id}`,
+                            title: title,
+                            start: session.startTime,
+                            end: session.endTime,
+                            backgroundColor: backgroundColor,
+                            borderColor: 'transparent', // Match border to background
+                            textColor: 'var(--b3-theme-on-background)',
+                            className: 'pomodoro-event',
+                            editable: false,
+                            startEditable: false,
+                            durationEditable: false,
+                            allDay: false,
+                            extendedProps: {
+                                type: 'pomodoro',
+                                eventId: session.eventId, // Associated Task ID
+                                eventTitle: session.eventTitle,
+                                duration: session.duration,
+                                parentId: session.eventId, // Map associated task ID to parentId for easy access
+                                originalSession: session
+                            }
+                        };
+                        events.push(eventObj);
+                    }
+                }
+            }
+
             return events;
         } catch (error) {
             console.error('获取事件数据失败:', error);
@@ -5253,6 +5426,42 @@ export class CalendarView {
 
     private async buildTooltipContent(calendarEvent: any): Promise<string> {
         const reminder = calendarEvent.extendedProps;
+
+        // Special tooltip for Pomodoro events
+        if (reminder.type === 'pomodoro') {
+            const htmlParts: string[] = [];
+            const title = reminder.eventTitle || t("unnamedTask");
+
+            // Title
+            htmlParts.push(
+                `<div style="font-weight: 600; color: var(--b3-theme-on-surface); margin-bottom: 8px; font-size: 14px; text-align: left; width: 100%;">`,
+                `🍅 ${this.escapeHtml(title)}`,
+                `</div>`
+            );
+
+            // Time & Duration
+            if (calendarEvent.start && calendarEvent.end) {
+                const startTime = calendarEvent.start.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                const endTime = calendarEvent.end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                htmlParts.push(
+                    `<div style="color: var(--b3-theme-on-surface); margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">`,
+                    `<span style="opacity: 0.7;">🕐</span>`,
+                    `<span>${startTime} - ${endTime} (${reminder.duration}m)</span>`,
+                    `</div>`
+                );
+            }
+
+            // Associated Task Hint
+            if (reminder.eventId) {
+                htmlParts.push(
+                    `<div style="color: var(--b3-theme-on-surface-light); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--b3-theme-border); font-size: 12px; font-style: italic;">`,
+                    `${t("rightClickToManage") || "右键管理记录"}`,
+                    `</div>`
+                );
+            }
+
+            return htmlParts.join('');
+        }
 
         // 优化：使用数组收集HTML片段，最后一次性join，减少字符串拼接开销
         const htmlParts: string[] = [];
@@ -6325,6 +6534,49 @@ export class CalendarView {
 
 
 
+
+
+    /**
+     * 更新番茄钟按钮的可见性
+     * 仅在时间轴视图（timeGrid...）中显示
+     */
+    private updatePomodoroButtonVisibility() {
+        if (!this.pomodoroToggleBtn) return;
+
+        const currentViewType = this.calendar?.view?.type;
+        const isTimeGridView = currentViewType && (
+            currentViewType === 'timeGridDay' ||
+            currentViewType === 'timeGridWeek' ||
+            currentViewType === 'timeGridMultiDays7'
+        );
+
+        if (isTimeGridView) {
+            this.pomodoroToggleBtn.style.display = 'inline-flex';
+        } else {
+            this.pomodoroToggleBtn.style.display = 'none';
+        }
+    }
+
+    /**
+     * 更新番茄钟按钮的激活状态样式
+     */
+    private updatePomodoroButtonState() {
+        if (!this.pomodoroToggleBtn) return;
+
+        if (this.showPomodoro) {
+            this.pomodoroToggleBtn.classList.remove('b3-button--outline');
+            this.pomodoroToggleBtn.classList.add('b3-button--primary');
+            this.pomodoroToggleBtn.style.setProperty('background-color', 'rgba(255, 0, 0, 0.1)', 'important');
+            this.pomodoroToggleBtn.style.setProperty('color', '#d23f31', 'important');
+            this.pomodoroToggleBtn.style.setProperty('border-color', '#d23f31', 'important');
+        } else {
+            this.pomodoroToggleBtn.classList.remove('b3-button--primary');
+            this.pomodoroToggleBtn.classList.add('b3-button--outline');
+            this.pomodoroToggleBtn.style.backgroundColor = '';
+            this.pomodoroToggleBtn.style.color = '';
+            this.pomodoroToggleBtn.style.borderColor = '';
+        }
+    }
 
     /**
      * 更新视图按钮的激活状态
