@@ -277,6 +277,21 @@ export class PomodoroTimer {
         };
     }
 
+    /**
+     * 判断当前是否为暗色主题（基于 html[data-theme-mode]）
+     */
+    private isDarkTheme(): boolean {
+        try {
+            if (typeof document === 'undefined') return false;
+
+            // 检查 data-theme-mode（优先）
+            const mode = (document.documentElement && document.documentElement.getAttribute) ? document.documentElement.getAttribute('data-theme-mode') : null;
+            return mode === 'dark';
+        } catch {
+            return false;
+        }
+    }
+
     private async initComponents(container?: HTMLElement) {
         await this.recordManager.initialize();
         this.initAudio();
@@ -807,12 +822,12 @@ export class PomodoroTimer {
                 },
                 title: title,
                 show: false,
-                backgroundColor: (this.settings.darkMode || document.body.classList.contains('theme-dark')) ? '#1e1e1e' : '#ffffff'
+                backgroundColor: this.isDarkTheme() ? '#1e1e1e' : 'var(--b3-theme-background)'
             });
 
             confirmWindow.setMenu(null);
 
-            const isDark = (this.settings.darkMode || document.body.classList.contains('theme-dark'));
+            const isDark = this.isDarkTheme();
             const bgColor = isDark ? '#1e1e1e' : '#ffffff';
             const textColor = isDark ? '#e0e0e0' : '#333333';
             const btnBgColor = isDark ? '#3a3a3a' : '#f0f0f0';
@@ -1002,12 +1017,12 @@ export class PomodoroTimer {
                 },
                 title: title,
                 show: false,
-                backgroundColor: (this.settings.darkMode || document.body.classList.contains('theme-dark')) ? '#1e1e1e' : '#ffffff'
+                backgroundColor: this.isDarkTheme() ? '#1e1e1e' : '#ffffff'
             });
 
             this.pomodoroEndWindow.setMenu(null);
 
-            const isDark = (this.settings.darkMode || document.body.classList.contains('theme-dark'));
+            const isDark = this.isDarkTheme();
             const bgColor = isDark ? '#1e1e1e' : '#ffffff';
             const textColor = isDark ? '#e0e0e0' : '#333333';
 
@@ -1185,13 +1200,13 @@ export class PomodoroTimer {
                 },
                 title: title,
                 show: false,
-                backgroundColor: (this.settings.darkMode || document.body.classList.contains('theme-dark')) ? '#1e1e1e' : '#ffffff'
+                backgroundColor: this.isDarkTheme() ? '#1e1e1e' : '#ffffff'
             });
 
             // 移除默认菜单
             this.randomNotificationWindow.setMenu(null);
 
-            const isDark = (this.settings.darkMode || document.body.classList.contains('theme-dark'));
+            const isDark = this.isDarkTheme();
             const bgColor = isDark ? '#1e1e1e' : '#ffffff';
             const textColor = isDark ? '#e0e0e0' : '#333333';
 
@@ -3611,7 +3626,7 @@ export class PomodoroTimer {
                 const weekTimeStr = this.recordManager.formatTime(weekTime);
                 // BrowserWindow 中没有主题变量，使用内联颜色以保证进度可见
                 const dailyFocusGoalHours = this.settings.dailyFocusGoal ?? 0;
-                const surfaceColor = (this.settings.darkMode || (document && document.body && document.body.classList && document.body.classList.contains && document.body.classList.contains('theme-dark'))) ? '#2a2a2a' : '#f5f5f5';
+                const surfaceColor = this.isDarkTheme() ? '#2a2a2a' : '#f5f5f5';
                 const successColor = '#e5fae5';
                 const warnColor = '#FF6B6B';
                 let progress = 0;
@@ -5841,7 +5856,7 @@ export class PomodoroTimer {
                     autoplayPolicy: 'no-user-gesture-required'
                 },
                 show: false,
-                backgroundColor: (this.settings.darkMode || document.body.classList.contains('theme-dark')) ? '#1e1e1e' : '#ffffff'
+                backgroundColor: this.isDarkTheme() ? '#1e1e1e' : '#ffffff'
             });
 
             // 确保新窗口启用 @electron/remote，否则子窗口内无法获取 remote 导致按钮失效
@@ -5856,7 +5871,7 @@ export class PomodoroTimer {
 
             pomodoroWindow.setMenu(null);
 
-            const isDark = (this.settings.darkMode || document.body.classList.contains('theme-dark'));
+            const isDark = this.isDarkTheme();
             const bgColor = isDark ? '#1e1e1e' : '#ffffff';
             const textColor = isDark ? '#e0e0e0' : '#333333';
             const surfaceColor = isDark ? '#2a2a2a' : '#f5f5f5';
@@ -6650,7 +6665,7 @@ export class PomodoroTimer {
             const actionChannel = `pomodoro-action-${pomodoroWindow.id}`;
             const controlChannel = `pomodoro-control-${pomodoroWindow.id}`;
 
-            const htmlContent = this.generateBrowserWindowHTML(actionChannel, controlChannel, currentState, this.formatTime(currentState.isCountUp ? currentState.timeElapsed : currentState.timeLeft), currentState.isWorkPhase ? (t('pomodoroWork') || '工作时间') : (currentState.isLongBreak ? (t('pomodoroLongBreak') || '长时休息') : (t('pomodoroBreak') || '短时休息')), this.recordManager.formatTime(this.recordManager.getTodayFocusTime()), this.recordManager.formatTime(this.recordManager.getWeekFocusTime()), (this.settings.darkMode || document.body.classList.contains('theme-dark')) ? '#1e1e1e' : '#ffffff', (this.settings.darkMode || document.body.classList.contains('theme-dark')) ? '#e0e0e0' : '#333333', (this.settings.darkMode || document.body.classList.contains('theme-dark')) ? '#2a2a2a' : '#f5f5f5', (this.settings.darkMode || document.body.classList.contains('theme-dark')) ? '#3a3a3a' : '#e0e0e0', (this.settings.darkMode || document.body.classList.contains('theme-dark')) ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)', this.reminder.title || '未命名笔记', this.isBackgroundAudioMuted, this.randomNotificationEnabled, this.randomNotificationCount);
+            const htmlContent = this.generateBrowserWindowHTML(actionChannel, controlChannel, currentState, this.formatTime(currentState.isCountUp ? currentState.timeElapsed : currentState.timeLeft), currentState.isWorkPhase ? (t('pomodoroWork') || '工作时间') : (currentState.isLongBreak ? (t('pomodoroLongBreak') || '长时休息') : (t('pomodoroBreak') || '短时休息')), this.recordManager.formatTime(this.recordManager.getTodayFocusTime()), this.recordManager.formatTime(this.recordManager.getWeekFocusTime()), this.isDarkTheme() ? '#1e1e1e' : '#ffffff', this.isDarkTheme() ? '#e0e0e0' : '#333333', this.isDarkTheme() ? '#2a2a2a' : '#f5f5f5', this.isDarkTheme() ? '#3a3a3a' : '#e0e0e0', this.isDarkTheme() ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)', this.reminder.title || '未命名笔记', this.isBackgroundAudioMuted, this.randomNotificationEnabled, this.randomNotificationCount);
 
             // 重新加载窗口内容
             await pomodoroWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent));
