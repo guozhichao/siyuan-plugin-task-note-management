@@ -5938,10 +5938,33 @@ export class PomodoroTimer {
             const primaryDisplay = screen.getPrimaryDisplay();
             const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
-            const winWidth = 240;
-            const winHeight = 235;
-            const x = screenWidth - winWidth - 20;
-            const y = screenHeight - winHeight - 20;
+            let winWidth = 240;
+            let winHeight = 235;
+            let x = screenWidth - winWidth - 20;
+            let y = screenHeight - winHeight - 20;
+            let transparent = false;
+            let backgroundColor = this.getCssVariable('--b3-theme-background');
+
+            if (this.isDocked) {
+                // Docked mode settings
+                const barWidth = 8;
+                winWidth = barWidth;
+                winHeight = screenHeight;
+                // User defined debug position
+                x = screenWidth - barWidth;
+                y = 0;
+                transparent = true;
+                backgroundColor = '#00000000';
+            } else {
+                if (this.normalWindowBounds) {
+                    x = this.normalWindowBounds.x;
+                    y = this.normalWindowBounds.y;
+                    if (this.normalWindowBounds.width && this.normalWindowBounds.height) {
+                        winWidth = this.normalWindowBounds.width;
+                        winHeight = this.normalWindowBounds.height;
+                    }
+                }
+            }
 
             pomodoroWindow = new BrowserWindowConstructor({
                 width: winWidth,
@@ -5953,8 +5976,9 @@ export class PomodoroTimer {
                 resizable: true,
                 movable: true,
                 skipTaskbar: false,
-                hasShadow: true,
-                transparent: false,
+                hasShadow: !this.isDocked,
+                resizable: !this.isDocked,
+                transparent: transparent,
                 webPreferences: {
                     nodeIntegration: true,
                     contextIsolation: false,
@@ -5962,8 +5986,10 @@ export class PomodoroTimer {
                     enableRemoteModule: true,
                     autoplayPolicy: 'no-user-gesture-required'
                 },
+                minWidth: 1,
+                minHeight: 1,
                 show: false,
-                backgroundColor: this.getCssVariable('--b3-theme-background')
+                backgroundColor: backgroundColor
             });
 
             // 确保新窗口启用 @electron/remote，否则子窗口内无法获取 remote 导致按钮失效
@@ -6005,6 +6031,21 @@ export class PomodoroTimer {
             PomodoroTimer.browserWindowTimer = this;
 
             pomodoroWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent));
+
+            // Resume background audio if needed (for fresh window)
+            if (!this.isBackgroundAudioMuted && this.isRunning && !this.isPaused) {
+                let src = '';
+                if (this.isWorkPhase) src = this.settings.workSound;
+                else if (this.isLongBreak) src = this.settings.longBreakSound;
+                else src = this.settings.breakSound;
+
+                if (src) {
+                    try { src = new URL(src, window.location.href).href; } catch (e) { }
+                    setTimeout(() => {
+                        this.playSoundInBrowserWindow(src, { loop: true, volume: this.backgroundVolume });
+                    }, 500);
+                }
+            }
 
             // 监听渲染进程的操作请求（通过主进程 IPC）
             const actionHandler = (_event: any, method: string) => {
@@ -6416,7 +6457,7 @@ export class PomodoroTimer {
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            background: ${bgColor};
+            background: ${this.isDocked ? 'transparent !important' : bgColor};
             color: ${textColor};
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             overflow: hidden;
@@ -6424,11 +6465,11 @@ export class PomodoroTimer {
             height: 100vh;
             display: flex;
             flex-direction: column;
+            min-width: 1px !important;
         }
         .custom-titlebar {
             -webkit-app-region: drag;
             padding: 6px;
-            background: ${surfaceColor};
             border-bottom: 1px solid ${borderColor};
             display: flex;
             justify-content: space-between;
@@ -6671,18 +6712,18 @@ export class PomodoroTimer {
         }
         
         /* 吸附模式样式 */
-        body.docked-mode { background: transparent; overflow: hidden; }
+        body.docked-mode { background: transparent !important; overflow: hidden; }
         body.docked-mode .custom-titlebar,
         body.docked-mode .pomodoro-event-title,
         body.docked-mode .time-info,
         body.docked-mode .pomodoro-stats,
         body.docked-mode .pomodoro-main-container { display: none; }
-        body.docked-mode .pomodoro-content { padding: 0; height: 100vh; display: flex; align-items: stretch; }
+        body.docked-mode .pomodoro-content { display: none; padding: 0; height: 100vh; display: flex; align-items: stretch; }
         body.docked-mode .progress-bar-container {
             display: flex;
             flex-direction: column;
             justify-content: flex-end;
-            width: 100%;
+            width: 8px;
             height: 100%;
             background: rgba(128, 128, 128, 0.3);
             cursor: pointer;
@@ -6697,7 +6738,8 @@ export class PomodoroTimer {
         body:not(.docked-mode) .progress-bar-container { display: none; }
     </style>
 </head>
-<body>
+</head>
+<body class="${this.isDocked ? 'docked-mode' : ''}">
     <div class="custom-titlebar">
         <div class="titlebar-left">
             <button class="titlebar-btn" id="miniModeBtn" onclick="toggleMiniMode()" title="${miniModeTitle}">
@@ -7149,6 +7191,22 @@ export class PomodoroTimer {
                 console.warn('[PomodoroTimer] 应用窗口模式到复用窗口时出错:', err);
             }
 
+            // Resume background audio if needed (because recreating window kills the audio)
+            if (!this.isBackgroundAudioMuted && this.isRunning && !this.isPaused) {
+                let src = '';
+                if (this.isWorkPhase) src = this.settings.workSound;
+                else if (this.isLongBreak) src = this.settings.longBreakSound;
+                else src = this.settings.breakSound;
+
+                if (src) {
+                    try { src = new URL(src, window.location.href).href; } catch (e) { }
+                    // Slight delay to ensure DOM is ready
+                    setTimeout(() => {
+                        this.playSoundInBrowserWindow(src, { loop: true, volume: this.backgroundVolume });
+                    }, 500);
+                }
+            }
+
             // 设置窗口事件监听器（如果需要重新注册）
             const electronReq = (window as any).require;
             const ipcMain = electronReq?.('electron')?.remote?.ipcMain || electronReq?.('@electron/remote')?.ipcMain || electronReq?.('electron')?.ipcMain;
@@ -7353,68 +7411,31 @@ document.body.classList.remove('mini-mode');
     /**
      * 切换 BrowserWindow 的吸附模式
      */
-    private toggleBrowserWindowDock(pomodoroWindow: any, screen: any) {
+    private toggleBrowserWindowDock(pomodoroWindow: any, _screen: any) {
         if (!pomodoroWindow || pomodoroWindow.isDestroyed()) {
             return;
         }
 
         try {
-            // 如果窗口是最大化状态，先退出最大化
-            if (pomodoroWindow.isMaximized && pomodoroWindow.isMaximized()) {
-                pomodoroWindow.unmaximize();
-                // 等待窗口恢复正常大小后再执行模式切换
-                setTimeout(() => {
-                    this.toggleBrowserWindowDock(pomodoroWindow, screen);
-                }, 300);
-                return;
-            }
-
-            this.isDocked = !this.isDocked;
-
-            if (this.isDocked) {
-                // 进入吸附模式
-                // 保存当前窗口大小和位置
-                if (!this.normalWindowBounds) {
+            if (!this.isDocked) {
+                // Entering docked mode -> Save current bounds
+                if (!pomodoroWindow.isMaximized()) {
                     this.normalWindowBounds = pomodoroWindow.getBounds();
                 }
-
-                // 获取屏幕尺寸
-                const primaryDisplay = screen.getPrimaryDisplay();
-                const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
-
-                // 设置为屏幕右侧细条
-                const barWidth = 8;
-                pomodoroWindow.setBounds({
-                    x: screenWidth - barWidth,
-                    y: 0,
-                    width: barWidth,
-                    height: screenHeight
-                });
-                pomodoroWindow.setResizable(false);
-
-                // 添加吸附模式样式
-                pomodoroWindow.webContents.executeJavaScript(`
-document.body.classList.add('docked-mode');
-document.body.classList.remove('mini-mode');
-`).catch((e: any) => console.error(e));
+                this.isDocked = true;
             } else {
-                // 退出吸附模式
-                if (this.normalWindowBounds) {
-                    pomodoroWindow.setBounds(this.normalWindowBounds);
-                    this.normalWindowBounds = null;
-                } else {
-                    pomodoroWindow.setSize(240, 235);
-                }
-                pomodoroWindow.setResizable(true);
-
-                // 移除吸附模式样式
-                pomodoroWindow.webContents.executeJavaScript(`
-document.body.classList.remove('docked-mode');
-`).catch((e: any) => console.error(e));
+                // Leaving docked mode
+                this.isDocked = false;
             }
 
-            // 更新显示
-            setTimeout(() => this.updateBrowserWindowDisplay(pomodoroWindow), 100);
+            // Close and recreate window to apply transparent/non-transparent settings
+            pomodoroWindow.close();
+
+            // Wait briefly for cleanup then recreate
+            setTimeout(() => {
+                this.createBrowserWindow();
+            }, 100);
+
         } catch (error) {
             console.error('[PomodoroTimer] toggleBrowserWindowDock error:', error);
         }
