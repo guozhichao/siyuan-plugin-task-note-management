@@ -1245,10 +1245,9 @@ export class QuickReminderDialog {
                                 if (noTimeCheckbox) noTimeCheckbox.checked = true;
                             }
 
-                            // 使用清理后的标题替换输入框内容（如果有）
-                            if (detected.cleanTitle && detected.cleanTitle.trim()) {
-                                titleInput.value = detected.cleanTitle;
-                            }
+                            // if (detected.cleanTitle && detected.cleanTitle.trim()) {
+                            //     titleInput.value = detected.cleanTitle;
+                            // }
                         }
                     } catch (err) {
                         console.warn('自动识别标题日期失败:', err);
@@ -1828,12 +1827,12 @@ export class QuickReminderDialog {
                     if (detected && (detected.date || detected.endDate)) {
                         this.applyNaturalLanguageResult(detected);
 
-                        // 如果识别出了内容，尝试清理标题输入框，仅保留任务描述部分
-                        if (detected.cleanTitle !== undefined && detected.cleanTitle !== joined) {
-                            // 重新计算 titleInput 的值，将粘贴的那部分替换为清理后的文本
-                            titleInput.value = before + detected.cleanTitle + after;
-                            titleInput.selectionStart = titleInput.selectionEnd = start + detected.cleanTitle.length;
-                        }
+                        // 这里的逻辑已移除：用户希望保留原始标题内容，不自动移除日期时间文本
+                        // if (detected.cleanTitle !== undefined && detected.cleanTitle !== joined) {
+                        //     // 重新计算 titleInput 的值，将粘贴的那部分替换为清理后的文本
+                        //     titleInput.value = before + detected.cleanTitle + after;
+                        //     titleInput.selectionStart = titleInput.selectionEnd = start + detected.cleanTitle.length;
+                        // }
                     }
                 }
             }

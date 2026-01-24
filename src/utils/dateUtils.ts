@@ -485,6 +485,7 @@ export function autoDetectDateTimeFromTitle(title: string): ParseResult & { clea
         /\d{8}/gi, // 8位数字日期
         /\d{4}[年\-\/\.]\d{1,2}[月日\-\/\.]\d{1,2}[日号]?/gi, // 标准日期格式
         /\d{1,2}[月日]\d{1,2}[日号]/gi, // 月日识别 (含非标准日日格式)
+        /\d{1,2}:\d{2}(?::\d{2})?/gi, // HH:MM or HH:MM:SS
     ];
 
     timeExpressions.forEach(pattern => {
@@ -496,6 +497,6 @@ export function autoDetectDateTimeFromTitle(title: string): ParseResult & { clea
 
     return {
         ...parseResult,
-        cleanTitle: cleanTitle || title // 如果清理后为空，则保持原标题
+        cleanTitle: cleanTitle // 允许返回空字符串，如果不允许则会在调用处无法区分是否整个标题都是日期
     };
 }
