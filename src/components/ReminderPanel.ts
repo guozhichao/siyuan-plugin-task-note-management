@@ -793,8 +793,15 @@ export class ReminderPanel {
         }
 
         return reminders.filter(reminder => {
-            const categoryId = reminder.categoryId || 'none';
-            return this.selectedCategories.includes(categoryId);
+            const categoryIdStr = reminder.categoryId || 'none';
+            // 支持多分类：只要任务包含选中的任意一个分类即可显示
+            const taskCategoryIds = categoryIdStr.split(',').filter((id: string) => id);
+
+            if (taskCategoryIds.length === 0) {
+                return this.selectedCategories.includes('none');
+            }
+
+            return taskCategoryIds.some((id: string) => this.selectedCategories.includes(id));
         });
     }
 
@@ -2155,44 +2162,53 @@ export class ReminderPanel {
         }
 
         // 添加分类标签显示
+        // 添加分类标签显示（支持多分类）
         if (reminder.categoryId) {
-            const category = this.categoryManager.getCategoryById(reminder.categoryId);
-            if (category) {
-                const categoryTag = document.createElement('div');
-                categoryTag.className = 'reminder-item__category';
-                categoryTag.style.cssText = `
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 2px;
-                    font-size: 11px;
-                    background-color: ${category.color}20;
-                    color: ${category.color};
-                    border: 1px solid ${category.color}40;
-                    border-radius: 12px;
-                    padding: 2px 8px;
-                    margin-top: 4px;
-                    font-weight: 500;
-                `;
+            // 将 categoryId 字符串分割为数组
+            const categoryIds = typeof reminder.categoryId === 'string' ? reminder.categoryId.split(',') : [reminder.categoryId];
 
-                // 添加分类图标（如果有）
-                if (category.icon) {
-                    const iconSpan = document.createElement('span');
-                    iconSpan.textContent = category.icon;
-                    iconSpan.style.cssText = 'font-size: 10px;';
-                    categoryTag.appendChild(iconSpan);
+            categoryIds.forEach((catId: string) => {
+                const id = catId.trim();
+                if (!id) return;
+                const category = this.categoryManager.getCategoryById(id);
+                if (category) {
+                    const categoryTag = document.createElement('div');
+                    categoryTag.className = 'reminder-item__category';
+                    categoryTag.style.cssText = `
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 2px;
+                        font-size: 11px;
+                        background-color: ${category.color}20;
+                        color: ${category.color};
+                        border: 1px solid ${category.color}40;
+                        border-radius: 12px;
+                        padding: 2px 8px;
+                        margin-top: 4px;
+                        margin-right: 4px;
+                        font-weight: 500;
+                    `;
+
+                    // 添加分类图标（如果有）
+                    if (category.icon) {
+                        const iconSpan = document.createElement('span');
+                        iconSpan.textContent = category.icon;
+                        iconSpan.style.cssText = 'font-size: 10px;';
+                        categoryTag.appendChild(iconSpan);
+                    }
+
+                    // 添加分类名称
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = category.name;
+                    categoryTag.appendChild(nameSpan);
+
+                    // 设置标题提示
+                    categoryTag.title = `分类: ${category.name}`;
+
+                    // 将分类标签添加到信息容器底部
+                    infoEl.appendChild(categoryTag);
                 }
-
-                // 添加分类名称
-                const nameSpan = document.createElement('span');
-                nameSpan.textContent = category.name;
-                categoryTag.appendChild(nameSpan);
-
-                // 设置标题提示
-                categoryTag.title = `分类: ${category.name}`;
-
-                // 将分类标签添加到信息容器底部
-                infoEl.appendChild(categoryTag);
-            }
+            });
         }
 
         // 添加项目标签显示（如果任务属于项目且有标签）

@@ -456,10 +456,19 @@ class SmartBatchDialog {
         if (!categoryId) return `📂 ${t("noCategory")}`;
 
         try {
+            const categoryIds = categoryId.split(',');
             const categories = this.plugin.categoryManager.getCategories();
-            const category = categories.find(c => c.id === categoryId);
-            if (category) {
-                return `<span style="background-color: ${category.color}; padding: 2px 6px; border-radius: 3px; font-size: 12px;color:#fff;">${category.icon ? category.icon + ' ' : ''}${category.name}</span>`;
+
+            const badges = categoryIds.map(id => {
+                const category = categories.find(c => c.id === id);
+                if (category) {
+                    return `<span style="background-color: ${category.color}20; border: 1px solid ${category.color}40; color: ${category.color}; padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-right: 2px; display: inline-flex; align-items: center;">${category.icon ? category.icon + ' ' : ''}${category.name}</span>`;
+                }
+                return '';
+            }).filter(Boolean);
+
+            if (badges.length > 0) {
+                return badges.join('');
             }
         } catch (error) {
             console.error('获取分类显示失败:', error);
@@ -536,14 +545,31 @@ class SmartBatchDialog {
             checkboxes.forEach(checkbox => checkbox.checked = false);
         });
 
-        // 批量分类选择
+        // 批量分类选择（支持多选）
         const batchCategorySelector = dialog.element.querySelector('#batchCategorySelector') as HTMLElement;
         batchCategorySelector?.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
             const option = target.closest('.category-option-compact') as HTMLElement;
             if (option) {
-                batchCategorySelector.querySelectorAll('.category-option-compact').forEach(opt => opt.classList.remove('selected'));
-                option.classList.add('selected');
+                const categoryId = option.getAttribute('data-category');
+
+                if (!categoryId) {
+                    // 如果选择了“无分类”，清空其他选中项
+                    batchCategorySelector.querySelectorAll('.category-option-compact').forEach(opt => opt.classList.remove('selected'));
+                    option.classList.add('selected');
+                } else {
+                    // 如果选择了具体分类
+                    // 先取消“无分类”的选中状态
+                    const noCatOption = batchCategorySelector.querySelector('.category-option-compact[data-category=""]');
+                    if (noCatOption) noCatOption.classList.remove('selected');
+
+                    // 切换当前项选中状态
+                    if (option.classList.contains('selected')) {
+                        option.classList.remove('selected');
+                    } else {
+                        option.classList.add('selected');
+                    }
+                }
                 batchApplyCategoryBtn.disabled = false;
             }
         });
@@ -943,10 +969,27 @@ class SmartBatchDialog {
     }
 
     private batchApplyCategory(dialog: Dialog) {
-        const selectedCategory = dialog.element.querySelector('#batchCategorySelector .category-option-compact.selected') as HTMLElement;
-        if (!selectedCategory) return;
+        const selectedOptions = dialog.element.querySelectorAll('#batchCategorySelector .category-option-compact.selected');
 
-        const categoryId = selectedCategory.getAttribute('data-category') || '';
+        let categoryId = '';
+        if (selectedOptions.length > 0) {
+            const ids: string[] = [];
+            selectedOptions.forEach(opt => {
+                const id = opt.getAttribute('data-category');
+                if (id) ids.push(id);
+            });
+            categoryId = ids.join(',');
+        } else {
+            // 如果没有选中任何项（包括“无分类”也没选中），这里可能需要提示，暂且认为是什么都不做
+            // 但原逻辑如果选中了"无分类"，selectedOptions也会有长度1且ID为空字符串
+            const noCatSelected = dialog.element.querySelector('#batchCategorySelector .category-option-compact[data-category=""]');
+            if (noCatSelected && noCatSelected.classList.contains('selected')) {
+                categoryId = ''; // 明确设置为无分类
+            } else if (selectedOptions.length === 0) {
+                return; // 没选
+            }
+        }
+
         const selectedBlocks = this.getSelectedBlockIds(dialog);
 
         if (selectedBlocks.length === 0) {
@@ -1389,18 +1432,22 @@ class BlockEditDialog {
 
         try {
             const categories = this.plugin.categoryManager.getCategories();
+            const currentCategoryIds = this.setting.categoryId ? this.setting.categoryId.split(',') : [];
 
             categorySelector.innerHTML = '';
 
             const noCategoryEl = document.createElement('div');
-            noCategoryEl.className = `category-option ${!this.setting.categoryId ? 'selected' : ''}`;
+            // 如果当前没有设置分类，或者分类ID为空字符串，则选中“无分类”
+            const isNoCategorySelected = currentCategoryIds.length === 0 || (currentCategoryIds.length === 1 && currentCategoryIds[0] === '');
+            noCategoryEl.className = `category-option ${isNoCategorySelected ? 'selected' : ''}`;
             noCategoryEl.setAttribute('data-category', '');
             noCategoryEl.innerHTML = `<span>${t("noCategory")}</span>`;
             categorySelector.appendChild(noCategoryEl);
 
             categories.forEach(category => {
                 const categoryEl = document.createElement('div');
-                categoryEl.className = `category-option ${this.setting.categoryId === category.id ? 'selected' : ''}`;
+                const isSelected = currentCategoryIds.includes(category.id);
+                categoryEl.className = `category-option ${isSelected ? 'selected' : ''}`;
                 categoryEl.setAttribute('data-category', category.id);
                 categoryEl.style.backgroundColor = category.color;
                 categoryEl.innerHTML = `<span>${category.icon ? category.icon + ' ' : ''}${category.name}</span>`;
@@ -1625,13 +1672,33 @@ class BlockEditDialog {
             }
         });
 
-        // 分类选择事件
+        // 分类选择事件（支持多选）
         categorySelector?.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
             const option = target.closest('.category-option') as HTMLElement;
             if (option) {
-                categorySelector.querySelectorAll('.category-option').forEach(opt => opt.classList.remove('selected'));
-                option.classList.add('selected');
+                const categoryId = option.getAttribute('data-category');
+
+                if (!categoryId) {
+                    // 选中无分类 -> 清除其他
+                    categorySelector.querySelectorAll('.category-option').forEach(opt => opt.classList.remove('selected'));
+                    option.classList.add('selected');
+                } else {
+                    // 选中具体分类
+                    const noCatOption = categorySelector.querySelector('.category-option[data-category=""]');
+                    if (noCatOption) noCatOption.classList.remove('selected');
+
+                    if (option.classList.contains('selected')) {
+                        option.classList.remove('selected');
+                    } else {
+                        option.classList.add('selected');
+                    }
+
+                    // 如果全部取消了，默认选中“无分类”？还是允许为空？暂时保持如果不选就是空
+                    if (categorySelector.querySelectorAll('.category-option.selected').length === 0) {
+                        if (noCatOption) noCatOption.classList.add('selected');
+                    }
+                }
             }
         });
 
@@ -1674,7 +1741,7 @@ class BlockEditDialog {
         const noTimeCheckbox = dialog.element.querySelector('#editNoSpecificTime') as HTMLInputElement;
         const noteInput = dialog.element.querySelector('#editReminderNote') as HTMLTextAreaElement;
         const selectedPriority = dialog.element.querySelector('#editPrioritySelector .priority-option.selected') as HTMLElement;
-        const selectedCategory = dialog.element.querySelector('#editCategorySelector .category-option.selected') as HTMLElement;
+
         const projectSelector = dialog.element.querySelector('#editProjectSelector') as HTMLSelectElement;
 
         if (!dateInput.value) {
@@ -1695,9 +1762,16 @@ class BlockEditDialog {
             this.setting.endDate = '';
         }
 
+        const selectedCategories = dialog.element.querySelectorAll('#editCategorySelector .category-option.selected');
+        const categoryIds: string[] = [];
+        selectedCategories.forEach(el => {
+            const id = el.getAttribute('data-category');
+            if (id) categoryIds.push(id);
+        });
+
         this.setting.note = noteInput.value.trim();
         this.setting.priority = selectedPriority?.getAttribute('data-priority') || 'none';
-        this.setting.categoryId = selectedCategory?.getAttribute('data-category') || '';
+        this.setting.categoryId = categoryIds.join(',');
         this.setting.projectId = projectSelector.value || '';
 
         // 调用保存回调

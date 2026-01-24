@@ -4514,31 +4514,52 @@ export class ProjectKanbanView {
             infoEl.appendChild(priorityEl);
         }
 
-        // 分类
+        // 分类（支持多分类）
         if (task.categoryId) {
-            const category = this.categoryManager.getCategoryById(task.categoryId);
-            if (category) {
-                const categoryEl = document.createElement('div');
-                categoryEl.className = 'kanban-task-category';
-                categoryEl.style.cssText = `
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 4px;
-                    padding: 2px 6px;
-                    background-color: ${category.color};
-                    border-radius: 4px;
-                    font-size: 11px;
-                    color: white;
-                    font-weight: 500;
-                    align-self: flex-start;
-                `;
+            const categoryContainer = document.createElement('div');
+            categoryContainer.className = 'kanban-task-categories';
+            categoryContainer.style.cssText = `
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px;
+                align-self: flex-start;
+            `;
 
-                if (category.icon) {
-                    categoryEl.innerHTML = `<span>${category.icon}</span><span>${category.name}</span>`;
-                } else {
-                    categoryEl.textContent = category.name;
+            const categoryIds = typeof task.categoryId === 'string' ? task.categoryId.split(',') : [task.categoryId];
+            let hasValidCategory = false;
+
+            categoryIds.forEach((catId: string) => {
+                const id = catId.trim();
+                if (!id) return;
+
+                const category = this.categoryManager.getCategoryById(id);
+                if (category) {
+                    hasValidCategory = true;
+                    const categoryEl = document.createElement('div');
+                    categoryEl.className = 'kanban-task-category';
+                    categoryEl.style.cssText = `
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 4px;
+                        padding: 2px 6px;
+                        background-color: ${category.color};
+                        border-radius: 4px;
+                        font-size: 11px;
+                        color: white;
+                        font-weight: 500;
+                    `;
+
+                    if (category.icon) {
+                        categoryEl.innerHTML = `<span>${category.icon}</span><span>${category.name}</span>`;
+                    } else {
+                        categoryEl.textContent = category.name;
+                    }
+                    categoryContainer.appendChild(categoryEl);
                 }
-                infoEl.appendChild(categoryEl);
+            });
+
+            if (hasValidCategory) {
+                infoEl.appendChild(categoryContainer);
             }
         }
 

@@ -52,6 +52,8 @@ export class QuickReminderDialog {
     private defaultSort?: number;
     private hideProjectSelector: boolean = false;
     private existingReminders: any[] = [];
+    private selectedCategoryIds: string[] = [];
+
 
     constructor(
         date?: string,
@@ -562,15 +564,27 @@ export class QuickReminderDialog {
         // 等待渲染完成后设置分类、优先级和任务类型
         setTimeout(() => {
             // 填充分类
+            // 填充分类
             if (this.reminder.categoryId) {
+                // 初始化 selectedCategoryIds
+                this.selectedCategoryIds = typeof this.reminder.categoryId === 'string'
+                    ? this.reminder.categoryId.split(',').filter((id: string) => id.trim())
+                    : [this.reminder.categoryId];
+
                 const categoryOptions = this.dialog.element.querySelectorAll('.category-option');
                 categoryOptions.forEach(option => {
-                    if (option.getAttribute('data-category') === this.reminder.categoryId) {
+                    const id = option.getAttribute('data-category');
+                    if (id && this.selectedCategoryIds.includes(id)) {
                         option.classList.add('selected');
                     } else {
                         option.classList.remove('selected');
                     }
                 });
+                // 如果有选中项，确保无分类未选中
+                if (this.selectedCategoryIds.length > 0) {
+                    const noCat = this.dialog.element.querySelector('.category-option[data-category=""]');
+                    if (noCat) noCat.classList.remove('selected');
+                }
             }
 
             // 填充优先级
@@ -1393,18 +1407,25 @@ export class QuickReminderDialog {
             });
 
             // 设置默认分类选择
-            if (this.defaultCategoryId) {
-                const categoryButtons = this.dialog.element.querySelectorAll('.category-option');
-                categoryButtons.forEach(button => {
-                    const categoryId = button.getAttribute('data-category');
-                    if (categoryId === this.defaultCategoryId) {
-                        button.classList.add('selected');
-                    }
-                });
-            } else {
-                // 如果没有默认分类，选中无分类选项
-                noCategoryEl.classList.add('selected');
+            // 设置默认分类选择（支持多选）
+            if (this.defaultCategoryId && this.selectedCategoryIds.length === 0) {
+                const ids = this.defaultCategoryId.split(',').map(id => id.trim()).filter(id => id);
+                this.selectedCategoryIds.push(...ids);
             }
+
+            const categoryButtons = this.dialog.element.querySelectorAll('.category-option');
+
+            categoryButtons.forEach(button => {
+                const categoryId = button.getAttribute('data-category');
+                if (categoryId && this.selectedCategoryIds.includes(categoryId)) {
+                    button.classList.add('selected');
+                } else if (categoryId === '' && this.selectedCategoryIds.length === 0) {
+                    // 如果没有选中任何分类，选中“无分类”
+                    button.classList.add('selected');
+                } else {
+                    button.classList.remove('selected');
+                }
+            });
 
         } catch (error) {
             console.error('渲染分类选择器失败:', error);
@@ -1869,12 +1890,39 @@ export class QuickReminderDialog {
             const target = e.target as HTMLElement;
             const option = target.closest('.category-option') as HTMLElement;
             if (option) {
-                // 移除所有选中状态
-                categorySelector.querySelectorAll('.category-option').forEach(opt => {
-                    opt.classList.remove('selected');
+                const categoryId = option.getAttribute('data-category');
+
+                if (!categoryId) {
+                    // 如果选择了“无分类”，清空选中的分类
+                    this.selectedCategoryIds = [];
+                } else {
+                    // 如果选择了具体分类
+                    if (this.selectedCategoryIds.includes(categoryId)) {
+                        // 如果已选中，则取消选中
+                        this.selectedCategoryIds = this.selectedCategoryIds.filter(id => id !== categoryId);
+                    } else {
+                        // 如果未选中，则添加
+                        this.selectedCategoryIds.push(categoryId);
+                    }
+                }
+
+                // 更新UI显示
+                const buttons = categorySelector.querySelectorAll('.category-option');
+                buttons.forEach(btn => {
+                    const id = btn.getAttribute('data-category');
+                    if (this.selectedCategoryIds.length === 0) {
+                        // 如果没有选中的，高亮“无分类”
+                        if (!id) btn.classList.add('selected');
+                        else btn.classList.remove('selected');
+                    } else {
+                        // 如果有选中的，根据ID高亮
+                        if (id && this.selectedCategoryIds.includes(id)) {
+                            btn.classList.add('selected');
+                        } else {
+                            btn.classList.remove('selected');
+                        }
+                    }
                 });
-                // 添加选中状态
-                option.classList.add('selected');
 
                 // 添加点击反馈动画
                 option.style.transform = 'scale(0.9)';
@@ -2436,7 +2484,7 @@ export class QuickReminderDialog {
         const noteInput = this.dialog.element.querySelector('#quickReminderNote') as HTMLTextAreaElement;
         const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
         const selectedPriority = this.dialog.element.querySelector('#quickPrioritySelector .priority-option.selected') as HTMLElement;
-        const selectedCategory = this.dialog.element.querySelector('#quickCategorySelector .category-option.selected') as HTMLElement;
+        // const selectedCategory = this.dialog.element.querySelector('#quickCategorySelector .category-option.selected') as HTMLElement;
         const selectedTermType = this.dialog.element.querySelector('#quickTermTypeSelector .term-type-option.selected') as HTMLElement;
         const customGroupSelector = this.dialog.element.querySelector('#quickCustomGroupSelector') as HTMLSelectElement;
 
@@ -2446,7 +2494,10 @@ export class QuickReminderDialog {
         const url = urlInput?.value?.trim() || undefined;
         const note = noteInput.value.trim() || undefined;
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
-        const categoryId = selectedCategory?.getAttribute('data-category') || undefined;
+
+        // 获取多分类ID
+        const categoryId = this.selectedCategoryIds.length > 0 ? this.selectedCategoryIds.join(',') : undefined;
+
         const projectId = projectSelector.value || undefined;
         const termType = selectedTermType?.getAttribute('data-term-type') as 'short_term' | 'long_term' | 'doing' | 'todo' | undefined;
         const customGroupId = customGroupSelector?.value || undefined;

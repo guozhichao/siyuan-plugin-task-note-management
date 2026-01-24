@@ -637,41 +637,57 @@ export class DocumentReminderDialog {
         `;
 
         if (reminder.categoryId) {
-            const category = this.categoryManager.getCategoryById(reminder.categoryId);
-            if (category) {
-                const categoryEl = document.createElement('div');
-                categoryEl.className = 'doc-reminder-category-tag';
-                categoryEl.style.cssText = `
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 4px;
-                    padding: 2px 6px;
-                    background-color: ${category.color};
-                    border: 1px solid ${category.color}40;
-                    border-radius: 5px;
-                    font-size: 11px;
-                    color: #fff;
-                `;
+            const categoryIds = typeof reminder.categoryId === 'string' ? reminder.categoryId.split(',') : [reminder.categoryId];
+            let hasValidCategory = false;
 
-                if (category.icon) {
-                    const iconSpan = document.createElement('span');
-                    iconSpan.textContent = category.icon;
-                    iconSpan.style.cssText = `
-                        font-size: 12px;
-                        line-height: 1;
+            categoryIds.forEach((catId: string) => {
+                const id = catId.trim();
+                if (!id) return;
+
+                const category = this.categoryManager.getCategoryById(id);
+                if (category) {
+                    hasValidCategory = true;
+                    const categoryEl = document.createElement('div');
+                    categoryEl.className = 'doc-reminder-category-tag';
+                    categoryEl.style.cssText = `
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 2px;
+                        padding: 2px 6px;
+                        background-color: ${category.color};
+                        border: 1px solid ${category.color}40;
+                        border-radius: 5px;
+                        font-size: 11px;
+                        color: #fff;
+                        margin-right: 4px;
+                        margin-bottom: 2px;
                     `;
-                    categoryEl.appendChild(iconSpan);
+
+                    if (category.icon) {
+                        const iconSpan = document.createElement('span');
+                        iconSpan.textContent = category.icon;
+                        iconSpan.style.cssText = `
+                            font-size: 12px;
+                            line-height: 1;
+                        `;
+                        categoryEl.appendChild(iconSpan);
+                    }
+
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = category.name;
+                    nameSpan.style.cssText = `
+                        font-size: 11px;
+                        font-weight: 500;
+                    `;
+                    categoryEl.appendChild(nameSpan);
+
+                    categoryContainer.appendChild(categoryEl);
                 }
+            });
 
-                const nameSpan = document.createElement('span');
-                nameSpan.textContent = category.name;
-                nameSpan.style.cssText = `
-                    font-size: 11px;
-                    font-weight: 500;
-                `;
-                categoryEl.appendChild(nameSpan);
-
-                categoryContainer.appendChild(categoryEl);
+            if (!hasValidCategory) {
+                // 如果没有任何有效分类被添加，可能不显示任何东西，或者显示“无分类”？
+                // 目前设计是不显示
             }
         }
         // 按照正确顺序添加到信息容器

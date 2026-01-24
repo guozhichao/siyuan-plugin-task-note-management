@@ -7,7 +7,7 @@ import { compareDateStrings, getLocalDateString, getLogicalDateString, getDaySta
 import { readProjectData, getFile } from "../api";
 import { generateRepeatInstances } from "../utils/repeatUtils";
 import { setLastStatsMode } from "./PomodoroStatsView";
-import { init, use, EChartsType } from 'echarts/core';
+import { init, use } from 'echarts/core';
 import { PieChart, HeatmapChart, CustomChart } from 'echarts/charts';
 import { TooltipComponent, VisualMapComponent, GridComponent, TitleComponent, LegendComponent, CalendarComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -633,14 +633,16 @@ export class TaskStatsView {
         const stats: Record<string, { time: number, count: number }> = {};
 
         sessions.forEach(session => {
-            const label = this.getDetailGroupLabel(session);
-            if (!stats[label]) {
-                stats[label] = { time: 0, count: 0 };
-            }
-            stats[label].time += session.duration;
-            if (session.completed) {
-                stats[label].count++;
-            }
+            const labels = this.getDetailGroupLabels(session);
+            labels.forEach(label => {
+                if (!stats[label]) {
+                    stats[label] = { time: 0, count: 0 };
+                }
+                stats[label].time += session.duration;
+                if (session.completed) {
+                    stats[label].count++;
+                }
+            });
         });
 
         return stats;
@@ -1024,18 +1026,23 @@ export class TaskStatsView {
         }
     }
 
-    private getDetailGroupLabel(session: TaskSession): string {
+    private getDetailGroupLabels(session: TaskSession): string[] {
         switch (this.currentDetailGroup) {
             case 'project': {
                 const projectName = session.projectId ? this.projectNameMap[session.projectId] : '';
-                return projectName || t("uncategorizedProject");
+                return [projectName || t("uncategorizedProject")];
             }
             case 'category': {
-                const categoryName = session.categoryId ? this.categoryNameMap[session.categoryId] : '';
-                return categoryName || t("uncategorizedCategory");
+                if (session.categoryId) {
+                    const ids = session.categoryId.split(',').map(id => id.trim()).filter(id => id);
+                    if (ids.length > 0) {
+                        return ids.map(id => this.categoryNameMap[id] || t("uncategorizedCategory"));
+                    }
+                }
+                return [t("uncategorizedCategory")];
             }
             default:
-                return session.eventTitle || t("uncategorized");
+                return [session.eventTitle || t("uncategorized")];
         }
     }
 

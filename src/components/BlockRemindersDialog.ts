@@ -287,38 +287,58 @@ export class BlockRemindersDialog {
             }
         }
 
-        // 分类标签
+        // 分类标签（支持多分类）
         if (reminder.categoryId) {
-            const category = this.categoryManager.getCategoryById(reminder.categoryId);
-            if (category) {
-                const categoryTag = document.createElement('div');
-                categoryTag.className = 'reminder-item__category';
-                categoryTag.style.cssText = `
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 2px;
-                    font-size: 11px;
-                    background-color: ${category.color}20;
-                    color: ${category.color};
-                    border: 1px solid ${category.color}40;
-                    border-radius: 12px;
-                    padding: 2px 8px;
-                    margin-top: 4px;
-                    font-weight: 500;
-                `;
+            const categoryIds = typeof reminder.categoryId === 'string' ? reminder.categoryId.split(',') : [reminder.categoryId];
+            const categoriesContainer = document.createElement('div');
+            categoriesContainer.className = 'reminder-item__categories';
+            categoriesContainer.style.cssText = `
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px;
+                margin-top: 4px;
+            `;
 
-                if (category.icon) {
-                    const iconSpan = document.createElement('span');
-                    iconSpan.textContent = category.icon;
-                    iconSpan.style.fontSize = '10px';
-                    categoryTag.appendChild(iconSpan);
+            let hasValidCategory = false;
+            categoryIds.forEach((catId: string) => {
+                const id = catId.trim();
+                if (!id) return;
+
+                const category = this.categoryManager.getCategoryById(id);
+                if (category) {
+                    hasValidCategory = true;
+                    const categoryTag = document.createElement('div');
+                    categoryTag.className = 'reminder-item__category';
+                    categoryTag.style.cssText = `
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 2px;
+                        font-size: 11px;
+                        background-color: ${category.color}20;
+                        color: ${category.color};
+                        border: 1px solid ${category.color}40;
+                        border-radius: 12px;
+                        padding: 2px 8px;
+                        font-weight: 500;
+                    `;
+
+                    if (category.icon) {
+                        const iconSpan = document.createElement('span');
+                        iconSpan.textContent = category.icon;
+                        iconSpan.style.fontSize = '10px';
+                        categoryTag.appendChild(iconSpan);
+                    }
+
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = category.name;
+                    categoryTag.appendChild(nameSpan);
+
+                    categoriesContainer.appendChild(categoryTag);
                 }
+            });
 
-                const nameSpan = document.createElement('span');
-                nameSpan.textContent = category.name;
-                categoryTag.appendChild(nameSpan);
-
-                infoEl.appendChild(categoryTag);
+            if (hasValidCategory) {
+                infoEl.appendChild(categoriesContainer);
             }
         }
 

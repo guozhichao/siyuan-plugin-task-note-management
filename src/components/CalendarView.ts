@@ -2437,12 +2437,17 @@ export class CalendarView {
             let title = calendarEvent.title || t("unnamedNote");
 
             // 移除分类图标（如果存在）
+            // 移除分类图标（如果存在）
             if (calendarEvent.extendedProps.categoryId) {
-                const category = this.categoryManager.getCategoryById(calendarEvent.extendedProps.categoryId);
-                if (category && category.icon) {
-                    const iconPrefix = `${category.icon} `;
-                    if (title.startsWith(iconPrefix)) {
-                        title = title.substring(iconPrefix.length);
+                const categoryIds = calendarEvent.extendedProps.categoryId.split(',');
+                for (const id of categoryIds) {
+                    const category = this.categoryManager.getCategoryById(id);
+                    if (category && category.icon) {
+                        const iconPrefix = `${category.icon} `;
+                        if (title.startsWith(iconPrefix)) {
+                            title = title.substring(iconPrefix.length);
+                            break;
+                        }
                     }
                 }
             }
@@ -2467,12 +2472,17 @@ export class CalendarView {
             let title = calendarEvent.title || t("unnamedNote");
 
             // 移除分类图标（如果存在）
+            // 移除分类图标（如果存在）
             if (calendarEvent.extendedProps.categoryId) {
-                const category = this.categoryManager.getCategoryById(calendarEvent.extendedProps.categoryId);
-                if (category && category.icon) {
-                    const iconPrefix = `${category.icon} `;
-                    if (title.startsWith(iconPrefix)) {
-                        title = title.substring(iconPrefix.length);
+                const categoryIds = calendarEvent.extendedProps.categoryId.split(',');
+                for (const id of categoryIds) {
+                    const category = this.categoryManager.getCategoryById(id);
+                    if (category && category.icon) {
+                        const iconPrefix = `${category.icon} `;
+                        if (title.startsWith(iconPrefix)) {
+                            title = title.substring(iconPrefix.length);
+                            break;
+                        }
                     }
                 }
             }
@@ -2765,15 +2775,19 @@ export class CalendarView {
         indicatorsRow.className = 'reminder-event-indicators-row';
 
         // 分类图标 (订阅图标已移至顶部复选框位置)
+        // 分类图标 (订阅图标已移至顶部复选框位置)
         if (this.showCategoryAndProject && !props.isSubscribed && props.categoryId) {
-            const category = this.categoryManager.getCategoryById(props.categoryId);
-            if (category && category.icon) {
-                const catIcon = document.createElement('span');
-                catIcon.className = 'reminder-event-icon';
-                catIcon.innerHTML = category.icon;
-                catIcon.title = category.name;
-                indicatorsRow.appendChild(catIcon);
-            }
+            const categoryIds = props.categoryId.split(',');
+            categoryIds.forEach(id => {
+                const category = this.categoryManager.getCategoryById(id);
+                if (category && category.icon) {
+                    const catIcon = document.createElement('span');
+                    catIcon.className = 'reminder-event-icon';
+                    catIcon.innerHTML = category.icon;
+                    catIcon.title = category.name;
+                    indicatorsRow.appendChild(catIcon);
+                }
+            });
         }
 
         // 重复图标
@@ -5125,7 +5139,9 @@ export class CalendarView {
             return this.currentCategoryFilter.has('none');
         }
 
-        return this.currentCategoryFilter.has(effectiveCategoryId);
+        // Handle multiple categories
+        const categoryIds = effectiveCategoryId.split(',');
+        return categoryIds.some(id => this.currentCategoryFilter.has(id));
     }
 
     passesProjectFilter(reminder: any): boolean {
@@ -5183,7 +5199,9 @@ export class CalendarView {
                 }
             } else if (this.colorBy === 'category') {
                 if (reminder.categoryId) {
-                    const categoryStyle = this.categoryManager.getCategoryStyle(reminder.categoryId);
+                    // Use the first category for color if multiple are present
+                    const firstCategoryId = reminder.categoryId.split(',')[0];
+                    const categoryStyle = this.categoryManager.getCategoryStyle(firstCategoryId);
                     backgroundColor = categoryStyle.backgroundColor;
                     borderColor = categoryStyle.borderColor;
                 } else {
@@ -5509,11 +5527,15 @@ export class CalendarView {
             // 2. 事项名称
             let eventTitle = calendarEvent.title || t("unnamedNote");
             if (reminder.categoryId) {
-                const category = this.categoryManager.getCategoryById(reminder.categoryId);
-                if (category?.icon) {
-                    const iconPrefix = `${category.icon} `;
-                    if (eventTitle.startsWith(iconPrefix)) {
-                        eventTitle = eventTitle.substring(iconPrefix.length);
+                const categoryIds = reminder.categoryId.split(',');
+                for (const id of categoryIds) {
+                    const category = this.categoryManager.getCategoryById(id);
+                    if (category?.icon) {
+                        const iconPrefix = `${category.icon} `;
+                        if (eventTitle.startsWith(iconPrefix)) {
+                            eventTitle = eventTitle.substring(iconPrefix.length);
+                            break;
+                        }
                     }
                 }
             }
@@ -5557,23 +5579,31 @@ export class CalendarView {
             }
 
             // 5. 分类信息
+            // 5. 分类信息
             if (reminder.categoryId) {
-                const category = this.categoryManager.getCategoryById(reminder.categoryId);
-                if (category) {
-                    htmlParts.push(
-                        `<div style="color: var(--b3-theme-on-surface); margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">`,
-                        `<span style="opacity: 0.7;">🏷️</span>`,
-                        `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; background-color: ${category.color}; border-radius: 4px; color: white; font-size: 11px;">`
-                    );
-                    if (category.icon) {
-                        htmlParts.push(`<span style="font-size: 12px;">${category.icon}</span>`);
+                const categoryIds = reminder.categoryId.split(',');
+                htmlParts.push(
+                    `<div style="color: var(--b3-theme-on-surface); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">`,
+                    `<span style="opacity: 0.7;">🏷️</span>`
+                );
+
+                categoryIds.forEach(id => {
+                    const category = this.categoryManager.getCategoryById(id);
+                    if (category) {
+                        htmlParts.push(
+                            `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; background-color: ${category.color}; border-radius: 4px; color: white; font-size: 11px;">`
+                        );
+                        if (category.icon) {
+                            htmlParts.push(`<span style="font-size: 12px;">${category.icon}</span>`);
+                        }
+                        htmlParts.push(
+                            `<span>${this.escapeHtml(category.name)}</span>`,
+                            `</span>`
+                        );
                     }
-                    htmlParts.push(
-                        `<span>${this.escapeHtml(category.name)}</span>`,
-                        `</span>`,
-                        `</div>`
-                    );
-                }
+                });
+
+                htmlParts.push(`</div>`);
             }
 
             // 6. 重复信息
