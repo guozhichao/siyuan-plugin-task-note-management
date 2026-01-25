@@ -5863,6 +5863,7 @@ export class PomodoroTimer {
     }
 
     private async createBrowserWindow() {
+        this.isWindowClosed = false; // 重置窗口关闭状态，确保计时器逻辑能正常运行
         try {
             let electron: any;
             try {
@@ -6051,6 +6052,14 @@ export class PomodoroTimer {
                     setTimeout(() => {
                         this.playSoundInBrowserWindow(src, { loop: true, volume: this.backgroundVolume });
                     }, 500);
+                }
+            }
+
+            // 恢复逻辑计时循环（修复切换吸附模式/窗口重建后丢失计时功能和数据记录的问题）
+            if (this.isRunning && !this.isPaused) {
+                this.startTickLoop();
+                if (this.isWorkPhase && this.randomNotificationEnabled) {
+                    this.startRandomNotificationTimer();
                 }
             }
 
