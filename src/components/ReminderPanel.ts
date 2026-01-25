@@ -601,8 +601,16 @@ export class ReminderPanel {
             return sortA - sortB; // 手动排序值小的在前
         }
 
-        // 如果手动排序值也相同，按时间排序
-        return this.compareByTime(a, b);
+        // 修改：如果手动排序值也相同，按时间排序
+        const timeResult = this.compareByTime(a, b);
+        if (timeResult !== 0) {
+            return timeResult;
+        }
+
+        // 最后兜底：按创建时间排序 (借鉴 ProjectKanbanView)
+        const timeA = a.createdTime ? new Date(a.createdTime).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.createdTime ? new Date(b.createdTime).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return timeB - timeA; // 最新创建的在前
     }
 
     private updateCategoryFilterButtonText() {
@@ -2948,13 +2956,20 @@ export class ReminderPanel {
 
         // 都有日期或都没有日期的情况下，按日期时间排序
         if (hasDateA && hasDateB) {
-            const dateA = new Date(a.date + (a.time ? `T${a.time}` : 'T00:00')).getTime();
-            const dateB = new Date(b.date + (b.time ? `T${b.time}` : 'T00:00')).getTime();
-            return dateA - dateB; // 较早的日期排在前面
+            const dateValueA = new Date(a.date + (a.time ? `T${a.time}` : 'T00:00')).getTime();
+            const dateValueB = new Date(b.date + (b.time ? `T${b.time}` : 'T00:00')).getTime();
+            if (!isNaN(dateValueA) && !isNaN(dateValueB) && dateValueA !== dateValueB) {
+                return dateValueA - dateValueB;
+            }
         }
 
-        // 都没有日期，按创建时间或其他标识符排序
-        // 使用任务ID作为最后排序依据（ID通常包含时间戳）
+        // 最後兜底：按创建时间排序 (借鉴 ProjectKanbanView)
+        const timeA = a.createdTime ? new Date(a.createdTime).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.createdTime ? new Date(b.createdTime).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        if (timeA !== timeB) {
+            return timeB - timeA; // 最新创建的在前
+        }
+
         return (a.id || '').localeCompare(b.id || '');
     }
 
@@ -2974,13 +2989,25 @@ export class ReminderPanel {
     }
     // 按时间比较（考虑跨天事件和优先级）
     private compareByTime(a: any, b: any): number {
-        // 注意：无日期任务的处理已在 sortReminders 中提前处理
-        // 这里假设传入的 a 和 b 都有日期
+        const hasDateA = !!a.date;
+        const hasDateB = !!b.date;
+
+        if (!hasDateA && !hasDateB) {
+            return 0;
+        }
+        if (!hasDateA) return 1;  // a 无日期，排在后面
+        if (!hasDateB) return -1; // b 无日期，排在后面
 
         // 都有日期时，按日期时间排序
         // 对于重复任务实例，a.date 已经是实例的日期，而不是原始任务的日期
         const dateA = new Date(a.date + (a.time ? `T${a.time}` : 'T00:00'));
         const dateB = new Date(b.date + (b.time ? `T${b.time}` : 'T00:00'));
+
+        // 如果解析失败，返回0
+        if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) {
+            if (isNaN(dateA.getTime()) && isNaN(dateB.getTime())) return 0;
+            return isNaN(dateA.getTime()) ? 1 : -1;
+        }
 
         // 首先按日期时间排序
         const timeDiff = dateA.getTime() - dateB.getTime();
@@ -6493,6 +6520,11 @@ export class ReminderPanel {
     }
 
     private showCreateSubtaskDialog(parentReminder: any) {
+        // 计算最大排序值，以便将新任务放在末尾
+        const allReminders = Array.from(this.allRemindersMap.values());
+        const maxSort = allReminders.reduce((max, r) => Math.max(max, r.sort || 0), 0);
+        const defaultSort = maxSort + 10000;
+
         const dialog = new QuickReminderDialog(
             undefined, // initialDate
             undefined, // initialTime
@@ -6514,6 +6546,7 @@ export class ReminderPanel {
                 defaultPriority: parentReminder.priority || 'none',
                 plugin: this.plugin,
                 defaultTitle: '', // 子任务标题默认为空
+                defaultSort: defaultSort
             }
         );
         // 保留默认回调行为（QuickReminderDialog 内部仍会在后台保存并触发 reminderUpdated）
@@ -7203,11 +7236,13 @@ export class ReminderPanel {
         }
     }
 
-    /**
-     * 显示新建任务对话框
-     */
     private showNewTaskDialog() {
         try {
+            // 计算最大排序值，以便将新任务放在末尾
+            const allReminders = Array.from(this.allRemindersMap.values());
+            const maxSort = allReminders.reduce((max, r) => Math.max(max, r.sort || 0), 0);
+            const defaultSort = maxSort + 10000;
+
             const today = getLogicalDateString();
             const quickDialog = new QuickReminderDialog(
                 today, // 初始日期为今天
@@ -7228,7 +7263,8 @@ export class ReminderPanel {
                 },
                 undefined, // timeRangeOptions
                 {
-                    plugin: this.plugin // 传入plugin实例
+                    plugin: this.plugin, // 传入plugin实例
+                    defaultSort: defaultSort
                 }
             );
             quickDialog.show();
@@ -7316,6 +7352,31 @@ export class ReminderPanel {
                 }
             }
 
+            // 8.5 特殊处理今日视图下的每日可做分隔符 (Daily Dessert Separator)
+            // 确保普通任务不会被错误地插入到分隔符下方
+            if (this.currentTab === 'today') {
+                const isSavedDessert = savedReminder.isAvailableToday && (!savedReminder.date || savedReminder.date !== today);
+                const separator = this.remindersContainer.querySelector('#daily-dessert-separator') as HTMLElement;
+                if (separator) {
+                    if (!isSavedDessert) {
+                        // 普通任务：必须在分隔符上方
+                        let shouldInsertBeforeSeparator = false;
+                        if (!nextEl) {
+                            shouldInsertBeforeSeparator = true;
+                        } else {
+                            const nextId = nextEl.getAttribute('data-reminder-id');
+                            const nextReminder = nextId ? this.allRemindersMap.get(nextId) : null;
+                            if (nextReminder && nextReminder.isAvailableToday && (!nextReminder.date || nextReminder.date !== today)) {
+                                shouldInsertBeforeSeparator = true;
+                            }
+                        }
+                        if (shouldInsertBeforeSeparator) {
+                            nextEl = separator;
+                        }
+                    }
+                }
+            }
+
             // 9. 执行 DOM 插入或位置校正
             const existing = this.remindersContainer.querySelector(`[data-reminder-id="${savedReminder.id}"]`);
             if (existing) {
@@ -7346,6 +7407,22 @@ export class ReminderPanel {
                         }
                     }
                     if (prevEl) {
+                        // 8.6 针对每日可做任务修正 prevEl
+                        if (this.currentTab === 'today') {
+                            const isSavedDessert = savedReminder.isAvailableToday && (!savedReminder.date || savedReminder.date !== today);
+                            if (isSavedDessert) {
+                                const separator = this.remindersContainer.querySelector('#daily-dessert-separator') as HTMLElement;
+                                if (separator) {
+                                    const prevId = prevEl.getAttribute('data-reminder-id');
+                                    const prevReminder = prevId ? this.allRemindersMap.get(prevId) : null;
+                                    const isPrevDessert = prevReminder && prevReminder.isAvailableToday && (!prevReminder.date || prevReminder.date !== today);
+                                    if (!isPrevDessert) {
+                                        // 如果前一个是普通任务，而我是每日可做，则我应该在分隔符之后
+                                        prevEl = separator;
+                                    }
+                                }
+                            }
+                        }
                         prevEl.after(el);
                     } else {
                         // 连前项都没有，说明是列表首个元素
