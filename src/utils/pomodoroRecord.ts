@@ -132,12 +132,19 @@ export class PomodoroRecordManager {
         // console.log('记录工作会话前:', JSON.stringify(this.records[today]));
 
         let count = 0;
-        if (completed) {
-            const calculated = Math.round(workMinutes / Math.max(1, plannedDuration));
-            if (isCountUp) {
-                count = calculated;
-            } else {
+
+        const calculated = Math.round(workMinutes / Math.max(1, plannedDuration));
+
+        if (isCountUp) {
+            // 正计时模式：都认为是完整番茄，按时长计算数量，至少为1
+            count = Math.max(1, calculated);
+        } else {
+            if (completed) {
+                // 倒计时完成：按时长计算（通常为1，但如果是自定义长番茄可能更多）
                 count = Math.max(1, calculated);
+            } else {
+                // 倒计时中断：认为是一个番茄
+                count = 1;
             }
         }
 
@@ -432,7 +439,7 @@ export class PomodoroRecordManager {
         }
 
         return this.records[date].sessions.reduce((sum, session) => {
-            if (session.eventId === eventId && session.type === 'work' && session.completed) {
+            if (session.eventId === eventId && session.type === 'work') {
                 return sum + this.calculateSessionCount(session);
             }
             return sum;
@@ -448,7 +455,7 @@ export class PomodoroRecordManager {
 
         for (const record of records) {
             total += record.sessions.reduce((sum, session) => {
-                if (session.eventId === eventId && session.type === 'work' && session.completed) {
+                if (session.eventId === eventId && session.type === 'work') {
                     return sum + this.calculateSessionCount(session);
                 }
                 return sum;
@@ -483,7 +490,7 @@ export class PomodoroRecordManager {
                     }
                 }
 
-                if (match && session.type === 'work' && session.completed) {
+                if (match && session.type === 'work') {
                     return sum + this.calculateSessionCount(session);
                 }
                 return sum;
@@ -566,9 +573,15 @@ export class PomodoroRecordManager {
      * @param session 番茄钟会话
      */
     public calculateSessionCount(session: PomodoroSession): number {
-        // 按照用户需求：有count值的按count值统计，没有count值的都算一个番茄
-        if (typeof session.count === 'number') {
+        // 对于正计时番茄，直接使用记录的count，不进行额外计算
+        if (session.isCountUp && typeof session.count === 'number') {
             return session.count;
+        }
+
+        // 按照用户需求：有count值的按count值统计，没有count值的都算一个番茄
+        // 即使记录的 count 为 0（旧数据或短时间中断），也按 1 个番茄计算（积极反馈原则）
+        if (typeof session.count === 'number') {
+            return Math.max(1, session.count);
         }
         return 1;
     }
@@ -632,10 +645,10 @@ export class PomodoroRecordManager {
 
                 // 更新统计数据
                 if (session.type === 'work') {
-                    if (session.completed) {
-                        const count = this.calculateSessionCount(session);
-                        record.workSessions = Math.max(0, record.workSessions - count);
-                    }
+                    // Update stats (completed or not, it might have contributed to count)
+                    const count = this.calculateSessionCount(session);
+                    record.workSessions = Math.max(0, record.workSessions - count);
+
                     record.totalWorkTime = Math.max(0, record.totalWorkTime - session.duration);
                 } else {
                     record.totalBreakTime = Math.max(0, record.totalBreakTime - session.duration);
@@ -700,9 +713,7 @@ export class PomodoroRecordManager {
 
                 // 更新统计数据
                 if (session.type === 'work') {
-                    if (session.completed) {
-                        this.records[logicalDate].workSessions += this.calculateSessionCount(session);
-                    }
+                    this.records[logicalDate].workSessions += this.calculateSessionCount(session);
                     this.records[logicalDate].totalWorkTime += session.duration;
                 } else {
                     this.records[logicalDate].totalBreakTime += session.duration;

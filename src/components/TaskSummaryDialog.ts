@@ -305,11 +305,11 @@ export class TaskSummaryDialog {
       const record = allRecords[dateStr];
       if (record && record.sessions) {
         record.sessions.forEach((s: any) => {
-          if (s.type === 'work' && (s.completed || s.duration > 0)) {
+          if (s.type === 'work') {
             const evtId = s.eventId;
             if (evtId) {
               if (!rawAllTimeStats[evtId]) rawAllTimeStats[evtId] = { count: 0, minutes: 0 };
-              rawAllTimeStats[evtId].count += (typeof s.count === 'number' ? s.count : 1);
+              rawAllTimeStats[evtId].count += pomodoroManager.calculateSessionCount(s);
               rawAllTimeStats[evtId].minutes += s.duration || 0;
             }
           }
@@ -349,19 +349,27 @@ export class TaskSummaryDialog {
       const dateStr = getLogicalDateString(current);
       const record = (pomodoroManager as any).records[dateStr];
       if (record) {
-        totalPomodoros += record.workSessions || 0;
+        // Recalculate daily total dynamically to ensure consistency with new rules
+        const dayTotal = record.sessions ? record.sessions.reduce((sum: number, s: any) => {
+          if (s.type === 'work') {
+            return sum + pomodoroManager.calculateSessionCount(s);
+          }
+          return sum;
+        }, 0) : (record.workSessions || 0);
+
+        totalPomodoros += dayTotal;
         totalMinutes += record.totalWorkTime || 0;
 
         // 原始统计
         const rawTaskStats: { [id: string]: { count: number, minutes: number } } = {};
         if (record.sessions) {
           record.sessions.forEach((s: any) => {
-            if (s.type === 'work' && (s.completed || s.duration > 0)) {
+            if (s.type === 'work') {
               // 兼容旧数据，有些session没有eventId
               const evtId = s.eventId;
               if (evtId) {
                 if (!rawTaskStats[evtId]) rawTaskStats[evtId] = { count: 0, minutes: 0 };
-                rawTaskStats[evtId].count += (typeof s.count === 'number' ? s.count : 1);
+                rawTaskStats[evtId].count += pomodoroManager.calculateSessionCount(s);
                 rawTaskStats[evtId].minutes += s.duration || 0;
               }
             }
@@ -401,7 +409,7 @@ export class TaskSummaryDialog {
         });
 
         pomodoroByDate[getLocalDateString(current)] = {
-          count: record.workSessions || 0,
+          count: dayTotal,
           minutes: record.totalWorkTime || 0,
           taskStats: aggregatedTaskStats
         };

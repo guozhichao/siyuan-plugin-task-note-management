@@ -102,7 +102,7 @@ export class PomodoroSessionsDialog {
 
         // 计算统计信息
         const totalSessions = this.sessions.reduce((sum, s) => {
-            if (s.type === 'work' && s.completed) {
+            if (s.type === 'work') {
                 return sum + this.recordManager.calculateSessionCount(s);
             }
             return sum;
@@ -170,7 +170,7 @@ export class PomodoroSessionsDialog {
             : '<span style="background: #ff9800; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;">⊗ 中断</span>';
 
         let extraBadges = '';
-        if (session.type === 'work' && session.completed) {
+        if (session.type === 'work') {
             const count = this.recordManager.calculateSessionCount(session);
 
             if (session.isCountUp) {
@@ -419,9 +419,7 @@ export class PomodoroSessionsDialog {
 
                 // 更新统计
                 if (type === 'work') {
-                    if (completed) {
-                        records[logicalDate].workSessions += this.recordManager.calculateSessionCount(session);
-                    }
+                    records[logicalDate].workSessions += this.recordManager.calculateSessionCount(session);
                     records[logicalDate].totalWorkTime += duration;
                 } else {
                     records[logicalDate].totalBreakTime += duration;
@@ -563,9 +561,7 @@ export class PomodoroSessionsDialog {
                 records[logicalDate].sessions.push(newSession);
 
                 if (type === 'work') {
-                    if (completed) {
-                        records[logicalDate].workSessions += this.recordManager.calculateSessionCount(newSession);
-                    }
+                    records[logicalDate].workSessions += this.recordManager.calculateSessionCount(newSession);
                     records[logicalDate].totalWorkTime += duration;
                 } else {
                     records[logicalDate].totalBreakTime += duration;
@@ -641,7 +637,12 @@ export class PomodoroSessionsDialog {
             const reminderData = await this.plugin.loadData('reminder.json') || {};
 
             if (reminderData && reminderData[this.reminderId]) {
-                const count = this.sessions.filter(s => s.type === 'work' && s.completed).length;
+                const count = this.sessions.reduce((sum, s) => {
+                    if (s.type === 'work') {
+                        return sum + this.recordManager.calculateSessionCount(s);
+                    }
+                    return sum;
+                }, 0);
 
                 // 只有当数量不一致时才更新
                 if (reminderData[this.reminderId].pomodoroCount !== count) {
