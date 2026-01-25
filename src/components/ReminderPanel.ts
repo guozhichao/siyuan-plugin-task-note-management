@@ -2575,35 +2575,8 @@ export class ReminderPanel {
     }
 
     public async getTaskCountByTabs(tabNames: string[], excludeDesserts: boolean = false): Promise<number> {
-        const today = getLogicalDateString();
-        const reminderData = await getAllReminders(this.plugin);
-        const allReminders = this.generateAllRemindersWithInstances(reminderData, today);
-
-        const reminderMap = new Map<string, any>();
-        allReminders.forEach(r => reminderMap.set(r.id, r));
-
-        const matchedIds = new Set<string>();
-        tabNames.forEach(tab => {
-            const filtered = this.filterRemindersByTab(allReminders, today, tab, excludeDesserts);
-            filtered.forEach(r => matchedIds.add(r.id));
-        });
-
-        const finalReminders = allReminders.filter(r => matchedIds.has(r.id));
-        const finalIds = new Set(finalReminders.map(r => r.id));
-
-        let count = 0;
-        finalReminders.forEach(r => {
-            if (r.parentId) {
-                const parent = reminderMap.get(r.parentId);
-                // 如果父任务也在列表中且未完成，则子任务不计数（遵循面板/勋章的一致逻辑：只统计顶层未完成项）
-                if (parent && !parent.completed && finalIds.has(r.parentId)) {
-                    return;
-                }
-            }
-            count++;
-        });
-
-        return count;
+        const { ReminderTaskLogic } = await import("../utils/reminderTaskLogic");
+        return ReminderTaskLogic.getTaskCountByTabs(this.plugin, tabNames, excludeDesserts);
     }
 
     private filterRemindersByTab(reminders: any[], today: string, tabName?: string, excludeDesserts: boolean = false): any[] {
@@ -2677,7 +2650,6 @@ export class ReminderPanel {
             case 'overdue':
                 return reminders.filter(r => {
                     if (!r.date || isEffectivelyCompleted(r)) return false;
-                    const startLogical = this.getReminderLogicalDate(r.date, r.time);
                     const endLogical = this.getReminderLogicalDate(r.endDate || r.date, r.endTime || r.time);
                     return compareDateStrings(endLogical, today) < 0;
                 });

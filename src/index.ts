@@ -882,11 +882,9 @@ export default class ReminderPlugin extends Plugin {
 
     private async updateBadges() {
         try {
-            // 使用 ReminderPanel 的统一逻辑计算今日任务数（包括今日和逾期）
-            // 如果 reminderPanel 还没初始化，先创建一个临时的用于计算
-            let panel = this.reminderPanel;
-
-            const uncompletedCount = await panel.getTaskCountByTabs(['today', 'overdue'], true);
+            // 使用 ReminderTaskLogic 的统一逻辑计算今日任务数（包括今日和逾期）
+            const { ReminderTaskLogic } = await import("./utils/reminderTaskLogic");
+            const uncompletedCount = await ReminderTaskLogic.getTaskCountByTabs(this, ['today', 'overdue'], true);
             this.setDockBadge(uncompletedCount);
         } catch (error) {
             console.error('更新徽章失败:', error);
