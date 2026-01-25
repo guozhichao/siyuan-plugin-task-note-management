@@ -3369,6 +3369,14 @@ export class ProjectKanbanView {
         const column = this.container.querySelector(`.kanban-column-${status}`) as HTMLElement;
         if (!column) return;
 
+        // If this is a standard status column, use the stable groups renderer
+        // This prevents destroying the grouping structure and avoids duplicating header buttons
+        if (['doing', 'short_term', 'long_term', 'completed'].includes(status)) {
+            this.ensureColumnHasStableGroups(column, status);
+            this.renderStatusColumnWithStableGroups(status, tasks).catch(err => console.error('Render stable group failed:', err));
+            return;
+        }
+
         const content = column.querySelector('.kanban-column-content') as HTMLElement;
         let count = column.querySelector('.kanban-column-count') as HTMLElement;
 
@@ -6292,15 +6300,10 @@ export class ProjectKanbanView {
                                 this.renderUngroupedColumn(ungroupedTasks);
                             }
                         } else {
-                            const status = savedTask.kanbanStatus || 'todo';
-                            // 过滤出该状态列的所有任务（包含对 backlog/stable 分组的考虑默认由 renderColumn 处理）
-                            // 注意：renderColumn 内部会处理 augmentTasksWithDescendants
-                            // 这里我们需要传入属于该状态的所有顶层任务（和 renderKanban 中的逻辑一致）
-                            const tasksInColumn = this.tasks.filter(t => {
-                                const tStatus = t.kanbanStatus || 'todo';
-                                const targetColumn = t.customGroupId && !['doing', 'short_term', 'long_term', 'completed'].includes(t.customGroupId) ? t.customGroupId : tStatus;
-                                return targetColumn === status;
-                            });
+                            const status = this.getTaskStatus(savedTask);
+                            // 过滤出该状态列的所有任务
+                            // 使用 getTaskStatus 确保逻辑一致（处理完成状态、日期自动归档、忽略自定义分组ID对列的影响）
+                            const tasksInColumn = this.tasks.filter(t => this.getTaskStatus(t) === status);
                             this.renderColumn(status, tasksInColumn);
                         }
 
