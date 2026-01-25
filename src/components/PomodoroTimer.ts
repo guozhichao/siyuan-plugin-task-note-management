@@ -5585,6 +5585,13 @@ export class PomodoroTimer {
             return false;
         }
 
+        // 检查是否是 BrowserWindow 模式
+        // 注意：this.container 类型定义为 HTMLElement，但在 BrowserWindow 模式下会被赋值为 BrowserWindow 实例
+        const containerAny = this.container as any;
+        if (!this.isTabMode && containerAny && typeof containerAny.isDestroyed === 'function') {
+            return !containerAny.isDestroyed();
+        }
+
         // 检查DOM元素是否仍然存在且在文档中
         return this.container &&
             this.container.parentNode &&
