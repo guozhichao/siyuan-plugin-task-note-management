@@ -3307,7 +3307,7 @@ export class ProjectKanbanView {
             projectGroups.forEach((group: any) => {
                 const groupTasks = tasks.filter(task => task.customGroupId === group.id);
                 if (groupTasks.length > 0) {
-                    const groupSubContainer = this.createCustomGroupInStatusColumn(group, groupTasks, isCollapsedDefault);
+                    const groupSubContainer = this.createCustomGroupInStatusColumn(group, groupTasks, isCollapsedDefault, status);
                     groupsSubContainer.appendChild(groupSubContainer);
                 }
             });
@@ -3322,7 +3322,7 @@ export class ProjectKanbanView {
                     icon: '📋'
                 };
                 const isCollapsedDefault = status === 'completed';
-                const ungroupedContainer = this.createCustomGroupInStatusColumn(ungroupedGroup, ungroupedTasks, isCollapsedDefault);
+                const ungroupedContainer = this.createCustomGroupInStatusColumn(ungroupedGroup, ungroupedTasks, isCollapsedDefault, status);
                 groupsSubContainer.appendChild(ungroupedContainer);
             }
 
@@ -3797,6 +3797,9 @@ export class ProjectKanbanView {
             border: 1px solid ${group.color}30;
             border-radius: 6px;
             cursor: pointer;
+            position: sticky;
+            top: 0;
+            z-index: 10;
         `;
 
         const groupTitle = document.createElement('div');
@@ -4010,7 +4013,7 @@ export class ProjectKanbanView {
         projectGroups.forEach((group: any) => {
             const groupTasks = tasks.filter(task => task.customGroupId === group.id);
             if (groupTasks.length > 0) {
-                const groupContainer = this.createCustomGroupInStatusColumn(group, groupTasks);
+                const groupContainer = this.createCustomGroupInStatusColumn(group, groupTasks, false, status);
                 groupsContainer.appendChild(groupContainer);
             }
         });
@@ -4024,14 +4027,14 @@ export class ProjectKanbanView {
                 color: '#95a5a6',
                 icon: '📋'
             };
-            const ungroupedContainer = this.createCustomGroupInStatusColumn(ungroupedGroup, ungroupedTasks);
+            const ungroupedContainer = this.createCustomGroupInStatusColumn(ungroupedGroup, ungroupedTasks, false, status);
             groupsContainer.appendChild(ungroupedContainer);
         }
 
         content.appendChild(groupsContainer);
     }
 
-    private createCustomGroupInStatusColumn(group: any, tasks: any[], isCollapsedDefault: boolean = false): HTMLElement {
+    private createCustomGroupInStatusColumn(group: any, tasks: any[], isCollapsedDefault: boolean = false, status: string = ''): HTMLElement {
         const groupContainer = document.createElement('div');
         groupContainer.className = 'custom-group-in-status';
         groupContainer.dataset.groupId = group.id;
@@ -4048,6 +4051,9 @@ export class ProjectKanbanView {
             border: 1px solid ${group.color}30;
             border-radius: 6px;
             cursor: pointer;
+            position: sticky;
+            top: 0;
+            z-index: 10;
         `;
 
         const groupTitle = document.createElement('div');
@@ -7764,6 +7770,9 @@ export class ProjectKanbanView {
 
             .custom-group-header {
                 user-select: none;
+                position: sticky;
+                top: 0;
+                z-index: 10;
             }
 
             .custom-group-header:hover {
@@ -7815,6 +7824,9 @@ export class ProjectKanbanView {
 
             .custom-status-group-header {
                 user-select: none;
+                position: sticky;
+                top: 0;
+                z-index: 10;
             }
 
             .custom-status-group-header:hover {
