@@ -5981,7 +5981,6 @@ export class PomodoroTimer {
                 y: y,
                 frame: false,
                 alwaysOnTop: true,
-                resizable: true,
                 movable: true,
                 skipTaskbar: false,
                 hasShadow: !this.isDocked,
