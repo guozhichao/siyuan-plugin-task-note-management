@@ -165,9 +165,7 @@ export class PomodoroSessionsDialog {
         });
 
         const typeIcon = this.getTypeIcon(session.type);
-        const statusBadge = session.completed
-            ? '<span style="background: #4caf50; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;">✓ 完成</span>'
-            : '<span style="background: #ff9800; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;">⊗ 中断</span>';
+        const statusBadge = '<span style="background: #4caf50; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;">✓ 完成</span>';
 
         let extraBadges = '';
         if (session.type === 'work') {
@@ -178,8 +176,11 @@ export class PomodoroSessionsDialog {
                 if (count > 0) {
                     extraBadges += `<span style="background: var(--b3-theme-primary-light); color: var(--b3-theme-primary); padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 4px;">🍅 x${count}</span>`;
                 }
-            } else if (count > 1) {
-                extraBadges += `<span style="background: var(--b3-theme-primary-light); color: var(--b3-theme-primary); padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 4px;">🍅 x${count}</span>`;
+            } else {
+                extraBadges += `<span style="background: var(--b3-theme-primary); color: var(--b3-theme-on-primary); padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 4px;">⏳ 倒计时</span>`;
+                if (count > 0) {
+                    extraBadges += `<span style="background: var(--b3-theme-primary-light); color: var(--b3-theme-primary); padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 4px;">🍅 x${count}</span>`;
+                }
             }
         }
 
@@ -288,13 +289,6 @@ export class PomodoroSessionsDialog {
                         <label class="b3-form__label">${t("duration") || "持续时长"} (${t("minutes") || "分钟"})</label>
                         <input type="number" id="sessionDuration" class="b3-text-field" value="${workDuration}" min="1" style="width: 100%;" required>
                     </div>
-                    <div class="b3-form__group">
-                        <label class="b3-checkbox">
-                            <input type="checkbox" id="sessionCompleted" checked>
-                            <span class="b3-checkbox__graphic"></span>
-                            <span class="b3-checkbox__label">${t("completed") || "已完成"}</span>
-                        </label>
-                    </div>
                     <div class="b3-form__group" id="countUpGroup">
                         <label class="b3-checkbox">
                             <input type="checkbox" id="sessionIsCountUp">
@@ -320,6 +314,8 @@ export class PomodoroSessionsDialog {
         const typeSelect = addDialog.element.querySelector("#sessionType") as HTMLSelectElement;
         const durationInput = addDialog.element.querySelector("#sessionDuration") as HTMLInputElement;
         const countUpGroup = addDialog.element.querySelector("#countUpGroup") as HTMLDivElement;
+
+        const isCountUpCheckbox = addDialog.element.querySelector("#sessionIsCountUp") as HTMLInputElement;
 
         const updateUIState = () => {
             const isWork = typeSelect.value === 'work';
@@ -347,6 +343,8 @@ export class PomodoroSessionsDialog {
             updateUIState();
         });
 
+        isCountUpCheckbox.addEventListener("change", updateUIState);
+
         // 取消按钮
         addDialog.element.querySelector(".b3-button--cancel")?.addEventListener("click", () => {
             addDialog.destroy();
@@ -357,7 +355,7 @@ export class PomodoroSessionsDialog {
             const type = (addDialog.element.querySelector("#sessionType") as HTMLSelectElement).value as 'work' | 'shortBreak' | 'longBreak';
             const startTimeStr = (addDialog.element.querySelector("#sessionStartTime") as HTMLInputElement).value;
             const duration = parseInt((addDialog.element.querySelector("#sessionDuration") as HTMLInputElement).value);
-            const completed = (addDialog.element.querySelector("#sessionCompleted") as HTMLInputElement).checked;
+            const completed = true; // 强制为已完成
             const isCountUp = (addDialog.element.querySelector("#sessionIsCountUp") as HTMLInputElement).checked;
 
             if (!startTimeStr || !duration || duration <= 0) {
@@ -380,7 +378,7 @@ export class PomodoroSessionsDialog {
 
                 if (type === 'work' && isCountUp) {
                     plannedDuration = workDuration; // 正计时模式下，计划时长为单位时长
-                    count = Math.round(duration / Math.max(1, plannedDuration));
+                    count = Math.max(1, Math.round(duration / Math.max(1, plannedDuration)));
                 }
 
                 // 创建会话记录
@@ -472,13 +470,6 @@ export class PomodoroSessionsDialog {
                         <label class="b3-form__label">${t("duration") || "持续时长"} (${t("minutes") || "分钟"})</label>
                         <input type="number" id="editSessionDuration" class="b3-text-field" min="1" style="width: 100%;" required>
                     </div>
-                    <div class="b3-form__group">
-                        <label class="b3-checkbox">
-                            <input type="checkbox" id="editSessionCompleted">
-                            <span class="b3-checkbox__graphic"></span>
-                            <span class="b3-checkbox__label">${t("completed") || "已完成"}</span>
-                        </label>
-                    </div>
                     <div class="b3-dialog__action">
                         <button class="b3-button b3-button--cancel">${t("cancel")}</button>
                         <button class="b3-button b3-button--primary" id="confirmEditPomodoro">${t("save")}</button>
@@ -492,7 +483,6 @@ export class PomodoroSessionsDialog {
         const typeSelect = editDialog.element.querySelector("#editSessionType") as HTMLSelectElement;
         const startTimeInput = editDialog.element.querySelector("#editSessionStartTime") as HTMLInputElement;
         const durationInput = editDialog.element.querySelector("#editSessionDuration") as HTMLInputElement;
-        const completedCheckbox = editDialog.element.querySelector("#editSessionCompleted") as HTMLInputElement;
 
         typeSelect.value = session.type;
 
@@ -500,7 +490,6 @@ export class PomodoroSessionsDialog {
         startTimeInput.value = `${startTime.getFullYear()}-${String(startTime.getMonth() + 1).padStart(2, '0')}-${String(startTime.getDate()).padStart(2, '0')}T${String(startTime.getHours()).padStart(2, '0')}:${String(startTime.getMinutes()).padStart(2, '0')}`;
 
         durationInput.value = session.duration.toString();
-        completedCheckbox.checked = session.completed;
 
         // 取消按钮
         editDialog.element.querySelector(".b3-button--cancel")?.addEventListener("click", () => {
@@ -512,7 +501,7 @@ export class PomodoroSessionsDialog {
             const type = typeSelect.value as 'work' | 'shortBreak' | 'longBreak';
             const startTimeStr = startTimeInput.value;
             const duration = parseInt(durationInput.value);
-            const completed = completedCheckbox.checked;
+            const completed = true; // 强制为已完成
 
             if (!startTimeStr || !duration || duration <= 0) {
                 showMessage(t("pleaseEnterValidInfo") || "请输入有效信息", 3000, "error");
@@ -540,8 +529,17 @@ export class PomodoroSessionsDialog {
                     endTime: endTime.toISOString(),
                     duration,
                     plannedDuration: duration,
-                    completed
+                    completed,
+                    isCountUp: session.isCountUp, // 保留原有的计时属性
+                    count: session.count // 保留原有的番茄数计数
                 };
+
+                // 如果修改了时长且是正计时/工作番茄，可能需要重新计算count
+                if (newSession.type === 'work' && newSession.isCountUp && newSession.duration !== session.duration) {
+                    // 简单重新计算：如果有plannedDuration则用，否则假设25
+                    const base = session.plannedDuration || 25;
+                    newSession.count = Math.max(1, Math.round(newSession.duration / Math.max(1, base)));
+                }
 
                 // 添加新会话
                 const { getLogicalDateString } = await import("../utils/dateUtils");
