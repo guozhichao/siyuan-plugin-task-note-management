@@ -2574,7 +2574,40 @@ export class ReminderPanel {
         );
     }
 
-    private filterRemindersByTab(reminders: any[], today: string): any[] {
+    public async getTaskCountByTabs(tabNames: string[], excludeDesserts: boolean = false): Promise<number> {
+        const today = getLogicalDateString();
+        const reminderData = await getAllReminders(this.plugin);
+        const allReminders = this.generateAllRemindersWithInstances(reminderData, today);
+
+        const reminderMap = new Map<string, any>();
+        allReminders.forEach(r => reminderMap.set(r.id, r));
+
+        const matchedIds = new Set<string>();
+        tabNames.forEach(tab => {
+            const filtered = this.filterRemindersByTab(allReminders, today, tab, excludeDesserts);
+            filtered.forEach(r => matchedIds.add(r.id));
+        });
+
+        const finalReminders = allReminders.filter(r => matchedIds.has(r.id));
+        const finalIds = new Set(finalReminders.map(r => r.id));
+
+        let count = 0;
+        finalReminders.forEach(r => {
+            if (r.parentId) {
+                const parent = reminderMap.get(r.parentId);
+                // 如果父任务也在列表中且未完成，则子任务不计数（遵循面板/勋章的一致逻辑：只统计顶层未完成项）
+                if (parent && !parent.completed && finalIds.has(r.parentId)) {
+                    return;
+                }
+            }
+            count++;
+        });
+
+        return count;
+    }
+
+    private filterRemindersByTab(reminders: any[], today: string, tabName?: string, excludeDesserts: boolean = false): any[] {
+        const targetTab = tabName || this.currentTab;
         const tomorrow = getRelativeDateString(1);
         const future7Days = getRelativeDateString(7);
         const sevenDaysAgo = getRelativeDateString(-7);
@@ -2640,7 +2673,7 @@ export class ReminderPanel {
             return current;
         };
 
-        switch (this.currentTab) {
+        switch (targetTab) {
             case 'overdue':
                 return reminders.filter(r => {
                     if (!r.date || isEffectivelyCompleted(r)) return false;
@@ -2653,29 +2686,19 @@ export class ReminderPanel {
                     const isCompleted = isEffectivelyCompleted(r);
                     if (isCompleted) return false;
 
-                    // 1. 常规今日任务：有日期且日期 <= 今天 (过期的在today视图也显示? 通常today只显示今天，但siyuan插件逻辑可能是today+overdue? 
-                    // 原逻辑: startLogical <= today && today <= endLogical. 
+                    // 1. 常规今日任务：有日期且 (在日期范围内 或 已逾期)
                     const startLogical = r.date ? this.getReminderLogicalDate(r.date, r.time) : null;
-                    const endLogical = r.endDate ? this.getReminderLogicalDate(r.endDate || r.date, r.endTime || r.time) : null;
+                    const endLogical = r.date ? this.getReminderLogicalDate(r.endDate || r.date, r.endTime || r.time) : null;
 
-                    const isNormalToday = r.date && startLogical && startLogical === today;
-                    // 如果有endDate，跨天逻辑
-                    const isSpanningToday = r.date && r.endDate && startLogical && endLogical &&
-                        compareDateStrings(startLogical, today) <= 0 &&
-                        compareDateStrings(today, endLogical) <= 0;
-
-                    if (isNormalToday || isSpanningToday) return true;
+                    if (r.date && startLogical && endLogical) {
+                        const inRange = compareDateStrings(startLogical, today) <= 0 && compareDateStrings(today, endLogical) <= 0;
+                        const isOverdue = compareDateStrings(endLogical, today) < 0;
+                        if (inRange || isOverdue) return true;
+                    }
 
                     // 2. 今日可做任务 (Daily Dessert): 
-                    // 条件: isAvailableToday == true AND availableStartDate <= today
-                    // 且: 不能是上面已经包含的常规今日任务 (avoid duplicates, though logic above prevents no-date items from being normal today)
-                    // 如果有date且date不是今天/跨天范围，那么它不属于today视图的常规部分。
-                    // 用户说：除非设置了日期并且属于今日任务。
-                    // 我们可以理解为：如果任务有确定的日期，它就按确定日期的逻辑走。
-                    // 如果任务没有日期，或者日期在未来? 
-                    // "如果没有明确截止时间...有空时候做做" -> implied usually no date.
-                    // 如果设置了日期，就按日期。
-                    // 所以：
+                    if (excludeDesserts) return false;
+
                     if (r.isAvailableToday) {
                         const availDate = r.availableStartDate || today;
                         if (compareDateStrings(availDate, today) <= 0) {
