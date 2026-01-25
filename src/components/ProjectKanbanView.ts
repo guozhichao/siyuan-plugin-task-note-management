@@ -2382,7 +2382,8 @@ export class ProjectKanbanView {
             columns.forEach((col) => {
                 const content = col.querySelector('.kanban-column-content') as HTMLElement | null;
                 if (content) {
-                    const status = (col.getAttribute('data-status') || col.dataset.status) || (col.getAttribute('data-group-id') || col.dataset.groupId) || '';
+                    const htmlCol = col as HTMLElement;
+                    const status = (htmlCol.getAttribute('data-status') || htmlCol.dataset.status) || (htmlCol.getAttribute('data-group-id') || htmlCol.dataset.groupId) || '';
                     const key = status ? status : `col-${Array.prototype.indexOf.call(columns, col)}`;
                     columnScrollTopMap[key] = content.scrollTop || 0;
                 }
@@ -5882,7 +5883,10 @@ export class ProjectKanbanView {
                     const taskEl = this.container.querySelector(`[data-task-id="${actualTaskId}"]`) as HTMLElement;
                     if (taskEl) {
                         const moved = this.moveTaskCardToColumn(taskEl, oldStatus, newStatus);
-                        if (!moved) {
+                        if (moved) {
+                            // 刷新任务元素以应用新的样式（如已完成状态的透明度）
+                            this.refreshTaskElement(actualTaskId);
+                        } else {
                             // 移动失败,重新加载
                             await this.queueLoadTasks();
                         }
@@ -8870,9 +8874,10 @@ export class ProjectKanbanView {
                     draggedTaskInDb.priority = newPriority;
                 }
 
+                let sourceList: any[] = [];
                 // Source list cleanup - filter by BOTH group AND status
                 if (draggedGroup !== actualTargetGroup || oldStatus !== newStatus || oldPriority !== newPriority) {
-                    const sourceList = Object.values(reminderData)
+                    sourceList = Object.values(reminderData)
                         .filter((r: any) => r && r.projectId === this.projectId && !r.parentId)
                         .filter((r: any) => {
                             const rGroup = (r.customGroupId === undefined) ? null : r.customGroupId;
@@ -8922,15 +8927,29 @@ export class ProjectKanbanView {
 
                 await saveReminders(this.plugin, reminderData);
 
-                // Update local cache
-                targetList.forEach((task: any) => {
+                // Update local cache for ALL tasks involved (to keep status/priority/sort in sync)
+                [...sourceList, ...targetList].forEach((task: any) => {
                     const localTask = this.tasks.find(t => t.id === task.id);
-                    if (localTask) localTask.sort = task.sort;
+                    if (localTask) {
+                        localTask.sort = task.sort;
+                        localTask.priority = task.priority;
+                        localTask.kanbanStatus = task.kanbanStatus;
+                        localTask.customGroupId = task.customGroupId;
+                        localTask.completed = task.completed;
+                        localTask.completedTime = task.completedTime;
+                        localTask.termType = task.termType;
+                    }
                 });
 
                 // Optimistic DOM update
                 const domUpdated = this.reorderTasksDOM(draggedId, targetId, insertBefore);
-                if (!domUpdated) await this.queueLoadTasks();
+
+                // Refresh the dragged task's visual appearance to reflect changes in priority/status
+                if (domUpdated) {
+                    this.refreshTaskElement(draggedId);
+                } else {
+                    await this.queueLoadTasks();
+                }
 
                 this.dispatchReminderUpdate(true);
                 return;
@@ -9009,9 +9028,10 @@ export class ProjectKanbanView {
                 }
             }
 
+            let sourceList: any[] = [];
             // --- Reorder source list ---
             if (oldStatus !== newStatus || oldPriority !== newPriority) {
-                const sourceList = Object.values(reminderData)
+                sourceList = Object.values(reminderData)
                     .filter((r: any) => r && r.projectId === this.projectId && !r.parentId && this.getTaskStatus(r) === oldStatus && (r.priority || 'none') === oldPriority && r.id !== draggedId)
                     .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
 
@@ -9038,14 +9058,27 @@ export class ProjectKanbanView {
                 reminderData[task.id].sort = index * 10;
             });
             await saveReminders(this.plugin, reminderData);
-            targetList.forEach((task: any) => {
+
+            // Update local cache for ALL tasks involved
+            [...sourceList, ...targetList].forEach((task: any) => {
                 const localTask = this.tasks.find(t => t.id === task.id);
-                if (localTask) localTask.sort = task.sort;
+                if (localTask) {
+                    localTask.sort = task.sort;
+                    localTask.priority = task.priority;
+                    localTask.kanbanStatus = task.kanbanStatus;
+                    localTask.customGroupId = task.customGroupId;
+                    localTask.completed = task.completed;
+                    localTask.completedTime = task.completedTime;
+                    localTask.termType = task.termType;
+                }
             });
 
             // 尝试直接更新DOM,失败时才重新加载
             const domUpdated = this.reorderTasksDOM(draggedId, targetId, insertBefore);
-            if (!domUpdated) {
+            if (domUpdated) {
+                // Refresh the dragged task's visual appearance
+                this.refreshTaskElement(draggedId);
+            } else {
                 await this.queueLoadTasks();
             }
 
@@ -9719,6 +9752,27 @@ export class ProjectKanbanView {
             countEl.textContent = newCount.toString();
         } catch (error) {
             console.error('更新列计数失败:', error);
+        }
+    }
+
+    /**
+     * 刷新单个任务元素的显示（不重绘整列）
+     * @param taskId 任务ID
+     */
+    private refreshTaskElement(taskId: string) {
+        try {
+            const oldEl = this.container.querySelector(`[data-task-id="${taskId}"]`) as HTMLElement;
+            if (!oldEl) return;
+
+            const task = this.tasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            const level = parseInt(oldEl.dataset.level || '0', 10);
+            const newEl = this.createTaskElement(task, level);
+
+            oldEl.replaceWith(newEl);
+        } catch (error) {
+            console.error('刷新任务元素失败:', error);
         }
     }
 
