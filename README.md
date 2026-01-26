@@ -50,6 +50,7 @@
 - [深入讲解「番茄工作法」：一天专注十小时还不累的秘密](https://mp.weixin.qq.com/s/SoZ0ccPc7kJTYfwBnB5IGw)
 - [《防弹笔记法》阅读笔记：应该如何收集和处理资料](https://zhuanlan.zhihu.com/p/1959665210475417795)
 - [知识管理是“效率陷阱”，于是我打算放弃知识管理，拥抱任务管理](https://www.zhihu.com/question/20737761/answer/1936010685457863484)
+- [《大脑减压的子弹笔记法》：任务管理需要有系统思维丨这是我2025年遇见的讲任务管理与知识管理最好的书](https://mp.weixin.qq.com/s/uU5tFDpp1JnVmUeCXb4umw)
 - [用防弹笔记法来写论文的心得](https://zhuanlan.zhihu.com/p/1992933374520758739)
 - [任务管理思考：如何管理那些每天想做但是不是必须做的充电任务？](https://zhuanlan.zhihu.com/p/1998207702464214330)
 - [任务管理思考：管理任务而不是管理时间，如何做todo list与done list](https://zhuanlan.zhihu.com/p/1998351038776894511)
