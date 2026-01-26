@@ -480,13 +480,17 @@ export class ReminderPanel {
         // 不受用户选择的排序方式（如按优先级）影响，也不受升降序切换影响
         if (isCompletedFilter) {
             reminders.sort((a: any, b: any) => {
+                const today = getLogicalDateString();
+
+                // 只有被忽略的任务才强制排在最后，已完成的每日可做参与正常排序
+                const aIsIgnored = a.isAvailableToday && Array.isArray(a.dailyDessertIgnored) && a.dailyDessertIgnored.includes(today);
+                const bIsIgnored = b.isAvailableToday && Array.isArray(b.dailyDessertIgnored) && b.dailyDessertIgnored.includes(today);
+
+                if (aIsIgnored && !bIsIgnored) return 1;
+                if (!aIsIgnored && bIsIgnored) return -1;
+
                 // 直接使用 compareByCompletedTime 的结果作为最终排序依据
-                // 这确保了无日期但有完成时间的任务不会回退到日期排序
                 let result = this.compareByCompletedTime(a, b);
-
-
-
-                // compareByCompletedTime 已返回降序的基础结果，直接返回（不再受 sortOrder 影响）
                 return result;
             });
 
@@ -1635,25 +1639,36 @@ export class ReminderPanel {
                 // So checking transition is enough.
 
                 // 只有 top-level 任务需要分隔符。
-                if (level === 0 && this.currentTab === 'today') {
-                    const isDessert = reminder.isAvailableToday && (!reminder.date || reminder.date !== today);
-                    // 检查前一个 top-level 任务
-                    // This is tricky inside the queue loop which mixes levels.
-                    // Better strategy: insert separator into fragment when we confirm a transition in topLevelReminders list processing?
-                    // BUT renderQueue mixes children.
+                if (level === 0 && (this.currentTab === 'today' || this.currentTab === 'todayCompleted')) {
+                    // 判断是否属于“底部栏目”（每日可做或今日忽略）
+                    let isBottomGroup = false;
+                    if (this.currentTab === 'today') {
+                        // 今日任务 Tab 中：所有显示的每日可做任务（即未完成未忽略的）
+                        isBottomGroup = reminder.isAvailableToday && (!reminder.date || reminder.date !== today);
+                    } else if (this.currentTab === 'todayCompleted') {
+                        // 今日已完成 Tab 中：仅显示被忽略的任务，已完成的每日可做不再进入此组
+                        const dailyIgnored = Array.isArray(reminder.dailyDessertIgnored) ? reminder.dailyDessertIgnored : [];
+                        const dailyCompleted = Array.isArray(reminder.dailyDessertCompleted) ? reminder.dailyDessertCompleted : [];
+                        isBottomGroup = reminder.isAvailableToday && dailyIgnored.includes(today) && !dailyCompleted.includes(today);
+                    }
 
-                    // Alternative: Just add a class to the first dessert item and let CSS handle spacing/pseudo-element?
-                    // Or check `element` creation.
-
-                    if (isDessert) {
+                    if (isBottomGroup) {
                         const prevIndex = topLevelReminders.indexOf(reminder) - 1;
                         let shouldInsert = false;
 
-                        // Case 1: Transition from normal tasks to dessert tasks
+                        // Case 1: Transition from normal tasks to bottom group tasks
                         if (prevIndex >= 0) {
                             const prev = topLevelReminders[prevIndex];
-                            const prevIsDessert = prev.isAvailableToday && (!prev.date || prev.date !== today);
-                            if (!prevIsDessert) {
+                            let prevIsBottomGroup = false;
+                            if (this.currentTab === 'today') {
+                                prevIsBottomGroup = prev.isAvailableToday && (!prev.date || prev.date !== today);
+                            } else {
+                                const dailyIgnored = Array.isArray(prev.dailyDessertIgnored) ? prev.dailyDessertIgnored : [];
+                                const dailyCompleted = Array.isArray(prev.dailyDessertCompleted) ? prev.dailyDessertCompleted : [];
+                                prevIsBottomGroup = prev.isAvailableToday && dailyIgnored.includes(today) && !dailyCompleted.includes(today);
+                            }
+
+                            if (!prevIsBottomGroup) {
                                 shouldInsert = true;
                             }
                         }
@@ -1669,7 +1684,7 @@ export class ReminderPanel {
                                 const separator = document.createElement('div');
                                 separator.id = separatorId;
                                 separator.className = 'reminder-separator daily-dessert-separator';
-                                separator.innerHTML = `<span style="padding:0 8px; color:var(--b3-theme-on-surface-light);">🍰 每日可做 </span>`;
+                                separator.innerHTML = `<span style="padding:0 8px; color:var(--b3-theme-on-surface-light);">🍰 每日可做 / 今日忽略 </span>`;
                                 separator.style.cssText = `
                                      display: flex; 
                                      align-items: center; 
@@ -2076,7 +2091,9 @@ export class ReminderPanel {
         }
 
         // 已完成任务显示透明度并显示完成时间
-        if (reminder.completed) {
+        // (如果是跨天任务的今日完成，或是普通已完成)
+        const spanningCompletedTime = !reminder.completed && reminder.endDate ? this.getCompletedTime(reminder) : null;
+        if (reminder.completed || spanningCompletedTime) {
             // 添加已完成类
             reminderEl.classList.add('reminder-completed');
             // 设置整体透明度为 0.5（重要性以确保优先级）
@@ -2086,14 +2103,63 @@ export class ReminderPanel {
                 // ignore style errors
             }
 
-            // 获取完成时间（支持重复实例）并显示
-            const completedTimeStr = this.getCompletedTime(reminder);
+            // 获取完成时间（支持重复实例和跨天今日完成）并显示
+            const completedTimeStr = spanningCompletedTime || this.getCompletedTime(reminder);
             if (completedTimeStr) {
                 const completedEl = document.createElement('div');
                 completedEl.className = 'reminder-item__completed-time';
-                completedEl.textContent = `✅ ${this.formatCompletedTime(completedTimeStr)}`;
+
+                // 判断完成时间是否在逻辑上的“今天”
+                const currentLogicalToday = getLogicalDateString();
+                const completionDate = new Date(completedTimeStr.replace(' ', 'T'));
+                const completionLogicalDay = getLogicalDateString(completionDate);
+                const formattedTime = this.formatCompletedTime(completedTimeStr);
+
+                if (completionLogicalDay === currentLogicalToday) {
+                    // 今日完成的特殊显示格式
+                    const timeOnly = formattedTime.split(' ').pop() || formattedTime;
+                    completedEl.textContent = `✅ 今日已完成 (${timeOnly})`;
+                } else {
+                    completedEl.textContent = `✅ ${formattedTime}`;
+                }
+
                 completedEl.style.cssText = 'font-size:12px;  margin-top:6px; opacity:0.95;';
                 infoEl.appendChild(completedEl);
+            }
+        } else if (reminder.isAvailableToday) {
+            const currentToday = getLogicalDateString();
+            const dailyCompletedList = Array.isArray(reminder.dailyDessertCompleted) ? reminder.dailyDessertCompleted : [];
+            const dailyIgnoredList = Array.isArray(reminder.dailyDessertIgnored) ? reminder.dailyDessertIgnored : [];
+
+            if (dailyCompletedList.includes(currentToday)) {
+                reminderEl.classList.add('reminder-completed');
+                try {
+                    reminderEl.style.setProperty('opacity', '0.5', 'important');
+                } catch (e) { }
+                const completedEl = document.createElement('div');
+                completedEl.className = 'reminder-item__completed-time';
+
+                // 尝试获取今日完成时间
+                const dailyTimes = reminder.dailyDessertCompletedTimes || {};
+                const timeStr = dailyTimes[currentToday];
+                if (timeStr) {
+                    completedEl.textContent = `✅ 今日已完成 (${this.formatCompletedTime(timeStr).split(' ')[1] || this.formatCompletedTime(timeStr)})`;
+                } else {
+                    completedEl.textContent = `✅ 今日已完成`;
+                }
+
+                completedEl.style.cssText = 'font-size:12px;  margin-top:6px; opacity:0.95;';
+                infoEl.appendChild(completedEl);
+            } else if (dailyIgnoredList.includes(currentToday)) {
+                reminderEl.classList.add('reminder-ignored');
+                try {
+                    reminderEl.style.setProperty('opacity', '0.5', 'important');
+                } catch (e) { }
+                const ignoredEl = document.createElement('div');
+                ignoredEl.className = 'reminder-item__ignored-time';
+                ignoredEl.textContent = `⭕ 今日已忽略`;
+                ignoredEl.style.cssText = 'font-size:12px;  margin-top:6px; opacity:0.95;';
+                infoEl.appendChild(ignoredEl);
             }
         }
 
@@ -2339,6 +2405,12 @@ export class ReminderPanel {
                 // 添加今天到已完成列表 (如果还未添加)
                 if (!reminderData[targetId].dailyDessertCompleted.includes(todayStr)) {
                     reminderData[targetId].dailyDessertCompleted.push(todayStr);
+
+                    // 记录完成时间
+                    if (!reminderData[targetId].dailyDessertCompletedTimes) {
+                        reminderData[targetId].dailyDessertCompletedTimes = {};
+                    }
+                    reminderData[targetId].dailyDessertCompletedTimes[todayStr] = getLocalDateTimeString(now);
                 }
 
                 // 不将任务本身标记为完成，也不修改日期，使其明天继续作为"每日可做"出现
@@ -2366,6 +2438,11 @@ export class ReminderPanel {
                     // 从数组中移除今天
                     reminderData[targetId].dailyDessertCompleted = reminderData[targetId].dailyDessertCompleted.filter((d: string) => d !== todayStr);
 
+                    // 同步移除记录的时间
+                    if (reminderData[targetId].dailyDessertCompletedTimes) {
+                        delete reminderData[targetId].dailyDessertCompletedTimes[todayStr];
+                    }
+
                     await saveReminders(this.plugin, reminderData);
                     window.dispatchEvent(new CustomEvent('reminderUpdated'));
                     showMessage("已取消今日完成标记");
@@ -2373,6 +2450,57 @@ export class ReminderPanel {
             }
         } catch (e) {
             console.error("取消完成每日可做任务失败", e);
+            showMessage("操作失败", 3000, "error");
+        }
+    }
+
+    private async ignoreDailyDessertToday(reminder: any) {
+        try {
+            const reminderData = await getAllReminders(this.plugin);
+            const targetId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
+
+            if (reminderData[targetId]) {
+                const todayStr = getLogicalDateString();
+
+                // 初始化 dailyDessertIgnored 数组
+                if (!Array.isArray(reminderData[targetId].dailyDessertIgnored)) {
+                    reminderData[targetId].dailyDessertIgnored = [];
+                }
+
+                // 添加今天到忽略列表 (如果还未添加)
+                if (!reminderData[targetId].dailyDessertIgnored.includes(todayStr)) {
+                    reminderData[targetId].dailyDessertIgnored.push(todayStr);
+                }
+
+                await saveReminders(this.plugin, reminderData);
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                showMessage("今日已忽略该任务");
+            }
+        } catch (e) {
+            console.error("忽略每日可做任务失败", e);
+            showMessage("操作失败", 3000, "error");
+        }
+    }
+
+    private async undoDailyDessertIgnore(reminder: any) {
+        try {
+            const reminderData = await getAllReminders(this.plugin);
+            const targetId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
+
+            if (reminderData[targetId]) {
+                const todayStr = getLogicalDateString();
+
+                if (Array.isArray(reminderData[targetId].dailyDessertIgnored)) {
+                    // 从数组中移除今天
+                    reminderData[targetId].dailyDessertIgnored = reminderData[targetId].dailyDessertIgnored.filter((d: string) => d !== todayStr);
+
+                    await saveReminders(this.plugin, reminderData);
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    showMessage("已取消今日忽略");
+                }
+            }
+        } catch (e) {
+            console.error("取消忽略每日可做任务失败", e);
             showMessage("操作失败", 3000, "error");
         }
     }
@@ -2686,6 +2814,10 @@ export class ReminderPanel {
                             const dailyCompleted = Array.isArray(r.dailyDessertCompleted) ? r.dailyDessertCompleted : [];
                             if (dailyCompleted.includes(today)) return false;
 
+                            // 检查今天是否已忽略
+                            const dailyIgnored = Array.isArray(r.dailyDessertIgnored) ? r.dailyDessertIgnored : [];
+                            if (dailyIgnored.includes(today)) return false;
+
                             return true;
                         }
                     }
@@ -2716,12 +2848,19 @@ export class ReminderPanel {
                 return reminders.filter(r => isEffectivelyCompleted(r));
             case 'todayCompleted':
                 return reminders.filter(r => {
-                    // 特殊处理 Daily Dessert: 如果它今天被标记完成了 (dailyDessertCompleted includes today)，也应该显示
+                    // 1. 常规任务的今日完成
+                    if (this.isTodayCompleted(r, today)) return true;
+
+                    // 2. 特殊处理 Daily Dessert: 
                     if (r.isAvailableToday) {
+                        // 如果它今天被标记完成了 (dailyDessertCompleted includes today)，也应该显示
                         const dailyCompleted = Array.isArray(r.dailyDessertCompleted) ? r.dailyDessertCompleted : [];
                         if (dailyCompleted.includes(today)) return true;
-                    }
 
+                        // 如果它今天被忽略了，也应该显示
+                        const dailyIgnored = Array.isArray(r.dailyDessertIgnored) ? r.dailyDessertIgnored : [];
+                        if (dailyIgnored.includes(today)) return true;
+                    }
 
                     return false;
                 });
@@ -2970,14 +3109,35 @@ export class ReminderPanel {
 
     // 新增：获取完成时间的辅助方法
     private getCompletedTime(reminder: any): string | null {
+        // 如果是每日可做任务，优先获取今日完成时间
+        if (reminder.isAvailableToday) {
+            const today = getLogicalDateString();
+            const dailyTimes = reminder.dailyDessertCompletedTimes || {};
+            if (dailyTimes[today]) {
+                return dailyTimes[today];
+            }
+        }
+
         if (reminder.isRepeatInstance) {
             // 重复事件实例的完成时间
             const originalReminder = this.getOriginalReminder(reminder.originalId);
+            const today = getLogicalDateString();
+
+            // 优先检查跨天任务的今日完成记录
+            if (originalReminder && originalReminder.dailyCompletionsTimes && originalReminder.dailyCompletionsTimes[today]) {
+                return originalReminder.dailyCompletionsTimes[today];
+            }
+
             if (originalReminder && originalReminder.repeat?.completedTimes) {
                 return originalReminder.repeat.completedTimes[reminder.date] || null;
             }
         } else {
             // 普通事件的完成时间
+            const today = getLogicalDateString();
+            // 优先检查跨天任务的今日完成记录
+            if (reminder.dailyCompletionsTimes && reminder.dailyCompletionsTimes[today]) {
+                return reminder.dailyCompletionsTimes[today];
+            }
             return reminder.completedTime || null;
         }
         return null;
@@ -4324,17 +4484,17 @@ export class ReminderPanel {
             const yesterdayStr = getLocalDateString(yesterday);
 
             // 解析完成时间
-            const completedDate = new Date(completedTime);
-            const completedDateStr = getLocalDateString(completedDate);
+            const completedDate = new Date(completedTime.replace(' ', 'T'));
+            const completedDateLogicalStr = getLogicalDateString(completedDate);
 
             const timeStr = completedDate.toLocaleTimeString('zh-CN', {
                 hour: '2-digit',
                 minute: '2-digit'
             });
 
-            if (completedDateStr === today) {
+            if (completedDateLogicalStr === today) {
                 return `今天 ${timeStr}`;
-            } else if (completedDateStr === yesterdayStr) {
+            } else if (completedDateLogicalStr === yesterdayStr) {
                 return `昨天 ${timeStr}`;
             } else {
                 const dateStr = completedDate.toLocaleDateString('zh-CN', {
@@ -4432,6 +4592,28 @@ export class ReminderPanel {
                     this.completeDailyDessert(reminder);
                 }
             });
+
+            // --- ❌ 今日忽略 ---
+            const dailyIgnoredList = Array.isArray(reminder.dailyDessertIgnored) ? reminder.dailyDessertIgnored : [];
+            const isIgnoredToday = dailyIgnoredList.includes(today);
+            if (!isIgnoredToday) {
+                menu.addItem({
+                    iconHTML: "⭕",
+                    label: "今日忽略",
+                    click: () => {
+                        this.ignoreDailyDessertToday(reminder);
+                    }
+                });
+            } else {
+                menu.addItem({
+                    iconHTML: "↩️",
+                    label: "取消今日忽略",
+                    click: () => {
+                        this.undoDailyDessertIgnore(reminder);
+                    }
+                });
+            }
+
             menu.addSeparator();
         }
 
@@ -5028,7 +5210,11 @@ export class ReminderPanel {
                     if (!reminderData[originalId].dailyCompletions) {
                         reminderData[originalId].dailyCompletions = {};
                     }
+                    if (!reminderData[originalId].dailyCompletionsTimes) {
+                        reminderData[originalId].dailyCompletionsTimes = {};
+                    }
                     reminderData[originalId].dailyCompletions[today] = true;
+                    reminderData[originalId].dailyCompletionsTimes[today] = getLocalDateTimeString(new Date());
                     updatedReminder = reminderData[originalId];
                 }
             } else {
@@ -5037,7 +5223,11 @@ export class ReminderPanel {
                     if (!reminderData[reminder.id].dailyCompletions) {
                         reminderData[reminder.id].dailyCompletions = {};
                     }
+                    if (!reminderData[reminder.id].dailyCompletionsTimes) {
+                        reminderData[reminder.id].dailyCompletionsTimes = {};
+                    }
                     reminderData[reminder.id].dailyCompletions[today] = true;
+                    reminderData[reminder.id].dailyCompletionsTimes[today] = getLocalDateTimeString(new Date());
                     updatedReminder = reminderData[reminder.id];
                 }
             }
@@ -5075,14 +5265,24 @@ export class ReminderPanel {
             if (reminder.isRepeatInstance) {
                 // 重复事件实例：更新原始事件的每日完成记录
                 const originalId = reminder.originalId;
-                if (reminderData[originalId] && reminderData[originalId].dailyCompletions) {
-                    delete reminderData[originalId].dailyCompletions[today];
+                if (reminderData[originalId]) {
+                    if (reminderData[originalId].dailyCompletions) {
+                        delete reminderData[originalId].dailyCompletions[today];
+                    }
+                    if (reminderData[originalId].dailyCompletionsTimes) {
+                        delete reminderData[originalId].dailyCompletionsTimes[today];
+                    }
                     updatedReminder = reminderData[originalId];
                 }
             } else {
                 // 普通事件：更新事件的每日完成记录
-                if (reminderData[reminder.id] && reminderData[reminder.id].dailyCompletions) {
-                    delete reminderData[reminder.id].dailyCompletions[today];
+                if (reminderData[reminder.id]) {
+                    if (reminderData[reminder.id].dailyCompletions) {
+                        delete reminderData[reminder.id].dailyCompletions[today];
+                    }
+                    if (reminderData[reminder.id].dailyCompletionsTimes) {
+                        delete reminderData[reminder.id].dailyCompletionsTimes[today];
+                    }
                     updatedReminder = reminderData[reminder.id];
                 }
             }
