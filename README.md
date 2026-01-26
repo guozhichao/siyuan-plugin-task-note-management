@@ -45,7 +45,7 @@
 - [思源笔记任务笔记管理插件 v4.7.0 日历视图支持显示农历和中国节假日补班信息！ - 知乎](https://zhuanlan.zhihu.com/p/1997318317405393019)
 - [思源笔记任务笔记管理插件计划春节后（2026.02.24）进行收费](https://mp.weixin.qq.com/s/ZtAC9uxgBPhzynJ4rb6YEQ)
 
-### 任务管理使用经验分享
+### 任务管理经验分享
 
 - [深入讲解「番茄工作法」：一天专注十小时还不累的秘密](https://mp.weixin.qq.com/s/SoZ0ccPc7kJTYfwBnB5IGw)
 - [《防弹笔记法》阅读笔记：应该如何收集和处理资料](https://zhuanlan.zhihu.com/p/1959665210475417795)
