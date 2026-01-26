@@ -99,10 +99,10 @@ export class QuickReminderDialog {
             if (options.onSaved) this.onSaved = options.onSaved;
             this.mode = options.mode || 'quick';
             this.autoDetectDateTime = options.autoDetectDateTime;
-            this.defaultProjectId = options.defaultProjectId;
+            this.defaultProjectId = options.defaultProjectId ?? options.reminder?.projectId;
             this.showKanbanStatus = options.showKanbanStatus || 'term';
             this.defaultTermType = options.defaultTermType || 'doing';
-            this.defaultCustomGroupId = options.defaultCustomGroupId;
+            this.defaultCustomGroupId = options.defaultCustomGroupId !== undefined ? options.defaultCustomGroupId : options.reminder?.customGroupId;
             this.defaultCustomReminderTime = options.defaultCustomReminderTime;
             this.plugin = options.plugin;
             this.hideProjectSelector = options.hideProjectSelector;
@@ -401,7 +401,7 @@ export class QuickReminderDialog {
     }
 
     // 填充编辑表单数据
-    private populateEditForm() {
+    private async populateEditForm() {
         if (!this.reminder) return;
 
         const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
@@ -412,7 +412,6 @@ export class QuickReminderDialog {
         const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
         const noteInput = this.dialog.element.querySelector('#quickReminderNote') as HTMLTextAreaElement;
         const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
-        const customReminderTimeInput = this.dialog.element.querySelector('#quickCustomReminderTime') as HTMLInputElement;
 
         // 填充每日可做
         const isAvailableTodayCheckbox = this.dialog.element.querySelector('#quickIsAvailableToday') as HTMLInputElement;
@@ -537,18 +536,11 @@ export class QuickReminderDialog {
         if (projectSelector && this.reminder.projectId) {
             projectSelector.value = this.reminder.projectId;
             // 触发项目选择事件以加载自定义分组
-            this.onProjectChange(this.reminder.projectId);
+            await this.onProjectChange(this.reminder.projectId);
         }
 
-        // 填充自定义分组
-        if (this.reminder.customGroupId) {
-            setTimeout(() => {
-                const customGroupSelector = this.dialog.element.querySelector('#quickCustomGroupSelector') as HTMLSelectElement;
-                if (customGroupSelector) {
-                    customGroupSelector.value = this.reminder.customGroupId;
-                }
-            }, 100);
-        }
+        // 填充自定义分组 (已经在 onProjectChange -> renderCustomGroupSelector 中通过 defaultCustomGroupId 处理)
+
 
         // 填充重复设置
         if (this.reminder.repeat) {
@@ -1282,7 +1274,7 @@ export class QuickReminderDialog {
 
             // 如果是编辑模式或批量编辑模式，填充现有提醒数据
             if ((this.mode === 'edit' || this.mode === 'batch_edit') && this.reminder) {
-                this.populateEditForm();
+                await this.populateEditForm();
             }
 
             // 自动聚焦标题输入框

@@ -6437,7 +6437,13 @@ export class ProjectKanbanView {
                 this.dispatchReminderUpdate(true);
             };
 
-            const editDialog = new QuickReminderDialog(undefined, undefined, callback, undefined, { mode: 'edit', reminder: taskToEdit, plugin: this.plugin });
+            const editDialog = new QuickReminderDialog(undefined, undefined, callback, undefined, {
+                mode: 'edit',
+                reminder: taskToEdit,
+                plugin: this.plugin,
+                defaultProjectId: taskToEdit.projectId,
+                defaultCustomGroupId: taskToEdit.customGroupId
+            });
             editDialog.show();
         } catch (error) {
             console.error('打开编辑对话框失败:', error);
