@@ -39,11 +39,11 @@
 
 - [为了在笔记软件里进行任务管理，我写了一个插件，代替滴答清单-哔哩哔哩 ](https://b23.tv/t8ECHHT)
 - [给笔记软件写了一个番茄钟+随机微休息插件，助力高效创作_哔哩哔哩_bilibili](https://www.bilibili.com/video/BV1eUNmzXEBE/?spm_id_from=0.0.upload.video_card.click)
-- [思源笔记任务笔记管理插件的使用技巧分享 - 知乎](https://zhuanlan.zhihu.com/p/1944797779588282139)
 - [思源笔记任务笔记管理插件 v3.0 更新丨支持项目日历视图 - 知乎](https://zhuanlan.zhihu.com/p/1972106898238051048)
 - [我写了一个习惯打卡插件，支持设置多个打卡项、习惯统计、习惯提醒、习惯绑定笔记功能 - 知乎](https://www.zhihu.com/question/387182061/answer/1979684084960752010)
 - [思源笔记任务笔记管理插件 v4.5：全局番茄钟上线 - 知乎](https://zhuanlan.zhihu.com/p/1993413959240397217)
 - [思源笔记任务笔记管理插件 v4.7.0 日历视图支持显示农历和中国节假日补班信息！ - 知乎](https://zhuanlan.zhihu.com/p/1997318317405393019)
+- [思源笔记任务笔记管理插件计划春节后（2026.02.24）进行收费](https://mp.weixin.qq.com/s/ZtAC9uxgBPhzynJ4rb6YEQ)
 
 ### 任务管理使用经验分享
 
@@ -51,6 +51,7 @@
 - [《防弹笔记法》阅读笔记：应该如何收集和处理资料](https://zhuanlan.zhihu.com/p/1959665210475417795)
 - [知识管理是“效率陷阱”，于是我打算放弃知识管理，拥抱任务管理](https://www.zhihu.com/question/20737761/answer/1936010685457863484)
 - [《大脑减压的子弹笔记法》：任务管理需要有系统思维丨这是我2025年遇见的讲任务管理与知识管理最好的书](https://mp.weixin.qq.com/s/uU5tFDpp1JnVmUeCXb4umw)
+- [思源笔记任务笔记管理插件的使用技巧分享 - 知乎](https://zhuanlan.zhihu.com/p/1944797779588282139)
 - [用防弹笔记法来写论文的心得](https://zhuanlan.zhihu.com/p/1992933374520758739)
 - [任务管理思考：如何管理那些每天想做但是不是必须做的充电任务？](https://zhuanlan.zhihu.com/p/1998207702464214330)
 - [任务管理思考：管理任务而不是管理时间，如何做todo list与done list](https://zhuanlan.zhihu.com/p/1998351038776894511)
