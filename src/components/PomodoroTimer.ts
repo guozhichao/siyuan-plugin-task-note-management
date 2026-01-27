@@ -296,7 +296,9 @@ export class PomodoroTimer {
             currentPhaseOriginalDuration: this.currentPhaseOriginalDuration,
             startTime: this.startTime,
             randomNotificationCount: this.randomNotificationCount,
-            randomNotificationEnabled: this.randomNotificationEnabled
+            randomNotificationEnabled: this.randomNotificationEnabled,
+            todayFocusMinutes: this.recordManager.getTodayFocusTime(),
+            weekFocusMinutes: this.recordManager.getWeekFocusTime()
         };
     }
 
@@ -6016,6 +6018,8 @@ export class PomodoroTimer {
             const surfaceColor = this.getCssVariable('--b3-theme-surface');
             const borderColor = this.adjustColor(this.getCssVariable('--b3-theme-surface'), 20);
             const hoverColor = this.adjustColor(this.getCssVariable('--b3-theme-surface'), 10);
+            const successColor = this.getCssVariable('--b3-card-success-background');
+            const dailyFocusGoal = this.settings.dailyFocusGoal || 0;
 
             const currentState = this.getCurrentState();
             const timeStr = this.formatTime(currentState.isCountUp ? currentState.timeElapsed : currentState.timeLeft);
@@ -6027,9 +6031,9 @@ export class PomodoroTimer {
 
             const actionChannel = `pomodoro-action-${pomodoroWindow.id}`;
             const controlChannel = `pomodoro-control-${pomodoroWindow.id}`;
-            const ipcMain = remote.ipcMain;
+            const ipcMain = (remote as any).ipcMain;
 
-            const htmlContent = this.generateBrowserWindowHTML(actionChannel, controlChannel, currentState, timeStr, statusText, todayTimeStr, weekTimeStr, bgColor, textColor, surfaceColor, borderColor, hoverColor, this.getCssVariable('--b3-theme-background-light'), this.reminder.title || '未命名笔记', this.isBackgroundAudioMuted, this.randomNotificationEnabled, this.randomNotificationCount);
+            const htmlContent = this.generateBrowserWindowHTML(actionChannel, controlChannel, currentState, timeStr, statusText, todayTimeStr, weekTimeStr, bgColor, textColor, surfaceColor, borderColor, hoverColor, this.getCssVariable('--b3-theme-background-light'), this.reminder.title || '未命名笔记', this.isBackgroundAudioMuted, this.randomNotificationEnabled, this.randomNotificationCount, successColor, dailyFocusGoal);
 
             this.container = pomodoroWindow as any;
 
@@ -6103,6 +6107,7 @@ export class PomodoroTimer {
                 setTimeout(() => {
                     if (pomodoroWindow && !pomodoroWindow.isDestroyed()) {
                         self.updateBrowserWindowDisplay(pomodoroWindow);
+                        self.updateStatsDisplay();
                     }
                 }, 200);
             });
@@ -6469,6 +6474,8 @@ export class PomodoroTimer {
         isBackgroundAudioMuted: boolean,
         randomNotificationEnabled: boolean,
         randomNotificationCount: number,
+        successColor: string,
+        dailyFocusGoal: number,
         miniModeTitle?: string,
         dockModeTitle?: string
     ): string {
@@ -6875,7 +6882,8 @@ export class PomodoroTimer {
         let settings = ${JSON.stringify({
             workDuration: this.settings.workDuration,
             breakDuration: this.settings.breakDuration,
-            longBreakDuration: this.settings.longBreakDuration
+            longBreakDuration: this.settings.longBreakDuration,
+            dailyFocusGoal: dailyFocusGoal
         })};
 
         function callMethod(method) {
@@ -7061,6 +7069,29 @@ export class PomodoroTimer {
                  }
             }
 
+            // 8.1 Update Today's Focus Progress Bar (Gradient background)
+            const dailyGoalHours = settings.dailyFocusGoal || 0;
+            const statsContainer = document.querySelector('.pomodoro-stats');
+            if (statsContainer) {
+                const todayMins = localState.todayFocusMinutes || 0;
+                const surfCol = '${surfaceColor}';
+                if (dailyGoalHours > 0) {
+                    const goalMins = dailyGoalHours * 60;
+                    const progress = Math.min((todayMins / goalMins) * 100, 100);
+                    const succCol = '${successColor}';
+                    statsContainer.style.background = "linear-gradient(to right, " + succCol + " " + progress + "%, " + surfCol + " " + progress + "%)";
+                    
+                    const todayEl = document.getElementById('todayFocusTime');
+                    if (todayEl) {
+                        todayEl.style.color = todayMins >= goalMins ? 'rgb(76, 175, 80)' : '#FF6B6B';
+                    }
+                } else {
+                    statsContainer.style.background = surfCol;
+                    const todayEl = document.getElementById('todayFocusTime');
+                    if (todayEl) todayEl.style.color = '#FF6B6B';
+                }
+            }
+
             // 9. Update Random Notification Count
             const randomCountDisp = document.getElementById('randomCount');
             const diceIcon = document.getElementById('diceIcon');
@@ -7161,7 +7192,9 @@ export class PomodoroTimer {
                 this.reminder.title || '未命名笔记',
                 this.isBackgroundAudioMuted,
                 this.randomNotificationEnabled,
-                this.randomNotificationCount
+                this.randomNotificationCount,
+                colors.successBackground,
+                (this.settings.dailyFocusGoal || 0)
             );
 
             // 重新加载窗口内容
@@ -7312,7 +7345,8 @@ export class PomodoroTimer {
             const settingsUpdate = {
                 workDuration: this.settings.workDuration,
                 breakDuration: this.settings.breakDuration,
-                longBreakDuration: this.settings.longBreakDuration
+                longBreakDuration: this.settings.longBreakDuration,
+                dailyFocusGoal: (this.settings.dailyFocusGoal || 0)
             };
 
             // Send state to window using executeJavaScript
