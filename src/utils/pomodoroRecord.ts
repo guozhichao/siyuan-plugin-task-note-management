@@ -1,4 +1,3 @@
-import { POMODORO_RECORD_DATA_FILE } from "../index";
 import { getLogicalDateString } from "../utils/dateUtils";
 
 // 单个番茄钟会话记录
@@ -27,6 +26,7 @@ export interface PomodoroRecord {
 export class PomodoroRecordManager {
     private static instance: PomodoroRecordManager;
     private records: { [date: string]: PomodoroRecord } = {};
+    private eventStats: { [eventId: string]: { count: number, duration: number } } = {};
     private isLoading: boolean = false;
     private isSaving: boolean = false;
     private isInitialized: boolean = false;
@@ -53,12 +53,12 @@ export class PomodoroRecordManager {
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
 
-    private async loadRecords() {
+    private async loadRecords(force: boolean = false) {
         if (this.isLoading) return;
         this.isLoading = true;
 
         try {
-            const content = await this.plugin.loadData(POMODORO_RECORD_DATA_FILE);
+            const content = await this.plugin.loadPomodoroRecords(force);
             // 检查返回的内容是否是有效的记录数据
             if (content) {
                 this.records = content;
@@ -69,18 +69,44 @@ export class PomodoroRecordManager {
                 await this.saveRecords();
             }
 
-            // 确保每个日期记录都有 sessions 数组
-            Object.keys(this.records).forEach(date => {
-                if (!this.records[date].sessions) {
-                    this.records[date].sessions = [];
-                }
-            });
+            // 确保每个日期记录都有 sessions 数组，并构建索引
+            this.buildStatsIndex();
         } catch (error) {
             console.log('番茄钟记录文件不存在，初始化空记录');
             this.records = {};
+            this.eventStats = {};
         } finally {
             this.isLoading = false;
         }
+    }
+
+    /**
+     * 构建事件统计索引，用于快速查询
+     */
+    private buildStatsIndex() {
+        this.eventStats = {};
+        Object.keys(this.records).forEach(date => {
+            const record = this.records[date];
+            if (!record.sessions) {
+                record.sessions = [];
+            }
+            record.sessions.forEach(session => {
+                if (session.type === 'work' && session.eventId) {
+                    this.updateStatsIndex(session.eventId, this.calculateSessionCount(session), session.duration);
+                }
+            });
+        });
+    }
+
+    /**
+     * 更新索引中的单个统计信息
+     */
+    private updateStatsIndex(eventId: string, count: number, duration: number) {
+        if (!this.eventStats[eventId]) {
+            this.eventStats[eventId] = { count: 0, duration: 0 };
+        }
+        this.eventStats[eventId].count += count;
+        this.eventStats[eventId].duration += duration;
     }
 
     private async saveRecords() {
@@ -92,7 +118,7 @@ export class PomodoroRecordManager {
         this.isSaving = true;
 
         try {
-            await this.plugin.saveData(POMODORO_RECORD_DATA_FILE, this.records);
+            await this.plugin.savePomodoroRecords(this.records);
         } catch (error) {
             console.error('保存番茄钟记录失败:', error);
         } finally {
@@ -170,6 +196,9 @@ export class PomodoroRecordManager {
         this.records[today].workSessions += count;
 
         this.records[today].totalWorkTime += workMinutes;
+
+        // 更新索引
+        this.updateStatsIndex(eventId, count, workMinutes);
 
         // console.log('记录工作会话后:', JSON.stringify(this.records[today]));
 
@@ -365,17 +394,9 @@ export class PomodoroRecordManager {
 
             // Sum durations across all stored sessions whose eventId is in idsToInclude
             let totalMinutes = 0;
-            for (const date in this.records) {
-                const record = this.records[date];
-                if (!record || !record.sessions) continue;
-                for (const session of record.sessions) {
-                    if (session && session.type === 'work') {
-                        if (idsToInclude.has(session.eventId)) {
-                            totalMinutes += session.duration || 0;
-                        }
-                    }
-                }
-            }
+            idsToInclude.forEach(id => {
+                totalMinutes += this.eventStats[id]?.duration || 0;
+            });
             return totalMinutes;
         } catch (error) {
             console.error('获取提醒及子任务累计专注时长失败:', error);
@@ -406,13 +427,23 @@ export class PomodoroRecordManager {
 
     /**
      * 手动刷新数据（仅在需要时调用）
+     * 如果缓存已存在且没有指定强制更新，则跳过文件读取
      */
-    async refreshData() {
+    async refreshData(force: boolean = false) {
         if (this.isSaving || this.isLoading) {
             console.log('正在进行文件操作，跳过刷新');
             return;
         }
-        await this.loadRecords();
+
+        // 如果不是强制更新且已有记录，则只同步插件层级的缓存（如果可用）
+        if (!force && this.isInitialized) {
+            const cachedRecords = await this.plugin.loadPomodoroRecords(false);
+            if (cachedRecords === this.records) {
+                return; // 缓存未变，直接返回
+            }
+        }
+
+        await this.loadRecords(force);
     }
 
     /**
@@ -447,22 +478,10 @@ export class PomodoroRecordManager {
     }
 
     /**
-     * 获取某个事件的总番茄钟数量（跨所有日期，兼容旧数据）
+     * 获取某个事件的总番茄钟数量（跨所有日期，使用索引优化）
      */
     getEventTotalPomodoroCount(eventId: string): number {
-        let total = 0;
-        const records = Object.values(this.records);
-
-        for (const record of records) {
-            total += record.sessions.reduce((sum, session) => {
-                if (session.eventId === eventId && session.type === 'work') {
-                    return sum + this.calculateSessionCount(session);
-                }
-                return sum;
-            }, 0);
-        }
-
-        return total;
+        return this.eventStats[eventId]?.count || 0;
     }
 
     /**
@@ -470,31 +489,23 @@ export class PomodoroRecordManager {
      */
     getRepeatingEventTotalPomodoroCount(originalId: string): number {
         let total = 0;
-        const records = Object.values(this.records);
 
-        for (const record of records) {
-            if (!record.sessions) continue;
-            total += record.sessions.reduce((sum, session) => {
-                // Check if session.eventId matches originalId or originalId_YYYY-MM-DD
-                const eventId = session.eventId;
-                if (!eventId) return sum;
-
-                let match = false;
-                if (eventId === originalId) {
+        // 优化：仅遍历 eventStats 的键
+        for (const eventId in this.eventStats) {
+            let match = false;
+            if (eventId === originalId) {
+                match = true;
+            } else if (eventId.startsWith(originalId + '_')) {
+                // Verify suffix is a date
+                const suffix = eventId.substring(originalId.length + 1);
+                if (/^\d{4}-\d{2}-\d{2}$/.test(suffix)) {
                     match = true;
-                } else if (eventId.startsWith(originalId + '_')) {
-                    // Verify suffix is a date
-                    const suffix = eventId.substring(originalId.length + 1);
-                    if (/^\d{4}-\d{2}-\d{2}$/.test(suffix)) {
-                        match = true;
-                    }
                 }
+            }
 
-                if (match && session.type === 'work') {
-                    return sum + this.calculateSessionCount(session);
-                }
-                return sum;
-            }, 0);
+            if (match) {
+                total += this.eventStats[eventId].count;
+            }
         }
         return total;
     }
@@ -512,22 +523,10 @@ export class PomodoroRecordManager {
     }
 
     /**
-     * 获取指定事件在所有日期内的总专注时长（分钟）
+     * 获取指定事件在所有日期内的总专注时长（分钟，使用索引优化）
      */
     getEventTotalFocusTime(eventId: string): number {
-        let total = 0;
-        const records = Object.values(this.records);
-
-        for (const record of records) {
-            total += record.sessions.reduce((sum, session) => {
-                if (session.eventId === eventId && session.type === 'work') {
-                    return sum + (session.duration || 0);
-                }
-                return sum;
-            }, 0);
-        }
-
-        return total;
+        return this.eventStats[eventId]?.duration || 0;
     }
 
     /**
@@ -535,31 +534,23 @@ export class PomodoroRecordManager {
      */
     getRepeatingEventTotalFocusTime(originalId: string): number {
         let total = 0;
-        const records = Object.values(this.records);
 
-        for (const record of records) {
-            if (!record.sessions) continue;
-            total += record.sessions.reduce((sum, session) => {
-                // Check if session.eventId matches originalId or originalId_YYYY-MM-DD
-                const eventId = session.eventId;
-                if (!eventId) return sum;
-
-                let match = false;
-                if (eventId === originalId) {
+        // 优化：仅遍历 eventStats 的键
+        for (const eventId in this.eventStats) {
+            let match = false;
+            if (eventId === originalId) {
+                match = true;
+            } else if (eventId.startsWith(originalId + '_')) {
+                // Verify suffix is a date
+                const suffix = eventId.substring(originalId.length + 1);
+                if (/^\d{4}-\d{2}-\d{2}$/.test(suffix)) {
                     match = true;
-                } else if (eventId.startsWith(originalId + '_')) {
-                    // Verify suffix is a date
-                    const suffix = eventId.substring(originalId.length + 1);
-                    if (/^\d{4}-\d{2}-\d{2}$/.test(suffix)) {
-                        match = true;
-                    }
                 }
+            }
 
-                if (match && session.type === 'work') {
-                    return sum + (session.duration || 0);
-                }
-                return sum;
-            }, 0);
+            if (match) {
+                total += this.eventStats[eventId].duration;
+            }
         }
         return total;
     }
@@ -655,6 +646,7 @@ export class PomodoroRecordManager {
                 }
 
                 // 保存更改
+                this.buildStatsIndex(); // 重新构建索引比较简单稳妥
                 await this.saveRecords();
                 return true;
             }

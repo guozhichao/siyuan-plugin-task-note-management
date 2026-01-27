@@ -182,6 +182,7 @@ export default class ReminderPlugin extends Plugin {
     private subscriptionCache: any = null;
     private subscriptionTasksCache: { [id: string]: any } = {};
     private holidayDataCache: any = null;
+    private pomodoroRecordsCache: any = null;
 
     public settings: any;
 
@@ -364,6 +365,32 @@ export default class ReminderPlugin extends Plugin {
     public async saveHolidayData(data: any): Promise<void> {
         this.holidayDataCache = data;
         await this.saveData(HOLIDAY_DATA_FILE, data);
+    }
+
+    /**
+     * 加载番茄钟历史记录数据，支持缓存
+     * @param update 是否强制更新（从文件读取）
+     */
+    public async loadPomodoroRecords(update: boolean = false): Promise<any> {
+        if (update || !this.pomodoroRecordsCache) {
+            try {
+                const data = await this.loadData(POMODORO_RECORD_DATA_FILE);
+                this.pomodoroRecordsCache = data || {};
+            } catch (error) {
+                console.error('Failed to load pomodoro records:', error);
+                this.pomodoroRecordsCache = {};
+            }
+        }
+        return this.pomodoroRecordsCache;
+    }
+
+    /**
+     * 保存番茄钟历史记录数据，并更新缓存
+     * @param data 记录数据
+     */
+    public async savePomodoroRecords(data: any): Promise<void> {
+        this.pomodoroRecordsCache = data;
+        await this.saveData(POMODORO_RECORD_DATA_FILE, data);
     }
 
     /**
