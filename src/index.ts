@@ -1121,7 +1121,7 @@ export default class ReminderPlugin extends Plugin {
 
         // 创建观察器
         const createObserver = () => {
-            const outlineContainer = document.querySelector('.file-tree');
+            const outlineContainer = document.querySelector('.file-tree.sy__outline');
             if (!outlineContainer) return null;
 
             const observer = new MutationObserver(debouncedUpdate);
@@ -1139,7 +1139,7 @@ export default class ReminderPlugin extends Plugin {
 
         // 定期检查和重新绑定观察器
         const checkAndRebindObserver = () => {
-            const outlineContainer = document.querySelector('.file-tree');
+            const outlineContainer = document.querySelector('.file-tree.sy__outline');
             if (!outlineContainer) {
                 if (currentObserver) {
                     currentObserver.disconnect();
@@ -1159,8 +1159,6 @@ export default class ReminderPlugin extends Plugin {
         // 初始更新
         setTimeout(checkAndRebindObserver, 500);
 
-        // 每隔一段时间检查观察器状态
-        setInterval(checkAndRebindObserver, 2000);
 
     }
 
