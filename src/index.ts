@@ -13,7 +13,6 @@ import { QuickReminderDialog } from "./components/QuickReminderDialog";
 import { ReminderPanel } from "./components/ReminderPanel";
 import { HabitPanel } from "./components/HabitPanel";
 import { BatchReminderDialog } from "./components/BatchReminderDialog";
-import { ensureHabitDataFile, ensureHabitGroupDataFile } from "./api";
 import { CalendarView } from "./components/CalendarView";
 import { EisenhowerMatrixView } from "./components/EisenhowerMatrixView";
 import { CategoryManager } from "./utils/categoryManager";
@@ -177,6 +176,8 @@ export default class ReminderPlugin extends Plugin {
     private projectDataCache: any = null;
     private statusDataCache: any = null;
     private categoriesDataCache: any = null;
+    private habitDataCache: any = null;
+    private habitGroupDataCache: any = null;
     private subscriptionCache: any = null;
     private subscriptionTasksCache: { [id: string]: any } = {};
 
@@ -284,6 +285,59 @@ export default class ReminderPlugin extends Plugin {
         this.categoriesDataCache = data;
         await this.saveData(CATEGORIES_DATA_FILE, data);
     }
+
+    /**
+     * 加载习惯数据，支持缓存
+     * @param update 是否强制更新（从文件读取）
+     */
+    public async loadHabitData(update: boolean = false): Promise<any> {
+        if (update || !this.habitDataCache) {
+            try {
+                const data = await this.loadData(HABIT_DATA_FILE);
+                this.habitDataCache = data || {};
+            } catch (error) {
+                console.error('Failed to load habit data:', error);
+                this.habitDataCache = {};
+            }
+        }
+        return this.habitDataCache;
+    }
+
+    /**
+     * 保存习惯数据，并更新缓存
+     * @param data 习惯数据
+     */
+    public async saveHabitData(data: any): Promise<void> {
+        this.habitDataCache = data;
+        await this.saveData(HABIT_DATA_FILE, data);
+    }
+
+    /**
+     * 加载习惯分组数据，支持缓存
+     * @param update 是否强制更新（从文件读取）
+     */
+    public async loadHabitGroupData(update: boolean = false): Promise<any[]> {
+        if (update || !this.habitGroupDataCache) {
+            try {
+                const data = await this.loadData(HABIT_GROUP_DATA_FILE);
+                this.habitGroupDataCache = Array.isArray(data) ? data : [];
+            } catch (error) {
+                console.error('Failed to load habit group data:', error);
+                this.habitGroupDataCache = [];
+            }
+        }
+        return this.habitGroupDataCache;
+    }
+
+    /**
+     * 保存习惯分组数据，并更新缓存
+     * @param data 习惯分组数据
+     */
+    public async saveHabitGroupData(data: any[]): Promise<void> {
+        this.habitGroupDataCache = data;
+        await this.saveData(HABIT_GROUP_DATA_FILE, data);
+    }
+
     /**
      * 加载订阅数据，支持缓存
      * @param update 是否强制更新（从文件读取）
@@ -374,11 +428,9 @@ export default class ReminderPlugin extends Plugin {
         // 添加dock栏和顶栏按钮
         await this.initializeUI();
 
-        // 初始化习惯数据文件
-        await ensureHabitDataFile();
-
-        // 初始化习惯分组数据文件
-        await ensureHabitGroupDataFile();
+        // 初始化数据并缓存
+        await this.loadHabitData();
+        await this.loadHabitGroupData();
 
         try {
             const { ensureNotifyDataFile } = await import("./api");
@@ -1354,8 +1406,7 @@ export default class ReminderPlugin extends Plugin {
 
     private async updateHabitBadges() {
         try {
-            const { readHabitData } = await import("./api");
-            const habitData = await readHabitData();
+            const habitData = await this.loadHabitData();
 
             if (!habitData || typeof habitData !== 'object') {
                 this.setHabitDockBadge(0);
@@ -2629,9 +2680,9 @@ export default class ReminderPlugin extends Plugin {
     // 检查习惯的时间提醒并触发通知
     private async checkHabitReminders(today: string, currentTime: string) {
         try {
-            const { readHabitData, hasHabitNotified, markHabitNotified } = await import('./api');
+            const { hasHabitNotified, markHabitNotified } = await import('./api');
 
-            const habitData = await readHabitData();
+            const habitData = await this.loadHabitData();
             if (!habitData || typeof habitData !== 'object') return;
 
             const currentNum = this.timeStringToNumber(currentTime);

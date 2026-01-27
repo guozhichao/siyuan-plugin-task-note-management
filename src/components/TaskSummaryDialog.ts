@@ -2,7 +2,7 @@ import { Dialog, showMessage, Menu } from "siyuan";
 import { t } from "../utils/i18n";
 import { getLocalDateString, getLogicalDateString } from "../utils/dateUtils";
 import { ProjectManager } from "../utils/projectManager";
-import { readHabitData } from "@/api";
+
 import { generateRepeatInstances } from "@/utils/repeatUtils";
 import { CalendarView } from "@/components/CalendarView";
 import { PomodoroRecordManager } from "@/utils/pomodoroRecord";
@@ -417,7 +417,7 @@ export class TaskSummaryDialog {
     }
 
     // 2. 习惯打卡统计
-    const habitData = await readHabitData();
+    const habitData = await this.plugin.loadHabitData();
     let totalHabitTargetDays = 0;
     let completedHabitDays = 0;
     const habitsByDate: { [date: string]: any[] } = {};

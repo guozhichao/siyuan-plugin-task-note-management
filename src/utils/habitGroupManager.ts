@@ -1,3 +1,4 @@
+import { getPluginInstance } from './i18n';
 export interface HabitGroup {
     id: string;
     name: string;
@@ -26,9 +27,13 @@ export class HabitGroupManager {
         if (this.initialized) return;
 
         try {
-            // 使用 API 从文件读取数据
-            const { readHabitGroupData } = await import('../api');
-            const groupsArray: HabitGroup[] = await readHabitGroupData();
+            // 使用插件实例加载数据
+            const plugin = getPluginInstance();
+            if (!plugin) {
+                console.warn('HabitGroupManager: plugin instance not found during initialize');
+                return;
+            }
+            const groupsArray: HabitGroup[] = await plugin.loadHabitGroupData();
 
             this.groups.clear();
             if (Array.isArray(groupsArray)) {
@@ -50,10 +55,14 @@ export class HabitGroupManager {
 
     async saveGroups() {
         try {
-            // 使用 API 保存到文件
-            const { writeHabitGroupData } = await import('../api');
+            // 使用插件实例保存数据
+            const plugin = getPluginInstance();
+            if (!plugin) {
+                console.warn('HabitGroupManager: plugin instance not found during saveGroups');
+                return;
+            }
             const groupsArray = Array.from(this.groups.values());
-            await writeHabitGroupData(groupsArray);
+            await plugin.saveHabitGroupData(groupsArray);
         } catch (error) {
             console.error('保存习惯分组失败:', error);
             throw error;

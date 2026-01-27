@@ -1,5 +1,5 @@
 import { showMessage, Dialog, Menu, confirm } from "siyuan";
-import { readHabitData, writeHabitData, getBlockByID, getBlockDOM, openBlock } from "../api";
+import { openBlock } from "../api";
 import { getLocalDateTimeString, getLogicalDateString, getRelativeDateString } from "../utils/dateUtils";
 import { HabitGroupManager } from "../utils/habitGroupManager";
 import { HabitCalendarDialog } from "./HabitCalendarDialog";
@@ -358,7 +358,7 @@ export class HabitPanel {
             // 保存滚动位置
             const scrollTop = this.habitsContainer?.scrollTop || 0;
 
-            const habitData = await readHabitData();
+            const habitData = await this.plugin.loadHabitData();
             const habits: Habit[] = Object.values(habitData || {});
 
             // 应用筛选
@@ -978,36 +978,11 @@ export class HabitPanel {
         }
     }
 
-    private async getBlockPreview(blockId: string): Promise<string> {
-        try {
-            const block = await getBlockByID(blockId);
-            if (!block) return '块不存在';
-            if (block.type === 'd') {
-                return block.content || '';
-            }
-            try {
-                const domString = await getBlockDOM(blockId);
-                const parser = new DOMParser();
-                const dom = parser.parseFromString(domString.dom, 'text/html');
-                const element = dom.querySelector('div[data-type="NodeParagraph"]');
-                if (element) {
-                    const attrElement = element.querySelector('div.protyle-attr');
-                    if (attrElement) attrElement.remove();
-                }
-                const snippet = element ? (element.textContent || '') : (block.fcontent || block.content || '');
-                return (snippet || '').trim().slice(0, 300);
-            } catch (err) {
-                return (block.fcontent || block.content || '').slice(0, 300);
-            }
-        } catch (error) {
-            console.error('获取块预览失败', error);
-            return '获取块信息失败';
-        }
-    }
+
 
     private async renderCompletedHabitsSection(excludeIds?: Set<string>) {
         const today = getLogicalDateString();
-        const habitData = await readHabitData();
+        const habitData = await this.plugin.loadHabitData();
         const habits: Habit[] = Object.values(habitData || {});
 
         let completedHabits = habits.filter(h => this.isCompletedOnDate(h, today));
@@ -1090,7 +1065,7 @@ export class HabitPanel {
     }
 
     private async reorderHabits(groupId: string, targetPriority: Habit['priority'] | undefined, draggedId: string, targetId: string, position: 'before' | 'after') {
-        const habitData = await readHabitData();
+        const habitData = await this.plugin.loadHabitData();
         const draggedHabit = habitData[draggedId];
         const targetHabit = habitData[targetId];
 
@@ -1159,7 +1134,7 @@ export class HabitPanel {
             if (habitData[h.id]) habitData[h.id].sort = i + 1;
         });
 
-        await writeHabitData(habitData);
+        await this.plugin.saveHabitData(habitData);
     }
 
     private showHabitContextMenu(event: MouseEvent, habit: Habit) {
@@ -1391,17 +1366,17 @@ export class HabitPanel {
     }
 
     private async saveHabit(habit: Habit) {
-        const habitData = await readHabitData();
+        const habitData = await this.plugin.loadHabitData();
         habitData[habit.id] = habit;
-        await writeHabitData(habitData);
+        await this.plugin.saveHabitData(habitData);
         window.dispatchEvent(new CustomEvent('habitUpdated'));
     }
 
     private async deleteHabit(habitId: string) {
         try {
-            const habitData = await readHabitData();
+            const habitData = await this.plugin.loadHabitData();
             delete habitData[habitId];
-            await writeHabitData(habitData);
+            await this.plugin.saveHabitData(habitData);
             showMessage('删除成功');
             this.loadHabits();
             window.dispatchEvent(new CustomEvent('habitUpdated'));

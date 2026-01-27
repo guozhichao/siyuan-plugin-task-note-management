@@ -1,5 +1,4 @@
 import { Dialog } from "siyuan";
-import { readHabitData } from "../api";
 import { Habit } from "./HabitPanel";
 import { DEFAULT_SETTINGS } from "../index";
 
@@ -38,7 +37,7 @@ export class HabitCalendarDialog {
         container.className = 'habit-calendar-container';
 
         // 读取习惯数据和排序
-        const habitData = await readHabitData();
+        const habitData = await this.plugin.loadHabitData();
         const habits: Habit[] = Object.values(habitData || {});
 
         // 初始化或更新习惯顺序

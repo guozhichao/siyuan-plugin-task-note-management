@@ -9,6 +9,7 @@
 import { fetchPost, fetchSyncPost, IWebSocketData, openTab, Constants } from "siyuan";
 
 import { getFrontend, openMobileFileById } from 'siyuan';
+import { getPluginInstance } from "./utils/i18n";
 export async function request(url: string, data: any) {
     let response: IWebSocketData = await fetchSyncPost(url, data);
     let res = response.code === 0 ? response.data : null;
@@ -834,7 +835,9 @@ export async function markNotifiedToday(date: string): Promise<void> {
 // 检查某个习惯在特定日期是否已提醒
 export async function hasHabitNotified(habitId: string, date: string, time?: string): Promise<boolean> {
     try {
-        const habitData = await readHabitData();
+        const plugin = getPluginInstance();
+        if (!plugin) return false;
+        const habitData = await plugin.loadHabitData();
         if (!habitData || typeof habitData !== 'object') return false;
 
         const habit = habitData[habitId];
@@ -863,7 +866,9 @@ export async function hasHabitNotified(habitId: string, date: string, time?: str
 // 标记某个习惯在特定日期已提醒
 export async function markHabitNotified(habitId: string, date: string, time?: string): Promise<void> {
     try {
-        const habitData = await readHabitData();
+        const plugin = getPluginInstance();
+        if (!plugin) return;
+        const habitData = await plugin.loadHabitData();
         if (!habitData || typeof habitData !== 'object') {
             console.warn('习惯数据不存在，无法标记通知');
             return;
@@ -898,7 +903,7 @@ export async function markHabitNotified(habitId: string, date: string, time?: st
         }
 
         // 写回习惯数据
-        await writeHabitData(habitData);
+        await plugin.saveHabitData(habitData);
     } catch (error) {
         console.error('标记习惯通知记录失败:', error);
     }
@@ -1071,69 +1076,11 @@ export async function updateBlockReminderBookmark(blockId: string, plugin: any):
 
 
 
-// **************************************** Habit Management API ****************************************
 
-export async function writeHabitData(data: any): Promise<any> {
-    const content = JSON.stringify(data, null, 2);
-    const blob = new Blob([content], { type: 'application/json' });
-    return putFile('data/storage/petal/siyuan-plugin-task-note-management/habit.json', false, blob);
-}
 
-export async function readHabitData(): Promise<any> {
-    try {
-        const content = await getFile('data/storage/petal/siyuan-plugin-task-note-management/habit.json');
-        if (!content || content?.code === 404) {
-            await writeHabitData({});
-            return {};
-        }
-        return typeof content === 'string' ? JSON.parse(content) : content;
-    } catch (error) {
-        console.log('habit.json文件不存在，返回空对象');
-        return {};
-    }
-}
 
-export async function ensureHabitDataFile(): Promise<void> {
-    try {
-        await readHabitData();
-    } catch (error) {
-        // 如果文件不存在，创建空的习惯数据文件
-        console.log('创建初始习惯数据文件');
-        await writeHabitData({});
-    }
-}
 
-// **************************************** Habit Group Management API ****************************************
 
-export async function writeHabitGroupData(data: any): Promise<any> {
-    const content = JSON.stringify(data, null, 2);
-    const blob = new Blob([content], { type: 'application/json' });
-    return putFile('data/storage/petal/siyuan-plugin-task-note-management/habitGroup.json', false, blob);
-}
-
-export async function readHabitGroupData(): Promise<any> {
-    try {
-        const content = await getFile('data/storage/petal/siyuan-plugin-task-note-management/habitGroup.json');
-        if (!content || content?.code === 404) {
-            await writeHabitGroupData([]);
-            return [];
-        }
-        return typeof content === 'string' ? JSON.parse(content) : content;
-    } catch (error) {
-        console.log('habitGroup.json文件不存在，返回空数组');
-        return [];
-    }
-}
-
-export async function ensureHabitGroupDataFile(): Promise<void> {
-    try {
-        await readHabitGroupData();
-    } catch (error) {
-        // 如果文件不存在，创建空的习惯分组数据文件
-        console.log('创建初始习惯分组数据文件');
-        await writeHabitGroupData([]);
-    }
-}
 
 // **************************************** ICS Cloud Upload ****************************************
 
