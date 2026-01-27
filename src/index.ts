@@ -1163,11 +1163,11 @@ export default class ReminderPlugin extends Plugin {
         setInterval(checkAndRebindObserver, 2000);
 
         // 监听文档切换事件
-        this.eventBus.on('switch-doc', checkAndRebindObserver);
-        this.eventBus.on('loaded-doc', checkAndRebindObserver);
+        this.eventBus.on('switch-protyle', checkAndRebindObserver);
+        this.eventBus.on('loaded-protyle-static', checkAndRebindObserver);
 
         // 监听大纲相关事件
-        this.eventBus.on('outline', checkAndRebindObserver);
+        this.eventBus.on('loaded-protyle-dynamic', checkAndRebindObserver);
     }
 
     private addBreadcrumbButtonsToExistingProtyles() {
@@ -1535,11 +1535,13 @@ export default class ReminderPlugin extends Plugin {
 
                     // 移除现有前缀并添加新前缀
                     if (prefix != '') {
+                    if (prefix != '') {
                         const originalText = textElement.textContent || '';
                         const newText = prefix + originalText.replace(/^[✅⏰]\s*/, '');
 
                         if (textElement.textContent !== newText) {
                             textElement.textContent = newText;
+                        }
                         }
                     }
                 }
