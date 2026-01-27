@@ -176,6 +176,7 @@ export default class ReminderPlugin extends Plugin {
     private reminderDataCache: any = null;
     private projectDataCache: any = null;
     private statusDataCache: any = null;
+    private categoriesDataCache: any = null;
     private subscriptionCache: any = null;
     private subscriptionTasksCache: { [id: string]: any } = {};
 
@@ -256,6 +257,32 @@ export default class ReminderPlugin extends Plugin {
     public async saveProjectStatus(data: any): Promise<void> {
         this.statusDataCache = data;
         await this.saveData(STATUSES_DATA_FILE, data);
+    }
+
+    /**
+     * 加载分类数据，支持缓存
+     * @param update 是否强制更新（从文件读取）
+     */
+    public async loadCategories(update: boolean = false): Promise<any> {
+        if (update || !this.categoriesDataCache) {
+            try {
+                const data = await this.loadData(CATEGORIES_DATA_FILE);
+                this.categoriesDataCache = data && Array.isArray(data) ? data : null;
+            } catch (error) {
+                console.error('Failed to load categories data:', error);
+                this.categoriesDataCache = null;
+            }
+        }
+        return this.categoriesDataCache;
+    }
+
+    /**
+     * 保存分类数据，并更新缓存
+     * @param data 分类数据
+     */
+    public async saveCategories(data: any): Promise<void> {
+        this.categoriesDataCache = data;
+        await this.saveData(CATEGORIES_DATA_FILE, data);
     }
     /**
      * 加载订阅数据，支持缓存

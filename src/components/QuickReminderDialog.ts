@@ -165,24 +165,9 @@ export class QuickReminderDialog {
             }
         };
 
-        // 加载排序配置
-        this.loadSortConfig();
+
     }
 
-    // 加载排序配置
-    private loadSortConfig() {
-        // 从本地存储加载排序配置
-        const sortConfig = localStorage.getItem('reminder-sort-config');
-        if (sortConfig) {
-            try {
-                const config = JSON.parse(sortConfig);
-                this.currentSort = config.method || 'time';
-            } catch (error) {
-                console.warn('加载排序配置失败:', error);
-                this.currentSort = 'time';
-            }
-        }
-    }
 
     // 加载现有提醒列表（块绑定模式）
     private async loadExistingReminder() {

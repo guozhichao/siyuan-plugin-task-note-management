@@ -1,8 +1,6 @@
 import { Plugin } from "siyuan";
 import { t } from "./i18n";
-import { getFile, removeFile } from "../api";
 
-const SORT_CONFIG_FILE = 'data/storage/petal/siyuan-plugin-task-note-management/sort_config.json';
 
 export interface SortConfig {
     method: string;
@@ -13,25 +11,6 @@ export async function loadSortConfig(plugin: Plugin): Promise<SortConfig> {
     try {
         const settings = await (plugin as any).loadSettings();
 
-        // 检查是否存在旧的 sort_config.json 文件，如果存在则导入并删除
-        try {
-            const oldSortContent = await getFile(SORT_CONFIG_FILE);
-            if (oldSortContent && oldSortContent.code !== 404) {
-                const oldSort = typeof oldSortContent === 'string' ? JSON.parse(oldSortContent) : oldSortContent;
-                if (oldSort && typeof oldSort === 'object') {
-                    // 合并旧排序配置到新的 settings
-                    if (oldSort.method) settings.sortMethod = oldSort.method;
-                    if (oldSort.order) settings.sortOrder = oldSort.order;
-                    await (plugin as any).saveSettings(settings);
-                    // 删除旧文件
-                    await removeFile(SORT_CONFIG_FILE);
-                    console.log('成功导入并删除旧的 sort_config.json 文件');
-                }
-            }
-        } catch (error) {
-            // 如果文件不存在或其他错误，忽略
-            console.log('旧的 sort_config.json 文件不存在或已处理');
-        }
 
         return {
             method: settings.sortMethod || 'time',

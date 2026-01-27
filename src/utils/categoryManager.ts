@@ -1,5 +1,4 @@
-import { t } from "./i18n";
-import { CATEGORIES_DATA_FILE } from "../index";
+
 
 export interface Category {
     id: string;
@@ -49,7 +48,7 @@ export class CategoryManager {
      */
     public async loadCategories(): Promise<Category[]> {
         try {
-            const content = await this.plugin.loadData(CATEGORIES_DATA_FILE);
+            const content = await this.plugin.loadCategories();
             if (!content) {
                 console.log('分类文件不存在，创建默认分类');
                 this.categories = [...DEFAULT_CATEGORIES];
@@ -81,7 +80,7 @@ export class CategoryManager {
      */
     public async saveCategories(): Promise<void> {
         try {
-            await this.plugin.saveData(CATEGORIES_DATA_FILE, this.categories);
+            await this.plugin.saveCategories(this.categories);
         } catch (error) {
             console.error('保存分类失败:', error);
             throw error;
