@@ -1110,11 +1110,16 @@ export default class ReminderPlugin extends Plugin {
 
     private initOutlinePrefixObserver() {
         let updateTimeout: number | null = null;
+        let lastOutlineBlockIds = new Set<string>();
 
-        // 防抖更新函数
+        // 防抖更新函数，只要检测到变化就更新所有前缀
         const debouncedUpdate = () => {
             if (updateTimeout) clearTimeout(updateTimeout);
             updateTimeout = window.setTimeout(() => {
+                const outline = document.querySelector('.file-tree.sy__outline');
+                if (!outline) return;
+
+                // 只要检测到变化，就更新所有前缀（因为DOM可能被重新渲染）
                 this.updateOutlinePrefixes();
             }, 100);
         };
@@ -1124,13 +1129,33 @@ export default class ReminderPlugin extends Plugin {
             const outlineContainer = document.querySelector('.file-tree.sy__outline');
             if (!outlineContainer) return null;
 
-            const observer = new MutationObserver(debouncedUpdate);
+            const observer = new MutationObserver((mutations) => {
+                // 只监听真正有意义的变化：子节点添加/删除、data-node-id 变化、文本内容变化、aria-label变化
+                const hasSignificantChange = mutations.some(mutation => {
+                    if (mutation.type === 'childList') {
+                        return mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0;
+                    }
+                    if (mutation.type === 'attributes') {
+                        // 监听 data-node-id 和 aria-label 变化
+                        return mutation.attributeName === 'data-node-id' || mutation.attributeName === 'aria-label';
+                    }
+                    if (mutation.type === 'characterData') {
+                        return true;
+                    }
+                    return false;
+                });
+
+                if (hasSignificantChange) {
+                    debouncedUpdate();
+                }
+            });
+
             observer.observe(outlineContainer, {
                 childList: true,
                 subtree: true,
-                characterData: true,
                 attributes: true,
-                attributeFilter: ['data-node-id', 'data-type']
+                characterData: true,
+                attributeFilter: ['data-node-id', 'aria-label']
             });
             return observer;
         };
@@ -1152,7 +1177,7 @@ export default class ReminderPlugin extends Plugin {
                 currentObserver = createObserver();
             }
 
-            // 无论如何都更新一次，确保前缀正确
+            // 强制更新一次（用于属性变化后的刷新）
             debouncedUpdate();
         };
 
@@ -1493,7 +1518,6 @@ export default class ReminderPlugin extends Plugin {
         }
     }
 
-    // 更新大纲标题前缀
     private async updateOutlinePrefixes() {
         try {
             const settings = await this.loadSettings();
@@ -1503,43 +1527,78 @@ export default class ReminderPlugin extends Plugin {
             if (!outline) return;
 
             const headingLis = outline.querySelectorAll('li[data-type="NodeHeading"]');
-            const blockIds = Array.from(headingLis).map(li => (li as HTMLElement).getAttribute('data-node-id')).filter(id => id) as string[];
+            if (headingLis.length === 0) return;
+
+            // 收集块 ID
+            const blockIds: string[] = [];
+            const liMap = new Map<string, HTMLElement>();
+            headingLis.forEach(li => {
+                const blockId = (li as HTMLElement).getAttribute('data-node-id');
+                if (blockId) {
+                    blockIds.push(blockId);
+                    liMap.set(blockId, li as HTMLElement);
+                }
+            });
 
             if (blockIds.length === 0) return;
 
-            // 批量获取块属性
-            const { getBlockAttrs } = await import('./api');
-            const attrsPromises = blockIds.map(id => getBlockAttrs(id));
-            const attrsArray = await Promise.all(attrsPromises);
+            // 使用 SQL 批量查询块属性（只查询 bookmark）
+            const { sql } = await import('./api');
+            const idsStr = blockIds.map(id => `'${id}'`).join(',');
+            const sqlQuery = `SELECT block_id, value FROM attributes WHERE block_id IN (${idsStr}) AND name = 'bookmark' LIMIT -1`;
+            const attrsResults = await sql(sqlQuery);
 
-            headingLis.forEach((li, index) => {
-                const attrs = attrsArray[index];
-                const bookmark = attrs?.bookmark || '';
+            // 构建 block_id -> bookmark 映射
+            const bookmarkMap = new Map<string, string>();
+            attrsResults.forEach((row: any) => {
+                bookmarkMap.set(row.block_id, row.value || '');
+            });
+
+            // 更新 DOM
+            blockIds.forEach(blockId => {
+                const li = liMap.get(blockId);
+                if (!li) return;
+
                 const textElement = li.querySelector('.b3-list-item__text') as HTMLElement;
+                if (!textElement) return;
 
-                if (textElement) {
-                    let prefix = '';
-                    if (bookmark === '✅') {
-                        prefix = '✅ ';
-                    } else if (bookmark === '⏰') {
-                        prefix = '⏰ ';
-                    }
+                // 只有查询到 bookmark 数据的块才处理
+                if (!bookmarkMap.has(blockId)) {
+                    // 数据库中没有 bookmark 属性，保持原样，不修改
+                    return;
+                }
 
-                    // 移除现有前缀并添加新前缀
-                    if (prefix != '') {
-                        if (prefix != '') {
-                            const originalText = textElement.textContent || '';
-                            const newText = prefix + originalText.replace(/^[✅⏰]\s*/, '');
+                const bookmark = bookmarkMap.get(blockId) || '';
 
-                            if (textElement.textContent !== newText) {
-                                textElement.textContent = newText;
-                            }
-                        }
-                    }
+                // 确定前缀
+                let prefix = '';
+                if (bookmark === '✅') {
+                    prefix = '✅ ';
+                } else if (bookmark === '⏰') {
+                    prefix = '⏰ ';
+                }
+
+                // DOM变化时不使用缓存检查，直接更新（因为DOM可能被重新渲染）
+                // const cachedPrefix = this.outlinePrefixCache.get(blockId);
+                // if (cachedPrefix === prefix) {
+                //     return; // 前缀没有变化，跳过更新
+                // }
+
+                // 更新缓存
+                // this.outlinePrefixCache.set(blockId, prefix);
+
+                // 更新 DOM
+                const originalText = textElement.textContent || '';
+                const cleanText = originalText.replace(/^[✅⏰]\s*/, '');
+                const newText = prefix + cleanText;
+
+                if (textElement.textContent !== newText) {
+                    textElement.textContent = newText;
                 }
             });
+
         } catch (error) {
-            console.error('更新大纲前缀失败:', error);
+            console.error('[大纲前缀] 更新失败:', error);
         }
     }
 
