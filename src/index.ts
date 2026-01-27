@@ -39,6 +39,7 @@ export const NOTIFY_DATA_FILE = "notify.json";
 export const POMODORO_RECORD_DATA_FILE = "pomodoro_record.json";
 export const HABIT_GROUP_DATA_FILE = "habitGroup.json";
 export const STATUSES_DATA_FILE = "statuses.json";
+export const HOLIDAY_DATA_FILE = "holiday.json";
 
 export { exportIcsFile, uploadIcsToCloud };
 
@@ -180,6 +181,7 @@ export default class ReminderPlugin extends Plugin {
     private habitGroupDataCache: any = null;
     private subscriptionCache: any = null;
     private subscriptionTasksCache: { [id: string]: any } = {};
+    private holidayDataCache: any = null;
 
     public settings: any;
 
@@ -339,6 +341,32 @@ export default class ReminderPlugin extends Plugin {
     }
 
     /**
+     * 加载节假日数据，支持缓存
+     * @param update 是否强制更新
+     */
+    public async loadHolidayData(update: boolean = false): Promise<any> {
+        if (update || !this.holidayDataCache) {
+            try {
+                const data = await this.loadData(HOLIDAY_DATA_FILE);
+                this.holidayDataCache = data || {};
+            } catch (error) {
+                console.error('Failed to load holiday data:', error);
+                this.holidayDataCache = {};
+            }
+        }
+        return this.holidayDataCache;
+    }
+
+    /**
+     * 保存节假日数据，并更新缓存
+     * @param data 节假日数据
+     */
+    public async saveHolidayData(data: any): Promise<void> {
+        this.holidayDataCache = data;
+        await this.saveData(HOLIDAY_DATA_FILE, data);
+    }
+
+    /**
      * 加载订阅数据，支持缓存
      * @param update 是否强制更新（从文件读取）
      */
@@ -431,6 +459,7 @@ export default class ReminderPlugin extends Plugin {
         // 初始化数据并缓存
         await this.loadHabitData();
         await this.loadHabitGroupData();
+        await this.loadHolidayData();
 
         try {
             const { ensureNotifyDataFile } = await import("./api");

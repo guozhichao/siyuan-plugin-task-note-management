@@ -479,7 +479,7 @@ export async function syncHolidays(plugin: any, url: string): Promise<boolean> {
             }
         }
 
-        await plugin.saveData('holiday.json', holidayData);
+        await plugin.saveHolidayData(holidayData);
         return true;
     } catch (error) {
         console.error('Failed to sync holidays:', error);
@@ -492,7 +492,7 @@ export async function syncHolidays(plugin: any, url: string): Promise<boolean> {
  */
 export async function loadHolidays(plugin: any): Promise<{ [date: string]: { title: string, type: 'holiday' | 'workday' } }> {
     try {
-        let data = await plugin.loadData('holiday.json');
+        let data = await plugin.loadHolidayData();
         if (!data || Object.keys(data).length === 0) {
             // 如果数据不存在，检查设置，如果开启了节假日显示且有 URL，则自动同步
             const settings = await plugin.loadSettings();
@@ -500,7 +500,7 @@ export async function loadHolidays(plugin: any): Promise<{ [date: string]: { tit
                 pushMsg('开始下载中国节假日和调休数据...');
                 const success = await syncHolidays(plugin, settings.calendarHolidayIcsUrl);
                 if (success) {
-                    data = await plugin.loadData('holiday.json');
+                    data = await plugin.loadHolidayData();
                 }
             }
         }
