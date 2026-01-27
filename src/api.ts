@@ -972,7 +972,7 @@ function formatDate(date) {
  */
 export async function updateBlockReminderBookmark(blockId: string, plugin: any): Promise<void> {
     try {
-        const reminderData = await plugin.loadData('reminder.json');
+        const reminderData = await plugin.loadReminderData();
 
         // 查找该块的所有提醒
         const blockReminders = Object.values(reminderData).filter((reminder: any) =>

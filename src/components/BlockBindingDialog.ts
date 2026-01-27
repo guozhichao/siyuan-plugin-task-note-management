@@ -692,7 +692,7 @@ export class BlockBindingDialog {
     }
     private async getParentReminder(parentId: string): Promise<any> {
         try {
-            const reminderData = await this.plugin.loadData('reminder.json') || {};
+            const reminderData = await this.plugin.loadReminderData();
             return reminderData[parentId];
         } catch (error) {
             console.error('获取父任务失败:', error);

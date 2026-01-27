@@ -189,7 +189,7 @@ export class QuickReminderDialog {
         if (this.mode !== 'block' || !this.blockId) return;
 
         try {
-            const reminderData = await this.plugin.loadData('reminder.json') || {};
+            const reminderData = await this.plugin.loadReminderData();
             const blockReminders = Object.values(reminderData).filter((reminder: any) =>
                 reminder.blockId === this.blockId
             ) as any[];
@@ -644,7 +644,7 @@ export class QuickReminderDialog {
 
         subtasksGroup.style.display = 'block';
 
-        const reminderData = await this.plugin.loadData('reminder.json') || {};
+        const reminderData = await this.plugin.loadReminderData();
         const subtasks = Object.values(reminderData).filter((r: any) => r.parentId === this.reminder.id);
         const count = subtasks.length;
 
@@ -2723,7 +2723,7 @@ export class QuickReminderDialog {
                 // 但为了简单，create 逻辑中我们让它重新生成也没关系，只要 file update 正确
                 // 不过 edit 逻辑必须用真实 ID
 
-                let reminderData: any = await this.plugin.loadData('reminder.json') || {};
+                let reminderData: any = await this.plugin.loadReminderData();
 
                 let reminder: any;
                 let reminderId: string;
@@ -2866,7 +2866,7 @@ export class QuickReminderDialog {
                         // 所以这里保留原有的 notified 字段值，不做重置或计算。
 
                         reminderData[reminderId] = reminder;
-                        await this.plugin.saveData('reminder.json', reminderData);
+                        await this.plugin.saveReminderData(reminderData);
 
                         // 处理块绑定变更
                         const oldBlockId = this.reminder.blockId;
@@ -3057,7 +3057,7 @@ export class QuickReminderDialog {
                 }
 
                 reminderData[reminderId] = reminder;
-                await this.plugin.saveData('reminder.json', reminderData);
+                await this.plugin.saveReminderData(reminderData);
 
                 // 在保存后，如果绑定了块，确保 reminder 包含 docId（root_id）
                 if (reminder.blockId && !reminder.docId) {
@@ -3066,7 +3066,7 @@ export class QuickReminderDialog {
                         reminder.docId = block?.root_id || (block?.type === 'd' ? block?.id : reminder.blockId);
                         // 更新持久化数据以包含 docId
                         reminderData[reminderId] = reminder;
-                        await this.plugin.saveData('reminder.json', reminderData);
+                        await this.plugin.saveReminderData(reminderData);
                     } catch (err) {
                         console.warn('获取块信息失败（保存 docId）:', err);
                     }
@@ -3135,7 +3135,7 @@ export class QuickReminderDialog {
             const originalId = instanceData.originalId;
             const instanceDate = instanceData.instanceDate;
 
-            const reminderData = await this.plugin.loadData('reminder.json') || {};
+            const reminderData = await this.plugin.loadReminderData();
 
             if (!reminderData[originalId]) {
                 throw new Error('原始事件不存在');
@@ -3181,7 +3181,7 @@ export class QuickReminderDialog {
                 modifiedAt: new Date().toISOString().split('T')[0]
             };
 
-            await this.plugin.saveData('reminder.json', reminderData);
+            await this.plugin.saveReminderData(reminderData);
 
         } catch (error) {
             console.error('保存实例修改失败:', error);
@@ -3233,7 +3233,7 @@ export class QuickReminderDialog {
 
         try {
             // 读取父任务数据
-            const reminderData = await this.plugin.loadData('reminder.json') || {};
+            const reminderData = await this.plugin.loadReminderData();
             const parentTask = reminderData[parentId];
 
             if (parentTask) {
@@ -3269,7 +3269,7 @@ export class QuickReminderDialog {
 
         try {
             // 读取父任务数据
-            const reminderData = await this.plugin.loadData('reminder.json') || {};
+            const reminderData = await this.plugin.loadReminderData();
             const parentTask = reminderData[parentId];
 
             if (!parentTask) {

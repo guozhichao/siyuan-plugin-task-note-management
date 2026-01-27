@@ -1880,7 +1880,7 @@ export class ProjectPanel {
             }
 
             // 读取提醒数据并更新
-            const reminderData = await this.plugin.loadData('reminder.json') || {};
+            const reminderData = await this.plugin.loadReminderData();
             let movedCount = 0;
             Object.values(reminderData).forEach((r: any) => {
                 if (r && r.projectId === sourceId) {
@@ -1895,7 +1895,7 @@ export class ProjectPanel {
             });
 
             // 保存提醒与项目数据
-            await this.plugin.saveData('reminder.json', reminderData);
+            await this.plugin.saveReminderData(reminderData);
             await writeProjectData(projectData);
 
             // 可选删除源项目
@@ -1988,7 +1988,7 @@ export class ProjectPanel {
     private async deleteProject(project: any) {
         // 首先检查是否有关联的任务
         try {
-            const reminderData = await this.plugin.loadData('reminder.json') || {};
+            const reminderData = await this.plugin.loadReminderData();
             const projectTasks = Object.values(reminderData).filter((reminder: any) =>
                 reminder && reminder.projectId === project.id
             );
@@ -2047,7 +2047,7 @@ export class ProjectPanel {
 
             // 如果需要删除任务
             if (deleteTasks) {
-                const reminderData = await this.plugin.loadData('reminder.json') || {};
+                const reminderData = await this.plugin.loadReminderData();
                 let deletedCount = 0;
 
                 // 删除所有关联的任务
@@ -2060,7 +2060,7 @@ export class ProjectPanel {
                 });
 
                 if (deletedCount > 0) {
-                    await this.plugin.saveData('reminder.json', reminderData);
+                    await this.plugin.saveReminderData(reminderData);
                     showMessage(t("projectAndTasksDeleted")?.replace("${count}", deletedCount.toString()) || `项目及 ${deletedCount} 个任务已删除`);
                 } else {
                     showMessage(t("projectDeleted") || "项目删除成功");

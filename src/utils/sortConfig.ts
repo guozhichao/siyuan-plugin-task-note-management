@@ -23,7 +23,7 @@ export async function loadSortConfig(plugin: Plugin): Promise<SortConfig> {
                     // 合并旧排序配置到新的 settings
                     if (oldSort.method) settings.sortMethod = oldSort.method;
                     if (oldSort.order) settings.sortOrder = oldSort.order;
-                    await plugin.saveData('reminder-settings.json', settings);
+                    await plugin.saveData(SETTINGS_FILE, settings);
                     // 删除旧文件
                     await removeFile(SORT_CONFIG_FILE);
                     console.log('成功导入并删除旧的 sort_config.json 文件');

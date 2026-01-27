@@ -438,7 +438,7 @@ export async function importIcsFile(
         }
 
         // 2. 加载现有提醒数据
-        const existingReminders = (await plugin.loadData('reminder.json')) || {};
+        const existingReminders = await plugin.loadReminderData();
 
         // 3. 合并导入的事件
         const { merged, stats } = mergeImportedEvents(existingReminders, events, options);

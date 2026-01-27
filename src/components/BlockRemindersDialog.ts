@@ -44,7 +44,7 @@ export class BlockRemindersDialog {
             }
 
             // 获取提醒数据
-            const reminderData = await this.plugin.loadData('reminder.json') || {};
+            const reminderData = await this.plugin.loadReminderData();
             const reminders = reminderIds
                 .map(id => reminderData[id])
                 .filter(r => r); // 过滤掉不存在的提醒
@@ -429,7 +429,7 @@ export class BlockRemindersDialog {
 
     private async toggleReminderComplete(reminder: any, completed: boolean) {
         try {
-            const reminderData = await this.plugin.loadData('reminder.json') || {};
+            const reminderData = await this.plugin.loadReminderData();
             if (reminderData[reminder.id]) {
                 reminderData[reminder.id].completed = completed;
                 if (completed) {
@@ -437,7 +437,7 @@ export class BlockRemindersDialog {
                 } else {
                     delete reminderData[reminder.id].completedAt;
                 }
-                await this.plugin.saveData('reminder.json', reminderData);
+                await this.plugin.saveReminderData(reminderData);
 
                 // 更新块的书签状态
                 await updateBlockReminderBookmark(this.blockId, this.plugin);
@@ -553,9 +553,9 @@ export class BlockRemindersDialog {
             async () => {
                 // 用户确认删除
                 try {
-                    const reminderData = await this.plugin.loadData('reminder.json') || {};
+                    const reminderData = await this.plugin.loadReminderData();
                     delete reminderData[reminder.id];
-                    await this.plugin.saveData('reminder.json', reminderData);
+                    await this.plugin.saveReminderData(reminderData);
 
                     // 更新块的书签状态
                     await updateBlockReminderBookmark(this.blockId, this.plugin);

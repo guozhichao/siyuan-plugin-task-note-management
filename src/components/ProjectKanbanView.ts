@@ -6727,7 +6727,7 @@ export class ProjectKanbanView {
             await createTaskRecursively(tasks[i], topParent, parentPriority, customGroupId);
         }
 
-        await this.plugin.saveData('reminder.json', reminderData);
+        await this.plugin.saveReminderData(reminderData);
         await this.queueLoadTasks();
         this.dispatchReminderUpdate(true);
     }

@@ -514,7 +514,7 @@ export class TaskStatsView {
         this.isLoading = true;
         try {
             const [reminderData, projectData, categories] = await Promise.all([
-                this.plugin.loadData('reminder.json'),
+                this.plugin.loadReminderData(),
                 readProjectData(),
                 this.readCategoryData()
             ]);

@@ -33,7 +33,7 @@ export async function exportIcsFile(
 ) {
     try {
         const dataDir = 'data/storage/petal/siyuan-plugin-task-note-management';
-        const reminders = (await plugin.loadData('reminder.json')) || {};
+        const reminders = await plugin.loadReminderData();
 
         // 辅助函数：解析日期为 [year, month, day]
         function parseDateArray(dateStr: string): [number, number, number] | null {

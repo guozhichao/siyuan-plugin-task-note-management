@@ -1112,7 +1112,7 @@ class SmartBatchDialog {
 
     private async saveBatchReminders(dialog: Dialog) {
         try {
-            const reminderData = await this.plugin.loadData('reminder.json') || {};
+            const reminderData = await this.plugin.loadReminderData();
 
             let successCount = 0;
             let failureCount = 0;
@@ -1242,7 +1242,7 @@ class SmartBatchDialog {
                 }
             }
 
-            await this.plugin.saveData('reminder.json', reminderData);
+            await this.plugin.saveReminderData(reminderData);
 
             // 为所有成功创建提醒的块添加书签
             for (const blockId of successfulBlockIds) {

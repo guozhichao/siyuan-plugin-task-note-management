@@ -1,12 +1,5 @@
-/*
- * ICS Subscription Management
- * Each subscription stores tasks in a separate JSON file in Subscribe/ directory
- */
-
 import { pushErrMsg, pushMsg, putFile, getFile } from '../api';
 import { parseIcsFile, isEventPast } from './icsImport';
-import { generateRepeatInstances } from './repeatUtils';
-import { getLocalDateString } from './dateUtils';
 
 export interface IcsSubscription {
     id: string;
@@ -37,11 +30,10 @@ const SUBSCRIBE_DIR = 'data/storage/petal/siyuan-plugin-task-note-management/Sub
 function getSubscriptionFilePath(subscriptionId: string): string {
     return `${SUBSCRIBE_DIR}${subscriptionId}.json`;
 }
-
-/**
- * Load ICS subscriptions metadata
- */
 export async function loadSubscriptions(plugin: any): Promise<IcsSubscriptionData> {
+    if (plugin && typeof plugin.loadSubscriptionData === 'function') {
+        return await plugin.loadSubscriptionData();
+    }
     try {
         const data = await plugin.loadData(SUBSCRIPTION_DATA_FILE);
         return data || { subscriptions: {} };
@@ -57,6 +49,9 @@ export async function loadSubscriptions(plugin: any): Promise<IcsSubscriptionDat
 export async function saveSubscriptions(plugin: any, data: IcsSubscriptionData): Promise<void> {
     try {
         await plugin.saveData(SUBSCRIPTION_DATA_FILE, data);
+        if (plugin && typeof plugin.loadSubscriptionData === 'function') {
+            await plugin.loadSubscriptionData(true);
+        }
     } catch (error) {
         console.error('Failed to save ICS subscriptions:', error);
         throw error;
@@ -66,12 +61,15 @@ export async function saveSubscriptions(plugin: any, data: IcsSubscriptionData):
 /**
  * Load subscription tasks from its dedicated file
  */
-export async function loadSubscriptionTasks(subscriptionId: string): Promise<any> {
+export async function loadSubscriptionTasks(plugin: any, subscriptionId: string): Promise<any> {
+    if (plugin && typeof plugin.loadSubscriptionTasks === 'function') {
+        return await plugin.loadSubscriptionTasks(subscriptionId);
+    }
     try {
         const filePath = getSubscriptionFilePath(subscriptionId);
         const response = await getFile(filePath);
 
-        // Handle error objects from Siyuan (like 404 Not Found)
+        // Handle error objects
         if (response && typeof response.code === 'number' && response.code !== 0) {
             if (response.code !== 404) {
                 console.error(`Failed to load subscription tasks for ${subscriptionId}:`, response);
@@ -79,17 +77,12 @@ export async function loadSubscriptionTasks(subscriptionId: string): Promise<any
             return {};
         }
 
-        // If response is null or undefined, return empty
-        if (!response) {
-            return {};
-        }
+        if (!response) return {};
 
-        // If it's already an object (fetchPost might have parsed it if it's JSON)
         if (typeof response === 'object') {
             return response;
         }
 
-        // If it's a string, try to parse it
         if (typeof response === 'string') {
             try {
                 return JSON.parse(response);
@@ -97,11 +90,6 @@ export async function loadSubscriptionTasks(subscriptionId: string): Promise<any
                 console.error(`Failed to parse subscription tasks for ${subscriptionId}:`, e);
                 return {};
             }
-        }
-
-        // If it's a Buffer/Uint8Array (though getFile likely returns string or object)
-        if (response.data) {
-            return JSON.parse(new TextDecoder().decode(response.data));
         }
 
         return {};
@@ -114,11 +102,16 @@ export async function loadSubscriptionTasks(subscriptionId: string): Promise<any
 /**
  * Save subscription tasks to its dedicated file
  */
-export async function saveSubscriptionTasks(subscriptionId: string, tasks: any): Promise<void> {
+export async function saveSubscriptionTasks(plugin: any, subscriptionId: string, tasks: any): Promise<void> {
     try {
         const filePath = getSubscriptionFilePath(subscriptionId);
         const content = JSON.stringify(tasks, null, 2);
         await putFile(filePath, false, new Blob([content]));
+
+        // Refresh cache
+        if (plugin && typeof plugin.loadSubscriptionTasks === 'function') {
+            await plugin.loadSubscriptionTasks(subscriptionId, true);
+        }
     } catch (error) {
         console.error(`Failed to save subscription tasks for ${subscriptionId}:`, error);
         throw error;
@@ -132,7 +125,7 @@ export async function saveSubscriptionTasks(subscriptionId: string, tasks: any):
 export async function getAllReminders(plugin: any, projectId?: string): Promise<any> {
     try {
         // Load main reminders
-        const mainReminders = (await plugin.loadData('reminder.json')) || {};
+        const mainReminders = (await plugin.loadReminderData()) || {};
 
         let filteredMainReminders = mainReminders;
         if (projectId) {
@@ -156,13 +149,9 @@ export async function getAllReminders(plugin: any, projectId?: string): Promise<
         // Load and merge all subscription tasks
         let allReminders = { ...filteredMainReminders };
 
-        const today = getLocalDateString();
-        const startDate = today; // 从今天开始生成实例
-        const endDate = getLocalDateString(new Date(new Date().getTime() + 365 * 24 * 60 * 60 * 1000)); // 未来一年
-
         for (const subscription of subscriptions) {
             if (subscription.enabled) {
-                const subTasks = await loadSubscriptionTasks(subscription.id);
+                const subTasks = await loadSubscriptionTasks(plugin, subscription.id);
                 const updatedSubTasks: any = {};
                 let subTasksUpdated = false;
 
@@ -170,49 +159,12 @@ export async function getAllReminders(plugin: any, projectId?: string): Promise<
                 Object.keys(subTasks).forEach(key => {
                     const task = subTasks[key];
 
-                    // 处理重复事件
+                    // 处理重复事件 - 无需生成实例，直接透传
                     if (task.repeat && task.repeat.enabled) {
-                        // 生成重复实例
-                        const instances = generateRepeatInstances(task, startDate, endDate, 100);
+                        updatedSubTasks[key] = task;
 
-                        // 检查每个实例是否过期，并自动完成
-                        const completedInstances = task.repeat.completedInstances || [];
-                        let instancesUpdated = false;
-
-                        instances.forEach(instance => {
-                            const instanceDate = instance.date;
-                            const instanceIsPast = isEventPast({
-                                ...task,
-                                date: instance.date,
-                                time: instance.time,
-                                endDate: instance.endDate,
-                                endTime: instance.endTime,
-                            });
-
-                            // 如果实例过期且未完成，自动添加到completedInstances
-                            if (instanceIsPast && !completedInstances.includes(instanceDate)) {
-                                completedInstances.push(instanceDate);
-                                instancesUpdated = true;
-                            }
-                        });
-
-                        // 如果有实例被自动完成，更新任务数据
-                        if (instancesUpdated) {
-                            updatedSubTasks[key] = {
-                                ...task,
-                                repeat: {
-                                    ...task.repeat,
-                                    completedInstances,
-                                },
-                            };
-                            subTasksUpdated = true;
-                        } else {
-                            updatedSubTasks[key] = task;
-                        }
-
-                        // 添加到allReminders（保留原始的重复任务，实例会在ReminderPanel中生成）
                         allReminders[key] = {
-                            ...updatedSubTasks[key] || task,
+                            ...task,
                             isSubscribed: true,
                             subscriptionId: subscription.id,
                         };
@@ -240,7 +192,7 @@ export async function getAllReminders(plugin: any, projectId?: string): Promise<
 
                 // Save updated subscription tasks if any were auto-completed
                 if (subTasksUpdated) {
-                    await saveSubscriptionTasks(subscription.id, updatedSubTasks);
+                    await saveSubscriptionTasks(plugin, subscription.id, updatedSubTasks);
                 }
             }
         }
@@ -249,7 +201,7 @@ export async function getAllReminders(plugin: any, projectId?: string): Promise<
     } catch (error) {
         console.error('Failed to get all reminders:', error);
         // Fallback to main reminders only
-        return (await plugin.loadData('reminder.json')) || {};
+        return (await plugin.loadReminderData()) || {};
     }
 }
 
@@ -280,12 +232,12 @@ export async function saveReminders(plugin: any, allReminders: any): Promise<voi
         });
 
         // Save local reminders
-        await plugin.saveData('reminder.json', localReminders);
+        await plugin.saveReminderData(localReminders);
 
         // Save each subscription's tasks
         for (const subId of Object.keys(subRemindersBySubId)) {
             if (subscriptionData.subscriptions[subId]) {
-                await saveSubscriptionTasks(subId, subRemindersBySubId[subId]);
+                await saveSubscriptionTasks(plugin, subId, subRemindersBySubId[subId]);
             }
         }
     } catch (error) {
@@ -333,6 +285,7 @@ async function fetchIcsContent(url: string): Promise<string> {
  * Sync a single ICS subscription
  */
 export async function syncSubscription(
+    plugin: any,
     subscription: IcsSubscription
 ): Promise<{ success: boolean; error?: string; eventsCount?: number }> {
     try {
@@ -344,7 +297,7 @@ export async function syncSubscription(
 
         if (events.length === 0) {
             // Clear subscription file if no events
-            await saveSubscriptionTasks(subscription.id, {});
+            await saveSubscriptionTasks(plugin, subscription.id, {});
             return { success: true, eventsCount: 0 };
         }
 
@@ -369,7 +322,7 @@ export async function syncSubscription(
         }
 
         // Save to subscription's dedicated file
-        await saveSubscriptionTasks(subscription.id, tasks);
+        await saveSubscriptionTasks(plugin, subscription.id, tasks);
 
         // Trigger update event
         window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -400,7 +353,7 @@ export async function syncAllSubscriptions(plugin: any): Promise<void> {
         let errorCount = 0;
 
         for (const subscription of subscriptions) {
-            const result = await syncSubscription(subscription);
+            const result = await syncSubscription(plugin, subscription);
 
             // Update subscription status
             subscription.lastSync = new Date().toISOString();
@@ -450,10 +403,10 @@ export function getSyncIntervalMs(interval: IcsSubscription['syncInterval']): nu
 /**
  * Remove subscription and its tasks file
  */
-export async function removeSubscription(subscriptionId: string): Promise<void> {
+export async function removeSubscription(plugin: any, subscriptionId: string): Promise<void> {
     try {
         // Delete subscription tasks file
-        await saveSubscriptionTasks(subscriptionId, {});
+        await saveSubscriptionTasks(plugin, subscriptionId, {});
 
         // Trigger update event
         window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -466,10 +419,11 @@ export async function removeSubscription(subscriptionId: string): Promise<void> 
  * Update metadata for all tasks in a subscription
  */
 export async function updateSubscriptionTaskMetadata(
+    plugin: any,
     subscription: IcsSubscription
 ): Promise<void> {
     try {
-        const tasks = await loadSubscriptionTasks(subscription.id);
+        const tasks = await loadSubscriptionTasks(plugin, subscription.id);
         const taskIds = Object.keys(tasks);
 
         if (taskIds.length === 0) return;
@@ -484,7 +438,7 @@ export async function updateSubscriptionTaskMetadata(
             };
         }
 
-        await saveSubscriptionTasks(subscription.id, tasks);
+        await saveSubscriptionTasks(plugin, subscription.id, tasks);
         // Trigger update event
         window.dispatchEvent(new CustomEvent('reminderUpdated'));
     } catch (error) {

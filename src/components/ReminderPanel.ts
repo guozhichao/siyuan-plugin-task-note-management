@@ -109,9 +109,6 @@ export class ReminderPanel {
         // 初始化分类管理器
         await this.categoryManager.initialize();
 
-        // 加载折叠状态
-        await this.loadCollapseStates();
-
         // 加载持久化设置（例如 showCompletedSubtasks）
         try {
             const settings = await this.plugin.loadSettings();
@@ -143,8 +140,6 @@ export class ReminderPanel {
             this.loadTimeoutId = null;
         }
 
-        // 保存折叠状态
-        this.saveCollapseStates();
 
         if (this.reminderUpdatedHandler) {
             window.removeEventListener('reminderUpdated', this.reminderUpdatedHandler);
@@ -390,7 +385,7 @@ export class ReminderPanel {
             // 持久化设置
             (async () => {
                 try {
-                    const settings = (await this.plugin.loadData(SETTINGS_FILE)) || {};
+                    const settings = await this.plugin.loadSettings() || {};
                     settings.showCompletedSubtasks = this.showCompletedSubtasks;
                     await this.plugin.saveData(SETTINGS_FILE, settings);
                 } catch (e) {
@@ -8124,41 +8119,7 @@ export class ReminderPanel {
     }
 
 
-    /**
-     * 加载折叠状态
-     */
-    private async loadCollapseStates() {
-        try {
-            if (!this.plugin) return;
 
-            const collapseData = await this.plugin.loadData('reminder-collapse-states') || {};
-            this.collapsedTasks = new Set(collapseData.collapsedTasks || []);
-            this.userExpandedTasks = new Set(collapseData.userExpandedTasks || []);
-        } catch (error) {
-            console.warn('加载折叠状态失败:', error);
-            // 初始化为空的Set
-            this.collapsedTasks = new Set();
-            this.userExpandedTasks = new Set();
-        }
-    }
-
-    /**
-     * 保存折叠状态
-     */
-    private async saveCollapseStates() {
-        try {
-            if (!this.plugin) return;
-
-            const collapseData = {
-                collapsedTasks: Array.from(this.collapsedTasks),
-                userExpandedTasks: Array.from(this.userExpandedTasks)
-            };
-
-            await this.plugin.saveData('reminder-collapse-states', collapseData);
-        } catch (error) {
-            console.warn('保存折叠状态失败:', error);
-        }
-    }
 
     private async showCategorySelectDialog() {
         const categories = await this.categoryManager.loadCategories();

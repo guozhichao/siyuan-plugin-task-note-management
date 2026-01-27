@@ -1503,13 +1503,13 @@
                     } else if (action === 'sync' && sub) {
                         btn.innerHTML =
                             '<svg class="b3-button__icon fn__rotate"><use xlink:href="#iconRefresh"></use></svg>';
-                        await syncSubscription(sub);
+                        await syncSubscription(plugin, sub);
                         renderSubscriptions();
                     } else if (action === 'edit' && sub) {
                         showEditSubscriptionDialog(sub);
                     } else if (action === 'delete' && sub) {
                         if (confirm(t('confirmDeleteSubscription').replace('${name}', sub.name))) {
-                            await removeSubscription(sub.id);
+                            await removeSubscription(plugin, sub.id);
                             delete data.subscriptions[sub.id];
                             await saveSubscriptions(plugin, data);
                             subscriptions.splice(
@@ -1725,7 +1725,7 @@
                     const index = subscriptions.findIndex(s => s.id === subData.id);
                     subscriptions[index] = subData;
                     // 更新现有任务元数据
-                    await updateSubscriptionTaskMetadata(subData);
+                    await updateSubscriptionTaskMetadata(plugin, subData);
                 } else {
                     subscriptions.push(subData);
                 }

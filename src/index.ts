@@ -29,7 +29,7 @@ import { ProjectKanbanView } from "./components/ProjectKanbanView";
 import { PomodoroManager } from "./utils/pomodoroManager";
 import SettingPanelComponent from "./SettingPanel.svelte";
 import { exportIcsFile, uploadIcsToCloud } from "./utils/icsUtils";
-import { getFileStat } from "./api";
+import { getFileStat, getFile } from "./api";
 
 export const SETTINGS_FILE = "reminder-settings.json";
 export const PROJECT_DATA_FILE = "project.json";
@@ -173,7 +173,104 @@ export default class ReminderPlugin extends Plugin {
     // 缓存上一次的番茄钟设置，用于比较变更
     private lastPomodoroSettings: any = null;
 
+    private reminderDataCache: any = null;
+    private subscriptionCache: any = null;
+    private subscriptionTasksCache: { [id: string]: any } = {};
+
     public settings: any;
+
+    /**
+     * 加载提醒数据，支持缓存
+     * @param update 是否强制更新（从文件读取）
+     */
+    public async loadReminderData(update: boolean = false): Promise<any> {
+        if (update || !this.reminderDataCache) {
+            try {
+                const data = await this.loadData(REMINDER_DATA_FILE);
+                this.reminderDataCache = data || {};
+            } catch (error) {
+                console.error('Failed to load reminder data:', error);
+                this.reminderDataCache = {};
+            }
+        }
+        return this.reminderDataCache;
+    }
+    /**
+     * 保存提醒数据，并更新缓存
+     * @param data 提醒数据
+     */
+    public async saveReminderData(data: any): Promise<void> {
+        this.reminderDataCache = data;
+        await this.saveData(REMINDER_DATA_FILE, data);
+    }
+    /**
+     * 加载订阅数据，支持缓存
+     * @param update 是否强制更新（从文件读取）
+     */
+    public async loadSubscriptionData(update: boolean = false): Promise<any> {
+        if (update || !this.subscriptionCache) {
+            try {
+                // 硬编码文件名以避免循环依赖 "ics-subscriptions.json"
+                const data = await this.loadData("ics-subscriptions.json");
+                this.subscriptionCache = data || { subscriptions: {} };
+            } catch (error) {
+                console.error('Failed to load subscription data:', error);
+                this.subscriptionCache = { subscriptions: {} };
+            }
+        }
+        return this.subscriptionCache;
+    }
+
+    /**
+     * 加载订阅任务数据，支持缓存
+     * @param id 订阅ID
+     * @param update 是否强制更新
+     */
+    public async loadSubscriptionTasks(id: string, update: boolean = false): Promise<any> {
+        if (update || !this.subscriptionTasksCache[id]) {
+            try {
+                // Subscribe/ is a relative directory in the plugin's data folder
+                const filePath = `data/storage/petal/siyuan-plugin-task-note-management/Subscribe/${id}.json`;
+                // loadData 不支持子目录，使用 getFile 读取
+                const response = await getFile(filePath);
+
+                let data = {};
+                if (response) {
+                    if (typeof response === 'object' && response !== null) {
+                        // getFile can return the parsed JSON object directly if it's JSON
+                        // Or it handles parsing internally? Siyuan API behavior needs care.
+                        // Usually getFile returns the file content (string) or an error/status object?
+                        // If we assume it returns similar to fetch response or the content directly.
+                        // But usually getFile in Siyuan kernel returns JSON object if it's a JSON file?
+                        // Let's assume standard behavior as seen in other plugins or previous code.
+                        // Previous existing code in icsSubscription.ts handled string parsing.
+                        // Let's be safe.
+                        if ('code' in response && response.code !== 0) {
+                            // error
+                            console.warn(`Failed to load subscription file: ${filePath}`, response);
+                        } else {
+                            // success, response might be the object itself
+                            data = response;
+                        }
+                    } else if (typeof response === 'string') {
+                        try {
+                            data = JSON.parse(response);
+                        } catch (e) {
+                            console.warn(`Failed to parse subscription file: ${filePath}`, e);
+                        }
+                    }
+                }
+
+                this.subscriptionTasksCache[id] = data || {};
+            } catch (error) {
+                console.error(`Failed to load subscription tasks for ${id}:`, error);
+                this.subscriptionTasksCache[id] = {};
+            }
+        }
+        return this.subscriptionTasksCache[id];
+    }
+
+
 
     async onload() {
         await this.loadSettings();
@@ -1707,14 +1804,14 @@ export default class ReminderPlugin extends Plugin {
         try {
             const { hasNotifiedToday, markNotifiedToday } = await import("./api");
             const { generateRepeatInstances } = await import("./utils/repeatUtils");
-            let reminderData = await this.loadData('reminder.json') || {};
+            let reminderData = await this.loadReminderData();
 
             // 检查数据是否有效，如果数据被损坏（包含错误信息），重新初始化
             if (!reminderData || typeof reminderData !== 'object' ||
                 reminderData.hasOwnProperty('code') || reminderData.hasOwnProperty('msg')) {
                 console.warn('检测到损坏的提醒数据，重新初始化:', reminderData);
                 reminderData = {};
-                await this.saveData('reminder.json', reminderData);
+                await this.saveReminderData(reminderData);
                 return;
             }
 
@@ -2216,7 +2313,7 @@ export default class ReminderPlugin extends Plugin {
 
             // 如果数据有变化，保存到文件
             if (dataChanged) {
-                await this.saveData('reminder.json', reminderData);
+                await this.saveReminderData(reminderData);
             }
 
         } catch (error) {
@@ -3641,7 +3738,7 @@ export default class ReminderPlugin extends Plugin {
     private async migrateBindBlockAttributes() {
         try {
             const { setBlockAttrs } = await import('./api');
-            const reminderData = await this.loadData('reminder.json') || {};
+            const reminderData = await this.loadReminderData();
 
             if (!reminderData || typeof reminderData !== 'object') {
                 console.log('没有找到提醒数据，跳过迁移');

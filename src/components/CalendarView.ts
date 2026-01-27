@@ -2525,7 +2525,7 @@ export class CalendarView {
             const props = calendarEvent.extendedProps;
             const originalId = (props.isRepeated || props.repeat?.enabled) ? props.originalId : calendarEvent.id;
 
-            const reminderData = await this.plugin.loadData('reminder.json') || {};
+            const reminderData = await this.plugin.loadReminderData();
             const originalReminder = reminderData[originalId];
 
             if (!originalReminder) {
@@ -2579,7 +2579,7 @@ export class CalendarView {
 
             // 保存数据
             reminderData[newReminderId] = newReminder;
-            await this.plugin.saveData('reminder.json', reminderData);
+            await this.plugin.saveReminderData(reminderData);
 
             // 如果有绑定块，更新块的书签状态
             if (newReminder.blockId) {

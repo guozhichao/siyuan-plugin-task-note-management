@@ -255,7 +255,7 @@ export class PomodoroRecordManager {
             await this.initialize();
         }
         try {
-            const reminderData = await this.plugin.loadData('reminder.json') || {};
+            const reminderData = await this.plugin.loadReminderData() || {};
 
             if (!reminderData) return 0;
 
@@ -322,7 +322,7 @@ export class PomodoroRecordManager {
                 await this.initialize();
             }
 
-            const reminderData = await this.plugin.loadData('reminder.json') || {};
+            const reminderData = await this.plugin.loadReminderData() || {};
             if (!reminderData) return 0;
 
             const isInstanceId = (id: string) => {
