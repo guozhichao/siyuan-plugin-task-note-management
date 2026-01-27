@@ -972,6 +972,10 @@
 
     async function saveSettings(emitEvent = true) {
         await plugin.saveData(SETTINGS_FILE, settings);
+        // 更新插件实例的设置缓存
+        if (plugin) {
+            plugin.settings = { ...settings };
+        }
         if (!emitEvent) return;
         // 通知其他组件（如日历视图）设置项已更新
         try {

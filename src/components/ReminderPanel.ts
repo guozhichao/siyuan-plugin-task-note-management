@@ -1,9 +1,9 @@
-import { showMessage, confirm, Dialog, Menu, openTab } from "siyuan";
-import { refreshSql, sql, updateBlock, getBlockKramdown, getBlockByID, updateBlockReminderBookmark, openBlock, createDocWithMd, renderSprig, readProjectData } from "../api";
-import { getLocalDateString, compareDateStrings, getLocalDateTime, getLocalDateTimeString, getLogicalDateString, getRelativeDateString, autoDetectDateTimeFromTitle } from "../utils/dateUtils";
+import { showMessage, confirm, Dialog, Menu } from "siyuan";
+import { refreshSql, sql, getBlockKramdown, getBlockByID, updateBlockReminderBookmark, openBlock, readProjectData } from "../api";
+import { getLocalDateString, compareDateStrings, getLocalDateTimeString, getLogicalDateString, getRelativeDateString, autoDetectDateTimeFromTitle } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { QuickReminderDialog } from "./QuickReminderDialog";
-import { CategoryManager, Category } from "../utils/categoryManager";
+import { CategoryManager } from "../utils/categoryManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { BlockBindingDialog } from "./BlockBindingDialog";
 import { t } from "../utils/i18n";
@@ -12,20 +12,15 @@ import { generateRepeatInstances, getRepeatDescription, getDaysDifference, addDa
 import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroStatsView, getLastStatsMode } from "./PomodoroStatsView";
 import { TaskStatsView } from "./TaskStatsView";
-import { EisenhowerMatrixView } from "./EisenhowerMatrixView";
 import { PomodoroManager } from "../utils/pomodoroManager";
 import { getSolarDateLunarString, getNextLunarMonthlyDate, getNextLunarYearlyDate } from "../utils/lunarUtils";
 import { getAllReminders, saveReminders } from "../utils/icsSubscription";
 import { isEventPast } from "../utils/icsImport";
 
-// 添加四象限面板常量
-const EISENHOWER_TAB_TYPE = "reminder_eisenhower_tab";
-
 export class ReminderPanel {
     private container: HTMLElement;
     private remindersContainer: HTMLElement;
     private filterSelect: HTMLSelectElement;
-    private categoryFilterSelect: HTMLSelectElement; // 添加分类过滤选择器
     private categoryFilterButton: HTMLButtonElement;
     private sortButton: HTMLButtonElement;
     private searchInput: HTMLInputElement;
@@ -38,7 +33,6 @@ export class ReminderPanel {
     private currentSortOrder: 'asc' | 'desc' = 'asc';
     private reminderUpdatedHandler: () => void;
     private sortConfigUpdatedHandler: (event: CustomEvent) => void;
-    private closeCallback?: () => void;
     private categoryManager: CategoryManager; // 添加分类管理器
     private isDragging: boolean = false;
     private draggedElement: HTMLElement | null = null;
@@ -70,7 +64,6 @@ export class ReminderPanel {
     constructor(container: HTMLElement, plugin?: any, closeCallback?: () => void) {
         this.container = container;
         this.plugin = plugin;
-        this.closeCallback = closeCallback;
         this.categoryManager = CategoryManager.getInstance(this.plugin); // 初始化分类管理器
 
         // 创建事件处理器
@@ -121,7 +114,7 @@ export class ReminderPanel {
 
         // 加载持久化设置（例如 showCompletedSubtasks）
         try {
-            const settings = (await this.plugin.loadData(SETTINGS_FILE)) || {};
+            const settings = await this.plugin.loadSettings();
             if (settings.showCompletedSubtasks !== undefined) {
                 this.showCompletedSubtasks = !!settings.showCompletedSubtasks;
             }
@@ -163,6 +156,7 @@ export class ReminderPanel {
         // 清理当前番茄钟实例
         this.pomodoroManager.cleanupInactiveTimer();
     }
+
 
     // 加载排序配置
     private async loadSortConfig() {

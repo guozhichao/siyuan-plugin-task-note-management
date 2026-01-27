@@ -173,8 +173,10 @@ export default class ReminderPlugin extends Plugin {
     // 缓存上一次的番茄钟设置，用于比较变更
     private lastPomodoroSettings: any = null;
 
+    public settings: any;
+
     async onload() {
-        await this.loadData(STORAGE_NAME);
+        await this.loadSettings();
 
         // 添加自定义图标
         this.addIcons(`
@@ -226,6 +228,7 @@ export default class ReminderPlugin extends Plugin {
         // 监听设置变更，动态显示/隐藏侧边停靠栏
         window.addEventListener('reminderSettingsUpdated', async () => {
             try {
+                this.settings = null; // Force reload from disk
                 const settings = await this.loadSettings();
                 this.toggleDockVisibility('project_dock', settings.enableProjectDock !== false);
                 this.toggleDockVisibility('reminder_dock', settings.enableReminderDock !== false);
@@ -409,6 +412,10 @@ export default class ReminderPlugin extends Plugin {
 
     // 加载设置的封装函数
     async loadSettings() {
+        if (this.settings) {
+            return this.settings;
+        }
+
         const data = await this.loadData(SETTINGS_FILE) || {};
         // 合并默认设置和用户设置，确保所有设置项都有值
         const settings = { ...DEFAULT_SETTINGS, ...data };
@@ -451,6 +458,7 @@ export default class ReminderPlugin extends Plugin {
             }
         }
         setDayStartTime(settings.todayStartTime);
+        this.settings = settings;
         return settings;
     }
 
@@ -2094,28 +2102,29 @@ export default class ReminderPlugin extends Plugin {
                         for (const [origKey, mod] of Object.entries(mods)) {
                             try {
                                 if (!mod || typeof mod !== 'object') continue;
-                                if (mod.date !== today) continue; // 只关心被改到今天的实例
+                                const modObj = mod as any;
+                                if (modObj.date !== today) continue; // 只关心被改到今天的实例
                                 const instanceId = `${reminderObj.id}_${origKey}`;
                                 const exists = instances.some((it: any) => it.instanceId === instanceId);
                                 if (exists) continue;
 
                                 const constructed = {
-                                    title: mod.title || reminderObj.title || t('unnamedNote'),
-                                    date: mod.date || today,
-                                    time: mod.time || reminderObj.time,
-                                    endDate: mod.endDate || reminderObj.endDate,
-                                    endTime: mod.endTime || reminderObj.endTime,
-                                    customReminderTime: mod.customReminderTime || reminderObj.customReminderTime,
-                                    reminderTimes: mod.reminderTimes !== undefined ? mod.reminderTimes : reminderObj.reminderTimes,
-                                    customReminderPreset: mod.customReminderPreset !== undefined ? mod.customReminderPreset : reminderObj.customReminderPreset,
+                                    title: modObj.title || reminderObj.title || t('unnamedNote'),
+                                    date: modObj.date || today,
+                                    time: modObj.time || reminderObj.time,
+                                    endDate: modObj.endDate || reminderObj.endDate,
+                                    endTime: modObj.endTime || reminderObj.endTime,
+                                    customReminderTime: modObj.customReminderTime || reminderObj.customReminderTime,
+                                    reminderTimes: modObj.reminderTimes !== undefined ? modObj.reminderTimes : reminderObj.reminderTimes,
+                                    customReminderPreset: modObj.customReminderPreset !== undefined ? modObj.customReminderPreset : reminderObj.customReminderPreset,
                                     instanceId: instanceId,
                                     originalId: reminderObj.id,
                                     isRepeatedInstance: true,
                                     completed: (reminderObj.repeat?.completedInstances || []).includes(origKey),
-                                    note: mod.note || reminderObj.note,
-                                    priority: mod.priority !== undefined ? mod.priority : reminderObj.priority,
-                                    categoryId: mod.categoryId !== undefined ? mod.categoryId : reminderObj.categoryId,
-                                    projectId: mod.projectId !== undefined ? mod.projectId : reminderObj.projectId
+                                    note: modObj.note || reminderObj.note,
+                                    priority: modObj.priority !== undefined ? modObj.priority : reminderObj.priority,
+                                    categoryId: modObj.categoryId !== undefined ? modObj.categoryId : reminderObj.categoryId,
+                                    projectId: modObj.projectId !== undefined ? modObj.projectId : reminderObj.projectId
                                 };
 
                                 instances.push(constructed as any);
@@ -2880,7 +2889,7 @@ export default class ReminderPlugin extends Plugin {
                 try {
                     // 仅扫描具有自定义项目属性的节点，避免遍历所有块
                     const projectSelector = 'div[data-node-id][custom-task-projectid], .protyle-wysiwyg[custom-task-projectid]';
-                    const allBlocks = Array.from(protyle.element.querySelectorAll(projectSelector));
+                    const allBlocks = Array.from(protyle.element.querySelectorAll(projectSelector)) as Element[];
 
                     if (allBlocks.length === 0) {
                         // 清理可能存在的孤立按钮
@@ -3057,7 +3066,7 @@ export default class ReminderPlugin extends Plugin {
             if (protyleRoot) {
                 const titleElement = protyleRoot.querySelector('.protyle-top .protyle-title.protyle-wysiwyg--attr') ||
                     protyleRoot.querySelector('.protyle-top .protyle-title');
-                return titleElement?.querySelector('div.protyle-attr') || titleElement;
+                return (titleElement?.querySelector('div.protyle-attr') || titleElement) as HTMLElement;
             }
         } else {
             // 普通块：优先使用 protyle-attr

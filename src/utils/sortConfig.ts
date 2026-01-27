@@ -12,7 +12,7 @@ export interface SortConfig {
 
 export async function loadSortConfig(plugin: Plugin): Promise<SortConfig> {
     try {
-        const settings = await plugin.loadData(SETTINGS_FILE) || {};
+        const settings = await (plugin as any).loadSettings();
 
         // 检查是否存在旧的 sort_config.json 文件，如果存在则导入并删除
         try {
@@ -46,7 +46,7 @@ export async function loadSortConfig(plugin: Plugin): Promise<SortConfig> {
 
 export async function saveSortConfig(plugin: Plugin, method: string, order: 'asc' | 'desc' = 'asc'): Promise<void> {
     try {
-        const settings = await plugin.loadData(SETTINGS_FILE) || {};
+        const settings = await (plugin as any).loadSettings();
         settings.sortMethod = method;
         settings.sortOrder = order;
         await plugin.saveData(SETTINGS_FILE, settings);

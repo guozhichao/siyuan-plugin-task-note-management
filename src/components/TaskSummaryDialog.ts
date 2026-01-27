@@ -285,7 +285,7 @@ export class TaskSummaryDialog {
   }
 
   private async calculateStats(startDate: string, endDate: string) {
-    const settings = this.plugin?.data[SETTINGS_FILE] || {};
+    const settings = await this.plugin.loadSettings();
     const reminderData = await this.plugin.loadData('reminder.json') || {};
 
     // 1. 番茄钟统计

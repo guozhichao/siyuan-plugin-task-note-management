@@ -3194,7 +3194,7 @@ export class EisenhowerMatrixView {
 
     private async loadProjectSortOrder() {
         try {
-            const settings = await this.plugin.loadData(SETTINGS_FILE) || {};
+            const settings = await this.plugin.loadSettings();
 
             // 检查是否存在旧的 project-sort.json 文件，如果存在则导入并删除
             try {
@@ -3226,7 +3226,7 @@ export class EisenhowerMatrixView {
 
     private async loadCriteriaSettings() {
         try {
-            const settings = await this.plugin.loadData(SETTINGS_FILE) || {};
+            const settings = await this.plugin.loadSettings();
 
             // 检查是否存在旧的 four-quadrant-settings.json 文件，如果存在则导入并删除
             try {
@@ -3262,7 +3262,7 @@ export class EisenhowerMatrixView {
 
     private async saveCriteriaSettings() {
         try {
-            const settings = await this.plugin.loadData(SETTINGS_FILE) || {};
+            const settings = await this.plugin.loadSettings();
             settings.eisenhowerImportanceThreshold = this.criteriaSettings.importanceThreshold;
             settings.eisenhowerUrgencyDays = this.criteriaSettings.urgencyDays;
             await this.plugin.saveData(SETTINGS_FILE, settings);
@@ -3273,7 +3273,7 @@ export class EisenhowerMatrixView {
 
     private async saveProjectSortOrder() {
         try {
-            const settings = await this.plugin.loadData(SETTINGS_FILE) || {};
+            const settings = await this.plugin.loadSettings();
             settings.projectSortOrder = this.projectSortOrder;
             settings.projectSortMode = this.currentProjectSortMode;
             await this.plugin.saveData(SETTINGS_FILE, settings);

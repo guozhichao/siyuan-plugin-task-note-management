@@ -42,7 +42,7 @@ export class CalendarConfigManager {
 
     private async saveConfig() {
         try {
-            const settings = await this.plugin.loadData(SETTINGS_FILE) || {};
+            const settings = await (this.plugin as any).loadSettings();
             settings.calendarColorBy = this.config.colorBy;
             settings.calendarViewMode = this.config.viewMode;
             settings.calendarViewType = this.config.viewType;
@@ -58,7 +58,7 @@ export class CalendarConfigManager {
 
     private async loadConfig() {
         try {
-            const settings = await this.plugin.loadData(SETTINGS_FILE) || {};
+            const settings = await (this.plugin as any).loadSettings();
 
             // 检查是否存在旧的 calendar-config.json 文件，如果存在则导入并删除
             try {
