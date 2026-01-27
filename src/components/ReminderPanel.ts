@@ -1,5 +1,5 @@
 import { showMessage, confirm, Dialog, Menu } from "siyuan";
-import { refreshSql, sql, getBlockKramdown, getBlockByID, updateBlockReminderBookmark, openBlock, readProjectData } from "../api";
+import { refreshSql, sql, getBlockKramdown, getBlockByID, updateBlockReminderBookmark, openBlock } from "../api";
 import { getLocalDateString, compareDateStrings, getLocalDateTimeString, getLogicalDateString, getRelativeDateString, autoDetectDateTimeFromTitle } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { QuickReminderDialog } from "./QuickReminderDialog";
@@ -725,7 +725,7 @@ export class ReminderPanel {
      */
     private async addProjectInfo(container: HTMLElement, projectId: string) {
         try {
-            const projectData = await readProjectData();
+            const projectData = await this.plugin.loadProjectData();
             const project = projectData[projectId];
 
             if (project && project.title) {
@@ -1543,7 +1543,7 @@ export class ReminderPanel {
             .filter(reminder => reminder.projectId)
             .map(async (reminder) => {
                 try {
-                    const projectData = await readProjectData();
+                    const projectData = await this.plugin.loadProjectData();
                     const project = projectData[reminder.projectId];
                     return { id: reminder.id, project };
                 } catch (error) {
@@ -5189,7 +5189,7 @@ export class ReminderPanel {
             const today = getLogicalDateString();
             const reminderData = await getAllReminders(this.plugin);
 
-            let updatedReminder: any = null;
+
 
             if (reminder.isRepeatInstance) {
                 // 重复事件实例：更新原始事件的每日完成记录
@@ -5203,10 +5203,8 @@ export class ReminderPanel {
                     }
                     reminderData[originalId].dailyCompletions[today] = true;
                     reminderData[originalId].dailyCompletionsTimes[today] = getLocalDateTimeString(new Date());
-                    updatedReminder = reminderData[originalId];
                 }
             } else {
-                // 普通事件：更新事件的每日完成记录
                 if (reminderData[reminder.id]) {
                     if (!reminderData[reminder.id].dailyCompletions) {
                         reminderData[reminder.id].dailyCompletions = {};
@@ -5216,7 +5214,6 @@ export class ReminderPanel {
                     }
                     reminderData[reminder.id].dailyCompletions[today] = true;
                     reminderData[reminder.id].dailyCompletionsTimes[today] = getLocalDateTimeString(new Date());
-                    updatedReminder = reminderData[reminder.id];
                 }
             }
 
@@ -5248,7 +5245,7 @@ export class ReminderPanel {
             const today = getLogicalDateString();
             const reminderData = await getAllReminders(this.plugin);
 
-            let updatedReminder: any = null;
+
 
             if (reminder.isRepeatInstance) {
                 // 重复事件实例：更新原始事件的每日完成记录
@@ -5260,7 +5257,6 @@ export class ReminderPanel {
                     if (reminderData[originalId].dailyCompletionsTimes) {
                         delete reminderData[originalId].dailyCompletionsTimes[today];
                     }
-                    updatedReminder = reminderData[originalId];
                 }
             } else {
                 // 普通事件：更新事件的每日完成记录
@@ -5271,7 +5267,6 @@ export class ReminderPanel {
                     if (reminderData[reminder.id].dailyCompletionsTimes) {
                         delete reminderData[reminder.id].dailyCompletionsTimes[today];
                     }
-                    updatedReminder = reminderData[reminder.id];
                 }
             }
 
@@ -7369,7 +7364,7 @@ export class ReminderPanel {
     private async openProjectKanban(projectId: string) {
         try {
             // 获取项目数据以获取项目标题
-            const projectData = await readProjectData();
+            const projectData = await this.plugin.loadProjectData();
 
             if (!projectData || !projectData[projectId]) {
                 showMessage("项目不存在");

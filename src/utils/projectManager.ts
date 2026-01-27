@@ -1,5 +1,4 @@
 import { getFile, putFile, removeFile } from '../api';
-import { PROJECT_DATA_FILE } from '../index';
 import { StatusManager } from './statusManager';
 
 export interface Project {
@@ -41,10 +40,10 @@ export class ProjectManager {
 
     public async setProjectColor(projectId: string, color: string) {
         try {
-            const projectData = await this.plugin.loadData(PROJECT_DATA_FILE) || {};
+            const projectData = await this.plugin.loadProjectData() || {};
             if (projectData[projectId]) {
                 projectData[projectId].color = color;
-                await this.plugin.saveData(PROJECT_DATA_FILE, projectData);
+                await this.plugin.saveProjectData(projectData);
             }
             this.projectColors[projectId] = color;
             // 触发项目颜色更新事件，通知日历视图等组件更新颜色缓存
@@ -78,44 +77,9 @@ export class ProjectManager {
 
     public async loadProjects() {
         try {
-            const projectData = await this.plugin.loadData(PROJECT_DATA_FILE) || {};
+            const projectData = await this.plugin.loadProjectData() || {};
             if (projectData && typeof projectData === 'object') {
-                // 迁移旧的 _colors 到项目中
-                if (projectData._colors) {
-                    Object.entries(projectData._colors).forEach(([id, color]) => {
-                        if (projectData[id] && typeof color === 'string') {
-                            projectData[id].color = color;
-                        }
-                    });
-                    delete projectData._colors;
-                    await this.plugin.saveData(PROJECT_DATA_FILE, projectData);
-                    console.log('成功迁移 _colors 到项目对象中');
-                }
 
-                // 检查是否存在旧的 project_colors.json 文件，如果存在则导入并删除
-                try {
-                    const oldColorsContent = await getFile('data/storage/petal/siyuan-plugin-task-note-management/project_colors.json');
-                    if (oldColorsContent && oldColorsContent.code !== 404) {
-                        const oldColors = typeof oldColorsContent === 'string' ? JSON.parse(oldColorsContent) : oldColorsContent;
-                        if (oldColors && typeof oldColors === 'object') {
-                            // 合并旧颜色数据到项目中
-                            Object.entries(oldColors).forEach(([id, color]) => {
-                                if (projectData[id] && typeof color === 'string') {
-                                    projectData[id].color = color;
-                                }
-                            });
-                            await this.plugin.saveData(PROJECT_DATA_FILE, projectData);
-                            // 删除旧文件
-                            await removeFile('data/storage/petal/siyuan-plugin-task-note-management/project_colors.json');
-                            console.log('成功导入并删除旧的 project_colors.json 文件');
-                        }
-                    }
-                } catch (error) {
-                    // 如果文件不存在或其他错误，忽略
-                    console.log('旧的 project_colors.json 文件不存在或已处理');
-                }
-
-                // 排除内部属性，只处理项目数据
                 const projectEntries = Object.entries(projectData).filter(([key]) => !key.startsWith('_'));
                 this.projects = projectEntries
                     .map(([id, project]: [string, any]) => ({
@@ -207,7 +171,7 @@ export class ProjectManager {
      */
     public async getProjectKanbanMode(projectId: string): Promise<'status' | 'custom'> {
         try {
-            const projectData = await this.plugin.loadData(PROJECT_DATA_FILE) || {};
+            const projectData = await this.plugin.loadProjectData() || {};
             const project = projectData[projectId];
             return project?.kanbanMode || 'status';
         } catch (error) {
@@ -221,10 +185,10 @@ export class ProjectManager {
      */
     public async setProjectKanbanMode(projectId: string, mode: 'status' | 'custom'): Promise<void> {
         try {
-            const projectData = await this.plugin.loadData(PROJECT_DATA_FILE) || {};
+            const projectData = await this.plugin.loadProjectData() || {};
             if (projectData[projectId]) {
                 projectData[projectId].kanbanMode = mode;
-                await this.plugin.saveData(PROJECT_DATA_FILE, projectData);
+                await this.plugin.saveProjectData(projectData);
             }
         } catch (error) {
             console.error('设置项目看板模式失败:', error);
@@ -237,7 +201,7 @@ export class ProjectManager {
      */
     public async getProjectCustomGroups(projectId: string): Promise<any[]> {
         try {
-            const projectData = await this.plugin.loadData(PROJECT_DATA_FILE) || {};
+            const projectData = await this.plugin.loadProjectData() || {};
             const project = projectData[projectId];
             return project?.customGroups || [];
         } catch (error) {
@@ -251,10 +215,10 @@ export class ProjectManager {
      */
     public async setProjectCustomGroups(projectId: string, groups: any[]): Promise<void> {
         try {
-            const projectData = await this.plugin.loadData(PROJECT_DATA_FILE) || {};
+            const projectData = await this.plugin.loadProjectData() || {};
             if (projectData[projectId]) {
                 projectData[projectId].customGroups = groups;
-                await this.plugin.saveData(PROJECT_DATA_FILE, projectData);
+                await this.plugin.saveProjectData(projectData);
             }
         } catch (error) {
             console.error('设置项目自定义分组失败:', error);
@@ -269,7 +233,7 @@ export class ProjectManager {
      */
     public async getProjectTags(projectId: string): Promise<Array<{ id: string, name: string, color: string }>> {
         try {
-            const projectData = await this.plugin.loadData(PROJECT_DATA_FILE) || {};
+            const projectData = await this.plugin.loadProjectData() || {};
             const project = projectData[projectId];
             const tags = project?.tags || [];
 
@@ -312,10 +276,10 @@ export class ProjectManager {
      */
     public async setProjectTags(projectId: string, tags: Array<{ id: string, name: string, color: string }>): Promise<void> {
         try {
-            const projectData = await this.plugin.loadData(PROJECT_DATA_FILE) || {};
+            const projectData = await this.plugin.loadProjectData() || {};
             if (projectData[projectId]) {
                 projectData[projectId].tags = tags;
-                await this.plugin.saveData(PROJECT_DATA_FILE, projectData);
+                await this.plugin.saveProjectData(projectData);
             }
         } catch (error) {
             console.error('设置项目标签失败:', error);

@@ -1,5 +1,5 @@
 import { Dialog, showMessage } from "siyuan";
-import { readProjectData, writeProjectData, getBlockByID } from "../api";
+import { getBlockByID } from "../api";
 import { getLogicalDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { StatusManager } from "../utils/statusManager";
@@ -23,7 +23,7 @@ export class ProjectDialog {
     async show() {
         try {
             let blockContent = '';
-            const projectData = await readProjectData();
+            const projectData = await this.plugin.loadProjectData();
             const existingProject = this.blockId ? projectData[this.blockId] : undefined;
 
             // 初始化选中的分类
@@ -326,7 +326,7 @@ export class ProjectDialog {
                 return;
             }
 
-            const projectData = await readProjectData();
+            const projectData = await this.plugin.loadProjectData();
             const projectId = this.blockId || `quick_${Date.now()}`;
             const existingProject = this.blockId ? projectData[this.blockId] : null;
 
@@ -358,7 +358,7 @@ export class ProjectDialog {
             }
 
             projectData[projectId] = project;
-            await writeProjectData(projectData);
+            await this.plugin.saveProjectData(projectData);
 
             // 触发更新事件，包含项目ID
             window.dispatchEvent(new CustomEvent('projectUpdated', {

@@ -174,6 +174,8 @@ export default class ReminderPlugin extends Plugin {
     private lastPomodoroSettings: any = null;
 
     private reminderDataCache: any = null;
+    private projectDataCache: any = null;
+    private statusDataCache: any = null;
     private subscriptionCache: any = null;
     private subscriptionTasksCache: { [id: string]: any } = {};
 
@@ -202,6 +204,58 @@ export default class ReminderPlugin extends Plugin {
     public async saveReminderData(data: any): Promise<void> {
         this.reminderDataCache = data;
         await this.saveData(REMINDER_DATA_FILE, data);
+    }
+
+    /**
+     * 加载项目数据，支持缓存
+     * @param update 是否强制更新（从文件读取）
+     */
+    public async loadProjectData(update: boolean = false): Promise<any> {
+        if (update || !this.projectDataCache) {
+            try {
+                const data = await this.loadData(PROJECT_DATA_FILE);
+                this.projectDataCache = data || {};
+            } catch (error) {
+                console.error('Failed to load project data:', error);
+                this.projectDataCache = {};
+            }
+        }
+        return this.projectDataCache;
+    }
+
+    /**
+     * 保存项目数据，并更新缓存
+     * @param data 项目数据
+     */
+    public async saveProjectData(data: any): Promise<void> {
+        this.projectDataCache = data;
+        await this.saveData(PROJECT_DATA_FILE, data);
+    }
+
+    /**
+     * 加载项目状态数据，支持缓存
+     * @param update 是否强制更新（从文件读取）
+     */
+    public async loadProjectStatus(update: boolean = false): Promise<any> {
+        if (update || !this.statusDataCache) {
+            try {
+                const data = await this.loadData(STATUSES_DATA_FILE);
+                this.statusDataCache = data && Array.isArray(data) ? data : null;
+            } catch (error) {
+                console.error('Failed to load status data:', error);
+                this.statusDataCache = null;
+            }
+        }
+        return this.statusDataCache;
+    }
+
+    /**
+     * 保存项目状态数据，并更新缓存
+     * @param data 项目状态数据
+     */
+    public async saveProjectStatus(data: any): Promise<void> {
+        this.statusDataCache = data;
+        await this.saveData(STATUSES_DATA_FILE, data);
     }
     /**
      * 加载订阅数据，支持缓存
@@ -1009,8 +1063,7 @@ export default class ReminderPlugin extends Plugin {
 
     private async updateProjectBadges() {
         try {
-            const { readProjectData } = await import("./api");
-            const projectData = await readProjectData();
+            const projectData = await this.loadProjectData();
 
             if (!projectData || typeof projectData !== 'object') {
                 this.setProjectDockBadge(0);
@@ -1588,8 +1641,7 @@ export default class ReminderPlugin extends Plugin {
                     const autoDetect = await this.getAutoDetectDateTimeEnabled();
                     // 如果文档本身是一个项目，传入该项目ID作为默认项目
                     try {
-                        const { readProjectData } = await import("./api");
-                        const projectData = await readProjectData();
+                        const projectData = await this.loadProjectData();
                         const projectId = projectData && projectData[firstDocumentId] ? projectData[firstDocumentId].blockId || projectData[firstDocumentId].id : undefined;
                         const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
                             blockId: firstDocumentId,
@@ -1629,8 +1681,7 @@ export default class ReminderPlugin extends Plugin {
             iconHTML: "📂",
             label: t("projectManagement"),
             click: async () => {
-                const { readProjectData } = await import("./api");
-                const projectData = await readProjectData();
+                const projectData = await this.loadProjectData();
                 const isProject = projectData && projectData.hasOwnProperty(firstDocumentId);
                 if (isProject) {
                     // 打开项目看板
@@ -1658,8 +1709,7 @@ export default class ReminderPlugin extends Plugin {
                 if (documentId) {
                     const autoDetect = await this.getAutoDetectDateTimeEnabled();
                     try {
-                        const { readProjectData } = await import("./api");
-                        const projectData = await readProjectData();
+                        const projectData = await this.loadProjectData();
                         const projectId = projectData && projectData[documentId] ? projectData[documentId].blockId || projectData[documentId].id : undefined;
                         const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
                             blockId: documentId,
@@ -1700,8 +1750,7 @@ export default class ReminderPlugin extends Plugin {
             label: t("projectManagement"),
             click: async () => {
                 if (documentId) {
-                    const { readProjectData } = await import("./api");
-                    const projectData = await readProjectData();
+                    const projectData = await this.loadProjectData();
                     const isProject = projectData && projectData.hasOwnProperty(documentId);
 
                     if (isProject) {
@@ -1762,12 +1811,12 @@ export default class ReminderPlugin extends Plugin {
             // 单个块时使用普通对话框，应用自动检测设置
             const autoDetect = await this.getAutoDetectDateTimeEnabled();
             try {
-                const { readProjectData } = await import("./api");
+
                 // blockIds[0] 所在文档是否为项目（需要读取块以确定根文档ID）
                 const { getBlockByID } = await import("./api");
                 const block = await getBlockByID(blockIds[0]);
                 const docId = block?.root_id || blockIds[0];
-                const projectData = await readProjectData();
+                const projectData = await this.loadProjectData();
                 const projectId = projectData && projectData[docId] ? projectData[docId].blockId || projectData[docId].id : undefined;
                 const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
                     blockId: blockIds[0],
@@ -2936,8 +2985,7 @@ export default class ReminderPlugin extends Plugin {
         const documentId = protyle.block?.rootID;
         if (!documentId) return;
 
-        const { readProjectData } = await import("./api");
-        const projectData = await readProjectData();
+        const projectData = await this.loadProjectData();
         const isProject = projectData && projectData.hasOwnProperty(documentId);
 
         const existingProjectButton = breadcrumb.querySelector('.project-breadcrumb-btn');
@@ -3215,8 +3263,7 @@ export default class ReminderPlugin extends Plugin {
             e.preventDefault();
             e.stopPropagation();
             try {
-                const { readProjectData } = await import('./api');
-                const projectData = await readProjectData();
+                const projectData = await this.loadProjectData();
                 const project = projectData[projectId];
                 const title = project ? project.title : projectId;
                 this.openProjectKanbanTab(projectId, title);
@@ -3297,8 +3344,7 @@ export default class ReminderPlugin extends Plugin {
                 if (documentId) {
                     const autoDetect = await this.getAutoDetectDateTimeEnabled();
                     try {
-                        const { readProjectData } = await import("./api");
-                        const projectData = await readProjectData();
+                        const projectData = await this.loadProjectData();
                         const projectId = projectData && projectData[documentId] ? projectData[documentId].blockId || projectData[documentId].id : undefined;
                         const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
                             blockId: documentId,
@@ -3373,8 +3419,7 @@ export default class ReminderPlugin extends Plugin {
             editorCallback: async (protyle: any) => {
                 const documentId = protyle?.block?.rootID;
                 if (documentId) {
-                    const { readProjectData } = await import("./api");
-                    const projectData = await readProjectData();
+                    const projectData = await this.loadProjectData();
                     const isProject = projectData && projectData.hasOwnProperty(documentId);
 
                     if (isProject) {

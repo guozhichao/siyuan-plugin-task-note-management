@@ -5,7 +5,7 @@ import multiMonthPlugin from '@fullcalendar/multimonth';
 import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
 import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
-import { refreshSql, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark, openBlock, readProjectData } from "../api";
+import { refreshSql, getBlockByID, sql, updateBlock, getBlockKramdown, updateBlockReminderBookmark, openBlock } from "../api";
 import { getLocalDateString, getLocalDateTime, getLocalDateTimeString, compareDateStrings, getLogicalDateString, getRelativeDateString, getDayStartAdjustedDate } from "../utils/dateUtils";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { CategoryManager, Category } from "../utils/categoryManager";
@@ -1534,7 +1534,7 @@ export class CalendarView {
 
     private async renderProjectFilterCheckboxes(container: HTMLElement, button: HTMLButtonElement) {
         try {
-            const projectData = await readProjectData();
+            const projectData = await this.plugin.loadProjectData();
             const statuses = this.statusManager.getStatuses();
             const projectIds: string[] = [];
 
@@ -4842,7 +4842,7 @@ export class CalendarView {
             }
 
             // 获取项目数据用于分类过滤继承
-            const projectData = await readProjectData() || {};
+            const projectData = await this.plugin.loadProjectData() || {};
 
             // 转换为数组并过滤
             const allReminders = Object.values(reminderData) as any[];
@@ -6564,8 +6564,7 @@ export class CalendarView {
     private async openProjectKanban(projectId: string) {
         try {
             // 获取项目数据以获取项目标题
-            const { readProjectData } = await import("../api");
-            const projectData = await readProjectData();
+            const projectData = await this.plugin.loadProjectData();
 
             if (!projectData || !projectData[projectId]) {
                 showMessage("项目不存在");

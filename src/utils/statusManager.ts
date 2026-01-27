@@ -1,4 +1,4 @@
-import { STATUSES_DATA_FILE } from "../index";
+
 
 export interface Status {
     id: string;
@@ -41,7 +41,7 @@ export class StatusManager {
 
     public async loadStatuses(): Promise<Status[]> {
         try {
-            const content = await this.plugin.loadData(STATUSES_DATA_FILE);
+            const content = await this.plugin.loadProjectStatus();
             if (!content) {
                 console.log('状态文件不存在，创建默认状态');
                 this.statuses = [...DEFAULT_STATUSES];
@@ -69,7 +69,7 @@ export class StatusManager {
 
     public async saveStatuses(): Promise<void> {
         try {
-            await this.plugin.saveData(STATUSES_DATA_FILE, this.statuses);
+            await this.plugin.saveProjectStatus(this.statuses);
         } catch (error) {
             console.error('保存状态失败:', error);
             throw error;

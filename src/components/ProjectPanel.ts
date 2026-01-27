@@ -3,7 +3,7 @@ import { PomodoroStatsView, getLastStatsMode } from "./PomodoroStatsView";
 import { TaskStatsView } from "./TaskStatsView";
 
 // 添加四象限面板常量
-import { readProjectData, writeProjectData, getBlockByID, openBlock } from "../api";
+import { getBlockByID, openBlock } from "../api";
 import { ProjectManager } from "../utils/projectManager";
 import { compareDateStrings, getLogicalDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
@@ -458,7 +458,7 @@ export class ProjectPanel {
 
     private async loadProjects() {
         try {
-            const projectData = await readProjectData();
+            const projectData = await this.plugin.loadProjectData();
 
             if (!projectData || typeof projectData !== 'object') {
                 this.renderProjects([]);
@@ -484,7 +484,7 @@ export class ProjectPanel {
 
             // 如果有数据迁移，保存更新
             if (dataChanged) {
-                await writeProjectData(projectData);
+                await this.plugin.saveProjectData(projectData);
             }
 
             // 应用分类过滤
@@ -1304,7 +1304,7 @@ export class ProjectPanel {
     // 新增：重新排序项目
     private async reorderProjects(draggedProject: any, targetProject: any, insertBefore: boolean) {
         try {
-            const projectData = await readProjectData();
+            const projectData = await this.plugin.loadProjectData();
 
             const draggedId = draggedProject.id;
             const targetId = targetProject.id;
@@ -1359,7 +1359,7 @@ export class ProjectPanel {
                 }
             });
 
-            await writeProjectData(projectData);
+            await this.plugin.saveProjectData(projectData);
             window.dispatchEvent(new CustomEvent('projectUpdated'));
 
         } catch (error) {
@@ -1745,7 +1745,7 @@ export class ProjectPanel {
                     if (nonArchivedProjects.length > 0) {
                         // 按手动排序值（若存在）再按名称排序，保持展示顺序稳定
                         try {
-                            const projectData = await readProjectData();
+                            const projectData = await this.plugin.loadProjectData();
                             nonArchivedProjects.sort((a: any, b: any) => {
                                 const sa = (projectData[a.id] && typeof projectData[a.id].sort === 'number') ? projectData[a.id].sort : 0;
                                 const sb = (projectData[b.id] && typeof projectData[b.id].sort === 'number') ? projectData[b.id].sort : 0;
@@ -1863,7 +1863,7 @@ export class ProjectPanel {
      */
     private async mergeProject(sourceId: string, targetId: string, opts: { groupId?: string | null; newGroupName?: string | null; deleteSource?: boolean }) {
         try {
-            const projectData = await readProjectData();
+            const projectData = await this.plugin.loadProjectData();
             if (!projectData[sourceId] || !projectData[targetId]) {
                 showMessage(t("projectNotFound") || '项目未找到');
                 return;
@@ -1896,13 +1896,13 @@ export class ProjectPanel {
 
             // 保存提醒与项目数据
             await this.plugin.saveReminderData(reminderData);
-            await writeProjectData(projectData);
+            await this.plugin.saveProjectData(projectData);
 
             // 可选删除源项目
             if (opts.deleteSource) {
                 if (projectData[sourceId]) {
                     delete projectData[sourceId];
-                    await writeProjectData(projectData);
+                    await this.plugin.saveProjectData(projectData);
                 }
             }
 
@@ -1921,11 +1921,11 @@ export class ProjectPanel {
 
     private async setPriority(projectId: string, priority: string) {
         try {
-            const projectData = await readProjectData();
+            const projectData = await this.plugin.loadProjectData();
             if (projectData[projectId]) {
                 projectData[projectId].priority = priority;
                 projectData[projectId].updatedTime = new Date().toISOString();
-                await writeProjectData(projectData);
+                await this.plugin.saveProjectData(projectData);
                 window.dispatchEvent(new CustomEvent('projectUpdated'));
                 this.loadProjects();
                 showMessage(t("priorityUpdated") || "优先级更新成功");
@@ -1940,11 +1940,11 @@ export class ProjectPanel {
 
     private async setCategory(projectId: string, categoryId: string | null) {
         try {
-            const projectData = await readProjectData();
+            const projectData = await this.plugin.loadProjectData();
             if (projectData[projectId]) {
                 projectData[projectId].categoryId = categoryId;
                 projectData[projectId].updatedTime = new Date().toISOString();
-                await writeProjectData(projectData);
+                await this.plugin.saveProjectData(projectData);
                 window.dispatchEvent(new CustomEvent('projectUpdated'));
                 this.loadProjects();
 
@@ -1963,13 +1963,13 @@ export class ProjectPanel {
 
     private async setStatus(projectId: string, status: string) {
         try {
-            const projectData = await readProjectData();
+            const projectData = await this.plugin.loadProjectData();
             if (projectData[projectId]) {
                 projectData[projectId].status = status;
                 // 保持向后兼容
                 projectData[projectId].archived = status === 'archived';
                 projectData[projectId].updatedTime = new Date().toISOString();
-                await writeProjectData(projectData);
+                await this.plugin.saveProjectData(projectData);
                 window.dispatchEvent(new CustomEvent('projectUpdated'));
                 this.loadProjects();
 
@@ -2035,7 +2035,7 @@ export class ProjectPanel {
 
     private async deleteProjectAndTasks(projectId: string, deleteTasks: boolean) {
         try {
-            const projectData = await readProjectData();
+            const projectData = await this.plugin.loadProjectData();
             if (!projectData[projectId]) {
                 showMessage(t("projectNotExist") || "项目不存在");
                 return;
@@ -2043,7 +2043,7 @@ export class ProjectPanel {
 
             // 删除项目
             delete projectData[projectId];
-            await writeProjectData(projectData);
+            await this.plugin.saveProjectData(projectData);
 
             // 如果需要删除任务
             if (deleteTasks) {
@@ -2098,10 +2098,10 @@ export class ProjectPanel {
 
     private async deleteProjectByBlockId(blockId: string) {
         try {
-            const projectData = await readProjectData();
+            const projectData = await this.plugin.loadProjectData();
             if (projectData[blockId]) {
                 delete projectData[blockId];
-                await writeProjectData(projectData);
+                await this.plugin.saveProjectData(projectData);
                 window.dispatchEvent(new CustomEvent('projectUpdated'));
                 showMessage(t("deletedRelatedReminders") || "相关项目记录已删除");
                 this.loadProjects();
@@ -2166,10 +2166,10 @@ export class ProjectPanel {
 
     private async bindProjectToBlock(project: any, blockId: string) {
         try {
-            const projectData = await readProjectData();
+            const projectData = await this.plugin.loadProjectData();
             if (projectData[project.id]) {
                 projectData[project.id].blockId = blockId;
-                await writeProjectData(projectData);
+                await this.plugin.saveProjectData(projectData);
                 window.dispatchEvent(new CustomEvent('projectUpdated'));
                 this.loadProjects();
             }

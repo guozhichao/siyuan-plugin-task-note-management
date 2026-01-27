@@ -1,6 +1,6 @@
 import { showMessage, confirm, Menu, Dialog } from "siyuan";
 
-import { refreshSql, readProjectData, getBlockByID, updateBlockReminderBookmark, openBlock } from "../api";
+import { refreshSql, getBlockByID, updateBlockReminderBookmark, openBlock } from "../api";
 import { t } from "../utils/i18n";
 import { getLocalDateString, getLocalDateTimeString, compareDateStrings, getLogicalDateString, getRelativeDateString, autoDetectDateTimeFromTitle } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
@@ -227,7 +227,7 @@ export class ProjectKanbanView {
 
     private async loadProject() {
         try {
-            const projectData = await readProjectData();
+            const projectData = await this.plugin.loadProjectData();
             this.project = projectData[this.projectId];
             if (!this.project) {
                 throw new Error('项目不存在');

@@ -4,7 +4,7 @@ import { confirm } from "siyuan";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
 import { t } from "../utils/i18n";
 import { compareDateStrings, getLocalDateString, getLogicalDateString, getDayStartMinutes } from "../utils/dateUtils";
-import { readProjectData, getFile } from "../api";
+import { getFile } from "../api";
 import { generateRepeatInstances } from "../utils/repeatUtils";
 import { setLastStatsMode } from "./PomodoroStatsView";
 import { init, use } from 'echarts/core';
@@ -515,7 +515,7 @@ export class TaskStatsView {
         try {
             const [reminderData, projectData, categories] = await Promise.all([
                 this.plugin.loadReminderData(),
-                readProjectData(),
+                this.plugin.loadProjectData(),
                 this.readCategoryData()
             ]);
             this.reminderData = reminderData;
