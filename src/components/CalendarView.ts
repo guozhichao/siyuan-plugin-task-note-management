@@ -881,7 +881,7 @@ export class CalendarView {
             refreshBtn.disabled = true;
             try {
                 showMessage(t("refreshing") || "正在刷新...", 500);
-                await this.refreshEvents();
+                await this.refreshEvents(true);
             } catch (error) {
                 console.error('手动刷新失败:', error);
                 showMessage(t("refreshFailed") || "刷新失败");
@@ -4760,7 +4760,7 @@ export class CalendarView {
         this.calendar.unselect();
     }
 
-    private async refreshEvents() {
+    private async refreshEvents(force: boolean = false) {
         // 清除之前的刷新超时
         if (this.refreshTimeout) {
             clearTimeout(this.refreshTimeout);
@@ -4777,7 +4777,7 @@ export class CalendarView {
 
             try {
                 // 先获取新的事件数据
-                const events = await this.getEvents();
+                const events = await this.getEvents(force);
 
                 // 清除所有现有事件和事件源
                 this.calendar.removeAllEvents();
@@ -4822,9 +4822,9 @@ export class CalendarView {
         }, 100); // 100ms 防抖延迟
     }
 
-    private async getEvents() {
+    private async getEvents(force: boolean = false) {
         try {
-            const reminderData = await getAllReminders(this.plugin);
+            const reminderData = await getAllReminders(this.plugin, undefined, force);
             const events = [];
 
             // 获取当前视图的日期范围

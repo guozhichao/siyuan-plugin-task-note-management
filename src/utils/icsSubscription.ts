@@ -122,10 +122,17 @@ export async function saveSubscriptionTasks(plugin: any, subscriptionId: string,
  * Get all reminders including subscriptions
  * This merges reminder.json with all subscription files
  */
-export async function getAllReminders(plugin: any, projectId?: string): Promise<any> {
+/**
+ * Get all reminders including subscriptions
+ * This merges reminder.json with all subscription files
+ * @param plugin The plugin instance
+ * @param projectId Optional project ID to filter by
+ * @param force Whether to force reload data from disk/network
+ */
+export async function getAllReminders(plugin: any, projectId?: string, force: boolean = false): Promise<any> {
     try {
         // Load main reminders
-        const mainReminders = (await plugin.loadReminderData()) || {};
+        const mainReminders = (await plugin.loadReminderData(force)) || {};
 
         let filteredMainReminders = mainReminders;
         if (projectId) {

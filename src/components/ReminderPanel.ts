@@ -272,7 +272,7 @@ export class ReminderPanel {
             refreshBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>';
             refreshBtn.title = t("refresh") || "刷新";
             refreshBtn.addEventListener('click', () => {
-                this.loadReminders();
+                this.loadReminders(true);
             });
             actionContainer.appendChild(refreshBtn);
         }
@@ -1319,7 +1319,7 @@ export class ReminderPanel {
         const scrollLeft = this.remindersContainer.scrollLeft;
 
         try {
-            const reminderData = await getAllReminders(this.plugin);
+            const reminderData = await getAllReminders(this.plugin, undefined, force);
             if (!reminderData || typeof reminderData !== 'object') {
                 this.updateReminderCounts(0, 0, 0, 0, 0, 0);
                 this.renderReminders([]);

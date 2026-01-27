@@ -218,8 +218,9 @@ export class ProjectKanbanView {
             if (e.detail?.source === this.kanbanInstanceId) {
                 return;
             }
-            // 外部触发的更新，需要刷新缓存
-            await this.getReminders(true);
+            // 外部触发的更新，需要刷新缓存 (但不强制读取文件，只使用插件内存缓存)
+            this.reminderData = null;
+            await this.getReminders(false);
             this.queueLoadTasks();
         });
     }
@@ -2065,7 +2066,7 @@ export class ProjectKanbanView {
 
     private async getReminders(forceRefresh: boolean = false): Promise<any> {
         if (forceRefresh || !this.reminderData) {
-            this.reminderData = await getAllReminders(this.plugin);
+            this.reminderData = await getAllReminders(this.plugin, undefined, forceRefresh);
         }
         return this.reminderData;
     }

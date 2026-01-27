@@ -58,6 +58,7 @@ export class EisenhowerMatrixView {
     private allTasks: QuadrantTask[] = [];
     private filteredTasks: QuadrantTask[] = [];
     private statusFilter: Set<string> = new Set();
+    private reminderUpdatedHandler: () => void;
     private projectFilter: Set<string> = new Set();
     private projectSortOrder: string[] = [];
     private currentProjectSortMode: 'name' | 'custom' = 'name';
@@ -78,6 +79,7 @@ export class EisenhowerMatrixView {
         this.plugin = plugin;
         this.projectManager = ProjectManager.getInstance(plugin);
         this.categoryManager = CategoryManager.getInstance(plugin);
+        this.reminderUpdatedHandler = () => this.refresh(false);
         this.initQuadrants();
         // 引用方法以避免编译器提示未使用（此方法通过动态绑定使用）
         // 读取属性作为引用，不执行调用
@@ -211,9 +213,9 @@ export class EisenhowerMatrixView {
         return quadrantEl;
     }
 
-    private async loadTasks() {
+    private async loadTasks(force: boolean = false) {
         try {
-            const reminderData = await getAllReminders(this.plugin);
+            const reminderData = await getAllReminders(this.plugin, undefined, force);
             const today = getLogicalDateString();
             this.allTasks = [];
 
@@ -1440,14 +1442,12 @@ export class EisenhowerMatrixView {
         const refreshBtn = this.container.querySelector('.refresh-btn');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
-                this.refresh();
+                this.refresh(true);
             });
         }
 
         // 监听任务更新事件
-        window.addEventListener('reminderUpdated', () => {
-            this.refresh();
-        });
+        window.addEventListener('reminderUpdated', this.reminderUpdatedHandler);
     }
 
     private async moveTaskToQuadrant(taskId: string, newQuadrant: QuadrantTask['quadrant']) {
@@ -3065,8 +3065,8 @@ export class EisenhowerMatrixView {
         this.renderMatrix();
     }
 
-    async refresh() {
-        await this.loadTasks();
+    async refresh(force: boolean = false) {
+        await this.loadTasks(force);
         this.renderMatrix();
         // 刷新后保持按钮状态
         this.updateKanbanStatusFilterButton();
@@ -4236,7 +4236,7 @@ export class EisenhowerMatrixView {
 
     destroy() {
         // 清理事件监听器
-        window.removeEventListener('reminderUpdated', this.refresh);
+        window.removeEventListener('reminderUpdated', this.reminderUpdatedHandler);
 
         // 清理样式
         const style = document.querySelector('#eisenhower-matrix-styles');
