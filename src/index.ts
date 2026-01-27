@@ -1162,12 +1162,6 @@ export default class ReminderPlugin extends Plugin {
         // 每隔一段时间检查观察器状态
         setInterval(checkAndRebindObserver, 2000);
 
-        // 监听文档切换事件
-        this.eventBus.on('switch-protyle', checkAndRebindObserver);
-        this.eventBus.on('loaded-protyle-static', checkAndRebindObserver);
-
-        // 监听大纲相关事件
-        this.eventBus.on('loaded-protyle-dynamic', checkAndRebindObserver);
     }
 
     private addBreadcrumbButtonsToExistingProtyles() {
