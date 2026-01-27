@@ -7,7 +7,6 @@ import { CategoryManager } from "../utils/categoryManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { BlockBindingDialog } from "./BlockBindingDialog";
 import { t } from "../utils/i18n";
-import { SETTINGS_FILE } from "../index";
 import { generateRepeatInstances, getRepeatDescription, getDaysDifference, addDaysToDate } from "../utils/repeatUtils";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroStatsView, getLastStatsMode } from "./PomodoroStatsView";
@@ -387,7 +386,7 @@ export class ReminderPanel {
                 try {
                     const settings = await this.plugin.loadSettings() || {};
                     settings.showCompletedSubtasks = this.showCompletedSubtasks;
-                    await this.plugin.saveData(SETTINGS_FILE, settings);
+                    await this.plugin.saveSettings(settings);
                 } catch (e) {
                     // ignore
                 }

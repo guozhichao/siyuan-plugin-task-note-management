@@ -971,7 +971,7 @@
     };
 
     async function saveSettings(emitEvent = true) {
-        await plugin.saveData(SETTINGS_FILE, settings);
+        await (plugin as any).saveSettings(settings);
         // 更新插件实例的设置缓存
         if (plugin) {
             plugin.settings = { ...settings };

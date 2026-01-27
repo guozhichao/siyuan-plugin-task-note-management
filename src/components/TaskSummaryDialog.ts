@@ -6,7 +6,6 @@ import { readHabitData } from "@/api";
 import { generateRepeatInstances } from "@/utils/repeatUtils";
 import { CalendarView } from "@/components/CalendarView";
 import { PomodoroRecordManager } from "@/utils/pomodoroRecord";
-import { SETTINGS_FILE } from "../index";
 
 export class TaskSummaryDialog {
   private calendarView: CalendarView;

@@ -1,6 +1,5 @@
 import { getFile, putFile, openBlock, getBlockByID, removeFile } from "../api";
 import { getAllReminders, saveReminders } from "../utils/icsSubscription";
-import { SETTINGS_FILE } from "../index";
 import { ProjectManager } from "../utils/projectManager";
 import { CategoryManager } from "../utils/categoryManager";
 import { QuickReminderDialog } from "./QuickReminderDialog";
@@ -3205,7 +3204,7 @@ export class EisenhowerMatrixView {
                         // 合并旧的项目排序配置到新的 settings
                         if (oldSort.projectSortOrder) settings.projectSortOrder = oldSort.projectSortOrder;
                         if (oldSort.currentProjectSortMode) settings.projectSortMode = oldSort.currentProjectSortMode;
-                        await this.plugin.saveData(SETTINGS_FILE, settings);
+                        await this.plugin.saveSettings(settings);
                         // 删除旧文件
                         await removeFile('data/storage/petal/siyuan-plugin-task-note-management/project-sort.json');
                         console.log('成功导入并删除旧的 project-sort.json 文件');
@@ -3237,7 +3236,7 @@ export class EisenhowerMatrixView {
                         // 合并旧的四象限设置到新的 settings
                         if (oldQuadrant.importanceThreshold) settings.eisenhowerImportanceThreshold = oldQuadrant.importanceThreshold;
                         if (oldQuadrant.urgencyDays) settings.eisenhowerUrgencyDays = oldQuadrant.urgencyDays;
-                        await this.plugin.saveData(SETTINGS_FILE, settings);
+                        await this.plugin.saveSettings(settings);
                         // 删除旧文件
                         await removeFile('data/storage/petal/siyuan-plugin-task-note-management/four-quadrant-settings.json');
                         console.log('成功导入并删除旧的 four-quadrant-settings.json 文件');
@@ -3265,7 +3264,7 @@ export class EisenhowerMatrixView {
             const settings = await this.plugin.loadSettings();
             settings.eisenhowerImportanceThreshold = this.criteriaSettings.importanceThreshold;
             settings.eisenhowerUrgencyDays = this.criteriaSettings.urgencyDays;
-            await this.plugin.saveData(SETTINGS_FILE, settings);
+            await this.plugin.saveSettings(settings);
         } catch (error) {
             console.error('保存标准设置失败:', error);
         }
@@ -3276,7 +3275,7 @@ export class EisenhowerMatrixView {
             const settings = await this.plugin.loadSettings();
             settings.projectSortOrder = this.projectSortOrder;
             settings.projectSortMode = this.currentProjectSortMode;
-            await this.plugin.saveData(SETTINGS_FILE, settings);
+            await this.plugin.saveSettings(settings);
         } catch (error) {
             console.error('保存项目排序失败:', error);
         }

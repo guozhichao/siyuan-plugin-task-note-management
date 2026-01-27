@@ -559,6 +559,15 @@ export default class ReminderPlugin extends Plugin {
         return settings;
     }
 
+    /**
+     * 保存设置数据，并更新缓存
+     * @param settings 设置数据
+     */
+    public async saveSettings(settings: any): Promise<void> {
+        this.settings = settings;
+        await this.saveData(SETTINGS_FILE, settings);
+    }
+
     // 获取番茄钟设置
     async getPomodoroSettings() {
         const settings = await this.loadSettings();
@@ -3619,7 +3628,7 @@ export default class ReminderPlugin extends Plugin {
             if (stat && stat.mtime <= lastSync) {
                 // 没有新事件，只更新同步时间
                 settings.icsLastSyncAt = new Date().toISOString();
-                await this.saveData(SETTINGS_FILE, settings);
+                await this.saveSettings(settings);
                 return;
             }
 
@@ -3725,7 +3734,7 @@ export default class ReminderPlugin extends Plugin {
                 // 标记迁移完成
                 settings.datatransfer = settings.datatransfer || {};
                 settings.datatransfer.bindblockAddAttr = true;
-                await this.saveData(SETTINGS_FILE, settings);
+                await this.saveSettings(settings);
             }
         } catch (error) {
             console.error('数据迁移失败:', error);
