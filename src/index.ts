@@ -1125,7 +1125,7 @@ export default class ReminderPlugin extends Plugin {
                 const outline = document.querySelector('.file-tree.sy__outline');
                 if (!outline) return;
                 this.updateOutlinePrefixes();
-            }, 100);
+            }, 50);
         };
 
         // 创建观察器函数
