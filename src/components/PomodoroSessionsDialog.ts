@@ -426,6 +426,9 @@ export class PomodoroSessionsDialog {
                 // 保存记录
                 await (this.recordManager as any).saveRecords();
 
+                // 刷新统计索引
+                this.recordManager.refreshIndex();
+
                 showMessage("✅ " + (t("addPomodoroSuccess") || "补录番茄钟成功"), 3000, "info");
 
                 addDialog.destroy();
@@ -566,6 +569,9 @@ export class PomodoroSessionsDialog {
                 }
 
                 await (this.recordManager as any).saveRecords();
+
+                // 刷新统计索引
+                this.recordManager.refreshIndex();
 
                 showMessage("✅ " + (t("editPomodoroSuccess") || "修改番茄钟成功"), 3000, "info");
 

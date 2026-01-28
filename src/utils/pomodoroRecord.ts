@@ -101,6 +101,13 @@ export class PomodoroRecordManager {
     }
 
     /**
+     * 刷新事件统计索引（公共方法）
+     */
+    public refreshIndex() {
+        this.buildStatsIndex();
+    }
+
+    /**
      * 更新索引中的单个统计信息
      */
     private updateStatsIndex(eventId: string, count: number, duration: number) {
