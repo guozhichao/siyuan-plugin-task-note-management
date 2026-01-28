@@ -2162,15 +2162,7 @@ export class ProjectKanbanView {
         manageTagsBtn.addEventListener('click', () => this.showManageTagsDialog());
         controlsGroup.appendChild(manageTagsBtn);
 
-        // 监听看板模式变化，更新管理按钮和"显示/隐藏已完成"按钮显示状态
-        this.container.addEventListener('kanbanModeChanged', () => {
-            try {
-                manageGroupsBtn.style.display = this.kanbanMode === 'custom' ? 'inline-flex' : 'none';
-                manageStatusesBtn.style.display = this.kanbanMode === 'status' ? 'inline-flex' : 'none';
-            } catch (e) {
-                console.error('Error updating toolbar buttons on kanbanModeChanged:', e);
-            }
-        });
+
 
         toolbar.appendChild(controlsGroup);
 
