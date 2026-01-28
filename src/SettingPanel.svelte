@@ -254,6 +254,13 @@
                     description: t('autoDetectDateTimeDesc'),
                 },
                 {
+                    key: 'removeDateAfterDetection',
+                    value: settings.removeDateAfterDetection,
+                    type: 'checkbox',
+                    title: t('removeDateAfterDetection'),
+                    description: t('removeDateAfterDetectionDesc'),
+                },
+                {
                     key: 'newDocNotebook',
                     value: settings.newDocNotebook,
                     type: 'select',

@@ -53,6 +53,16 @@ export class PasteTaskDialog {
                     <textarea id="taskList" class="b3-text-field"
                         placeholder=""
                         style="width: 100%; height: 250px; resize: vertical;"></textarea>
+                    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input id="autoDetectDate" type="checkbox" style="margin-right: 8px;">
+                            <span>${t("autoDetectDateTime")}</span>
+                        </label>
+                        <label id="removeDateLabel" style="display: flex; align-items: center; cursor: pointer; margin-left: 20px;">
+                            <input id="removeDate" type="checkbox" style="margin-right: 8px;">
+                            <span>${t("removeDateAfterDetection")}</span>
+                        </label>
+                    </div>
                 </div>
                 <div class="b3-dialog__action">
                     <button class="b3-button b3-button--cancel" id="cancelBtn">${t("cancel") || "取消"}</button>
@@ -65,6 +75,34 @@ export class PasteTaskDialog {
         const textArea = dialog.element.querySelector('#taskList') as HTMLTextAreaElement;
         const cancelBtn = dialog.element.querySelector('#cancelBtn') as HTMLButtonElement;
         const createBtn = dialog.element.querySelector('#createBtn') as HTMLButtonElement;
+        const autoDetectCheckbox = dialog.element.querySelector('#autoDetectDate') as HTMLInputElement;
+        const removeDateCheckbox = dialog.element.querySelector('#removeDate') as HTMLInputElement;
+        const removeDateLabel = dialog.element.querySelector('#removeDateLabel') as HTMLElement;
+
+        // 初始化选中状态
+        this.config.plugin.getAutoDetectDateTimeEnabled().then((enabled: boolean) => {
+            autoDetectCheckbox.checked = enabled;
+            updateRemoveDateVisibility();
+        });
+        this.config.plugin.getRemoveDateAfterDetectionEnabled().then((enabled: boolean) => {
+            removeDateCheckbox.checked = enabled;
+        });
+
+        function updateRemoveDateVisibility() {
+            if (autoDetectCheckbox.checked) {
+                removeDateLabel.style.opacity = "1";
+                removeDateLabel.style.pointerEvents = "auto";
+                removeDateCheckbox.disabled = false;
+            } else {
+                removeDateLabel.style.opacity = "0.5";
+                removeDateLabel.style.pointerEvents = "none";
+                removeDateCheckbox.disabled = true;
+            }
+        }
+
+        autoDetectCheckbox.addEventListener('change', () => {
+            updateRemoveDateVisibility();
+        });
 
         cancelBtn.addEventListener('click', () => dialog.destroy());
 
@@ -75,8 +113,9 @@ export class PasteTaskDialog {
                 return;
             }
 
-            const autoDetect = await this.config.plugin.getAutoDetectDateTimeEnabled();
-            const hierarchicalTasks = this.parseHierarchicalTaskList(text, autoDetect);
+            const autoDetect = autoDetectCheckbox.checked;
+            const removeDate = removeDateCheckbox.checked;
+            const hierarchicalTasks = this.parseHierarchicalTaskList(text, autoDetect, removeDate);
 
             if (hierarchicalTasks.length > 0) {
                 try {
@@ -100,7 +139,7 @@ export class PasteTaskDialog {
         });
     }
 
-    private parseHierarchicalTaskList(text: string, autoDetect: boolean = false): HierarchicalTask[] {
+    private parseHierarchicalTaskList(text: string, autoDetect: boolean = false, removeDate: boolean = true): HierarchicalTask[] {
         const lines = text.split('\n');
         const tasks: HierarchicalTask[] = [];
         const stack: Array<{ task: HierarchicalTask; level: number }> = [];
@@ -113,7 +152,7 @@ export class PasteTaskDialog {
 
             if (!cleanLine || (!cleanLine.startsWith('-') && level === 0 && !cleanLine.match(/^\s*-/))) {
                 if (cleanLine && level === 0) {
-                    const taskData = this.parseTaskLine(cleanLine, autoDetect);
+                    const taskData = this.parseTaskLine(cleanLine, autoDetect, removeDate);
                     const task: HierarchicalTask = {
                         ...taskData,
                         level: 0,
@@ -136,7 +175,7 @@ export class PasteTaskDialog {
             const taskContent = cleanLine.replace(/^[-*+]+\s*/, '');
             if (!taskContent) continue;
 
-            const taskData = this.parseTaskLine(taskContent, autoDetect);
+            const taskData = this.parseTaskLine(taskContent, autoDetect, removeDate);
             const task: HierarchicalTask = {
                 ...taskData,
                 level: combinedLevel,
@@ -168,7 +207,7 @@ export class PasteTaskDialog {
         return Math.floor(spaces / 2);
     }
 
-    private parseTaskLine(line: string, autoDetect: boolean = false): Omit<HierarchicalTask, 'level' | 'children'> {
+    private parseTaskLine(line: string, autoDetect: boolean = false, removeDate: boolean = true): Omit<HierarchicalTask, 'level' | 'children'> {
         const paramMatch = line.match(/@(.*)$/);
         let title = line;
         let priority: string | undefined;
@@ -204,7 +243,9 @@ export class PasteTaskDialog {
         if (autoDetect) {
             const detected = autoDetectDateTimeFromTitle(title);
             if (detected.date || detected.endDate) {
-                title = detected.cleanTitle || title;
+                if (removeDate) {
+                    title = detected.cleanTitle || title;
+                }
                 startDate = detected.date;
                 time = detected.time;
                 endDate = detected.endDate;

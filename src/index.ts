@@ -82,6 +82,7 @@ export const DEFAULT_SETTINGS = {
     randomNotificationPopupWindow: false, // 新增：随机微休息弹窗提醒，默认关闭
     dailyFocusGoal: 6,
     autoDetectDateTime: false, // 新增：是否自动识别日期时间
+    removeDateAfterDetection: true, // 新增：识别日期后是否移除标题中的日期
     newDocNotebook: '', // 新增：新建文档的笔记本ID
     newDocPath: '/{{now | date "2006-01-02"}}/', // 新增：新建文档的路径模板，支持sprig语法
     defaultHeadingLevel: 3, // 新增：新建标题的默认层级（1-6），默认为3级标题
@@ -3904,6 +3905,12 @@ export default class ReminderPlugin extends Plugin {
     async getAutoDetectDateTimeEnabled(): Promise<boolean> {
         const settings = await this.loadSettings();
         return settings.autoDetectDateTime !== false;
+    }
+
+    // 获取识别后移除日期设置
+    async getRemoveDateAfterDetectionEnabled(): Promise<boolean> {
+        const settings = await this.loadSettings();
+        return settings.removeDateAfterDetection !== false;
     }
 
     /**

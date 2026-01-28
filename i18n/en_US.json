@@ -524,6 +524,8 @@
     "spanningDaysLeftSingle": "1 day remaining",
     "autoDetectDateTime": "Auto Detect Date Time",
     "autoDetectDateTimeDesc": "Automatically detect date and time information in block content when creating reminders, supports natural language expressions like 'tomorrow 3pm', 'next Friday', etc.",
+    "removeDateAfterDetection": "Remove date from title after detection",
+    "removeDateAfterDetectionDesc": "Automatically remove recognized date and time description text from the task title",
     "bindUrl": "Bind URL",
     "enterUrl": "Enter URL (http:// or https://)",
     "openUrl": "Open Link",

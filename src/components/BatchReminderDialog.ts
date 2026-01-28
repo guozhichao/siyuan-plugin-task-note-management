@@ -2,7 +2,7 @@ import { Dialog, showMessage } from "siyuan";
 import { t } from "../utils/i18n";
 import { updateBindBlockAtrrs, getBlockByID } from "../api";
 import { getRepeatDescription } from "../utils/repeatUtils";
-import { getLogicalDateString, parseNaturalDateTime } from "../utils/dateUtils";
+import { getLogicalDateString, parseNaturalDateTime, autoDetectDateTimeFromTitle } from "../utils/dateUtils";
 import { RepeatConfig, RepeatSettingsDialog } from "./RepeatSettingsDialog";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { CategoryManager } from "../utils/categoryManager";
@@ -147,18 +147,21 @@ export class BatchReminderDialog {
                     }
 
 
+                    const removeEnabled = await this.plugin.getRemoveDateAfterDetectionEnabled();
                     // 从标题中识别日期
-                    const titleAuto = this.autoDetectDateTimeFromTitle(content);
+                    const titleAuto = autoDetectDateTimeFromTitle(content);
                     // 从备注中识别日期，如果标题没有
                     let date = titleAuto.date;
                     let time = titleAuto.time;
                     let hasTime = titleAuto.hasTime;
                     if (!date) {
-                        const contentAuto = this.autoDetectDateTimeFromTitle(note);
+                        const contentAuto = autoDetectDateTimeFromTitle(note);
                         date = contentAuto.date;
                         time = contentAuto.time;
                         hasTime = contentAuto.hasTime;
                     }
+
+                    const cleanTitle = removeEnabled ? (titleAuto.cleanTitle || content) : content;
 
                     results.push({
                         blockId,
@@ -170,7 +173,7 @@ export class BatchReminderDialog {
                         endDate: titleAuto.endDate,
                         endTime: titleAuto.endTime,
                         hasEndTime: titleAuto.hasEndTime,
-                        cleanTitle: titleAuto.cleanTitle
+                        cleanTitle: cleanTitle
                     });
                 }
             } catch (error) {
@@ -187,36 +190,6 @@ export class BatchReminderDialog {
     }
 
 
-    private autoDetectDateTimeFromTitle(title: string): { date?: string; time?: string; hasTime?: boolean; cleanTitle?: string; endDate?: string; endTime?: string; hasEndTime?: boolean } {
-        const parseResult = parseNaturalDateTime(title);
-
-        if (!parseResult.date) {
-            return { cleanTitle: title };
-        }
-
-        let cleanTitle = title;
-        const timeExpressions = [
-            /今天|今日/gi,
-            /明天|明日/gi,
-            /后天/gi,
-            /大后天/gi,
-            /下?周[一二三四五六日天]/gi,
-            /下?星期[一二三四五六日天]/gi,
-            /\d+天[后以]后/gi,
-            /\d+小时[后以]后/gi,
-        ];
-
-        timeExpressions.forEach(pattern => {
-            cleanTitle = cleanTitle.replace(pattern, '').trim();
-        });
-
-        cleanTitle = cleanTitle.replace(/\s+/g, ' ').replace(/^[，。、\s]+|[，。、\s]+$/g, '');
-
-        return {
-            ...parseResult,
-            cleanTitle: cleanTitle || title
-        };
-    }
 
 
 }

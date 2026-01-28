@@ -1236,9 +1236,12 @@ export class QuickReminderDialog {
                                 if (noTimeCheckbox) noTimeCheckbox.checked = true;
                             }
 
-                            // if (detected.cleanTitle && detected.cleanTitle.trim()) {
-                            //     titleInput.value = detected.cleanTitle;
-                            // }
+                            // 如果启用了识别后移除日期设置，更新标题
+                            this.plugin.getRemoveDateAfterDetectionEnabled().then((removeEnabled: boolean) => {
+                                if (removeEnabled && detected.cleanTitle !== undefined) {
+                                    titleInput.value = detected.cleanTitle || titleInput.value;
+                                }
+                            });
                         }
                     } catch (err) {
                         console.warn('自动识别标题日期失败:', err);
@@ -1825,12 +1828,15 @@ export class QuickReminderDialog {
                     if (detected && (detected.date || detected.endDate)) {
                         this.applyNaturalLanguageResult(detected);
 
-                        // 这里的逻辑已移除：用户希望保留原始标题内容，不自动移除日期时间文本
-                        // if (detected.cleanTitle !== undefined && detected.cleanTitle !== joined) {
-                        //     // 重新计算 titleInput 的值，将粘贴的那部分替换为清理后的文本
-                        //     titleInput.value = before + detected.cleanTitle + after;
-                        //     titleInput.selectionStart = titleInput.selectionEnd = start + detected.cleanTitle.length;
-                        // }
+                        // 识别后移除日期
+                        this.plugin.getRemoveDateAfterDetectionEnabled().then((removeEnabled: boolean) => {
+                            if (removeEnabled && detected.cleanTitle !== undefined) {
+                                // 重新计算 titleInput 的值，将粘贴的那部分替换为清理后的文本
+                                const cleanPart = detected.cleanTitle || '';
+                                titleInput.value = before + cleanPart + after;
+                                titleInput.selectionStart = titleInput.selectionEnd = start + cleanPart.length;
+                            }
+                        });
                     }
                 }
             }
