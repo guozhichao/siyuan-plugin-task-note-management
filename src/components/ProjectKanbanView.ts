@@ -2888,6 +2888,9 @@ export class ProjectKanbanView {
         const projectManager = ProjectManager.getInstance(this.plugin);
         const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
+        // Sort groups by 'sort' field to ensure correct display order
+        projectGroups.sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
         if (projectGroups.length === 0) {
             // 如果没有自定义分组，显示提示
             this.renderEmptyCustomGroupKanban();
@@ -2928,6 +2931,13 @@ export class ProjectKanbanView {
 
             // 即使没有任务也要显示分组列
             this.renderCustomGroupColumnWithFourStatus(group, groupDoingTasks, groupShortTermTasks, groupLongTermTasks, groupCompletedTasks);
+
+            // 确保 DOM 顺序正确：通过重新 append 将列移动到正确的位置
+            const columnId = `custom-group-${group.id}`;
+            const column = kanbanContainer.querySelector(`.kanban-column-${columnId}`);
+            if (column) {
+                kanbanContainer.appendChild(column);
+            }
         });
 
         // 处理未分组任务（即使没有任务也要显示）
@@ -2943,6 +2953,12 @@ export class ProjectKanbanView {
             icon: '📋'
         };
         this.renderCustomGroupColumnWithFourStatus(ungroupedGroup, ungroupedDoingTasks, ungroupedShortTermTasks, ungroupedLongTermTasks, ungroupedCompletedTasks);
+
+        // 确保未分组列在最后
+        const ungroupedColumn = kanbanContainer.querySelector(`.kanban-column-custom-group-ungrouped`);
+        if (ungroupedColumn) {
+            kanbanContainer.appendChild(ungroupedColumn);
+        }
 
         // 为自定义分组列添加列级拖拽支持（可以直接拖动列头调整分组顺序）
         try {
@@ -3275,6 +3291,8 @@ export class ProjectKanbanView {
         const { ProjectManager } = await import('../utils/projectManager');
         const projectManager = ProjectManager.getInstance(this.plugin);
         const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
+        // Sort groups by 'sort' field
+        projectGroups.sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
 
         // 获取对应的状态分组容器
         const groupContainer = groupsContainer.querySelector(`.status-stable-group[data-status="${status}"]`) as HTMLElement;
