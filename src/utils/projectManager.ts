@@ -18,6 +18,7 @@ export interface KanbanStatus {
     id: string;           // 状态ID: 'doing', 'short_term', 'long_term', 'completed' 或自定义ID
     name: string;         // 显示名称
     color: string;        // 状态颜色
+    icon?: string;        // 状态图标（emoji）
     isFixed: boolean;     // 是否固定不可删除（doing和completed为固定）
     isDefault: boolean;   // 是否为系统默认状态
     sort: number;         // 排序权重
@@ -317,6 +318,7 @@ export class ProjectManager {
                 id: 'doing',
                 name: '进行中',
                 color: '#e74c3c',
+                icon: '⏳',
                 isFixed: true,
                 isDefault: true,
                 sort: 0
@@ -325,6 +327,7 @@ export class ProjectManager {
                 id: 'short_term',
                 name: '短期',
                 color: '#3498db',
+                icon: '📋',
                 isFixed: false,
                 isDefault: true,
                 sort: 10
@@ -333,6 +336,7 @@ export class ProjectManager {
                 id: 'long_term',
                 name: '长期',
                 color: '#9b59b6',
+                icon: '🤔',
                 isFixed: false,
                 isDefault: true,
                 sort: 20
@@ -341,6 +345,7 @@ export class ProjectManager {
                 id: 'completed',
                 name: '已完成',
                 color: '#27ae60',
+                icon: '✅',
                 isFixed: true,
                 isDefault: true,
                 sort: 100
@@ -361,8 +366,20 @@ export class ProjectManager {
             // 如果有自定义配置，合并默认固定状态和自定义状态
             if (customStatuses && Array.isArray(customStatuses) && customStatuses.length > 0) {
                 const defaults = this.getDefaultKanbanStatuses();
-                // 确保固定状态存在且不能被覆盖
-                const fixedStatuses = defaults.filter(s => s.isFixed);
+                // 合并固定状态：从 customStatuses 中查找固定状态的自定义配置
+                const fixedStatuses = defaults.filter(s => s.isFixed).map(defaultStatus => {
+                    const savedFixedStatus = customStatuses.find(s => s.id === defaultStatus.id);
+                    if (savedFixedStatus) {
+                        // 使用保存的图标、颜色和排序
+                        return {
+                            ...defaultStatus,
+                            icon: savedFixedStatus.icon,
+                            color: savedFixedStatus.color,
+                            sort: savedFixedStatus.sort
+                        };
+                    }
+                    return defaultStatus;
+                });
                 // 合并自定义状态，但排除固定状态的ID以避免冲突
                 const customNonFixed = customStatuses.filter(s => !s.isFixed);
                 return [...fixedStatuses, ...customNonFixed].sort((a, b) => a.sort - b.sort);
@@ -378,15 +395,37 @@ export class ProjectManager {
 
     /**
      * 设置项目的看板状态配置
-     * 只允许修改非固定状态
+     * 保存所有状态的图标和颜色修改，但固定状态不能删除
      */
     public async setProjectKanbanStatuses(projectId: string, statuses: KanbanStatus[]): Promise<void> {
         try {
             const projectData = await this.plugin.loadProjectData() || {};
             if (projectData[projectId]) {
-                // 过滤掉固定状态，只保存自定义状态
-                const customStatuses = statuses.filter(s => !s.isFixed);
-                projectData[projectId].kanbanStatuses = customStatuses;
+                // 获取默认配置用于对比
+                const defaults = this.getDefaultKanbanStatuses();
+
+                // 构建要保存的状态列表
+                const statusesToSave: KanbanStatus[] = [];
+
+                for (const status of statuses) {
+                    if (status.isFixed) {
+                        // 固定状态只保存图标、颜色和排序的修改
+                        const defaultStatus = defaults.find(s => s.id === status.id);
+                        if (defaultStatus) {
+                            statusesToSave.push({
+                                ...defaultStatus,
+                                icon: status.icon,
+                                color: status.color,
+                                sort: status.sort
+                            });
+                        }
+                    } else {
+                        // 非固定状态完整保存
+                        statusesToSave.push(status);
+                    }
+                }
+
+                projectData[projectId].kanbanStatuses = statusesToSave;
                 await this.plugin.saveProjectData(projectData);
             }
         } catch (error) {

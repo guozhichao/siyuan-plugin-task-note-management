@@ -670,6 +670,16 @@ export class ProjectKanbanView {
                 `;
                 statusItem.appendChild(colorDot);
 
+                // 图标
+                const iconSpan = document.createElement('span');
+                iconSpan.textContent = status.icon || '';
+                iconSpan.style.cssText = `
+                    font-size: 16px;
+                    flex-shrink: 0;
+                    margin-left: 4px;
+                `;
+                statusItem.appendChild(iconSpan);
+
                 // 状态名称
                 const nameSpan = document.createElement('span');
                 nameSpan.textContent = status.name + (status.isFixed ? ` (${t('fixed') || '固定'})` : '');
@@ -677,6 +687,7 @@ export class ProjectKanbanView {
                     flex: 1;
                     font-weight: 500;
                     color: var(--b3-theme-on-surface);
+                    margin-left: 4px;
                 `;
                 statusItem.appendChild(nameSpan);
 
@@ -792,6 +803,11 @@ export class ProjectKanbanView {
                             ${isFixed ? `<div class="b3-label__text" style="color: var(--b3-theme-on-surface-light); font-size: 12px; margin-top: 4px;">${t('fixedStatusCannotRename') || '固定状态不支持修改名称'}</div>` : ''}
                         </div>
                         <div class="b3-form__group">
+                            <label class="b3-form__label">${t('statusIcon') || '状态图标'} <span style="font-weight: normal; color: var(--b3-theme-on-surface-light);">(${t('optional') || '可选'})</span></label>
+                            <input type="text" id="editStatusIcon" class="b3-text-field" value="${status.icon || ''}" placeholder="${t('emojiIconExample') || '例如: 📋'}" style="width: 100%;">
+                            <div class="b3-label__text" style="color: var(--b3-theme-on-surface-light); font-size: 12px; margin-top: 4px;">${t('statusIconHint') || '使用 emoji 作为状态图标，留空则不显示图标'}</div>
+                        </div>
+                        <div class="b3-form__group">
                             <label class="b3-form__label">${t('statusColor') || '状态颜色'}</label>
                             <input type="color" id="editStatusColor" class="b3-text-field" value="${status.color}" style="width: 100%; height: 40px;">
                         </div>
@@ -806,6 +822,7 @@ export class ProjectKanbanView {
             });
 
             const nameInput = editDialog.element.querySelector('#editStatusName') as HTMLInputElement;
+            const iconInput = editDialog.element.querySelector('#editStatusIcon') as HTMLInputElement;
             const colorInput = editDialog.element.querySelector('#editStatusColor') as HTMLInputElement;
 
             editDialog.element.querySelector('#cancelEditBtn')?.addEventListener('click', () => {
@@ -814,6 +831,7 @@ export class ProjectKanbanView {
 
             editDialog.element.querySelector('#saveEditBtn')?.addEventListener('click', async () => {
                 const newName = nameInput.value.trim();
+                const newIcon = iconInput.value.trim();
                 const newColor = colorInput.value;
 
                 // 固定状态不验证名称（因为不能修改）
@@ -825,10 +843,11 @@ export class ProjectKanbanView {
                 // 更新状态
                 const index = statuses.findIndex(s => s.id === status.id);
                 if (index !== -1) {
-                    // 固定状态只更新颜色，不更新名称
+                    // 固定状态只更新颜色和图标，不更新名称
                     if (!isFixed) {
                         statuses[index].name = newName;
                     }
+                    statuses[index].icon = newIcon || undefined;
                     statuses[index].color = newColor;
                     // 保存
                     await projectManager.setProjectKanbanStatuses(this.projectId, statuses);
@@ -856,6 +875,11 @@ export class ProjectKanbanView {
                             <input type="text" id="newStatusName" class="b3-text-field" placeholder="${t('pleaseEnterStatusName') || '请输入状态名称'}" style="width: 100%;">
                         </div>
                         <div class="b3-form__group">
+                            <label class="b3-form__label">${t('statusIcon') || '状态图标'} <span style="font-weight: normal; color: var(--b3-theme-on-surface-light);">(${t('optional') || '可选'})</span></label>
+                            <input type="text" id="newStatusIcon" class="b3-text-field" placeholder="${t('emojiIconExample') || '例如: 📋'}" style="width: 100%;">
+                            <div class="b3-label__text" style="color: var(--b3-theme-on-surface-light); font-size: 12px; margin-top: 4px;">${t('statusIconHint') || '使用 emoji 作为状态图标，留空则不显示图标'}</div>
+                        </div>
+                        <div class="b3-form__group">
                             <label class="b3-form__label">${t('statusColor') || '状态颜色'}</label>
                             <input type="color" id="newStatusColor" class="b3-text-field" value="#3498db" style="width: 100%; height: 40px;">
                         </div>
@@ -870,6 +894,7 @@ export class ProjectKanbanView {
             });
 
             const nameInput = addDialog.element.querySelector('#newStatusName') as HTMLInputElement;
+            const iconInput = addDialog.element.querySelector('#newStatusIcon') as HTMLInputElement;
             const colorInput = addDialog.element.querySelector('#newStatusColor') as HTMLInputElement;
 
             addDialog.element.querySelector('#cancelAddBtn')?.addEventListener('click', () => {
@@ -878,6 +903,7 @@ export class ProjectKanbanView {
 
             addDialog.element.querySelector('#confirmAddBtn')?.addEventListener('click', async () => {
                 const name = nameInput.value.trim();
+                const icon = iconInput.value.trim();
                 const color = colorInput.value;
 
                 if (!name) {
@@ -896,6 +922,7 @@ export class ProjectKanbanView {
                     id: projectManager.generateKanbanStatusId(),
                     name,
                     color,
+                    icon: icon || undefined,
                     isFixed: false,
                     isDefault: false,
                     sort: statuses.length * 10
@@ -1623,7 +1650,7 @@ export class ProjectKanbanView {
                     }
 
                     // 4. 更新子分组（进行中、短期、长期等）的样式
-                    // 这些是在 renderCustomGroupColumnWithFourStatus 中创建的
+                    // 这些是在 renderCustomGroupColumnWithStatuses 中创建的
                     const subGroupHeaders = column.querySelectorAll('.custom-status-group-header') as NodeListOf<HTMLElement>;
                     subGroupHeaders.forEach(sh => {
                         sh.style.background = `${color}15`;
@@ -2078,14 +2105,9 @@ export class ProjectKanbanView {
         `;
 
         const titleEl = document.createElement('h3');
-        // 为状态列添加 emoji 前缀（默认 title 参数 为翻译文本）
-        const statusEmojiMap: { [key: string]: string } = {
-            doing: '⏳',
-            short_term: '📋',
-            long_term: '🤔',
-            completed: '✅'
-        };
-        const emoji = statusEmojiMap[status] || '';
+        // 从 kanbanStatuses 获取状态图标
+        const statusConfig = this.kanbanStatuses.find(s => s.id === status);
+        const emoji = statusConfig?.icon || '';
         titleEl.textContent = emoji ? `${emoji}${title}` : title;
         titleEl.style.cssText = `
             margin: 0;
@@ -3504,31 +3526,33 @@ export class ProjectKanbanView {
             emptyState.remove();
         }
 
-        // 将任务分为已完成和其他状态
-        const completedTasks = this.tasks.filter(task => task.completed);
-        const incompleteTasks = this.tasks.filter(task => !task.completed);
-
-        // 将未完成任务进一步分为：进行中、短期、长期
-        const doingTasks = incompleteTasks.filter(task => this.getTaskStatus(task) === 'doing');
-        const shortTermTasks = incompleteTasks.filter(task => this.getTaskStatus(task) === 'short_term');
-        const longTermTasks = incompleteTasks.filter(task => this.getTaskStatus(task) === 'long_term');
-
-        // 对已完成任务按完成时间倒序排序
-        completedTasks.sort((a, b) => {
-            const timeA = a.completedTime ? new Date(a.completedTime).getTime() : 0;
-            const timeB = b.completedTime ? new Date(b.completedTime).getTime() : 0;
-            return timeB - timeA; // 倒序排列，最新的在前
+        // 按 kanbanStatuses 中定义的所有状态分组任务
+        const statusTasks: { [status: string]: any[] } = {};
+        this.kanbanStatuses.forEach(status => {
+            if (status.id === 'completed') {
+                // 已完成任务单独处理（按完成时间排序）
+                const completed = this.tasks.filter(task => task.completed);
+                completed.sort((a, b) => {
+                    const timeA = a.completedTime ? new Date(a.completedTime).getTime() : 0;
+                    const timeB = b.completedTime ? new Date(b.completedTime).getTime() : 0;
+                    return timeB - timeA;
+                });
+                statusTasks[status.id] = completed;
+            } else {
+                // 未完成任务按状态分组
+                statusTasks[status.id] = this.tasks.filter(task => !task.completed && this.getTaskStatus(task) === status.id);
+            }
         });
 
-        // 为每个自定义分组创建四个子列：进行中、短期、长期、已完成（即使没有任务也要显示）
+        // 为每个自定义分组创建状态子列（使用 kanbanStatuses 中定义的所有状态）
         projectGroups.forEach((group: any) => {
-            const groupDoingTasks = doingTasks.filter(task => task.customGroupId === group.id);
-            const groupShortTermTasks = shortTermTasks.filter(task => task.customGroupId === group.id);
-            const groupLongTermTasks = longTermTasks.filter(task => task.customGroupId === group.id);
-            const groupCompletedTasks = completedTasks.filter(task => task.customGroupId === group.id);
+            const groupStatusTasks: { [status: string]: any[] } = {};
+            this.kanbanStatuses.forEach(status => {
+                groupStatusTasks[status.id] = statusTasks[status.id].filter(task => task.customGroupId === group.id);
+            });
 
             // 即使没有任务也要显示分组列
-            this.renderCustomGroupColumnWithFourStatus(group, groupDoingTasks, groupShortTermTasks, groupLongTermTasks, groupCompletedTasks);
+            this.renderCustomGroupColumnWithStatuses(group, groupStatusTasks);
 
             // 确保 DOM 顺序正确：通过重新 append 将列移动到正确的位置
             const columnId = `custom-group-${group.id}`;
@@ -3539,12 +3563,15 @@ export class ProjectKanbanView {
         });
 
         // 处理未分组任务：仅在存在未分组任务时显示未分组列
-        const ungroupedDoingTasks = doingTasks.filter(task => !task.customGroupId);
-        const ungroupedShortTermTasks = shortTermTasks.filter(task => !task.customGroupId);
-        const ungroupedLongTermTasks = longTermTasks.filter(task => !task.customGroupId);
-        const ungroupedCompletedTasks = completedTasks.filter(task => !task.customGroupId);
+        const ungroupedStatusTasks: { [status: string]: any[] } = {};
+        let hasUngrouped = false;
+        this.kanbanStatuses.forEach(status => {
+            ungroupedStatusTasks[status.id] = statusTasks[status.id].filter(task => !task.customGroupId);
+            if (ungroupedStatusTasks[status.id].length > 0) {
+                hasUngrouped = true;
+            }
+        });
 
-        const hasUngrouped = ungroupedDoingTasks.length > 0 || ungroupedShortTermTasks.length > 0 || ungroupedLongTermTasks.length > 0 || ungroupedCompletedTasks.length > 0;
         if (hasUngrouped) {
             const ungroupedGroup = {
                 id: 'ungrouped',
@@ -3552,7 +3579,7 @@ export class ProjectKanbanView {
                 color: '#95a5a6',
                 icon: '📋'
             };
-            this.renderCustomGroupColumnWithFourStatus(ungroupedGroup, ungroupedDoingTasks, ungroupedShortTermTasks, ungroupedLongTermTasks, ungroupedCompletedTasks);
+            this.renderCustomGroupColumnWithStatuses(ungroupedGroup, ungroupedStatusTasks);
 
             // 确保未分组列在最后
             const ungroupedColumn = kanbanContainer.querySelector(`.kanban-column-custom-group-ungrouped`);
@@ -3731,6 +3758,18 @@ export class ProjectKanbanView {
             let column = kanbanContainer.querySelector(`.kanban-column-${status.id}`) as HTMLElement;
             if (!column) {
                 column = this.createKanbanColumn(kanbanContainer, status.id, status.name, status.color);
+            } else {
+                // 更新现有列的标题和图标
+                const titleEl = column.querySelector('.kanban-column-header h3') as HTMLElement;
+                if (titleEl) {
+                    const emoji = status.icon || '';
+                    titleEl.textContent = emoji ? `${emoji}${status.name}` : status.name;
+                }
+                // 更新列标题颜色
+                const header = column.querySelector('.kanban-column-header') as HTMLElement;
+                if (header) {
+                    header.style.background = `${status.color}15`;
+                }
             }
             // 确保列有稳定的子分组容器结构
             this.ensureColumnHasStableGroups(column, status.id);
@@ -3772,8 +3811,8 @@ export class ProjectKanbanView {
         const status = this.kanbanStatuses.find(s => s.id === statusId);
         if (!status) return [];
 
-        // 为不同的状态列定义子分组配置
-        const icons: { [key: string]: string } = {
+        // 默认图标映射（当 kanbanStatuses 中没有设置图标时使用）
+        const defaultIcons: { [key: string]: string } = {
             'doing': '⏳',
             'short_term': '📋',
             'long_term': '🤔',
@@ -3783,7 +3822,7 @@ export class ProjectKanbanView {
         return [{
             status: statusId,
             label: status.name,
-            icon: icons[statusId] || '📋'
+            icon: status.icon || defaultIcons[statusId] || '📋'
         }];
     }
 
@@ -4131,23 +4170,25 @@ export class ProjectKanbanView {
     }
 
     private renderCustomGroupColumn(group: any, tasks: any[]) {
-        // 将任务分为已完成和其他状态
-        const completedTasks = tasks.filter(task => task.completed);
-        const incompleteTasks = tasks.filter(task => !task.completed);
-
-        // 将未完成任务进一步分为：进行中、短期、长期
-        const doingTasks = incompleteTasks.filter(task => this.getTaskStatus(task) === 'doing');
-        const shortTermTasks = incompleteTasks.filter(task => this.getTaskStatus(task) === 'short_term');
-        const longTermTasks = incompleteTasks.filter(task => this.getTaskStatus(task) === 'long_term');
-
-        // 对已完成任务按完成时间倒序排序
-        completedTasks.sort((a, b) => {
-            const timeA = a.completedTime ? new Date(a.completedTime).getTime() : 0;
-            const timeB = b.completedTime ? new Date(b.completedTime).getTime() : 0;
-            return timeB - timeA; // 倒序排列，最新的在前
+        // 按 kanbanStatuses 中定义的所有状态分组任务
+        const statusTasks: { [status: string]: any[] } = {};
+        this.kanbanStatuses.forEach(status => {
+            if (status.id === 'completed') {
+                // 已完成任务单独处理（按完成时间排序）
+                const completed = tasks.filter(task => task.completed);
+                completed.sort((a, b) => {
+                    const timeA = a.completedTime ? new Date(a.completedTime).getTime() : 0;
+                    const timeB = b.completedTime ? new Date(b.completedTime).getTime() : 0;
+                    return timeB - timeA;
+                });
+                statusTasks[status.id] = completed;
+            } else {
+                // 未完成任务按状态分组
+                statusTasks[status.id] = tasks.filter(task => !task.completed && this.getTaskStatus(task) === status.id);
+            }
         });
 
-        this.renderCustomGroupColumnWithFourStatus(group, doingTasks, shortTermTasks, longTermTasks, completedTasks);
+        this.renderCustomGroupColumnWithStatuses(group, statusTasks);
     }
 
     private createCustomGroupColumn(columnId: string, group: any): HTMLElement {
@@ -4316,7 +4357,7 @@ export class ProjectKanbanView {
         this.renderCustomGroupColumn(ungroupedGroup, tasks);
     }
 
-    private renderCustomGroupColumnWithFourStatus(group: any, doingTasks: any[], shortTermTasks: any[], longTermTasks: any[], completedTasks: any[]) {
+    private renderCustomGroupColumnWithStatuses(group: any, statusTasks: { [status: string]: any[] }) {
         const columnId = `custom-group-${group.id}`;
         let column = this.container.querySelector(`.kanban-column-${columnId}`) as HTMLElement;
 
@@ -4343,50 +4384,38 @@ export class ProjectKanbanView {
             gap: 16px;
         `;
 
-        // 进行中任务分组（总是显示，即使没有任务）
-        const expandedDoingTasks = this.augmentTasksWithDescendants(doingTasks, group.id);
-        const doingGroupContainer = this.createStatusGroupInCustomColumn(
-            group,
-            expandedDoingTasks,
-            'doing',
-            '进行中'
-        );
-        groupsContainer.appendChild(doingGroupContainer);
-
-        // 短期任务分组（总是显示，即使没有任务）
-        const expandedShortTermTasks = this.augmentTasksWithDescendants(shortTermTasks, group.id);
-        const shortTermGroupContainer = this.createStatusGroupInCustomColumn(
-            group,
-            expandedShortTermTasks,
-            'short_term',
-            '短期'
-        );
-        groupsContainer.appendChild(shortTermGroupContainer);
-
-        // 长期任务分组（总是显示，即使没有任务）
-        const expandedLongTermTasks = this.augmentTasksWithDescendants(longTermTasks, group.id);
-        const longTermGroupContainer = this.createStatusGroupInCustomColumn(
-            group,
-            expandedLongTermTasks,
-            'long_term',
-            '长期'
-        );
-        groupsContainer.appendChild(longTermGroupContainer);
-
-        // 已完成任务分组（总是显示，即使没有任务）
-        // 已完成分组中默认显示该分组下独立的已完成任务，
-        // 但如果某个已完成任务已经作为子任务显示在其他分组（非已完成的父任务下），则不重复显示
+        // 按 kanbanStatuses 顺序创建所有状态分组
+        const expandedTasksMap: { [status: string]: any[] } = {};
         const nonCompletedIncludedIds = new Set<string>();
-        [...expandedDoingTasks, ...expandedShortTermTasks, ...expandedLongTermTasks].forEach(t => nonCompletedIncludedIds.add(t.id));
-        const filteredCompletedTasks = completedTasks.filter(t => !nonCompletedIncludedIds.has(t.id));
 
-        const completedGroupContainer = this.createStatusGroupInCustomColumn(
-            group,
-            filteredCompletedTasks,
-            'completed',
-            '已完成'
-        );
-        groupsContainer.appendChild(completedGroupContainer);
+        // 第一遍：收集所有非已完成状态的扩展任务，用于过滤已完成的重复任务
+        this.kanbanStatuses.forEach(status => {
+            if (status.id !== 'completed') {
+                const tasks = statusTasks[status.id] || [];
+                expandedTasksMap[status.id] = this.augmentTasksWithDescendants(tasks, group.id);
+                expandedTasksMap[status.id].forEach(t => nonCompletedIncludedIds.add(t.id));
+            }
+        });
+
+        // 第二遍：创建所有状态分组
+        this.kanbanStatuses.forEach(status => {
+            let tasks: any[];
+            if (status.id === 'completed') {
+                // 已完成任务需要过滤掉已经在其他分组中显示的任务
+                const completedTasks = statusTasks[status.id] || [];
+                tasks = completedTasks.filter(t => !nonCompletedIncludedIds.has(t.id));
+            } else {
+                tasks = expandedTasksMap[status.id] || [];
+            }
+
+            const statusGroupContainer = this.createStatusGroupInCustomColumn(
+                group,
+                tasks,
+                status.id,
+                status.name
+            );
+            groupsContainer.appendChild(statusGroupContainer);
+        });
 
         content.appendChild(groupsContainer);
 
@@ -4399,18 +4428,30 @@ export class ProjectKanbanView {
 
         // 更新列顶部计数 — 只统计顶层（父）任务，不包括子任务
         if (count) {
-            const combined = [...expandedDoingTasks, ...expandedShortTermTasks, ...expandedLongTermTasks, ...filteredCompletedTasks];
-            const mapCombined = new Map(combined.map((t: any) => [t.id, t]));
-            const topLevelCombined = combined.filter((t: any) => !t.parentId || !mapCombined.has(t.parentId));
+            let allTasks: any[] = [];
+            this.kanbanStatuses.forEach(status => {
+                if (status.id === 'completed') {
+                    const completedTasks = statusTasks[status.id] || [];
+                    allTasks.push(...completedTasks.filter(t => !nonCompletedIncludedIds.has(t.id)));
+                } else {
+                    allTasks.push(...(expandedTasksMap[status.id] || []));
+                }
+            });
+            const mapCombined = new Map(allTasks.map((t: any) => [t.id, t]));
+            const topLevelCombined = allTasks.filter((t: any) => !t.parentId || !mapCombined.has(t.parentId));
             count.textContent = topLevelCombined.length.toString();
         }
     }
 
-    private createStatusGroupInCustomColumn(group: any, tasks: any[], status: 'completed' | 'incomplete' | 'doing' | 'short_term' | 'long_term', statusLabel: string): HTMLElement {
+    private createStatusGroupInCustomColumn(group: any, tasks: any[], status: string, statusLabel: string): HTMLElement {
         const groupContainer = document.createElement('div');
         groupContainer.className = `custom-status-group custom-status-${status}`;
         groupContainer.dataset.groupId = group.id;
         groupContainer.dataset.status = status;
+
+        // 从 kanbanStatuses 获取状态配置（颜色、图标）
+        const statusConfig = this.kanbanStatuses.find(s => s.id === status);
+        const statusColor = statusConfig?.color || group.color;
 
         // 分组标题（参考状态分组下的自定义分组样式）
         const groupHeader = document.createElement('div');
@@ -4420,8 +4461,8 @@ export class ProjectKanbanView {
             align-items: center;
             justify-content: space-between;
             padding: 8px 12px;
-            background: ${group.color}15;
-            border: 1px solid ${group.color}30;
+            background: ${statusColor}15;
+            border: 1px solid ${statusColor}30;
             border-radius: 6px;
             cursor: pointer;
             position: sticky;
@@ -4436,20 +4477,21 @@ export class ProjectKanbanView {
             align-items: center;
             gap: 6px;
             font-weight: 600;
-            color: ${group.color};
+            color: ${statusColor};
             font-size: 13px;
         `;
 
         const groupIcon = document.createElement('span');
-        // 对于自定义分组下的四个子分组，使用不同的固定图标
-        const statusIcons = {
+        // 对于自定义分组下的状态子分组，使用不同的固定图标
+        const defaultIcons: { [key: string]: string } = {
             'doing': '⏳',
             'short_term': '📋',
             'long_term': '🤔',
             'completed': '✅',
             'incomplete': '🗓'
         };
-        groupIcon.textContent = statusIcons[status] || '📋';
+        // 优先使用 kanbanStatuses 中设置的图标，其次使用默认图标
+        groupIcon.textContent = statusConfig?.icon || defaultIcons[status] || '📋';
         groupTitle.appendChild(groupIcon);
 
         const groupName = document.createElement('span');
@@ -4458,12 +4500,12 @@ export class ProjectKanbanView {
 
         const taskCount = document.createElement('span');
         taskCount.className = 'custom-status-group-count';
-        // 进行中、短期、长期、已完成分组都只显示顶层任务数量
+        // 所有状态分组都只显示顶层任务数量
         const taskMapLocal = new Map(tasks.map((t: any) => [t.id, t]));
         const topLevel = tasks.filter((t: any) => !t.parentId || !taskMapLocal.has(t.parentId));
         taskCount.textContent = topLevel.length.toString();
         taskCount.style.cssText = `
-            background: ${group.color};
+            background: ${statusColor};
             color: white;
             border-radius: 10px;
             padding: 2px 6px;
@@ -4479,8 +4521,8 @@ export class ProjectKanbanView {
         headerRight.style.cssText = 'display:flex; align-items:center; gap:8px;';
         headerRight.appendChild(taskCount);
 
-        // 为"进行中"、"短期"、"长期"添加新建按钮和粘贴新建按钮
-        if (['doing', 'short_term', 'long_term'].includes(status)) {
+        // 为所有非"已完成"状态添加新建按钮和粘贴新建按钮
+        if (status !== 'completed') {
             const addTaskBtn = document.createElement('button');
             addTaskBtn.className = 'b3-button b3-button--text';
             addTaskBtn.style.cssText = 'padding: 2px; margin-left: 4px;';
@@ -4488,9 +4530,8 @@ export class ProjectKanbanView {
             addTaskBtn.innerHTML = `<svg style="width: 14px; height: 14px;"><use xlink:href="#iconAdd"></use></svg>`;
             addTaskBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                // 强制将 status 转换为合法的 termType
-                const termType = status as 'doing' | 'short_term' | 'long_term';
-                this.showCreateTaskDialog(undefined, group.id, termType);
+                // 使用 status 作为 termType
+                this.showCreateTaskDialog(undefined, group.id, status as any);
             });
             headerRight.appendChild(addTaskBtn);
 
@@ -4501,8 +4542,7 @@ export class ProjectKanbanView {
             pasteTaskBtn.innerHTML = `<svg style="width: 14px; height: 14px;"><use xlink:href="#iconPaste"></use></svg>`;
             pasteTaskBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const termType = status as 'doing' | 'short_term' | 'long_term';
-                this.showPasteTaskDialog(undefined, group.id, termType);
+                this.showPasteTaskDialog(undefined, group.id, status as any);
             });
             headerRight.appendChild(pasteTaskBtn);
         }
@@ -8089,62 +8129,6 @@ export class ProjectKanbanView {
 
             .custom-status-group-tasks {
                 transition: all 0.3s ease;
-            }
-
-            /* 进行中状态组样式区分 */
-            .custom-status-doing .custom-status-group-header {
-                background: rgba(243, 156, 18, 0.1) !important;
-                border-color: rgba(243, 156, 18, 0.3) !important;
-            }
-
-            .custom-status-doing .custom-status-group-title {
-                color: #f39c12 !important;
-            }
-
-            .custom-status-doing .custom-status-group-count {
-                background: #f39c12 !important;
-            }
-
-            /* 短期状态组样式区分 */
-            .custom-status-short_term .custom-status-group-header {
-                background: rgba(52, 152, 219, 0.1) !important;
-                border-color: rgba(52, 152, 219, 0.3) !important;
-            }
-
-            .custom-status-short_term .custom-status-group-title {
-                color: #3498db !important;
-            }
-
-            .custom-status-short_term .custom-status-group-count {
-                background: #3498db !important;
-            }
-
-            /* 长期状态组样式区分 */
-            .custom-status-long_term .custom-status-group-header {
-                background: rgba(155, 89, 182, 0.1) !important;
-                border-color: rgba(155, 89, 182, 0.3) !important;
-            }
-
-            .custom-status-long_term .custom-status-group-title {
-                color: #9b59b6 !important;
-            }
-
-            .custom-status-long_term .custom-status-group-count {
-                background: #9b59b6 !important;
-            }
-
-            /* 已完成状态组样式区分 */
-            .custom-status-completed .custom-status-group-header {
-                background: rgba(46, 204, 113, 0.1) !important;
-                border-color: rgba(46, 204, 113, 0.3) !important;
-            }
-
-            .custom-status-completed .custom-status-group-title {
-                color: #2ecc71 !important;
-            }
-
-            .custom-status-completed .custom-status-group-count {
-                background: #2ecc71 !important;
             }
 
             /* 分组管理对话框样式 */
