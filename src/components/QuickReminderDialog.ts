@@ -1031,21 +1031,21 @@ export class QuickReminderDialog {
                             </div>
                         </div>
                         <div class="b3-form__group" id="quickProjectGroup" style="${this.hideProjectSelector ? 'display: none;' : ''}">
-                            <label class="b3-form__label">项目设置</label>
+                            <label class="b3-form__label">设置所属项目</label>
                             <select id="quickProjectSelector" class="b3-select" style="width: 100%;">
                                 <option value="">${t("noProject")}</option>
                                 <!-- 项目选择器将在这里渲染 -->
                             </select>
                         </div>
                         <div class="b3-form__group" id="quickCustomGroup" style="display: none;">
-                            <label class="b3-form__label">项目分组设置</label>
+                            <label class="b3-form__label">设置任务分组</label>
                             <select id="quickCustomGroupSelector" class="b3-select" style="width: 100%;">
                                 <option value="">${t("noGroup") || '无分组'}</option>
                                 <!-- 自定义分组选择器将在这里渲染 -->
                             </select>
                         </div>
                         <div class="b3-form__group" id="quickTagsGroup" style="display: none;">
-                            <label class="b3-form__label">${t('tags')}</label>
+                            <label class="b3-form__label">设置标签</label>
                             <div id="quickTagsSelector" class="tags-selector" style="display: flex; flex-wrap: wrap; gap: 6px;">
                                 <!-- 标签选择器将在这里渲染 -->
                             </div>
