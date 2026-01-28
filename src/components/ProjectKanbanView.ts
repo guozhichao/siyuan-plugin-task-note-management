@@ -2138,7 +2138,7 @@ export class ProjectKanbanView {
         modeSelectContainer.appendChild(modeSelect);
         controlsGroup.appendChild(modeSelectContainer);
 
-        // 设置任务状态按钮（仅在状态模式下显示）
+        // 设置任务状态按钮
         const manageStatusesBtn = document.createElement('button');
         manageStatusesBtn.className = 'b3-button b3-button--outline';
         manageStatusesBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg> ${t('manageStatuses') || '任务状态'}`;
@@ -2146,7 +2146,7 @@ export class ProjectKanbanView {
         manageStatusesBtn.addEventListener('click', () => this.showManageKanbanStatusesDialog());
         controlsGroup.appendChild(manageStatusesBtn);
 
-        // 管理分组按钮（仅在自定义分组模式下显示）
+        // 管理分组按钮
         const manageGroupsBtn = document.createElement('button');
         manageGroupsBtn.className = 'b3-button b3-button--outline';
         manageGroupsBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg> ${t('manageGroups')}`;
