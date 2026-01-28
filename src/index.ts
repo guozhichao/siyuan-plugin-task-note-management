@@ -184,6 +184,8 @@ export default class ReminderPlugin extends Plugin {
     private holidayDataCache: any = null;
     private pomodoroRecordsCache: any = null;
     private outlinePrefixCache: Map<string, string> = new Map(); // 记录由本插件管理的大纲前缀
+    private protyleObservers: WeakMap<Element, MutationObserver> = new WeakMap();
+    private protyleDebounceTimers: WeakMap<Element, number> = new WeakMap();
     private cleanupFunctions: (() => void)[] = [];
 
     public settings: any;
@@ -3266,67 +3268,179 @@ export default class ReminderPlugin extends Plugin {
     }
 
     /**
+     * 处理单个 Node 的按钮（用于 MutationObserver 的快速响应）
+     */
+    private async _processSingleBlock(protyle: any, node: Element) {
+        if (!node || !node.getAttribute) return;
+
+        const blockId = this._getBlockIdFromElement(node);
+        if (!blockId) return;
+
+        // Check availability
+        const rawAttr = node.getAttribute('custom-task-projectid');
+        const hasBind = node.hasAttribute('custom-bind-reminders');
+
+        // 如果既没有项目引用也没有绑定，说明不需要按钮（或者需要移除）
+        if (!rawAttr && !hasBind) {
+            // 这里我们不主动清理，交给全量 scan 去清理孤立按钮，避免误删
+            // 为了快速响应“移除绑定”操作，可以尝试移除该块对应的按钮
+            // 但需要小心不要移除依然有效的（这里不做移除，仅做添加/更新）
+            return;
+        }
+
+        const projectIds = rawAttr ? rawAttr.split(',').map(s => s.trim()).filter(s => s) : [];
+        const info = {
+            projectIds,
+            hasBind,
+            element: node
+        };
+
+        // Prevent redundant processing if logic is already running for this block
+        if (this.processingBlockButtons.has(blockId)) return;
+
+        this.processingBlockButtons.add(blockId);
+        try {
+            await this._processBlockButtons(protyle, blockId, info);
+        } finally {
+            this.processingBlockButtons.delete(blockId);
+        }
+    }
+
+    /**
      * 在当前 protyle 的每个块旁边（protyle-attr）添加项目打开按钮
      * 优化版本：使用延迟执行和更高效的DOM操作，有属性即显示按钮
      */
-    private async addBlockProjectButtonsToProtyle(protyle: any) {
+    /**
+     * 扫描 Protyle 内容并更新项目/绑定按钮
+     */
+    private async _scanProtyleForButtons(protyle: any) {
         try {
             if (!protyle || !protyle.element) return;
 
-            // 使用 requestAnimationFrame 延迟执行，确保DOM完全渲染
-            requestAnimationFrame(async () => {
+            // 仅扫描具有自定义项目属性的节点，避免遍历所有块
+            const projectSelector = 'div[data-node-id][custom-task-projectid], .protyle-wysiwyg[custom-task-projectid]';
+            // 同时扫瞄绑定了任务的节点
+            const bindSelector = 'div[data-node-id][custom-bind-reminders], .protyle-wysiwyg[custom-bind-reminders]';
+
+            const projectBlocks = Array.from(protyle.element.querySelectorAll(projectSelector)) as Element[];
+            const bindBlocks = Array.from(protyle.element.querySelectorAll(bindSelector)) as Element[];
+            const allBlocks = Array.from(new Set([...projectBlocks, ...bindBlocks]));
+
+            if (allBlocks.length === 0) {
+                // 清理可能存在的孤立按钮
+                this._cleanupOrphanedButtons(protyle);
+                return;
+            }
+
+            // 预处理：收集所有需要处理的块信息
+            const blocksToProcess = new Map<string, { projectIds: string[], hasBind: boolean, element: Element }>();
+
+            for (const node of allBlocks) {
+                const blockId = this._getBlockIdFromElement(node);
+                if (!blockId) continue;
+
+                const rawAttr = node.getAttribute('custom-task-projectid');
+                const projectIds = rawAttr ? rawAttr.split(',').map(s => s.trim()).filter(s => s) : [];
+                const hasBind = node.hasAttribute('custom-bind-reminders');
+
+                blocksToProcess.set(blockId, {
+                    projectIds,
+                    hasBind,
+                    element: node
+                });
+            }
+
+            // 批量清理旧按钮
+            this._cleanupOrphanedButtons(protyle, blocksToProcess);
+
+            // 批量处理块
+            for (const [blockId, info] of blocksToProcess) {
+                if (this.processingBlockButtons.has(blockId)) continue;
+                this.processingBlockButtons.add(blockId);
                 try {
-                    // 仅扫描具有自定义项目属性的节点，避免遍历所有块
-                    const projectSelector = 'div[data-node-id][custom-task-projectid], .protyle-wysiwyg[custom-task-projectid]';
-                    const allBlocks = Array.from(protyle.element.querySelectorAll(projectSelector)) as Element[];
+                    await this._processBlockButtons(protyle, blockId, info);
+                } finally {
+                    this.processingBlockButtons.delete(blockId);
+                }
+            }
 
-                    if (allBlocks.length === 0) {
-                        // 清理可能存在的孤立按钮
-                        this._cleanupOrphanedButtons(protyle);
-                        return;
-                    }
+        } catch (error) {
+            console.error('扫描块按钮失败:', error);
+        }
+    }
 
-                    // 预处理：收集所有需要处理的块信息
-                    const blocksToProcess = new Map<string, { projectIds: string[], hasBind: boolean, element: Element }>();
+    /**
+     * 在当前 protyle 的每个块旁边（protyle-attr）添加项目打开按钮
+     * 优化版本：使用 MutationObserver 监听 DOM 变化，确保按钮及时更新
+     */
+    private async addBlockProjectButtonsToProtyle(protyle: any) {
+        if (!protyle || !protyle.element) return;
 
-                    for (const node of allBlocks) {
-                        const blockId = this._getBlockIdFromElement(node);
-                        if (!blockId) continue;
+        // 1. 立即执行一次扫描
+        this._scanProtyleForButtons(protyle);
 
-                        const rawAttr = node.getAttribute('custom-task-projectid');
-                        if (!rawAttr) continue;
-
-                        const projectIds = rawAttr.split(',').map(s => s.trim()).filter(s => s);
-                        const hasBind = node.hasAttribute('custom-bind-reminders');
-
-                        blocksToProcess.set(blockId, {
-                            projectIds,
-                            hasBind,
-                            element: node
-                        });
-                    }
-
-                    // 批量清理旧按钮
-                    this._cleanupOrphanedButtons(protyle, blocksToProcess);
-
-                    // 批量处理块
-                    for (const [blockId, info] of blocksToProcess) {
-                        if (this.processingBlockButtons.has(blockId)) continue;
-                        this.processingBlockButtons.add(blockId);
-                        try {
-                            await this._processBlockButtons(protyle, blockId, info);
-                        } finally {
-                            this.processingBlockButtons.delete(blockId);
+        // 2. 设置 MutationObserver 监听后续变化
+        if (!this.protyleObservers.has(protyle.element)) {
+            const observer = new MutationObserver((mutations) => {
+                let shouldUpdate = false;
+                for (const mutation of mutations) {
+                    if (mutation.type === 'attributes') {
+                        // 监听关键属性变化，立即处理目标节点，减少 flicker
+                        shouldUpdate = true;
+                        const target = mutation.target as Element;
+                        this._processSingleBlock(protyle, target);
+                    } else if (mutation.type === 'childList') {
+                        if (mutation.addedNodes.length > 0) {
+                            shouldUpdate = true;
+                            // 对添加的节点进行快速检查
+                            mutation.addedNodes.forEach((node) => {
+                                if (node.nodeType === 1) { // Element
+                                    const el = node as Element;
+                                    // 检查节点本身
+                                    this._processSingleBlock(protyle, el);
+                                    // 检查子节点（限制层级或仅查找特定选择器以保证性能）
+                                    const relevantChildren = el.querySelectorAll?.('div[data-node-id][custom-task-projectid], div[data-node-id][custom-bind-reminders], .protyle-wysiwyg[custom-task-projectid], .protyle-wysiwyg[custom-bind-reminders]');
+                                    if (relevantChildren && relevantChildren.length > 0) {
+                                        relevantChildren.forEach(child => this._processSingleBlock(protyle, child));
+                                    }
+                                }
+                            });
+                        }
+                        if (mutation.removedNodes.length > 0) {
+                            shouldUpdate = true;
                         }
                     }
+                }
 
-                } catch (error) {
-                    console.error('为块添加项目按钮失败:', error);
+                if (shouldUpdate) {
+                    const element = protyle.element;
+                    const existingTimer = this.protyleDebounceTimers.get(element);
+                    if (existingTimer) {
+                        window.clearTimeout(existingTimer);
+                    }
+
+                    const timer = window.setTimeout(() => {
+                        this._scanProtyleForButtons(protyle);
+                    }, 50); // 降低防抖时间到 50ms 以加快一致性检查
+
+                    this.protyleDebounceTimers.set(element, timer);
                 }
             });
 
-        } catch (error) {
-            console.error('为块添加项目按钮失败:', error);
+            observer.observe(protyle.element, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['custom-task-projectid', 'custom-bind-reminders']
+            });
+
+            this.protyleObservers.set(protyle.element, observer);
+
+            // 注册清理逻辑 (当插件卸载时)
+            this.addCleanup(() => {
+                observer.disconnect();
+                this.protyleObservers.delete(protyle.element);
+            });
         }
     }
 
