@@ -29,7 +29,7 @@ export class QuickReminderDialog {
     private autoDetectDateTime?: boolean; // 是否自动识别日期时间（undefined 表示未指定，使用插件设置）
     private defaultProjectId?: string;
     private showKanbanStatus?: 'todo' | 'term' | 'none' = 'term'; // 看板状态显示模式，默认为 'term'
-    private defaultTermType?: 'short_term' | 'long_term' | 'doing' | 'todo' = 'doing'; // 默认任务类型
+    private defaultTermType?: 'short_term' | 'long_term' | 'doing' | 'todo' = 'doing'; // 默认任务状态
     private defaultCustomGroupId?: string | null;
     private defaultCustomReminderTime?: string;
     private isTimeRange: boolean = false;
@@ -538,7 +538,7 @@ export class QuickReminderDialog {
             this.selectedTagIds = [...this.reminder.tagIds];
         }
 
-        // 等待渲染完成后设置分类、优先级和任务类型
+        // 等待渲染完成后设置分类、优先级和任务状态
         setTimeout(() => {
             // 填充分类
             // 填充分类
@@ -576,7 +576,7 @@ export class QuickReminderDialog {
                 });
             }
 
-            // 填充任务类型
+            // 填充任务状态
             if (this.reminder.termType || this.reminder.kanbanStatus) {
                 const termTypeOptions = this.dialog.element.querySelectorAll('.term-type-option');
                 let targetTermType = this.reminder.termType;
@@ -1305,9 +1305,9 @@ export class QuickReminderDialog {
         }
     }
 
-    // 渲染任务类型选择器
+    // 渲染任务状态选择器
     private renderTermTypeSelector(): string {
-        // 如果 showKanbanStatus 为 'none'，不显示任务类型选择器
+        // 如果 showKanbanStatus 为 'none'，不显示任务状态选择器
         if (this.showKanbanStatus === 'none') {
             return '';
         }
@@ -1351,7 +1351,7 @@ export class QuickReminderDialog {
 
         return `
             <div class="b3-form__group">
-                <label class="b3-form__label">任务类型</label>
+                <label class="b3-form__label">任务状态</label>
                 <div class="term-type-selector" id="quickTermTypeSelector" style="display: flex; gap: 12px;">
                     ${options}
                 </div>
@@ -1915,7 +1915,7 @@ export class QuickReminderDialog {
             }
         });
 
-        // 任务类型选择事件
+        // 任务状态选择事件
         const termTypeSelector = this.dialog.element.querySelector('#quickTermTypeSelector') as HTMLElement;
         termTypeSelector?.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
@@ -2799,7 +2799,7 @@ export class QuickReminderDialog {
                             delete reminder.docId;
                         }
 
-                        // 根据任务类型设置看板状态
+                        // 根据任务状态设置看板状态
                         if (termType === 'doing') {
                             reminder.kanbanStatus = 'doing';
                         } else if (termType === 'long_term') {
@@ -2926,7 +2926,7 @@ export class QuickReminderDialog {
                         repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined,
                         isQuickReminder: true, // 标记为快速创建的提醒
                         quadrant: this.defaultQuadrant, // 添加象限信息
-                        termType: termType, // 添加任务类型（短期/长期）
+                        termType: termType, // 添加任务状态（短期/长期）
                         isAvailableToday: isAvailableToday,
                         availableStartDate: availableStartDate,
                         // 旧字段 `customReminderTime` 不再写入，新提醒统一保存到 `reminderTimes`
@@ -2959,7 +2959,7 @@ export class QuickReminderDialog {
                         reminder.sort = maxSort + 1;
                     }
 
-                    // 根据任务类型设置看板状态
+                    // 根据任务状态设置看板状态
                     if (termType === 'doing') {
                         reminder.kanbanStatus = 'doing';
                     } else if (termType === 'long_term') {
