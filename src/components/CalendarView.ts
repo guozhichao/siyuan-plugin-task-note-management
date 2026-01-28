@@ -74,6 +74,7 @@ export class CalendarView {
 
     // 性能优化：颜色缓存
     private colorCache: Map<string, { backgroundColor: string; borderColor: string }> = new Map();
+    private lastNavigatedToTodayAt: number = 0; // 记录最后一次点击"今天"的时间
 
     // 视图按钮引用
     private monthBtn: HTMLButtonElement;
@@ -957,7 +958,21 @@ export class CalendarView {
                 myToday: {
                     text: t("today"),
                     click: () => {
-                        this.calendar.gotoDate(getDayStartAdjustedDate(new Date()));
+                        this.lastNavigatedToTodayAt = Date.now();
+                        const targetDate = getDayStartAdjustedDate(new Date());
+                        this.calendar.gotoDate(targetDate);
+
+                        // 尝试滚动到今天的位置（主要修复 dayGridMonth 不会自动滚动的问题）
+                        setTimeout(() => {
+                            // 优先查找高亮的今天元素
+                            const todayEl = this.container.querySelector('.fc-day-today') ||
+                                this.container.querySelector('.fc-today-custom') ||
+                                this.container.querySelector(`[data-date="${getLocalDateString(targetDate)}"]`);
+
+                            if (todayEl) {
+                                todayEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                            }
+                        }, 100);
                     }
                 }
             },
@@ -4800,22 +4815,34 @@ export class CalendarView {
                     // 如果 DOM 被完全销毁并重建，则需要通过索引或类名重新匹配。
                     // 实践中 FC v6 调用 render() 往往会重用 scroller 容器。
                     requestAnimationFrame(() => {
-                        scrollerStates.forEach(state => {
-                            if (state.el && this.container.contains(state.el)) {
-                                state.el.scrollTop = state.scrollTop;
-                                state.el.scrollLeft = state.scrollLeft;
-                            } else {
-                                // 如果旧的 el 已经失效，则根据索引恢复新 scroller 的位置
-                                // 这是一个备选方案
-                                const newScrollers = this.container.querySelectorAll('.fc-scroller');
-                                newScrollers.forEach((newEl: HTMLElement, index) => {
-                                    if (scrollerStates[index] && !this.container.contains(scrollerStates[index].el)) {
-                                        newEl.scrollTop = scrollerStates[index].scrollTop;
-                                        newEl.scrollLeft = scrollerStates[index].scrollLeft;
-                                    }
-                                });
+                        // 如果最近刚刚点击了"今天"按钮（2秒内），则不要恢复之前的滚动位置
+                        // 防止滚动到"今天"后被重置回之前的位置
+                        if (Date.now() - this.lastNavigatedToTodayAt < 2000) {
+                            const targetDate = getDayStartAdjustedDate(new Date());
+                            const todayEl = this.container.querySelector('.fc-day-today') ||
+                                this.container.querySelector('.fc-today-custom') ||
+                                this.container.querySelector(`[data-date="${getLocalDateString(targetDate)}"]`);
+                            if (todayEl) {
+                                todayEl.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
                             }
-                        });
+                        } else {
+                            scrollerStates.forEach(state => {
+                                if (state.el && this.container.contains(state.el)) {
+                                    state.el.scrollTop = state.scrollTop;
+                                    state.el.scrollLeft = state.scrollLeft;
+                                } else {
+                                    // 如果旧的 el 已经失效，则根据索引恢复新 scroller 的位置
+                                    // 这是一个备选方案
+                                    const newScrollers = this.container.querySelectorAll('.fc-scroller');
+                                    newScrollers.forEach((newEl: HTMLElement, index) => {
+                                        if (scrollerStates[index] && !this.container.contains(scrollerStates[index].el)) {
+                                            newEl.scrollTop = scrollerStates[index].scrollTop;
+                                            newEl.scrollLeft = scrollerStates[index].scrollLeft;
+                                        }
+                                    });
+                                }
+                            });
+                        }
                     });
                 }
             } catch (error) {
