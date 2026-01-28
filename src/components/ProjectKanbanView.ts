@@ -2311,9 +2311,10 @@ export class ProjectKanbanView {
         content.className = 'kanban-column-content';
         content.style.cssText = `
             flex: 1;
-            padding: 8px;
+            padding: 0px;
             overflow-y: auto;
             min-height: 200px;
+            margin-top: 8px;
         `;
 
         // 添加拖拽事件
@@ -3958,7 +3959,7 @@ export class ProjectKanbanView {
         const groupTasksContainer = document.createElement('div');
         groupTasksContainer.className = 'status-stable-group-tasks';
         groupTasksContainer.style.cssText = `
-            padding-left: 8px;
+            padding-left: 8px; padding-right: 8px;
             padding-top: 8px;
             min-height: 20px;
         `;
@@ -4454,9 +4455,10 @@ export class ProjectKanbanView {
         content.className = 'kanban-column-content';
         content.style.cssText = `
             flex: 1;
-            padding: 8px;
+            padding: 0px;
             overflow-y: auto;
             min-height: 200px;
+            margin-top: 8px;
         `;
 
         column.appendChild(header);
@@ -4678,7 +4680,7 @@ export class ProjectKanbanView {
         const groupTasksContainer = document.createElement('div');
         groupTasksContainer.className = 'custom-status-group-tasks';
         groupTasksContainer.style.cssText = `
-            padding-left: 8px;
+            padding-left: 8px; padding-right: 8px;
             padding-top: 8px; /* 添加一点顶部间距 */
             min-height: 20px; /* 确保即使没有任务也有拖放区域 */
         `;
@@ -4927,7 +4929,7 @@ export class ProjectKanbanView {
         const groupTasksContainer = document.createElement('div');
         groupTasksContainer.className = 'custom-group-tasks';
         groupTasksContainer.style.cssText = `
-            padding-left: 8px;
+            padding-left: 8px; padding-right: 8px;
             display: ${isCollapsedDefault ? 'none' : 'block'};
         `;
 
@@ -7764,9 +7766,14 @@ export class ProjectKanbanView {
 
             .kanban-column-content {
                 flex: 1;
-                padding: 8px;
+                padding: 0px;
                 overflow-y: auto;
                 min-height: 200px;
+                /* Reserve space for scrollbar so right padding doesn't appear larger
+                   when the vertical scrollbar shows up */
+                scrollbar-gutter: stable both-edges;
+                /* Make scrollbar thinner where supported (Firefox) */
+                scrollbar-width: thin;
             }
 
             .kanban-column-count {
@@ -8220,6 +8227,7 @@ export class ProjectKanbanView {
                 position: sticky;
                 top: 0;
                 z-index: 10;
+                margin-bottom: 6px;
             }
 
             .custom-group-header:hover {
