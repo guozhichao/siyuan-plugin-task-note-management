@@ -66,6 +66,8 @@ export class ProjectKanbanView {
 
     // 上一次选择的任务状态（用于记住新建任务时的默认选择）
     private lastSelectedTermType: 'short_term' | 'long_term' | 'doing' | 'todo' = 'short_term';
+    // 上一次选择的自定义分组（用于记住新建任务时的默认分组）
+    private lastSelectedCustomGroupId: string | null = null;
     // 防抖加载与滚动状态保存
     private _debounceTimer: any = null;
     private _debounceDelay: number = 250; // ms
@@ -87,6 +89,9 @@ export class ProjectKanbanView {
 
     // 缓存的任务数据
     private reminderData: any = null;
+
+    // 当前项目的看板状态配置
+    private kanbanStatuses: import('../utils/projectManager').KanbanStatus[] = [];
 
     constructor(container: HTMLElement, plugin: any, projectId: string) {
         this.container = container;
@@ -236,9 +241,15 @@ export class ProjectKanbanView {
             const { ProjectManager } = await import('../utils/projectManager');
             const projectManager = ProjectManager.getInstance(this.plugin);
             this.kanbanMode = await projectManager.getProjectKanbanMode(this.projectId);
+            // 同时加载看板状态配置
+            this.kanbanStatuses = await projectManager.getProjectKanbanStatuses(this.projectId);
         } catch (error) {
             console.error('加载看板模式失败:', error);
             this.kanbanMode = 'status';
+            // 使用默认状态配置
+            const { ProjectManager } = await import('../utils/projectManager');
+            const projectManager = ProjectManager.getInstance(this.plugin);
+            this.kanbanStatuses = projectManager.getDefaultKanbanStatuses();
         }
     }
 
@@ -445,6 +456,468 @@ export class ProjectKanbanView {
                 showMessage(t('saveGroupFailed'));
             }
         });
+    }
+
+    /**
+     * 显示管理任务状态对话框
+     */
+    private async showManageKanbanStatusesDialog() {
+        const { ProjectManager } = await import('../utils/projectManager');
+        const projectManager = ProjectManager.getInstance(this.plugin);
+
+        // 加载当前项目的状态配置
+        let statuses = await projectManager.getProjectKanbanStatuses(this.projectId);
+
+        const dialog = new Dialog({
+            title: t('manageKanbanStatuses') || '管理任务状态',
+            content: `
+                <div class="manage-statuses-dialog">
+                    <div class="b3-dialog__content">
+                        <div class="statuses-list" style="margin-bottom: 16px;">
+                            <div class="statuses-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                <h4 style="margin: 0;">${t('existingStatuses') || '现有状态'}</h4>
+                                <button id="addStatusBtn" class="b3-button b3-button--small b3-button--primary">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg> ${t('newStatus') || '新增状态'}
+                                </button>
+                            </div>
+                            <div id="statusesContainer" class="statuses-container" style="max-height: 350px; overflow-y: auto;">
+                                <!-- 状态列表将在这里动态生成 -->
+                            </div>
+                        </div>
+                        <div class="b3-label__text" style="color: var(--b3-theme-on-surface-light); font-size: 12px;">
+                            ${t('kanbanStatusHint') || '提示："进行中"和"已完成"为固定状态，不支持重命名和删除，但支持排序和修改颜色。'}
+                        </div>
+                    </div>
+                </div>
+            `,
+            width: "480px",
+            height: "auto"
+        });
+
+        const statusesContainer = dialog.element.querySelector('#statusesContainer') as HTMLElement;
+        const addStatusBtn = dialog.element.querySelector('#addStatusBtn') as HTMLButtonElement;
+
+        // 插入指示占位元素（用于显示拖拽时的插入位置） — 更细、更稳定
+        const placeholder = document.createElement('div');
+        placeholder.className = 'status-insert-placeholder';
+        placeholder.style.cssText = `
+            height: 3px;
+            background: var(--b3-theme-primary);
+            border-radius: 2px;
+            margin: 6px 0;
+            display: none;
+            transition: opacity 120ms ease;
+        `;
+        statusesContainer.appendChild(placeholder);
+
+        // 拖拽计数器，避免子元素触发导致闪烁
+        let dragCounter = 0;
+        let draggedStatusId: string | null = null;
+
+        // 当拖入容器时增加计数
+        statusesContainer.addEventListener('dragenter', (ev: DragEvent) => {
+            ev.preventDefault();
+            dragCounter++;
+        });
+
+        // 当拖离容器时检测是否真正离开（relatedTarget 不在容器内）
+        statusesContainer.addEventListener('dragleave', (ev: DragEvent) => {
+            const related = (ev as any).relatedTarget as HTMLElement | null;
+            if (!related || !statusesContainer.contains(related)) {
+                dragCounter = 0;
+                placeholder.style.display = 'none';
+            } else {
+                dragCounter = Math.max(0, dragCounter - 1);
+            }
+        });
+
+        // 更稳健的 dragover：根据每个项的中点计算插入位置，避免因子节点触发导致闪烁
+        statusesContainer.addEventListener('dragover', (ev: DragEvent) => {
+            ev.preventDefault();
+            const items = Array.from(statusesContainer.querySelectorAll('.status-item')) as HTMLElement[];
+            if (items.length === 0) {
+                statusesContainer.appendChild(placeholder);
+                placeholder.style.display = 'block';
+                return;
+            }
+
+            let inserted = false;
+            for (const item of items) {
+                const rect = item.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+                if (ev.clientY < midY) {
+                    item.parentElement!.insertBefore(placeholder, item);
+                    inserted = true;
+                    break;
+                }
+            }
+            if (!inserted) {
+                statusesContainer.appendChild(placeholder);
+            }
+            placeholder.style.display = 'block';
+        });
+
+        // 处理放下事件：根据占位符位置重新排列 statuses 数组并保存
+        statusesContainer.addEventListener('drop', async (ev: DragEvent) => {
+            ev.preventDefault();
+            placeholder.style.display = 'none';
+            dragCounter = 0;
+            const data = ev.dataTransfer?.getData('text/status-id') || ev.dataTransfer?.getData('text');
+            if (!data) return;
+            const draggedId = data as string;
+
+            // 计算占位符之前有多少个 status-item，用作插入索引
+            let beforeCount = 0;
+            for (const child of Array.from(statusesContainer.children)) {
+                if (child === placeholder) break;
+                const el = child as HTMLElement;
+                if (el.classList && el.classList.contains('status-item')) beforeCount++;
+            }
+            const insertIndex = beforeCount;
+
+            // 在原数组中移动元素
+            const fromIndex = statuses.findIndex(s => s.id === draggedId);
+            if (fromIndex === -1) return;
+            const [moved] = statuses.splice(fromIndex, 1);
+            statuses.splice(insertIndex, 0, moved);
+            // 重新分配排序值
+            statuses.forEach((s, i) => { s.sort = i * 10; });
+            // 保存并刷新
+            await projectManager.setProjectKanbanStatuses(this.projectId, statuses);
+            renderStatuses();
+            this.kanbanStatuses = statuses;
+            this._lastRenderedProjectId = null;
+            this.queueLoadTasks();
+            showMessage(t('statusOrderSaved') || '状态顺序已保存');
+        });
+
+        // 渲染状态列表
+        const renderStatuses = async () => {
+            statusesContainer.innerHTML = '';
+
+            if (statuses.length === 0) {
+                statusesContainer.innerHTML = `<div style="text-align: center; color: var(--b3-theme-on-surface); opacity: 0.6; padding: 20px;">${t('noStatuses') || '暂无状态'}</div>`;
+                return;
+            }
+
+            statuses.forEach((status, index) => {
+                const statusItem = document.createElement('div');
+                statusItem.className = 'status-item';
+                statusItem.dataset.statusId = status.id;
+                statusItem.style.cssText = `
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    padding: 10px 12px;
+                    margin-bottom: 8px;
+                    background: var(--b3-theme-surface-lighter);
+                    border: 1px solid var(--b3-theme-border);
+                    border-radius: 8px;
+                    transition: all 0.2s ease;
+                `;
+
+                // 允许拖拽排序
+                statusItem.draggable = true;
+                statusItem.addEventListener('dragstart', (e: DragEvent) => {
+                    draggedStatusId = status.id;
+                    try {
+                        e.dataTransfer?.setData('text/status-id', status.id);
+                    } catch (err) { }
+                    e.dataTransfer!.effectAllowed = 'move';
+                    statusItem.classList.add('dragging');
+                    // 可选：使用克隆节点作为拖动图像
+                    try {
+                        const dragImage = statusItem.cloneNode(true) as HTMLElement;
+                        dragImage.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                        dragImage.style.transform = 'scale(0.98)';
+                        dragImage.style.position = 'absolute';
+                        dragImage.style.top = '-9999px';
+                        document.body.appendChild(dragImage);
+                        e.dataTransfer?.setDragImage(dragImage, 10, 10);
+                        setTimeout(() => document.body.removeChild(dragImage), 0);
+                    } catch (err) { }
+                });
+                statusItem.addEventListener('dragend', () => {
+                    draggedStatusId = null;
+                    statusItem.classList.remove('dragging');
+                    placeholder.style.display = 'none';
+                });
+
+                // 拖拽手柄（所有状态都支持排序）
+                const dragHandle = document.createElement('span');
+                dragHandle.innerHTML = '⋮⋮';
+                dragHandle.style.cssText = `
+                    font-size: 14px;
+                    color: var(--b3-theme-on-surface);
+                    opacity: 0.6;
+                    cursor: move;
+                    padding: 2px 4px;
+                    user-select: none;
+                `;
+                dragHandle.title = t('dragToSort') || '拖拽排序';
+                statusItem.appendChild(dragHandle);
+
+                // 颜色圆点
+                const colorDot = document.createElement('span');
+                colorDot.style.cssText = `
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 50%;
+                    background: ${status.color};
+                    border: 2px solid var(--b3-theme-surface);
+                    box-shadow: 0 0 0 1px var(--b3-theme-border);
+                    flex-shrink: 0;
+                `;
+                statusItem.appendChild(colorDot);
+
+                // 状态名称
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = status.name + (status.isFixed ? ` (${t('fixed') || '固定'})` : '');
+                nameSpan.style.cssText = `
+                    flex: 1;
+                    font-weight: 500;
+                    color: var(--b3-theme-on-surface);
+                `;
+                statusItem.appendChild(nameSpan);
+
+                // 操作按钮组
+                const actionsDiv = document.createElement('div');
+                actionsDiv.style.cssText = 'display: flex; gap: 4px; align-items: center;';
+
+                // 上移按钮（所有状态都可以排序，只要不是第一个）
+                if (index > 0) {
+                    const moveUpBtn = document.createElement('button');
+                    moveUpBtn.className = 'b3-button b3-button--text';
+                    moveUpBtn.innerHTML = '<svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconUp"></use></svg>';
+                    moveUpBtn.title = t('moveUp') || '上移';
+                    moveUpBtn.style.cssText = 'padding: 2px; min-width: unset;';
+                    moveUpBtn.addEventListener('click', async () => {
+                        const currentIndex = statuses.findIndex(s => s.id === status.id);
+                        if (currentIndex > 0) {
+                            // 交换位置
+                            [statuses[currentIndex], statuses[currentIndex - 1]] = [statuses[currentIndex - 1], statuses[currentIndex]];
+                            // 重新分配排序值
+                            statuses.forEach((s, i) => { s.sort = i * 10; });
+                            // 保存
+                            await projectManager.setProjectKanbanStatuses(this.projectId, statuses);
+                            // 刷新列表
+                            renderStatuses();
+                            // 刷新看板 - 强制重新创建列
+                            this.kanbanStatuses = statuses;
+                            this._lastRenderedProjectId = null; // 强制重新创建列
+                            this.queueLoadTasks();
+                        }
+                    });
+                    actionsDiv.appendChild(moveUpBtn);
+                }
+
+                // 下移按钮（所有状态都可以排序，只要不是最后一个）
+                if (index < statuses.length - 1) {
+                    const moveDownBtn = document.createElement('button');
+                    moveDownBtn.className = 'b3-button b3-button--text';
+                    moveDownBtn.innerHTML = '<svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconDown"></use></svg>';
+                    moveDownBtn.title = t('moveDown') || '下移';
+                    moveDownBtn.style.cssText = 'padding: 2px; min-width: unset;';
+                    moveDownBtn.addEventListener('click', async () => {
+                        const currentIndex = statuses.findIndex(s => s.id === status.id);
+                        if (currentIndex < statuses.length - 1) {
+                            // 交换位置
+                            [statuses[currentIndex], statuses[currentIndex + 1]] = [statuses[currentIndex + 1], statuses[currentIndex]];
+                            // 重新分配排序值
+                            statuses.forEach((s, i) => { s.sort = i * 10; });
+                            // 保存
+                            await projectManager.setProjectKanbanStatuses(this.projectId, statuses);
+                            // 刷新列表
+                            renderStatuses();
+                            // 刷新看板 - 强制重新创建列
+                            this.kanbanStatuses = statuses;
+                            this._lastRenderedProjectId = null; // 强制重新创建列
+                            this.queueLoadTasks();
+                        }
+                    });
+                    actionsDiv.appendChild(moveDownBtn);
+                }
+
+                // 编辑按钮（所有状态都可以编辑颜色和排序，固定状态不能修改名称）
+                const editBtn = document.createElement('button');
+                editBtn.className = 'b3-button b3-button--text';
+                editBtn.innerHTML = '<svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconEdit"></use></svg>';
+                editBtn.title = status.isFixed ? (t('editColor') || '编辑颜色') : (t('edit') || '编辑');
+                editBtn.style.cssText = 'padding: 2px; min-width: unset;';
+                editBtn.addEventListener('click', () => showEditStatusDialog(status));
+                actionsDiv.appendChild(editBtn);
+
+                // 删除按钮（仅非固定状态可删除）
+                if (!status.isFixed) {
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'b3-button b3-button--text';
+                    deleteBtn.innerHTML = '<svg class="b3-button__icon" style="width: 14px; height: 14px; color: var(--b3-theme-error);"><use xlink:href="#iconTrashcan"></use></svg>';
+                    deleteBtn.title = t('delete') || '删除';
+                    deleteBtn.style.cssText = 'padding: 2px; min-width: unset;';
+                    deleteBtn.addEventListener('click', async () => {
+                        if (confirm(t('confirmDeleteStatus') || `确定要删除状态"${status.name}"吗？该状态下的任务将被移动到"短期"。`)) {
+                            // 删除状态
+                            statuses = statuses.filter(s => s.id !== status.id);
+                            // 重新分配排序值
+                            statuses.forEach((s, i) => { s.sort = i * 10; });
+                            // 保存
+                            await projectManager.setProjectKanbanStatuses(this.projectId, statuses);
+                            // 刷新列表
+                            renderStatuses();
+                            // 刷新看板 - 强制重新创建列
+                            this.kanbanStatuses = statuses;
+                            this._lastRenderedProjectId = null; // 强制重新创建列
+                            this.queueLoadTasks();
+                            showMessage(t('statusDeleted') || '状态已删除');
+                        }
+                    });
+                    actionsDiv.appendChild(deleteBtn);
+                }
+
+                statusItem.appendChild(actionsDiv);
+                statusesContainer.appendChild(statusItem);
+            });
+        };
+
+        // 显示编辑状态对话框
+        const showEditStatusDialog = (status: import('../utils/projectManager').KanbanStatus) => {
+            const isFixed = status.isFixed;
+            const editDialog = new Dialog({
+                title: isFixed ? (t('editStatusColor') || '编辑状态颜色') : (t('editStatus') || '编辑状态'),
+                content: `
+                    <div class="b3-dialog__content">
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${t('statusName') || '状态名称'}</label>
+                            <input type="text" id="editStatusName" class="b3-text-field" value="${status.name}" style="width: 100%;" ${isFixed ? 'disabled readonly' : ''}>
+                            ${isFixed ? `<div class="b3-label__text" style="color: var(--b3-theme-on-surface-light); font-size: 12px; margin-top: 4px;">${t('fixedStatusCannotRename') || '固定状态不支持修改名称'}</div>` : ''}
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${t('statusColor') || '状态颜色'}</label>
+                            <input type="color" id="editStatusColor" class="b3-text-field" value="${status.color}" style="width: 100%; height: 40px;">
+                        </div>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="cancelEditBtn">${t('cancel')}</button>
+                        <button class="b3-button b3-button--primary" id="saveEditBtn">${t('save')}</button>
+                    </div>
+                `,
+                width: "360px",
+                height: "auto"
+            });
+
+            const nameInput = editDialog.element.querySelector('#editStatusName') as HTMLInputElement;
+            const colorInput = editDialog.element.querySelector('#editStatusColor') as HTMLInputElement;
+
+            editDialog.element.querySelector('#cancelEditBtn')?.addEventListener('click', () => {
+                editDialog.destroy();
+            });
+
+            editDialog.element.querySelector('#saveEditBtn')?.addEventListener('click', async () => {
+                const newName = nameInput.value.trim();
+                const newColor = colorInput.value;
+
+                // 固定状态不验证名称（因为不能修改）
+                if (!isFixed && !newName) {
+                    showMessage(t('pleaseEnterStatusName') || '请输入状态名称');
+                    return;
+                }
+
+                // 更新状态
+                const index = statuses.findIndex(s => s.id === status.id);
+                if (index !== -1) {
+                    // 固定状态只更新颜色，不更新名称
+                    if (!isFixed) {
+                        statuses[index].name = newName;
+                    }
+                    statuses[index].color = newColor;
+                    // 保存
+                    await projectManager.setProjectKanbanStatuses(this.projectId, statuses);
+                    // 刷新列表
+                    renderStatuses();
+                    // 刷新看板 - 强制重新创建列
+                    this.kanbanStatuses = statuses;
+                    this._lastRenderedProjectId = null; // 强制重新创建列
+                    this.queueLoadTasks();
+                    showMessage(t('statusUpdated') || '状态已更新');
+                }
+
+                editDialog.destroy();
+            });
+        };
+
+        // 显示新增状态对话框
+        addStatusBtn.addEventListener('click', () => {
+            const addDialog = new Dialog({
+                title: t('newStatus') || '新增状态',
+                content: `
+                    <div class="b3-dialog__content">
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${t('statusName') || '状态名称'}</label>
+                            <input type="text" id="newStatusName" class="b3-text-field" placeholder="${t('pleaseEnterStatusName') || '请输入状态名称'}" style="width: 100%;">
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${t('statusColor') || '状态颜色'}</label>
+                            <input type="color" id="newStatusColor" class="b3-text-field" value="#3498db" style="width: 100%; height: 40px;">
+                        </div>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="cancelAddBtn">${t('cancel')}</button>
+                        <button class="b3-button b3-button--primary" id="confirmAddBtn">${t('save')}</button>
+                    </div>
+                `,
+                width: "360px",
+                height: "auto"
+            });
+
+            const nameInput = addDialog.element.querySelector('#newStatusName') as HTMLInputElement;
+            const colorInput = addDialog.element.querySelector('#newStatusColor') as HTMLInputElement;
+
+            addDialog.element.querySelector('#cancelAddBtn')?.addEventListener('click', () => {
+                addDialog.destroy();
+            });
+
+            addDialog.element.querySelector('#confirmAddBtn')?.addEventListener('click', async () => {
+                const name = nameInput.value.trim();
+                const color = colorInput.value;
+
+                if (!name) {
+                    showMessage(t('pleaseEnterStatusName') || '请输入状态名称');
+                    return;
+                }
+
+                // 检查是否已存在相同名称
+                if (statuses.some(s => s.name === name)) {
+                    showMessage(t('statusNameExists') || '状态名称已存在');
+                    return;
+                }
+
+                // 创建新状态
+                const newStatus: import('../utils/projectManager').KanbanStatus = {
+                    id: projectManager.generateKanbanStatusId(),
+                    name,
+                    color,
+                    isFixed: false,
+                    isDefault: false,
+                    sort: statuses.length * 10
+                };
+
+                statuses.push(newStatus);
+                // 保存
+                await projectManager.setProjectKanbanStatuses(this.projectId, statuses);
+                // 刷新列表
+                renderStatuses();
+                // 刷新看板 - 强制重新创建列
+                this.kanbanStatuses = statuses;
+                this._lastRenderedProjectId = null; // 强制重新创建列
+                this.queueLoadTasks();
+                showMessage(t('statusCreated') || '状态已创建');
+
+                addDialog.destroy();
+            });
+        });
+
+        // 初始渲染
+        renderStatuses();
     }
 
     private async showManageTagsDialog() {
@@ -1519,6 +1992,15 @@ export class ProjectKanbanView {
         modeSelectContainer.appendChild(modeSelect);
         controlsGroup.appendChild(modeSelectContainer);
 
+        // 设置任务状态按钮（仅在状态模式下显示）
+        const manageStatusesBtn = document.createElement('button');
+        manageStatusesBtn.className = 'b3-button b3-button--outline';
+        manageStatusesBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg> ${t('manageStatuses') || '任务状态'}`;
+        manageStatusesBtn.title = t('manageKanbanStatuses') || '管理任务状态';
+        manageStatusesBtn.style.display = this.kanbanMode === 'status' ? 'inline-flex' : 'none';
+        manageStatusesBtn.addEventListener('click', () => this.showManageKanbanStatusesDialog());
+        controlsGroup.appendChild(manageStatusesBtn);
+
         // 管理分组按钮（仅在自定义分组模式下显示）
         const manageGroupsBtn = document.createElement('button');
         manageGroupsBtn.className = 'b3-button b3-button--outline';
@@ -1536,10 +2018,11 @@ export class ProjectKanbanView {
         manageTagsBtn.addEventListener('click', () => this.showManageTagsDialog());
         controlsGroup.appendChild(manageTagsBtn);
 
-        // 监听看板模式变化，更新管理按钮和“显示/隐藏已完成”按钮显示状态
+        // 监听看板模式变化，更新管理按钮和"显示/隐藏已完成"按钮显示状态
         this.container.addEventListener('kanbanModeChanged', () => {
             try {
                 manageGroupsBtn.style.display = this.kanbanMode === 'custom' ? 'inline-flex' : 'none';
+                manageStatusesBtn.style.display = this.kanbanMode === 'status' ? 'inline-flex' : 'none';
             } catch (e) {
                 console.error('Error updating toolbar buttons on kanbanModeChanged:', e);
             }
@@ -1641,6 +2124,7 @@ export class ProjectKanbanView {
 
         // 新建任务按钮（针对该状态列），已完成列不显示新建按钮
         const rightContainer = document.createElement('div');
+        rightContainer.className = 'custom-header-right';
         rightContainer.style.cssText = 'display:flex; align-items:center; gap:8px;';
         rightContainer.appendChild(countEl);
 
@@ -1652,19 +2136,30 @@ export class ProjectKanbanView {
             addTaskBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>`;
             addTaskBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                // 根据列的 status 传递默认任务类型给对话框
-                let term: 'short_term' | 'long_term' | 'doing' | 'todo' = 'short_term';
-                if (status === 'doing') term = 'doing';
-                else if (status === 'short_term') term = 'short_term';
-                else if (status === 'long_term') term = 'long_term';
-
-                this.showCreateTaskDialog(undefined, undefined, term);
+                // 直接传递列的 status 作为默认状态（支持自定义状态 ID）
+                const term = status as any;
+                this.showCreateTaskDialog(undefined, this.lastSelectedCustomGroupId, term);
             });
 
             rightContainer.appendChild(addTaskBtn);
         }
 
         header.appendChild(rightContainer);
+
+        // 支持拖拽列头以排序状态
+        header.draggable = true;
+        header.dataset.statusId = status;
+        header.addEventListener('dragstart', (e: DragEvent) => {
+            try { e.dataTransfer?.setData('text/status-id', status); } catch (err) { }
+            e.dataTransfer!.effectAllowed = 'move';
+            header.classList.add('dragging');
+        });
+        header.addEventListener('dragend', () => {
+            header.classList.remove('dragging');
+            // 隐藏任何占位符（由容器处理）
+            const ph = container.querySelector('.kanban-column-insert-placeholder') as HTMLElement | null;
+            if (ph) ph.style.display = 'none';
+        });
 
         // 列内容
         const content = document.createElement('div');
@@ -1695,6 +2190,97 @@ export class ProjectKanbanView {
 
         column.appendChild(pagination);
         container.appendChild(column);
+
+        // 仅在容器上初始化一次列拖拽处理
+        if (!container.dataset.columnDragInit) {
+            container.dataset.columnDragInit = '1';
+            const columnPlaceholder = document.createElement('div');
+            columnPlaceholder.className = 'kanban-column-insert-placeholder';
+            columnPlaceholder.style.cssText = `
+                width: 6px;
+                background: var(--b3-theme-primary);
+                border-radius: 3px;
+                margin: 8px 4px;
+                display: none;
+                transition: opacity 120ms ease;
+            `;
+            container.appendChild(columnPlaceholder);
+
+            let dragCounter = 0;
+
+            container.addEventListener('dragenter', (ev: DragEvent) => {
+                ev.preventDefault();
+                dragCounter++;
+            });
+
+            container.addEventListener('dragleave', (ev: DragEvent) => {
+                const related = (ev as any).relatedTarget as HTMLElement | null;
+                if (!related || !container.contains(related)) {
+                    dragCounter = 0;
+                    columnPlaceholder.style.display = 'none';
+                } else {
+                    dragCounter = Math.max(0, dragCounter - 1);
+                }
+            });
+
+            container.addEventListener('dragover', (ev: DragEvent) => {
+                ev.preventDefault();
+                const columns = Array.from(container.querySelectorAll('.kanban-column')) as HTMLElement[];
+                if (columns.length === 0) {
+                    container.appendChild(columnPlaceholder);
+                    columnPlaceholder.style.display = 'block';
+                    return;
+                }
+                let inserted = false;
+                for (const col of columns) {
+                    const rect = col.getBoundingClientRect();
+                    const midX = rect.left + rect.width / 2;
+                    if (ev.clientX < midX) {
+                        col.parentElement!.insertBefore(columnPlaceholder, col);
+                        inserted = true;
+                        break;
+                    }
+                }
+                if (!inserted) container.appendChild(columnPlaceholder);
+                columnPlaceholder.style.display = 'block';
+            });
+
+            container.addEventListener('drop', (ev: DragEvent) => {
+                ev.preventDefault();
+                columnPlaceholder.style.display = 'none';
+                dragCounter = 0;
+                const data = ev.dataTransfer?.getData('text/status-id') || ev.dataTransfer?.getData('text');
+                if (!data) return;
+                const draggedId = data as string;
+
+                let beforeCount = 0;
+                for (const child of Array.from(container.children)) {
+                    if (child === columnPlaceholder) break;
+                    const el = child as HTMLElement;
+                    if (el.classList && el.classList.contains('kanban-column')) beforeCount++;
+                }
+                const insertIndex = beforeCount;
+
+                const fromIndex = this.kanbanStatuses.findIndex(s => s.id === draggedId);
+                if (fromIndex === -1) return;
+                const [moved] = this.kanbanStatuses.splice(fromIndex, 1);
+                this.kanbanStatuses.splice(insertIndex, 0, moved);
+                this.kanbanStatuses.forEach((s, i) => s.sort = i * 10);
+
+                (async () => {
+                    try {
+                        const { ProjectManager } = await import('../utils/projectManager');
+                        const projectManager = ProjectManager.getInstance(this.plugin);
+                        await projectManager.setProjectKanbanStatuses(this.projectId, this.kanbanStatuses);
+                        this._lastRenderedProjectId = null;
+                        this.queueLoadTasks();
+                        showMessage(t('statusOrderSaved') || '状态顺序已保存');
+                    } catch (err) {
+                        console.error('保存状态顺序失败', err);
+                    }
+                })();
+            });
+        }
 
         return column;
     }
@@ -2673,9 +3259,40 @@ export class ProjectKanbanView {
         return { doing, short_term, long_term, completed };
     }
 
+    /**
+     * 获取任务的看板状态
+     * 优先使用kanbanStatus，兼容旧数据的termType
+     */
     private getTaskStatus(task: any): string {
         if (task.completed) return 'completed';
-        if (task.kanbanStatus === 'doing') return 'doing';
+
+        // 如果有kanbanStatus且是有效的状态ID，直接使用
+        if (task.kanbanStatus && task.kanbanStatus !== 'completed') {
+            // 检查是否是有效的kanbanStatus
+            const validStatus = this.kanbanStatuses.find(s => s.id === task.kanbanStatus);
+            if (validStatus) {
+                return task.kanbanStatus;
+            }
+            // 如果是todo，需要根据termType或日期判断
+            if (task.kanbanStatus === 'todo') {
+                // 向后兼容：根据termType判断
+                if (task.termType === 'long_term') return 'long_term';
+                if (task.termType === 'doing') return 'doing';
+                // 根据日期自动判断
+                if (task.date) {
+                    const today = getLogicalDateString();
+                    const dateComparison = compareDateStrings(this.getTaskLogicalDate(task.date, task.time), today);
+                    if (dateComparison <= 0) {
+                        return 'doing';
+                    }
+                }
+                return 'short_term'; // 默认为短期
+            }
+        }
+
+        // 向后兼容：根据termType判断
+        if (task.termType === 'long_term') return 'long_term';
+        if (task.termType === 'doing') return 'doing';
 
         // 如果未完成的任务设置了日期，且日期为今天或过期，放入进行中列
         if (task.date) {
@@ -2686,9 +3303,6 @@ export class ProjectKanbanView {
             }
         }
 
-        // 根据termType确定是长期还是短期
-        if (task.termType === 'long_term') return 'long_term';
-        if (task.termType === 'doing') return 'doing';
         return 'short_term'; // 默认为短期
     }
 
@@ -3093,38 +3707,33 @@ export class ProjectKanbanView {
         // 确保状态列存在，如果不存在才创建
         this.ensureStatusColumnsExist(kanbanContainer);
 
-        // 按任务状态分组
-        const doingTasks = this.tasks.filter(task => task.status === 'doing');
-        const shortTermTasks = this.tasks.filter(task => task.status === 'short_term');
-        const longTermTasks = this.tasks.filter(task => task.status === 'long_term');
-        const doneTasks = this.tasks.filter(task => task.status === 'completed');
+        // 按任务状态分组 - 使用kanbanStatuses中定义的所有状态
+        const statusTasks: { [status: string]: any[] } = {};
+        this.kanbanStatuses.forEach(status => {
+            statusTasks[status.id] = this.tasks.filter(task => this.getTaskStatus(task) === status.id);
+        });
 
         // 渲染带分组的任务（在稳定的子分组容器内）
-        await this.renderStatusColumnWithStableGroups('doing', doingTasks);
-        await this.renderStatusColumnWithStableGroups('short_term', shortTermTasks);
-        await this.renderStatusColumnWithStableGroups('long_term', longTermTasks);
-
-        const sortedDoneTasks = this.sortDoneTasks(doneTasks);
-        await this.renderStatusColumnWithStableGroups('completed', sortedDoneTasks);
-        this.showColumn('completed');
+        for (const status of this.kanbanStatuses) {
+            if (status.id === 'completed') {
+                const sortedDoneTasks = this.sortDoneTasks(statusTasks[status.id] || []);
+                await this.renderStatusColumnWithStableGroups('completed', sortedDoneTasks);
+                this.showColumn('completed');
+            } else {
+                await this.renderStatusColumnWithStableGroups(status.id, statusTasks[status.id] || []);
+            }
+        }
     }
 
     private ensureStatusColumnsExist(kanbanContainer: HTMLElement) {
-        // 检查并创建必要的状态列
-        const columns = [
-            { id: 'doing', title: t('doing'), color: '#f39c12' },
-            { id: 'short_term', title: t('shortTerm'), color: '#3498db' },
-            { id: 'long_term', title: t('longTerm'), color: '#9b59b6' },
-            { id: 'completed', title: t('done'), color: '#27ae60' }
-        ];
-
-        columns.forEach(({ id, title, color }) => {
-            let column = kanbanContainer.querySelector(`.kanban-column-${id}`) as HTMLElement;
+        // 检查并创建必要的状态列 - 使用kanbanStatuses中定义的状态
+        this.kanbanStatuses.forEach(status => {
+            let column = kanbanContainer.querySelector(`.kanban-column-${status.id}`) as HTMLElement;
             if (!column) {
-                column = this.createKanbanColumn(kanbanContainer, id, title, color);
+                column = this.createKanbanColumn(kanbanContainer, status.id, status.name, status.color);
             }
             // 确保列有稳定的子分组容器结构
-            this.ensureColumnHasStableGroups(column, id);
+            this.ensureColumnHasStableGroups(column, status.id);
         });
     }
 
@@ -3158,24 +3767,24 @@ export class ProjectKanbanView {
         }
     }
 
-    private getGroupConfigsForStatus(status: string): Array<{ status: string, label: string, icon: string }> {
+    private getGroupConfigsForStatus(statusId: string): Array<{ status: string, label: string, icon: string }> {
+        // 从kanbanStatuses中查找对应的状态配置
+        const status = this.kanbanStatuses.find(s => s.id === statusId);
+        if (!status) return [];
+
         // 为不同的状态列定义子分组配置
-        const configs = {
-            'doing': [
-                { status: 'doing', label: '进行中', icon: '⏳' }
-            ],
-            'short_term': [
-                { status: 'short_term', label: '短期', icon: '📋' }
-            ],
-            'long_term': [
-                { status: 'long_term', label: '长期', icon: '🤔' }
-            ],
-            'completed': [
-                { status: 'completed', label: '已完成', icon: '✅' }
-            ]
+        const icons: { [key: string]: string } = {
+            'doing': '⏳',
+            'short_term': '📋',
+            'long_term': '🤔',
+            'completed': '✅'
         };
 
-        return configs[status] || [];
+        return [{
+            status: statusId,
+            label: status.name,
+            icon: icons[statusId] || '📋'
+        }];
     }
 
     private createStableStatusGroup(config: { status: string, label: string, icon: string }): HTMLElement {
@@ -3381,9 +3990,9 @@ export class ProjectKanbanView {
         const column = this.container.querySelector(`.kanban-column-${status}`) as HTMLElement;
         if (!column) return;
 
-        // If this is a standard status column, use the stable groups renderer
+        // If this is a configured kanban status (including custom ones), use the stable groups renderer
         // This prevents destroying the grouping structure and avoids duplicating header buttons
-        if (['doing', 'short_term', 'long_term', 'completed'].includes(status)) {
+        if (this.kanbanStatuses && this.kanbanStatuses.find(s => s.id === status)) {
             this.ensureColumnHasStableGroups(column, status);
             this.renderStatusColumnWithStableGroups(status, tasks).catch(err => console.error('Render stable group failed:', err));
             return;
@@ -3424,7 +4033,7 @@ export class ProjectKanbanView {
                 headerRight.appendChild(count);
 
                 // 不在已完成列显示新建按钮
-                if (status !== 'done') {
+                if (status !== 'completed') {
                     const addGroupTaskBtn = document.createElement('button');
                     addGroupTaskBtn.className = 'b3-button b3-button--small b3-button--primary';
                     addGroupTaskBtn.style.cssText = 'margin-left:8px;';
@@ -3432,12 +4041,9 @@ export class ProjectKanbanView {
                     addGroupTaskBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>`;
                     addGroupTaskBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        // 将列的 status 映射为默认 termType 并传入创建对话框
-                        let term: 'short_term' | 'long_term' | 'doing' | 'todo' = 'short_term';
-                        if (status === 'doing') term = 'doing';
-                        else if (status === 'short_term') term = 'short_term';
-                        else if (status === 'long_term') term = 'long_term';
-                        this.showCreateTaskDialog(undefined, undefined, term);
+                        // 直接把列的 status 作为默认状态传入（支持自定义状态 id）
+                        const term = status as any;
+                        this.showCreateTaskDialog(undefined, this.lastSelectedCustomGroupId, term);
                     });
 
                     headerRight.appendChild(addGroupTaskBtn);
@@ -3643,6 +4249,7 @@ export class ProjectKanbanView {
         });
 
         const headerRight = document.createElement('div');
+        headerRight.className = 'custom-header-right';
         headerRight.style.cssText = 'display:flex; align-items:center; gap:8px;';
         headerRight.appendChild(countEl);
         headerRight.appendChild(addGroupTaskBtn);
@@ -5854,6 +6461,11 @@ export class ProjectKanbanView {
                             reminderData[actualTaskId].kanbanStatus = 'doing';
                             // 设置为进行中时，清空termType
                             delete reminderData[actualTaskId].termType;
+                        } else {
+                            // 支持自定义 kanban status id（非 long_term/short_term/doing）
+                            reminderData[actualTaskId].kanbanStatus = newStatus;
+                            // 自定义状态通常不使用 termType
+                            delete reminderData[actualTaskId].termType;
                         }
                     }
                 } else {
@@ -5875,6 +6487,10 @@ export class ProjectKanbanView {
                         } else if (newStatus === 'doing') {
                             reminderData[actualTaskId].kanbanStatus = 'doing';
                             // 设置为进行中时，清空termType
+                            delete reminderData[actualTaskId].termType;
+                        } else {
+                            // 支持自定义 kanban status id（非 long_term/short_term/doing）
+                            reminderData[actualTaskId].kanbanStatus = newStatus;
                             delete reminderData[actualTaskId].termType;
                         }
                     }
@@ -6348,7 +6964,7 @@ export class ProjectKanbanView {
 
         quickDialog.show();
 
-        // 重写保存回调，保存用户选择的 termType
+        // 重写保存回调，保存用户选择的 termType 和自定义分组
         const originalOnSaved = quickDialog['onSaved'];
         quickDialog['onSaved'] = async (savedTask: any) => {
             if (originalOnSaved) {
@@ -6364,6 +6980,20 @@ export class ProjectKanbanView {
                 }
             } catch (error) {
                 console.error('保存上一次选择的 termType 失败:', error);
+            }
+
+            // 保存用户选择的自定义分组到内存中（空字符串视为 null）
+            try {
+                const groupEl = quickDialog['dialog']?.element?.querySelector('#quickCustomGroupSelector') as HTMLSelectElement;
+                if (groupEl) {
+                    const val = groupEl.value;
+                    const groupId = (val === '' ? null : val);
+                    if (groupId !== this.lastSelectedCustomGroupId) {
+                        this.lastSelectedCustomGroupId = groupId;
+                    }
+                }
+            } catch (error) {
+                console.error('保存上一次选择的自定义分组失败:', error);
             }
         };
     }
@@ -7145,17 +7775,22 @@ export class ProjectKanbanView {
             .term-type-selector {
                 display: flex;
                 gap: 12px;
+                flex-wrap: wrap;
+                align-items: flex-start;
             }
             .term-type-option {
-                display: flex;
+                flex: 0 0 auto;
+                display: inline-flex;
                 align-items: center;
                 gap: 8px;
-                padding: 8px 16px;
+                padding: 6px 10px;
+                margin: 6px 8px 0 0;
                 border-radius: 20px;
                 cursor: pointer;
                 border: 2px solid var(--b3-theme-border);
                 transition: all 0.2s ease;
                 background-color: var(--b3-theme-surface);
+                white-space: nowrap;
             }
             .term-type-option:hover {
                 background-color: var(--b3-theme-surface-lighter);

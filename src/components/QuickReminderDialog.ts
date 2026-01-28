@@ -53,6 +53,7 @@ export class QuickReminderDialog {
     private hideProjectSelector: boolean = false;
     private existingReminders: any[] = [];
     private selectedCategoryIds: string[] = [];
+    private currentKanbanStatuses: import('../utils/projectManager').KanbanStatus[] = []; // 当前项目的kanbanStatuses
 
 
     constructor(
@@ -576,27 +577,27 @@ export class QuickReminderDialog {
                 });
             }
 
-            // 填充任务状态
-            if (this.reminder.termType || this.reminder.kanbanStatus) {
-                const termTypeOptions = this.dialog.element.querySelectorAll('.term-type-option');
-                let targetTermType = this.reminder.termType;
+            // 填充任务状态（使用kanbanStatus）
+            if (this.reminder.kanbanStatus) {
+                // 延迟一下确保选择器已渲染
+                setTimeout(() => {
+                    this.updateKanbanStatusSelector();
+                    const termTypeOptions = this.dialog.element.querySelectorAll('.term-type-option');
+                    const targetStatus = this.reminder.kanbanStatus;
 
-                // 根据kanbanStatus推断termType
-                if (!targetTermType) {
-                    if (this.reminder.kanbanStatus === 'doing') {
-                        targetTermType = 'doing';
-                    } else if (this.reminder.kanbanStatus === 'todo') {
-                        targetTermType = this.reminder.termType || 'short_term';
-                    }
-                }
-
-                termTypeOptions.forEach(option => {
-                    if (option.getAttribute('data-term-type') === targetTermType) {
-                        option.classList.add('selected');
-                    } else {
-                        option.classList.remove('selected');
-                    }
-                });
+                    termTypeOptions.forEach(option => {
+                        if (option.getAttribute('data-term-type') === targetStatus) {
+                            option.classList.add('selected');
+                            const status = this.currentKanbanStatuses.find(s => s.id === targetStatus);
+                            if (status) {
+                                (option as HTMLElement).style.background = status.color + '20';
+                            }
+                        } else {
+                            option.classList.remove('selected');
+                            (option as HTMLElement).style.background = 'transparent';
+                        }
+                    });
+                }, 150);
             }
         }, 100);
 
@@ -1312,51 +1313,95 @@ export class QuickReminderDialog {
             return '';
         }
 
-        let options = '';
-
-        if (this.showKanbanStatus === 'todo') {
-            // 显示 todo 和 doing
-            options = `
-                <div class="term-type-option ${this.defaultTermType === 'doing' ? 'selected' : ''}" data-term-type="doing">
-                    <span>🔥 进行中</span>
-                </div>
-                <div class="term-type-option ${this.defaultTermType === 'todo' ? 'selected' : ''}" data-term-type="todo">
-                    <span>📝 待办</span>
-                </div>
-            `;
-        } else if (this.showKanbanStatus === 'term') {
-            // 显示 doing、short_term、long_term
-            options = `
-                <div class="term-type-option ${this.defaultTermType === 'doing' ? 'selected' : ''}" data-term-type="doing">
-                    <span>🔥 进行中</span>
-                </div>
-                <div class="term-type-option ${this.defaultTermType === 'short_term' || (!this.defaultTermType && this.showKanbanStatus === 'term') ? 'selected' : ''}" data-term-type="short_term">
-                    <span>📋 短期待办</span>
-                </div>
-                <div class="term-type-option ${this.defaultTermType === 'long_term' ? 'selected' : ''}" data-term-type="long_term">
-                    <span>📅 长期待办</span>
-                </div>
-            `;
-        } else {
-            // 默认情况（showKanbanStatus === 'todo'），显示 todo 和 doing
-            options = `
-                <div class="term-type-option ${this.defaultTermType === 'todo' ? 'selected' : ''}" data-term-type="todo">
-                    <span>📝 待办</span>
-                </div>
-                <div class="term-type-option ${this.defaultTermType === 'doing' ? 'selected' : ''}" data-term-type="doing">
-                    <span>🔥 进行中</span>
-                </div>
-            `;
+        // 如果没有加载kanbanStatuses，使用默认配置
+        if (this.currentKanbanStatuses.length === 0) {
+            // 延迟初始化默认配置
+            setTimeout(() => {
+                if (this.currentKanbanStatuses.length === 0) {
+                    const { ProjectManager } = require('../utils/projectManager');
+                    const projectManager = ProjectManager.getInstance(this.plugin);
+                    this.currentKanbanStatuses = projectManager.getDefaultKanbanStatuses();
+                    this.updateKanbanStatusSelector();
+                }
+            }, 0);
         }
 
+        // 返回一个占位符，稍后通过updateKanbanStatusSelector填充
         return `
             <div class="b3-form__group">
                 <label class="b3-form__label">任务状态</label>
-                <div class="term-type-selector" id="quickTermTypeSelector" style="display: flex; gap: 12px;">
-                    ${options}
+                <div class="term-type-selector" id="quickTermTypeSelector" style="display: flex; gap: 3px; flex-wrap: wrap;">
+                    <!-- 动态内容将通过updateKanbanStatusSelector填充 -->
                 </div>
             </div>
         `;
+    }
+
+    /**
+     * 更新看板状态选择器
+     * 根据当前项目的kanbanStatuses动态生成选项
+     */
+    private updateKanbanStatusSelector() {
+        const selector = this.dialog?.element?.querySelector('#quickTermTypeSelector') as HTMLElement;
+        if (!selector) return;
+
+        // 获取当前选中的状态
+        const currentSelected = selector.querySelector('.term-type-option.selected') as HTMLElement;
+        const currentStatusId = currentSelected?.getAttribute('data-term-type') || this.defaultTermType || 'doing';
+
+        // 确保容器支持换行显示（以防上层样式被覆盖）
+        selector.style.display = 'flex';
+        selector.style.flexWrap = 'wrap';
+        selector.style.alignItems = 'flex-start';
+
+        // 生成选项HTML — 使用 inline-flex 使每项按内容宽度展示并可换行
+        const options = this.currentKanbanStatuses
+            .filter(status => status.id !== 'completed') // 已完成不在创建/编辑时选择
+            .map(status => {
+                const isSelected = status.id === currentStatusId ? 'selected' : '';
+                const bg = isSelected ? (status.color ? status.color + '20' : 'transparent') : 'transparent';
+                return `
+                    <div class="term-type-option ${isSelected}" data-term-type="${status.id}" style="
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 6px 10px;
+                        margin: 6px 8px 0 0;
+                        border-radius: 8px;
+                        border: 1px solid var(--b3-theme-surface-lighter);
+                        cursor: pointer;
+                        background: ${bg};
+                        white-space: nowrap;
+                        transition: all 0.16s ease;
+                        font-size: 13px;
+                    ">
+                        <span style="width: 10px; height: 10px; border-radius: 50%; background: ${status.color || 'transparent'}; display: inline-block;"></span>
+                        <span style="line-height:1;">${status.name}</span>
+                    </div>
+                `;
+            })
+            .join('');
+
+        selector.innerHTML = options;
+
+        // 重新绑定点击事件 — 单选并更新样式
+        selector.querySelectorAll('.term-type-option').forEach(option => {
+            option.addEventListener('click', (e) => {
+                const target = e.currentTarget as HTMLElement;
+                // 移除其他选中状态样式
+                selector.querySelectorAll('.term-type-option').forEach(opt => {
+                    opt.classList.remove('selected');
+                    (opt as HTMLElement).style.background = 'var(--b3-theme-background)';
+                });
+                // 添加选中状态样式
+                target.classList.add('selected');
+                const statusId = target.getAttribute('data-term-type');
+                const status = this.currentKanbanStatuses.find(s => s.id === statusId);
+                if (status) {
+                    target.style.background = (status.color ? status.color + '20' : 'var(--b3-theme-background)');
+                }
+            });
+        });
     }
 
     private async renderCategorySelector() {
@@ -2378,6 +2423,10 @@ export class QuickReminderDialog {
                     // 隐藏分组选择器
                     customGroupContainer.style.display = 'none';
                 }
+
+                // 加载项目的kanbanStatuses并更新任务状态选择器
+                this.currentKanbanStatuses = await projectManager.getProjectKanbanStatuses(projectId);
+                this.updateKanbanStatusSelector();
             } catch (error) {
                 console.error('检查项目分组失败:', error);
                 customGroupContainer.style.display = 'none';
@@ -2385,6 +2434,11 @@ export class QuickReminderDialog {
         } else {
             // 没有选择项目，隐藏分组选择器
             customGroupContainer.style.display = 'none';
+            // 使用默认kanbanStatuses
+            const { ProjectManager } = await import('../utils/projectManager');
+            const projectManager = ProjectManager.getInstance(this.plugin);
+            this.currentKanbanStatuses = projectManager.getDefaultKanbanStatuses();
+            this.updateKanbanStatusSelector();
         }
 
         // 更新标签选择器
@@ -2482,7 +2536,8 @@ export class QuickReminderDialog {
         const categoryId = this.selectedCategoryIds.length > 0 ? this.selectedCategoryIds.join(',') : undefined;
 
         const projectId = projectSelector.value || undefined;
-        const termType = selectedTermType?.getAttribute('data-term-type') as 'short_term' | 'long_term' | 'doing' | 'todo' | undefined;
+        // 获取选中的kanbanStatus（不再使用termType）
+        const kanbanStatus = selectedTermType?.getAttribute('data-term-type') || 'short_term';
         const customGroupId = customGroupSelector?.value || undefined;
         const customReminderTime = (this.dialog.element.querySelector('#quickCustomReminderTime') as HTMLInputElement).value.trim() || undefined;
         const customReminderPreset = (this.dialog.element.querySelector('#quickCustomReminderPreset') as HTMLSelectElement)?.value || undefined;
@@ -2571,7 +2626,7 @@ export class QuickReminderDialog {
                 categoryId: categoryId,
                 projectId: projectId,
                 customGroupId: customGroupId,
-                termType: termType,
+                kanbanStatus: kanbanStatus,
                 tagIds: tagIds.length > 0 ? tagIds : undefined,
                 reminderTimes: this.customTimes.length > 0 ? [...this.customTimes] : undefined,
                 customReminderPreset: customReminderPreset,
@@ -2640,18 +2695,13 @@ export class QuickReminderDialog {
             optimisticReminder.reminderTimes = this.customTimes.length > 0 ? [...this.customTimes] : undefined;
             optimisticReminder.repeat = this.repeatConfig.enabled ? this.repeatConfig : undefined;
             optimisticReminder.estimatedPomodoroDuration = estimatedPomodoroDuration;
-            optimisticReminder.termType = termType;
+            // 看板状态直接使用kanbanStatus
+            optimisticReminder.kanbanStatus = kanbanStatus;
             optimisticReminder.isAvailableToday = isAvailableToday;
             optimisticReminder.availableStartDate = availableStartDate;
 
             // 同步 docId 用于 UI 显示
             optimisticReminder.docId = optimisticDocId !== null ? optimisticDocId : (this.reminder?.docId || undefined);
-
-            // 看板状态推断 (仅用于 UI 显示)
-            if (termType === 'doing') optimisticReminder.kanbanStatus = 'doing';
-            else if (termType === 'long_term') { optimisticReminder.kanbanStatus = 'todo'; optimisticReminder.termType = 'long_term'; }
-            else if (termType === 'short_term') { optimisticReminder.kanbanStatus = 'todo'; optimisticReminder.termType = 'short_term'; }
-            else if (termType === 'todo') { optimisticReminder.kanbanStatus = 'todo'; optimisticReminder.termType = 'short_term'; }
 
             // 实例编辑特殊处理
             if (this.isInstanceEdit && this.reminder.isInstance) {
@@ -2682,15 +2732,10 @@ export class QuickReminderDialog {
                 repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined,
                 isQuickReminder: true,
                 quadrant: this.defaultQuadrant,
-                termType: termType,
+                kanbanStatus: kanbanStatus,
                 reminderTimes: this.customTimes.length > 0 ? [...this.customTimes] : undefined,
                 estimatedPomodoroDuration: estimatedPomodoroDuration
             };
-
-            if (termType === 'doing') optimisticReminder.kanbanStatus = 'doing';
-            else if (termType === 'long_term') { optimisticReminder.kanbanStatus = 'todo'; optimisticReminder.termType = 'long_term'; }
-            else if (termType === 'short_term') { optimisticReminder.kanbanStatus = 'todo'; optimisticReminder.termType = 'short_term'; }
-            else if (termType === 'todo') { optimisticReminder.kanbanStatus = 'todo'; optimisticReminder.termType = 'short_term'; }
 
             if (customReminderPreset) optimisticReminder.customReminderPreset = customReminderPreset;
             if (typeof this.defaultSort === 'number') optimisticReminder.sort = this.defaultSort;
@@ -2799,21 +2844,8 @@ export class QuickReminderDialog {
                             delete reminder.docId;
                         }
 
-                        // 根据任务状态设置看板状态
-                        if (termType === 'doing') {
-                            reminder.kanbanStatus = 'doing';
-                        } else if (termType === 'long_term') {
-                            reminder.kanbanStatus = 'todo';
-                            reminder.termType = 'long_term';
-                        } else if (termType === 'short_term') {
-                            reminder.kanbanStatus = 'todo';
-                            reminder.termType = 'short_term';
-                        } else if (termType === 'todo') {
-                            reminder.kanbanStatus = 'todo';
-                            reminder.termType = 'short_term'; // 默认todo为短期待办
-                        }
-
-                        reminder.termType = termType;
+                        // 设置看板状态（直接使用kanbanStatus，不再使用termType）
+                        reminder.kanbanStatus = kanbanStatus;
                         reminder.updatedAt = new Date().toISOString();
 
                         // 保存完成时间（如果任务已完成）
@@ -2926,7 +2958,7 @@ export class QuickReminderDialog {
                         repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined,
                         isQuickReminder: true, // 标记为快速创建的提醒
                         quadrant: this.defaultQuadrant, // 添加象限信息
-                        termType: termType, // 添加任务状态（短期/长期）
+                        kanbanStatus: kanbanStatus, // 添加任务状态（短期/长期）
                         isAvailableToday: isAvailableToday,
                         availableStartDate: availableStartDate,
                         // 旧字段 `customReminderTime` 不再写入，新提醒统一保存到 `reminderTimes`
@@ -2959,19 +2991,8 @@ export class QuickReminderDialog {
                         reminder.sort = maxSort + 1;
                     }
 
-                    // 根据任务状态设置看板状态
-                    if (termType === 'doing') {
-                        reminder.kanbanStatus = 'doing';
-                    } else if (termType === 'long_term') {
-                        reminder.kanbanStatus = 'todo';
-                        reminder.termType = 'long_term';
-                    } else if (termType === 'short_term') {
-                        reminder.kanbanStatus = 'todo';
-                        reminder.termType = 'short_term';
-                    } else if (termType === 'todo') {
-                        reminder.kanbanStatus = 'todo';
-                        reminder.termType = 'short_term'; // 默认todo为短期待办
-                    }
+                    // 设置看板状态（直接使用kanbanStatus，不再使用termType）
+                    reminder.kanbanStatus = kanbanStatus;
 
                     // 初始化字段级已提醒标志
                     reminder.notifiedTime = false;

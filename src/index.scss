@@ -1162,14 +1162,17 @@
     --fc-page-bg-color: var(--b3-theme-background);
     --fc-today-bg-color: var(--b3-theme-primary-lightest);
 }
+
 // 选择时的临时事件样式（无优先级样式）
-.fc-event-mirror,.fc-highlight {
+.fc-event-mirror,
+.fc-highlight {
     border-color: var(--b3-theme-surface-lighter) !important;
     background-color: rgba(from var(--b3-theme-surface-lighter) r g b / .3) !important;
     color: var(--b3-theme-on-background) !important;
+
     .fc-event-main {
-            color: var(--b3-theme-on-background) !important;
-    
+        color: var(--b3-theme-on-background) !important;
+
     }
 }
 
@@ -1609,16 +1612,16 @@
 }
 
 .term-type-option {
-    flex: 1;
-    display: flex;
+    flex: 0 0 auto;
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    padding: 8px 12px;
+    justify-content: flex-start;
+    padding: 6px 10px;
     border: 2px solid var(--b3-border-color);
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s ease;
-    background: var(--b3-theme-background);
+    background: var(--b3-theme-background) !important;
     font-weight: 500;
 
     span {
@@ -1633,11 +1636,11 @@
     }
 
     &.selected {
-        border-color: var(--b3-theme-primary);
-        background: var(--b3-theme-primary-lightest);
-        color: var(--b3-theme-primary);
         font-weight: 600;
-    }
+        border-color: var(--b3-theme-primary);
+        background-color: var(--b3-theme-primary-lightest) !important;
+        color: var(--b3-theme-primary);
+        }
 }
 
 // 优先级标签样式
@@ -2327,6 +2330,7 @@
     }
 }
 
-.fc .fc-button-primary:focus,.fc .fc-button:focus{
+.fc .fc-button-primary:focus,
+.fc .fc-button:focus {
     box-shadow: none !important;
 }

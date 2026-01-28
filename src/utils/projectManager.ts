@@ -11,6 +11,18 @@ export interface Project {
     blockId?: string;
 }
 
+/**
+ * 看板状态配置
+ */
+export interface KanbanStatus {
+    id: string;           // 状态ID: 'doing', 'short_term', 'long_term', 'completed' 或自定义ID
+    name: string;         // 显示名称
+    color: string;        // 状态颜色
+    isFixed: boolean;     // 是否固定不可删除（doing和completed为固定）
+    isDefault: boolean;   // 是否为系统默认状态
+    sort: number;         // 排序权重
+}
+
 export class ProjectManager {
     private static instance: ProjectManager;
     private plugin: any;
@@ -292,5 +304,101 @@ export class ProjectManager {
      */
     private generateTagId(): string {
         return `tag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    /**
+     * 获取项目的默认看板状态配置
+     * 固定状态：doing(进行中), completed(已完成)
+     * 默认可自定义状态：short_term(短期), long_term(长期)
+     */
+    public getDefaultKanbanStatuses(): KanbanStatus[] {
+        return [
+            {
+                id: 'doing',
+                name: '进行中',
+                color: '#e74c3c',
+                isFixed: true,
+                isDefault: true,
+                sort: 0
+            },
+            {
+                id: 'short_term',
+                name: '短期',
+                color: '#3498db',
+                isFixed: false,
+                isDefault: true,
+                sort: 10
+            },
+            {
+                id: 'long_term',
+                name: '长期',
+                color: '#9b59b6',
+                isFixed: false,
+                isDefault: true,
+                sort: 20
+            },
+            {
+                id: 'completed',
+                name: '已完成',
+                color: '#27ae60',
+                isFixed: true,
+                isDefault: true,
+                sort: 100
+            }
+        ];
+    }
+
+    /**
+     * 获取项目的看板状态配置
+     * 如果没有自定义配置，返回默认配置
+     */
+    public async getProjectKanbanStatuses(projectId: string): Promise<KanbanStatus[]> {
+        try {
+            const projectData = await this.plugin.loadProjectData() || {};
+            const project = projectData[projectId];
+            const customStatuses = project?.kanbanStatuses;
+
+            // 如果有自定义配置，合并默认固定状态和自定义状态
+            if (customStatuses && Array.isArray(customStatuses) && customStatuses.length > 0) {
+                const defaults = this.getDefaultKanbanStatuses();
+                // 确保固定状态存在且不能被覆盖
+                const fixedStatuses = defaults.filter(s => s.isFixed);
+                // 合并自定义状态，但排除固定状态的ID以避免冲突
+                const customNonFixed = customStatuses.filter(s => !s.isFixed);
+                return [...fixedStatuses, ...customNonFixed].sort((a, b) => a.sort - b.sort);
+            }
+
+            // 返回默认配置
+            return this.getDefaultKanbanStatuses();
+        } catch (error) {
+            console.error('获取项目看板状态失败:', error);
+            return this.getDefaultKanbanStatuses();
+        }
+    }
+
+    /**
+     * 设置项目的看板状态配置
+     * 只允许修改非固定状态
+     */
+    public async setProjectKanbanStatuses(projectId: string, statuses: KanbanStatus[]): Promise<void> {
+        try {
+            const projectData = await this.plugin.loadProjectData() || {};
+            if (projectData[projectId]) {
+                // 过滤掉固定状态，只保存自定义状态
+                const customStatuses = statuses.filter(s => !s.isFixed);
+                projectData[projectId].kanbanStatuses = customStatuses;
+                await this.plugin.saveProjectData(projectData);
+            }
+        } catch (error) {
+            console.error('设置项目看板状态失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 生成自定义看板状态ID
+     */
+    public generateKanbanStatusId(): string {
+        return `status_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     }
 }

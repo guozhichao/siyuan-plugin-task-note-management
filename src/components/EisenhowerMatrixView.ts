@@ -36,7 +36,7 @@ interface QuadrantTask {
     repeat?: any; // 重复事件配置
     isRepeatInstance?: boolean; // 是否为重复事件实例
     originalId?: string; // 原始重复事件的ID
-    termType?: 'short_term' | 'long_term'; // 任务期限类型：短期或长期
+    // termType已废弃，使用kanbanStatus代替
     isSubscribed?: boolean; // 是否为订阅任务
 }
 
@@ -638,7 +638,7 @@ export class EisenhowerMatrixView {
     private applyFiltersAndGroup() {
         // 应用筛选
         this.filteredTasks = this.allTasks.filter(task => {
-            // 任务状态筛选（基于 termType 或 kanbanStatus）
+            // 任务状态筛选（基于 kanbanStatus）
             if (this.kanbanStatusFilter !== 'all') {
                 if (this.kanbanStatusFilter === 'doing') {
                     // 筛选进行中任务：任务本身是进行中，或者父任务是进行中
@@ -646,8 +646,9 @@ export class EisenhowerMatrixView {
                         return false;
                     }
                 } else if (this.kanbanStatusFilter === 'todo') {
-                    // "待办任务"筛选kanbanStatus为todo的任务
-                    if (task.extendedProps?.kanbanStatus !== 'todo') {
+                    // "待办任务"筛选"为非进行中"且"非已完成"的任务
+                    const kanbanStatus = task.extendedProps?.kanbanStatus;
+                    if (kanbanStatus === 'doing' || kanbanStatus === 'completed' || task.completed) {
                         return false;
                     }
                 }
@@ -1006,21 +1007,15 @@ export class EisenhowerMatrixView {
 
         // 显示看板状态（仅当任务未完成且不是子任务时显示）
         if (!task.completed && level === 0) {
-            const kanbanStatus = task.extendedProps?.kanbanStatus || 'todo';
-            const termType = task.extendedProps?.termType;
+            const kanbanStatus = task.extendedProps?.kanbanStatus || 'short_term';
 
-            // 根据kanbanStatus和termType确定状态配置
-            let statusInfo;
-            if (kanbanStatus === 'doing') {
-                statusInfo = { icon: '⏳', label: '进行中', color: '#f39c12' };
-            } else if (kanbanStatus === 'todo' && termType === 'short_term') {
-                statusInfo = { icon: '📋', label: '短期待办', color: '#95a5a6' };
-            } else if (kanbanStatus === 'todo' && termType === 'long_term') {
-                statusInfo = { icon: '🤔', label: '长期待办', color: '#95a5a6' };
-            } else {
-                // 默认待办状态
-                statusInfo = { icon: '📋', label: '短期待办', color: '#95a5a6' };
-            }
+            // 根据kanbanStatus确定状态配置
+            const statusConfig: { [key: string]: { icon: string; label: string; color: string } } = {
+                'doing': { icon: '⏳', label: '进行中', color: '#f39c12' },
+                'short_term': { icon: '📋', label: '短期', color: '#3498db' },
+                'long_term': { icon: '🤔', label: '长期', color: '#9b59b6' }
+            };
+            const statusInfo = statusConfig[kanbanStatus] || { icon: '📋', label: '短期', color: '#3498db' };
 
             const statusSpan = document.createElement('span');
             statusSpan.className = 'task-kanban-status';
@@ -2576,37 +2571,29 @@ export class EisenhowerMatrixView {
 
         // 设置看板状态子菜单
         const createKanbanStatusMenuItems = () => {
+            // 使用固定的状态列表（doing, short_term, long_term）
             const statuses: Array<{
                 key: string;
                 label: string;
                 icon: string;
                 kanbanStatus: string;
-                termType: 'short_term' | 'long_term' | null;
             }> = [
-                    { key: 'doing', label: '进行中', icon: '⏳', kanbanStatus: 'doing', termType: null },
-                    { key: 'short-todo', label: '短期待办', icon: '📋', kanbanStatus: 'todo', termType: 'short_term' },
-                    { key: 'long-todo', label: '长期待办', icon: '🤔', kanbanStatus: 'todo', termType: 'long_term' }
+                    { key: 'doing', label: '进行中', icon: '⏳', kanbanStatus: 'doing' },
+                    { key: 'short_term', label: '短期', icon: '📋', kanbanStatus: 'short_term' },
+                    { key: 'long_term', label: '长期', icon: '🤔', kanbanStatus: 'long_term' }
                 ];
 
-            const currentKanbanStatus = task.extendedProps?.kanbanStatus || 'todo';
-            const currentTermType = task.extendedProps?.termType;
+            const currentKanbanStatus = task.extendedProps?.kanbanStatus || 'short_term';
 
             return statuses.map(status => {
-                let isCurrent = false;
-                if (status.key === 'doing') {
-                    isCurrent = currentKanbanStatus === 'doing';
-                } else if (status.key === 'short-todo') {
-                    isCurrent = currentKanbanStatus === 'todo' && currentTermType === 'short_term';
-                } else if (status.key === 'long-todo') {
-                    isCurrent = currentKanbanStatus === 'todo' && currentTermType === 'long_term';
-                }
+                const isCurrent = currentKanbanStatus === status.kanbanStatus;
 
                 return {
                     iconHTML: status.icon,
                     label: status.label,
                     current: isCurrent,
                     click: () => {
-                        this.setTaskStatusAndTerm(task.id, status.kanbanStatus, status.termType);
+                        this.setTaskStatusAndTerm(task.id, status.kanbanStatus);
                     }
                 };
             });
@@ -2806,19 +2793,12 @@ export class EisenhowerMatrixView {
         }
     }
 
-    private async setTaskStatusAndTerm(taskId: string, kanbanStatus: string, termType: 'short_term' | 'long_term' | null) {
+    private async setTaskStatusAndTerm(taskId: string, kanbanStatus: string) {
         try {
             const reminderData = await getAllReminders(this.plugin);
             if (reminderData[taskId]) {
                 reminderData[taskId].kanbanStatus = kanbanStatus;
-
-                // 设置 termType：如果为 null 则删除属性，否则设置值
-                if (termType) {
-                    reminderData[taskId].termType = termType;
-                } else {
-                    delete reminderData[taskId].termType;
-                }
-
+                // 不再存储termType
                 await saveReminders(this.plugin, reminderData);
 
                 await this.refresh();
