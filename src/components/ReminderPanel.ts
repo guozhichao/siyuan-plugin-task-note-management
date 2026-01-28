@@ -1,6 +1,6 @@
 import { showMessage, confirm, Dialog, Menu } from "siyuan";
 import { refreshSql, sql, getBlockKramdown, getBlockByID, updateBindBlockAtrrs, openBlock } from "../api";
-import { getLocalDateString, compareDateStrings, getLocalDateTimeString, getLogicalDateString, getRelativeDateString, autoDetectDateTimeFromTitle } from "../utils/dateUtils";
+import { getLocalDateString, compareDateStrings, getLocalDateTimeString, getLogicalDateString, getRelativeDateString } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { CategoryManager } from "../utils/categoryManager";
@@ -16,6 +16,7 @@ import { PomodoroRecordManager } from "../utils/pomodoroRecord"; // Add import
 import { getSolarDateLunarString, getNextLunarMonthlyDate, getNextLunarYearlyDate } from "../utils/lunarUtils";
 import { getAllReminders, saveReminders } from "../utils/icsSubscription";
 import { isEventPast } from "../utils/icsImport";
+import { PasteTaskDialog } from "./PasteTaskDialog";
 
 export class ReminderPanel {
     private container: HTMLElement;
@@ -6815,285 +6816,16 @@ export class ReminderPanel {
     }
 
     private showPasteTaskDialog(parentReminder: any) {
-        const dialog = new Dialog({
-            title: "粘贴列表新建子任务",
-            content: `
-                <div class="b3-dialog__content">
-                    <p>粘贴Markdown列表或多行文本，每行将创建一个子任务。支持多层级列表自动创建父子任务。</p>
-                    <textarea id="taskList" class="b3-text-field" placeholder="示例：\n- 需求文档\n  - 功能列表\n  - 接口设计\n- 测试用例" style="width:100%; height:220px; resize:vertical;"></textarea>
-                </div>
-                <div class="b3-dialog__action">
-                    <button class="b3-button b3-button--cancel" id="cancelBtn">取消</button>
-                    <button class="b3-button b3-button--primary" id="createBtn">创建子任务</button>
-                </div>
-            `,
-            width: "500px",
-        });
-
-        const textArea = dialog.element.querySelector('#taskList') as HTMLTextAreaElement;
-        const cancelBtn = dialog.element.querySelector('#cancelBtn') as HTMLButtonElement;
-        const createBtn = dialog.element.querySelector('#createBtn') as HTMLButtonElement;
-
-        cancelBtn.addEventListener('click', () => dialog.destroy());
-
-        createBtn.addEventListener('click', async () => {
-            const text = textArea.value.trim();
-            if (!text) {
-                showMessage("列表内容不能为空");
-                return;
-            }
-
-            const autoDetect = await this.plugin.getAutoDetectDateTimeEnabled();
-            const hierarchicalTasks = this.parseHierarchicalTaskList(text, autoDetect);
-
-            if (hierarchicalTasks.length > 0) {
-                await this.batchCreateSubtasksWithHierarchy(hierarchicalTasks, parentReminder.id);
-                dialog.destroy();
-                const totalTasks = this.countTotalTasks(hierarchicalTasks);
-                showMessage(`${totalTasks} 个子任务已创建`);
+        const dialog = new PasteTaskDialog({
+            plugin: this.plugin,
+            parentTask: parentReminder,
+            onSuccess: (totalCount) => {
+                showMessage(`${totalCount} 个子任务已创建`);
+                this.loadReminders(true);
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
             }
         });
-    }
-
-    // 复用 ProjectKanbanView 的解析方法，适配为在 ReminderPanel 创建子任务
-    private parseHierarchicalTaskList(text: string, autoDetect: boolean = false): any[] {
-        const lines = text.split('\n');
-        const tasks: any[] = [];
-        const stack: Array<{ task: any; level: number }> = [];
-
-        for (const line of lines) {
-            if (!line.trim()) continue;
-
-            const level = this.calculateIndentLevel(line);
-            const cleanLine = line.trim();
-
-            if (!cleanLine || (!cleanLine.startsWith('-') && level === 0 && !cleanLine.match(/^\s*-/))) {
-                if (cleanLine && level === 0) {
-                    const taskData = this.parseTaskLine(cleanLine, autoDetect);
-                    const task = { ...taskData, level: 0, children: [] };
-                    tasks.push(task);
-                    stack.length = 0;
-                    stack.push({ task, level: 0 });
-                }
-                continue;
-            }
-
-            let levelFromDashes = 0;
-            const dashPrefixMatch = cleanLine.match(/^(-{2,})\s*/);
-            if (dashPrefixMatch) {
-                levelFromDashes = dashPrefixMatch[1].length - 1;
-            }
-
-            const combinedLevel = level + levelFromDashes;
-            const taskContent = cleanLine.replace(/^[-*+]+\s*/, '');
-            if (!taskContent) continue;
-
-            const taskData = this.parseTaskLine(taskContent, autoDetect);
-            const task = { ...taskData, level: combinedLevel, children: [] };
-
-            while (stack.length > 0 && stack[stack.length - 1].level >= combinedLevel) {
-                stack.pop();
-            }
-
-            if (stack.length === 0) {
-                tasks.push(task);
-            } else {
-                const parent = stack[stack.length - 1].task;
-                parent.children.push(task);
-            }
-
-            stack.push({ task, level: combinedLevel });
-        }
-
-        return tasks;
-    }
-
-    private calculateIndentLevel(line: string): number {
-        const match = line.match(/^(\s*)/);
-        if (!match) return 0;
-        const indent = match[1];
-        const spaces = indent.replace(/\t/g, '  ').length;
-        return Math.floor(spaces / 2);
-    }
-
-    private parseTaskLine(line: string, autoDetect: boolean = false): {
-        title: string;
-        priority?: string;
-        startDate?: string;
-        time?: string;
-        endDate?: string;
-        endTime?: string;
-        blockId?: string;
-        completed?: boolean
-    } {
-        const paramMatch = line.match(/@(.*)$/);
-        let title = line;
-        let priority: string | undefined;
-        let startDate: string | undefined;
-        let time: string | undefined;
-        let endDate: string | undefined;
-        let endTime: string | undefined;
-        let blockId: string | undefined;
-        let completed: boolean | undefined;
-
-        blockId = this.extractBlockIdFromText(line);
-
-        if (blockId) {
-            title = title.replace(/\[([^\]]+)\]\(siyuan:\/\/blocks\/[^)]+\)/g, '$1');
-            title = title.replace(/\(\([^\s)]+\s+'([^']+)'\)\)/g, '$1');
-            title = title.replace(/\(\([^\s)]+\s+"([^\"]+)"\)\)/g, '$1');
-            title = title.replace(/\(\([^\)]+\)\)/g, '');
-        }
-
-        const checkboxMatch = title.match(/^\s*\[\s*([ xX])\s*\]\s*/);
-        if (checkboxMatch) {
-            const mark = checkboxMatch[1];
-            completed = (mark.toLowerCase() === 'x');
-            title = title.replace(/^\s*\[\s*([ xX])\s*\]\s*/, '').trim();
-        }
-
-        const leadingCheckboxMatch = line.match(/^\s*[-*+]\s*\[\s*([ xX])\s*\]\s*(.+)$/);
-        if (leadingCheckboxMatch) {
-            completed = (leadingCheckboxMatch[1].toLowerCase() === 'x');
-            title = leadingCheckboxMatch[2];
-        }
-
-        if (autoDetect) {
-            const detected = autoDetectDateTimeFromTitle(title);
-            if (detected.date || detected.endDate) {
-                title = detected.cleanTitle || title;
-                startDate = detected.date;
-                time = detected.time;
-                endDate = detected.endDate;
-                endTime = detected.endTime;
-            }
-        }
-
-        if (paramMatch) {
-            title = title.replace(/@(.*)$/, '').trim();
-            const paramString = paramMatch[1];
-            const params = new URLSearchParams(paramString);
-            priority = params.get('priority') || undefined;
-            startDate = params.get('startDate') || startDate;
-            endDate = params.get('endDate') || endDate;
-            if (priority && !['high', 'medium', 'low', 'none'].includes(priority)) priority = 'none';
-            const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-            if (startDate && !dateRegex.test(startDate)) startDate = undefined;
-            if (endDate && !dateRegex.test(endDate)) endDate = undefined;
-        }
-
-        return { title: title.trim() || '未命名任务', priority, startDate, time, endDate, endTime, blockId, completed };
-    }
-
-    private async batchCreateSubtasksWithHierarchy(tasks: any[], parentIdForAllTopLevel: string) {
-        const reminderData = await getAllReminders(this.plugin);
-
-        // 获取项目ID从父任务
-        const parent = reminderData[parentIdForAllTopLevel];
-        const projectId = parent ? parent.projectId : undefined;
-
-        // 获取当前最大 sort
-        const maxSort = Object.values(reminderData)
-            .filter((r: any) => r && r.projectId === projectId && typeof r.sort === 'number')
-            .reduce((max: number, task: any) => Math.max(max, task.sort || 0), 0) as number;
-
-        let sortCounter = maxSort;
-        const createdTasks: any[] = []; // 记录所有创建的任务
-
-        const createRecursively = async (task: any, parentId?: string) => {
-            const taskId = `rem-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-            sortCounter += 10;
-
-            const newSubtask: any = {
-                id: taskId,
-                title: task.title,
-                note: '',
-                date: task.startDate || undefined,
-                time: task.time || undefined,
-                endDate: task.endDate || undefined,
-                endTime: task.endTime || undefined,
-                // 如果子任务没指定优先级，继承父任务的优先级
-                priority: task.priority && task.priority !== 'none' ? task.priority : (parent ? parent.priority : undefined),
-                categoryId: parent ? parent.categoryId : undefined,
-                projectId: projectId,
-                parentId: parentId || parentIdForAllTopLevel,
-                completed: !!task.completed,
-                created: getLocalDateTimeString(new Date()),
-                sort: sortCounter
-            };
-
-            if (task.blockId) {
-                try {
-                    const block = await getBlockByID(task.blockId);
-                    if (block) {
-                        newSubtask.blockId = task.blockId;
-                        newSubtask.docId = block.root_id || task.blockId;
-                        if (!task.title || task.title === '未命名任务') {
-                            newSubtask.title = block.content || block.fcontent || '未命名任务';
-                        }
-                        await updateBindBlockAtrrs(task.blockId, this.plugin);
-                    }
-                } catch (err) {
-                    console.warn('绑定块失败:', err);
-                }
-            }
-
-            reminderData[taskId] = newSubtask;
-            createdTasks.push(newSubtask); // 记录创建的任务
-
-            if (task.children && task.children.length > 0) {
-                for (const child of task.children) {
-                    await createRecursively(child, taskId);
-                }
-            }
-        };
-
-        for (const t of tasks) {
-            await createRecursively(t, undefined);
-        }
-
-        await saveReminders(this.plugin, reminderData);
-        // 全量刷新面板以确保分页/父子关系/异步数据一致
-        try {
-            await this.loadReminders(true);
-        } catch (err) {
-            console.warn('批量创建子任务后刷新面板失败，可能在并发加载中:', err);
-        }
-
-    }
-
-    private countTotalTasks(tasks: any[]): number {
-        let count = 0;
-        const countRecursively = (list: any[]) => {
-            for (const t of list) {
-                count++;
-                if (t.children && t.children.length > 0) countRecursively(t.children);
-            }
-        };
-        countRecursively(tasks);
-        return count;
-    }
-
-    private extractBlockIdFromText(text: string): string | undefined {
-        const markdownLinkMatch = text.match(/\[([^\]]+)\]\(siyuan:\/\/blocks\/([^)]+)\)/);
-        if (markdownLinkMatch) {
-            const blockId = markdownLinkMatch[2];
-            if (blockId && blockId.length >= 20) return blockId;
-        }
-
-        const blockRefWithTitleMatch = text.match(/\(\(([^)\s]+)\s+['"]([^'\"]+)['"]\)\)/);
-        if (blockRefWithTitleMatch) {
-            const blockId = blockRefWithTitleMatch[1];
-            if (blockId && blockId.length >= 20) return blockId;
-        }
-
-        const simpleBlockRefMatch = text.match(/\(\(([^)]+)\)\)/);
-        if (simpleBlockRefMatch) {
-            const blockId = simpleBlockRefMatch[1].trim();
-            if (blockId && blockId.length >= 20) return blockId;
-        }
-
-        return undefined;
+        dialog.show();
     }
 
     /**
