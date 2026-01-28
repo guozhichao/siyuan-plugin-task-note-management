@@ -63,6 +63,8 @@ export class ReminderPanel {
     private totalPages: number = 1;
     private totalItems: number = 0;
     private lastTruncatedTotal: number = 0;
+    // 文档标题缓存：按 tab -> (docId -> title)
+    private docTitleCache: Map<string, Map<string, string>> = new Map();
 
     constructor(container: HTMLElement, plugin?: any, closeCallback?: () => void) {
         this.container = container;
@@ -286,6 +288,14 @@ export class ReminderPanel {
             refreshBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>';
             refreshBtn.title = t("refresh") || "刷新";
             refreshBtn.addEventListener('click', () => {
+                // 刷新时清空当前 Tab 的文档标题缓存，再强制重载提醒
+                try {
+                    if (this.currentTab) {
+                        this.docTitleCache.delete(this.currentTab);
+                    }
+                } catch (e) {
+                    // ignore
+                }
                 this.loadReminders(true);
             });
             actionContainer.appendChild(refreshBtn);
@@ -663,9 +673,19 @@ export class ReminderPanel {
      */
     private async addDocumentTitle(container: HTMLElement, docId: string) {
         try {
-            const docBlock = await getBlockByID(docId);
-            if (docBlock && docBlock.content) {
-                // 创建文档标题元素
+            // 如果容器已经有文档标题，避免重复插入
+            if (container.querySelector('.reminder-item__doc-title')) return;
+
+            const tab = this.currentTab || 'default';
+            let tabCache = this.docTitleCache.get(tab);
+            if (!tabCache) {
+                tabCache = new Map<string, string>();
+                this.docTitleCache.set(tab, tabCache);
+            }
+
+            // 优先使用缓存（仅使用当前 tab 的缓存）
+            if (tabCache.has(docId)) {
+                const cachedTitle = tabCache.get(docId)!;
                 const docTitleEl = document.createElement('div');
                 docTitleEl.className = 'reminder-item__doc-title';
                 docTitleEl.style.cssText = `
@@ -678,17 +698,15 @@ export class ReminderPanel {
                     gap: 4px;
                 `;
 
-                // 添加文档图标
                 const docIcon = document.createElement('span');
                 docIcon.innerHTML = '📄';
                 docIcon.style.fontSize = '10px';
 
-                // 创建支持悬浮预览的文档标题链接
                 const docTitleLink = document.createElement('span');
                 docTitleLink.setAttribute('data-type', 'a');
                 docTitleLink.setAttribute('data-href', `siyuan://blocks/${docId}`);
-                docTitleLink.textContent = docBlock.content;
-                docTitleLink.title = `所属文档: ${docBlock.content}`;
+                docTitleLink.textContent = cachedTitle;
+                docTitleLink.title = `所属文档: ${cachedTitle}`;
                 docTitleLink.style.cssText = `
                     cursor: pointer;
                     color: var(--b3-theme-on-background);
@@ -696,14 +714,11 @@ export class ReminderPanel {
                     text-decoration-style: dotted;
                 `;
 
-                // 点击事件：打开文档
                 docTitleEl.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     this.openBlockTab(docId);
                 });
-
-                // 鼠标悬停效果
                 docTitleLink.addEventListener('mouseenter', () => {
                     docTitleLink.style.color = 'var(--b3-theme-primary)';
                 });
@@ -713,15 +728,65 @@ export class ReminderPanel {
 
                 docTitleEl.appendChild(docIcon);
                 docTitleEl.appendChild(docTitleLink);
-
-                // 将文档标题插入到容器的最前面
                 container.insertBefore(docTitleEl, container.firstChild);
 
-                // 异步加载完成后，恢复滚动位置以防止位置跳动
-                // 保存当前滚动位置，避免异步加载导致的滚动跳动
+                return;
+            }
+
+            // 缓存中没有时再异步获取并缓存
+            const docBlock = await getBlockByID(docId);
+            if (docBlock && docBlock.content) {
+                const title = docBlock.content;
+                tabCache.set(docId, title);
+
+                // 创建文档标题元素并插入
+                const docTitleEl = document.createElement('div');
+                docTitleEl.className = 'reminder-item__doc-title';
+                docTitleEl.style.cssText = `
+                    font-size: 11px;
+                    color: var(--b3-theme-on-background);
+                    margin-bottom: 2px;
+                    opacity: 1;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                `;
+
+                const docIcon = document.createElement('span');
+                docIcon.innerHTML = '📄';
+                docIcon.style.fontSize = '10px';
+
+                const docTitleLink = document.createElement('span');
+                docTitleLink.setAttribute('data-type', 'a');
+                docTitleLink.setAttribute('data-href', `siyuan://blocks/${docId}`);
+                docTitleLink.textContent = title;
+                docTitleLink.title = `所属文档: ${title}`;
+                docTitleLink.style.cssText = `
+                    cursor: pointer;
+                    color: var(--b3-theme-on-background);
+                    text-decoration: underline;
+                    text-decoration-style: dotted;
+                `;
+
+                docTitleEl.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.openBlockTab(docId);
+                });
+                docTitleLink.addEventListener('mouseenter', () => {
+                    docTitleLink.style.color = 'var(--b3-theme-primary)';
+                });
+                docTitleLink.addEventListener('mouseleave', () => {
+                    docTitleLink.style.color = 'var(--b3-theme-on-background)';
+                });
+
+                docTitleEl.appendChild(docIcon);
+                docTitleEl.appendChild(docTitleLink);
+                container.insertBefore(docTitleEl, container.firstChild);
+
+                // 恢复滚动位置以防止异步插入引起跳动
                 const currentScrollTop = this.remindersContainer.scrollTop;
                 const currentScrollLeft = this.remindersContainer.scrollLeft;
-                // 使用 setTimeout 确保 DOM 更新后再恢复滚动位置
                 setTimeout(() => {
                     this.remindersContainer.scrollTop = currentScrollTop;
                     this.remindersContainer.scrollLeft = currentScrollLeft;
