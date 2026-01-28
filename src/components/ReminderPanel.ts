@@ -2904,7 +2904,8 @@ export class ReminderPanel {
                 return reminders.filter(r => {
                     if (isEffectivelyCompleted(r) || !r.date) return false;
                     const startLogical = this.getReminderLogicalDate(r.date, r.time);
-                    return compareDateStrings(tomorrow, startLogical) <= 0 && compareDateStrings(startLogical, future7Days) <= 0;
+                    const endLogical = this.getReminderLogicalDate(r.endDate || r.date, r.endTime || r.time);
+                    return compareDateStrings(tomorrow, endLogical) <= 0 && compareDateStrings(startLogical, future7Days) <= 0;
                 });
             case 'futureAll':
                 return reminders.filter(r => {
