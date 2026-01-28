@@ -288,7 +288,7 @@ export class TaskSummaryDialog {
     const reminderData = await this.plugin.loadReminderData() || {};
 
     // 1. 番茄钟统计
-    const pomodoroManager = PomodoroRecordManager.getInstance();
+    const pomodoroManager = PomodoroRecordManager.getInstance(this.plugin);
     await pomodoroManager.initialize();
 
 

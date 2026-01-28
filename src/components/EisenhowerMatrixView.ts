@@ -470,7 +470,7 @@ export class EisenhowerMatrixView {
     private async getReminderPomodoroCount(reminderId: string, reminder?: any, reminderData?: any): Promise<number> {
         try {
             const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
-            const pomodoroManager = PomodoroRecordManager.getInstance();
+            const pomodoroManager = PomodoroRecordManager.getInstance(this.plugin);
             if (reminder && reminder.isRepeatInstance) {
                 return await pomodoroManager.getReminderPomodoroCount(reminderId);
             }
@@ -513,7 +513,7 @@ export class EisenhowerMatrixView {
     private async getReminderFocusTime(reminderId: string, reminder?: any, reminderData?: any): Promise<number> {
         try {
             const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
-            const pomodoroManager = PomodoroRecordManager.getInstance();
+            const pomodoroManager = PomodoroRecordManager.getInstance(this.plugin);
             if (reminder && reminder.isRepeatInstance) {
                 if (typeof pomodoroManager.getEventTotalFocusTime === 'function') {
                     return pomodoroManager.getEventTotalFocusTime(reminderId);

@@ -85,6 +85,7 @@ export class CalendarView {
 
     // 使用全局番茄钟管理器
     private pomodoroManager: PomodoroManager = PomodoroManager.getInstance();
+    private pomodoroRecordManager: PomodoroRecordManager;
 
     private async updateSettings() {
         const settings = await this.plugin.loadSettings();
@@ -142,6 +143,7 @@ export class CalendarView {
     constructor(container: HTMLElement, plugin: any, data?: { projectFilter?: string }) {
         this.container = container;
         this.plugin = plugin;
+        this.pomodoroRecordManager = PomodoroRecordManager.getInstance(plugin);
         this.categoryManager = CategoryManager.getInstance(plugin); // 初始化分类管理器
         this.projectManager = ProjectManager.getInstance(this.plugin);
         this.statusManager = StatusManager.getInstance(plugin);
@@ -2045,7 +2047,7 @@ export class CalendarView {
                 label: t("deletePomodoroRecord") || "删除记录",
                 click: async () => {
                     confirm(t("deletePomodoroRecord"), t("confirmDelete"), async () => {
-                        const pomodoroManager = PomodoroRecordManager.getInstance(this.plugin);
+                        const pomodoroManager = this.pomodoroRecordManager;
                         // session id format in prompt: pomodoro-ID
                         const sessionId = calendarEvent.id.replace('pomodoro-', '');
                         await pomodoroManager.deleteSession(sessionId);
@@ -4975,7 +4977,7 @@ export class CalendarView {
             if (this.showPomodoro && this.calendar && this.calendar.view) {
                 const viewType = this.calendar.view.type;
                 if (viewType === 'timeGridDay' || viewType === 'timeGridWeek' || viewType === 'timeGridMultiDays7') {
-                    const pomodoroManager = PomodoroRecordManager.getInstance(this.plugin);
+                    const pomodoroManager = this.pomodoroRecordManager;
                     const sessions = await pomodoroManager.getDateRangeSessions(startDate, endDate);
 
                     for (const session of sessions) {

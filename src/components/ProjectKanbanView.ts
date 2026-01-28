@@ -6,6 +6,7 @@ import { getLocalDateString, getLocalDateTimeString, compareDateStrings, getLogi
 import { CategoryManager } from "../utils/categoryManager";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroManager } from "../utils/pomodoroManager";
+import { PomodoroRecordManager } from "../utils/pomodoroRecord"; // Add import
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
 import { getSolarDateLunarString } from "../utils/lunarUtils";
@@ -72,6 +73,7 @@ export class ProjectKanbanView {
 
     // 全局番茄钟管理器
     private pomodoroManager = PomodoroManager.getInstance();
+    private pomodoroRecordManager: PomodoroRecordManager; // Add property
 
     // 上一次选择的任务状态（用于记住新建任务时的默认选择）
     private lastSelectedTermType: 'short_term' | 'long_term' | 'doing' | 'todo' = 'short_term';
@@ -100,6 +102,7 @@ export class ProjectKanbanView {
     constructor(container: HTMLElement, plugin: any, projectId: string) {
         this.container = container;
         this.plugin = plugin;
+        this.pomodoroRecordManager = PomodoroRecordManager.getInstance(this.plugin); // Initialization
         this.projectId = projectId;
         this.categoryManager = CategoryManager.getInstance(this.plugin);
         this.initializeAsync();
@@ -2226,14 +2229,8 @@ export class ProjectKanbanView {
                 let totalRepeatingPomodoroCount = 0;
                 let totalRepeatingFocusTime = 0;
                 if (reminder.isRepeatInstance) {
-                    const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
-                    const pomodoroManager = PomodoroRecordManager.getInstance();
-                    if (typeof pomodoroManager.getRepeatingEventTotalPomodoroCount === 'function') {
-                        totalRepeatingPomodoroCount = pomodoroManager.getRepeatingEventTotalPomodoroCount(reminder.originalId);
-                    }
-                    if (typeof pomodoroManager.getRepeatingEventTotalFocusTime === 'function') {
-                        totalRepeatingFocusTime = pomodoroManager.getRepeatingEventTotalFocusTime(reminder.originalId);
-                    }
+                    totalRepeatingPomodoroCount = this.pomodoroRecordManager.getRepeatingEventTotalPomodoroCount(reminder.originalId);
+                    totalRepeatingFocusTime = this.pomodoroRecordManager.getRepeatingEventTotalFocusTime(reminder.originalId);
                 }
 
                 return {
@@ -2471,8 +2468,7 @@ export class ProjectKanbanView {
      */
     private async getReminderPomodoroCount(reminderId: string, reminder?: any, reminderData?: any): Promise<number> {
         try {
-            const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
-            const pomodoroManager = PomodoroRecordManager.getInstance();
+            const pomodoroManager = this.pomodoroRecordManager;
             // Repeat instances should be shown as per-instance totals
             if (reminder && reminder.isRepeatInstance) {
                 return await pomodoroManager.getReminderPomodoroCount(reminderId);
@@ -2516,8 +2512,7 @@ export class ProjectKanbanView {
 
     private async getReminderFocusTime(reminderId: string, reminder?: any, reminderData?: any): Promise<number> {
         try {
-            const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
-            const pomodoroManager = PomodoroRecordManager.getInstance();
+            const pomodoroManager = this.pomodoroRecordManager;
             // If repeat instance, use per-event total
             if (reminder && reminder.isRepeatInstance) {
                 if (!pomodoroManager['isInitialized']) await pomodoroManager.initialize();

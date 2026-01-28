@@ -39,6 +39,8 @@ export class PomodoroRecordManager {
     static getInstance(plugin?: any): PomodoroRecordManager {
         if (!PomodoroRecordManager.instance) {
             PomodoroRecordManager.instance = new PomodoroRecordManager(plugin);
+        } else if (plugin && !PomodoroRecordManager.instance.plugin) {
+            PomodoroRecordManager.instance.plugin = plugin;
         }
         return PomodoroRecordManager.instance;
     }

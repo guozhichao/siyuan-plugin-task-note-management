@@ -12,6 +12,7 @@ import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroStatsView, getLastStatsMode } from "./PomodoroStatsView";
 import { TaskStatsView } from "./TaskStatsView";
 import { PomodoroManager } from "../utils/pomodoroManager";
+import { PomodoroRecordManager } from "../utils/pomodoroRecord"; // Add import
 import { getSolarDateLunarString, getNextLunarMonthlyDate, getNextLunarYearlyDate } from "../utils/lunarUtils";
 import { getAllReminders, saveReminders } from "../utils/icsSubscription";
 import { isEventPast } from "../utils/icsImport";
@@ -47,6 +48,7 @@ export class ReminderPanel {
 
     // 使用全局番茄钟管理器
     private pomodoroManager: PomodoroManager = PomodoroManager.getInstance();
+    private pomodoroRecordManager: PomodoroRecordManager; // Add property
     private currentRemindersCache: any[] = [];
     private allRemindersMap: Map<string, any> = new Map(); // 存储所有任务的完整信息，用于计算进度
     private isLoading: boolean = false;
@@ -64,6 +66,7 @@ export class ReminderPanel {
         this.container = container;
         this.plugin = plugin;
         this.categoryManager = CategoryManager.getInstance(this.plugin); // 初始化分类管理器
+        this.pomodoroRecordManager = PomodoroRecordManager.getInstance(this.plugin); // Initialization
 
         // 创建事件处理器
         this.reminderUpdatedHandler = (event?: CustomEvent) => {
@@ -80,8 +83,8 @@ export class ReminderPanel {
                 if (!this.isLoading) {
                     // 确保番茄钟数据是最新的
                     try {
-                        const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
-                        await PomodoroRecordManager.getInstance().refreshData();
+                        // 使用共享实例刷新数据
+                        await this.pomodoroRecordManager.refreshData();
                     } catch (e) {
                         console.warn('刷新番茄钟数据失败:', e);
                     }
@@ -7740,8 +7743,7 @@ export class ReminderPanel {
      */
     private async getReminderPomodoroCount(reminderId: string, reminder?: any, reminderData?: any): Promise<number> {
         try {
-            const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
-            const pomodoroManager = PomodoroRecordManager.getInstance();
+            const pomodoroManager = this.pomodoroRecordManager;
             // If this is a repeat instance, always use per-event count
             if (reminder && reminder.isRepeatInstance) {
                 return await pomodoroManager.getReminderPomodoroCount(reminderId);
@@ -7786,8 +7788,7 @@ export class ReminderPanel {
 
     private async getReminderRepeatingTotalPomodoroCount(originalId: string): Promise<number> {
         try {
-            const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
-            const pomodoroManager = PomodoroRecordManager.getInstance();
+            const pomodoroManager = this.pomodoroRecordManager;
             if (typeof pomodoroManager.getRepeatingEventTotalPomodoroCount === 'function') {
                 return pomodoroManager.getRepeatingEventTotalPomodoroCount(originalId);
             }
@@ -7800,8 +7801,7 @@ export class ReminderPanel {
 
     private async getReminderRepeatingTotalFocusTime(originalId: string): Promise<number> {
         try {
-            const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
-            const pomodoroManager = PomodoroRecordManager.getInstance();
+            const pomodoroManager = this.pomodoroRecordManager;
             if (typeof pomodoroManager.getRepeatingEventTotalFocusTime === 'function') {
                 return pomodoroManager.getRepeatingEventTotalFocusTime(originalId);
             }
@@ -7814,8 +7814,7 @@ export class ReminderPanel {
 
     private async getReminderFocusTime(reminderId: string, reminder?: any, reminderData?: any): Promise<number> {
         try {
-            const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
-            const pomodoroManager = PomodoroRecordManager.getInstance();
+            const pomodoroManager = this.pomodoroRecordManager;
             // If this is a repeat instance, always use per-event total
             if (reminder && reminder.isRepeatInstance) {
                 if (!pomodoroManager['isInitialized']) await pomodoroManager.initialize();
@@ -7869,9 +7868,7 @@ export class ReminderPanel {
      */
     private async getReminderTodayPomodoroCount(reminderId: string, reminder?: any, reminderData?: any, date?: string): Promise<number> {
         try {
-            const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
-            const pomodoroManager = PomodoroRecordManager.getInstance();
-
+            const pomodoroManager = this.pomodoroRecordManager;
             const targetDate = date || getLogicalDateString();
 
             // If it's a repeat instance or an instance id (contains date), try direct event count
@@ -7968,8 +7965,7 @@ export class ReminderPanel {
      */
     private async getReminderTodayFocusTime(reminderId: string, reminder?: any, reminderData?: any, date?: string): Promise<number> {
         try {
-            const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
-            const pomodoroManager = PomodoroRecordManager.getInstance();
+            const pomodoroManager = this.pomodoroRecordManager;
             const targetDate = date || getLogicalDateString();
 
             // If it's a repeat instance, use event-specific focus time

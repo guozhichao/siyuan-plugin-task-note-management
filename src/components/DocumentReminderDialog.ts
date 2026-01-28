@@ -717,7 +717,7 @@ export class DocumentReminderDialog {
         (async () => {
             try {
                 const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
-                const pomodoroManager = PomodoroRecordManager.getInstance();
+                const pomodoroManager = PomodoroRecordManager.getInstance(this.plugin);
                 let count = 0;
                 let focusMinutes = 0;
                 if (typeof pomodoroManager.getAggregatedReminderPomodoroCount === 'function') {

@@ -42,7 +42,6 @@ export class TaskStatsView {
     private reminderData: Record<string, any> = {};
     private isLoading = false;
     private isReady = false;
-    private timeFormatter: PomodoroRecordManager;
     private currentView: 'overview' | 'details' | 'records' | 'trends' | 'timeline' | 'heatmap' = 'overview';
     private currentTimeRange: 'today' | 'week' | 'month' | 'year' = 'today';
     private currentYear: number = parseInt(getLogicalDateString().split('-')[0], 10);
@@ -54,7 +53,6 @@ export class TaskStatsView {
     private categoryNameMap: Record<string, string> = {};
     private plugin: any;
     constructor(plugin?: any) {
-        this.timeFormatter = PomodoroRecordManager.getInstance();
         this.plugin = plugin;
         this.createDialog();
     }
@@ -547,7 +545,14 @@ export class TaskStatsView {
     }
 
     private formatTime(minutes: number): string {
-        return this.timeFormatter.formatTime(minutes);
+        const hours = Math.floor(minutes / 60);
+        const mins = Math.floor(minutes % 60);
+
+        if (hours > 0) {
+            return `${hours}h ${mins}m`;
+        } else {
+            return `${mins}m`;
+        }
     }
 
     private getTotalTaskTime(): number {

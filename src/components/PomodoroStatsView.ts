@@ -342,13 +342,15 @@ export class PomodoroStatsView {
     private renderTodayProgress(): string {
         const todayTime = this.recordManager.getTodayFocusTime();
         const todaySessions = this.recordManager.getTodaySessions();
-        const workSessions = todaySessions.filter(s => s.type === 'work' && s.completed);
+        const completedPomodoros = todaySessions
+            .filter(s => s.type === 'work')
+            .reduce((sum, s) => sum + this.recordManager.calculateSessionCount(s), 0);
 
         return `
             <div class="progress-info">
                 <div class="progress-item">
                     <span class="progress-label">${t("completedPomodoros")}</span>
-                    <span class="progress-value">${workSessions.length}</span>
+                    <span class="progress-value">${completedPomodoros}</span>
                 </div>
                 <div class="progress-item">
                     <span class="progress-label">${t("focusTime")}</span>
@@ -511,12 +513,16 @@ export class PomodoroStatsView {
 
     private getTodayPomodoroCount(): number {
         const todaySessions = this.recordManager.getTodaySessions();
-        return todaySessions.filter(s => s.type === 'work' && s.completed).length;
+        return todaySessions
+            .filter(s => s.type === 'work')
+            .reduce((sum, s) => sum + this.recordManager.calculateSessionCount(s), 0);
     }
 
     private getWeekPomodoroCount(): number {
         const weekSessions = this.recordManager.getWeekSessions();
-        return weekSessions.filter(s => s.type === 'work' && s.completed).length;
+        return weekSessions
+            .filter(s => s.type === 'work')
+            .reduce((sum, s) => sum + this.recordManager.calculateSessionCount(s), 0);
     }
 
     private getTotalPomodoroCount(): number {
@@ -584,9 +590,7 @@ export class PomodoroStatsView {
                 stats[category] = { time: 0, count: 0 };
             }
             stats[category].time += session.duration;
-            if (session.completed) {
-                stats[category].count++;
-            }
+            stats[category].count += this.recordManager.calculateSessionCount(session);
         });
 
         return stats;
@@ -856,30 +860,30 @@ export class PomodoroStatsView {
             sessions.filter(s => s.type === 'work').forEach(session => {
                 hasData = true;
                 const startTime = new Date(session.startTime);
-                  const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
-                  const dayStartMinutes = this.getLogicalTimelineStartMinutes();
-                  const adjustedStartMinutes = (startMinutes - dayStartMinutes + 1440) % 1440;
-                  const duration = session.duration;
+                const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
+                const dayStartMinutes = this.getLogicalTimelineStartMinutes();
+                const adjustedStartMinutes = (startMinutes - dayStartMinutes + 1440) % 1440;
+                const duration = session.duration;
 
-                  // 将专注时间分布到对应的逻辑小时中
-                  let remainingDuration = duration;
-                  let currentHour = Math.floor(adjustedStartMinutes / 60);
-                  let currentMinute = adjustedStartMinutes % 60;
-                  let minutesCovered = 0;
+                // 将专注时间分布到对应的逻辑小时中
+                let remainingDuration = duration;
+                let currentHour = Math.floor(adjustedStartMinutes / 60);
+                let currentMinute = adjustedStartMinutes % 60;
+                let minutesCovered = 0;
 
-                  while (remainingDuration > 0 && minutesCovered < 24 * 60) {
-                      // 计算当前小时内剩余的分钟数
-                      const minutesLeftInHour = 60 - currentMinute;
-                      const durationInThisHour = Math.min(remainingDuration, minutesLeftInHour);
+                while (remainingDuration > 0 && minutesCovered < 24 * 60) {
+                    // 计算当前小时内剩余的分钟数
+                    const minutesLeftInHour = 60 - currentMinute;
+                    const durationInThisHour = Math.min(remainingDuration, minutesLeftInHour);
 
-                      hourlyStats[currentHour] += durationInThisHour;
-                      remainingDuration -= durationInThisHour;
-                      minutesCovered += durationInThisHour;
+                    hourlyStats[currentHour] += durationInThisHour;
+                    remainingDuration -= durationInThisHour;
+                    minutesCovered += durationInThisHour;
 
-                      // 移动到下一个逻辑小时
-                      currentHour = (currentHour + 1) % 24;
-                      currentMinute = 0;
-                  }
+                    // 移动到下一个逻辑小时
+                    currentHour = (currentHour + 1) % 24;
+                    currentMinute = 0;
+                }
             });
 
             if (hasData) {
@@ -934,30 +938,30 @@ export class PomodoroStatsView {
                 sessions.filter(s => s.type === 'work').forEach(session => {
                     hasData = true;
                     const startTime = new Date(session.startTime);
-                  const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
-                  const dayStartMinutes = this.getLogicalTimelineStartMinutes();
-                  const adjustedStartMinutes = (startMinutes - dayStartMinutes + 1440) % 1440;
-                  const duration = session.duration;
+                    const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
+                    const dayStartMinutes = this.getLogicalTimelineStartMinutes();
+                    const adjustedStartMinutes = (startMinutes - dayStartMinutes + 1440) % 1440;
+                    const duration = session.duration;
 
-                  // 将专注时间分布到对应的逻辑小时中
-                  let remainingDuration = duration;
-                  let currentHour = Math.floor(adjustedStartMinutes / 60);
-                  let currentMinute = adjustedStartMinutes % 60;
-                  let minutesCovered = 0;
+                    // 将专注时间分布到对应的逻辑小时中
+                    let remainingDuration = duration;
+                    let currentHour = Math.floor(adjustedStartMinutes / 60);
+                    let currentMinute = adjustedStartMinutes % 60;
+                    let minutesCovered = 0;
 
-                  while (remainingDuration > 0 && minutesCovered < 24 * 60) {
-                      // 计算当前小时内剩余的分钟数
-                      const minutesLeftInHour = 60 - currentMinute;
-                      const durationInThisHour = Math.min(remainingDuration, minutesLeftInHour);
+                    while (remainingDuration > 0 && minutesCovered < 24 * 60) {
+                        // 计算当前小时内剩余的分钟数
+                        const minutesLeftInHour = 60 - currentMinute;
+                        const durationInThisHour = Math.min(remainingDuration, minutesLeftInHour);
 
-                      hourlyStats[currentHour] += durationInThisHour;
-                      remainingDuration -= durationInThisHour;
-                      minutesCovered += durationInThisHour;
+                        hourlyStats[currentHour] += durationInThisHour;
+                        remainingDuration -= durationInThisHour;
+                        minutesCovered += durationInThisHour;
 
-                      // 移动到下一个逻辑小时
-                      currentHour = (currentHour + 1) % 24;
-                      currentMinute = 0;
-                  }
+                        // 移动到下一个逻辑小时
+                        currentHour = (currentHour + 1) % 24;
+                        currentMinute = 0;
+                    }
                 });
 
                 if (hasData) {
@@ -1412,7 +1416,7 @@ export class PomodoroStatsView {
                                 const title = params.value[3];
                                 const startTime = this.formatTimelineHour(params.value[0]);
 
-return `${title}<br/>时间段: ${startTime}<br/>平均时长: ${duration}分钟`;
+                                return `${title}<br/>时间段: ${startTime}<br/>平均时长: ${duration}分钟`;
                             }
                         }
                     });
@@ -1485,7 +1489,7 @@ return `${title}<br/>时间段: ${startTime}<br/>平均时长: ${duration}分钟
                                     const title = params.value[3];
                                     const startTime = this.formatTimelineHour(params.value[0]);
 
-return `${title}<br/>开始时间: ${startTime}<br/>持续时间: ${duration}分钟`;
+                                    return `${title}<br/>开始时间: ${startTime}<br/>持续时间: ${duration}分钟`;
                                 }
                             }
                         });
@@ -1524,10 +1528,10 @@ return `${title}<br/>开始时间: ${startTime}<br/>持续时间: ${duration}分
                     max: 24,
                     interval: 2,
                     axisLabel: {
-                          formatter: (value) => {
-                              return this.formatTimelineHour(value);
-                          }
-                      },
+                        formatter: (value) => {
+                            return this.formatTimelineHour(value);
+                        }
+                    },
                     name: '时间',
                     nameLocation: 'middle',
                     nameGap: 30

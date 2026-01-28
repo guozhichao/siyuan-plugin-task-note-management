@@ -1107,7 +1107,7 @@ export class ProjectPanel {
         let totalPomodoro = 0;
         try {
             const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
-            const pomodoroManager = PomodoroRecordManager.getInstance();
+            const pomodoroManager = PomodoroRecordManager.getInstance(this.plugin);
             const reminderMap = new Map(allReminders.map((r: any) => [r.id, r]));
             // Only sum aggregated count for top-level reminders in the project to avoid double counting
             const topLevelReminders = allReminders.filter((r: any) => {
@@ -1143,7 +1143,7 @@ export class ProjectPanel {
         let totalMinutes = 0;
         try {
             const { PomodoroRecordManager } = await import("../utils/pomodoroRecord");
-            const pomodoroManager = PomodoroRecordManager.getInstance();
+            const pomodoroManager = PomodoroRecordManager.getInstance(this.plugin);
             if (!pomodoroManager) return 0;
             if ((pomodoroManager as any).initialize && typeof (pomodoroManager as any).initialize === 'function') {
                 await (pomodoroManager as any).initialize();
