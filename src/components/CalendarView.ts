@@ -2671,32 +2671,45 @@ export class CalendarView {
     }
 
     private async performDeleteEvent(reminderId: string) {
-        try {
-            const reminderData = await getAllReminders(this.plugin);
-
-            if (reminderData[reminderId]) {
-                const blockId = reminderData[reminderId].blockId;
-                delete reminderData[reminderId];
-                await saveReminders(this.plugin, reminderData);
-
-                // 更新块的书签状态
-                if (blockId) {
-                    await updateBindBlockAtrrs(blockId, this.plugin);
-                }
-
-                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
-
-                // 立即刷新事件显示
-                await this.refreshEvents();
-
-                showMessage(t("reminderDeleted"));
-            } else {
-                showMessage(t("reminderNotExist"));
+        // 1. 立即从日历 UI 中移除 (Optimistic UI)
+        this.calendar.getEvents().forEach(event => {
+            if (event.id === reminderId || event.extendedProps.originalId === reminderId) {
+                event.remove();
             }
-        } catch (error) {
-            console.error('删除提醒失败:', error);
-            showMessage(t("deleteReminderFailed"));
-        }
+        });
+
+        // 2. 后台处理数据保存和同步
+        (async () => {
+            try {
+                const reminderData = await getAllReminders(this.plugin);
+
+                if (reminderData[reminderId]) {
+                    const blockId = reminderData[reminderId].blockId;
+                    delete reminderData[reminderId];
+
+                    // 保存数据到存储
+                    await saveReminders(this.plugin, reminderData);
+
+                    // 后台更新块属性
+                    if (blockId) {
+                        try {
+                            await updateBindBlockAtrrs(blockId, this.plugin);
+                        } catch (err) {
+                            console.error('后台更新块属性失败:', err);
+                        }
+                    }
+
+                    // 触发更新事件
+                    window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
+                    showMessage(t("reminderDeleted"));
+                }
+            } catch (error) {
+                console.error('后台删除提醒过程出错:', error);
+                showMessage(t("deleteReminderFailed"));
+                // 失败时同步数据回滚显示
+                await this.refreshEvents();
+            }
+        })();
     }
 
     private renderEventContent(eventInfo) {
