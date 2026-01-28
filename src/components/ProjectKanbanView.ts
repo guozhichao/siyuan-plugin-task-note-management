@@ -2024,7 +2024,6 @@ export class ProjectKanbanView {
         manageStatusesBtn.className = 'b3-button b3-button--outline';
         manageStatusesBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg> ${t('manageStatuses') || '任务状态'}`;
         manageStatusesBtn.title = t('manageKanbanStatuses') || '管理任务状态';
-        manageStatusesBtn.style.display = this.kanbanMode === 'status' ? 'inline-flex' : 'none';
         manageStatusesBtn.addEventListener('click', () => this.showManageKanbanStatusesDialog());
         controlsGroup.appendChild(manageStatusesBtn);
 
@@ -2033,7 +2032,6 @@ export class ProjectKanbanView {
         manageGroupsBtn.className = 'b3-button b3-button--outline';
         manageGroupsBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg> ${t('manageGroups')}`;
         manageGroupsBtn.title = t('manageCustomGroups');
-        manageGroupsBtn.style.display = this.kanbanMode === 'custom' ? 'inline-flex' : 'none';
         manageGroupsBtn.addEventListener('click', () => this.showManageGroupsDialog());
         controlsGroup.appendChild(manageGroupsBtn);
 
