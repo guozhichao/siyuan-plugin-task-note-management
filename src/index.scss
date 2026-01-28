@@ -1605,13 +1605,13 @@
 }
 
 // 任务类型选择器样式
-.term-type-selector {
+.task-status-selector {
     display: flex;
     gap: 12px;
     align-items: center;
 }
 
-.term-type-option {
+.task-status-option {
     flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
@@ -1640,7 +1640,7 @@
         border-color: var(--b3-theme-primary);
         background-color: var(--b3-theme-primary-lightest) !important;
         color: var(--b3-theme-primary);
-        }
+    }
 }
 
 // 优先级标签样式

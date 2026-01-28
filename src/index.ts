@@ -145,6 +145,7 @@ export const DEFAULT_SETTINGS = {
     // 数据迁移标记
     datatransfer: {
         bindblockAddAttr: false, // 是否已迁移绑定块的 custom-bind-reminders 属性
+        termTypeTransfer: false, // 是否已迁移 termType -> kanbanStatus 的转换
     },
 };
 
@@ -4150,6 +4151,63 @@ export default class ReminderPlugin extends Plugin {
                 settings.datatransfer = settings.datatransfer || {};
                 settings.datatransfer.bindblockAddAttr = true;
                 await this.saveSettings(settings);
+            }
+
+            // 检查是否需要迁移 termType -> kanbanStatus 并删除 termType 键
+            if (!settings.datatransfer?.termTypeTransfer) {
+                try {
+                    console.log('开始迁移 termType 到 kanbanStatus 并删除 termType 键...');
+                    const reminderData = await this.loadReminderData(true);
+                    if (reminderData && typeof reminderData === 'object') {
+                        let mappedCount = 0;
+                        let removedCount = 0;
+                        for (const [id, item] of Object.entries(reminderData) as [string, any][]) {
+                            try {
+                                if (!item || typeof item !== 'object') continue;
+
+                                // 如果当前状态是 todo 且 termType 为 short_term/long_term，则将 kanbanStatus 设置为 termType
+                                if (item.kanbanStatus === 'todo' && (item.termType === 'short_term' || item.termType === 'long_term')) {
+                                    item.kanbanStatus = item.termType;
+                                    mappedCount++;
+                                }
+
+                                // 无论是否做了映射，都删除 termType 键（按要求移除该键）
+                                if ('termType' in item) {
+                                    try {
+                                        delete item.termType;
+                                        removedCount++;
+                                    } catch (e) {
+                                        // 某些情况下 item 可能是不可写对象，尝试设置为 undefined 再删除
+                                        try {
+                                            (item as any).termType = undefined;
+                                            delete (item as any).termType;
+                                            removedCount++;
+                                        } catch (ee) {
+                                            console.warn(`无法删除提醒 ${id} 的 termType 键:`, ee);
+                                        }
+                                    }
+                                }
+                            } catch (err) {
+                                console.warn(`迁移提醒 ${id} 时出错:`, err);
+                            }
+                        }
+
+                        if (mappedCount > 0 || removedCount > 0) {
+                            await this.saveReminderData(reminderData);
+                            console.log(`termType 迁移完成，映射 ${mappedCount} 条，删除 ${removedCount} 条 termType 键`);
+                        } else {
+                            console.log('termType 迁移完成，未发现需要映射或删除的项');
+                        }
+                    } else {
+                        console.log('没有找到提醒数据，跳过 termType 迁移');
+                    }
+
+                    settings.datatransfer = settings.datatransfer || {};
+                    settings.datatransfer.termTypeTransfer = true;
+                    await this.saveSettings(settings);
+                } catch (err) {
+                    console.error('termType 到 kanbanStatus 的迁移失败:', err);
+                }
             }
         } catch (error) {
             console.error('数据迁移失败:', error);

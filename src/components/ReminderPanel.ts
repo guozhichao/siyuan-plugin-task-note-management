@@ -2682,7 +2682,6 @@ export class ReminderPanel {
                         categoryId: instanceMod?.categoryId !== undefined ? instanceMod.categoryId : reminder.categoryId,
                         projectId: instanceMod?.projectId !== undefined ? instanceMod.projectId : reminder.projectId,
                         customGroupId: instanceMod?.customGroupId !== undefined ? instanceMod.customGroupId : reminder.customGroupId,
-                        termType: instanceMod?.termType !== undefined ? instanceMod.termType : reminder.termType,
                         kanbanStatus: instanceMod?.kanbanStatus !== undefined ? instanceMod.kanbanStatus : reminder.kanbanStatus,
                         // 提醒时间相关字段
                         reminderTimes: instanceMod?.reminderTimes !== undefined ? instanceMod.reminderTimes : reminder.reminderTimes,
@@ -6587,7 +6586,6 @@ export class ReminderPanel {
                 categoryId: instanceMod?.categoryId !== undefined ? instanceMod.categoryId : originalReminder.categoryId,
                 projectId: instanceMod?.projectId !== undefined ? instanceMod.projectId : originalReminder.projectId,
                 customGroupId: instanceMod?.customGroupId !== undefined ? instanceMod.customGroupId : originalReminder.customGroupId,
-                termType: instanceMod?.termType !== undefined ? instanceMod.termType : originalReminder.termType,
                 kanbanStatus: instanceMod?.kanbanStatus !== undefined ? instanceMod.kanbanStatus : originalReminder.kanbanStatus,
                 // 提醒时间相关字段
                 reminderTimes: instanceMod?.reminderTimes !== undefined ? instanceMod.reminderTimes : originalReminder.reminderTimes,

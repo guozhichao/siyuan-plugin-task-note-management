@@ -65,7 +65,7 @@ export class ProjectKanbanView {
     private pomodoroRecordManager: PomodoroRecordManager; // Add property
 
     // 上一次选择的任务状态（用于记住新建任务时的默认选择）
-    private lastSelectedTermType: 'short_term' | 'long_term' | 'doing' | 'todo' = 'short_term';
+    private lastSelectedStatus: string | null = null;
     // 上一次选择的自定义分组（用于记住新建任务时的默认分组）
     private lastSelectedCustomGroupId: string | null = null;
     // 防抖加载与滚动状态保存
@@ -1031,47 +1031,6 @@ export class ProjectKanbanView {
         return updatedStatuses;
     }
 
-    /**
-     * 更新任务状态
-     */
-    private async updateTaskStatus(task: any, newStatusId: string): Promise<void> {
-        const reminderData = await this.getReminders();
-        const actualTaskId = task.originalId || task.id;
-
-        if (!reminderData[actualTaskId]) {
-            console.warn('任务不存在:', actualTaskId);
-            return;
-        }
-
-        // 获取目标状态配置
-        const targetStatus = this.kanbanStatuses.find(s => s.id === newStatusId);
-        if (!targetStatus) {
-            console.warn('目标状态不存在:', newStatusId);
-            return;
-        }
-
-        // 更新任务状态
-        if (newStatusId === 'doing') {
-            reminderData[actualTaskId].kanbanStatus = 'doing';
-            delete reminderData[actualTaskId].termType;
-        } else if (newStatusId === 'completed') {
-            reminderData[actualTaskId].kanbanStatus = 'completed';
-            reminderData[actualTaskId].completed = true;
-            reminderData[actualTaskId].completedTime = getLocalDateTimeString(new Date());
-            delete reminderData[actualTaskId].termType;
-        } else {
-            // 其他状态使用 kanbanStatus
-            reminderData[actualTaskId].kanbanStatus = newStatusId;
-            delete reminderData[actualTaskId].termType;
-        }
-
-        // 保存更新
-        const { saveReminders } = await import('../utils/icsSubscription');
-        await saveReminders(this.plugin, reminderData);
-
-        // 刷新缓存
-        this.reminderData = null;
-    }
 
     private async showManageTagsDialog() {
         const dialog = new Dialog({
@@ -2281,9 +2240,7 @@ export class ProjectKanbanView {
             addTaskBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>`;
             addTaskBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                // 直接传递列的 status 作为默认状态（支持自定义状态 ID）
-                const term = status as any;
-                this.showCreateTaskDialog(undefined, this.lastSelectedCustomGroupId, term);
+                this.showCreateTaskDialog(undefined, this.lastSelectedCustomGroupId, status);
             });
 
             rightContainer.appendChild(addTaskBtn);
@@ -2295,9 +2252,7 @@ export class ProjectKanbanView {
             pasteTaskBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg>`;
             pasteTaskBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                // 传递列的 status 作为默认状态，并显示选择器
-                const term = status as any;
-                this.showPasteTaskDialog(undefined, this.lastSelectedCustomGroupId, term, true);
+                this.showPasteTaskDialog(undefined, this.lastSelectedCustomGroupId, status, true);
             });
 
             rightContainer.appendChild(pasteTaskBtn);
@@ -2449,7 +2404,9 @@ export class ProjectKanbanView {
         element.addEventListener('dragover', (e) => {
             if (this.isDragging && this.draggedTask) {
                 // 检查是否可以改变状态或解除父子关系
-                const canChangeStatus = this.draggedTask.status !== status;
+                // 使用 getTaskStatus 获取当前任务的实际状态
+                const currentStatus = this.getTaskStatus(this.draggedTask);
+                const canChangeStatus = currentStatus !== status;
                 const canUnsetParent = !!this.draggedTask.parentId;
 
                 if (canChangeStatus || canUnsetParent) {
@@ -2477,8 +2434,10 @@ export class ProjectKanbanView {
                 element.classList.remove('kanban-drop-zone-active');
                 this.updateIndicator('none', null, null);
 
+                // 使用 getTaskStatus 获取当前任务的实际状态
+                const currentStatus = this.getTaskStatus(this.draggedTask);
                 // 如果状态改变，执行状态切换
-                if (this.draggedTask.status !== status) {
+                if (currentStatus !== status) {
                     this.changeTaskStatus(this.draggedTask, status);
                 }
                 // 否则，如果有父任务，解除父子关系
@@ -2597,11 +2556,9 @@ export class ProjectKanbanView {
                         localTask.completed = false;
                         delete localTask.completedTime;
                         if (targetStatus === 'long_term' || targetStatus === 'short_term') {
-                            localTask.termType = targetStatus;
-                            localTask.kanbanStatus = 'todo';
+                            localTask.kanbanStatus = targetStatus;
                         } else if (targetStatus === 'doing') {
                             localTask.kanbanStatus = 'doing';
-                            delete localTask.termType;
                         }
                     }
 
@@ -2636,12 +2593,11 @@ export class ProjectKanbanView {
                                 taskInDb.completed = false;
                                 delete taskInDb.completedTime;
                                 if (targetStatus === 'long_term' || targetStatus === 'short_term') {
-                                    taskInDb.termType = targetStatus;
-                                    taskInDb.kanbanStatus = 'todo';
+                                    taskInDb.kanbanStatus = targetStatus;
                                 } else if (targetStatus === 'doing') {
                                     taskInDb.kanbanStatus = 'doing';
-                                    delete taskInDb.termType;
                                 }
+
                             }
 
                             // Update group in DB
@@ -2914,7 +2870,6 @@ export class ProjectKanbanView {
                             categoryId: instanceMod?.categoryId !== undefined ? instanceMod.categoryId : reminder.categoryId,
                             projectId: instanceMod?.projectId !== undefined ? instanceMod.projectId : reminder.projectId,
                             customGroupId: instanceMod?.customGroupId !== undefined ? instanceMod.customGroupId : reminder.customGroupId,
-                            termType: instanceMod?.termType !== undefined ? instanceMod.termType : reminder.termType,
                             kanbanStatus: instanceMod?.kanbanStatus !== undefined ? instanceMod.kanbanStatus : reminder.kanbanStatus,
                             // 为已完成的实例添加完成时间（用于排序）
                             completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined
@@ -3383,7 +3338,6 @@ export class ProjectKanbanView {
                                     ...instance,
                                     // 合并修改属性以便后续判断状态
                                     kanbanStatus: instanceMod.kanbanStatus || r.kanbanStatus,
-                                    termType: instanceMod.termType || r.termType
                                 });
                             }
                         }
@@ -3443,7 +3397,7 @@ export class ProjectKanbanView {
 
     /**
      * 获取任务的看板状态
-     * 优先使用kanbanStatus，兼容旧数据的termType
+     * 优先使用kanbanStatus
      */
     private getTaskStatus(task: any): string {
         if (task.completed) return 'completed';
@@ -3455,26 +3409,9 @@ export class ProjectKanbanView {
             if (validStatus) {
                 return task.kanbanStatus;
             }
-            // 如果是todo，需要根据termType或日期判断
-            if (task.kanbanStatus === 'todo') {
-                // 向后兼容：根据termType判断
-                if (task.termType === 'long_term') return 'long_term';
-                if (task.termType === 'doing') return 'doing';
-                // 根据日期自动判断
-                if (task.date) {
-                    const today = getLogicalDateString();
-                    const dateComparison = compareDateStrings(this.getTaskLogicalDate(task.date, task.time), today);
-                    if (dateComparison <= 0) {
-                        return 'doing';
-                    }
-                }
-                return 'short_term'; // 默认为短期
-            }
         }
 
-        // 向后兼容：根据termType判断
-        if (task.termType === 'long_term') return 'long_term';
-        if (task.termType === 'doing') return 'doing';
+
 
         // 如果未完成的任务设置了日期，且日期为今天或过期，放入进行中列
         if (task.date) {
@@ -3485,7 +3422,7 @@ export class ProjectKanbanView {
             }
         }
 
-        return 'short_term'; // 默认为短期
+        return 'doing'; // 默认为doing
     }
 
     private updateSortButtonTitle() {
@@ -4241,8 +4178,7 @@ export class ProjectKanbanView {
                     addGroupTaskBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
                         // 直接把列的 status 作为默认状态传入（支持自定义状态 id）
-                        const term = status as any;
-                        this.showCreateTaskDialog(undefined, this.lastSelectedCustomGroupId, term);
+                        this.showCreateTaskDialog(undefined, this.lastSelectedCustomGroupId, status);
                     });
 
                     headerRight.appendChild(addGroupTaskBtn);
@@ -4692,7 +4628,6 @@ export class ProjectKanbanView {
             addTaskBtn.innerHTML = `<svg style="width: 14px; height: 14px;"><use xlink:href="#iconAdd"></use></svg>`;
             addTaskBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                // 使用 status 作为 termType
                 this.showCreateTaskDialog(undefined, group.id, status as any);
             });
             headerRight.appendChild(addTaskBtn);
@@ -6363,24 +6298,6 @@ export class ProjectKanbanView {
 
         menu.addSeparator();
 
-        // 任务类型切换
-        const currentTermType = task.termType; // 不设默认值，允许为 undefined
-
-        if (currentTermType !== 'short_term') {
-            menu.addItem({
-                iconHTML: "📝",
-                label: t('setAsShortTerm'),
-                click: () => this.changeTaskStatus(task, 'short_term')
-            });
-        }
-
-        if (currentTermType !== 'long_term') {
-            menu.addItem({
-                iconHTML: "🎯",
-                label: t('setAsLongTerm'),
-                click: () => this.changeTaskStatus(task, 'long_term')
-            });
-        }
 
 
         // 状态切换
@@ -6504,7 +6421,6 @@ export class ProjectKanbanView {
             } else {
                 // 状态看板模式：已完成任务通常会移动到 completed 列，或者留在原列但变灰
                 // 根据当前逻辑，如果任务完成，它可能会移动到 'completed' 列
-                // 或者如果它有 termType，可能仍在 'doing'/'todo' 但被渲染为已完成样式
                 // 这里简单粗暴一点：刷新所有涉及的列。通常是 source 和 target。
                 // 如果是简单勾选，任务状态可能没变，只是 completed 属性变了。
                 // 检查 loadTasks 逻辑，completed 的任务通常有自己的归宿。
@@ -6726,20 +6642,15 @@ export class ProjectKanbanView {
                             }
                         }
 
-                        // 对于周期事件，也需要支持修改 termType 和 kanbanStatus
+                        // 对于周期事件，也需要支持修改 kanbanStatus
                         // 修改的是原始周期事件的属性，会影响所有未来实例
                         if (newStatus === 'long_term' || newStatus === 'short_term') {
-                            reminderData[actualTaskId].termType = newStatus;
-                            reminderData[actualTaskId].kanbanStatus = 'todo';
+                            reminderData[actualTaskId].kanbanStatus = newStatus;
                         } else if (newStatus === 'doing') {
                             reminderData[actualTaskId].kanbanStatus = 'doing';
-                            // 设置为进行中时，清空termType
-                            delete reminderData[actualTaskId].termType;
                         } else {
                             // 支持自定义 kanban status id（非 long_term/short_term/doing）
                             reminderData[actualTaskId].kanbanStatus = newStatus;
-                            // 自定义状态通常不使用 termType
-                            delete reminderData[actualTaskId].termType;
                         }
                     }
                 } else {
@@ -6754,18 +6665,12 @@ export class ProjectKanbanView {
                         reminderData[actualTaskId].completed = false;
                         delete reminderData[actualTaskId].completedTime;
 
-                        // 根据新状态设置kanbanStatus和termType
-                        if (newStatus === 'long_term' || newStatus === 'short_term') {
-                            reminderData[actualTaskId].termType = newStatus;
-                            reminderData[actualTaskId].kanbanStatus = 'todo';
-                        } else if (newStatus === 'doing') {
+                        // 根据新状态设置kanbanStatus
+                        if (newStatus === 'doing') {
                             reminderData[actualTaskId].kanbanStatus = 'doing';
-                            // 设置为进行中时，清空termType
-                            delete reminderData[actualTaskId].termType;
                         } else {
                             // 支持自定义 kanban status id（非 long_term/short_term/doing）
                             reminderData[actualTaskId].kanbanStatus = newStatus;
-                            delete reminderData[actualTaskId].termType;
                         }
                     }
                 }
@@ -7158,7 +7063,7 @@ export class ProjectKanbanView {
     }
 
     // 使用 QuickReminderDialog 创建任务
-    private showCreateTaskDialog(parentTask?: any, defaultCustomGroupId?: string | null, defaultTermType?: 'short_term' | 'long_term' | 'doing' | 'todo') {
+    private showCreateTaskDialog(parentTask?: any, defaultCustomGroupId?: string | null, defaultStatus?) {
         // Calculate max sort value to place new task at the end
         const maxSort = this.tasks.reduce((max, task) => Math.max(max, task.sort || 0), 0);
         const defaultSort = maxSort + 10000;
@@ -7230,7 +7135,7 @@ export class ProjectKanbanView {
                 hideProjectSelector: true, // 隐藏项目选择器
                 showKanbanStatus: 'term', // 显示任务类型选择
                 // 使用上一次选择的 termType 作为默认值
-                defaultTermType: defaultTermType || this.lastSelectedTermType,
+                defaultStatus: defaultStatus || this.lastSelectedStatus,
                 plugin: this.plugin, // 传入plugin实例
                 defaultSort: defaultSort
             }
@@ -7238,22 +7143,22 @@ export class ProjectKanbanView {
 
         quickDialog.show();
 
-        // 重写保存回调，保存用户选择的 termType 和自定义分组
+        // 重写保存回调，保存用户选择的 status 和自定义分组
         const originalOnSaved = quickDialog['onSaved'];
         quickDialog['onSaved'] = async (savedTask: any) => {
             if (originalOnSaved) {
                 originalOnSaved(savedTask);
             }
 
-            // 保存用户选择的 termType 到内存中
+            // 保存用户选择的 status 到内存中
             try {
-                const selectedTermType = quickDialog['dialog']?.element?.querySelector('#quickTermTypeSelector .term-type-option.selected') as HTMLElement;
-                const termType = selectedTermType?.getAttribute('data-term-type') as 'short_term' | 'long_term' | 'doing' | 'todo' | undefined;
-                if (termType && termType !== this.lastSelectedTermType) {
-                    this.lastSelectedTermType = termType;
+                const selectedStatus = quickDialog['dialog']?.element?.querySelector('#quickStatusSelector .task-status-option.selected') as HTMLElement;
+                const status = selectedStatus?.getAttribute('data-status-type');
+                if (status && status !== this.lastSelectedStatus) {
+                    this.lastSelectedStatus = status;
                 }
             } catch (error) {
-                console.error('保存上一次选择的 termType 失败:', error);
+                console.error('保存上一次选择的 status 失败:', error);
             }
 
             // 保存用户选择的自定义分组到内存中（空字符串视为 null）
@@ -7367,7 +7272,7 @@ export class ProjectKanbanView {
         }
     }
 
-    private async showPasteTaskDialog(parentTask?: any, customGroupId?: string, defaultTermType?: string, showSelectors: boolean = false) {
+    private async showPasteTaskDialog(parentTask?: any, customGroupId?: string, defaultStatus?: string, showSelectors: boolean = false) {
         // 如果需要显示选择器，获取项目配置
         let projectGroups: any[] = [];
         let kanbanStatuses: any[] = this.kanbanStatuses;
@@ -7387,7 +7292,7 @@ export class ProjectKanbanView {
             parentTask,
             projectId: this.projectId,
             customGroupId,
-            defaultTermType,
+            defaultStatus: defaultStatus,
             showStatusSelector: showSelectors && !parentTask, // 只在非子任务且显示选择器时显示
             showGroupSelector: showSelectors && !parentTask,  // 只在非子任务且显示选择器时显示
             projectGroups,
@@ -8069,13 +7974,13 @@ export class ProjectKanbanView {
             }
 
             
-            .term-type-selector {
+            .task-status-selector {
                 display: flex;
                 gap: 12px;
                 flex-wrap: wrap;
                 align-items: flex-start;
             }
-            .term-type-option {
+            .task-status-option {
                 flex: 0 0 auto;
                 display: inline-flex;
                 align-items: center;
@@ -8089,11 +7994,11 @@ export class ProjectKanbanView {
                 background-color: var(--b3-theme-surface);
                 white-space: nowrap;
             }
-            .term-type-option:hover {
+            .task-status-option:hover {
                 background-color: var(--b3-theme-surface-lighter);
                 border-color: var(--b3-theme-primary-lighter);
             }
-            .term-type-option.selected {
+            .task-status-option.selected {
                 font-weight: 600;
                 border-color: var(--b3-theme-primary);
                 background-color: var(--b3-theme-primary-lightest);
@@ -9343,11 +9248,16 @@ export class ProjectKanbanView {
 
             // 2. A sub-task inherits the status of its parent (or more accurately, its root parent)
             const parentStatus = this.getTaskStatus(parentTaskInDb);
-            if (parentStatus === 'doing' && !draggedTaskInDb.completed) {
-                draggedTaskInDb.kanbanStatus = 'doing';
-            } else if (!draggedTaskInDb.completed) {
-                // If parent is not 'doing', child becomes 'todo'
-                draggedTaskInDb.kanbanStatus = 'todo';
+            if (!draggedTaskInDb.completed) {
+                if (parentStatus === 'doing') {
+                    draggedTaskInDb.kanbanStatus = 'doing';
+                } else if (parentStatus === 'long_term' || parentStatus === 'short_term') {
+                    // 继承父任务的长期/短期状态
+                    draggedTaskInDb.kanbanStatus = parentStatus;
+                } else {
+                    // 其他状态默认设为进行中
+                    draggedTaskInDb.kanbanStatus = 'doing';
+                }
             }
 
             // 3. Reorder siblings
@@ -9449,13 +9359,11 @@ export class ProjectKanbanView {
                         draggedTaskInDb.completed = false;
                         delete draggedTaskInDb.completedTime;
 
-                        // Update termType/kanbanStatus based on newStatus
+                        // Update kanbanStatus based on newStatus
                         if (newStatus === 'long_term' || newStatus === 'short_term') {
-                            draggedTaskInDb.termType = newStatus;
-                            draggedTaskInDb.kanbanStatus = 'todo';
+                            draggedTaskInDb.kanbanStatus = newStatus;
                         } else if (newStatus === 'doing') {
                             draggedTaskInDb.kanbanStatus = 'doing';
-                            delete draggedTaskInDb.termType;
                         }
                     }
                 }
@@ -9533,7 +9441,6 @@ export class ProjectKanbanView {
                         localTask.customGroupId = task.customGroupId;
                         localTask.completed = task.completed;
                         localTask.completedTime = task.completedTime;
-                        localTask.termType = task.termType;
                     }
                 });
 
@@ -9612,14 +9519,11 @@ export class ProjectKanbanView {
                     draggedTaskInDb.completed = false;
                     delete draggedTaskInDb.completedTime;
 
-                    // Correctly handle termType
+                    // Update kanbanStatus based on newStatus
                     if (newStatus === 'long_term' || newStatus === 'short_term') {
-                        draggedTaskInDb.termType = newStatus;
-                        draggedTaskInDb.kanbanStatus = 'todo';
+                        draggedTaskInDb.kanbanStatus = newStatus;
                     } else if (newStatus === 'doing') {
                         draggedTaskInDb.kanbanStatus = 'doing';
-                        // Clear termType when doing
-                        delete draggedTaskInDb.termType;
                     }
                 }
             }
@@ -9665,7 +9569,6 @@ export class ProjectKanbanView {
                     localTask.customGroupId = task.customGroupId;
                     localTask.completed = task.completed;
                     localTask.completedTime = task.completedTime;
-                    localTask.termType = task.termType;
                 }
             });
 
@@ -10181,7 +10084,7 @@ export class ProjectKanbanView {
         }
 
         // 如果状态改变，智能移动任务卡片到新列
-        if ('kanbanStatus' in updates || 'termType' in updates || 'completed' in updates || 'date' in updates) {
+        if ('kanbanStatus' in updates || 'completed' in updates || 'date' in updates) {
             const newStatus = this.getTaskStatus(task);
             // 尝试从最近的带 data-status 的祖先元素获取当前状态，兼容自定义分组模式下的子状态容器
             const statusAncestor = taskEl.closest('[data-status]') as HTMLElement | null;
@@ -10848,8 +10751,9 @@ export class ProjectKanbanView {
     private async updateTaskStatus(task: any, newStatus: string): Promise<void> {
         // 使用 kanbanStatus 字段存储看板状态
         if (newStatus === 'completed') {
+            task.kanbanStatus = 'completed';
             task.completed = true;
-            task.completedTime = new Date().toISOString();
+            task.completedTime = getLocalDateTimeString(new Date());
         } else if (newStatus === 'doing') {
             task.completed = false;
             task.completedTime = undefined;

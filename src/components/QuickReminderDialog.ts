@@ -29,7 +29,7 @@ export class QuickReminderDialog {
     private autoDetectDateTime?: boolean; // 是否自动识别日期时间（undefined 表示未指定，使用插件设置）
     private defaultProjectId?: string;
     private showKanbanStatus?: 'todo' | 'term' | 'none' = 'term'; // 看板状态显示模式，默认为 'term'
-    private defaultTermType?: 'short_term' | 'long_term' | 'doing' | 'todo' = 'doing'; // 默认任务状态
+    private defaultStatus?: 'doing'; // 默认任务状态
     private defaultCustomGroupId?: string | null;
     private defaultCustomReminderTime?: string;
     private isTimeRange: boolean = false;
@@ -69,7 +69,7 @@ export class QuickReminderDialog {
             autoDetectDateTime?: boolean;
             defaultProjectId?: string;
             showKanbanStatus?: 'todo' | 'term' | 'none';
-            defaultTermType?: 'short_term' | 'long_term' | 'doing' | 'todo';
+            defaultStatus?: 'short_term' | 'long_term' | 'doing' | 'todo';
             defaultCustomGroupId?: string | null;
             defaultCustomReminderTime?: string;
             plugin?: any;
@@ -102,7 +102,7 @@ export class QuickReminderDialog {
             this.autoDetectDateTime = options.autoDetectDateTime;
             this.defaultProjectId = options.defaultProjectId ?? options.reminder?.projectId;
             this.showKanbanStatus = options.showKanbanStatus || 'term';
-            this.defaultTermType = options.defaultTermType || 'doing';
+            this.defaultStatus = options.defaultStatus || 'doing';
             this.defaultCustomGroupId = options.defaultCustomGroupId !== undefined ? options.defaultCustomGroupId : options.reminder?.customGroupId;
             this.defaultCustomReminderTime = options.defaultCustomReminderTime;
             this.plugin = options.plugin;
@@ -582,11 +582,11 @@ export class QuickReminderDialog {
                 // 延迟一下确保选择器已渲染
                 setTimeout(() => {
                     this.updateKanbanStatusSelector();
-                    const termTypeOptions = this.dialog.element.querySelectorAll('.term-type-option');
+                    const statusOptions = this.dialog.element.querySelectorAll('.task-status-option');
                     const targetStatus = this.reminder.kanbanStatus;
 
-                    termTypeOptions.forEach(option => {
-                        if (option.getAttribute('data-term-type') === targetStatus) {
+                    statusOptions.forEach(option => {
+                        if (option.getAttribute('data-status-type') === targetStatus) {
                             option.classList.add('selected');
                             const status = this.currentKanbanStatuses.find(s => s.id === targetStatus);
                             if (status) {
@@ -1050,7 +1050,7 @@ export class QuickReminderDialog {
                                 <!-- 标签选择器将在这里渲染 -->
                             </div>
                         </div>
-                        ${this.renderTermTypeSelector()}
+                        ${this.renderStatusSelector()}
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("priority")}</label>
                             <div class="priority-selector" id="quickPrioritySelector">
@@ -1307,7 +1307,7 @@ export class QuickReminderDialog {
     }
 
     // 渲染任务状态选择器
-    private renderTermTypeSelector(): string {
+    private renderStatusSelector(): string {
         // 如果 showKanbanStatus 为 'none'，不显示任务状态选择器
         if (this.showKanbanStatus === 'none') {
             return '';
@@ -1318,7 +1318,6 @@ export class QuickReminderDialog {
             // 延迟初始化默认配置
             setTimeout(() => {
                 if (this.currentKanbanStatuses.length === 0) {
-                    const { ProjectManager } = require('../utils/projectManager');
                     const projectManager = ProjectManager.getInstance(this.plugin);
                     this.currentKanbanStatuses = projectManager.getDefaultKanbanStatuses();
                     this.updateKanbanStatusSelector();
@@ -1330,7 +1329,7 @@ export class QuickReminderDialog {
         return `
             <div class="b3-form__group">
                 <label class="b3-form__label">任务状态</label>
-                <div class="term-type-selector" id="quickTermTypeSelector" style="display: flex; gap: 3px; flex-wrap: wrap;">
+                <div class="task-status-selector" id="quickStatusSelector" style="display: flex; gap: 3px; flex-wrap: wrap;">
                     <!-- 动态内容将通过updateKanbanStatusSelector填充 -->
                 </div>
             </div>
@@ -1342,7 +1341,7 @@ export class QuickReminderDialog {
      * 根据当前项目的kanbanStatuses动态生成选项
      */
     private updateKanbanStatusSelector() {
-        const selector = this.dialog?.element?.querySelector('#quickTermTypeSelector') as HTMLElement;
+        const selector = this.dialog?.element?.querySelector('#quickStatusSelector') as HTMLElement;
         if (!selector) return;
 
         // 过滤掉已完成状态，获取可用的状态列表
@@ -1356,8 +1355,8 @@ export class QuickReminderDialog {
         }
 
         // 获取当前选中的状态
-        const currentSelected = selector.querySelector('.term-type-option.selected') as HTMLElement;
-        let currentStatusId = currentSelected?.getAttribute('data-term-type') || this.defaultTermType || 'doing';
+        const currentSelected = selector.querySelector('.task-status-option.selected') as HTMLElement;
+        let currentStatusId = currentSelected?.getAttribute('data-status-type') || this.defaultStatus || 'doing';
 
         // 确保 currentStatusId 在可用状态列表中，如果不在则默认选中第一个
         const statusExists = availableStatuses.some(s => s.id === currentStatusId);
@@ -1376,7 +1375,7 @@ export class QuickReminderDialog {
                 const isSelected = status.id === currentStatusId ? 'selected' : '';
                 const bg = isSelected ? (status.color ? status.color + '20' : 'transparent') : 'transparent';
                 return `
-                    <div class="term-type-option ${isSelected}" data-term-type="${status.id}" style="
+                    <div class="task-status-option ${isSelected}" data-status-type="${status.id}" style="
                         display: inline-flex;
                         align-items: center;
                         gap: 8px;
@@ -1400,17 +1399,17 @@ export class QuickReminderDialog {
         selector.innerHTML = options;
 
         // 重新绑定点击事件 — 单选并更新样式
-        selector.querySelectorAll('.term-type-option').forEach(option => {
+        selector.querySelectorAll('.task-status-option').forEach(option => {
             option.addEventListener('click', (e) => {
                 const target = e.currentTarget as HTMLElement;
                 // 移除其他选中状态样式
-                selector.querySelectorAll('.term-type-option').forEach(opt => {
+                selector.querySelectorAll('.task-status-option').forEach(opt => {
                     opt.classList.remove('selected');
                     (opt as HTMLElement).style.background = 'var(--b3-theme-background)';
                 });
                 // 添加选中状态样式
                 target.classList.add('selected');
-                const statusId = target.getAttribute('data-term-type');
+                const statusId = target.getAttribute('data-status-type');
                 const status = this.currentKanbanStatuses.find(s => s.id === statusId);
                 if (status) {
                     target.style.background = (status.color ? status.color + '20' : 'var(--b3-theme-background)');
@@ -1976,12 +1975,12 @@ export class QuickReminderDialog {
         });
 
         // 任务状态选择事件
-        const termTypeSelector = this.dialog.element.querySelector('#quickTermTypeSelector') as HTMLElement;
-        termTypeSelector?.addEventListener('click', (e) => {
+        const statusSelector = this.dialog.element.querySelector('#quickStatusSelector') as HTMLElement;
+        statusSelector?.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
-            const option = target.closest('.term-type-option') as HTMLElement;
+            const option = target.closest('.task-status-option') as HTMLElement;
             if (option) {
-                termTypeSelector.querySelectorAll('.term-type-option').forEach(opt => opt.classList.remove('selected'));
+                statusSelector.querySelectorAll('.task-status-option').forEach(opt => opt.classList.remove('selected'));
                 option.classList.add('selected');
             }
         });
@@ -2537,7 +2536,7 @@ export class QuickReminderDialog {
         const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
         const selectedPriority = this.dialog.element.querySelector('#quickPrioritySelector .priority-option.selected') as HTMLElement;
         // const selectedCategory = this.dialog.element.querySelector('#quickCategorySelector .category-option.selected') as HTMLElement;
-        const selectedTermType = this.dialog.element.querySelector('#quickTermTypeSelector .term-type-option.selected') as HTMLElement;
+        const selectedStatus = this.dialog.element.querySelector('#quickStatusSelector .task-status-option.selected') as HTMLElement;
         const customGroupSelector = this.dialog.element.querySelector('#quickCustomGroupSelector') as HTMLSelectElement;
 
         let title = titleInput.value.trim();
@@ -2552,7 +2551,7 @@ export class QuickReminderDialog {
 
         const projectId = projectSelector.value || undefined;
         // 获取选中的kanbanStatus，如果没有选中则使用第一个可用状态
-        let kanbanStatus = selectedTermType?.getAttribute('data-term-type');
+        let kanbanStatus = selectedStatus?.getAttribute('data-status-type');
         if (!kanbanStatus) {
             // 如果没有选中状态，使用第一个可用状态（排除已完成）
             const availableStatuses = this.currentKanbanStatuses.filter(s => s.id !== 'completed');
@@ -2864,7 +2863,7 @@ export class QuickReminderDialog {
                             delete reminder.docId;
                         }
 
-                        // 设置看板状态（直接使用kanbanStatus，不再使用termType）
+                        // 设置看板状态
                         reminder.kanbanStatus = kanbanStatus;
                         reminder.updatedAt = new Date().toISOString();
 
@@ -3011,7 +3010,7 @@ export class QuickReminderDialog {
                         reminder.sort = maxSort + 1;
                     }
 
-                    // 设置看板状态（直接使用kanbanStatus，不再使用termType）
+                    // 设置看板状态
                     reminder.kanbanStatus = kanbanStatus;
 
                     // 初始化字段级已提醒标志

@@ -22,7 +22,7 @@ export interface PasteTaskDialogConfig {
     parentTask?: any;
     projectId?: string;
     customGroupId?: string;
-    defaultTermType?: string;
+    defaultStatus?: string;
     onSuccess?: (totalCount: number) => void;
     onError?: (error: any) => void;
     // 是否显示状态选择器（默认false）
@@ -142,7 +142,7 @@ export class PasteTaskDialog {
             const hierarchicalTasks = this.parseHierarchicalTaskList(text, autoDetect, removeDate);
 
             // 获取用户选择的状态和分组
-            let selectedStatus = this.config.defaultTermType;
+            let selectedStatus = this.config.defaultStatus;
             let selectedGroupId = this.config.customGroupId;
 
             if (showStatusSelector) {
@@ -336,19 +336,11 @@ export class PasteTaskDialog {
 
             const inheritedPriority = (task.priority && task.priority !== 'none') ? task.priority : (parentPriority || 'none');
 
-            // 根据 selectedStatus 或 defaultTermType 确定 kanbanStatus 和 termType
             // 优先使用用户选择的状态
-            const statusToUse = selectedStatus !== undefined ? selectedStatus : this.config.defaultTermType;
+            const statusToUse = selectedStatus !== undefined ? selectedStatus : this.config.defaultStatus;
             let kanbanStatus = 'todo';
-            let termType: string | undefined = undefined;
 
-            if (statusToUse === 'doing') {
-                kanbanStatus = 'doing';
-                // doing 状态不需要 termType
-            } else if (statusToUse === 'long_term' || statusToUse === 'short_term') {
-                termType = statusToUse;
-                kanbanStatus = 'todo';
-            } else if (statusToUse) {
+            if (statusToUse) {
                 // 自定义状态，直接使用作为 kanbanStatus
                 kanbanStatus = statusToUse;
             } else {
@@ -373,10 +365,6 @@ export class PasteTaskDialog {
                 endTime: task.endTime,
                 sort: sortCounter,
             };
-
-            if (termType) {
-                newTask.termType = termType;
-            }
 
             if (parentId) {
                 newTask.parentId = parentId;
@@ -475,7 +463,7 @@ export class PasteTaskDialog {
 
     private buildStatusSelectorHtml(): string {
         const kanbanStatuses = this.config.kanbanStatuses || [];
-        const defaultStatus = this.config.defaultTermType || 'short_term';
+        const defaultStatus = this.config.defaultStatus || 'short_term';
 
         // 状态名称映射
         const statusNameMap: { [key: string]: string } = {

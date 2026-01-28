@@ -36,7 +36,6 @@ interface QuadrantTask {
     repeat?: any; // 重复事件配置
     isRepeatInstance?: boolean; // 是否为重复事件实例
     originalId?: string; // 原始重复事件的ID
-    // termType已废弃，使用kanbanStatus代替
     isSubscribed?: boolean; // 是否为订阅任务
 }
 
@@ -2798,7 +2797,6 @@ export class EisenhowerMatrixView {
             const reminderData = await getAllReminders(this.plugin);
             if (reminderData[taskId]) {
                 reminderData[taskId].kanbanStatus = kanbanStatus;
-                // 不再存储termType
                 await saveReminders(this.plugin, reminderData);
 
                 await this.refresh();
@@ -3674,7 +3672,6 @@ export class EisenhowerMatrixView {
                 defaultProjectId: undefined,
                 defaultQuadrant: undefined,
                 plugin: this.plugin, // 传入plugin实例
-                defaultTermType: 'short_term' // 默认设置为短期待办状态
             }
         );
 
