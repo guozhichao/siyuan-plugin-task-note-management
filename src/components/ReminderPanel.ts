@@ -4406,7 +4406,7 @@ export class ReminderPanel {
             await saveReminders(this.plugin, reminderData);
 
             // 触发刷新以重新渲染整个列表（因为层级结构变化需要重新渲染）
-                            window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
+            window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
 
         } catch (error) {
             console.error('设置父子关系失败:', error);
@@ -4509,7 +4509,7 @@ export class ReminderPanel {
 
                 await saveReminders(this.plugin, reminderData);
 
-                            // 触发全局刷新以更新UI（包括优先级颜色和位置）
+                // 触发全局刷新以更新UI（包括优先级颜色和位置）
                 // 不使用 skipPanelRefresh，因为优先级改变需要重新渲染样式
                 window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
                 // showMessage(t("priorityUpdated") || "优先级已更新");
