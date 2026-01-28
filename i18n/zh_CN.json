@@ -831,7 +831,7 @@
     "or": "或",
     "multiLevelSupport": "支持多层级：使用缩进或多个<code>-</code>符号创建父子任务关系",
     "statusKanban": "任务状态看板",
-    "customGroupKanban": "分组看板",
+    "customGroupKanban": "任务分组看板",
     "switchKanbanMode": "切换看板模式",
     "manageGroups": "管理分组",
     "customGroup": "分组",
