@@ -2924,24 +2924,33 @@ export class ProjectKanbanView {
             }
         });
 
-        // 处理未分组任务（即使没有任务也要显示）
+        // 处理未分组任务：仅在存在未分组任务时显示未分组列
         const ungroupedDoingTasks = doingTasks.filter(task => !task.customGroupId);
         const ungroupedShortTermTasks = shortTermTasks.filter(task => !task.customGroupId);
         const ungroupedLongTermTasks = longTermTasks.filter(task => !task.customGroupId);
         const ungroupedCompletedTasks = completedTasks.filter(task => !task.customGroupId);
 
-        const ungroupedGroup = {
-            id: 'ungrouped',
-            name: '未分组',
-            color: '#95a5a6',
-            icon: '📋'
-        };
-        this.renderCustomGroupColumnWithFourStatus(ungroupedGroup, ungroupedDoingTasks, ungroupedShortTermTasks, ungroupedLongTermTasks, ungroupedCompletedTasks);
+        const hasUngrouped = ungroupedDoingTasks.length > 0 || ungroupedShortTermTasks.length > 0 || ungroupedLongTermTasks.length > 0 || ungroupedCompletedTasks.length > 0;
+        if (hasUngrouped) {
+            const ungroupedGroup = {
+                id: 'ungrouped',
+                name: '未分组',
+                color: '#95a5a6',
+                icon: '📋'
+            };
+            this.renderCustomGroupColumnWithFourStatus(ungroupedGroup, ungroupedDoingTasks, ungroupedShortTermTasks, ungroupedLongTermTasks, ungroupedCompletedTasks);
 
-        // 确保未分组列在最后
-        const ungroupedColumn = kanbanContainer.querySelector(`.kanban-column-custom-group-ungrouped`);
-        if (ungroupedColumn) {
-            kanbanContainer.appendChild(ungroupedColumn);
+            // 确保未分组列在最后
+            const ungroupedColumn = kanbanContainer.querySelector(`.kanban-column-custom-group-ungrouped`);
+            if (ungroupedColumn) {
+                kanbanContainer.appendChild(ungroupedColumn);
+            }
+        } else {
+            // 如果没有未分组任务，移除可能存在的未分组列 DOM
+            const existing = kanbanContainer.querySelector(`.kanban-column-custom-group-ungrouped`);
+            if (existing && existing.parentNode) {
+                existing.parentNode.removeChild(existing);
+            }
         }
 
         // 为自定义分组列添加列级拖拽支持（可以直接拖动列头调整分组顺序）
