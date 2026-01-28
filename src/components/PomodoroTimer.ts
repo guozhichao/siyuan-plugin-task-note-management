@@ -149,8 +149,14 @@ export class PomodoroTimer {
         }
 
         // 如果有继承状态，应用继承的状态
+        // 如果有继承状态，应用继承的状态
         if (inheritState && inheritState.isRunning) {
+            // 无论是否同任务，只要是继承运行状态，就视为上一段专注结束，先记录
+            // 注意：这会导致同任务继承时被拆分为两条记录，但能保证时间统计准确
+            this.recordPartialWorkSession(inheritState.reminderId, inheritState.reminderTitle, inheritState);
             this.applyInheritedState(inheritState);
+            // reminderUpdate事件触发更新
+            window.dispatchEvent(new CustomEvent('reminderUpdated'));
         }
 
         if (orphanedWindow) {
@@ -187,7 +193,18 @@ export class PomodoroTimer {
         // 继承基本状态
         this.isWorkPhase = inheritState.isWorkPhase;
         this.isLongBreak = inheritState.isLongBreak;
-        this.completedPomodoros = inheritState.completedPomodoros || 0;
+
+        // 判断是否是任务继承（任务ID不同）
+        const isTaskInheritance = inheritState.reminderId && this.reminder.id && inheritState.reminderId !== this.reminder.id;
+
+        // 仅在非任务切换或任务切换且保留进度时，才继承番茄数
+        // 如果是新任务，重置番茄钟数量，避免显示错误的已完成数
+        if (isTaskInheritance) {
+            this.completedPomodoros = 0;
+            console.log(`[PomodoroTimer] 任务切换：重置番茄钟计数，继承时间：${inheritState.timeLeft}s`);
+        } else {
+            this.completedPomodoros = inheritState.completedPomodoros || 0;
+        }
 
         // 根据计时模式应用不同的时间状态
         if (this.isCountUp) {
@@ -201,52 +218,30 @@ export class PomodoroTimer {
                 this.breakTimeLeft = inheritState.breakTimeLeft || (this.isLongBreak ?
                     this.settings.longBreakDuration * 60 : this.settings.breakDuration * 60);
             }
+
+            // 恢复模式：正计时保持原有逻辑
+            this.pausedTime = this.timeElapsed;
+            this.startTime = Date.now() - (this.timeElapsed * 1000);
+
         } else {
             // 倒计时模式
-            this.timeLeft = inheritState.timeLeft || this.settings.workDuration * 60;
-            this.timeElapsed = inheritState.timeElapsed || 0;
-            this.breakTimeLeft = inheritState.breakTimeLeft || 0;
+            // 强制将剩余时间视为新阶段的总时长，避免后续统计时错误地使用原始workDuration
+            const remainingSecs = Math.max(0, inheritState.timeLeft || 0);
+            this.timeLeft = remainingSecs;
+            this.totalTime = remainingSecs;
+            this.timeElapsed = 0;
+            this.pausedTime = 0;
 
-            // 重新计算totalTime
-            if (this.isWorkPhase) {
-                this.totalTime = this.settings.workDuration * 60;
-            } else if (this.isLongBreak) {
-                this.totalTime = this.settings.longBreakDuration * 60;
-            } else {
-                this.totalTime = this.settings.breakDuration * 60;
-            }
+            // 设置当前阶段的原始时长（分钟），用于后续统计
+            this.currentPhaseOriginalDuration = Math.round(remainingSecs / 60);
+
+            // 由于视作新阶段，重置开始时间
+            this.startTime = Date.now();
         }
 
         // 继承运行状态，但新番茄钟开始时不暂停
         this.isRunning = inheritState.isRunning && !inheritState.isPaused;
         this.isPaused = false;
-
-        // 设置时间追踪变量以支持继续计时
-        // pausedTime 存储已经过的总秒数
-        // startTime 设置为"如果从0开始，应该在什么时候开始才能达到当前的已用时间"
-        // 即：startTime = 现在 - (已用秒数 * 1000)
-        if (this.isCountUp) {
-            // 正计时模式
-            this.pausedTime = this.timeElapsed;
-            this.startTime = Date.now() - (this.timeElapsed * 1000);
-        } else {
-            // 倒计时模式
-            this.pausedTime = this.timeElapsed;
-            this.startTime = Date.now() - (this.timeElapsed * 1000);
-        }
-
-
-
-        // 设置当前阶段的原始时长
-        if (this.isWorkPhase) {
-            this.currentPhaseOriginalDuration = this.settings.workDuration;
-        } else if (this.isLongBreak) {
-            this.currentPhaseOriginalDuration = this.settings.longBreakDuration;
-        } else {
-            this.currentPhaseOriginalDuration = this.settings.breakDuration;
-        }
-
-
     }
 
     /**
@@ -4074,6 +4069,11 @@ export class PomodoroTimer {
             this.startRandomNotificationTimer();
         }
 
+        if (this.timer) {
+            clearInterval(this.timer);
+            this.timer = null;
+        }
+
         this.timer = window.setInterval(() => {
             // 如果窗口已关闭，停止定时器
             if (this.isWindowClosed) {
@@ -5637,6 +5637,10 @@ export class PomodoroTimer {
 
         // 停止当前计时器
         if (this.isRunning) {
+            // 如果是任务切换，先记录当前任务的进度
+            if (inheritState && reminder.id && this.reminder.id && reminder.id !== this.reminder.id) {
+                await this.recordPartialWorkSession();
+            }
             await this.pauseTimer();
         }
 
@@ -5672,37 +5676,46 @@ export class PomodoroTimer {
         // 如果有继承状态，应用它
         if (inheritState) {
             this.applyInheritedState(inheritState);
-            // 根据新的设置和继承的状态重新计算 totalTime / timeLeft / breakTimeLeft
-            try {
-                if (!this.isCountUp) {
-                    if (this.isWorkPhase) {
-                        const oldTotal = (inheritState.currentPhaseOriginalDuration || this.currentPhaseOriginalDuration) * 60;
-                        const elapsed = typeof inheritState.timeElapsed === 'number' ? inheritState.timeElapsed : (oldTotal - (inheritState.timeLeft || oldTotal));
-                        const newTotal = (settings.workDuration || this.settings.workDuration) * 60;
-                        this.totalTime = newTotal;
-                        const newLeft = Math.max(0, newTotal - elapsed);
-                        this.timeLeft = newLeft;
+
+            // 只有当不是任务切换继承时，才根据新的设置重新计算总时长
+            // (任务切换时，applyInheritedState 已经正确设置了 totalTime 为剩余时间)
+            const isTaskInheritance = inheritState.reminderId && this.reminder.id && inheritState.reminderId !== this.reminder.id;
+
+            console.log(`[PomodoroTimer] updateState: isTaskInheritance=${isTaskInheritance}, inheritId=${inheritState.reminderId}, currentId=${this.reminder.id}`);
+
+            if (!isTaskInheritance) {
+                // 根据新的设置和继承的状态重新计算总时长 (totalTime)
+                try {
+                    if (!this.isCountUp) {
+                        if (this.isWorkPhase) {
+                            const oldTotal = (inheritState.currentPhaseOriginalDuration || this.currentPhaseOriginalDuration) * 60;
+                            const elapsed = typeof inheritState.timeElapsed === 'number' ? inheritState.timeElapsed : (oldTotal - (inheritState.timeLeft || oldTotal));
+                            const newTotal = (settings.workDuration || this.settings.workDuration) * 60;
+                            this.totalTime = newTotal;
+                            const newLeft = Math.max(0, newTotal - elapsed);
+                            this.timeLeft = newLeft;
+                        } else {
+                            // 休息阶段
+                            const oldBreakTotal = (inheritState.currentPhaseOriginalDuration || (this.isLongBreak ? this.settings.longBreakDuration : this.settings.breakDuration)) * 60;
+                            const breakElapsed = (typeof inheritState.breakTimeLeft === 'number') ? Math.max(0, oldBreakTotal - inheritState.breakTimeLeft) : 0;
+                            const newBreakTotal = (this.isLongBreak ? (settings.longBreakDuration || this.settings.longBreakDuration) : (settings.breakDuration || this.settings.breakDuration)) * 60;
+                            this.totalTime = newBreakTotal;
+                            const newBreakLeft = Math.max(0, newBreakTotal - breakElapsed);
+                            this.breakTimeLeft = newBreakLeft;
+                        }
                     } else {
-                        // 休息阶段
-                        const oldBreakTotal = (inheritState.currentPhaseOriginalDuration || (this.isLongBreak ? this.settings.longBreakDuration : this.settings.breakDuration)) * 60;
-                        const breakElapsed = (typeof inheritState.breakTimeLeft === 'number') ? Math.max(0, oldBreakTotal - inheritState.breakTimeLeft) : 0;
-                        const newBreakTotal = (this.isLongBreak ? (settings.longBreakDuration || this.settings.longBreakDuration) : (settings.breakDuration || this.settings.breakDuration)) * 60;
-                        this.totalTime = newBreakTotal;
-                        const newBreakLeft = Math.max(0, newBreakTotal - breakElapsed);
-                        this.breakTimeLeft = newBreakLeft;
+                        // 正计时模式：更新时间计数器的原始时长以便统计/界面显示
+                        if (this.isWorkPhase) {
+                            this.currentPhaseOriginalDuration = settings.workDuration || this.currentPhaseOriginalDuration;
+                        } else if (this.isLongBreak) {
+                            this.currentPhaseOriginalDuration = settings.longBreakDuration || this.currentPhaseOriginalDuration;
+                        } else {
+                            this.currentPhaseOriginalDuration = settings.breakDuration || this.currentPhaseOriginalDuration;
+                        }
                     }
-                } else {
-                    // 正计时模式：更新时间计数器的原始时长以便统计/界面显示
-                    if (this.isWorkPhase) {
-                        this.currentPhaseOriginalDuration = settings.workDuration || this.currentPhaseOriginalDuration;
-                    } else if (this.isLongBreak) {
-                        this.currentPhaseOriginalDuration = settings.longBreakDuration || this.currentPhaseOriginalDuration;
-                    } else {
-                        this.currentPhaseOriginalDuration = settings.breakDuration || this.currentPhaseOriginalDuration;
-                    }
+                } catch (e) {
+                    console.warn('更新继承状态时重新计算时间失败:', e);
                 }
-            } catch (e) {
-                console.warn('更新继承状态时重新计算时间失败:', e);
             }
         } else {
             // 否则重置为初始状态
@@ -5855,6 +5868,51 @@ export class PomodoroTimer {
             }
         };
         document.addEventListener('keydown', this.escapeKeyHandler);
+    }
+
+    /**
+     * 记录当前任务的部分专注时间（用于切换任务继承时或意外关闭时）
+     * @param forceId 可选，强制使用指定的任务ID
+     * @param forceTitle 可选，强制使用指定的任务标题
+     * @param state 可选，使用指定的状态数据
+     */
+    public async recordPartialWorkSession(forceId?: string, forceTitle?: string, state?: any) {
+        // 只有工作阶段需要记录
+        const isWork = state ? state.isWorkPhase : this.isWorkPhase;
+        if (!isWork) return;
+
+        let elapsedSecs = 0;
+        if (state) {
+            elapsedSecs = state.timeElapsed || 0;
+        } else {
+            if (this.startTime > 0) {
+                elapsedSecs = Math.floor((Date.now() - this.startTime) / 1000);
+            } else {
+                elapsedSecs = this.timeElapsed;
+            }
+        }
+
+        // 至少专注了 10 秒才记录，避免误触或频繁切换产生的碎片记录
+        if (elapsedSecs < 10) return;
+
+        const eventId = forceId || this.reminder.id;
+        const eventTitle = forceTitle || this.reminder.title || '番茄专注';
+        const minutes = elapsedSecs / 60;
+        const originalDuration = state ? state.currentPhaseOriginalDuration : this.currentPhaseOriginalDuration;
+
+        try {
+            await this.recordManager.recordWorkSession(
+                minutes,
+                eventId,
+                eventTitle,
+                originalDuration || 25,
+                false, // 标记为未完成（中途切换或手动停止）
+                state ? state.isCountUp : this.isCountUp
+            );
+            console.log(`[PomodoroTimer] 已记录部分专注时间: ${eventTitle}, ${Math.round(minutes * 10) / 10}分钟`);
+        } catch (error) {
+            console.error('[PomodoroTimer] 记录部分专注时间失败:', error);
+        }
     }
 
     private removeEscapeKeyListener() {
