@@ -637,7 +637,7 @@
     "statusAdded": "状态已添加",
     "saveStatusFailed": "保存状态失败，请重试",
     "cannotDeleteArchivedStatus": "归档状态不可删除",
-    "confirmDeleteStatus": "确定要删除状态 \"${name}\" 吗？",
+    "confirmDeleteStatus": "确定要删除状态${name}吗？",
     "statusDeleted": "状态已删除",
     "deleteStatusFailed": "删除状态失败",
     "resetStatuses": "重置状态",

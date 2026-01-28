@@ -765,22 +765,76 @@ export class ProjectKanbanView {
                     deleteBtn.innerHTML = '<svg class="b3-button__icon" style="width: 14px; height: 14px; color: var(--b3-theme-error);"><use xlink:href="#iconTrashcan"></use></svg>';
                     deleteBtn.title = t('delete') || '删除';
                     deleteBtn.style.cssText = 'padding: 2px; min-width: unset;';
-                    deleteBtn.addEventListener('click', async () => {
-                        if (confirm(t('confirmDeleteStatus') || `确定要删除状态"${status.name}"吗？该状态下的任务将被移动到"短期"。`)) {
-                            // 删除状态
-                            statuses = statuses.filter(s => s.id !== status.id);
-                            // 重新分配排序值
-                            statuses.forEach((s, i) => { s.sort = i * 10; });
-                            // 保存
-                            await projectManager.setProjectKanbanStatuses(this.projectId, statuses);
-                            // 刷新列表
-                            renderStatuses();
-                            // 刷新看板 - 强制重新创建列
-                            this.kanbanStatuses = statuses;
-                            this._lastRenderedProjectId = null; // 强制重新创建列
-                            this.queueLoadTasks();
-                            showMessage(t('statusDeleted') || '状态已删除');
-                        }
+                    deleteBtn.addEventListener('click', () => {
+                        const confirmMsg = t('confirmDeleteStatus', { name: status.name }) || `确定要删除状态"${status.name}"吗？`;
+                        confirm('确认删除', confirmMsg, async () => {
+                            // 检查该状态下是否有任务
+                            const tasksInStatus = this.tasks.filter(t => this.getTaskStatus(t) === status.id);
+
+                            if (tasksInStatus.length > 0) {
+                                // 有任务，显示选择目标状态的弹窗
+                                // 排除已完成状态，因为未完成任务不应该移动到已完成
+                                const otherStatuses = statuses.filter(s => s.id !== status.id && s.id !== 'completed');
+                                if (otherStatuses.length === 0) {
+                                    showMessage('没有其他未完成状态可以移动任务');
+                                    return;
+                                }
+
+                                // 默认选择第一个非进行中的状态，如果没有则选择进行中
+                                let defaultTargetStatus = otherStatuses.find(s => s.id !== 'doing');
+                                if (!defaultTargetStatus) {
+                                    defaultTargetStatus = otherStatuses[0];
+                                }
+
+                                // 创建选择目标状态的对话框
+                                const moveDialog = new Dialog({
+                                    title: `移动任务 (${tasksInStatus.length}个)`,
+                                    content: `
+                                        <div class="b3-dialog__content">
+                                            <div class="b3-form__group">
+                                                <label class="b3-form__label">选择目标状态</label>
+                                                <select id="targetStatusSelect" class="b3-select" style="width: 100%;">
+                                                    ${otherStatuses.map(s => `<option value="${s.id}" ${s.id === defaultTargetStatus?.id ? 'selected' : ''}>${s.icon || ''} ${s.name}</option>`).join('')}
+                                                </select>
+                                                <div class="b3-label__text" style="color: var(--b3-theme-on-surface-light); font-size: 12px; margin-top: 4px;">
+                                                    该状态下的 ${tasksInStatus.length} 个任务将被移动到选定的状态
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="b3-dialog__action">
+                                            <button class="b3-button b3-button--cancel" id="cancelMoveBtn">取消</button>
+                                            <button class="b3-button b3-button--primary" id="confirmMoveBtn">确定</button>
+                                        </div>
+                                    `,
+                                    width: "360px",
+                                    height: "auto"
+                                });
+
+                                moveDialog.element.querySelector('#cancelMoveBtn')?.addEventListener('click', () => {
+                                    moveDialog.destroy();
+                                });
+
+                                moveDialog.element.querySelector('#confirmMoveBtn')?.addEventListener('click', async () => {
+                                    const targetStatusSelect = moveDialog.element.querySelector('#targetStatusSelect') as HTMLSelectElement;
+                                    const targetStatusId = targetStatusSelect.value;
+
+                                    // 移动任务到目标状态
+                                    for (const task of tasksInStatus) {
+                                        await this.updateTaskStatus(task, targetStatusId);
+                                    }
+
+                                    moveDialog.destroy();
+
+                                    // 继续删除状态并刷新列表
+                                    statuses = await this.deleteStatusAndRefresh(statuses, status.id, projectManager);
+                                    renderStatuses();
+                                });
+                            } else {
+                                // 没有任务，直接删除状态并刷新列表
+                                statuses = await this.deleteStatusAndRefresh(statuses, status.id, projectManager);
+                                renderStatuses();
+                            }
+                        });
                     });
                     actionsDiv.appendChild(deleteBtn);
                 }
@@ -945,6 +999,71 @@ export class ProjectKanbanView {
 
         // 初始渲染
         renderStatuses();
+    }
+
+    /**
+     * 删除状态并刷新看板
+     * 返回更新后的状态数组
+     */
+    private async deleteStatusAndRefresh(
+        currentStatuses: import('../utils/projectManager').KanbanStatus[],
+        statusIdToDelete: string,
+        projectManager: import('../utils/projectManager').ProjectManager
+    ): Promise<import('../utils/projectManager').KanbanStatus[]> {
+        // 删除状态
+        const updatedStatuses = currentStatuses.filter(s => s.id !== statusIdToDelete);
+        // 重新分配排序值
+        updatedStatuses.forEach((s, i) => { s.sort = i * 10; });
+        // 保存
+        await projectManager.setProjectKanbanStatuses(this.projectId, updatedStatuses);
+        // 刷新看板状态
+        this.kanbanStatuses = updatedStatuses;
+        this._lastRenderedProjectId = null; // 强制重新创建列
+        await this.queueLoadTasks();
+        showMessage(t('statusDeleted') || '状态已删除');
+        return updatedStatuses;
+    }
+
+    /**
+     * 更新任务状态
+     */
+    private async updateTaskStatus(task: any, newStatusId: string): Promise<void> {
+        const reminderData = await this.getReminders();
+        const actualTaskId = task.originalId || task.id;
+
+        if (!reminderData[actualTaskId]) {
+            console.warn('任务不存在:', actualTaskId);
+            return;
+        }
+
+        // 获取目标状态配置
+        const targetStatus = this.kanbanStatuses.find(s => s.id === newStatusId);
+        if (!targetStatus) {
+            console.warn('目标状态不存在:', newStatusId);
+            return;
+        }
+
+        // 更新任务状态
+        if (newStatusId === 'doing') {
+            reminderData[actualTaskId].kanbanStatus = 'doing';
+            delete reminderData[actualTaskId].termType;
+        } else if (newStatusId === 'completed') {
+            reminderData[actualTaskId].kanbanStatus = 'completed';
+            reminderData[actualTaskId].completed = true;
+            reminderData[actualTaskId].completedTime = getLocalDateTimeString(new Date());
+            delete reminderData[actualTaskId].termType;
+        } else {
+            // 其他状态使用 kanbanStatus
+            reminderData[actualTaskId].kanbanStatus = newStatusId;
+            delete reminderData[actualTaskId].termType;
+        }
+
+        // 保存更新
+        const { saveReminders } = await import('../utils/icsSubscription');
+        await saveReminders(this.plugin, reminderData);
+
+        // 刷新缓存
+        this.reminderData = null;
     }
 
     private async showManageTagsDialog() {

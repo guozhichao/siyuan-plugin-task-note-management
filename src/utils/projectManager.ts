@@ -366,22 +366,26 @@ export class ProjectManager {
             // 如果有自定义配置，合并默认固定状态和自定义状态
             if (customStatuses && Array.isArray(customStatuses) && customStatuses.length > 0) {
                 const defaults = this.getDefaultKanbanStatuses();
-                // 合并固定状态：从 customStatuses 中查找固定状态的自定义配置
+
+                // 分离已保存的固定状态配置和非固定状态
+                const savedFixedConfigs = customStatuses.filter(s => s.isFixed === true);
+                const customNonFixed = customStatuses.filter(s => s.isFixed === false);
+
+                // 合并固定状态：使用默认配置，但应用保存的自定义配置
                 const fixedStatuses = defaults.filter(s => s.isFixed).map(defaultStatus => {
-                    const savedFixedStatus = customStatuses.find(s => s.id === defaultStatus.id);
-                    if (savedFixedStatus) {
+                    const savedConfig = savedFixedConfigs.find(s => s.id === defaultStatus.id);
+                    if (savedConfig) {
                         // 使用保存的图标、颜色和排序
                         return {
                             ...defaultStatus,
-                            icon: savedFixedStatus.icon,
-                            color: savedFixedStatus.color,
-                            sort: savedFixedStatus.sort
+                            icon: savedConfig.icon,
+                            color: savedConfig.color,
+                            sort: savedConfig.sort
                         };
                     }
                     return defaultStatus;
                 });
-                // 合并自定义状态，但排除固定状态的ID以避免冲突
-                const customNonFixed = customStatuses.filter(s => !s.isFixed);
+
                 return [...fixedStatuses, ...customNonFixed].sort((a, b) => a.sort - b.sort);
             }
 
@@ -404,24 +408,29 @@ export class ProjectManager {
                 // 获取默认配置用于对比
                 const defaults = this.getDefaultKanbanStatuses();
 
-                // 构建要保存的状态列表
+                // 构建要保存的状态列表 - 只保存非固定状态
+                // 固定状态的修改会在保存时特殊处理，但只保存非固定状态到数据库
                 const statusesToSave: KanbanStatus[] = [];
 
                 for (const status of statuses) {
                     if (status.isFixed) {
-                        // 固定状态只保存图标、颜色和排序的修改
-                        const defaultStatus = defaults.find(s => s.id === status.id);
-                        if (defaultStatus) {
-                            statusesToSave.push({
-                                ...defaultStatus,
-                                icon: status.icon,
-                                color: status.color,
-                                sort: status.sort
-                            });
-                        }
+                        // 固定状态：只保存修改的配置（图标、颜色、排序），不保存完整默认配置
+                        // 这样加载时可以从数据库读取固定状态的自定义配置
+                        statusesToSave.push({
+                            id: status.id,
+                            name: status.name,
+                            color: status.color,
+                            icon: status.icon,
+                            isFixed: true,
+                            isDefault: true,
+                            sort: status.sort
+                        });
                     } else {
                         // 非固定状态完整保存
-                        statusesToSave.push(status);
+                        statusesToSave.push({
+                            ...status,
+                            isFixed: false
+                        });
                     }
                 }
 
