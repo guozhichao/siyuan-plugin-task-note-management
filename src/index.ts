@@ -183,6 +183,8 @@ export default class ReminderPlugin extends Plugin {
     private subscriptionTasksCache: { [id: string]: any } = {};
     private holidayDataCache: any = null;
     private pomodoroRecordsCache: any = null;
+    private outlinePrefixCache: Map<string, string> = new Map(); // 记录由本插件管理的大纲前缀
+    private cleanupFunctions: (() => void)[] = [];
 
     public settings: any;
 
@@ -630,6 +632,7 @@ export default class ReminderPlugin extends Plugin {
                 }
             });
         }
+
 
     }
 
@@ -1110,7 +1113,8 @@ export default class ReminderPlugin extends Plugin {
 
     private initOutlinePrefixObserver() {
         let updateTimeout: number | null = null;
-        let lastOutlineBlockIds = new Set<string>();
+        let lastObservedElement: Element | null = null;
+        let currentObserver: MutationObserver | null = null;
 
         // 防抖更新函数，只要检测到变化就更新所有前缀
         const debouncedUpdate = () => {
@@ -1118,25 +1122,18 @@ export default class ReminderPlugin extends Plugin {
             updateTimeout = window.setTimeout(() => {
                 const outline = document.querySelector('.file-tree.sy__outline');
                 if (!outline) return;
-
-                // 只要检测到变化，就更新所有前缀（因为DOM可能被重新渲染）
                 this.updateOutlinePrefixes();
             }, 100);
         };
 
-        // 创建观察器
-        const createObserver = () => {
-            const outlineContainer = document.querySelector('.file-tree.sy__outline');
-            if (!outlineContainer) return null;
-
+        // 创建观察器函数
+        const createObserver = (element: Element) => {
             const observer = new MutationObserver((mutations) => {
-                // 只监听真正有意义的变化：子节点添加/删除、data-node-id 变化、文本内容变化、aria-label变化
                 const hasSignificantChange = mutations.some(mutation => {
                     if (mutation.type === 'childList') {
                         return mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0;
                     }
                     if (mutation.type === 'attributes') {
-                        // 监听 data-node-id 和 aria-label 变化
                         return mutation.attributeName === 'data-node-id' || mutation.attributeName === 'aria-label';
                     }
                     if (mutation.type === 'characterData') {
@@ -1144,13 +1141,10 @@ export default class ReminderPlugin extends Plugin {
                     }
                     return false;
                 });
-
-                if (hasSignificantChange) {
-                    debouncedUpdate();
-                }
+                if (hasSignificantChange) debouncedUpdate();
             });
 
-            observer.observe(outlineContainer, {
+            observer.observe(element, {
                 childList: true,
                 subtree: true,
                 attributes: true,
@@ -1160,31 +1154,70 @@ export default class ReminderPlugin extends Plugin {
             return observer;
         };
 
-        let currentObserver = createObserver();
-
-        // 定期检查和重新绑定观察器
-        const checkAndRebindObserver = () => {
-            const outlineContainer = document.querySelector('.file-tree.sy__outline');
-            if (!outlineContainer) {
-                if (currentObserver) {
-                    currentObserver.disconnect();
-                    currentObserver = null;
+        // 监听 ws-main 事件，处理属性变化 (bookmark)
+        const wsMainHandler = (event: CustomEvent) => {
+            const data = event.detail;
+            if (data.cmd === "transactions" && data.data) {
+                let shouldUpdate = false;
+                for (const transaction of data.data) {
+                    if (transaction.doOperations) {
+                        for (const op of transaction.doOperations) {
+                            if (op.action === "updateAttrs") {
+                                // 只要 bookmark 属性发生了变化，就触发更新
+                                if (op.data?.new && 'bookmark' in op.data.new) {
+                                    shouldUpdate = true;
+                                    break;
+                                }
+                                // 有时旧版或某些操作直接放在 data 中
+                                if (op.data && 'bookmark' in op.data && !op.data.new) {
+                                    shouldUpdate = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (shouldUpdate) break;
                 }
-                return;
+                if (shouldUpdate) debouncedUpdate();
             }
-
-            if (!currentObserver) {
-                currentObserver = createObserver();
-            }
-
-            // 强制更新一次（用于属性变化后的刷新）
-            debouncedUpdate();
         };
 
-        // 初始更新
-        setTimeout(checkAndRebindObserver, 500);
+        this.eventBus.on('ws-main', wsMainHandler);
 
+        // 定期检查 DOM 并重新绑定 Observer（应对 Siyuan UI 销毁/重建大纲元素的情况）
+        const checkInterval = setInterval(() => {
+            const outlineContainer = document.querySelector('.file-tree.sy__outline');
+            if (outlineContainer !== lastObservedElement) {
+                if (currentObserver) {
+                    currentObserver.disconnect();
+                }
+                lastObservedElement = outlineContainer;
+                if (outlineContainer) {
+                    currentObserver = createObserver(outlineContainer);
+                    debouncedUpdate();
+                }
+            }
+        }, 2000);
 
+        // 初始绑定尝试
+        setTimeout(() => {
+            const outlineContainer = document.querySelector('.file-tree.sy__outline');
+            if (outlineContainer && !currentObserver) {
+                lastObservedElement = outlineContainer;
+                currentObserver = createObserver(outlineContainer);
+                debouncedUpdate();
+            } else if (outlineContainer) {
+                debouncedUpdate();
+            }
+        }, 500);
+
+        // 注册资源清理
+        this.addCleanup(() => {
+            if (currentObserver) currentObserver.disconnect();
+            this.eventBus.off('ws-main', wsMainHandler);
+            clearInterval(checkInterval);
+            if (updateTimeout) clearTimeout(updateTimeout);
+        });
     }
 
     private addBreadcrumbButtonsToExistingProtyles() {
@@ -1529,7 +1562,7 @@ export default class ReminderPlugin extends Plugin {
             const headingLis = outline.querySelectorAll('li[data-type="NodeHeading"]');
             if (headingLis.length === 0) return;
 
-            // 收集块 ID
+            // 收集块 ID 和 li 映射
             const blockIds: string[] = [];
             const liMap = new Map<string, HTMLElement>();
             headingLis.forEach(li => {
@@ -1550,9 +1583,11 @@ export default class ReminderPlugin extends Plugin {
 
             // 构建 block_id -> bookmark 映射
             const bookmarkMap = new Map<string, string>();
-            attrsResults.forEach((row: any) => {
-                bookmarkMap.set(row.block_id, row.value || '');
-            });
+            if (attrsResults && Array.isArray(attrsResults)) {
+                attrsResults.forEach((row: any) => {
+                    bookmarkMap.set(row.block_id, row.value || '');
+                });
+            }
 
             // 更新 DOM
             blockIds.forEach(blockId => {
@@ -1562,15 +1597,19 @@ export default class ReminderPlugin extends Plugin {
                 const textElement = li.querySelector('.b3-list-item__text') as HTMLElement;
                 if (!textElement) return;
 
-                // 只有查询到 bookmark 数据的块才处理
-                if (!bookmarkMap.has(blockId)) {
-                    // 数据库中没有 bookmark 属性，保持原样，不修改
+                // 获取该块的 bookmark 属性
+                const hasAttribute = bookmarkMap.has(blockId);
+                const isManaged = this.outlinePrefixCache.has(blockId);
+
+                // 如果该块目前没有相关属性，且之前也不在管理列表中，则视为“非管理块”，跳过处理
+                // 这样可以保留用户自己在标题文本中手动添加的 ✅ 或 ⏰
+                if (!hasAttribute && !isManaged) {
                     return;
                 }
 
-                const bookmark = bookmarkMap.get(blockId) || '';
+                const bookmark = hasAttribute ? (bookmarkMap.get(blockId) || '') : '';
 
-                // 确定前缀
+                // 确定应有的前缀
                 let prefix = '';
                 if (bookmark === '✅') {
                     prefix = '✅ ';
@@ -1578,24 +1617,33 @@ export default class ReminderPlugin extends Plugin {
                     prefix = '⏰ ';
                 }
 
-                // DOM变化时不使用缓存检查，直接更新（因为DOM可能被重新渲染）
-                // const cachedPrefix = this.outlinePrefixCache.get(blockId);
-                // if (cachedPrefix === prefix) {
-                //     return; // 前缀没有变化，跳过更新
-                // }
+                // 更新管理标记：
+                // 如果属性被彻底移除（!hasAttribute），则下次不再管理。
+                // 如果属性还存在（即使是空值），则继续根据当前 prefix 更新。
+                if (!hasAttribute) {
+                    this.outlinePrefixCache.delete(blockId);
+                } else {
+                    this.outlinePrefixCache.set(blockId, prefix);
+                }
 
-                // 更新缓存
-                // this.outlinePrefixCache.set(blockId, prefix);
+                // 计算更新后的文本：移除现有前缀并添加正确前缀
+                const currentText = textElement.textContent || '';
+                const textWithoutPrefix = currentText.replace(/^[✅⏰]\s*/, '');
+                const targetText = prefix + textWithoutPrefix;
 
-                // 更新 DOM
-                const originalText = textElement.textContent || '';
-                const cleanText = originalText.replace(/^[✅⏰]\s*/, '');
-                const newText = prefix + cleanText;
-
-                if (textElement.textContent !== newText) {
-                    textElement.textContent = newText;
+                // 只有当文本确实需要改变时才更新，避免产生不必要的 DOM 操作和 Observer 回调
+                if (currentText !== targetText) {
+                    textElement.textContent = targetText;
                 }
             });
+
+            // 清理缓存中不再在大纲中出现的块，避免内存泄漏
+            const currentBlockIdSet = new Set(blockIds);
+            for (const cachedId of this.outlinePrefixCache.keys()) {
+                if (!currentBlockIdSet.has(cachedId)) {
+                    this.outlinePrefixCache.delete(cachedId);
+                }
+            }
 
         } catch (error) {
             console.error('[大纲前缀] 更新失败:', error);
@@ -3662,7 +3710,22 @@ export default class ReminderPlugin extends Plugin {
         } catch (e) {
             console.warn('清理 ICS 同步定时器失败:', e);
         }
-    }    /**
+
+        // 执行所有注册的清理函数
+        this.cleanupFunctions.forEach(fn => {
+            try {
+                fn();
+            } catch (e) {
+                console.warn('执行清理函数失败:', e);
+            }
+        });
+        this.cleanupFunctions = [];
+    }
+
+    private addCleanup(fn: () => void) {
+        this.cleanupFunctions.push(fn);
+    }
+    /**
      * 初始化系统通知权限
      */
     private async initSystemNotificationPermission() {
