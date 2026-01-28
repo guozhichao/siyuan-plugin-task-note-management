@@ -197,7 +197,7 @@ export class PomodoroSessionsDialog {
                 <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <span style="font-size: 18px;">${typeIcon}</span>
-                        <span style="font-weight: 500;">${session.eventTitle}</span>
+                        <span style="font-weight: 500; width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${session.eventTitle}">${session.eventTitle}</span>
                         ${statusBadge}
                         ${extraBadges}
                     </div>
@@ -282,8 +282,13 @@ export class PomodoroSessionsDialog {
                         </select>
                     </div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("startTime") || "开始时间"}</label>
-                        <input type="datetime-local" id="sessionStartTime" class="b3-text-field" style="width: 100%;" required>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; margin-top: 8px;">
+                            <select id="timeMode" class="b3-select" style="font-size: 12px; padding: 2px 24px 2px 8px; height: 24px; min-width: 80px;">
+                                <option value="end">${t("endTime") || "结束时间"}</option>
+                                <option value="start">${t("startTime") || "开始时间"}</option>
+                            </select>
+                        </div>
+                        <input type="datetime-local" id="sessionTimePoint" class="b3-text-field" style="width: 100%;" required>
                     </div>
                     <div class="b3-form__group">
                         <label class="b3-form__label">${t("duration") || "持续时长"} (${t("minutes") || "分钟"})</label>
@@ -305,10 +310,22 @@ export class PomodoroSessionsDialog {
             width: "400px"
         });
 
-        // 设置默认开始时间为当前时间
-        const startTimeInput = addDialog.element.querySelector("#sessionStartTime") as HTMLInputElement;
+        // 设置默认时间为当前时间
+        const timeInput = addDialog.element.querySelector("#sessionTimePoint") as HTMLInputElement;
         const now = new Date();
-        startTimeInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        timeInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+        // 绑定模式切换事件
+        const timeModeSelect = addDialog.element.querySelector("#timeMode") as HTMLSelectElement;
+        const timeLabel = addDialog.element.querySelector("#timePointLabel") as HTMLElement;
+
+        timeModeSelect.addEventListener("change", () => {
+            if (timeModeSelect.value === 'end') {
+                timeLabel.textContent = t("endTime") || "结束时间";
+            } else {
+                timeLabel.textContent = t("startTime") || "开始时间";
+            }
+        });
 
         // 类型选择改变时更新默认时长
         const typeSelect = addDialog.element.querySelector("#sessionType") as HTMLSelectElement;
@@ -353,12 +370,13 @@ export class PomodoroSessionsDialog {
         // 确认按钮
         addDialog.element.querySelector("#confirmAddPomodoro")?.addEventListener("click", async () => {
             const type = (addDialog.element.querySelector("#sessionType") as HTMLSelectElement).value as 'work' | 'shortBreak' | 'longBreak';
-            const startTimeStr = (addDialog.element.querySelector("#sessionStartTime") as HTMLInputElement).value;
+            const timeMode = (addDialog.element.querySelector("#timeMode") as HTMLSelectElement).value;
+            const timePointStr = (addDialog.element.querySelector("#sessionTimePoint") as HTMLInputElement).value;
             const duration = parseInt((addDialog.element.querySelector("#sessionDuration") as HTMLInputElement).value);
             const completed = true; // 强制为已完成
             const isCountUp = (addDialog.element.querySelector("#sessionIsCountUp") as HTMLInputElement).checked;
 
-            if (!startTimeStr || !duration || duration <= 0) {
+            if (!timePointStr || !duration || duration <= 0) {
                 showMessage(t("pleaseEnterValidInfo") || "请输入有效信息", 3000, "error");
                 return;
             }
@@ -369,9 +387,18 @@ export class PomodoroSessionsDialog {
                 const reminder = reminderData[this.reminderId];
                 const eventTitle = reminder?.title || "未知任务";
 
-                // 计算结束时间
-                const startTime = new Date(startTimeStr);
-                const endTime = new Date(startTime.getTime() + duration * 60000);
+                // 计算开始和结束时间
+                const timePoint = new Date(timePointStr);
+                let startTime: Date;
+                let endTime: Date;
+
+                if (timeMode === 'end') {
+                    endTime = timePoint;
+                    startTime = new Date(endTime.getTime() - duration * 60000);
+                } else {
+                    startTime = timePoint;
+                    endTime = new Date(startTime.getTime() + duration * 60000);
+                }
 
                 let count = 1;
                 let plannedDuration = duration;
