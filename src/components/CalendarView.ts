@@ -4806,6 +4806,11 @@ export class CalendarView {
             }));
 
             try {
+                // 刷新番茄数据以确保统计准确
+                if (this.showPomodoro) {
+                    await this.pomodoroRecordManager.refreshData();
+                }
+
                 // 先获取新的事件数据
                 const events = await this.getEvents(force);
 
