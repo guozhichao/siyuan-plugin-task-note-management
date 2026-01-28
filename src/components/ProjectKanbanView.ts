@@ -2827,6 +2827,28 @@ export class ProjectKanbanView {
                     delete t.customGroupId;
                 }
             });
+            // 为没有设置状态或状态无效的任务默认设置为 doing（进行中）
+            const validStatusIds = new Set(this.kanbanStatuses.map(s => s.id));
+            let hasInvalidStatus = false;
+            projectTasks.forEach((t: any) => {
+                if (t && !t.completed) {
+                    // 检查状态是否存在且有效（属于当前项目的状态）
+                    if (!t.kanbanStatus || !validStatusIds.has(t.kanbanStatus)) {
+                        t.kanbanStatus = 'doing';
+                        // 同步更新 reminderData 以便保存
+                        if (reminderData[t.id]) {
+                            reminderData[t.id].kanbanStatus = 'doing';
+                        }
+                        hasInvalidStatus = true;
+                    }
+                }
+            });
+            // 如果有任务状态被修正，保存到存储
+            if (hasInvalidStatus) {
+                saveReminders(this.plugin, reminderData).catch(err => {
+                    console.error('保存任务状态修正失败:', err);
+                });
+            }
             const taskMap = new Map(projectTasks.map((t: any) => [t.id, { ...t }]));
 
             const getRootStatus = (task: any): string => {
