@@ -483,8 +483,9 @@ export default class ReminderPlugin extends Plugin {
             </symbol>
         `);
         setPluginInstance(this);
-
-
+        // 初始化番茄钟记录管理器，确保番茄数据已加载
+        const pomodoroRecordManager = PomodoroRecordManager.getInstance(this);
+        await pomodoroRecordManager.initialize();
         // 添加dock栏和顶栏按钮
         await this.initializeUI();
 
@@ -500,8 +501,6 @@ export default class ReminderPlugin extends Plugin {
             console.warn('初始化通知记录文件失败:', error);
         }
 
-        const pomodoroRecordManager = PomodoroRecordManager.getInstance(this);
-        await pomodoroRecordManager.initialize();
 
         // 初始化上次番茄钟设置缓存，避免第一次设置更新时误判
         this.lastPomodoroSettings = await this.getPomodoroSettings();

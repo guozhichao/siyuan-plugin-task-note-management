@@ -47,7 +47,7 @@ export class PomodoroRecordManager {
 
     async initialize() {
         if (this.isInitialized) return;
-        await this.loadRecords();
+        await this.loadRecords(true);
         this.isInitialized = true;
     }
 
