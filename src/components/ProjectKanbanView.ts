@@ -93,6 +93,13 @@ export class ProjectKanbanView {
     // 当前项目的看板状态配置
     private kanbanStatuses: import('../utils/projectManager').KanbanStatus[] = [];
 
+    // 多选模式状态
+    private isMultiSelectMode: boolean = false;
+    // 选中的任务ID集合
+    private selectedTaskIds: Set<string> = new Set();
+    // 批量操作工具栏元素
+    private batchToolbar: HTMLElement | null = null;
+
     constructor(container: HTMLElement, plugin: any, projectId: string) {
         this.container = container;
         this.plugin = plugin;
@@ -2162,7 +2169,14 @@ export class ProjectKanbanView {
         manageTagsBtn.addEventListener('click', () => this.showManageTagsDialog());
         controlsGroup.appendChild(manageTagsBtn);
 
-
+        // 多选模式按钮
+        const multiSelectBtn = document.createElement('button');
+        multiSelectBtn.className = 'b3-button b3-button--outline';
+        multiSelectBtn.id = 'multiSelectBtn';
+        multiSelectBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconCheck"></use></svg> ${t('batchSelect') || '批量选择'}`;
+        multiSelectBtn.title = t('batchSelectMode') || '进入批量选择模式';
+        multiSelectBtn.addEventListener('click', () => this.toggleMultiSelectMode());
+        controlsGroup.appendChild(multiSelectBtn);
 
         toolbar.appendChild(controlsGroup);
 
@@ -5059,6 +5073,12 @@ export class ProjectKanbanView {
             taskEl.style.marginLeft = `${level * 20}px`;
         }
 
+        // 多选模式下添加选中状态样式
+        if (this.isMultiSelectMode && this.selectedTaskIds.has(task.id)) {
+            taskEl.classList.add('kanban-task-selected');
+            taskEl.style.boxShadow = '0 0 0 2px var(--b3-theme-primary)';
+        }
+
         const taskMainContainer = document.createElement('div');
         taskMainContainer.className = 'kanban-task-main';
         taskMainContainer.style.cssText = `
@@ -5066,6 +5086,35 @@ export class ProjectKanbanView {
             gap: 8px;
             align-items: flex-start;
         `;
+
+        // 多选复选框（仅在多选模式下显示）
+        let multiSelectCheckbox: HTMLInputElement | null = null;
+        if (this.isMultiSelectMode) {
+            multiSelectCheckbox = document.createElement('input');
+            multiSelectCheckbox.type = 'checkbox';
+            multiSelectCheckbox.className = 'kanban-task-multiselect-checkbox';
+            multiSelectCheckbox.checked = this.selectedTaskIds.has(task.id);
+            multiSelectCheckbox.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleTaskSelection(task.id, multiSelectCheckbox!.checked);
+            });
+            taskMainContainer.appendChild(multiSelectCheckbox);
+
+            // 多选模式下点击整个任务卡片切换选择
+            taskEl.addEventListener('click', (e) => {
+                // 如果点击的是多选复选框本身，不处理（让复选框自己的事件处理）
+                if ((e.target as HTMLElement).classList.contains('kanban-task-multiselect-checkbox')) {
+                    return;
+                }
+                // 切换选择状态
+                const newSelected = !this.selectedTaskIds.has(task.id);
+                this.toggleTaskSelection(task.id, newSelected);
+                // 更新复选框状态
+                if (multiSelectCheckbox) {
+                    multiSelectCheckbox.checked = newSelected;
+                }
+            });
+        }
 
         const taskIndentContainer = document.createElement('div');
         taskIndentContainer.className = 'kanban-task-indent';
@@ -5099,23 +5148,25 @@ export class ProjectKanbanView {
 
         taskMainContainer.appendChild(taskIndentContainer);
 
-        // 复选框
-        const checkboxEl = document.createElement('input');
-        checkboxEl.type = 'checkbox';
-        checkboxEl.className = 'kanban-task-checkbox';
-        checkboxEl.checked = task.completed;
-        checkboxEl.title = '点击完成/取消完成任务';
-        if (task.isSubscribed) {
-            checkboxEl.disabled = true;
-            checkboxEl.title = t("subscribedTaskReadOnly") || "订阅任务（只读）";
-        } else {
-            checkboxEl.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const completed = checkboxEl.checked;
-                this.toggleTaskCompletion(task, completed);
-            });
+        // 复选框（非多选模式下显示）
+        if (!this.isMultiSelectMode) {
+            const checkboxEl = document.createElement('input');
+            checkboxEl.type = 'checkbox';
+            checkboxEl.className = 'kanban-task-checkbox';
+            checkboxEl.checked = task.completed;
+            checkboxEl.title = '点击完成/取消完成任务';
+            if (task.isSubscribed) {
+                checkboxEl.disabled = true;
+                checkboxEl.title = t("subscribedTaskReadOnly") || "订阅任务（只读）";
+            } else {
+                checkboxEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const completed = checkboxEl.checked;
+                    this.toggleTaskCompletion(task, completed);
+                });
+            }
+            taskMainContainer.appendChild(checkboxEl);
         }
-        taskMainContainer.appendChild(checkboxEl);
 
         const taskContentContainer = document.createElement('div');
         taskContentContainer.className = 'kanban-task-content';
@@ -8400,6 +8451,118 @@ export class ProjectKanbanView {
                 color: var(--b3-theme-on-surface) !important;
                 padding: 4px 8px !important;
             }
+
+            /* ==================== 批量多选样式 ==================== */
+
+            /* 多选复选框样式 - 圆形 */
+            .kanban-task-multiselect-checkbox {
+                width: 20px !important;
+                height: 20px !important;
+                cursor: pointer !important;
+                flex-shrink: 0 !important;
+                margin-top: 2px !important;
+                border-radius: 50% !important;
+                border: 2px solid var(--b3-theme-primary) !important;
+                background: var(--b3-theme-background) !important;
+                appearance: none !important;
+                -webkit-appearance: none !important;
+                position: relative !important;
+                transition: all 0.2s ease !important;
+            }
+
+            /* 选中状态 */
+            .kanban-task-multiselect-checkbox:checked {
+                background: var(--b3-theme-primary) !important;
+            }
+
+            /* 选中时的对勾图标 */
+            .kanban-task-multiselect-checkbox:checked::after {
+                content: '' !important;
+                position: absolute !important;
+                left: 5px !important;
+                top: 2px !important;
+                width: 6px !important;
+                height: 10px !important;
+                border: solid white !important;
+                border-width: 0 2px 2px 0 !important;
+                transform: rotate(45deg) !important;
+            }
+
+            .kanban-task-multiselect-checkbox:hover {
+                transform: scale(1.1);
+                box-shadow: 0 0 0 2px var(--b3-theme-primary-lightest) !important;
+            }
+
+            /* 选中状态的任务卡片 */
+            .kanban-task-selected {
+                box-shadow: 0 0 0 2px var(--b3-theme-primary) !important;
+                border-color: var(--b3-theme-primary) !important;
+            }
+
+            .kanban-task-selected:hover {
+                box-shadow: 0 0 0 3px var(--b3-theme-primary), 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+            }
+
+            /* 批量操作工具栏 */
+            .kanban-batch-toolbar {
+                animation: batchToolbarSlideUp 0.3s ease-out;
+            }
+
+            @keyframes batchToolbarSlideUp {
+                from {
+                    opacity: 0;
+                    transform: translateX(-50%) translateY(20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(-50%) translateY(0);
+                }
+            }
+
+            .kanban-batch-toolbar .batch-toolbar-count {
+                font-weight: 600;
+                color: var(--b3-theme-primary);
+                min-width: 100px;
+                white-space: nowrap;
+            }
+
+            /* 多选模式下的任务卡片悬停效果 */
+            .kanban-task:has(.kanban-task-multiselect-checkbox):hover {
+                background-color: var(--b3-theme-surface) !important;
+            }
+
+            /* 响应式：批量工具栏在窄屏下的适配 */
+            @media (max-width: 768px) {
+                .kanban-batch-toolbar {
+                    min-width: auto !important;
+                    width: 95vw !important;
+                    padding: 10px 12px !important;
+                    gap: 8px !important;
+                    flex-wrap: wrap !important;
+                }
+
+                .kanban-batch-toolbar .batch-toolbar-count {
+                    width: 100%;
+                    text-align: center;
+                    margin-bottom: 4px;
+                }
+
+                .kanban-batch-toolbar > div:nth-child(2) {
+                    display: none;
+                }
+
+                .kanban-batch-toolbar > div:nth-child(3) {
+                    width: 100%;
+                    justify-content: center;
+                    margin: 4px 0;
+                }
+
+                .kanban-batch-toolbar > div:last-child {
+                    width: 100%;
+                    justify-content: center;
+                    margin-left: 0 !important;
+                }
+            }
             `;
         document.head.appendChild(style);
     }
@@ -10238,6 +10401,643 @@ export class ProjectKanbanView {
             console.error('DOM重排失败:', error);
             return false;
         }
+    }
+
+    // ==================== 批量多选功能 ====================
+
+    /**
+     * 保存单个任务（辅助方法）
+     */
+    private async saveTask(task: any): Promise<void> {
+        try {
+            let reminderData = await this.getReminders();
+
+            // 更新或添加任务到提醒数据
+            reminderData[task.id] = {
+                ...reminderData[task.id],
+                ...task,
+                projectId: this.projectId,
+                updatedAt: new Date().toISOString()
+            };
+
+            await saveReminders(this.plugin, reminderData);
+
+            // 触发更新事件
+            this.dispatchReminderUpdate(true);
+        } catch (error) {
+            console.error('保存任务失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 切换多选模式
+     */
+    private toggleMultiSelectMode(): void {
+        this.isMultiSelectMode = !this.isMultiSelectMode;
+
+        if (!this.isMultiSelectMode) {
+            // 退出多选模式时清空选择
+            this.selectedTaskIds.clear();
+            this.hideBatchToolbar();
+        }
+
+        // 更新多选按钮状态
+        const multiSelectBtn = this.container.querySelector('#multiSelectBtn') as HTMLButtonElement;
+        if (multiSelectBtn) {
+            if (this.isMultiSelectMode) {
+                multiSelectBtn.classList.add('b3-button--primary');
+                multiSelectBtn.classList.remove('b3-button--outline');
+                multiSelectBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconClose"></use></svg> ${t('exitBatchSelect') || '退出选择'}`;
+            } else {
+                multiSelectBtn.classList.remove('b3-button--primary');
+                multiSelectBtn.classList.add('b3-button--outline');
+                multiSelectBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconCheck"></use></svg> ${t('batchSelect') || '批量选择'}`;
+            }
+        }
+
+        // 重新渲染看板以显示/隐藏多选复选框
+        this.renderKanban();
+
+        showMessage(this.isMultiSelectMode ? (t('batchSelectModeOn') || '已进入批量选择模式') : (t('batchSelectModeOff') || '已退出批量选择模式'));
+    }
+
+    /**
+     * 切换任务选中状态
+     */
+    private toggleTaskSelection(taskId: string, selected: boolean): void {
+        if (selected) {
+            this.selectedTaskIds.add(taskId);
+        } else {
+            this.selectedTaskIds.delete(taskId);
+        }
+
+        // 更新任务卡片样式
+        const taskEl = this.container.querySelector(`.kanban-task[data-task-id="${taskId}"]`) as HTMLElement;
+        if (taskEl) {
+            if (selected) {
+                taskEl.classList.add('kanban-task-selected');
+                taskEl.style.boxShadow = '0 0 0 2px var(--b3-theme-primary)';
+            } else {
+                taskEl.classList.remove('kanban-task-selected');
+                taskEl.style.boxShadow = '';
+            }
+        }
+
+        // 更新批量工具栏
+        this.updateBatchToolbar();
+    }
+
+    /**
+     * 显示/更新批量操作工具栏
+     */
+    private updateBatchToolbar(): void {
+        const selectedCount = this.selectedTaskIds.size;
+
+        if (selectedCount === 0) {
+            this.hideBatchToolbar();
+            return;
+        }
+
+        if (!this.batchToolbar) {
+            this.createBatchToolbar();
+        }
+
+        // 更新计数显示
+        const countEl = this.batchToolbar?.querySelector('.batch-toolbar-count') as HTMLElement;
+        if (countEl) {
+            countEl.textContent = `${selectedCount} ${t('tasksSelected') || '个任务已选择'}`;
+        }
+    }
+
+    /**
+     * 创建批量操作工具栏
+     */
+    private createBatchToolbar(): void {
+        this.batchToolbar = document.createElement('div');
+        this.batchToolbar.className = 'kanban-batch-toolbar';
+        this.batchToolbar.style.cssText = `
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--b3-theme-background);
+            border: 1px solid var(--b3-theme-border);
+            border-radius: 8px;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            min-width: 400px;
+            max-width: 80vw;
+        `;
+
+        // 选择计数
+        const countEl = document.createElement('span');
+        countEl.className = 'batch-toolbar-count';
+        countEl.style.cssText = `
+            font-weight: 600;
+            color: var(--b3-theme-primary);
+            min-width: 100px;
+        `;
+        countEl.textContent = `0 ${t('tasksSelected') || '个任务已选择'}`;
+        this.batchToolbar.appendChild(countEl);
+
+        // 分隔线
+        const divider = document.createElement('div');
+        divider.style.cssText = `
+            width: 1px;
+            height: 24px;
+            background: var(--b3-theme-border);
+        `;
+        this.batchToolbar.appendChild(divider);
+
+        // 按钮组
+        const buttonsGroup = document.createElement('div');
+        buttonsGroup.style.cssText = `
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        `;
+
+        // 设置日期按钮
+        const setDateBtn = document.createElement('button');
+        setDateBtn.className = 'b3-button b3-button--outline b3-button--small';
+        setDateBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconCalendar"></use></svg> ${t('setDate') || '设置日期'}`;
+        setDateBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.batchSetDate();
+        });
+        buttonsGroup.appendChild(setDateBtn);
+
+        // 设置状态按钮
+        const setStatusBtn = document.createElement('button');
+        setStatusBtn.className = 'b3-button b3-button--outline b3-button--small';
+        setStatusBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg> ${t('setStatus') || '设置状态'}`;
+        setStatusBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.batchSetStatus();
+        });
+        buttonsGroup.appendChild(setStatusBtn);
+
+        // 设置分组按钮
+        const setGroupBtn = document.createElement('button');
+        setGroupBtn.className = 'b3-button b3-button--outline b3-button--small';
+        setGroupBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconFolder"></use></svg> ${t('setGroup') || '设置分组'}`;
+        setGroupBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.batchSetGroup();
+        });
+        buttonsGroup.appendChild(setGroupBtn);
+
+        // 设置优先级按钮
+        const setPriorityBtn = document.createElement('button');
+        setPriorityBtn.className = 'b3-button b3-button--outline b3-button--small';
+        setPriorityBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconOrderedList"></use></svg> ${t('setPriority') || '设置优先级'}`;
+        setPriorityBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.batchSetPriority();
+        });
+        buttonsGroup.appendChild(setPriorityBtn);
+
+        // 删除按钮
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'b3-button b3-button--outline b3-button--small';
+        deleteBtn.style.color = 'var(--b3-card-error-color)';
+        deleteBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconTrashcan"></use></svg> ${t('delete') || '删除'}`;
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            this.batchDelete();
+        });
+        buttonsGroup.appendChild(deleteBtn);
+
+        this.batchToolbar.appendChild(buttonsGroup);
+
+        // 右侧：全选和取消按钮
+        const rightGroup = document.createElement('div');
+        rightGroup.style.cssText = `
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+        `;
+
+        // 全选按钮
+        const selectAllBtn = document.createElement('button');
+        selectAllBtn.className = 'b3-button b3-button--text b3-button--small';
+        selectAllBtn.textContent = t('selectAll') || '全选';
+        selectAllBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.selectAllTasks();
+        });
+        rightGroup.appendChild(selectAllBtn);
+
+        // 取消选择按钮
+        const clearBtn = document.createElement('button');
+        clearBtn.className = 'b3-button b3-button--text b3-button--small';
+        clearBtn.textContent = t('clearSelection') || '取消选择';
+        clearBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.clearSelection();
+        });
+        rightGroup.appendChild(clearBtn);
+
+        this.batchToolbar.appendChild(rightGroup);
+
+        // 添加到容器
+        this.container.appendChild(this.batchToolbar);
+    }
+
+    /**
+     * 隐藏批量操作工具栏
+     */
+    private hideBatchToolbar(): void {
+        if (this.batchToolbar) {
+            this.batchToolbar.remove();
+            this.batchToolbar = null;
+        }
+    }
+
+    /**
+     * 选择所有任务
+     */
+    private selectAllTasks(): void {
+        this.tasks.forEach(task => {
+            this.selectedTaskIds.add(task.id);
+        });
+        this.renderKanban();
+        this.updateBatchToolbar();
+    }
+
+    /**
+     * 清空选择
+     */
+    private clearSelection(): void {
+        this.selectedTaskIds.clear();
+        this.renderKanban();
+        this.hideBatchToolbar();
+    }
+
+    /**
+     * 批量设置日期
+     */
+    private async batchSetDate(): Promise<void> {
+        const selectedIds = Array.from(this.selectedTaskIds);
+        if (selectedIds.length === 0) return;
+
+        // 创建日期选择对话框
+        const dialog = new Dialog({
+            title: t('batchSetDate') || '批量设置日期',
+            content: `
+                <div class="b3-dialog__content">
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">${t('selectDate') || '选择日期'}</label>
+                        <input type="date" id="batchDateInput" class="b3-text-field" style="width: 100%;">
+                    </div>
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">${t('clearDate') || '清空日期'}</label>
+                        <input type="checkbox" id="clearDateCheck" style="margin-left: 8px;">
+                        <span style="color: var(--b3-theme-on-surface-light); font-size: 12px;">${t('clearDateHint') || '勾选后将清空所选任务的日期'}</span>
+                    </div>
+                </div>
+                <div class="b3-dialog__action">
+                    <button class="b3-button b3-button--cancel" id="batchDateCancel">${t('cancel')}</button>
+                    <button class="b3-button b3-button--primary" id="batchDateConfirm">${t('confirm')}</button>
+                </div>
+            `,
+            width: '360px'
+        });
+
+        const dateInput = dialog.element.querySelector('#batchDateInput') as HTMLInputElement;
+        const clearCheck = dialog.element.querySelector('#clearDateCheck') as HTMLInputElement;
+        const cancelBtn = dialog.element.querySelector('#batchDateCancel') as HTMLButtonElement;
+        const confirmBtn = dialog.element.querySelector('#batchDateConfirm') as HTMLButtonElement;
+
+        // 设置今天为默认日期
+        dateInput.value = new Date().toISOString().split('T')[0];
+
+        clearCheck.addEventListener('change', () => {
+            dateInput.disabled = clearCheck.checked;
+        });
+
+        cancelBtn.addEventListener('click', () => dialog.destroy());
+
+        confirmBtn.addEventListener('click', async () => {
+            const clearDate = clearCheck.checked;
+            const dateValue = dateInput.value;
+
+            if (!clearDate && !dateValue) {
+                showMessage(t('pleaseSelectDate') || '请选择日期');
+                return;
+            }
+
+            dialog.destroy();
+
+            try {
+                let successCount = 0;
+                for (const taskId of selectedIds) {
+                    const task = this.tasks.find(t => t.id === taskId);
+                    if (task) {
+                        task.date = clearDate ? undefined : dateValue;
+                        await this.saveTask(task);
+                        successCount++;
+                    }
+                }
+                showMessage(t('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
+                this.queueLoadTasks();
+            } catch (error) {
+                console.error('批量设置日期失败:', error);
+                showMessage(t('batchUpdateFailed') || '批量更新失败');
+            }
+        });
+    }
+
+    /**
+     * 批量设置状态
+     */
+    private async batchSetStatus(): Promise<void> {
+        const selectedIds = Array.from(this.selectedTaskIds);
+        if (selectedIds.length === 0) return;
+
+        // 获取可用的状态列表（kanbanStatuses 已包含已完成状态）
+        const statuses = this.kanbanStatuses.length > 0 ? this.kanbanStatuses : [
+            { id: 'doing', name: t('doing') || '进行中', color: '#f39c12' },
+            { id: 'short_term', name: t('shortTerm') || '短期', color: '#3498db' },
+            { id: 'long_term', name: t('longTerm') || '长期', color: '#9b59b6' },
+            { id: 'completed', name: t('done') || '已完成', color: '#27ae60' }
+        ];
+
+        const statusOptions = statuses.map(s =>
+            `<option value="${s.id}">${s.name}</option>`
+        ).join('');
+
+        const dialog = new Dialog({
+            title: t('batchSetStatus') || '批量设置状态',
+            content: `
+                <div class="b3-dialog__content">
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">${t('selectStatus') || '选择状态'}</label>
+                        <select id="batchStatusSelect" class="b3-select" style="width: 100%;">
+                            ${statusOptions}
+                        </select>
+                    </div>
+                </div>
+                <div class="b3-dialog__action">
+                    <button class="b3-button b3-button--cancel" id="batchStatusCancel">${t('cancel')}</button>
+                    <button class="b3-button b3-button--primary" id="batchStatusConfirm">${t('confirm')}</button>
+                </div>
+            `,
+            width: '320px'
+        });
+
+        const statusSelect = dialog.element.querySelector('#batchStatusSelect') as HTMLSelectElement;
+        const cancelBtn = dialog.element.querySelector('#batchStatusCancel') as HTMLButtonElement;
+        const confirmBtn = dialog.element.querySelector('#batchStatusConfirm') as HTMLButtonElement;
+
+        cancelBtn.addEventListener('click', () => dialog.destroy());
+
+        confirmBtn.addEventListener('click', async () => {
+            const newStatus = statusSelect.value;
+            dialog.destroy();
+
+            try {
+                let successCount = 0;
+                for (const taskId of selectedIds) {
+                    const task = this.tasks.find(t => t.id === taskId);
+                    if (task) {
+                        await this.updateTaskStatus(task, newStatus);
+                        successCount++;
+                    }
+                }
+                showMessage(t('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
+                this.queueLoadTasks();
+            } catch (error) {
+                console.error('批量设置状态失败:', error);
+                showMessage(t('batchUpdateFailed') || '批量更新失败');
+            }
+        });
+    }
+
+    /**
+     * 更新任务状态
+     */
+    private async updateTaskStatus(task: any, newStatus: string): Promise<void> {
+        // 使用 kanbanStatus 字段存储看板状态
+        if (newStatus === 'completed') {
+            task.completed = true;
+            task.completedTime = new Date().toISOString();
+        } else if (newStatus === 'doing') {
+            task.completed = false;
+            task.completedTime = undefined;
+            task.kanbanStatus = 'doing';
+        } else {
+            // 其他状态（长期、短期、自定义状态）
+            task.completed = false;
+            task.completedTime = undefined;
+            task.kanbanStatus = newStatus;
+        }
+
+        await this.saveTask(task);
+    }
+
+    /**
+     * 批量设置分组
+     */
+    private async batchSetGroup(): Promise<void> {
+        const selectedIds = Array.from(this.selectedTaskIds);
+        if (selectedIds.length === 0) return;
+
+        try {
+            const { ProjectManager } = await import('../utils/projectManager');
+            const projectManager = ProjectManager.getInstance(this.plugin);
+            const groups = await projectManager.getProjectCustomGroups(this.projectId);
+
+            const groupOptions = [
+                `<option value="">${t('noGroup') || '无分组'}</option>`,
+                ...groups.map(g => `<option value="${g.id}">${g.icon || '📋'} ${g.name}</option>`)
+            ].join('');
+
+            const dialog = new Dialog({
+                title: t('batchSetGroup') || '批量设置分组',
+                content: `
+                    <div class="b3-dialog__content">
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${t('selectGroup') || '选择分组'}</label>
+                            <select id="batchGroupSelect" class="b3-select" style="width: 100%;">
+                                ${groupOptions}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="batchGroupCancel">${t('cancel')}</button>
+                        <button class="b3-button b3-button--primary" id="batchGroupConfirm">${t('confirm')}</button>
+                    </div>
+                `,
+                width: '320px'
+            });
+
+            const groupSelect = dialog.element.querySelector('#batchGroupSelect') as HTMLSelectElement;
+            const cancelBtn = dialog.element.querySelector('#batchGroupCancel') as HTMLButtonElement;
+            const confirmBtn = dialog.element.querySelector('#batchGroupConfirm') as HTMLButtonElement;
+
+            cancelBtn.addEventListener('click', () => dialog.destroy());
+
+            confirmBtn.addEventListener('click', async () => {
+                const groupId = groupSelect.value || null;
+                dialog.destroy();
+
+                try {
+                    let successCount = 0;
+                    for (const taskId of selectedIds) {
+                        const task = this.tasks.find(t => t.id === taskId);
+                        if (task) {
+                            task.customGroupId = groupId;
+                            await this.saveTask(task);
+                            successCount++;
+                        }
+                    }
+                    showMessage(t('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
+                    this.queueLoadTasks();
+                } catch (error) {
+                    console.error('批量设置分组失败:', error);
+                    showMessage(t('batchUpdateFailed') || '批量更新失败');
+                }
+            });
+        } catch (error) {
+            console.error('获取分组列表失败:', error);
+            showMessage(t('loadGroupsFailed') || '加载分组失败');
+        }
+    }
+
+    /**
+     * 批量设置优先级
+     */
+    private async batchSetPriority(): Promise<void> {
+        const selectedIds = Array.from(this.selectedTaskIds);
+        if (selectedIds.length === 0) return;
+
+        const priorities = [
+            { id: 'none', name: t('noPriority') || '无优先级', icon: '' },
+            { id: 'low', name: t('lowPriority') || '低优先级', icon: '🔵' },
+            { id: 'medium', name: t('mediumPriority') || '中优先级', icon: '🟡' },
+            { id: 'high', name: t('highPriority') || '高优先级', icon: '🔴' }
+        ];
+
+        const priorityOptions = priorities.map(p =>
+            `<option value="${p.id}">${p.icon} ${p.name}</option>`
+        ).join('');
+
+        const dialog = new Dialog({
+            title: t('batchSetPriority') || '批量设置优先级',
+            content: `
+                <div class="b3-dialog__content">
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">${t('selectPriority') || '选择优先级'}</label>
+                        <select id="batchPrioritySelect" class="b3-select" style="width: 100%;">
+                            ${priorityOptions}
+                        </select>
+                    </div>
+                </div>
+                <div class="b3-dialog__action">
+                    <button class="b3-button b3-button--cancel" id="batchPriorityCancel">${t('cancel')}</button>
+                    <button class="b3-button b3-button--primary" id="batchPriorityConfirm">${t('confirm')}</button>
+                </div>
+            `,
+            width: '320px'
+        });
+
+        const prioritySelect = dialog.element.querySelector('#batchPrioritySelect') as HTMLSelectElement;
+        const cancelBtn = dialog.element.querySelector('#batchPriorityCancel') as HTMLButtonElement;
+        const confirmBtn = dialog.element.querySelector('#batchPriorityConfirm') as HTMLButtonElement;
+
+        cancelBtn.addEventListener('click', () => dialog.destroy());
+
+        confirmBtn.addEventListener('click', async () => {
+            const newPriority = prioritySelect.value;
+            dialog.destroy();
+
+            try {
+                let successCount = 0;
+                for (const taskId of selectedIds) {
+                    const task = this.tasks.find(t => t.id === taskId);
+                    if (task) {
+                        task.priority = newPriority;
+                        await this.saveTask(task);
+                        successCount++;
+                    }
+                }
+                showMessage(t('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
+                this.queueLoadTasks();
+            } catch (error) {
+                console.error('批量设置优先级失败:', error);
+                showMessage(t('batchUpdateFailed') || '批量更新失败');
+            }
+        });
+    }
+
+    /**
+     * 批量删除任务
+     */
+    private batchDelete(): void {
+        const selectedIds = Array.from(this.selectedTaskIds);
+        if (selectedIds.length === 0) return;
+
+        // 确认对话框 - 思源 confirm 使用回调方式
+        confirm(
+            t('confirmBatchDelete') || '确认批量删除',
+            t('confirmBatchDeleteMessage', { count: String(selectedIds.length) }) || `确定要删除选中的 ${selectedIds.length} 个任务吗？此操作不可恢复。`,
+            async () => {
+                try {
+                    let successCount = 0;
+                    for (const taskId of selectedIds) {
+                        await this.deleteTaskById(taskId);
+                        successCount++;
+                    }
+
+                    // 清空选择
+                    this.selectedTaskIds.clear();
+                    this.hideBatchToolbar();
+
+                    showMessage(t('batchDeleteSuccess', { count: String(successCount) }) || `成功删除 ${successCount} 个任务`);
+                    this.queueLoadTasks();
+                } catch (error) {
+                    console.error('批量删除失败:', error);
+                    showMessage(t('batchDeleteFailed') || '批量删除失败');
+                }
+            }
+        );
+    }
+
+    /**
+     * 根据ID删除任务
+     */
+    private async deleteTaskById(taskId: string): Promise<void> {
+        // 从任务列表中移除
+        const taskIndex = this.tasks.findIndex(t => t.id === taskId);
+        if (taskIndex === -1) return;
+
+        const task = this.tasks[taskIndex];
+
+        // 从提醒数据中删除
+        let reminderData = await this.getReminders();
+        if (reminderData[taskId]) {
+            delete reminderData[taskId];
+            await saveReminders(this.plugin, reminderData);
+        }
+
+        // 同时从 this.tasks 中移除
+        this.tasks.splice(taskIndex, 1);
+
+        // 递归删除子任务
+        const children = this.tasks.filter(t => t.parentId === taskId);
+        for (const child of children) {
+            await this.deleteTaskById(child.id);
+        }
+
+        // 触发更新事件
+        this.dispatchReminderUpdate(true);
     }
 
 }
