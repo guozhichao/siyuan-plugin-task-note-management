@@ -1345,9 +1345,25 @@ export class QuickReminderDialog {
         const selector = this.dialog?.element?.querySelector('#quickTermTypeSelector') as HTMLElement;
         if (!selector) return;
 
+        // 过滤掉已完成状态，获取可用的状态列表
+        const availableStatuses = this.currentKanbanStatuses.filter(status => status.id !== 'completed');
+
+        // 如果没有可用状态，使用默认状态
+        if (availableStatuses.length === 0) {
+            const projectManager = ProjectManager.getInstance(this.plugin);
+            this.currentKanbanStatuses = projectManager.getDefaultKanbanStatuses();
+            availableStatuses.push(...this.currentKanbanStatuses.filter(status => status.id !== 'completed'));
+        }
+
         // 获取当前选中的状态
         const currentSelected = selector.querySelector('.term-type-option.selected') as HTMLElement;
-        const currentStatusId = currentSelected?.getAttribute('data-term-type') || this.defaultTermType || 'doing';
+        let currentStatusId = currentSelected?.getAttribute('data-term-type') || this.defaultTermType || 'doing';
+
+        // 确保 currentStatusId 在可用状态列表中，如果不在则默认选中第一个
+        const statusExists = availableStatuses.some(s => s.id === currentStatusId);
+        if (!statusExists && availableStatuses.length > 0) {
+            currentStatusId = availableStatuses[0].id;
+        }
 
         // 确保容器支持换行显示（以防上层样式被覆盖）
         selector.style.display = 'flex';
@@ -1355,8 +1371,7 @@ export class QuickReminderDialog {
         selector.style.alignItems = 'flex-start';
 
         // 生成选项HTML — 使用 inline-flex 使每项按内容宽度展示并可换行
-        const options = this.currentKanbanStatuses
-            .filter(status => status.id !== 'completed') // 已完成不在创建/编辑时选择
+        const options = availableStatuses
             .map(status => {
                 const isSelected = status.id === currentStatusId ? 'selected' : '';
                 const bg = isSelected ? (status.color ? status.color + '20' : 'transparent') : 'transparent';
@@ -2536,8 +2551,13 @@ export class QuickReminderDialog {
         const categoryId = this.selectedCategoryIds.length > 0 ? this.selectedCategoryIds.join(',') : undefined;
 
         const projectId = projectSelector.value || undefined;
-        // 获取选中的kanbanStatus（不再使用termType）
-        const kanbanStatus = selectedTermType?.getAttribute('data-term-type') || 'short_term';
+        // 获取选中的kanbanStatus，如果没有选中则使用第一个可用状态
+        let kanbanStatus = selectedTermType?.getAttribute('data-term-type');
+        if (!kanbanStatus) {
+            // 如果没有选中状态，使用第一个可用状态（排除已完成）
+            const availableStatuses = this.currentKanbanStatuses.filter(s => s.id !== 'completed');
+            kanbanStatus = availableStatuses.length > 0 ? availableStatuses[0].id : 'short_term';
+        }
         const customGroupId = customGroupSelector?.value || undefined;
         const customReminderTime = (this.dialog.element.querySelector('#quickCustomReminderTime') as HTMLInputElement).value.trim() || undefined;
         const customReminderPreset = (this.dialog.element.querySelector('#quickCustomReminderPreset') as HTMLSelectElement)?.value || undefined;
