@@ -25,6 +25,14 @@ export interface PasteTaskDialogConfig {
     defaultTermType?: string;
     onSuccess?: (totalCount: number) => void;
     onError?: (error: any) => void;
+    // 是否显示状态选择器（默认false）
+    showStatusSelector?: boolean;
+    // 是否显示分组选择器（默认false，仅当项目有自定义分组时显示）
+    showGroupSelector?: boolean;
+    // 项目自定义分组列表
+    projectGroups?: any[];
+    // 看板状态配置
+    kanbanStatuses?: any[];
 }
 
 export class PasteTaskDialog {
@@ -34,8 +42,23 @@ export class PasteTaskDialog {
         this.config = config;
     }
 
-    show() {
+    async show() {
         const isSubtask = !!this.config.parentTask;
+        const showStatusSelector = this.config.showStatusSelector && !isSubtask;
+        const showGroupSelector = this.config.showGroupSelector && !isSubtask && this.config.projectGroups && this.config.projectGroups.length > 0;
+
+        // 构建状态和分组选择器HTML
+        let selectorsHtml = '';
+
+        if (showStatusSelector || showGroupSelector) {
+            selectorsHtml = `
+                <div style="display: flex; gap: 12px; margin-bottom: 12px; padding: 12px; background: var(--b3-theme-surface); border-radius: 6px;">
+                    ${showStatusSelector ? this.buildStatusSelectorHtml() : ''}
+                    ${showGroupSelector ? this.buildGroupSelectorHtml() : ''}
+                </div>
+            `;
+        }
+
         const dialog = new Dialog({
             title: isSubtask ? (t("pasteAsSubtasks") || "粘贴列表新建子任务") : (t("pasteAsTasks") || "粘贴列表新建任务"),
             content: `
@@ -50,6 +73,7 @@ export class PasteTaskDialog {
                     <p style="font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8; margin-bottom: 8px;">
                         ${t("supportHierarchy") || "支持多层级：使用缩进或多个<code>-</code>符号创建父子任务关系"}
                     </p>
+                    ${selectorsHtml}
                     <textarea id="taskList" class="b3-text-field"
                         placeholder=""
                         style="width: 100%; height: 250px; resize: vertical;"></textarea>
@@ -69,7 +93,7 @@ export class PasteTaskDialog {
                     <button class="b3-button b3-button--primary" id="createBtn">${isSubtask ? (t("createSubtasks") || "创建子任务") : (t("createTasks") || "创建任务")}</button>
                 </div>
             `,
-            width: "500px",
+            width: "520px",
         });
 
         const textArea = dialog.element.querySelector('#taskList') as HTMLTextAreaElement;
@@ -117,9 +141,28 @@ export class PasteTaskDialog {
             const removeDate = removeDateCheckbox.checked;
             const hierarchicalTasks = this.parseHierarchicalTaskList(text, autoDetect, removeDate);
 
+            // 获取用户选择的状态和分组
+            let selectedStatus = this.config.defaultTermType;
+            let selectedGroupId = this.config.customGroupId;
+
+            if (showStatusSelector) {
+                const statusSelect = dialog.element.querySelector('#pasteTaskStatus') as HTMLSelectElement;
+                if (statusSelect) {
+                    selectedStatus = statusSelect.value;
+                }
+            }
+
+            if (showGroupSelector) {
+                const groupSelect = dialog.element.querySelector('#pasteTaskGroup') as HTMLSelectElement;
+                if (groupSelect) {
+                    const gid = groupSelect.value;
+                    selectedGroupId = gid === 'none' ? null : gid;
+                }
+            }
+
             if (hierarchicalTasks.length > 0) {
                 try {
-                    await this.batchCreateTasksWithHierarchy(hierarchicalTasks);
+                    await this.batchCreateTasksWithHierarchy(hierarchicalTasks, selectedStatus, selectedGroupId);
                     dialog.destroy();
                     const totalTasks = this.countTotalTasks(hierarchicalTasks);
                     if (this.config.onSuccess) {
@@ -269,7 +312,7 @@ export class PasteTaskDialog {
         return { title: title.trim() || t('noContentHint') || '未命名任务', priority, startDate, time, endDate, endTime, blockId, completed };
     }
 
-    private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[]) {
+    private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[], selectedStatus?: string, selectedGroupId?: string | null) {
         const reminderData = await getAllReminders(this.config.plugin, undefined, true);
         const parentTask = this.config.parentTask;
         const projectId = this.config.projectId || (parentTask ? parentTask.projectId : undefined);
@@ -293,6 +336,26 @@ export class PasteTaskDialog {
 
             const inheritedPriority = (task.priority && task.priority !== 'none') ? task.priority : (parentPriority || 'none');
 
+            // 根据 selectedStatus 或 defaultTermType 确定 kanbanStatus 和 termType
+            // 优先使用用户选择的状态
+            const statusToUse = selectedStatus !== undefined ? selectedStatus : this.config.defaultTermType;
+            let kanbanStatus = 'todo';
+            let termType: string | undefined = undefined;
+
+            if (statusToUse === 'doing') {
+                kanbanStatus = 'doing';
+                // doing 状态不需要 termType
+            } else if (statusToUse === 'long_term' || statusToUse === 'short_term') {
+                termType = statusToUse;
+                kanbanStatus = 'todo';
+            } else if (statusToUse) {
+                // 自定义状态，直接使用作为 kanbanStatus
+                kanbanStatus = statusToUse;
+            } else {
+                // 默认使用 doing
+                kanbanStatus = 'doing';
+            }
+
             const newTask: any = {
                 id: taskId,
                 title: task.title,
@@ -301,8 +364,7 @@ export class PasteTaskDialog {
                 categoryId: categoryId,
                 projectId: projectId,
                 completed: !!task.completed,
-                kanbanStatus: 'todo',
-                termType: this.config.defaultTermType || 'short_term',
+                kanbanStatus: kanbanStatus,
                 createdTime: new Date().toISOString(),
                 created: getLocalDateTimeString(new Date()),
                 date: task.startDate,
@@ -311,6 +373,10 @@ export class PasteTaskDialog {
                 endTime: task.endTime,
                 sort: sortCounter,
             };
+
+            if (termType) {
+                newTask.termType = termType;
+            }
 
             if (parentId) {
                 newTask.parentId = parentId;
@@ -359,10 +425,13 @@ export class PasteTaskDialog {
             return taskId;
         };
 
+        // 使用用户选择的分组，如果没有则使用配置的分组
+        const groupToUse = selectedGroupId !== undefined ? selectedGroupId : this.config.customGroupId;
+
         for (const task of tasks) {
             const topParentId = parentTask ? parentTask.id : undefined;
             const parentPriority = parentTask?.priority;
-            await createTaskRecursively(task, topParentId, parentPriority, this.config.customGroupId);
+            await createTaskRecursively(task, topParentId, parentPriority, groupToUse);
         }
 
         await saveReminders(this.config.plugin, reminderData);
@@ -402,5 +471,68 @@ export class PasteTaskDialog {
         }
 
         return undefined;
+    }
+
+    private buildStatusSelectorHtml(): string {
+        const kanbanStatuses = this.config.kanbanStatuses || [];
+        const defaultStatus = this.config.defaultTermType || 'short_term';
+
+        // 状态名称映射
+        const statusNameMap: { [key: string]: string } = {
+            'doing': '进行中',
+            'long_term': '长期',
+            'short_term': '短期',
+            'completed': '已完成'
+        };
+
+        // 构建状态选项（排除已完成状态）
+        let statusOptionsHtml = '';
+        kanbanStatuses
+            .filter((status: any) => status.id !== 'completed')
+            .forEach((status: any) => {
+                const name = status.name || statusNameMap[status.id] || status.id;
+                const selected = status.id === defaultStatus ? 'selected' : '';
+                statusOptionsHtml += `<option value="${status.id}" ${selected}>${status.icon || ''} ${name}</option>`;
+            });
+
+        // 如果没有配置状态，使用默认选项
+        if (kanbanStatuses.length === 0) {
+            statusOptionsHtml = `
+                <option value="short_term" ${defaultStatus === 'short_term' ? 'selected' : ''}>短期</option>
+                <option value="long_term" ${defaultStatus === 'long_term' ? 'selected' : ''}>长期</option>
+                <option value="doing" ${defaultStatus === 'doing' ? 'selected' : ''}>进行中</option>
+            `;
+        }
+
+        return `
+            <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
+                <label style="font-size: 12px; color: var(--b3-theme-on-surface); white-space: nowrap;">${t('taskStatus') || '任务状态'}:</label>
+                <select id="pasteTaskStatus" class="b3-select" style="flex: 1; min-width: 100px;">
+                    ${statusOptionsHtml}
+                </select>
+            </div>
+        `;
+    }
+
+    private buildGroupSelectorHtml(): string {
+        const projectGroups = this.config.projectGroups || [];
+        const defaultGroupId = this.config.customGroupId || 'none';
+
+        // 构建分组选项
+        let groupOptionsHtml = `<option value="none" ${!this.config.customGroupId ? 'selected' : ''}>${t('noGroup') || '无分组'}</option>`;
+
+        projectGroups.forEach((group: any) => {
+            const selected = group.id === defaultGroupId ? 'selected' : '';
+            groupOptionsHtml += `<option value="${group.id}" ${selected}>${group.icon || '📋'} ${group.name}</option>`;
+        });
+
+        return `
+            <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
+                <label style="font-size: 12px; color: var(--b3-theme-on-surface); white-space: nowrap;">${t('taskGroup') || '任务分组'}:</label>
+                <select id="pasteTaskGroup" class="b3-select" style="flex: 1; min-width: 100px;">
+                    ${groupOptionsHtml}
+                </select>
+            </div>
+        `;
     }
 }

@@ -1983,7 +1983,7 @@ export class ProjectKanbanView {
         const pasteTaskBtn = document.createElement('button');
         pasteTaskBtn.className = 'b3-button';
         pasteTaskBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg> ${t('pasteNew')}`;
-        pasteTaskBtn.addEventListener('click', () => this.showPasteTaskDialog());
+        pasteTaskBtn.addEventListener('click', () => this.showPasteTaskDialog(undefined, undefined, undefined, true));
         controlsGroup.appendChild(pasteTaskBtn);
 
         // 排序按钮
@@ -2273,6 +2273,20 @@ export class ProjectKanbanView {
             });
 
             rightContainer.appendChild(addTaskBtn);
+
+            // 粘贴新建任务按钮
+            const pasteTaskBtn = document.createElement('button');
+            pasteTaskBtn.className = 'b3-button b3-button--outline';
+            pasteTaskBtn.title = t('pasteNew');
+            pasteTaskBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg>`;
+            pasteTaskBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // 传递列的 status 作为默认状态，并显示选择器
+                const term = status as any;
+                this.showPasteTaskDialog(undefined, this.lastSelectedCustomGroupId, term, true);
+            });
+
+            rightContainer.appendChild(pasteTaskBtn);
         }
 
         header.appendChild(rightContainer);
@@ -4395,7 +4409,8 @@ export class ProjectKanbanView {
         pasteGroupTaskBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             const gid = group.id === 'ungrouped' ? null : group.id;
-            this.showPasteTaskDialog(undefined, gid);
+            // 显示选择器
+            this.showPasteTaskDialog(undefined, gid, undefined, true);
         });
 
         const headerRight = document.createElement('div');
@@ -4651,7 +4666,8 @@ export class ProjectKanbanView {
             pasteTaskBtn.innerHTML = `<svg style="width: 14px; height: 14px;"><use xlink:href="#iconPaste"></use></svg>`;
             pasteTaskBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.showPasteTaskDialog(undefined, group.id, status as any);
+                // 显示选择器
+                this.showPasteTaskDialog(undefined, group.id, status as any, true);
             });
             headerRight.appendChild(pasteTaskBtn);
         }
@@ -4871,7 +4887,41 @@ export class ProjectKanbanView {
         `;
 
         groupHeader.appendChild(groupTitle);
-        groupHeader.appendChild(taskCount);
+
+        // 右侧容器：任务计数 + 新建按钮 + 粘贴按钮
+        const headerRight = document.createElement('div');
+        headerRight.style.cssText = 'display:flex; align-items:center; gap:4px;';
+        headerRight.appendChild(taskCount);
+
+        // 非已完成状态显示新建按钮和粘贴按钮
+        if (status !== 'completed') {
+            const addTaskBtn = document.createElement('button');
+            addTaskBtn.className = 'b3-button b3-button--text';
+            addTaskBtn.style.cssText = 'padding: 2px; margin-left: 2px;';
+            addTaskBtn.title = t('newTask');
+            addTaskBtn.innerHTML = `<svg style="width: 14px; height: 14px;"><use xlink:href="#iconAdd"></use></svg>`;
+            addTaskBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const gid = group.id === 'ungrouped' ? null : group.id;
+                this.showCreateTaskDialog(undefined, gid, status as any);
+            });
+            headerRight.appendChild(addTaskBtn);
+
+            const pasteTaskBtn = document.createElement('button');
+            pasteTaskBtn.className = 'b3-button b3-button--text';
+            pasteTaskBtn.style.cssText = 'padding: 2px; margin-left: 2px;';
+            pasteTaskBtn.title = t('pasteNew');
+            pasteTaskBtn.innerHTML = `<svg style="width: 14px; height: 14px;"><use xlink:href="#iconPaste"></use></svg>`;
+            pasteTaskBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const gid = group.id === 'ungrouped' ? null : group.id;
+                // 显示选择器
+                this.showPasteTaskDialog(undefined, gid, status as any, true);
+            });
+            headerRight.appendChild(pasteTaskBtn);
+        }
+
+        groupHeader.appendChild(headerRight);
 
         // 分组任务容器
         const groupTasksContainer = document.createElement('div');
@@ -7242,13 +7292,31 @@ export class ProjectKanbanView {
         }
     }
 
-    private showPasteTaskDialog(parentTask?: any, customGroupId?: string, defaultTermType?: string) {
+    private async showPasteTaskDialog(parentTask?: any, customGroupId?: string, defaultTermType?: string, showSelectors: boolean = false) {
+        // 如果需要显示选择器，获取项目配置
+        let projectGroups: any[] = [];
+        let kanbanStatuses: any[] = this.kanbanStatuses;
+
+        if (showSelectors && !parentTask) {
+            try {
+                const { ProjectManager } = await import('../utils/projectManager');
+                const projectManager = ProjectManager.getInstance(this.plugin);
+                projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
+            } catch (error) {
+                console.error('获取项目分组失败:', error);
+            }
+        }
+
         const dialog = new PasteTaskDialog({
             plugin: this.plugin,
             parentTask,
             projectId: this.projectId,
             customGroupId,
             defaultTermType,
+            showStatusSelector: showSelectors && !parentTask, // 只在非子任务且显示选择器时显示
+            showGroupSelector: showSelectors && !parentTask,  // 只在非子任务且显示选择器时显示
+            projectGroups,
+            kanbanStatuses,
             onSuccess: (totalCount) => {
                 showMessage(`${totalCount} 个任务已创建`);
                 this.reminderData = null; // 清理缓存，确保 queueLoadTasks 读取最新数据
