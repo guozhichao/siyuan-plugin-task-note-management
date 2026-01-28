@@ -4717,7 +4717,7 @@ export class ReminderPanel {
             menu.addItem({
                 iconHTML: "📋",
                 label: t("pasteCreateSubtask"),
-                click: () => this.showPasteSubtaskDialog(reminder)
+                click: () => this.showPasteTaskDialog(reminder)
             });
             // 解除父子任务关系（仅当任务有父任务时显示）
             if (reminder.parentId) {
@@ -6814,7 +6814,7 @@ export class ReminderPanel {
         dialog.show();
     }
 
-    private showPasteSubtaskDialog(parentReminder: any) {
+    private showPasteTaskDialog(parentReminder: any) {
         const dialog = new Dialog({
             title: "粘贴列表新建子任务",
             content: `
