@@ -181,6 +181,10 @@ export class ReminderPanel {
                 style.textContent = `
                     .reminder-item.dragging { opacity: 0.5 !important; }
                     .reminder-item.reminder-completed { opacity: 0.5 !important; }
+                    .reminder-list.drag-over-active {
+                        background-color: var(--b3-theme-surface-lighter);
+                        box-shadow: inset 0 0 0 2px var(--b3-theme-primary);
+                    }
                 `;
                 document.head.appendChild(style);
             }
@@ -3836,10 +3840,86 @@ export class ReminderPanel {
         });
     }
 
-    // 容器拖拽事件（已不需要，通过拖到其他任务上下方自动移除父子关系）
+    // 容器拖拽事件：处理外部拖入（如从看板拖入）
     private addContainerDragEvents() {
-        // 不再需要容器级别的拖拽提示
-        // 移除父子关系现在通过拖动到其他任务的上方或下方自动完成
+        this.remindersContainer.addEventListener('dragover', (e) => {
+            // 仅处理外部拖拽（内部拖拽有专门的处理逻辑）且当前视图支持放置
+            if (!this.isDragging && !this.draggedElement && e.dataTransfer?.types.includes('application/x-reminder')) {
+                // 仅允许在 "今天" 和 "明天" 视图中放置
+                if (['today', 'tomorrow'].includes(this.currentTab)) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    this.remindersContainer.classList.add('drag-over-active');
+                }
+            }
+        });
+
+        this.remindersContainer.addEventListener('dragleave', () => {
+            this.remindersContainer.classList.remove('drag-over-active');
+        });
+
+        this.remindersContainer.addEventListener('drop', async (e) => {
+            this.remindersContainer.classList.remove('drag-over-active');
+
+            // 仅处理外部拖拽
+            if (!this.isDragging && !this.draggedElement && e.dataTransfer?.types.includes('application/x-reminder')) {
+                e.preventDefault();
+
+                // 检查视图有效性
+                if (!['today', 'tomorrow'].includes(this.currentTab)) {
+                    return;
+                }
+
+                try {
+                    const dataStr = e.dataTransfer.getData('application/x-reminder');
+                    if (!dataStr) return;
+
+                    const data = JSON.parse(dataStr);
+                    const taskId = data.id;
+
+                    if (!taskId) return;
+
+                    // 计算目标日期
+                    let targetDate = '';
+                    if (this.currentTab === 'today') {
+                        targetDate = getLogicalDateString();
+                    } else if (this.currentTab === 'tomorrow') {
+                        targetDate = getRelativeDateString(1);
+                    }
+
+                    if (!targetDate) return;
+
+                    // 执行更新
+                    const reminderData = await getAllReminders(this.plugin);
+                    const reminder = reminderData[taskId];
+
+                    if (reminder) {
+                        // 如果日期发生变化，则更新
+                        if (reminder.date !== targetDate) {
+                            reminder.date = targetDate;
+                            // 保持原有时间，或者如果是全天任务则保持全天
+                            // 如果原任务没有时间，这里也不添加时间
+
+                            await saveReminders(this.plugin, reminderData);
+
+                            // 刷新界面
+                            await this.loadReminders(true);
+
+                            // 通知其他组件
+                            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+
+                            showMessage(t("reminderUpdated") || "任务已更新");
+                        }
+                    } else {
+                        showMessage(t("reminderNotExist"));
+                    }
+
+                } catch (error) {
+                    console.error('处理拖放失败:', error);
+                    showMessage(t("operationFailed"));
+                }
+            }
+        });
     }
 
     // 新增:移除父子关系
