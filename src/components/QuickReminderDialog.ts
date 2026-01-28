@@ -1,5 +1,5 @@
 import { showMessage, Dialog } from "siyuan";
-import { getBlockByID, getBlockDOM, refreshSql, updateBlockReminderBookmark } from "../api";
+import { getBlockByID, getBlockDOM, refreshSql, updateBindBlockAtrrs } from "../api";
 import { compareDateStrings, getLogicalDateString, parseNaturalDateTime, autoDetectDateTimeFromTitle } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
@@ -2860,7 +2860,7 @@ export class QuickReminderDialog {
                         // 如果原来有绑定块，但编辑后删除了绑定，需要更新原块的书签状态
                         if (oldBlockId && !newBlockId) {
                             try {
-                                await updateBlockReminderBookmark(oldBlockId, this.plugin);
+                                await updateBindBlockAtrrs(oldBlockId, this.plugin);
                                 console.debug('QuickReminderDialog: 已移除原块的书签绑定', oldBlockId);
                             } catch (error) {
                                 console.warn('更新原块书签状态失败:', error);
@@ -2870,7 +2870,7 @@ export class QuickReminderDialog {
                         // 如果原来绑定了块A，现在改绑块B，需要同时更新两个块
                         if (oldBlockId && newBlockId && oldBlockId !== newBlockId) {
                             try {
-                                await updateBlockReminderBookmark(oldBlockId, this.plugin);
+                                await updateBindBlockAtrrs(oldBlockId, this.plugin);
                                 console.debug('QuickReminderDialog: 已更新原块的书签状态', oldBlockId);
                             } catch (error) {
                                 console.warn('更新原块书签状态失败:', error);
@@ -2890,7 +2890,7 @@ export class QuickReminderDialog {
                                     console.debug('QuickReminderDialog: cleared custom-task-projectId for block', newBlockId);
                                 }
                                 // 为绑定块添加⏰书签
-                                await updateBlockReminderBookmark(newBlockId, this.plugin);
+                                await updateBindBlockAtrrs(newBlockId, this.plugin);
                             } catch (error) {
                                 console.warn('设置块自定义属性 custom-task-projectId 失败:', error);
                             }
@@ -3070,7 +3070,7 @@ export class QuickReminderDialog {
                             console.debug('QuickReminderDialog: cleared custom-task-projectId for block', reminder.blockId);
                         }
                         // 为绑定块添加⏰书签
-                        await updateBlockReminderBookmark(reminder.blockId, this.plugin);
+                        await updateBindBlockAtrrs(reminder.blockId, this.plugin);
                     } catch (error) {
                         console.warn('设置块自定义属性 custom-task-projectId 失败:', error);
                     }

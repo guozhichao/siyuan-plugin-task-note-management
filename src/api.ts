@@ -909,58 +909,6 @@ export async function markHabitNotified(habitId: string, date: string, time?: st
     }
 }
 
-// **************************************** Bookmark Management ****************************************
-
-/**
- * 设置块的书签
- * @param blockId 块ID
- * @param bookmark 书签内容，如 "⏰"
- */
-export async function setBlockBookmark(blockId: string, bookmark: string): Promise<any> {
-    const data = {
-        id: blockId,
-        attrs: {
-            bookmark: bookmark
-        }
-    };
-    return request('/api/attr/setBlockAttrs', data);
-}
-
-/**
- * 移除块的书签
- * @param blockId 块ID
- */
-export async function setBlockDone(blockId: string): Promise<any> {
-    // 检测块是否存在
-    const block = await getBlockByID(blockId);
-    if (!block) {
-        return;
-    }
-    const data = {
-        id: blockId,
-        attrs: {
-            "bookmark": "✅",
-            "custom-task-done": formatDate(new Date())
-
-        }
-    };
-    return request('/api/attr/setBlockAttrs', data);
-}
-export async function removeBlockBookmark(blockId: string): Promise<any> {
-    // 检测块是否存在
-    const block = await getBlockByID(blockId);
-    if (!block) {
-        return;
-    }
-    const data = {
-        id: blockId,
-        attrs: {
-            "bookmark": "",
-
-        }
-    };
-    return request('/api/attr/setBlockAttrs', data);
-}
 function formatDate(date) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0'); // 月份从0开始，需+1
@@ -975,7 +923,7 @@ function formatDate(date) {
  * @param blockId 块ID
  * @param plugin 插件实例
  */
-export async function updateBlockReminderBookmark(blockId: string, plugin: any): Promise<void> {
+export async function updateBindBlockAtrrs(blockId: string, plugin: any): Promise<void> {
     try {
         const reminderData = await plugin.loadReminderData();
 
@@ -984,90 +932,77 @@ export async function updateBlockReminderBookmark(blockId: string, plugin: any):
             reminder && reminder.blockId === blockId
         );
 
-        // 如果没有提醒，移除书签
+        const attrs: { [key: string]: string } = {};
+
+        // 如果没有提醒，清理所有相关属性
         if (blockReminders.length === 0) {
-            await removeBlockBookmark(blockId);
-            // 同时清理块的 custom-task-projectId 属性（没有提醒则不应保留项目关联）
             try {
-                await setBlockProjectIds(blockId, []);
+                // 清理 custom-bind-reminders
+                try {
+                    await setBlockAttrs(blockId, { 'custom-bind-reminders': '' });
+                } catch (err) {
+                    console.warn('clear block reminder ids failed for', blockId, err);
+                }
+
+                // 清理 custom-task-projectId
+                try {
+                    await setBlockAttrs(blockId, { 'custom-task-projectId': '' });
+                } catch (err) {
+                    console.warn('clear block project ids failed for', blockId, err);
+                }
+
+                // 移除 bookmark
+                // await removeBlockBookmark(blockId);
+                await setBlockAttrs(blockId, { "bookmark": "" });
+
+                return;
             } catch (err) {
-                console.warn('clear block project ids failed for', blockId, err);
+                console.warn('clean up block attributes failed for', blockId, err);
+                return;
             }
-            // 清理 custom-bind-reminders 属性
-            try {
-                await setBlockReminderIds(blockId, []);
-            } catch (err) {
-                console.warn('clear block reminder ids failed for', blockId, err);
-            }
-            return;
         }
 
-        // 检查提醒状态
+        // ----- 1. 计算 bookmark 和 custom-task-done -----
         const hasIncompleteReminders = blockReminders.some((reminder: any) => !reminder.completed);
         const allCompleted = blockReminders.length > 0 && blockReminders.every((reminder: any) => reminder.completed);
 
         if (allCompleted) {
-            // 如果所有提醒都已完成，标记块为完成
-            await setBlockDone(blockId);
+            attrs['bookmark'] = '✅';
+            attrs['custom-task-done'] = formatDate(new Date());
         } else if (hasIncompleteReminders) {
-            // 如果有未完成的提醒，确保有⏰书签
-            await setBlockBookmark(blockId, "⏰");
+            attrs['bookmark'] = '⏰';
+            // 如果从完成变成未完成，是否清除 completion time? 保持现状或者根据需要清除
+            // attrs['custom-task-done'] = ''; 
         } else {
-            // 其他情况，移除书签
-            await removeBlockBookmark(blockId);
+            // 理论上不会走到这里，因为 blockReminders.length > 0
+            attrs['bookmark'] = '';
         }
 
-        // ----- 同步 custom-bind-reminders 属性 -----
-        // 收集该块所有提醒的ID
-        try {
-            const reminderIds = blockReminders.map((r: any) => r.id).filter(id => id);
-            await setBlockReminderIds(blockId, reminderIds);
-        } catch (err) {
-            console.warn('sync block reminder ids failed for', blockId, err);
+        // ----- 2. 计算 custom-bind-reminders -----
+        const reminderIds = blockReminders.map((r: any) => r.id).filter(id => id);
+        if (reminderIds.length > 0) {
+            attrs['custom-bind-reminders'] = reminderIds.join(',');
+        } else {
+            attrs['custom-bind-reminders'] = '';
         }
 
-        // ----- 同步 custom-task-projectId 属性 -----
-        // 目标：将块属性中的项目ID与该块当前剩余提醒中引用的项目ID对齐。
-        // 如果没有任何提醒引用某个项目ID，则从属性中移除该项目ID；如果没有剩余项目则清空属性。
-        try {
-            // 收集提醒中引用的 project ids（兼容多种字段名）
-            const referencedProjectIds = new Set<string>();
-            for (const r of blockReminders as any[]) {
-                if (!r) continue;
-                if (typeof r.projectId === 'string' && r.projectId.trim()) referencedProjectIds.add(r.projectId.trim());
-                else if (Array.isArray(r.projectIds)) {
-                    r.projectIds.forEach((p: any) => { if (p && String(p).trim()) referencedProjectIds.add(String(p).trim()); });
-                } else if (r.project && typeof r.project === 'string' && r.project.trim()) referencedProjectIds.add(r.project.trim());
-                else if (r.project && typeof r.project === 'object' && r.project.id) referencedProjectIds.add(String(r.project.id).trim());
-            }
-
-            // 读取当前块属性中的 project ids（用于比较写回前后是否有变化）
-            let currentIds: string[] = [];
-            try {
-                currentIds = await getBlockProjectIds(blockId);
-            } catch (err) {
-                console.warn('getBlockProjectIds failed for', blockId, err);
-                currentIds = [];
-            }
-
-            // 直接使用提醒中被引用的 project ids（不再以块属性为基础）
-            const newIds = Array.from(referencedProjectIds).map(s => String(s).trim()).filter(s => s);
-
-            // 如果新数组与当前不一致，则写回（包括清空）
-            const equal = (a: string[], b: string[]) => a.length === b.length && a.every((v, i) => v === b[i]);
-            // 为稳定性，对数组排序再比较
-            const sortedCurrent = [...currentIds].sort();
-            const sortedNew = [...newIds].sort();
-            if (!equal(sortedCurrent, sortedNew)) {
-                try {
-                    await setBlockProjectIds(blockId, newIds);
-                } catch (err) {
-                    console.warn('setBlockProjectIds failed for', blockId, newIds, err);
-                }
-            }
-        } catch (err) {
-            console.warn('sync block project ids failed for', blockId, err);
+        // ----- 3. 计算 custom-task-projectId -----
+        // 收集提醒中引用的 project ids
+        const referencedProjectIds = new Set<string>();
+        for (const r of blockReminders as any[]) {
+            if (!r) continue;
+            if (typeof r.projectId === 'string' && r.projectId.trim()) referencedProjectIds.add(r.projectId.trim());
+            else if (Array.isArray(r.projectIds)) {
+                r.projectIds.forEach((p: any) => { if (p && String(p).trim()) referencedProjectIds.add(String(p).trim()); });
+            } else if (r.project && typeof r.project === 'string' && r.project.trim()) referencedProjectIds.add(r.project.trim());
+            else if (r.project && typeof r.project === 'object' && r.project.id) referencedProjectIds.add(String(r.project.id).trim());
         }
+        const newProjectIds = Array.from(referencedProjectIds).map(s => String(s).trim()).filter(s => s).sort().join(',');
+        attrs['custom-task-projectId'] = newProjectIds;
+
+        // 一次性更新所有属性
+        await setBlockAttrs(blockId, attrs);
+
     } catch (error) {
         console.error('更新块提醒书签失败:', error);
     }

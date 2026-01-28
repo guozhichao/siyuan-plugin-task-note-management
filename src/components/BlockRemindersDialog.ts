@@ -1,5 +1,5 @@
 import { Dialog, showMessage, confirm } from "siyuan";
-import { getBlockByID, updateBlockReminderBookmark, getBlockReminderIds } from "../api";
+import { getBlockByID, updateBindBlockAtrrs, getBlockReminderIds } from "../api";
 import { getLocalDateTimeString, getRelativeDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
@@ -440,7 +440,7 @@ export class BlockRemindersDialog {
                 await this.plugin.saveReminderData(reminderData);
 
                 // 更新块的书签状态
-                await updateBlockReminderBookmark(this.blockId, this.plugin);
+                await updateBindBlockAtrrs(this.blockId, this.plugin);
 
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
@@ -558,7 +558,7 @@ export class BlockRemindersDialog {
                     await this.plugin.saveReminderData(reminderData);
 
                     // 更新块的书签状态
-                    await updateBlockReminderBookmark(this.blockId, this.plugin);
+                    await updateBindBlockAtrrs(this.blockId, this.plugin);
 
                     // 触发更新事件
                     window.dispatchEvent(new CustomEvent('reminderUpdated'));

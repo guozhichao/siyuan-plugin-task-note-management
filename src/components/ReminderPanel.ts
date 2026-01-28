@@ -1,5 +1,5 @@
 import { showMessage, confirm, Dialog, Menu } from "siyuan";
-import { refreshSql, sql, getBlockKramdown, getBlockByID, updateBlockReminderBookmark, openBlock } from "../api";
+import { refreshSql, sql, getBlockKramdown, getBlockByID, updateBindBlockAtrrs, openBlock } from "../api";
 import { getLocalDateString, compareDateStrings, getLocalDateTimeString, getLogicalDateString, getRelativeDateString, autoDetectDateTimeFromTitle } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
 import { QuickReminderDialog } from "./QuickReminderDialog";
@@ -991,7 +991,7 @@ export class ReminderPanel {
                     // 如果子任务有绑定块，也需要处理任务列表完成
                     if (childReminder.blockId) {
                         try {
-                            await updateBlockReminderBookmark(childReminder.blockId, this.plugin);
+                            await updateBindBlockAtrrs(childReminder.blockId, this.plugin);
                             await this.handleTaskListCompletion(childReminder.blockId);
                         } catch (error) {
                             console.warn(`处理子任务 ${childId} 的块更新失败:`, error);
@@ -3243,7 +3243,7 @@ export class ReminderPanel {
                 // 更新块书签与任务列表状态
                 const blockId = original.blockId;
                 if (blockId) {
-                    await updateBlockReminderBookmark(blockId, this.plugin);
+                    await updateBindBlockAtrrs(blockId, this.plugin);
                     if (completed) await this.handleTaskListCompletion(blockId);
                     else await this.handleTaskListCompletionCancel(blockId);
                 }
@@ -3287,7 +3287,7 @@ export class ReminderPanel {
 
             // 更新块书签与任务列表状态
             if (reminder.blockId) {
-                await updateBlockReminderBookmark(reminder.blockId, this.plugin);
+                await updateBindBlockAtrrs(reminder.blockId, this.plugin);
                 if (completed) await this.handleTaskListCompletion(reminder.blockId);
                 else await this.handleTaskListCompletionCancel(reminder.blockId);
             }
@@ -3675,7 +3675,7 @@ export class ReminderPanel {
                 await saveReminders(this.plugin, reminderData);
 
                 // 更新块的书签状态（应该会移除书签，因为没有提醒了）
-                await updateBlockReminderBookmark(blockId, this.plugin);
+                await updateBindBlockAtrrs(blockId, this.plugin);
 
                 // 手动移除DOM中的相关元素，避免刷新整个面板
                 deletedIds.forEach(reminderId => {
@@ -5075,7 +5075,7 @@ export class ReminderPanel {
             await saveReminders(this.plugin, reminderData);
 
             if (reminder.blockId) {
-                try { await updateBlockReminderBookmark(reminder.blockId, this.plugin); } catch (e) { /* ignore */ }
+                try { await updateBindBlockAtrrs(reminder.blockId, this.plugin); } catch (e) { /* ignore */ }
             }
 
             // 局部刷新
@@ -5796,7 +5796,7 @@ export class ReminderPanel {
                 // 更新受影响的块的书签状态
                 for (const bId of affectedBlockIds) {
                     try {
-                        await updateBlockReminderBookmark(bId, this.plugin);
+                        await updateBindBlockAtrrs(bId, this.plugin);
                     } catch (e) {
                         console.warn('更新块书签失败:', bId, e);
                     }
@@ -6948,7 +6948,7 @@ export class ReminderPanel {
                         if (!task.title || task.title === '未命名任务') {
                             newSubtask.title = block.content || block.fcontent || '未命名任务';
                         }
-                        await updateBlockReminderBookmark(task.blockId, this.plugin);
+                        await updateBindBlockAtrrs(task.blockId, this.plugin);
                     }
                 } catch (err) {
                     console.warn('绑定块失败:', err);
@@ -7342,7 +7342,7 @@ export class ReminderPanel {
                 }
 
                 // 更新块的书签状态（添加⏰书签）
-                await updateBlockReminderBookmark(blockId, this.plugin);
+                await updateBindBlockAtrrs(blockId, this.plugin);
 
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated', {

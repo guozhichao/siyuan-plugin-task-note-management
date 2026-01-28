@@ -1,6 +1,6 @@
 import { showMessage, confirm, Menu, Dialog } from "siyuan";
 
-import { refreshSql, getBlockByID, updateBlockReminderBookmark, openBlock } from "../api";
+import { refreshSql, getBlockByID, updateBindBlockAtrrs, openBlock } from "../api";
 import { t } from "../utils/i18n";
 import { getLocalDateString, getLocalDateTimeString, compareDateStrings, getLogicalDateString, getRelativeDateString, autoDetectDateTimeFromTitle } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
@@ -5667,7 +5667,7 @@ export class ProjectKanbanView {
 
                         // 更新绑定块的书签状态
                         if (task.blockId || task.docId) {
-                            await updateBlockReminderBookmark(task.blockId || task.docId, this.plugin);
+                            await updateBindBlockAtrrs(task.blockId || task.docId, this.plugin);
                         }
 
                         // 广播更新事件并刷新
@@ -5873,7 +5873,7 @@ export class ProjectKanbanView {
 
                 // 更新块的书签状态（仅针对绑定块的任务）
                 if (task.blockId || task.docId) {
-                    await updateBlockReminderBookmark(task.blockId || task.docId, this.plugin);
+                    await updateBindBlockAtrrs(task.blockId || task.docId, this.plugin);
                 }
 
                 // 触发更新事件（debounced 由 listener 自动处理）
@@ -5948,7 +5948,7 @@ export class ProjectKanbanView {
                     // 如果子任务有绑定块，也需要处理书签更新
                     if (childTask.blockId || childTask.docId) {
                         try {
-                            await updateBlockReminderBookmark(childTask.blockId || childTask.docId, this.plugin);
+                            await updateBindBlockAtrrs(childTask.blockId || childTask.docId, this.plugin);
                         } catch (error) {
                             console.warn(`更新子任务 ${childId} 的块书签失败: `, error);
                         }
@@ -6007,7 +6007,7 @@ export class ProjectKanbanView {
 
                         if (childTask.blockId || childTask.docId) {
                             try {
-                                await updateBlockReminderBookmark(childTask.blockId || childTask.docId, this.plugin);
+                                await updateBindBlockAtrrs(childTask.blockId || childTask.docId, this.plugin);
                             } catch (error) {
                                 console.warn(`更新子任务 ${childId} 的块书签失败: `, error);
                             }
@@ -6692,7 +6692,7 @@ export class ProjectKanbanView {
                         }
 
                         // 更新块的书签状态（添加⏰书签）
-                        await updateBlockReminderBookmark(task.blockId, this.plugin);
+                        await updateBindBlockAtrrs(task.blockId, this.plugin);
                     }
                 } catch (error) {
                     console.error('绑定块失败:', error);
@@ -6974,7 +6974,7 @@ export class ProjectKanbanView {
                             // 如果绑定了块，更新块的书签（忽略错误）
                             if (t.blockId || t.docId) {
                                 try {
-                                    await updateBlockReminderBookmark(t.blockId || t.docId, this.plugin);
+                                    await updateBindBlockAtrrs(t.blockId || t.docId, this.plugin);
                                 } catch (err) {
                                     console.warn(`更新已删除任务 ${taskId} 的块书签失败: `, err);
                                 }
@@ -8254,7 +8254,7 @@ export class ProjectKanbanView {
                 }
 
                 // 更新块的书签状态（添加⏰书签）
-                await updateBlockReminderBookmark(blockId, this.plugin);
+                await updateBindBlockAtrrs(blockId, this.plugin);
 
                 // 触发更新事件
                 this.dispatchReminderUpdate(true);

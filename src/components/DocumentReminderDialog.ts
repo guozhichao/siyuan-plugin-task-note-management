@@ -1,5 +1,5 @@
 import { Dialog, showMessage, confirm } from "siyuan";
-import { updateBlockReminderBookmark, sql, getBlockByID, openBlock } from "../api";
+import { updateBindBlockAtrrs, sql, getBlockByID, openBlock } from "../api";
 import { getLocalDateString, compareDateStrings, getLocalDateTimeString, getLogicalDateString, getRelativeDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { QuickReminderDialog } from "./QuickReminderDialog";
@@ -939,7 +939,7 @@ export class DocumentReminderDialog {
             // 更新块的书签状态
             const blockId = reminder.blockId || reminder.id;
             if (blockId) {
-                await updateBlockReminderBookmark(blockId, this.plugin);
+                await updateBindBlockAtrrs(blockId, this.plugin);
             }
 
             // 触发全局更新事件
@@ -1154,7 +1154,7 @@ export class DocumentReminderDialog {
             // 更新块的书签状态
             const blockId = reminder.blockId || reminder.id;
             if (blockId) {
-                await updateBlockReminderBookmark(blockId, this.plugin);
+                await updateBindBlockAtrrs(blockId, this.plugin);
             }
 
             // 触发全局更新事件

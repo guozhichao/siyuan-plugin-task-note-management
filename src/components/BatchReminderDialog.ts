@@ -1,6 +1,6 @@
 import { Dialog, showMessage } from "siyuan";
 import { t } from "../utils/i18n";
-import { updateBlockReminderBookmark, getBlockByID } from "../api";
+import { updateBindBlockAtrrs, getBlockByID } from "../api";
 import { getRepeatDescription } from "../utils/repeatUtils";
 import { getLogicalDateString, parseNaturalDateTime } from "../utils/dateUtils";
 import { RepeatConfig, RepeatSettingsDialog } from "./RepeatSettingsDialog";
@@ -1247,7 +1247,7 @@ class SmartBatchDialog {
             // 为所有成功创建提醒的块添加书签
             for (const blockId of successfulBlockIds) {
                 try {
-                    await updateBlockReminderBookmark(blockId, this.plugin);
+                    await updateBindBlockAtrrs(blockId, this.plugin);
                 } catch (error) {
                     console.error(`更新块 ${blockId} 书签失败:`, error);
                 }
