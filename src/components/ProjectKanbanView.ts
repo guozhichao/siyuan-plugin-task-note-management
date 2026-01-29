@@ -6629,10 +6629,15 @@ export class ProjectKanbanView {
                     const reminderData = await this.getReminders();
                     if (reminderData[task.id]) {
                         reminderData[task.id].completed = completed;
+                        const affectedBlockIds = new Set<string>();
+                        if (task.blockId || task.docId) {
+                            affectedBlockIds.add(task.blockId || task.docId);
+                        }
+
                         if (completed) {
                             reminderData[task.id].completedTime = getLocalDateTimeString(new Date());
                             // 父任务完成时，自动完成所有子任务
-                            await this.completeAllChildTasks(task.id, reminderData);
+                            await this.completeAllChildTasks(task.id, reminderData, affectedBlockIds);
                         } else {
                             delete reminderData[task.id].completedTime;
                             // 取消完成父任务时，通常不自动取消子任务
@@ -6640,9 +6645,13 @@ export class ProjectKanbanView {
 
                         await saveReminders(this.plugin, reminderData);
 
-                        // 更新绑定块的书签状态
-                        if (task.blockId || task.docId) {
-                            await updateBindBlockAtrrs(task.blockId || task.docId, this.plugin);
+                        // 更新所有受影响块的书签状态
+                        for (const bId of affectedBlockIds) {
+                            try {
+                                await updateBindBlockAtrrs(bId, this.plugin);
+                            } catch (err) {
+                                console.warn('更新块书签失败:', bId, err);
+                            }
                         }
 
                         // 广播更新事件并刷新
@@ -6782,6 +6791,11 @@ export class ProjectKanbanView {
             const actualTaskId = task.isRepeatInstance ? task.originalId : task.id;
 
             if (reminderData[actualTaskId]) {
+                const affectedBlockIds = new Set<string>();
+                if (task.blockId || task.docId) {
+                    affectedBlockIds.add(task.blockId || task.docId);
+                }
+
                 // 如果是周期实例，需要更新实例的完成状态
                 if (task.isRepeatInstance) {
                     // 处理周期实例的完成状态
@@ -6799,7 +6813,7 @@ export class ProjectKanbanView {
                         }
 
                         // 周期实例完成时，也自动完成所有子任务的对应实例
-                        await this.completeAllChildInstances(actualTaskId, task.date, reminderData);
+                        await this.completeAllChildInstances(actualTaskId, task.date, reminderData, affectedBlockIds);
                     } else {
                         // 取消完成周期实例或修改其他状态（long_term, short_term, doing）
                         if (reminderData[actualTaskId].repeat?.completedInstances) {
@@ -6827,7 +6841,7 @@ export class ProjectKanbanView {
                         reminderData[actualTaskId].completedTime = getLocalDateTimeString(new Date());
 
                         // 父任务完成时，自动完成所有子任务
-                        await this.completeAllChildTasks(actualTaskId, reminderData);
+                        await this.completeAllChildTasks(actualTaskId, reminderData, affectedBlockIds);
                     } else {
                         reminderData[actualTaskId].completed = false;
                         delete reminderData[actualTaskId].completedTime;
@@ -6844,9 +6858,13 @@ export class ProjectKanbanView {
 
                 await saveReminders(this.plugin, reminderData);
 
-                // 更新块的书签状态（仅针对绑定块的任务）
-                if (task.blockId || task.docId) {
-                    await updateBindBlockAtrrs(task.blockId || task.docId, this.plugin);
+                // 更新受影响块的书签状态
+                for (const bId of affectedBlockIds) {
+                    try {
+                        await updateBindBlockAtrrs(bId, this.plugin);
+                    } catch (err) {
+                        console.warn('更新块书签失败:', bId, err);
+                    }
                 }
 
                 // 触发更新事件（debounced 由 listener 自动处理）
@@ -6898,7 +6916,7 @@ export class ProjectKanbanView {
      * @param parentId 父任务ID
      * @param reminderData 任务数据
      */
-    private async completeAllChildTasks(parentId: string, reminderData: any): Promise<void> {
+    private async completeAllChildTasks(parentId: string, reminderData: any, affectedBlockIds?: Set<string>): Promise<void> {
         try {
             // 获取所有子任务ID（递归获取所有后代）
             const descendantIds = this.getAllDescendantIds(parentId, reminderData);
@@ -6918,13 +6936,9 @@ export class ProjectKanbanView {
                     childTask.completedTime = currentTime;
                     completedCount++;
 
-                    // 如果子任务有绑定块，也需要处理书签更新
-                    if (childTask.blockId || childTask.docId) {
-                        try {
-                            await updateBindBlockAtrrs(childTask.blockId || childTask.docId, this.plugin);
-                        } catch (error) {
-                            console.warn(`更新子任务 ${childId} 的块书签失败: `, error);
-                        }
+                    // 收集需要更新的块ID
+                    if (affectedBlockIds && (childTask.blockId || childTask.docId)) {
+                        affectedBlockIds.add(childTask.blockId || childTask.docId);
                     }
                 }
             }
@@ -6944,7 +6958,7 @@ export class ProjectKanbanView {
      * @param date 实例日期
      * @param reminderData 全量任务数据
      */
-    private async completeAllChildInstances(parentId: string, date: string, reminderData: any): Promise<void> {
+    private async completeAllChildInstances(parentId: string, date: string, reminderData: any, affectedBlockIds?: Set<string>): Promise<void> {
         try {
             const descendantIds = this.getAllDescendantIds(parentId, reminderData);
             if (descendantIds.length === 0) return;
@@ -6970,6 +6984,11 @@ export class ProjectKanbanView {
                         }
                         childTask.repeat.instanceCompletedTimes[date] = currentTime;
                         completedCount++;
+
+                        // 收集需要更新的块ID
+                        if (affectedBlockIds && (childTask.blockId || childTask.docId)) {
+                            affectedBlockIds.add(childTask.blockId || childTask.docId);
+                        }
                     }
                 } else {
                     // 子任务是普通任务，直接完成
@@ -6978,12 +6997,9 @@ export class ProjectKanbanView {
                         childTask.completedTime = currentTime;
                         completedCount++;
 
-                        if (childTask.blockId || childTask.docId) {
-                            try {
-                                await updateBindBlockAtrrs(childTask.blockId || childTask.docId, this.plugin);
-                            } catch (error) {
-                                console.warn(`更新子任务 ${childId} 的块书签失败: `, error);
-                            }
+                        // 收集需要更新的块ID
+                        if (affectedBlockIds && (childTask.blockId || childTask.docId)) {
+                            affectedBlockIds.add(childTask.blockId || childTask.docId);
                         }
                     }
                 }
@@ -7508,26 +7524,32 @@ export class ProjectKanbanView {
                     const descendantIds = this.getAllDescendantIds(taskToDelete.id, reminderData);
 
                     const tasksToDelete = [taskToDelete.id, ...descendantIds];
+                    const boundIdsToUpdate = new Set<string>();
 
-                    // 删除并为绑定块更新书签状态
+                    // 删除并收集需要更新的绑定块ID
                     for (const taskId of tasksToDelete) {
                         const t = reminderData[taskId];
                         if (t) {
-                            // 先删除数据项
-                            delete reminderData[taskId];
-
-                            // 如果绑定了块，更新块的书签（忽略错误）
+                            // 收集绑定了块或文档的ID
                             if (t.blockId || t.docId) {
-                                try {
-                                    await updateBindBlockAtrrs(t.blockId || t.docId, this.plugin);
-                                } catch (err) {
-                                    console.warn(`更新已删除任务 ${taskId} 的块书签失败: `, err);
-                                }
+                                boundIdsToUpdate.add(t.blockId || t.docId);
                             }
+                            // 删除数据项
+                            delete reminderData[taskId];
                         }
                     }
 
+                    // 先保存数据
                     await saveReminders(this.plugin, reminderData);
+
+                    // 保存后再批量更新块的书签状态（忽略错误）
+                    for (const boundId of boundIdsToUpdate) {
+                        try {
+                            await updateBindBlockAtrrs(boundId, this.plugin);
+                        } catch (err) {
+                            console.warn(`更新已删除任务属性失败: `, boundId, err);
+                        }
+                    }
 
                     // 触发更新事件
                     this.dispatchReminderUpdate(true);
@@ -9847,6 +9869,15 @@ export class ProjectKanbanView {
 
                     await this.addExcludedDate(originalId, instanceDate);
 
+                    // 如果该实例绑定了块或文档，更新块属性（忽略错误）
+                    if (task.blockId || task.docId) {
+                        try {
+                            await updateBindBlockAtrrs(task.blockId || task.docId, this.plugin);
+                        } catch (err) {
+                            console.warn('更新已删除实例的块书签失败:', err);
+                        }
+                    }
+
                     showMessage("实例已删除");
                     await this.queueLoadTasks();
                     this.dispatchReminderUpdate(true);
@@ -11140,8 +11171,20 @@ export class ProjectKanbanView {
         // 从提醒数据中删除
         let reminderData = await this.getReminders();
         if (reminderData[taskId]) {
+            // 保存要更新的绑定块ID，稍后在保存后触发更新
+            const boundId = reminderData[taskId].blockId || reminderData[taskId].docId;
+
             delete reminderData[taskId];
             await saveReminders(this.plugin, reminderData);
+
+            // 如果绑定了块/文档，更新该块的属性（忽略错误）
+            if (boundId) {
+                try {
+                    await updateBindBlockAtrrs(boundId, this.plugin);
+                } catch (err) {
+                    console.warn(`更新已删除任务 ${taskId} 的块书签失败:`, err);
+                }
+            }
         }
 
         // 同时从 this.tasks 中移除

@@ -1035,7 +1035,7 @@ export class ReminderPanel {
      * @param parentId 父任务ID
      * @param reminderData 任务数据
      */
-    private async completeAllChildTasks(parentId: string, reminderData: any): Promise<void> {
+    private async completeAllChildTasks(parentId: string, reminderData: any, affectedBlockIds?: Set<string>): Promise<void> {
         try {
             // 构建任务映射
             const reminderMap = new Map<string, any>();
@@ -1068,14 +1068,9 @@ export class ReminderPanel {
                         this.allRemindersMap.set(childId, { ...this.allRemindersMap.get(childId), completed: true, completedTime: currentTime });
                     }
 
-                    // 如果子任务有绑定块，也需要处理任务列表完成
-                    if (childReminder.blockId) {
-                        try {
-                            await updateBindBlockAtrrs(childReminder.blockId, this.plugin);
-                            await this.handleTaskListCompletion(childReminder.blockId);
-                        } catch (error) {
-                            console.warn(`处理子任务 ${childId} 的块更新失败:`, error);
-                        }
+                    // 收集受影响的块ID
+                    if (affectedBlockIds && childReminder.blockId) {
+                        affectedBlockIds.add(childReminder.blockId);
                     }
                 }
             }
@@ -3301,12 +3296,15 @@ export class ReminderPanel {
                 const completedInstances = original.repeat.completedInstances;
                 const completedTimes = original.repeat.completedTimes;
 
+                const affectedBlockIds = new Set<string>();
+                if (original.blockId) affectedBlockIds.add(original.blockId);
+
                 if (completed) {
                     if (!completedInstances.includes(instanceDate)) completedInstances.push(instanceDate);
                     completedTimes[instanceDate] = getLocalDateTimeString(new Date());
 
-                    // 如果需要，自动完成子任务（局部更新内部会处理DOM）
-                    await this.completeAllChildTasks(originalId, reminderData);
+                    // 如果需要，自动完成子任务（收集受影响的块ID）
+                    await this.completeAllChildTasks(originalId, reminderData, affectedBlockIds);
                 } else {
                     const idx = completedInstances.indexOf(instanceDate);
                     if (idx > -1) completedInstances.splice(idx, 1);
@@ -3320,12 +3318,15 @@ export class ReminderPanel {
                     this.allRemindersMap.set(originalId, { ...this.allRemindersMap.get(originalId), repeat: original.repeat });
                 }
 
-                // 更新块书签与任务列表状态
-                const blockId = original.blockId;
-                if (blockId) {
-                    await updateBindBlockAtrrs(blockId, this.plugin);
-                    if (completed) await this.handleTaskListCompletion(blockId);
-                    else await this.handleTaskListCompletionCancel(blockId);
+                // 批量更新块书签与任务列表状态
+                for (const bId of affectedBlockIds) {
+                    try {
+                        await updateBindBlockAtrrs(bId, this.plugin);
+                        if (completed) await this.handleTaskListCompletion(bId);
+                        else await this.handleTaskListCompletionCancel(bId);
+                    } catch (err) {
+                        console.warn('更新子任务块属性失败:', bId, err);
+                    }
                 }
 
                 // 局部更新：更新实例与父任务进度
@@ -3346,30 +3347,34 @@ export class ReminderPanel {
             const reminder = reminderData[reminderId];
             if (!reminder) return;
 
+            const affectedBlockIds = new Set<string>();
+            if (reminder.blockId) affectedBlockIds.add(reminder.blockId);
+
             reminder.completed = completed;
             if (completed) {
                 reminder.completedTime = getLocalDateTimeString(new Date());
-                // 自动完成子任务（局部更新内部会处理DOM）
-                await this.completeAllChildTasks(reminderId, reminderData);
+                // 自动完成子任务
+                await this.completeAllChildTasks(reminderId, reminderData, affectedBlockIds);
             } else {
                 delete reminder.completedTime;
             }
 
             await saveReminders(this.plugin, reminderData);
 
-            // (no block attribute updates here)
-
-
             // 更新 allRemindersMap 中的数据，以便 updateParentProgress 能获取最新的完成状态
             if (this.allRemindersMap.has(reminderId)) {
                 this.allRemindersMap.set(reminderId, { ...this.allRemindersMap.get(reminderId), completed, completedTime: reminder.completedTime });
             }
 
-            // 更新块书签与任务列表状态
-            if (reminder.blockId) {
-                await updateBindBlockAtrrs(reminder.blockId, this.plugin);
-                if (completed) await this.handleTaskListCompletion(reminder.blockId);
-                else await this.handleTaskListCompletionCancel(reminder.blockId);
+            // 批量更新块书签与任务列表状态
+            for (const bId of affectedBlockIds) {
+                try {
+                    await updateBindBlockAtrrs(bId, this.plugin);
+                    if (completed) await this.handleTaskListCompletion(bId);
+                    else await this.handleTaskListCompletionCancel(bId);
+                } catch (err) {
+                    console.warn('更新任务块属性失败:', bId, err);
+                }
             }
 
             // 局部更新：更新当前提醒元素和其父任务进度
