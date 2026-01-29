@@ -1755,6 +1755,9 @@ export class ProjectKanbanView {
             return;
         }
 
+        // 获取其他可用的分组
+        const otherGroups = projectGroups.filter((g: any) => g.id !== groupId);
+
         // 检查该分组下是否有任务
         const reminderData = await this.getReminders();
         const tasksInGroup = Object.values(reminderData).filter((task: any) =>
@@ -1772,35 +1775,56 @@ export class ProjectKanbanView {
         const dialog = new Dialog({
             title: i18n('deleteGroup'),
             content: `
-                <div class="delete-group-dialog">
+                <div class="delete-group-dialog" style="padding: 16px;">
                     <div class="b3-dialog__content">
-                        <p>${confirmMessage}</p>
+                        <p style="margin-bottom: 16px; white-space: pre-wrap;">${confirmMessage}</p>
                         ${hasTasks ? `
                             <div class="b3-form__group">
                                 <label class="b3-form__label">${i18n('taskAction')}</label>
-                                <div class="b3-radio">
-                                    <label class="b3-radio">
-                                        <input type="radio" name="taskAction" value="ungroup" checked>
-                                        <span class="b3-radio__mark"></span>
-                                        <span class="b3-radio__text">${i18n('setTasksUngrouped')}</span>
+                                <div class="b3-form__group" style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+                                    <label class="b3-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                        <input type="radio" name="taskAction" value="ungroup" checked class="b3-radio">
+                                        <span>${i18n('setTasksUngrouped')}</span>
                                     </label>
-                                    <label class="b3-radio">
-                                        <input type="radio" name="taskAction" value="delete">
-                                        <span class="b3-radio__mark"></span>
-                                        <span class="b3-radio__text">${i18n('deleteAllTasks')}</span>
+                                    <label class="b3-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                        <input type="radio" name="taskAction" value="delete" class="b3-radio">
+                                        <span>${i18n('deleteAllTasks')}</span>
                                     </label>
+                                    ${otherGroups.length > 0 ? `
+                                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                                            <label class="b3-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                                <input type="radio" name="taskAction" value="move" class="b3-radio" id="moveActionRadio">
+                                                <span>${i18n('moveTasksToOtherGroup')}</span>
+                                            </label>
+                                            <select id="targetGroupSelect" class="b3-select fn__flex-1" style="margin-left: 24px; visibility: hidden;">
+                                                ${otherGroups.map((g: any) => `<option value="${g.id}">${g.name}</option>`).join('')}
+                                            </select>
+                                        </div>
+                                    ` : ''}
                                 </div>
                             </div>
                         ` : ''}
                     </div>
-                    <div class="b3-dialog__action">
+                    <div class="b3-dialog__action" style="margin-top: 24px;">
                         <button class="b3-button b3-button--cancel" id="deleteCancelBtn">${i18n('cancel')}</button>
                         <button class="b3-button b3-button--error" id="deleteConfirmBtn">${i18n('deleteGroup')}</button>
                     </div>
                 </div>
             `,
-            width: "400px"
+            width: "450px"
         });
+
+        if (hasTasks && otherGroups.length > 0) {
+            const moveRadio = dialog.element.querySelector('#moveActionRadio') as HTMLInputElement;
+            const targetSelect = dialog.element.querySelector('#targetGroupSelect') as HTMLSelectElement;
+            const radios = dialog.element.querySelectorAll('input[name="taskAction"]');
+
+            radios.forEach(radio => {
+                radio.addEventListener('change', () => {
+                    targetSelect.style.visibility = moveRadio.checked ? 'visible' : 'hidden';
+                });
+            });
+        }
 
         const deleteCancelBtn = dialog.element.querySelector('#deleteCancelBtn') as HTMLButtonElement;
         const deleteConfirmBtn = dialog.element.querySelector('#deleteConfirmBtn') as HTMLButtonElement;
@@ -1809,10 +1833,16 @@ export class ProjectKanbanView {
 
         deleteConfirmBtn.addEventListener('click', async () => {
             try {
-                let taskAction: 'ungroup' | 'delete' = 'ungroup';
+                let taskAction: 'ungroup' | 'delete' | 'move' = 'ungroup';
+                let targetGroupId: string | null = null;
+
                 if (hasTasks) {
                     const selectedAction = dialog.element.querySelector('input[name="taskAction"]:checked') as HTMLInputElement;
-                    taskAction = selectedAction.value as 'ungroup' | 'delete';
+                    taskAction = selectedAction.value as 'ungroup' | 'delete' | 'move';
+                    if (taskAction === 'move') {
+                        const targetSelect = dialog.element.querySelector('#targetGroupSelect') as HTMLSelectElement;
+                        targetGroupId = targetSelect.value;
+                    }
                 }
 
                 // 从项目数据中移除分组
@@ -1820,28 +1850,36 @@ export class ProjectKanbanView {
                 await projectManager.setProjectCustomGroups(this.projectId, updatedGroups);
 
                 // 处理分组下的任务
-                if (hasTasks && taskAction === 'delete') {
-                    // 删除所有任务
-                    for (const task of tasksInGroup) {
-                        const taskData = task as any;
-                        delete reminderData[taskData.id];
-                    }
-                    showMessage(i18n('groupDeletedWithTasks', { count: String(tasksInGroup.length) }));
-                } else if (hasTasks && taskAction === 'ungroup') {
-                    // 将任务设为未分组
-                    for (const task of tasksInGroup) {
-                        const taskData = task as any;
-                        delete taskData.customGroupId;
-                    }
-                    showMessage(i18n('groupDeletedTasksUngrouped', { count: String(tasksInGroup.length) }));
-                } else {
-                    showMessage(i18n('groupDeleted'));
-                }
-
-                // 保存任务数据（如果有任务被修改或删除）
                 if (hasTasks) {
+                    if (taskAction === 'delete') {
+                        // 删除所有任务
+                        for (const task of tasksInGroup) {
+                            const taskData = task as any;
+                            delete reminderData[taskData.id];
+                        }
+                        showMessage(i18n('groupDeletedWithTasks', { count: String(tasksInGroup.length) }));
+                    } else if (taskAction === 'move' && targetGroupId) {
+                        // 转移到其他分组
+                        for (const task of tasksInGroup) {
+                            const taskData = task as any;
+                            taskData.customGroupId = targetGroupId;
+                        }
+                        showMessage(i18n('groupDeletedTasksMoved', { count: String(tasksInGroup.length) }));
+                    } else {
+                        // 默认为 ungroup (包括 move 到无效目标或 ungroup 选项)
+                        // 将任务设为未分组
+                        for (const task of tasksInGroup) {
+                            const taskData = task as any;
+                            delete taskData.customGroupId;
+                        }
+                        showMessage(i18n('groupDeletedTasksUngrouped', { count: String(tasksInGroup.length) }));
+                    }
+
+                    // 保存任务数据
                     await saveReminders(this.plugin, reminderData);
                     this.dispatchReminderUpdate(true);
+                } else {
+                    showMessage(i18n('groupDeleted'));
                 }
 
                 // 刷新分组列表
