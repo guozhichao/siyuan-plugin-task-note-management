@@ -4043,6 +4043,98 @@ export class ProjectKanbanView {
         }
     }
 
+    /**
+     * 批量设置标签
+     */
+    private async batchSetTags(): Promise<void> {
+        const selectedIds = Array.from(this.selectedTaskIds);
+        if (selectedIds.length === 0) return;
+
+        try {
+            const tags = await this.projectManager.getProjectTags(this.projectId);
+
+            const dialog = new Dialog({
+                title: i18n('batchSetTags') || '批量设置标签',
+                content: `
+                    <div class="b3-dialog__content">
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${i18n('selectTags') || '选择标签'}</label>
+                            <div class="tags-container" style="max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
+                                <!-- Tags will be rendered here -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="batchTagsCancel">${i18n('cancel')}</button>
+                        <button class="b3-button b3-button--primary" id="batchTagsSave">${i18n('save')}</button>
+                    </div>
+                `,
+                width: '400px'
+            });
+
+            const tagsContainer = dialog.element.querySelector('.tags-container') as HTMLElement;
+            const cancelBtn = dialog.element.querySelector('#batchTagsCancel') as HTMLButtonElement;
+            const saveBtn = dialog.element.querySelector('#batchTagsSave') as HTMLButtonElement;
+
+            const selectedTags = new Set<string>();
+
+            // 渲染标签列表
+            if (tags.length === 0) {
+                tagsContainer.innerHTML = `<div style="color: var(--b3-theme-on-surface-light); text-align: center; padding: 10px;">${i18n('noTags') || '暂无标签'}</div>`;
+            } else {
+                tags.forEach(tag => {
+                    const label = document.createElement('label');
+                    label.style.cssText = 'display: flex; align-items: center; padding: 4px; cursor: pointer; user-select: none;';
+                    label.className = 'b3-label';
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'b3-switch';
+                    checkbox.style.marginRight = '8px';
+                    checkbox.value = tag.id;
+
+                    checkbox.addEventListener('change', () => {
+                        if (checkbox.checked) {
+                            selectedTags.add(tag.id);
+                        } else {
+                            selectedTags.delete(tag.id);
+                        }
+                    });
+
+                    const colorDot = document.createElement('span');
+                    colorDot.style.cssText = `
+                        display: inline-block;
+                        width: 12px;
+                        height: 12px;
+                        border-radius: 50%;
+                        background-color: ${tag.color};
+                        margin-right: 8px;
+                    `;
+
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = tag.name;
+
+                    label.appendChild(checkbox);
+                    label.appendChild(colorDot);
+                    label.appendChild(nameSpan);
+                    tagsContainer.appendChild(label);
+                });
+            }
+
+            cancelBtn.addEventListener('click', () => dialog.destroy());
+
+            saveBtn.addEventListener('click', async () => {
+                const newTagIds = Array.from(selectedTags);
+                dialog.destroy();
+                await this.batchUpdateTasks(selectedIds, { tagIds: newTagIds });
+            });
+
+        } catch (err) {
+            console.error('批量设置标签失败:', err);
+            showMessage(i18n('batchSetTagsFailed') || '批量设置标签失败');
+        }
+    }
+
     private async renderStatusKanban() {
         const kanbanContainer = this.container.querySelector('.project-kanban-container') as HTMLElement;
         if (!kanbanContainer) return;
@@ -10955,6 +11047,16 @@ export class ProjectKanbanView {
         });
         buttonsGroup.appendChild(setGroupBtn);
 
+        // 设置标签按钮
+        const setTagsBtn = document.createElement('button');
+        setTagsBtn.className = 'b3-button b3-button--outline b3-button--small';
+        setTagsBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconTags"></use></svg> ${i18n('setTags') || '设置标签'}`;
+        setTagsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.batchSetTags();
+        });
+        buttonsGroup.appendChild(setTagsBtn);
+
         // 设置优先级按钮
         const setPriorityBtn = document.createElement('button');
         setPriorityBtn.className = 'b3-button b3-button--outline b3-button--small';
@@ -11247,7 +11349,7 @@ export class ProjectKanbanView {
     /**
      * 批量更新任务属性 (用于拖拽)
      */
-    private async batchUpdateTasks(taskIds: string[], updates: { kanbanStatus?: string, customGroupId?: string | null }) {
+    private async batchUpdateTasks(taskIds: string[], updates: { kanbanStatus?: string, customGroupId?: string | null, tagIds?: string[] }) {
         try {
             const reminderData = await this.getReminders();
             const blocksToUpdate = new Set<string>();
@@ -11337,7 +11439,37 @@ export class ProjectKanbanView {
                     }
                 }
 
-                // 3. Parent Detachment (如果移动了状态或分组，且有父任务，则解除父子关系)
+                // 3. Tag Update
+                if (updates.tagIds !== undefined) {
+                    const newTags = updates.tagIds;
+
+                    if (uiTask.isRepeatInstance) {
+                        const date = uiTask.date;
+                        if (!taskInDb.repeat) taskInDb.repeat = {};
+                        if (!taskInDb.repeat.instanceModifications) taskInDb.repeat.instanceModifications = {};
+                        if (!taskInDb.repeat.instanceModifications[date]) taskInDb.repeat.instanceModifications[date] = {};
+
+                        const instMod = taskInDb.repeat.instanceModifications[date];
+                        const currentTags = instMod.tagIds || taskInDb.tagIds || [];
+
+                        const hasDifference = currentTags.length !== newTags.length || !newTags.every((t: string) => currentTags.includes(t));
+
+                        if (hasDifference) {
+                            instMod.tagIds = [...newTags];
+                            taskChanged = true;
+                        }
+                    } else {
+                        const currentTags = taskInDb.tagIds || [];
+                        const hasDifference = currentTags.length !== newTags.length || !newTags.every((t: string) => currentTags.includes(t));
+
+                        if (hasDifference) {
+                            taskInDb.tagIds = [...newTags];
+                            taskChanged = true;
+                        }
+                    }
+                }
+
+                // 4. Parent Detachment (如果移动了状态或分组，且有父任务，则解除父子关系)
                 if ((updates.kanbanStatus || updates.customGroupId !== undefined) && taskInDb.parentId) {
                     delete taskInDb.parentId;
                     taskChanged = true;
