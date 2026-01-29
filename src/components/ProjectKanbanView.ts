@@ -24,7 +24,7 @@ export class ProjectKanbanView {
     private categoryManager: CategoryManager;
     private projectManager: ProjectManager;
     private currentSort: string = 'priority';
-    private kanbanMode: 'status' | 'custom' = 'status';
+    private kanbanMode: 'status' | 'custom' | 'list' = 'status';
     private currentSortOrder: 'asc' | 'desc' = 'desc';
     private doneSort: string = 'completedTime';
     private doneSortOrder: 'asc' | 'desc' = 'desc';
@@ -51,7 +51,7 @@ export class ProjectKanbanView {
 
     // 分页：每页最多显示的顶层任务数量
     private pageSize: number = 30;
-    // 存储每列当前页，key 为 status ('long_term'|'short_term'|'doing'|'completed')
+    // 存储每列当前页，key 为 status 
     private pageIndexMap: { [status: string]: number } = { long_term: 1, short_term: 1, doing: 1, completed: 1 };
 
     // 自定义分组子分组折叠状态跟踪，key 为 "groupId-status" 格式
@@ -269,9 +269,8 @@ export class ProjectKanbanView {
         }
     }
 
-    private async toggleKanbanMode() {
+    private async setKanbanMode(newMode: 'status' | 'custom' | 'list') {
         try {
-            const newMode = this.kanbanMode === 'status' ? 'custom' : 'status';
             this.kanbanMode = newMode;
 
             // 使用项目管理器保存看板模式
@@ -287,7 +286,8 @@ export class ProjectKanbanView {
             this.captureScrollState();
             await this.queueLoadTasks();
 
-            showMessage(`已切换到${newMode === 'status' ? '任务状态' : '自定义分组'}看板`);
+            const modeName = newMode === 'status' ? '任务状态' : (newMode === 'custom' ? '自定义分组' : '任务列表');
+            showMessage(`已切换到${modeName}看板`);
         } catch (error) {
             console.error('切换看板模式失败:', error);
             showMessage('切换看板模式失败');
@@ -297,14 +297,7 @@ export class ProjectKanbanView {
     private updateModeSelect() {
         const modeSelect = this.container.querySelector('.kanban-mode-select') as HTMLSelectElement;
         if (modeSelect) {
-            // 更新选中状态
-            const statusOption = modeSelect.querySelector('option[value="status"]') as HTMLOptionElement;
-            const customOption = modeSelect.querySelector('option[value="custom"]') as HTMLOptionElement;
-
-            if (statusOption && customOption) {
-                statusOption.selected = this.kanbanMode === 'status';
-                customOption.selected = this.kanbanMode === 'custom';
-            }
+            modeSelect.value = this.kanbanMode;
         }
     }
 
@@ -2142,6 +2135,7 @@ export class ProjectKanbanView {
         `;
 
         // 添加选项
+        // 添加选项
         const statusOption = document.createElement('option');
         statusOption.value = 'status';
         statusOption.textContent = i18n('statusKanban');
@@ -2158,11 +2152,19 @@ export class ProjectKanbanView {
         }
         modeSelect.appendChild(customOption);
 
+        const listOption = document.createElement('option');
+        listOption.value = 'list';
+        listOption.textContent = i18n('taskList');
+        if (this.kanbanMode === 'list') {
+            listOption.selected = true;
+        }
+        modeSelect.appendChild(listOption);
+
         // 切换事件
         modeSelect.addEventListener('change', async () => {
-            const newMode = modeSelect.value as 'status' | 'custom';
+            const newMode = modeSelect.value as 'status' | 'custom' | 'list';
             if (newMode !== this.kanbanMode) {
-                await this.toggleKanbanMode();
+                await this.setKanbanMode(newMode);
             }
         });
 
@@ -3817,6 +3819,8 @@ export class ProjectKanbanView {
 
         if (this.kanbanMode === 'status') {
             await this.renderStatusKanban();
+        } else if (this.kanbanMode === 'list') {
+            await this.renderListKanban();
         } else {
             await this.renderCustomGroupKanban();
         }
@@ -4323,7 +4327,17 @@ export class ProjectKanbanView {
         if (oldHeight > 0) groupTasksContainer.style.minHeight = `${oldHeight}px`;
 
         groupTasksContainer.innerHTML = '';
-        this.renderTasksInColumn(groupTasksContainer, tasks);
+
+        const pageKey = `status-stable-${status}`;
+        const currentPage = this.pageIndexMap[pageKey] || 1;
+        this.pageIndexMap[pageKey] = currentPage;
+
+        const { pagedTasks, hasMore } = this.paginateTasks(tasks, currentPage);
+        this.renderTasksInColumn(groupTasksContainer, pagedTasks);
+
+        if (hasMore) {
+            this.renderLoadMoreButton(groupTasksContainer, pageKey);
+        }
 
         // 恢复高度
         if (oldHeight > 0) {
@@ -4435,6 +4449,507 @@ export class ProjectKanbanView {
                 <div style="font-size: 14px;">请在项目设置中添加自定义分组</div>
             </div>
         `;
+    }
+
+    private async renderListKanban() {
+        const kanbanContainer = this.container.querySelector('.project-kanban-container') as HTMLElement;
+        if (!kanbanContainer) return;
+
+        // Ensure container is clean if switching modes
+        if (this._lastRenderMode !== 'list') {
+            kanbanContainer.innerHTML = '';
+            this._lastRenderMode = 'list';
+        }
+
+        const projectManager = this.projectManager;
+        const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
+
+        if (projectGroups.length === 0) {
+            // No custom grouping -> Single column
+            await this.renderSingleListColumn(kanbanContainer);
+        } else {
+            // With custom grouping -> Columns per group
+            await this.renderGroupedListColumns(kanbanContainer, projectGroups);
+        }
+    }
+
+    private async renderSingleListColumn(container: HTMLElement) {
+        // Create or get the single column
+        let column = container.querySelector('.kanban-column-list-single') as HTMLElement;
+        if (!column) {
+            column = document.createElement('div');
+            column.className = 'kanban-column kanban-column-list-single';
+            column.style.cssText = 'min-width: 400px; flex: 1; display: flex; flex-direction: column; height: 100%; margin: 0 auto; max-width: 800px;';
+            column.dataset.status = 'doing'; // Virtual status for drop handling
+
+            // Header
+            const header = document.createElement('div');
+            header.className = 'kanban-column-header';
+            header.style.cssText = `
+                padding: 12px 16px;
+                border-bottom: 1px solid var(--b3-theme-border);
+                background: var(--b3-theme-surface-lighter);
+                border-radius: 8px 8px 0 0;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            `;
+
+            const titleContainer = document.createElement('div');
+            titleContainer.style.display = 'flex';
+            titleContainer.style.alignItems = 'center';
+            titleContainer.style.gap = '8px';
+            titleContainer.innerHTML = `<span style="font-size: 16px;">📝</span><span style="font-size: 16px; font-weight: 600;">${i18n('taskList') || '任务列表'}</span>`;
+            header.appendChild(titleContainer);
+
+            const headerRight = document.createElement('div');
+            headerRight.style.cssText = 'display:flex; align-items:center; gap:8px;';
+
+            // Count badge
+            const countBadge = document.createElement('span');
+            countBadge.className = 'kanban-column-count';
+            countBadge.style.cssText = 'background: var(--b3-theme-primary); color: white; border-radius: 12px; padding: 2px 8px; font-size: 12px; min-width: 20px; text-align: center;';
+            headerRight.appendChild(countBadge);
+
+            // Add Task Button
+            const addBtn = document.createElement('button');
+            addBtn.className = 'b3-button b3-button--outline';
+            addBtn.style.cssText = 'margin-left:8px;';
+            addBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>`;
+            addBtn.title = i18n('newTask');
+            addBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.showCreateTaskDialog(undefined, undefined, 'doing');
+            });
+            headerRight.appendChild(addBtn);
+
+            // Paste Task Button
+            const pasteBtn = document.createElement('button');
+            pasteBtn.className = 'b3-button b3-button--outline';
+            pasteBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg>`;
+            pasteBtn.title = i18n('pasteNew');
+            pasteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.showPasteTaskDialog(undefined, undefined, 'doing', true);
+            });
+            headerRight.appendChild(pasteBtn);
+
+            header.appendChild(headerRight);
+            column.appendChild(header);
+
+            const content = document.createElement('div');
+            content.className = 'kanban-column-content';
+            content.style.cssText = 'flex: 1; overflow-y: auto; padding: 0;';
+            column.appendChild(content);
+
+            // Just in case
+            if (container.innerHTML !== '') container.innerHTML = '';
+            container.appendChild(column);
+        }
+
+        const content = column.querySelector('.kanban-column-content') as HTMLElement;
+        const countBadge = column.querySelector('.kanban-column-count') as HTMLElement;
+
+        // Filter tasks
+        const unfinishedTasks = this.tasks.filter(t => !t.completed);
+        const finishedTasks = this.sortDoneTasks(this.tasks.filter(t => t.completed));
+
+        if (countBadge) {
+            // Count total top-level unfinished tasks
+            const taskMap = new Map(unfinishedTasks.map(t => [t.id, t]));
+            const topLevel = unfinishedTasks.filter(t => !t.parentId || !taskMap.has(t.parentId));
+            countBadge.textContent = topLevel.length.toString();
+        }
+
+        this.renderListSections(content, unfinishedTasks, finishedTasks, null);
+    }
+
+    private async renderGroupedListColumns(container: HTMLElement, groups: any[]) {
+        // Handle ungrouped tasks
+        const ungroupedTasks = this.tasks.filter(t => !t.customGroupId);
+
+        // Sort groups
+        const sortedGroups = [...groups].sort((a, b) => (a.sort || 0) - (b.sort || 0));
+
+        // Use a set to track rendered group IDs to remove obsolete columns
+        const renderedGroupIds = new Set<string>();
+
+        // Render groups
+        for (const group of sortedGroups) {
+            const groupTasks = this.tasks.filter(t => t.customGroupId === group.id);
+            await this.renderListModeGroupColumn(container, group, groupTasks);
+            renderedGroupIds.add(`custom-group-${group.id}`);
+        }
+
+        if (ungroupedTasks.length > 0) {
+            const ungroupedGroup = { id: 'ungrouped', name: i18n('ungrouped') || '未分组', color: '#95a5a6', icon: '📋' };
+            await this.renderListModeGroupColumn(container, ungroupedGroup, ungroupedTasks);
+            renderedGroupIds.add('custom-group-ungrouped');
+        }
+
+        // Cleanup obsolete columns
+        const existingColumns = Array.from(container.querySelectorAll('.kanban-column'));
+        existingColumns.forEach(col => {
+            const colId = Array.from(col.classList).find(c => c.startsWith('kanban-column-custom-group-'));
+            if (colId && !renderedGroupIds.has(colId.replace('kanban-column-', ''))) {
+                col.remove();
+            }
+        });
+    }
+
+    private async renderListModeGroupColumn(container: HTMLElement, group: any, tasks: any[]) {
+        const columnId = `custom-group-${group.id}`;
+        let column = container.querySelector(`.kanban-column-${columnId}`) as HTMLElement;
+
+        if (!column) {
+            // Reusing the createCustomGroupColumn method for consistent styling
+            column = this.createCustomGroupColumn(columnId, group);
+        }
+
+        // Ensure column is in the container (in case createCustomGroupColumn didn't append it or order changed)
+        if (!column.parentElement) {
+            container.appendChild(column);
+        } else {
+            // Ensure order (simple append moves it to end)
+            container.appendChild(column);
+        }
+
+        const content = column.querySelector('.kanban-column-content') as HTMLElement;
+        const unfinishedTasks = tasks.filter(t => !t.completed);
+        const finishedTasks = this.sortDoneTasks(tasks.filter(t => t.completed));
+
+        // Update total count in header
+        const count = column.querySelector('.kanban-column-count');
+        if (count) {
+            // Count unfinished top level tasks
+            const taskMap = new Map(unfinishedTasks.map(t => [t.id, t]));
+            const topLevel = unfinishedTasks.filter(t => !t.parentId || !taskMap.has(t.parentId));
+            count.textContent = topLevel.length.toString();
+        }
+
+        this.renderListSections(content, unfinishedTasks, finishedTasks, group.id);
+    }
+
+    private paginateTasks(tasks: any[], page: number): { pagedTasks: any[], hasMore: boolean } {
+        if (tasks.length === 0) return { pagedTasks: [], hasMore: false };
+
+        const taskMap = new Map(tasks.map(t => [t.id, t]));
+        // Roots within this subset (tasks passed in are already filtered by status/group)
+        const roots = tasks.filter(t => !t.parentId || !taskMap.has(t.parentId));
+
+        if (roots.length <= page * this.pageSize) {
+            return { pagedTasks: tasks, hasMore: false };
+        }
+
+        const pagedRoots = roots.slice(0, page * this.pageSize);
+        const result: any[] = [...pagedRoots];
+
+        // Collect descendants
+        const childrenMap = new Map<string, any[]>();
+        for (const t of tasks) {
+            if (t.parentId && taskMap.has(t.parentId)) {
+                const pid = t.parentId;
+                if (!childrenMap.has(pid)) childrenMap.set(pid, []);
+                childrenMap.get(pid)!.push(t);
+            }
+        }
+
+        const addDescendants = (parent: any) => {
+            const children = childrenMap.get(parent.id);
+            if (children) {
+                for (const child of children) {
+                    result.push(child);
+                    addDescendants(child);
+                }
+            }
+        };
+
+        for (const root of pagedRoots) {
+            addDescendants(root);
+        }
+
+        return { pagedTasks: result, hasMore: true };
+    }
+
+    private renderLoadMoreButton(container: HTMLElement, pageKey: string) {
+        const btnContainer = document.createElement('div');
+        btnContainer.className = 'kanban-load-more';
+        btnContainer.style.textAlign = 'center';
+        btnContainer.style.padding = '8px';
+        btnContainer.style.borderTop = '1px dashed var(--b3-theme-surface-lighter)';
+
+        const btn = document.createElement('button');
+        btn.className = 'b3-button b3-button--text';
+        btn.textContent = i18n('loadMore') || '加载更多';
+        btn.style.fontSize = '12px';
+        btn.style.padding = '4px 8px';
+        btn.style.height = '24px';
+
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.pageIndexMap[pageKey] = (this.pageIndexMap[pageKey] || 1) + 1;
+            this.renderKanban();
+        });
+
+        btnContainer.appendChild(btn);
+        container.appendChild(btnContainer);
+    }
+
+    private renderListSections(content: HTMLElement, unfinished: any[], finished: any[], groupId: string | null) {
+        // Unfinished Section
+        let unfinishedSection = content.querySelector('.list-section-unfinished') as HTMLElement;
+        if (!unfinishedSection) {
+            unfinishedSection = document.createElement('div');
+            unfinishedSection.className = 'list-section list-section-unfinished';
+            // unfinishedSection.style.padding = '8px 12px'; // Moved padding to children
+            unfinishedSection.style.display = 'flex';
+            unfinishedSection.style.flexDirection = 'column';
+
+            const header = document.createElement('div');
+            header.className = 'list-section-header';
+            header.style.cssText = `
+                font-size: 13px; 
+                font-weight: 600; 
+                color: var(--b3-theme-on-surface); 
+                padding: 10px 12px;
+                background: var(--b3-theme-background);
+                position: sticky;
+                top: 0;
+                z-index: 2;
+                opacity: 0.95; 
+                display: flex; 
+                align-items: center; 
+                justify-content: space-between; 
+                cursor: pointer;
+                border-bottom: 1px solid var(--b3-theme-surface-lighter);
+            `;
+
+            const titleWrap = document.createElement('div');
+            titleWrap.style.display = 'flex';
+            titleWrap.style.alignItems = 'center';
+            titleWrap.style.gap = '4px';
+
+            const toggleIcon = document.createElement('span');
+            toggleIcon.innerHTML = '<svg class="b3-button__icon" style="width: 12px; height: 12px;"><use xlink:href="#iconDown"></use></svg>';
+            titleWrap.appendChild(toggleIcon);
+
+            const titleLabel = document.createElement('span');
+            titleLabel.textContent = i18n('unfinished') || '进行中';
+            titleWrap.appendChild(titleLabel);
+
+            header.appendChild(titleWrap);
+
+            const countLabel = document.createElement('span');
+            countLabel.className = 'list-section-count';
+            countLabel.style.fontSize = '12px';
+            countLabel.style.opacity = '0.7';
+            header.appendChild(countLabel);
+
+            unfinishedSection.appendChild(header);
+
+            const taskContainer = document.createElement('div');
+            taskContainer.className = 'list-section-tasks';
+            taskContainer.style.minHeight = '50px';
+            taskContainer.style.padding = '0 12px 8px 12px';
+            unfinishedSection.appendChild(taskContainer);
+
+            content.appendChild(unfinishedSection);
+
+            this.addListSectionDropEvents(taskContainer, 'unfinished', groupId);
+
+            // Toggle Collapse
+            let isCollapsed = false;
+            const toggleKey = `list-unfinished-${groupId || 'single'}`;
+            if (this.collapsedStatusGroups.has(toggleKey)) {
+                isCollapsed = true;
+            }
+
+            const updateState = () => {
+                taskContainer.style.display = isCollapsed ? 'none' : 'block';
+                toggleIcon.innerHTML = `<svg class="b3-button__icon" style="width: 12px; height: 12px;"><use xlink:href="#icon${isCollapsed ? 'Right' : 'Down'}"></use></svg>`;
+            };
+            updateState();
+
+            header.addEventListener('click', () => {
+                isCollapsed = !isCollapsed;
+                if (isCollapsed) this.collapsedStatusGroups.add(toggleKey);
+                else this.collapsedStatusGroups.delete(toggleKey);
+                updateState();
+            });
+        }
+
+        const unfinishedContainer = unfinishedSection.querySelector('.list-section-tasks') as HTMLElement;
+        unfinishedContainer.innerHTML = '';
+
+        const unfinishedKey = `list-unfinished-${groupId || 'single'}`;
+        const unfinishedPage = this.pageIndexMap[unfinishedKey] || 1;
+        this.pageIndexMap[unfinishedKey] = unfinishedPage;
+
+        const { pagedTasks: pagedUnfinished, hasMore: hasMoreUnfinished } = this.paginateTasks(unfinished, unfinishedPage);
+        this.renderTasksInColumn(unfinishedContainer, pagedUnfinished);
+
+        if (hasMoreUnfinished) {
+            this.renderLoadMoreButton(unfinishedContainer, unfinishedKey);
+        }
+
+        const unfinishedCountLabel = unfinishedSection.querySelector('.list-section-count');
+        if (unfinishedCountLabel) unfinishedCountLabel.textContent = unfinished.length.toString();
+
+        // Finished Section
+        let finishedSection = content.querySelector('.list-section-finished') as HTMLElement;
+        if (!finishedSection) {
+            finishedSection = document.createElement('div');
+            finishedSection.className = 'list-section list-section-finished';
+            // finishedSection.style.padding = '8px 12px'; // Moved padding to children
+            finishedSection.style.display = 'flex';
+            finishedSection.style.flexDirection = 'column';
+            // finishedSection.style.marginTop = '8px'; // Moved to margin-top of header potentially or keep here
+
+            const header = document.createElement('div');
+            header.className = 'list-section-header';
+            header.style.cssText = `
+                font-size: 13px; 
+                font-weight: 600; 
+                color: var(--b3-theme-on-surface); 
+                padding: 10px 12px;
+                background: var(--b3-theme-background);
+                position: sticky;
+                top: 0;
+                z-index: 2;
+                opacity: 0.95;
+                display: flex; 
+                align-items: center; 
+                justify-content: space-between; 
+                cursor: pointer;
+                border-bottom: 1px solid var(--b3-theme-surface-lighter);
+                border-top: 4px solid var(--b3-theme-background); /* Visual separation */
+            `;
+
+            const titleWrap = document.createElement('div');
+            titleWrap.style.display = 'flex';
+            titleWrap.style.alignItems = 'center';
+            titleWrap.style.gap = '4px';
+
+            const toggleIcon = document.createElement('span');
+            toggleIcon.innerHTML = '<svg class="b3-button__icon" style="width: 12px; height: 12px;"><use xlink:href="#iconDown"></use></svg>';
+            titleWrap.appendChild(toggleIcon);
+
+            const titleLabel = document.createElement('span');
+            titleLabel.textContent = i18n('finished') || '已完成';
+            titleWrap.appendChild(titleLabel);
+
+            header.appendChild(titleWrap);
+
+            const countLabel = document.createElement('span');
+            countLabel.className = 'list-section-count';
+            countLabel.style.fontSize = '12px';
+            countLabel.style.opacity = '0.7';
+            header.appendChild(countLabel);
+
+            finishedSection.appendChild(header);
+
+            const taskContainer = document.createElement('div');
+            taskContainer.className = 'list-section-tasks';
+            taskContainer.style.minHeight = '30px';
+            taskContainer.style.padding = '0 12px 8px 12px';
+            finishedSection.appendChild(taskContainer);
+
+            content.appendChild(finishedSection);
+
+            this.addListSectionDropEvents(taskContainer, 'finished', groupId);
+
+            // Toggle Collapse
+            let isCollapsed = true; // Default to collapsed
+            // Try to restore state
+            const toggleKey = `list-finished-${groupId || 'single'}`;
+            if (this.expandedStatusGroups.has(toggleKey)) {
+                isCollapsed = false;
+            }
+
+            const updateState = () => {
+                taskContainer.style.display = isCollapsed ? 'none' : 'block';
+                toggleIcon.innerHTML = `<svg class="b3-button__icon" style="width: 12px; height: 12px;"><use xlink:href="#icon${isCollapsed ? 'Right' : 'Down'}"></use></svg>`;
+            };
+            updateState();
+
+            header.addEventListener('click', () => {
+                isCollapsed = !isCollapsed;
+                // Save state
+                if (!isCollapsed) {
+                    this.expandedStatusGroups.add(toggleKey);
+                } else {
+                    this.expandedStatusGroups.delete(toggleKey);
+                }
+                updateState();
+            });
+        }
+
+        const finishedContainer = finishedSection.querySelector('.list-section-tasks') as HTMLElement;
+        finishedContainer.innerHTML = '';
+
+        const finishedKey = `list-finished-${groupId || 'single'}`;
+        const finishedPage = this.pageIndexMap[finishedKey] || 1;
+        this.pageIndexMap[finishedKey] = finishedPage;
+
+        const { pagedTasks: pagedFinished, hasMore: hasMoreFinished } = this.paginateTasks(finished, finishedPage);
+        this.renderTasksInColumn(finishedContainer, pagedFinished);
+
+        if (hasMoreFinished) {
+            this.renderLoadMoreButton(finishedContainer, finishedKey);
+        }
+
+        const finishedCountLabel = finishedSection.querySelector('.list-section-count');
+        if (finishedCountLabel) finishedCountLabel.textContent = finished.length.toString();
+    }
+
+    private addListSectionDropEvents(element: HTMLElement, type: 'unfinished' | 'finished', groupId: string | null) {
+        element.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer!.dropEffect = 'move';
+            if (this._columnDropIndicator && this._columnDropIndicator.parentNode) {
+                this._columnDropIndicator.parentNode.removeChild(this._columnDropIndicator);
+                this._columnDropIndicator = null;
+            }
+            element.classList.add('kanban-drop-hover');
+        });
+
+        element.addEventListener('dragleave', (e) => {
+            element.classList.remove('kanban-drop-hover');
+        });
+
+        element.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            element.classList.remove('kanban-drop-hover');
+
+            let taskId = e.dataTransfer!.getData('text/plain');
+            // Fix: sometimes drag data is just task id, sometimes has prefix? 
+            // Usually in this view it handles raw ID mostly.
+
+            if (!taskId) return;
+
+            const updates: any = {};
+
+            if (type === 'finished') {
+                updates.completed = true;
+                updates.kanbanStatus = 'completed';
+                updates.completedTime = getLocalDateTimeString(new Date());
+            } else {
+                updates.completed = false;
+                updates.kanbanStatus = 'doing'; // Default to doing when moving to unfinished
+                // We don't clear completedTime usually, or we should?
+            }
+
+            if (groupId !== null) {
+                updates.customGroupId = groupId === 'ungrouped' ? '' : groupId;
+            }
+
+            // Handle multi-select
+            if (this.selectedTaskIds.has(taskId)) {
+                await this.batchUpdateTasks(Array.from(this.selectedTaskIds), updates);
+            } else {
+                await this.batchUpdateTasks([taskId], updates);
+            }
+        });
     }
 
     private renderColumn(status: string, tasks: any[]) {
@@ -5024,7 +5539,16 @@ export class ProjectKanbanView {
         groupContainer.appendChild(groupHeader);
 
         // 渲染任务
-        this.renderTasksInColumn(groupTasksContainer, tasks);
+        const pageKey = `custom-mode-${groupKey}`;
+        const currentPage = this.pageIndexMap[pageKey] || 1;
+        this.pageIndexMap[pageKey] = currentPage;
+
+        const { pagedTasks, hasMore } = this.paginateTasks(tasks, currentPage);
+        this.renderTasksInColumn(groupTasksContainer, pagedTasks);
+
+        if (hasMore) {
+            this.renderLoadMoreButton(groupTasksContainer, pageKey);
+        }
 
         groupContainer.appendChild(groupTasksContainer);
 
@@ -5269,7 +5793,16 @@ export class ProjectKanbanView {
         groupContainer.appendChild(groupHeader);
 
         // 渲染任务（使用扩展后的任务列表）
-        this.renderTasksInColumn(groupTasksContainer, expandedTasks);
+        const pageKey = `status-mode-${groupKey}`;
+        const currentPage = this.pageIndexMap[pageKey] || 1;
+        this.pageIndexMap[pageKey] = currentPage;
+
+        const { pagedTasks, hasMore } = this.paginateTasks(expandedTasks, currentPage);
+        this.renderTasksInColumn(groupTasksContainer, pagedTasks);
+
+        if (hasMore) {
+            this.renderLoadMoreButton(groupTasksContainer, pageKey);
+        }
 
         groupContainer.appendChild(groupTasksContainer);
 

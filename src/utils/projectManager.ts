@@ -6,7 +6,7 @@ export interface Project {
     name: string;
     status: string;
     color?: string;
-    kanbanMode?: 'status' | 'custom';
+    kanbanMode?: 'status' | 'custom' | 'list';
     customGroups?: any[];
     blockId?: string;
 }
@@ -181,7 +181,7 @@ export class ProjectManager {
     /**
      * 获取项目的看板模式
      */
-    public async getProjectKanbanMode(projectId: string): Promise<'status' | 'custom'> {
+    public async getProjectKanbanMode(projectId: string): Promise<'status' | 'custom' | 'list'> {
         try {
             const projectData = await this.plugin.loadProjectData() || {};
             const project = projectData[projectId];
@@ -195,7 +195,7 @@ export class ProjectManager {
     /**
      * 设置项目的看板模式
      */
-    public async setProjectKanbanMode(projectId: string, mode: 'status' | 'custom'): Promise<void> {
+    public async setProjectKanbanMode(projectId: string, mode: 'status' | 'custom' | 'list'): Promise<void> {
         try {
             const projectData = await this.plugin.loadProjectData() || {};
             if (projectData[projectId]) {
