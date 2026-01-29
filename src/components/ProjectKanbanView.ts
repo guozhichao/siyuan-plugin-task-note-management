@@ -2315,11 +2315,18 @@ export class ProjectKanbanView {
             let dragCounter = 0;
 
             container.addEventListener('dragenter', (ev: DragEvent) => {
+                // 仅针对列头拖拽（设置了 text/status-id）处理进入计数，避免任务拖拽触发列插入占位
+                const dt = ev.dataTransfer;
+                const isColumnDrag = dt && ((dt.types && Array.from(dt.types).includes('text/status-id')) || !!dt.getData?.('text/status-id'));
+                if (!isColumnDrag) return;
                 ev.preventDefault();
                 dragCounter++;
             });
 
             container.addEventListener('dragleave', (ev: DragEvent) => {
+                const dt = ev.dataTransfer;
+                const isColumnDrag = dt && ((dt.types && Array.from(dt.types).includes('text/status-id')) || !!dt.getData?.('text/status-id'));
+                if (!isColumnDrag) return;
                 const related = (ev as any).relatedTarget as HTMLElement | null;
                 if (!related || !container.contains(related)) {
                     dragCounter = 0;
@@ -2330,6 +2337,10 @@ export class ProjectKanbanView {
             });
 
             container.addEventListener('dragover', (ev: DragEvent) => {
+                // 仅在列头拖拽时显示列插入占位符；普通任务拖拽不应影响列顺序的可视提示
+                const dt = ev.dataTransfer;
+                const isColumnDrag = dt && ((dt.types && Array.from(dt.types).includes('text/status-id')) || !!dt.getData?.('text/status-id'));
+                if (!isColumnDrag) return;
                 ev.preventDefault();
                 const columns = Array.from(container.querySelectorAll('.kanban-column')) as HTMLElement[];
                 if (columns.length === 0) {
