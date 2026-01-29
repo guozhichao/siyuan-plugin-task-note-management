@@ -1505,9 +1505,7 @@ export class CalendarView {
                 return;
             }
 
-            if (this.isCalendarVisible()) {
-                this.refreshEvents();
-            }
+            this.refreshEvents();
         };
         window.addEventListener('reminderUpdated', this.externalReminderUpdatedHandler);
 
