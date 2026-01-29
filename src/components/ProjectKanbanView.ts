@@ -5254,7 +5254,7 @@ export class ProjectKanbanView {
 
         // 日期时间
         const hasDate = task.date || task.endDate;
-        if (hasDate && !task.completed) {
+        if (hasDate) {
             const dateEl = document.createElement('div');
             dateEl.className = 'kanban-task-date';
             dateEl.style.cssText = `
