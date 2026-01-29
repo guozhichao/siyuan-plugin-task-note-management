@@ -462,6 +462,7 @@ export class ProjectKanbanView {
                 groupForm.style.display = 'none';
 
                 // 刷新看板（使用防抖队列）
+                await this.loadProject();
                 this.queueLoadTasks();
             } catch (error) {
                 console.error('保存分组失败:', error);
@@ -596,6 +597,7 @@ export class ProjectKanbanView {
             // 保存并刷新
             await projectManager.setProjectKanbanStatuses(this.projectId, statuses);
             renderStatuses();
+            await this.loadProject();
             this.kanbanStatuses = statuses;
             this._lastRenderedProjectId = null;
             this.queueLoadTasks();
@@ -1163,6 +1165,7 @@ export class ProjectKanbanView {
                 await projectManager.setProjectTags(this.projectId, updatedTags);
 
                 await loadAndDisplayTags();
+                await this.loadProject();
                 showMessage(i18n('tagDeleted'));
             } catch (error) {
                 console.error('删除标签失败:', error);
@@ -1182,6 +1185,7 @@ export class ProjectKanbanView {
                         projectTags[index] = updatedTag;
                         await projectManager.setProjectTags(this.projectId, projectTags);
                         await loadAndDisplayTags();
+                        await this.loadProject();
                         showMessage(i18n('tagUpdated'));
                     }
                 } catch (error) {
@@ -1278,6 +1282,7 @@ export class ProjectKanbanView {
                     await projectManager.setProjectTags(this.projectId, projectTags);
 
                     await loadAndDisplayTags();
+                    await this.loadProject();
                     showMessage(i18n('tagCreated'));
                 } catch (error) {
                     console.error('创建标签失败:', error);
@@ -1910,6 +1915,7 @@ export class ProjectKanbanView {
                 // 强制触发看板重绘
                 this._lastRenderedProjectId = null;
                 // 刷新看板（使用防抖队列）
+                await this.loadProject();
                 this.queueLoadTasks();
 
                 dialog.destroy();
@@ -11643,24 +11649,28 @@ export class ProjectKanbanView {
         buttonsGroup.appendChild(setStatusBtn);
 
         // 设置分组按钮
-        const setGroupBtn = document.createElement('button');
-        setGroupBtn.className = 'b3-button b3-button--outline b3-button--small';
-        setGroupBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconFolder"></use></svg> ${i18n('setGroup') || '设置分组'}`;
-        setGroupBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.batchSetGroup();
-        });
-        buttonsGroup.appendChild(setGroupBtn);
+        if (this.project?.customGroups && this.project.customGroups.length > 0) {
+            const setGroupBtn = document.createElement('button');
+            setGroupBtn.className = 'b3-button b3-button--outline b3-button--small';
+            setGroupBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconFolder"></use></svg> ${i18n('setGroup') || '设置分组'}`;
+            setGroupBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.batchSetGroup();
+            });
+            buttonsGroup.appendChild(setGroupBtn);
+        }
 
         // 设置标签按钮
-        const setTagsBtn = document.createElement('button');
-        setTagsBtn.className = 'b3-button b3-button--outline b3-button--small';
-        setTagsBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconTags"></use></svg> ${i18n('setTags') || '设置标签'}`;
-        setTagsBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.batchSetTags();
-        });
-        buttonsGroup.appendChild(setTagsBtn);
+        if (this.project?.tags && this.project.tags.length > 0) {
+            const setTagsBtn = document.createElement('button');
+            setTagsBtn.className = 'b3-button b3-button--outline b3-button--small';
+            setTagsBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconTags"></use></svg> ${i18n('setTags') || '设置标签'}`;
+            setTagsBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.batchSetTags();
+            });
+            buttonsGroup.appendChild(setTagsBtn);
+        }
 
         // 设置优先级按钮
         const setPriorityBtn = document.createElement('button');
