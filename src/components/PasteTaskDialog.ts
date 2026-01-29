@@ -3,6 +3,7 @@ import { i18n } from "../pluginInstance";
 import { autoDetectDateTimeFromTitle, getLocalDateTimeString } from "../utils/dateUtils";
 import { getBlockByID, updateBindBlockAtrrs, addBlockProjectId } from "../api";
 import { getAllReminders, saveReminders } from "../utils/icsSubscription";
+import LoadingDialog from './LoadingDialog.svelte';
 
 export interface HierarchicalTask {
     title: string;
@@ -37,6 +38,7 @@ export interface PasteTaskDialogConfig {
 
 export class PasteTaskDialog {
     private config: PasteTaskDialogConfig;
+    private loadingDialog: Dialog | null = null;
 
     constructor(config: PasteTaskDialogConfig) {
         this.config = config;
@@ -131,11 +133,22 @@ export class PasteTaskDialog {
         cancelBtn.addEventListener('click', () => dialog.destroy());
 
         createBtn.addEventListener('click', async () => {
+            // 防止重复点击
+            if ((createBtn as HTMLButtonElement).disabled) return;
+
             const text = textArea.value.trim();
             if (!text) {
                 showMessage(i18n("contentNotEmpty") || "列表内容不能为空");
                 return;
             }
+
+            // 禁用按钮并显示加载中文本
+            (createBtn as HTMLButtonElement).disabled = true;
+            const originalCreateHtml = createBtn.innerHTML;
+            createBtn.innerHTML = i18n('creating') || '创建中...';
+
+            // 显示加载对话框
+            this.showLoadingDialog("创建任务中...");
 
             const autoDetect = autoDetectCheckbox.checked;
             const removeDate = removeDateCheckbox.checked;
@@ -177,9 +190,53 @@ export class PasteTaskDialog {
                     } else {
                         showMessage(i18n("batchCreateFailed") || "批量创建任务失败");
                     }
+                } finally {
+                    // 关闭加载对话框
+                    this.closeLoadingDialog();
+                    // 如果对话框还存在，恢复按钮状态
+                    try {
+                        (createBtn as HTMLButtonElement).disabled = false;
+                        createBtn.innerHTML = originalCreateHtml;
+                    } catch (e) {
+                        // ignore
+                    }
                 }
+            } else {
+                // 无任务时恢复按钮
+                (createBtn as HTMLButtonElement).disabled = false;
+                createBtn.innerHTML = originalCreateHtml;
+                // 关闭加载对话框
+                this.closeLoadingDialog();
             }
         });
+    }
+
+    private showLoadingDialog(message: string) {
+        if (this.loadingDialog) {
+            this.loadingDialog.destroy();
+        }
+        this.loadingDialog = new Dialog({
+            title: "Processing",
+            content: `<div id="loadingDialogContent"></div>`,
+            width: "350px",
+            height: "230px",
+            disableClose: true,
+            destroyCallback: null
+        });
+
+        const loadingComponent = new LoadingDialog({
+            target: this.loadingDialog.element.querySelector('#loadingDialogContent'),
+            props: {
+                message: message
+            }
+        });
+    }
+
+    private closeLoadingDialog() {
+        if (this.loadingDialog) {
+            this.loadingDialog.destroy();
+            this.loadingDialog = null;
+        }
     }
 
     private parseHierarchicalTaskList(text: string, autoDetect: boolean = false, removeDate: boolean = true): HierarchicalTask[] {
