@@ -69,9 +69,8 @@ export const DEFAULT_SETTINGS = {
     pomodoroSystemNotification: true, // 新增：番茄结束后系统弹窗
     pomodoroEndPopupWindow: false, // 新增：番茄钟结束弹窗提醒，默认关闭
     reminderSystemNotification: true, // 新增：事件到期提醒系统弹窗
-    // 支持 HH:MM 格式，例如 '09:00'，向后兼容旧的数字（如 8 -> '08:00'）
     dailyNotificationTime: '08:00', // 新增：每日通知时间，默认08:00
-    dailyNotificationEnabled: true, // 新增：是否启用每日统一通知
+    dailyNotificationEnabled: false, // 新增：是否启用每日统一通知
     randomNotificationEnabled: false,
     randomNotificationMinInterval: 3,
     randomNotificationMaxInterval: 5,
