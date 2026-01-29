@@ -190,6 +190,8 @@ export default class ReminderPlugin extends Plugin {
     private protyleDebounceTimers: WeakMap<Element, number> = new WeakMap();
     private cleanupFunctions: (() => void)[] = [];
 
+    private currentHeadingIds: Set<string> = new Set();
+
     public settings: any;
 
     /**
@@ -1166,13 +1168,14 @@ export default class ReminderPlugin extends Plugin {
                     if (transaction.doOperations) {
                         for (const op of transaction.doOperations) {
                             if (op.action === "updateAttrs") {
-                                // 只要 bookmark 属性发生了变化，就触发更新
+                                let hasBookmarkUpdate = false;
                                 if (op.data?.new && 'bookmark' in op.data.new) {
-                                    shouldUpdate = true;
-                                    break;
+                                    hasBookmarkUpdate = true;
                                 }
-                                // 有时旧版或某些操作直接放在 data 中
                                 if (op.data && 'bookmark' in op.data && !op.data.new) {
+                                    hasBookmarkUpdate = true;
+                                }
+                                if (hasBookmarkUpdate && this.currentHeadingIds.has(op.id)) {
                                     shouldUpdate = true;
                                     break;
                                 }
@@ -1577,6 +1580,9 @@ export default class ReminderPlugin extends Plugin {
             });
 
             if (blockIds.length === 0) return;
+
+            // 更新当前标题块ID集合
+            this.currentHeadingIds = new Set(blockIds);
 
             // 使用 SQL 批量查询块属性（只查询 bookmark）
             const { sql } = await import('./api');

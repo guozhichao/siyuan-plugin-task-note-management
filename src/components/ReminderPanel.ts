@@ -6432,7 +6432,7 @@ export class ReminderPanel {
 
             // 生成新的提醒ID
             const blockId = originalReminder.blockId || originalReminder.id;
-            const newId = `${blockId}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            const newId = `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             newReminder.id = newId;
 
             // 3. 设置新系列从下一个周期开始，保持原始时间设置
@@ -6510,8 +6510,7 @@ export class ReminderPanel {
             delete newReminder.repeat.completedInstances;
 
             // 生成新的提醒ID
-            const blockId = originalReminder.blockId || originalReminder.id;
-            const newId = `${blockId}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            const newId = `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             newReminder.id = newId;
 
             // 3. 设置新系列的开始日期为当前实例日期

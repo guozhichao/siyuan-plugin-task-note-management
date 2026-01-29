@@ -390,7 +390,7 @@ export class PasteTaskDialog {
             parentPriority?: string,
             inheritedGroupId?: string
         ): Promise<string> => {
-            const taskId = `rem-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            const taskId = `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             sortCounter += 10;
 
             const inheritedPriority = (task.priority && task.priority !== 'none') ? task.priority : (parentPriority || 'none');

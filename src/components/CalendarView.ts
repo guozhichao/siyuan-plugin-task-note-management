@@ -2557,7 +2557,7 @@ export class CalendarView {
             }
 
             // 构造新提醒对象
-            const newReminderId = `quick_${Date.now()}_${Math.random().toString(36).substr(2, 9)} `;
+            const newReminderId = `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)} `;
 
             // 复制字段，排除管理字段和实例特有字段
             const newReminder: any = {
@@ -3764,7 +3764,7 @@ export class CalendarView {
 
             // 使用原始事件的blockId生成新的提醒ID
             const blockId = originalReminder.blockId || originalReminder.id;
-            const newId = `${blockId}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            const newId = `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             newReminder.id = newId;
 
             // 3. 根据拖放信息更新这个新系列的日期/时间。
@@ -6060,7 +6060,7 @@ export class CalendarView {
 
             // 生成新的提醒ID
             const blockId = originalReminder.blockId || originalReminder.id;
-            const newId = `${blockId}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            const newId = `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             newReminder.id = newId;
 
             // 3. 设置新系列从下一个周期开始

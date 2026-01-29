@@ -2678,7 +2678,7 @@ export class QuickReminderDialog {
         // ---------------------------------------------------------
         // 乐观更新：立即构造预览对象并关闭弹窗 (Optimistic Update)
         // ---------------------------------------------------------
-        const tempId = (this.mode === 'edit' && this.reminder) ? this.reminder.id : `quick_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const tempId = (this.mode === 'edit' && this.reminder) ? this.reminder.id : `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const nowStr = new Date().toISOString();
 
         // 预先解析并获取绑定块的 docId（用于乐观 UI）
