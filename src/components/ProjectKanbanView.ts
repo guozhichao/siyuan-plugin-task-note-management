@@ -2484,7 +2484,20 @@ export class ProjectKanbanView {
             }
         });
 
-        element.addEventListener('drop', (e) => {
+        element.addEventListener('drop', async (e) => {
+            // 检查批量拖拽
+            const multiData = e.dataTransfer?.getData('application/vnd.siyuan.kanban-tasks');
+            if (multiData) {
+                e.preventDefault();
+                element.classList.remove('kanban-drop-zone-active');
+                this.updateIndicator('none', null, null);
+                try {
+                    const taskIds = JSON.parse(multiData);
+                    await this.batchUpdateTasks(taskIds, { kanbanStatus: status });
+                } catch (err) { console.error(err); }
+                return;
+            }
+
             if (this.isDragging && this.draggedTask) {
                 e.preventDefault();
                 element.classList.remove('kanban-drop-zone-active');
@@ -2530,7 +2543,18 @@ export class ProjectKanbanView {
             }
         });
 
-        element.addEventListener('drop', (e) => {
+        element.addEventListener('drop', async (e) => {
+            const multiData = e.dataTransfer?.getData('application/vnd.siyuan.kanban-tasks');
+            if (multiData) {
+                e.preventDefault();
+                element.classList.remove('kanban-drop-zone-active');
+                try {
+                    const taskIds = JSON.parse(multiData);
+                    await this.batchUpdateTasks(taskIds, { customGroupId: groupId });
+                } catch (err) { console.error(err); }
+                return;
+            }
+
             if (this.isDragging && this.draggedTask) {
                 e.preventDefault();
                 element.classList.remove('kanban-drop-zone-active');
@@ -2584,19 +2608,31 @@ export class ProjectKanbanView {
         });
 
         element.addEventListener('drop', async (e) => {
+            // 提取目标 customGroupId
+            const statusGroup = element.closest('.custom-status-group') as HTMLElement;
+            let targetGroupId: string | null | undefined = undefined;
+            if (statusGroup && statusGroup.dataset.groupId) {
+                const groupId = statusGroup.dataset.groupId;
+                targetGroupId = groupId === 'ungrouped' ? null : groupId;
+            }
+
+            const multiData = e.dataTransfer?.getData('application/vnd.siyuan.kanban-tasks');
+            if (multiData) {
+                e.preventDefault();
+                e.stopPropagation();
+                element.classList.remove('kanban-drop-zone-active');
+                try {
+                    const taskIds = JSON.parse(multiData);
+                    await this.batchUpdateTasks(taskIds, { kanbanStatus: targetStatus, customGroupId: targetGroupId });
+                } catch (err) { console.error(err); }
+                return;
+            }
+
             if (this.isDragging && this.draggedTask) {
                 e.preventDefault();
                 // 关键：阻止事件冒泡，防止触发父级（整个自定义分组）的drop事件
                 e.stopPropagation();
                 element.classList.remove('kanban-drop-zone-active');
-
-                // 提取目标 customGroupId
-                const statusGroup = element.closest('.custom-status-group') as HTMLElement;
-                let targetGroupId: string | null | undefined = undefined;
-                if (statusGroup && statusGroup.dataset.groupId) {
-                    const groupId = statusGroup.dataset.groupId;
-                    targetGroupId = groupId === 'ungrouped' ? null : groupId;
-                }
 
                 const task = this.draggedTask;
                 const actualTaskId = task.isRepeatInstance ? task.originalId : task.id;
@@ -6227,6 +6263,36 @@ export class ProjectKanbanView {
 
             if (e.dataTransfer) {
                 e.dataTransfer.effectAllowed = 'move';
+
+                // 支持批量拖拽
+                if (this.isMultiSelectMode && this.selectedTaskIds.has(task.id)) {
+                    const selectedIds = Array.from(this.selectedTaskIds);
+                    e.dataTransfer.setData('application/vnd.siyuan.kanban-tasks', JSON.stringify(selectedIds));
+
+                    // 设置拖拽样式
+                    const dragIcon = document.createElement('div');
+                    dragIcon.style.cssText = `
+                        background: var(--b3-theme-primary);
+                        color: white;
+                        padding: 6px 10px;
+                        border-radius: 4px;
+                        font-size: 12px;
+                        position: absolute;
+                        top: -1000px;
+                        font-weight: bold;
+                        z-index: 10000;
+                    `;
+                    const count = selectedIds.length;
+                    dragIcon.textContent = `${count} ${i18n('tasks') || '个任务'}`;
+                    document.body.appendChild(dragIcon);
+                    try {
+                        e.dataTransfer.setDragImage(dragIcon, 0, 0);
+                    } catch (err) {
+                        // ignore setDragImage errors
+                    }
+                    setTimeout(() => dragIcon.remove(), 0);
+                }
+
                 e.dataTransfer.setData('text/html', element.outerHTML);
                 // 支持拖动到日历：携带任务的最小必要信息，格式与 ReminderPanel 保持一致
                 try {
@@ -11029,6 +11095,75 @@ export class ProjectKanbanView {
     }
 
 
+
+    /**
+     * 批量更新任务属性 (用于拖拽)
+     */
+    private async batchUpdateTasks(taskIds: string[], updates: { kanbanStatus?: string, customGroupId?: string | null }) {
+        try {
+            const tasksToUpdate: any[] = [];
+            const blocksToUpdate = new Set<string>();
+
+            for (const taskId of taskIds) {
+                const task = this.tasks.find(t => t.id === taskId);
+                if (task) {
+                    let changed = false;
+
+                    // Update Status
+                    if (updates.kanbanStatus) {
+                        const newStatus = updates.kanbanStatus;
+                        // Determine actual status logic comparable to simple status change
+                        if (newStatus === 'completed') {
+                            if (!task.completed) {
+                                task.kanbanStatus = 'completed';
+                                task.completed = true;
+                                task.completedTime = getLocalDateTimeString(new Date());
+                                changed = true;
+                            }
+                        } else {
+                            if (task.completed || task.kanbanStatus !== newStatus) {
+                                task.completed = false;
+                                task.completedTime = undefined;
+                                task.kanbanStatus = newStatus === 'doing' ? 'doing' : newStatus;
+                                changed = true;
+                            }
+                        }
+                    }
+
+                    // Update Group
+                    if (updates.customGroupId !== undefined) {
+                        if (task.customGroupId !== updates.customGroupId) {
+                            task.customGroupId = updates.customGroupId;
+                            changed = true;
+                        }
+                    }
+
+                    if (changed) {
+                        tasksToUpdate.push(task);
+                        if (task.blockId || task.docId) {
+                            blocksToUpdate.add(task.blockId || task.docId);
+                        }
+                    }
+                }
+            }
+
+            if (tasksToUpdate.length > 0) {
+                await this.saveTasks(tasksToUpdate);
+                this.queueLoadTasks(); // Full reload to ensure consistency
+                showMessage(i18n('batchUpdateSuccess', { count: String(tasksToUpdate.length) }) || `成功更新 ${tasksToUpdate.length} 个任务`);
+
+                for (const blockId of blocksToUpdate) {
+                    try {
+                        await updateBindBlockAtrrs(blockId, this.plugin);
+                    } catch (err) { console.warn(err); }
+                }
+            }
+
+        } catch (e) {
+            console.error("Batch update failed", e);
+            showMessage("Batch update failed");
+        }
+    }
 
     /**
      * 批量设置分组
