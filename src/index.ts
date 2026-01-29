@@ -3618,7 +3618,7 @@ export default class ReminderPlugin extends Plugin {
     private _createProjectButton(projectId: string, blockId: string): HTMLElement {
         const btn = document.createElement('button');
         btn.className = 'block-project-btn block__icon fn__flex-center ariaLabel';
-        btn.setAttribute('aria-label', i18n('openProjectKanban'));
+        btn.setAttribute('aria-label', `打开项目看板: ${this.projectDataCache[projectId]?.title}`);
         btn.style.cssText = `
             margin-left: 6px;
             padding: 2px;
