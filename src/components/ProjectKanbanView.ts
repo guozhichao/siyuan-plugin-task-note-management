@@ -2153,29 +2153,55 @@ export class ProjectKanbanView {
         modeSelectContainer.appendChild(modeSelect);
         controlsGroup.appendChild(modeSelectContainer);
 
-        // 设置任务状态按钮
-        const manageStatusesBtn = document.createElement('button');
-        manageStatusesBtn.className = 'b3-button b3-button--outline';
-        manageStatusesBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg> ${i18n('manageStatuses') || '任务状态'}`;
-        manageStatusesBtn.title = i18n('manageKanbanStatuses') || '管理任务状态';
-        manageStatusesBtn.addEventListener('click', () => this.showManageKanbanStatusesDialog());
-        controlsGroup.appendChild(manageStatusesBtn);
+        // 更多设置按钮
+        const moreBtn = document.createElement('button');
+        moreBtn.className = 'b3-button b3-button--outline';
+        moreBtn.title = i18n('more') || '更多';
+        moreBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconMore"></use></svg>';
+        moreBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const menu = new Menu("project-kanban-more-menu");
 
-        // 管理分组按钮
-        const manageGroupsBtn = document.createElement('button');
-        manageGroupsBtn.className = 'b3-button b3-button--outline';
-        manageGroupsBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg> ${i18n('manageGroups')}`;
-        manageGroupsBtn.title = i18n('manageCustomGroups');
-        manageGroupsBtn.addEventListener('click', () => this.showManageGroupsDialog());
-        controlsGroup.appendChild(manageGroupsBtn);
+            menu.addItem({
+                icon: "iconSettings",
+                label: i18n('manageKanbanStatuses') || '管理项目状态',
+                click: () => {
+                    this.showManageKanbanStatusesDialog();
+                }
+            });
 
-        // 管理标签按钮
-        const manageTagsBtn = document.createElement('button');
-        manageTagsBtn.className = 'b3-button b3-button--outline';
-        manageTagsBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconTags"></use></svg> ${i18n('manageTags')}`;
-        manageTagsBtn.title = i18n('manageProjectTags');
-        manageTagsBtn.addEventListener('click', () => this.showManageTagsDialog());
-        controlsGroup.appendChild(manageTagsBtn);
+            menu.addItem({
+                icon: "iconSettings",
+                label: i18n('manageCustomGroups') || '管理分组',
+                click: () => {
+                    this.showManageGroupsDialog();
+                }
+            });
+
+            menu.addItem({
+                icon: "iconTags",
+                label: i18n('manageProjectTags') || '管理标签',
+                click: () => {
+                    this.showManageTagsDialog();
+                }
+            });
+
+            // 显示菜单
+            if (e.target instanceof HTMLElement) {
+                const rect = e.target.getBoundingClientRect();
+                menu.open({
+                    x: rect.right,
+                    y: rect.bottom + 4
+                });
+            } else {
+                menu.open({
+                    x: e.clientX,
+                    y: e.clientY
+                });
+            }
+        });
+        controlsGroup.appendChild(moreBtn);
 
         // 多选模式按钮
         const multiSelectBtn = document.createElement('button');
