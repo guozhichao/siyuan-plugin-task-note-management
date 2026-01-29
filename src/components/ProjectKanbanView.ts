@@ -8671,6 +8671,7 @@ export class ProjectKanbanView {
                 display: flex;
                 flex-direction: column;
                 background: var(--b3-theme-background);
+                position: relative;
             }
 
             .project-kanban-toolbar {
@@ -11577,8 +11578,8 @@ export class ProjectKanbanView {
         this.batchToolbar = document.createElement('div');
         this.batchToolbar.className = 'kanban-batch-toolbar';
         this.batchToolbar.style.cssText = `
-            position: fixed;
-            bottom: 24px;
+            position: absolute;
+            bottom: 48px;
             left: 50%;
             transform: translateX(-50%);
             background: var(--b3-theme-background);
@@ -11590,8 +11591,7 @@ export class ProjectKanbanView {
             gap: 16px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
             z-index: 1000;
-            min-width: 400px;
-            max-width: 80vw;
+            width: 55%;
         `;
 
         // 选择计数
