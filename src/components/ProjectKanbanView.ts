@@ -825,10 +825,28 @@ export class ProjectKanbanView {
                                     const targetStatusSelect = moveDialog.element.querySelector('#targetStatusSelect') as HTMLSelectElement;
                                     const targetStatusId = targetStatusSelect.value;
 
-                                    // 移动任务到目标状态
+                                    // 移动任务到目标状态 - 批量处理
+                                    const tasksToUpdate = [];
                                     for (const task of tasksInStatus) {
-                                        await this.updateTaskStatus(task, targetStatusId);
+                                        // 修改状态
+                                        if (targetStatusId === 'completed') {
+                                            task.kanbanStatus = 'completed';
+                                            task.completed = true;
+                                            task.completedTime = getLocalDateTimeString(new Date());
+                                        } else if (targetStatusId === 'doing') {
+                                            task.completed = false;
+                                            task.completedTime = undefined;
+                                            task.kanbanStatus = 'doing';
+                                        } else {
+                                            task.completed = false;
+                                            task.completedTime = undefined;
+                                            task.kanbanStatus = targetStatusId;
+                                        }
+                                        tasksToUpdate.push(task);
                                     }
+
+                                    // 批量保存任务
+                                    await this.saveTasks(tasksToUpdate);
 
                                     moveDialog.destroy();
 
@@ -10513,27 +10531,30 @@ export class ProjectKanbanView {
 
     // ==================== 批量多选功能 ====================
 
+
+
     /**
-     * 保存单个任务（辅助方法）
+     * 批量保存任务
      */
-    private async saveTask(task: any): Promise<void> {
+    private async saveTasks(tasks: any[]): Promise<void> {
         try {
             let reminderData = await this.getReminders();
 
-            // 更新或添加任务到提醒数据
-            reminderData[task.id] = {
-                ...reminderData[task.id],
-                ...task,
-                projectId: this.projectId,
-                updatedAt: new Date().toISOString()
-            };
+            for (const task of tasks) {
+                reminderData[task.id] = {
+                    ...reminderData[task.id],
+                    ...task,
+                    projectId: this.projectId,
+                    updatedAt: new Date().toISOString()
+                };
+            }
 
             await saveReminders(this.plugin, reminderData);
 
             // 触发更新事件
             this.dispatchReminderUpdate(true);
         } catch (error) {
-            console.error('保存任务失败:', error);
+            console.error('批量保存任务失败:', error);
             throw error;
         }
     }
@@ -10889,14 +10910,19 @@ export class ProjectKanbanView {
 
             try {
                 let successCount = 0;
+                const tasksToUpdate = [];
+
                 for (const taskId of selectedIds) {
                     const task = this.tasks.find(t => t.id === taskId);
                     if (task) {
                         task.date = clearDate ? undefined : dateValue;
-                        await this.saveTask(task);
+                        tasksToUpdate.push(task);
                         successCount++;
                     }
                 }
+
+                // 批量保存任务
+                await this.saveTasks(tasksToUpdate);
                 showMessage(i18n('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
                 this.queueLoadTasks();
             } catch (error) {
@@ -10951,15 +10977,50 @@ export class ProjectKanbanView {
 
             try {
                 let successCount = 0;
+                const tasksToUpdate = [];
+                const blocksToUpdate = [];
+
                 for (const taskId of selectedIds) {
                     const task = this.tasks.find(t => t.id === taskId);
                     if (task) {
-                        await this.updateTaskStatus(task, newStatus);
+                        const wasCompleted = task.completed;
+                        // 修改状态
+                        if (newStatus === 'completed') {
+                            task.kanbanStatus = 'completed';
+                            task.completed = true;
+                            task.completedTime = getLocalDateTimeString(new Date());
+                        } else if (newStatus === 'doing') {
+                            task.completed = false;
+                            task.completedTime = undefined;
+                            task.kanbanStatus = 'doing';
+                        } else {
+                            // 其他状态（长期、短期、自定义状态）
+                            task.completed = false;
+                            task.completedTime = undefined;
+                            task.kanbanStatus = newStatus;
+                        }
+
+                        tasksToUpdate.push(task);
+
+                        // 如果有绑定块且完成状态变化，记录
+                        if ((task.blockId || task.docId) && wasCompleted !== task.completed) {
+                            blocksToUpdate.push(task.blockId || task.docId);
+                        }
+
                         successCount++;
                     }
                 }
-                showMessage(i18n('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
+
+                // 批量保存任务
+                await this.saveTasks(tasksToUpdate);
+
+                // 更新任务
                 this.queueLoadTasks();
+                showMessage(i18n('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
+                // 批量更新绑定块属性
+                for (const blockId of blocksToUpdate) {
+                    await updateBindBlockAtrrs(blockId, this.plugin);
+                }
             } catch (error) {
                 console.error('批量设置状态失败:', error);
                 showMessage(i18n('batchUpdateFailed') || '批量更新失败');
@@ -10967,28 +11028,7 @@ export class ProjectKanbanView {
         });
     }
 
-    /**
-     * 更新任务状态
-     */
-    private async updateTaskStatus(task: any, newStatus: string): Promise<void> {
-        // 使用 kanbanStatus 字段存储看板状态
-        if (newStatus === 'completed') {
-            task.kanbanStatus = 'completed';
-            task.completed = true;
-            task.completedTime = getLocalDateTimeString(new Date());
-        } else if (newStatus === 'doing') {
-            task.completed = false;
-            task.completedTime = undefined;
-            task.kanbanStatus = 'doing';
-        } else {
-            // 其他状态（长期、短期、自定义状态）
-            task.completed = false;
-            task.completedTime = undefined;
-            task.kanbanStatus = newStatus;
-        }
 
-        await this.saveTask(task);
-    }
 
     /**
      * 批量设置分组
@@ -11038,14 +11078,19 @@ export class ProjectKanbanView {
 
                 try {
                     let successCount = 0;
+                    const tasksToUpdate = [];
+
                     for (const taskId of selectedIds) {
                         const task = this.tasks.find(t => t.id === taskId);
                         if (task) {
                             task.customGroupId = groupId;
-                            await this.saveTask(task);
+                            tasksToUpdate.push(task);
                             successCount++;
                         }
                     }
+
+                    // 批量保存任务
+                    await this.saveTasks(tasksToUpdate);
                     showMessage(i18n('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
                     this.queueLoadTasks();
                 } catch (error) {
@@ -11108,14 +11153,19 @@ export class ProjectKanbanView {
 
             try {
                 let successCount = 0;
+                const tasksToUpdate = [];
+
                 for (const taskId of selectedIds) {
                     const task = this.tasks.find(t => t.id === taskId);
                     if (task) {
                         task.priority = newPriority;
-                        await this.saveTask(task);
+                        tasksToUpdate.push(task);
                         successCount++;
                     }
                 }
+
+                // 批量保存任务
+                await this.saveTasks(tasksToUpdate);
                 showMessage(i18n('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
                 this.queueLoadTasks();
             } catch (error) {
@@ -11138,18 +11188,12 @@ export class ProjectKanbanView {
             i18n('confirmBatchDeleteMessage', { count: String(selectedIds.length) }) || `确定要删除选中的 ${selectedIds.length} 个任务吗？此操作不可恢复。`,
             async () => {
                 try {
-                    let successCount = 0;
-                    for (const taskId of selectedIds) {
-                        await this.deleteTaskById(taskId);
-                        successCount++;
-                    }
+                    await this.deleteTasksByIds(selectedIds);
 
                     // 清空选择
                     this.selectedTaskIds.clear();
-                    this.hideBatchToolbar();
 
-                    showMessage(i18n('batchDeleteSuccess', { count: String(successCount) }) || `成功删除 ${successCount} 个任务`);
-                    this.queueLoadTasks();
+                    showMessage(i18n('batchDeleteSuccess', { count: String(selectedIds.length) }) || `成功删除 ${selectedIds.length} 个任务`);
                 } catch (error) {
                     console.error('批量删除失败:', error);
                     showMessage(i18n('batchDeleteFailed') || '批量删除失败');
@@ -11158,46 +11202,61 @@ export class ProjectKanbanView {
         );
     }
 
+
     /**
-     * 根据ID删除任务
+     * 批量删除任务
      */
-    private async deleteTaskById(taskId: string): Promise<void> {
-        // 从任务列表中移除
-        const taskIndex = this.tasks.findIndex(t => t.id === taskId);
-        if (taskIndex === -1) return;
-
-        const task = this.tasks[taskIndex];
-
-        // 从提醒数据中删除
+    private async deleteTasksByIds(taskIds: string[]): Promise<void> {
         let reminderData = await this.getReminders();
-        if (reminderData[taskId]) {
-            // 保存要更新的绑定块ID，稍后在保存后触发更新
-            const boundId = reminderData[taskId].blockId || reminderData[taskId].docId;
+        const boundIds: string[] = [];
 
-            delete reminderData[taskId];
-            await saveReminders(this.plugin, reminderData);
+        // 收集所有要删除的任务ID，包括子任务
+        const allTaskIdsToDelete = new Set<string>();
 
-            // 如果绑定了块/文档，更新该块的属性（忽略错误）
-            if (boundId) {
-                try {
-                    await updateBindBlockAtrrs(boundId, this.plugin);
-                } catch (err) {
-                    console.warn(`更新已删除任务 ${taskId} 的块书签失败:`, err);
+        const collectTasksToDelete = (ids: string[]) => {
+            for (const id of ids) {
+                if (allTaskIdsToDelete.has(id)) continue;
+                allTaskIdsToDelete.add(id);
+
+                // 递归收集子任务
+                const children = this.tasks.filter(t => t.parentId === id);
+                collectTasksToDelete(children.map(t => t.id));
+            }
+        };
+
+        collectTasksToDelete(taskIds);
+
+        // 从提醒数据中删除，并收集绑定块ID
+        for (const taskId of allTaskIdsToDelete) {
+            if (reminderData[taskId]) {
+                const boundId = reminderData[taskId].blockId || reminderData[taskId].docId;
+                if (boundId) {
+                    boundIds.push(boundId);
                 }
+                delete reminderData[taskId];
             }
         }
 
-        // 同时从 this.tasks 中移除
-        this.tasks.splice(taskIndex, 1);
+        // 保存更新后的提醒数据
+        await saveReminders(this.plugin, reminderData);
 
-        // 递归删除子任务
-        const children = this.tasks.filter(t => t.parentId === taskId);
-        for (const child of children) {
-            await this.deleteTaskById(child.id);
-        }
+
+
+        // 从 this.tasks 中移除
+        this.tasks = this.tasks.filter(t => !allTaskIdsToDelete.has(t.id));
+        this.queueLoadTasks();
 
         // 触发更新事件
         this.dispatchReminderUpdate(true);
+
+        // 更新绑定块属性
+        for (const boundId of boundIds) {
+            try {
+                await updateBindBlockAtrrs(boundId, this.plugin);
+            } catch (e) {
+                /* ignore */
+            }
+        }
     }
 
 }
