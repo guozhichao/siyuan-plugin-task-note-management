@@ -2505,7 +2505,7 @@ export class ProjectKanbanView {
                 }
 
                 // 获取当前任务的分组ID
-                const currentGroupRaw = this.draggedTask.customGroupId;
+                const currentGroupRaw = (this.draggedTask as any).customGroupId;
                 const currentGroupId = (currentGroupRaw === undefined || currentGroupRaw === 'ungrouped') ? null : currentGroupRaw;
 
                 // 允许放置的条件：状态不同 OR 分组不同
@@ -2534,19 +2534,19 @@ export class ProjectKanbanView {
                 e.stopPropagation();
                 element.classList.remove('kanban-drop-zone-active');
 
-                // CRITICAL FIX: Extract customGroupId from the DOM element
+                // 提取目标 customGroupId
                 const statusGroup = element.closest('.custom-status-group') as HTMLElement;
-
                 let targetGroupId: string | null | undefined = undefined;
                 if (statusGroup && statusGroup.dataset.groupId) {
                     const groupId = statusGroup.dataset.groupId;
                     targetGroupId = groupId === 'ungrouped' ? null : groupId;
                 }
 
-                const draggedTaskId = this.draggedTask.id;
+                const task = this.draggedTask;
+                const actualTaskId = task.isRepeatInstance ? task.originalId : task.id;
 
                 // Optimistic UI update: Update local cache immediately
-                const localTask = this.tasks.find(t => t.id === draggedTaskId);
+                const localTask = this.tasks.find(t => t.id === task.id);
                 if (localTask) {
                     // Update status
                     if (targetStatus === 'completed') {
@@ -2555,11 +2555,7 @@ export class ProjectKanbanView {
                     } else {
                         localTask.completed = false;
                         delete localTask.completedTime;
-                        if (targetStatus === 'long_term' || targetStatus === 'short_term') {
-                            localTask.kanbanStatus = targetStatus;
-                        } else if (targetStatus === 'doing') {
-                            localTask.kanbanStatus = 'doing';
-                        }
+                        localTask.kanbanStatus = targetStatus;
                     }
 
                     // Update group
@@ -2573,7 +2569,6 @@ export class ProjectKanbanView {
                 }
 
                 // Trigger immediate re-render to move the task visually
-                // Use loadTasks() directly instead of queueLoadTasks() to avoid debounce delay
                 this.loadTasks().catch(err => {
                     console.error('Failed to reload tasks:', err);
                 });
@@ -2582,39 +2577,84 @@ export class ProjectKanbanView {
                 (async () => {
                     try {
                         const reminderData = await this.getReminders();
-                        const taskInDb = reminderData[draggedTaskId];
 
-                        if (taskInDb) {
-                            // Update status in DB
-                            if (targetStatus === 'completed') {
-                                taskInDb.completed = true;
-                                taskInDb.completedTime = new Date().toISOString();
-                            } else {
-                                taskInDb.completed = false;
-                                delete taskInDb.completedTime;
-                                if (targetStatus === 'long_term' || targetStatus === 'short_term') {
-                                    taskInDb.kanbanStatus = targetStatus;
-                                } else if (targetStatus === 'doing') {
-                                    taskInDb.kanbanStatus = 'doing';
-                                }
-
-                            }
-
-                            // Update group in DB
-                            if (targetGroupId !== undefined) {
-                                if (targetGroupId === null) {
-                                    delete taskInDb.customGroupId;
+                        if (task.isRepeatInstance) {
+                            // 处理重复实例
+                            const originalId = task.originalId;
+                            const instanceDate = task.date;
+                            const orig = reminderData[originalId];
+                            if (orig) {
+                                // 1. 更新状态 (对周期性任务，非完成状态通常更新原任务以影响后续实例)
+                                if (targetStatus === 'completed') {
+                                    if (!orig.repeat) orig.repeat = {};
+                                    if (!orig.repeat.completedInstances) orig.repeat.completedInstances = [];
+                                    if (!orig.repeat.completedInstances.includes(instanceDate)) {
+                                        orig.repeat.completedInstances.push(instanceDate);
+                                    }
+                                    if (!orig.repeat.instanceCompletedTimes) orig.repeat.instanceCompletedTimes = {};
+                                    orig.repeat.instanceCompletedTimes[instanceDate] = getLocalDateTimeString(new Date());
                                 } else {
-                                    taskInDb.customGroupId = targetGroupId;
+                                    orig.kanbanStatus = targetStatus;
+                                    orig.completed = false;
+                                    if (orig.repeat?.completedInstances) {
+                                        const idx = orig.repeat.completedInstances.indexOf(instanceDate);
+                                        if (idx > -1) orig.repeat.completedInstances.splice(idx, 1);
+                                    }
+                                }
+
+                                // 2. 更新分组 (仅针对该实例，符合 setTaskCustomGroup 行为)
+                                if (targetGroupId !== undefined) {
+                                    if (!orig.repeat) orig.repeat = {};
+                                    if (!orig.repeat.instanceModifications) orig.repeat.instanceModifications = {};
+                                    if (!orig.repeat.instanceModifications[instanceDate]) orig.repeat.instanceModifications[instanceDate] = {};
+
+                                    if (targetGroupId === null) {
+                                        delete orig.repeat.instanceModifications[instanceDate].customGroupId;
+                                    } else {
+                                        orig.repeat.instanceModifications[instanceDate].customGroupId = targetGroupId;
+                                    }
                                 }
                             }
+                        } else {
+                            // 处理普通任务
+                            const taskInDb = reminderData[actualTaskId];
+                            if (taskInDb) {
+                                // 1. 更新状态
+                                if (targetStatus === 'completed') {
+                                    taskInDb.completed = true;
+                                    taskInDb.completedTime = getLocalDateTimeString(new Date());
+                                    await this.completeAllChildTasks(actualTaskId, reminderData);
+                                } else {
+                                    taskInDb.completed = false;
+                                    delete taskInDb.completedTime;
+                                    taskInDb.kanbanStatus = targetStatus;
+                                }
 
-                            await saveReminders(this.plugin, reminderData);
-                            this.dispatchReminderUpdate(true);
+                                // 2. 更新分组 (包含后代)
+                                if (targetGroupId !== undefined) {
+                                    const toUpdateIds = [actualTaskId, ...this.getAllDescendantIds(actualTaskId, reminderData)];
+                                    toUpdateIds.forEach(id => {
+                                        const item = reminderData[id];
+                                        if (!item) return;
+                                        if (targetGroupId === null) {
+                                            delete item.customGroupId;
+                                        } else {
+                                            item.customGroupId = targetGroupId;
+                                        }
+                                    });
+                                }
+                            }
                         }
+
+                        await saveReminders(this.plugin, reminderData);
+                        await this.queueLoadTasks();
+                        // 更新块属性
+                        if (task.blockId || task.docId) {
+                            await updateBindBlockAtrrs(task.blockId || task.docId, this.plugin);
+                        }
+                        this.dispatchReminderUpdate(true);
                     } catch (error) {
                         console.error('Background save failed:', error);
-                        // Reload to ensure consistency
                         await this.queueLoadTasks();
                     }
                 })();
