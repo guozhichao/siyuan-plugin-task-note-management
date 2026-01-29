@@ -20,7 +20,6 @@ export interface KanbanStatus {
     color: string;        // 状态颜色
     icon?: string;        // 状态图标（emoji）
     isFixed: boolean;     // 是否固定不可删除（doing和completed为固定）
-    isDefault: boolean;   // 是否为系统默认状态
     sort: number;         // 排序权重
 }
 
@@ -320,7 +319,6 @@ export class ProjectManager {
                 color: '#e74c3c',
                 icon: '⏳',
                 isFixed: true,
-                isDefault: true,
                 sort: 0
             },
             {
@@ -329,7 +327,6 @@ export class ProjectManager {
                 color: '#3498db',
                 icon: '📋',
                 isFixed: false,
-                isDefault: true,
                 sort: 10
             },
             {
@@ -338,7 +335,6 @@ export class ProjectManager {
                 color: '#9b59b6',
                 icon: '🤔',
                 isFixed: false,
-                isDefault: true,
                 sort: 20
             },
             {
@@ -347,7 +343,6 @@ export class ProjectManager {
                 color: '#27ae60',
                 icon: '✅',
                 isFixed: true,
-                isDefault: true,
                 sort: 100
             }
         ];
@@ -422,7 +417,6 @@ export class ProjectManager {
                             color: status.color,
                             icon: status.icon,
                             isFixed: true,
-                            isDefault: true,
                             sort: status.sort
                         });
                     } else {

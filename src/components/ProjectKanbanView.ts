@@ -985,7 +985,6 @@ export class ProjectKanbanView {
                     color,
                     icon: icon || undefined,
                     isFixed: false,
-                    isDefault: false,
                     sort: statuses.length * 10
                 };
 
