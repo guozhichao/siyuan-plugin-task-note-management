@@ -10498,6 +10498,9 @@ export class ProjectKanbanView {
         // 重新渲染看板以显示/隐藏多选复选框
         this.renderKanban();
 
+        // 无论是否选中任务，只要开启多选模式就显示工具栏
+        this.updateBatchToolbar();
+
         showMessage(this.isMultiSelectMode ? (i18n('batchSelectModeOn') || '已进入批量选择模式') : (i18n('batchSelectModeOff') || '已退出批量选择模式'));
     }
 
@@ -10533,7 +10536,7 @@ export class ProjectKanbanView {
     private updateBatchToolbar(): void {
         const selectedCount = this.selectedTaskIds.size;
 
-        if (selectedCount === 0) {
+        if (!this.isMultiSelectMode) {
             this.hideBatchToolbar();
             return;
         }
@@ -10546,6 +10549,23 @@ export class ProjectKanbanView {
         const countEl = this.batchToolbar?.querySelector('.batch-toolbar-count') as HTMLElement;
         if (countEl) {
             countEl.textContent = `${selectedCount} ${i18n('tasksSelected') || '个任务已选择'}`;
+        }
+
+        // 更新操作按钮的禁用状态
+        const actionButtons = this.batchToolbar?.querySelectorAll('.b3-button--small:not(.b3-button--text)');
+        if (actionButtons) {
+            actionButtons.forEach(btn => {
+                const button = btn as HTMLButtonElement;
+                if (selectedCount === 0) {
+                    button.disabled = true;
+                    button.style.opacity = '0.5';
+                    button.style.cursor = 'not-allowed';
+                } else {
+                    button.disabled = false;
+                    button.style.opacity = '1';
+                    button.style.cursor = 'pointer';
+                }
+            });
         }
     }
 
@@ -10740,7 +10760,7 @@ export class ProjectKanbanView {
     private clearSelection(): void {
         this.selectedTaskIds.clear();
         this.renderKanban();
-        this.hideBatchToolbar();
+        this.updateBatchToolbar();
     }
 
     /**
