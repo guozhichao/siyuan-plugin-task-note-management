@@ -1,5 +1,5 @@
 import { Dialog, showMessage, Menu } from "siyuan";
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 import { getLocalDateString, getLogicalDateString } from "../utils/dateUtils";
 import { ProjectManager } from "../utils/projectManager";
 
@@ -114,15 +114,15 @@ export class TaskSummaryDialog {
     const interval = repeat.interval || 1;
     switch (repeat.type) {
       case 'daily':
-        return interval === 1 ? `🔄 ${t('daily') || '每天'}` : `🔄 ${t('every') || '每'}${interval}${t('days') || '天'}`;
+        return interval === 1 ? `🔄 ${i18n('daily') || '每天'}` : `🔄 ${i18n('every') || '每'}${interval}${i18n('days') || '天'}`;
       case 'weekly': {
         // 优先使用配置中的 weekDays
         if (repeat.weekDays && repeat.weekDays.length > 0) {
           const days = repeat.weekDays.map((d: number) => {
             const keys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-            return t(keys[d]);
+            return i18n(keys[d]);
           }).join('、');
-          return `🔄 ${t('weekly') || '每周'} (${days})`;
+          return `🔄 ${i18n('weekly') || '每周'} (${days})`;
         }
         // 如果没有显式 weekDays，尝试从 startDate 推断单一星期几
         if (startDate) {
@@ -130,42 +130,42 @@ export class TaskSummaryDialog {
             const sd = new Date(startDate + 'T00:00:00');
             const d = sd.getDay();
             const keys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-            const dayLabel = t(keys[d]);
-            return `🔄 ${t('weekly') || '每周'}${dayLabel}`;
+            const dayLabel = i18n(keys[d]);
+            return `🔄 ${i18n('weekly') || '每周'}${dayLabel}`;
           } catch (e) {
             // fallback
           }
         }
-        return interval === 1 ? `🔄 ${t('weekly') || '每周'}` : `🔄 ${t('every') || '每'}${interval}${t('weeks') || '周'}`;
+        return interval === 1 ? `🔄 ${i18n('weekly') || '每周'}` : `🔄 ${i18n('every') || '每'}${interval}${i18n('weeks') || '周'}`;
       }
       case 'monthly': {
         if (repeat.monthDays && repeat.monthDays.length > 0) {
-          return `🔄 ${t('monthly') || '每月'} (${repeat.monthDays.join('、')}${t('day') || '日'})`;
+          return `🔄 ${i18n('monthly') || '每月'} (${repeat.monthDays.join('、')}${i18n('day') || '日'})`;
         }
-        return interval === 1 ? `🔄 ${t('monthly') || '每月'}` : `🔄 ${t('every') || '每'}${interval}${t('months') || '月'}`;
+        return interval === 1 ? `🔄 ${i18n('monthly') || '每月'}` : `🔄 ${i18n('every') || '每'}${interval}${i18n('months') || '月'}`;
       }
       case 'yearly':
-        return `🔄 ${t('yearly') || '每年'}`;
+        return `🔄 ${i18n('yearly') || '每年'}`;
       case 'custom': {
         const parts: string[] = [];
         if (repeat.weekDays && repeat.weekDays.length) {
-          const days = repeat.weekDays.map((d: number) => t(['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][d]));
-          parts.push(`${t('weekly') || '每周'}(${days.join('、')})`);
+          const days = repeat.weekDays.map((d: number) => i18n(['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][d]));
+          parts.push(`${i18n('weekly') || '每周'}(${days.join('、')})`);
         }
         if (repeat.monthDays && repeat.monthDays.length) {
-          parts.push(`${t('monthly') || '每月'}(${repeat.monthDays.join('、')}${t('day') || '日'})`);
+          parts.push(`${i18n('monthly') || '每月'}(${repeat.monthDays.join('、')}${i18n('day') || '日'})`);
         }
         if (repeat.months && repeat.months.length) {
-          parts.push(`${t('yearly') || '每年'}(${repeat.months.join('、')}${t('month') || '月'})`);
+          parts.push(`${i18n('yearly') || '每年'}(${repeat.months.join('、')}${i18n('month') || '月'})`);
         }
         return `🔄 ${parts.join(' ')}`;
       }
       case 'ebbinghaus':
-        return `🔄 ${t('ebbinghaus') || '艾宾浩斯'}`;
+        return `🔄 ${i18n('ebbinghaus') || '艾宾浩斯'}`;
       case 'lunar-monthly':
-        return `🔄 ${t('lunarMonthly') || '农历每月'}`;
+        return `🔄 ${i18n('lunarMonthly') || '农历每月'}`;
       case 'lunar-yearly':
-        return `🔄 ${t('lunarYearly') || '农历每年'}`;
+        return `🔄 ${i18n('lunarYearly') || '农历每年'}`;
       default:
         return '';
     }
@@ -180,7 +180,7 @@ export class TaskSummaryDialog {
 
       // 创建弹窗
       this.currentDialog = new Dialog({
-        title: t("taskSummary") || "任务摘要",
+        title: i18n("taskSummary") || "任务摘要",
         content: `<div id="task-summary-dialog-container" style="height: 100%; display: flex; flex-direction: column;"></div>`,
         width: "90vw",
         height: "85vh"
@@ -189,7 +189,7 @@ export class TaskSummaryDialog {
       this.renderSummary();
     } catch (error) {
       console.error('显示任务摘要失败:', error);
-      showMessage(t("showSummaryFailed") || "显示摘要失败");
+      showMessage(i18n("showSummaryFailed") || "显示摘要失败");
     }
   }
 
@@ -495,38 +495,38 @@ export class TaskSummaryDialog {
 
   private getFrequencyLabel(habit: any): string {
     const { frequency } = habit;
-    if (!frequency) return t('daily');
+    if (!frequency) return i18n('daily');
 
     let label = '';
     const interval = frequency.interval || 1;
 
     switch (frequency.type) {
       case 'daily':
-        label = interval === 1 ? t('daily') : `${t('every')}${interval}${t('days')}`;
+        label = interval === 1 ? i18n('daily') : `${i18n('every')}${interval}${i18n('days')}`;
         break;
       case 'weekly':
         if (frequency.weekdays && frequency.weekdays.length > 0) {
           const days = frequency.weekdays.map((d: number) => {
             const keys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-            return t(keys[d]);
+            return i18n(keys[d]);
           }).join('、');
-          label = `${t('weekly')} (${days})`;
+          label = `${i18n('weekly')} (${days})`;
         } else {
-          label = interval === 1 ? t('weekly') : `${t('every')}${interval}${t('weeks')}`;
+          label = interval === 1 ? i18n('weekly') : `${i18n('every')}${interval}${i18n('weeks')}`;
         }
         break;
       case 'monthly':
         if (frequency.monthDays && frequency.monthDays.length > 0) {
-          label = `${t('monthly')} (${frequency.monthDays.join('、')}${t('day')})`;
+          label = `${i18n('monthly')} (${frequency.monthDays.join('、')}${i18n('day')})`;
         } else {
-          label = interval === 1 ? t('monthly') : `${t('every')}${interval}${t('months')}`;
+          label = interval === 1 ? i18n('monthly') : `${i18n('every')}${interval}${i18n('months')}`;
         }
         break;
       case 'yearly':
-        label = t('yearly');
+        label = i18n('yearly');
         break;
       default:
-        label = t('daily');
+        label = i18n('daily');
     }
     return label;
   }
@@ -621,7 +621,7 @@ export class TaskSummaryDialog {
       case 'today':
         start = logicalToday;
         end = logicalToday;
-        label = t('today');
+        label = i18n('today');
         break;
       case 'tomorrow': {
         const tomorrowDate = new Date(logicalToday);
@@ -629,7 +629,7 @@ export class TaskSummaryDialog {
         const tomorrow = getLocalDateString(tomorrowDate);
         start = tomorrow;
         end = tomorrow;
-        label = t('tomorrow');
+        label = i18n('tomorrow');
         break;
       }
       case 'yesterday': {
@@ -638,7 +638,7 @@ export class TaskSummaryDialog {
         const yesterday = getLocalDateString(yesterdayDate);
         start = yesterday;
         end = yesterday;
-        label = t('yesterday');
+        label = i18n('yesterday');
         break;
       }
       case 'thisWeek': {
@@ -651,7 +651,7 @@ export class TaskSummaryDialog {
         endDate.setDate(diff + 6);
         start = getLocalDateString(startDate);
         end = getLocalDateString(endDate);
-        label = `${t('thisWeek')} (${start} ~ ${end})`;
+        label = `${i18n('thisWeek')} (${start} ~ ${end})`;
         break;
       }
       case 'nextWeek': {
@@ -664,7 +664,7 @@ export class TaskSummaryDialog {
         endDate.setDate(diff + 6);
         start = getLocalDateString(startDate);
         end = getLocalDateString(endDate);
-        label = `${t('nextWeek')} (${start} ~ ${end})`;
+        label = `${i18n('nextWeek')} (${start} ~ ${end})`;
         break;
       }
       case 'lastWeek': {
@@ -677,7 +677,7 @@ export class TaskSummaryDialog {
         endDate.setDate(diff + 6);
         start = getLocalDateString(startDate);
         end = getLocalDateString(endDate);
-        label = `${t('lastWeek')} (${start} ~ ${end})`;
+        label = `${i18n('lastWeek')} (${start} ~ ${end})`;
         break;
       }
       case 'thisMonth': {
@@ -686,7 +686,7 @@ export class TaskSummaryDialog {
         const endDate = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0);
         start = getLocalDateString(startDate);
         end = getLocalDateString(endDate);
-        label = t('thisMonth');
+        label = i18n('thisMonth');
         break;
       }
       case 'lastMonth': {
@@ -695,7 +695,7 @@ export class TaskSummaryDialog {
         const endDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), 0);
         start = getLocalDateString(startDate);
         end = getLocalDateString(endDate);
-        label = t('lastMonth');
+        label = i18n('lastMonth');
         break;
       }
     }
@@ -770,7 +770,7 @@ export class TaskSummaryDialog {
       return events;
     } catch (error) {
       console.error('获取事件数据失败:', error);
-      showMessage(t("loadReminderDataFailed"));
+      showMessage(i18n("loadReminderDataFailed"));
       return [];
     }
   }
@@ -810,7 +810,7 @@ export class TaskSummaryDialog {
 
     let eventObj: any = {
       id: eventId,
-      title: reminder.title || t("unnamedNote"),
+      title: reminder.title || i18n("unnamedNote"),
       backgroundColor: backgroundColor,
       borderColor: borderColor,
       textColor: isCompleted ? '#999999' : '#ffffff',
@@ -865,7 +865,7 @@ export class TaskSummaryDialog {
         eventObj.allDay = true;
 
         if (reminder.time) {
-          eventObj.title = `${reminder.title || t("unnamedNote")} (${reminder.time})`;
+          eventObj.title = `${reminder.title || i18n("unnamedNote")} (${reminder.time})`;
         }
       }
     } else {
@@ -1042,10 +1042,10 @@ export class TaskSummaryDialog {
             weekday: 'long'
           });
         default:
-          return t("currentView") || "当前视图";
+          return i18n("currentView") || "当前视图";
       }
     }
-    return t("currentView") || "当前视图";
+    return i18n("currentView") || "当前视图";
   }
 
   /**
@@ -1100,7 +1100,7 @@ export class TaskSummaryDialog {
 
       const projectId = taskItem.extendedProps?.projectId || 'no-project';
       const projectName = projectId === 'no-project' ?
-        (t("noProject") || "无项目") :
+        (i18n("noProject") || "无项目") :
         this.projectManager.getProjectName(projectId) || projectId;
 
       // 添加到分组
@@ -1323,15 +1323,15 @@ export class TaskSummaryDialog {
    */
   public generateSummaryContent(groupedTasks: Map<string, Map<string, any[]>>, dateRange: { start: string, end: string, label: string }, stats: any): string {
     const filters = [
-      { id: 'current', label: t('currentView') || '当前视图' },
-      { id: 'today', label: t('today') },
-      { id: 'tomorrow', label: t('tomorrow') },
-      { id: 'yesterday', label: t('yesterday') },
-      { id: 'thisWeek', label: t('thisWeek') },
-      { id: 'nextWeek', label: t('nextWeek') },
-      { id: 'lastWeek', label: t('lastWeek') },
-      { id: 'thisMonth', label: t('thisMonth') },
-      { id: 'lastMonth', label: t('lastMonth') },
+      { id: 'current', label: i18n('currentView') || '当前视图' },
+      { id: 'today', label: i18n('today') },
+      { id: 'tomorrow', label: i18n('tomorrow') },
+      { id: 'yesterday', label: i18n('yesterday') },
+      { id: 'thisWeek', label: i18n('thisWeek') },
+      { id: 'nextWeek', label: i18n('nextWeek') },
+      { id: 'lastWeek', label: i18n('lastWeek') },
+      { id: 'thisMonth', label: i18n('thisMonth') },
+      { id: 'lastMonth', label: i18n('lastMonth') },
     ];
 
     // 统计任务完成/总数（按显示实例计数）
@@ -1360,22 +1360,22 @@ export class TaskSummaryDialog {
                 <div class="action-buttons" style="display: flex; gap: 8px;">
                     <button class="b3-button b3-button--outline" id="copy-rich-text-btn" style="display: flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 12px; height: 28px;">
                         <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconCopy"></use></svg>
-                        ${t("copyRichText") || "复制富文本"}
+                        ${i18n("copyRichText") || "复制富文本"}
                     </button>
                     <button class="b3-button b3-button--outline" id="copy-markdown-btn" style="display: flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 12px; height: 28px;">
                         <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconCopy"></use></svg>
-                        ${t("copyAll") || "Markdown"}
+                        ${i18n("copyAll") || "Markdown"}
                     </button>
                     <button class="b3-button b3-button--outline" id="copy-plain-btn" style="display: flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 12px; height: 28px;">
                         <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconCopy"></use></svg>
-                        ${t("copyPlainText") || "复制纯文本"}
+                        ${i18n("copyPlainText") || "复制纯文本"}
                     </button>
                 </div>
             </div>
 
             <div class="task-summary-info-cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px;">
               <div class="info-card" style="padding: 12px; background: var(--b3-theme-surface); border-radius: 8px; border: 1px solid var(--b3-border-color);">
-                <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">${t('currentRange') || '当前范围'}</div>
+                <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">${i18n('currentRange') || '当前范围'}</div>
                 <div style="font-size: 14px; font-weight: bold; margin-top: 4px;">${dateRange.label}</div>
               </div>
               <div class="info-card" id="task-completion-card" style="padding: 12px; background: var(--b3-theme-surface); border-radius: 8px; border: 1px solid var(--b3-border-color);">
@@ -1384,7 +1384,7 @@ export class TaskSummaryDialog {
               </div>
                 ${stats.settings.showPomodoro ? `
                 <div class="info-card" style="padding: 12px; background: var(--b3-theme-surface); border-radius: 8px; border: 1px solid var(--b3-border-color);">
-                    <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">🍅 ${t('pomodoroFocus') || '番茄专注'}</div>
+                    <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">🍅 ${i18n('pomodoroFocus') || '番茄专注'}</div>
                     <div style="font-size: 14px; font-weight: bold; margin-top: 4px;">
                         ${stats.pomodoro.totalCount} 个番茄钟，共 ${this.formatDuration(stats.pomodoro.totalMinutes)}
                     </div>
@@ -1392,7 +1392,7 @@ export class TaskSummaryDialog {
                 ` : ''}
                 ${stats.settings.showHabit ? `
                 <div class="info-card" style="padding: 12px; background: var(--b3-theme-surface); border-radius: 8px; border: 1px solid var(--b3-border-color);">
-                    <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">💪 ${t('habitCheckIn') || '习惯打卡'}</div>
+                    <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">💪 ${i18n('habitCheckIn') || '习惯打卡'}</div>
                     <div style="font-size: 14px; font-weight: bold; margin-top: 4px;">
                         已完成 ${stats.habit.completed} / ${stats.habit.total} 次打卡
                     </div>
@@ -1415,7 +1415,7 @@ export class TaskSummaryDialog {
 
 
     if (sortedDates.length === 0) {
-      html += `<div style="text-align: center; padding: 40px; color: var(--b3-theme-on-surface-light);">${t('noTasks') || '暂无任务'}</div>`;
+      html += `<div style="text-align: center; padding: 40px; color: var(--b3-theme-on-surface-light);">${i18n('noTasks') || '暂无任务'}</div>`;
     }
 
     sortedDates.forEach(date => {
@@ -1452,12 +1452,12 @@ export class TaskSummaryDialog {
           const progress = habit.completed ? '✅' : '⬜';
 
           // 习惯打卡名称后改为：名称（频率：xxx，目标次数，今天打卡： emoji），如果今日没打卡，今日打卡改为无
-          const emojiStr = habit.emojis.length > 0 ? habit.emojis.join('') : (t('noneVal') || '无');
+          const emojiStr = habit.emojis.length > 0 ? habit.emojis.join('') : (i18n('noneVal') || '无');
           const completedClass = habit.completed ? 'completed' : '';
 
-          const freqText = t('frequency') || '频率';
-          const targetText = t('targetTimes') || '目标次数';
-          const todayCheckInText = t('todayCheckIn') || '今天打卡';
+          const freqText = i18n('frequency') || '频率';
+          const targetText = i18n('targetTimes') || '目标次数';
+          const todayCheckInText = i18n('todayCheckIn') || '今天打卡';
 
           html += `
             <li class="task-item habit-item ${completedClass}">
@@ -1702,7 +1702,7 @@ export class TaskSummaryDialog {
   private copyFromCurrentView(format: 'html' | 'markdown' | 'plain') {
     const container = this.currentDialog.element.querySelector('#task-summary-dialog-container');
     if (!container) {
-      showMessage(t("copyFailed") || "复制失败");
+      showMessage(i18n("copyFailed") || "复制失败");
       return;
     }
 
@@ -1722,12 +1722,12 @@ export class TaskSummaryDialog {
         this.copyHTMLToClipboard(content);
       } else {
         navigator.clipboard.writeText(content).then(() => {
-          showMessage(t("copied") || "已复制");
+          showMessage(i18n("copied") || "已复制");
         });
       }
     } catch (error) {
       console.error('复制失败:', error);
-      showMessage(t("copyFailed") || "复制失败");
+      showMessage(i18n("copyFailed") || "复制失败");
     }
   }
 
@@ -1890,10 +1890,10 @@ export class TaskSummaryDialog {
     const blob = new Blob([html], { type: 'text/html' });
     const clipboardItem = new ClipboardItem({ 'text/html': blob });
     navigator.clipboard.write([clipboardItem]).then(() => {
-      showMessage(t("copied") || "已复制");
+      showMessage(i18n("copied") || "已复制");
     }).catch(error => {
       console.error('复制富文本失败:', error);
-      showMessage(t("copyFailed") || "复制失败");
+      showMessage(i18n("copyFailed") || "复制失败");
     });
   }
 

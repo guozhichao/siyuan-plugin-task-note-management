@@ -1,7 +1,7 @@
 import { showMessage, confirm, getFrontend } from "siyuan";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
 import { getBlockByID, openBlock } from "../api";
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 
 
 export class PomodoroTimer {
@@ -593,8 +593,8 @@ export class PomodoroTimer {
             // 显示系统通知
             if (this.randomNotificationSystemNotificationEnabled) {
                 this.showSystemNotification(
-                    t('randomNotificationSettings'),
-                    t('randomRest', { duration: this.settings.randomNotificationBreakDuration }),
+                    i18n('randomNotificationSettings'),
+                    i18n('randomRest', { duration: this.settings.randomNotificationBreakDuration }),
                     this.randomNotificationAutoClose ? this.randomNotificationAutoCloseDelay : undefined
                 );
             }
@@ -634,8 +634,8 @@ export class PomodoroTimer {
                         // 无论音频是否播放成功，都显示系统通知
                         if (this.randomNotificationSystemNotificationEnabled) {
                             this.showSystemNotification(
-                                t('randomNotificationSettings'),
-                                t('randomRestComplete') || '微休息时间结束，可以继续专注工作了！',
+                                i18n('randomNotificationSettings'),
+                                i18n('randomRestComplete') || '微休息时间结束，可以继续专注工作了！',
                                 this.randomNotificationAutoClose ? this.randomNotificationAutoCloseDelay : undefined
                             );
                         }
@@ -658,8 +658,8 @@ export class PomodoroTimer {
                     }
                     if (this.randomNotificationSystemNotificationEnabled) {
                         this.showSystemNotification(
-                            t('randomNotificationSettings'),
-                            t('randomRestComplete') || '微休息时间结束，可以继续专注工作了！'
+                            i18n('randomNotificationSettings'),
+                            i18n('randomRestComplete') || '微休息时间结束，可以继续专注工作了！'
                         );
                     }
                     this.randomNotificationEndSoundTimer = null;
@@ -778,8 +778,8 @@ export class PomodoroTimer {
         if (isMobile || isBrowserDesktop) return; // 仅在桌面端启用
 
         this.openPomodoroEndWindowImpl(
-            t('pomodoroWorkEnd') || '工作结束',
-            t('pomodoroWorkEndDesc') || '工作时间结束，起来走走喝喝水吧！',
+            i18n('pomodoroWorkEnd') || '工作结束',
+            i18n('pomodoroWorkEndDesc') || '工作时间结束，起来走走喝喝水吧！',
             '🍅'
         );
     }
@@ -804,7 +804,7 @@ export class PomodoroTimer {
         if (isMobile || isBrowserDesktop) return; // 仅在桌面端启用
         this.openRandomNotificationWindowImpl(
             '微休息',
-            t('randomRest', { duration: this.settings.randomNotificationBreakDuration }) || 'Time for a quick break!',
+            i18n('randomRest', { duration: this.settings.randomNotificationBreakDuration }) || 'Time for a quick break!',
             '🎲',
             Number(this.settings.randomNotificationBreakDuration)
         );
@@ -1972,7 +1972,7 @@ export class PomodoroTimer {
             justify-content: center;
         `;
         this.minimizeBtn.innerHTML = '🔽';
-        this.minimizeBtn.title = t('minimize') || '最小化'; // i18n
+        this.minimizeBtn.title = i18n('minimize') || '最小化'; // i18n
         this.minimizeBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -2045,7 +2045,7 @@ export class PomodoroTimer {
         this.modeToggleBtn = document.createElement('button');
         this.modeToggleBtn.className = 'pomodoro-menu-item';
         this.modeToggleBtn.style.cssText = this.getMenuItemStyle();
-        this.modeToggleBtn.innerHTML = `${this.isCountUp ? '🍅' : '⏱️'} ${this.isCountUp ? (t('switchToCountdown') || '切换到倒计时') : (t('switchToCountUp') || '切换到正计时')}`;
+        this.modeToggleBtn.innerHTML = `${this.isCountUp ? '🍅' : '⏱️'} ${this.isCountUp ? (i18n('switchToCountdown') || '切换到倒计时') : (i18n('switchToCountUp') || '切换到正计时')}`;
         this.modeToggleBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -2058,7 +2058,7 @@ export class PomodoroTimer {
         const workBtn = document.createElement('button');
         workBtn.className = 'pomodoro-menu-item';
         workBtn.style.cssText = this.getMenuItemStyle();
-        workBtn.innerHTML = `💪 ${t('pomodoroWork') || '工作时间'}`;
+        workBtn.innerHTML = `💪 ${i18n('pomodoroWork') || '工作时间'}`;
         workBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -2071,7 +2071,7 @@ export class PomodoroTimer {
         const shortBreakBtn = document.createElement('button');
         shortBreakBtn.className = 'pomodoro-menu-item';
         shortBreakBtn.style.cssText = this.getMenuItemStyle();
-        shortBreakBtn.innerHTML = `🍵 ${t('pomodoroBreak') || '短时休息'}`;
+        shortBreakBtn.innerHTML = `🍵 ${i18n('pomodoroBreak') || '短时休息'}`;
         shortBreakBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -2084,7 +2084,7 @@ export class PomodoroTimer {
         const longBreakBtn = document.createElement('button');
         longBreakBtn.className = 'pomodoro-menu-item';
         longBreakBtn.style.cssText = this.getMenuItemStyle();
-        longBreakBtn.innerHTML = `🧘 ${t('pomodoroLongBreak') || '长时休息'}`;
+        longBreakBtn.innerHTML = `🧘 ${i18n('pomodoroLongBreak') || '长时休息'}`;
         longBreakBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -2147,7 +2147,7 @@ export class PomodoroTimer {
             justify-content: center;
         `;
         this.expandToggleBtn.innerHTML = this.isExpanded ? '📉' : '📈';
-        this.expandToggleBtn.title = this.isExpanded ? t('collapse') || '折叠' : t('expand') || '展开';
+        this.expandToggleBtn.title = this.isExpanded ? i18n('collapse') || '折叠' : i18n('expand') || '展开';
         this.expandToggleBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -2173,7 +2173,7 @@ export class PomodoroTimer {
             justify-content: center;
         `;
         this.fullscreenBtn.innerHTML = '↕️';
-        this.fullscreenBtn.title = t('fullscreenMode') || '全屏模式';
+        this.fullscreenBtn.title = i18n('fullscreenMode') || '全屏模式';
         this.fullscreenBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -2197,7 +2197,7 @@ export class PomodoroTimer {
             transition: opacity 0.2s;
         `;
         closeBtn.innerHTML = '×';
-        closeBtn.title = t('close') || '关闭';
+        closeBtn.title = i18n('close') || '关闭';
         closeBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -2241,8 +2241,8 @@ export class PomodoroTimer {
             pointer-events: auto;
             user-select: none;
         `;
-        eventTitle.textContent = this.reminder.title || t("unnamedNote");
-        eventTitle.title = t("openNote") + ': ' + (this.reminder.title || t("unnamedNote"));
+        eventTitle.textContent = this.reminder.title || i18n("unnamedNote");
+        eventTitle.title = i18n("openNote") + ': ' + (this.reminder.title || i18n("unnamedNote"));
 
         // 添加悬停效果
         eventTitle.addEventListener('mouseenter', () => {
@@ -2476,7 +2476,7 @@ export class PomodoroTimer {
             text-transform: uppercase;
             letter-spacing: 0.5px;
         `;
-        this.statusDisplay.textContent = t('pomodoroWork') || '工作时间';
+        this.statusDisplay.textContent = i18n('pomodoroWork') || '工作时间';
 
         this.timeDisplay = document.createElement('div');
         this.timeDisplay.className = 'pomodoro-time';
@@ -2492,7 +2492,7 @@ export class PomodoroTimer {
             padding: 2px 4px;
             transition: background-color 0.2s;
         `;
-        this.timeDisplay.title = t('editTime') || '双击编辑时间';
+        this.timeDisplay.title = i18n('editTime') || '双击编辑时间';
 
         // 添加双击事件监听器
         this.timeDisplay.addEventListener('dblclick', (e) => {
@@ -2545,7 +2545,7 @@ export class PomodoroTimer {
         const diceEl = document.createElement('span');
         diceEl.className = 'pomodoro-dice';
         diceEl.textContent = '🎲';
-        diceEl.title = (t('randomNotificationSettings') || '随机微休息');
+        diceEl.title = (i18n('randomNotificationSettings') || '随机微休息');
         diceEl.style.cssText = `
             margin-left:8px;
             font-size:14px;
@@ -2596,7 +2596,7 @@ export class PomodoroTimer {
             position: relative;
         `;
         this.soundControlBtn.innerHTML = this.isBackgroundAudioMuted ? '🔇' : '🔊';
-        this.soundControlBtn.title = this.isBackgroundAudioMuted ? t('enableBackgroundAudio') || '开启背景音' : t('muteBackgroundAudio') || '静音背景音';
+        this.soundControlBtn.title = this.isBackgroundAudioMuted ? i18n('enableBackgroundAudio') || '开启背景音' : i18n('muteBackgroundAudio') || '静音背景音';
 
         // 创建音量控制容器
         this.createVolumeControl();
@@ -2653,7 +2653,7 @@ export class PomodoroTimer {
             color: var(--b3-theme-on-surface-variant);
             margin-bottom: 4px;
         `;
-        todayLabel.textContent = t('todayFocus') || '今日专注';
+        todayLabel.textContent = i18n('todayFocus') || '今日专注';
 
         this.todayFocusDisplay = document.createElement('div');
         this.todayFocusDisplay.style.cssText = `
@@ -2679,7 +2679,7 @@ export class PomodoroTimer {
             color: var(--b3-theme-on-surface-variant);
             margin-bottom: 4px;
         `;
-        weekLabel.textContent = t('weekFocus') || '本周专注';
+        weekLabel.textContent = i18n('weekFocus') || '本周专注';
 
         this.weekFocusDisplay = document.createElement('div');
         this.weekFocusDisplay.style.cssText = `
@@ -2738,7 +2738,7 @@ export class PomodoroTimer {
                 z-index: 999;
             `;
             settingsBtn.innerHTML = '🔄';
-            settingsBtn.title = t('settings') || '设置';
+            settingsBtn.title = i18n('settings') || '设置';
 
             // 设置按钮悬停效果
             settingsBtn.addEventListener('mouseenter', () => {
@@ -3080,7 +3080,7 @@ export class PomodoroTimer {
             // DOM 模式：更新按钮显示
             if (this.soundControlBtn) {
                 this.soundControlBtn.innerHTML = this.isBackgroundAudioMuted ? '🔇' : '🔊';
-                this.soundControlBtn.title = this.isBackgroundAudioMuted ? t('enableBackgroundAudio') || '开启背景音' : t('muteBackgroundAudio') || '静音背景音';
+                this.soundControlBtn.title = this.isBackgroundAudioMuted ? i18n('enableBackgroundAudio') || '开启背景音' : i18n('muteBackgroundAudio') || '静音背景音';
             }
         }
 
@@ -3113,7 +3113,7 @@ export class PomodoroTimer {
             this.volumeContainer.style.display = 'none';
         }
 
-        const statusText = this.isBackgroundAudioMuted ? (t('backgroundAudioMuted') || '背景音已静音') : (t('backgroundAudioEnabled') || '背景音已开启');
+        const statusText = this.isBackgroundAudioMuted ? (i18n('backgroundAudioMuted') || '背景音已静音') : (i18n('backgroundAudioEnabled') || '背景音已开启');
         showMessage(statusText, 1500);
     }
 
@@ -3466,7 +3466,7 @@ export class PomodoroTimer {
         if (!this.mainSwitchBtn) return;
 
         let icon = '🔄'; // 默认设置图标
-        let title = t('switcherMenu') || '切换菜单';
+        let title = i18n('switcherMenu') || '切换菜单';
 
 
         this.mainSwitchBtn.innerHTML = icon;
@@ -3523,12 +3523,12 @@ export class PomodoroTimer {
         if (!this.modeToggleBtn) return;
 
         // 更新计时模式切换按钮的文字
-        this.modeToggleBtn.innerHTML = `${this.isCountUp ? '🍅' : '⏱️'} ${this.isCountUp ? (t('switchToCountdown') || '切换到倒计时') : (t('switchToCountUp') || '切换到正计时')}`;
+        this.modeToggleBtn.innerHTML = `${this.isCountUp ? '🍅' : '⏱️'} ${this.isCountUp ? (i18n('switchToCountdown') || '切换到倒计时') : (i18n('switchToCountUp') || '切换到正计时')}`;
     }
 
     private toggleMode() {
         if (this.isRunning) {
-            showMessage(t('pleaseStopTimerFirst') || '请先停止当前计时器再切换模式', 2000);
+            showMessage(i18n('pleaseStopTimerFirst') || '请先停止当前计时器再切换模式', 2000);
             return;
         }
 
@@ -3546,8 +3546,8 @@ export class PomodoroTimer {
         // 重置状态
         this.resetTimer();
 
-        const modeText = this.isCountUp ? (t('countUpMode') || '正计时') : (t('countdownMode') || '倒计时');
-        showMessage((t('switchedToMode') || '已切换到') + modeText + (t('mode') || '模式'), 2000);
+        const modeText = this.isCountUp ? (i18n('countUpMode') || '正计时') : (i18n('countdownMode') || '倒计时');
+        showMessage((i18n('switchedToMode') || '已切换到') + modeText + (i18n('mode') || '模式'), 2000);
     }
 
     /**
@@ -3653,8 +3653,8 @@ export class PomodoroTimer {
 
                     const statLabels = this.statsContainer.querySelectorAll('div[style*="font-size: 11px"], div[style*="font-size: 16px"]');
                     statLabels.forEach((label: HTMLElement) => {
-                        if (label.textContent === (t('todayFocus') || '今日专注') ||
-                            label.textContent === (t('weekFocus') || '本周专注')) {
+                        if (label.textContent === (i18n('todayFocus') || '今日专注') ||
+                            label.textContent === (i18n('weekFocus') || '本周专注')) {
                             label.style.fontSize = `${statsSize}px`;
                         }
                     });
@@ -3879,17 +3879,17 @@ export class PomodoroTimer {
 
         // 更新颜色和状态显示
         let color = '#FF6B6B';
-        let statusText = t('pomodoroWork') || '工作时间';
+        let statusText = i18n('pomodoroWork') || '工作时间';
         let statusIconHtml = this.isCountUp ? '⏱️' : '🍅';
 
         if (!this.isWorkPhase) {
             if (this.isLongBreak) {
                 color = '#9C27B0';
-                statusText = t('pomodoroLongBreak') || '长时休息';
+                statusText = i18n('pomodoroLongBreak') || '长时休息';
                 statusIconHtml = '🧘‍♀️';
             } else {
                 color = '#4CAF50';
-                statusText = t('pomodoroBreak') || '短时休息';
+                statusText = i18n('pomodoroBreak') || '短时休息';
                 statusIconHtml = '🍵';
             }
         }
@@ -4265,7 +4265,7 @@ export class PomodoroTimer {
 
         this.updateDisplay();
         this.updateMainSwitchButton(); // 更新主按钮显示
-        showMessage('💪 ' + (t('pomodoroWork') || '开始工作时间'));
+        showMessage('💪 ' + (i18n('pomodoroWork') || '开始工作时间'));
     }
 
     private async startShortBreak() {
@@ -4302,7 +4302,7 @@ export class PomodoroTimer {
 
         this.updateDisplay();
         this.updateMainSwitchButton(); // 更新主按钮显示
-        showMessage('🍵 ' + (t('pomodoroBreak') || '开始短时休息'));
+        showMessage('🍵 ' + (i18n('pomodoroBreak') || '开始短时休息'));
     }
 
     private async startLongBreak() {
@@ -4339,7 +4339,7 @@ export class PomodoroTimer {
 
         this.updateDisplay();
         this.updateMainSwitchButton(); // 更新主按钮显示
-        showMessage('🧘 ' + (t('pomodoroLongBreak') || '开始长时休息'));
+        showMessage('🧘 ' + (i18n('pomodoroLongBreak') || '开始长时休息'));
     }
 
     private async resetTimer() {
@@ -4358,8 +4358,8 @@ export class PomodoroTimer {
                 if (isBrowserWindow) {
                     // BrowserWindow 模式：使用自定义确认弹窗
                     this.openConfirmWindow(
-                        t('pomodoroStopConfirmTitle') || '中断番茄钟',
-                        String(t('pomodoroStopConfirmContent', { minutes: minutes.toString() }) || `检测到你已专注 ${minutes} 分钟，是否将此次专注记录为番茄？`),
+                        i18n('pomodoroStopConfirmTitle') || '中断番茄钟',
+                        String(i18n('pomodoroStopConfirmContent', { minutes: minutes.toString() }) || `检测到你已专注 ${minutes} 分钟，是否将此次专注记录为番茄？`),
                         async () => {
                             try {
                                 await this.recordManager.recordWorkSession(
@@ -4371,20 +4371,20 @@ export class PomodoroTimer {
                                     this.isCountUp
                                 );
                                 this.updateStatsDisplay();
-                                showMessage(t('pomodoroRecorded') || '已记录此次专注', 2000);
+                                showMessage(i18n('pomodoroRecorded') || '已记录此次专注', 2000);
                                 // 触发 reminderUpdated 事件
                                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
                             } catch (err) {
                                 console.error('记录番茄专注失败:', err);
-                                showMessage(t('pomodoroRecordFailed') || '记录失败', 3000);
+                                showMessage(i18n('pomodoroRecordFailed') || '记录失败', 3000);
                             }
                         }
                     );
                 } else {
                     // 普通模式：使用思源 confirm 弹窗
                     await confirm(
-                        t('pomodoroStopConfirmTitle') || '中断番茄钟',
-                        String(t('pomodoroStopConfirmContent', { minutes: minutes.toString() }) || `检测到你已专注 ${minutes} 分钟，是否将此次专注记录为番茄？`),
+                        i18n('pomodoroStopConfirmTitle') || '中断番茄钟',
+                        String(i18n('pomodoroStopConfirmContent', { minutes: minutes.toString() }) || `检测到你已专注 ${minutes} 分钟，是否将此次专注记录为番茄？`),
                         async () => {
                             try {
                                 await this.recordManager.recordWorkSession(
@@ -4396,12 +4396,12 @@ export class PomodoroTimer {
                                     this.isCountUp
                                 );
                                 this.updateStatsDisplay();
-                                showMessage(t('pomodoroRecorded') || '已记录此次专注', 2000);
+                                showMessage(i18n('pomodoroRecorded') || '已记录此次专注', 2000);
                                 // 触发 reminderUpdated 事件
                                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
                             } catch (err) {
                                 console.error('记录番茄专注失败:', err);
-                                showMessage(t('pomodoroRecordFailed') || '记录失败', 3000);
+                                showMessage(i18n('pomodoroRecordFailed') || '记录失败', 3000);
                             }
                         }
                     );
@@ -5206,14 +5206,14 @@ export class PomodoroTimer {
             let newTimeInSeconds = this.parseTimeStringToSeconds(inputValue);
 
             if (newTimeInSeconds === null) {
-                showMessage(t('invalidTimeFormat') || '时间格式无效，请使用 MM:SS 格式（如 25:00）', 3000);
+                showMessage(i18n('invalidTimeFormat') || '时间格式无效，请使用 MM:SS 格式（如 25:00）', 3000);
                 parent.replaceChild(this.timeDisplay, input);
                 return;
             }
 
             // 限制时间范围（1秒到999分59秒）
             if (newTimeInSeconds < 1 || newTimeInSeconds > 59999) {
-                showMessage(t('timeRangeLimit') || '时间必须在 00:01 到 999:59 之间', 3000);
+                showMessage(i18n('timeRangeLimit') || '时间必须在 00:01 到 999:59 之间', 3000);
                 parent.replaceChild(this.timeDisplay, input);
                 return;
             }            // 更新对应的时间
@@ -5236,8 +5236,8 @@ export class PomodoroTimer {
 
             const minutes = Math.floor(newTimeInSeconds / 60);
             const seconds = newTimeInSeconds % 60;
-            const phaseText = this.isWorkPhase ? (t('pomodoroWork') || '工作时间') : (this.isLongBreak ? (t('pomodoroLongBreak') || '长时休息') : (t('pomodoroBreak') || '短时休息'));
-            showMessage(`${phaseText}${t('setTo') || '已设置为'} ${minutes}:${seconds.toString().padStart(2, '0')}`, 2000);
+            const phaseText = this.isWorkPhase ? (i18n('pomodoroWork') || '工作时间') : (this.isLongBreak ? (i18n('pomodoroLongBreak') || '长时休息') : (i18n('pomodoroBreak') || '短时休息'));
+            showMessage(`${phaseText}${i18n('setTo') || '已设置为'} ${minutes}:${seconds.toString().padStart(2, '0')}`, 2000);
         };
 
         // 处理取消编辑
@@ -5475,8 +5475,8 @@ export class PomodoroTimer {
 
                 const minutes = Math.floor(newTimeInSeconds / 60);
                 const seconds = newTimeInSeconds % 60;
-                const phaseText = this.isWorkPhase ? (t('pomodoroWork') || '工作时间') : (this.isLongBreak ? (t('pomodoroLongBreak') || '长时休息') : (t('pomodoroBreak') || '短时休息'));
-                showMessage(`${phaseText}${t('setTo') || '已设置为'} ${minutes}:${seconds.toString().padStart(2, '0')}`, 2000);
+                const phaseText = this.isWorkPhase ? (i18n('pomodoroWork') || '工作时间') : (this.isLongBreak ? (i18n('pomodoroLongBreak') || '长时休息') : (i18n('pomodoroBreak') || '短时休息'));
+                showMessage(`${phaseText}${i18n('setTo') || '已设置为'} ${minutes}:${seconds.toString().padStart(2, '0')}`, 2000);
 
                 // 移除监听器
                 ipcMain.removeListener(`pomodoro-time-edit-${window.id}`, editHandler);
@@ -6081,8 +6081,8 @@ export class PomodoroTimer {
 
             const currentState = this.getCurrentState();
             const timeStr = this.formatTime(currentState.isCountUp ? currentState.timeElapsed : currentState.timeLeft);
-            const statusText = currentState.isWorkPhase ? (t('pomodoroWork') || '工作时间') :
-                (currentState.isLongBreak ? (t('pomodoroLongBreak') || '长时休息') : (t('pomodoroBreak') || '短时休息'));
+            const statusText = currentState.isWorkPhase ? (i18n('pomodoroWork') || '工作时间') :
+                (currentState.isLongBreak ? (i18n('pomodoroLongBreak') || '长时休息') : (i18n('pomodoroBreak') || '短时休息'));
 
             const todayTimeStr = this.recordManager.formatTime(this.recordManager.getTodayFocusTime());
             const weekTimeStr = this.recordManager.formatTime(this.recordManager.getWeekFocusTime());
@@ -6538,8 +6538,8 @@ export class PomodoroTimer {
         dockModeTitle?: string
     ): string {
         // 设置默认值
-        miniModeTitle = miniModeTitle || (t('miniMode') || '迷你模式');
-        dockModeTitle = dockModeTitle || (t('dockToRight') || '吸附到右侧');
+        miniModeTitle = miniModeTitle || (i18n('miniMode') || '迷你模式');
+        dockModeTitle = dockModeTitle || (i18n('dockToRight') || '吸附到右侧');
         return `<!DOCTYPE html>
 <html>
 <head>
@@ -7238,7 +7238,7 @@ export class PomodoroTimer {
                 controlChannel,
                 currentState,
                 this.formatTime(currentState.isCountUp ? currentState.timeElapsed : currentState.timeLeft),
-                currentState.isWorkPhase ? (t('pomodoroWork') || '工作时间') : (currentState.isLongBreak ? (t('pomodoroLongBreak') || '长时休息') : (t('pomodoroBreak') || '短时休息')),
+                currentState.isWorkPhase ? (i18n('pomodoroWork') || '工作时间') : (currentState.isLongBreak ? (i18n('pomodoroLongBreak') || '长时休息') : (i18n('pomodoroBreak') || '短时休息')),
                 this.recordManager.formatTime(this.recordManager.getTodayFocusTime()),
                 this.recordManager.formatTime(this.recordManager.getWeekFocusTime()),
                 colors.background,

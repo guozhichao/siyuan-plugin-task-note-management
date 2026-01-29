@@ -2,7 +2,7 @@
     import { onMount } from 'svelte';
     import { Dialog } from 'siyuan';
     import SettingPanel from '@/libs/components/setting-panel.svelte';
-    import { t } from './utils/i18n';
+    import { i18n } from './utils/i18n';
     import {
         DEFAULT_SETTINGS,
         SETTINGS_FILE,
@@ -49,154 +49,155 @@
     // 定义设置分组
     let groups: ISettingGroup[] = [
         {
-            name: t('sidebarSettings'),
+            name: i18n('sidebarSettings'),
             items: [
                 {
                     key: 'enableReminderDock',
                     value: settings.enableReminderDock,
                     type: 'checkbox',
-                    title: t('enableReminderDock'),
-                    description: t('enableReminderDockDesc'),
+                    title: i18n('enableReminderDock'),
+                    description: i18n('enableReminderDockDesc'),
                 },
                 {
                     key: 'enableProjectDock',
                     value: settings.enableProjectDock,
                     type: 'checkbox',
-                    title: t('enableProjectDock'),
-                    description: t('enableProjectDockDesc'),
+                    title: i18n('enableProjectDock'),
+                    description: i18n('enableProjectDockDesc'),
                 },
                 {
                     key: 'enableHabitDock',
                     value: settings.enableHabitDock,
                     type: 'checkbox',
-                    title: t('enableHabitDock'),
-                    description: t('enableHabitDockDesc'),
+                    title: i18n('enableHabitDock'),
+                    description: i18n('enableHabitDockDesc'),
                 },
                 {
                     key: 'enableDockBadge',
                     value: settings.enableDockBadge,
                     type: 'checkbox',
-                    title: t('enableDockBadge'),
-                    description: t('enableDockBadgeDesc'),
+                    title: i18n('enableDockBadge'),
+                    description: i18n('enableDockBadgeDesc'),
                 },
                 {
                     key: 'enableReminderDockBadge',
                     value: settings.enableReminderDockBadge,
                     type: 'checkbox',
-                    title: t('enableReminderDockBadge'),
-                    description: t('enableReminderDockBadgeDesc'),
+                    title: i18n('enableReminderDockBadge'),
+                    description: i18n('enableReminderDockBadgeDesc'),
                 },
                 {
                     key: 'enableProjectDockBadge',
                     value: settings.enableProjectDockBadge,
                     type: 'checkbox',
-                    title: t('enableProjectDockBadge'),
-                    description: t('enableProjectDockBadgeDesc'),
+                    title: i18n('enableProjectDockBadge'),
+                    description: i18n('enableProjectDockBadgeDesc'),
                 },
                 {
                     key: 'enableHabitDockBadge',
                     value: settings.enableHabitDockBadge,
                     type: 'checkbox',
-                    title: t('enableHabitDockBadge'),
-                    description: t('enableHabitDockBadgeDesc'),
+                    title: i18n('enableHabitDockBadge'),
+                    description: i18n('enableHabitDockBadgeDesc'),
                 },
             ],
         },
         {
-            name: t('notificationReminder'),
+            name: i18n('notificationReminder'),
             items: [
                 {
                     key: 'notificationSound',
                     value: settings.notificationSound,
                     type: 'textinput',
-                    title: t('notificationSoundSetting'),
-                    description: t('notificationSoundDesc'),
+                    title: i18n('notificationSoundSetting'),
+                    description: i18n('notificationSoundDesc'),
                 },
                 {
                     key: 'reminderSystemNotification',
                     value: settings.reminderSystemNotification,
                     type: 'checkbox',
-                    title: t('reminderSystemNotification'),
-                    description: t('reminderSystemNotificationDesc'),
+                    title: i18n('reminderSystemNotification'),
+                    description: i18n('reminderSystemNotificationDesc'),
                 },
                 {
                     key: 'dailyNotificationTime',
                     value: settings.dailyNotificationTime,
                     type: 'textinput',
                     placeholder: '09:00',
-                    title: t('dailyNotificationTime'),
-                    description: t('dailyNotificationTimeDesc'),
+                    title: i18n('dailyNotificationTime'),
+                    description: i18n('dailyNotificationTimeDesc'),
                 },
                 {
                     key: 'dailyNotificationEnabled',
                     value: settings.dailyNotificationEnabled,
                     type: 'checkbox',
-                    title: t('dailyNotificationEnabled'),
-                    description: t('dailyNotificationEnabledDesc'),
+                    title: i18n('dailyNotificationEnabled'),
+                    description: i18n('dailyNotificationEnabledDesc'),
                 },
             ],
         },
         {
-            name: t('calendarSettings'),
+            name: i18n('calendarSettings'),
             items: [
                 {
                     key: 'weekStartDay',
                     // For select UI, use string values so they match option keys in the DOM
                     value: String(settings.weekStartDay),
                     type: 'select',
-                    title: t('weekStartDay'),
-                    description: t('weekStartDayDesc'),
+                    title: i18n('weekStartDay'),
+                    description: i18n('weekStartDayDesc'),
                     options: {
-                        0: t('sunday'),
-                        1: t('monday'),
-                        2: t('tuesday'),
-                        3: t('wednesday'),
-                        4: t('thursday'),
-                        5: t('friday'),
-                        6: t('saturday'),
+                        0: i18n('sunday'),
+                        1: i18n('monday'),
+                        2: i18n('tuesday'),
+                        3: i18n('wednesday'),
+                        4: i18n('thursday'),
+                        5: i18n('friday'),
+                        6: i18n('saturday'),
                     },
                 },
                 {
                     key: 'calendarShowLunar',
                     value: settings.calendarShowLunar, // Default true
                     type: 'checkbox',
-                    title: t('calendarShowLunar') || '显示农历',
-                    description: t('calendarShowLunarDesc') || '在日历视图中显示农历日期和节日',
+                    title: i18n('calendarShowLunar') || '显示农历',
+                    description: i18n('calendarShowLunarDesc') || '在日历视图中显示农历日期和节日',
                 },
                 {
                     key: 'calendarShowHoliday',
                     value: settings.calendarShowHoliday,
                     type: 'checkbox',
-                    title: t('calendarShowHoliday') || '显示节假日',
-                    description: t('calendarShowHolidayDesc') || '在日历视图中显示法定节假日（休）',
+                    title: i18n('calendarShowHoliday') || '显示节假日',
+                    description:
+                        i18n('calendarShowHolidayDesc') || '在日历视图中显示法定节假日（休）',
                 },
 
                 {
                     key: 'calendarHolidayIcsUrl',
                     value: settings.calendarHolidayIcsUrl,
                     type: 'textinput',
-                    title: t('calendarHolidayIcsUrl') || '节假日 ICS URL',
-                    description: t('calendarHolidayIcsUrlDesc') || '设置节假日订阅的 ICS 链接',
+                    title: i18n('calendarHolidayIcsUrl') || '节假日 ICS URL',
+                    description: i18n('calendarHolidayIcsUrlDesc') || '设置节假日订阅的 ICS 链接',
                 },
                 {
                     key: 'updateHoliday',
                     value: '',
                     type: 'button',
-                    title: t('updateHoliday') || '更新节假日',
-                    description: t('updateHolidayDesc') || '点击立即更新节假日数据',
+                    title: i18n('updateHoliday') || '更新节假日',
+                    description: i18n('updateHolidayDesc') || '点击立即更新节假日数据',
                     button: {
-                        label: t('updateHoliday') || '更新节假日',
+                        label: i18n('updateHoliday') || '更新节假日',
                         callback: async () => {
-                            await pushMsg(t('updatingHoliday') || '正在更新节假日...');
+                            await pushMsg(i18n('updatingHoliday') || '正在更新节假日...');
                             const success = await syncHolidays(
                                 plugin,
                                 settings.calendarHolidayIcsUrl
                             );
                             if (success) {
-                                await pushMsg(t('holidayUpdateSuccess') || '节假日更新成功');
+                                await pushMsg(i18n('holidayUpdateSuccess') || '节假日更新成功');
                                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
                             } else {
-                                await pushErrMsg(t('holidayUpdateFailed') || '节假日更新失败');
+                                await pushErrMsg(i18n('holidayUpdateFailed') || '节假日更新失败');
                             }
                         },
                     },
@@ -205,41 +206,41 @@
                     key: 'calendarShowCategoryAndProject',
                     value: settings.calendarShowCategoryAndProject,
                     type: 'checkbox',
-                    title: t('calendarShowCategoryAndProject'),
-                    description: t('calendarShowCategoryAndProjectDesc'),
+                    title: i18n('calendarShowCategoryAndProject'),
+                    description: i18n('calendarShowCategoryAndProjectDesc'),
                 },
                 {
                     key: 'dayStartTime',
                     value: settings.dayStartTime,
                     type: 'textinput',
-                    title: t('dayStartTime'),
-                    description: t('dayStartTimeDesc'),
+                    title: i18n('dayStartTime'),
+                    description: i18n('dayStartTimeDesc'),
                     placeholder: '08:00',
                 },
                 {
                     key: 'todayStartTime',
                     value: settings.todayStartTime,
                     type: 'textinput',
-                    title: t('todayStart'),
-                    description: t('todayStartDesc'),
+                    title: i18n('todayStart'),
+                    description: i18n('todayStartDesc'),
                     placeholder: '03:00',
                 },
                 {
                     key: 'showPomodoroInSummary',
                     value: settings.showPomodoroInSummary,
                     type: 'checkbox',
-                    title: t('showPomodoroInSummary') || '在摘要中显示番茄钟统计',
+                    title: i18n('showPomodoroInSummary') || '在摘要中显示番茄钟统计',
                     description:
-                        t('showPomodoroInSummaryDesc') ||
+                        i18n('showPomodoroInSummaryDesc') ||
                         '开启后，任务摘要将包含番茄钟专注时长统计',
                 },
                 {
                     key: 'showHabitInSummary',
                     value: settings.showHabitInSummary,
                     type: 'checkbox',
-                    title: t('showHabitInSummary') || '在摘要中显示习惯打卡统计',
+                    title: i18n('showHabitInSummary') || '在摘要中显示习惯打卡统计',
                     description:
-                        t('showHabitInSummaryDesc') || '开启后，任务摘要将包含习惯打卡情况统计',
+                        i18n('showHabitInSummaryDesc') || '开启后，任务摘要将包含习惯打卡情况统计',
                 },
             ],
         },
@@ -250,22 +251,22 @@
                     key: 'autoDetectDateTime',
                     value: settings.autoDetectDateTime,
                     type: 'checkbox',
-                    title: t('autoDetectDateTime'),
-                    description: t('autoDetectDateTimeDesc'),
+                    title: i18n('autoDetectDateTime'),
+                    description: i18n('autoDetectDateTimeDesc'),
                 },
                 {
                     key: 'removeDateAfterDetection',
                     value: settings.removeDateAfterDetection,
                     type: 'checkbox',
-                    title: t('removeDateAfterDetection'),
-                    description: t('removeDateAfterDetectionDesc'),
+                    title: i18n('removeDateAfterDetection'),
+                    description: i18n('removeDateAfterDetectionDesc'),
                 },
                 {
                     key: 'newDocNotebook',
                     value: settings.newDocNotebook,
                     type: 'select',
-                    title: t('newDocNotebook'),
-                    description: t('newDocNotebookDesc'),
+                    title: i18n('newDocNotebook'),
+                    description: i18n('newDocNotebookDesc'),
                     options: notebooks.reduce(
                         (acc, notebook) => {
                             acc[notebook.id] = notebook.name;
@@ -278,15 +279,15 @@
                     key: 'newDocPath',
                     value: settings.newDocPath,
                     type: 'textinput',
-                    title: t('newDocPath'),
-                    description: t('newDocPathDesc'),
+                    title: i18n('newDocPath'),
+                    description: i18n('newDocPathDesc'),
                 },
                 {
                     key: 'defaultHeadingLevel',
                     value: settings.defaultHeadingLevel,
                     type: 'select',
-                    title: t('defaultHeadingLevel'),
-                    description: t('defaultHeadingLevelDesc'),
+                    title: i18n('defaultHeadingLevel'),
+                    description: i18n('defaultHeadingLevelDesc'),
                     options: {
                         1: '1',
                         2: '2',
@@ -300,96 +301,96 @@
                     key: 'defaultHeadingPosition',
                     value: settings.defaultHeadingPosition,
                     type: 'select',
-                    title: t('defaultHeadingPosition'),
-                    description: t('defaultHeadingPositionDesc'),
+                    title: i18n('defaultHeadingPosition'),
+                    description: i18n('defaultHeadingPositionDesc'),
                     options: {
-                        prepend: t('prepend'),
-                        append: t('append'),
+                        prepend: i18n('prepend'),
+                        append: i18n('append'),
                     },
                 },
                 {
                     key: 'enableOutlinePrefix',
                     value: settings.enableOutlinePrefix,
                     type: 'checkbox',
-                    title: t('enableOutlinePrefix'),
-                    description: t('enableOutlinePrefixDesc'),
+                    title: i18n('enableOutlinePrefix'),
+                    description: i18n('enableOutlinePrefixDesc'),
                 },
             ],
         },
         {
-            name: t('pomodoroSettings'),
+            name: i18n('pomodoroSettings'),
             items: [
                 {
                     key: 'pomodoroHint',
                     value: '',
                     type: 'hint',
-                    title: t('pomodoroHintTitle'),
-                    description: t('pomodoroHintDesc'),
+                    title: i18n('pomodoroHintTitle'),
+                    description: i18n('pomodoroHintDesc'),
                 },
                 {
                     key: 'pomodoroWorkDuration',
                     value: settings.pomodoroWorkDuration,
                     type: 'number',
-                    title: t('pomodoroWorkDuration'),
-                    description: t('pomodoroWorkDurationDesc'),
+                    title: i18n('pomodoroWorkDuration'),
+                    description: i18n('pomodoroWorkDurationDesc'),
                 },
                 {
                     key: 'pomodoroBreakDuration',
                     value: settings.pomodoroBreakDuration,
                     type: 'number',
-                    title: t('pomodoroBreakDuration'),
-                    description: t('pomodoroBreakDurationDesc'),
+                    title: i18n('pomodoroBreakDuration'),
+                    description: i18n('pomodoroBreakDurationDesc'),
                 },
                 {
                     key: 'pomodoroLongBreakDuration',
                     value: settings.pomodoroLongBreakDuration,
                     type: 'number',
-                    title: t('pomodoroLongBreakDuration'),
-                    description: t('pomodoroLongBreakDurationDesc'),
+                    title: i18n('pomodoroLongBreakDuration'),
+                    description: i18n('pomodoroLongBreakDurationDesc'),
                 },
                 {
                     key: 'pomodoroLongBreakInterval',
                     value: settings.pomodoroLongBreakInterval,
                     type: 'number',
-                    title: t('pomodoroLongBreakInterval'),
-                    description: t('pomodoroLongBreakIntervalDesc'),
+                    title: i18n('pomodoroLongBreakInterval'),
+                    description: i18n('pomodoroLongBreakIntervalDesc'),
                 },
                 {
                     key: 'pomodoroAutoMode',
                     value: settings.pomodoroAutoMode,
                     type: 'checkbox',
-                    title: t('pomodoroAutoMode'),
-                    description: t('pomodoroAutoModeDesc'),
+                    title: i18n('pomodoroAutoMode'),
+                    description: i18n('pomodoroAutoModeDesc'),
                 },
                 {
                     key: 'pomodoroSystemNotification',
                     value: settings.pomodoroSystemNotification,
                     type: 'checkbox',
-                    title: t('pomodoroSystemNotification'),
-                    description: t('pomodoroSystemNotificationDesc'),
+                    title: i18n('pomodoroSystemNotification'),
+                    description: i18n('pomodoroSystemNotificationDesc'),
                 },
                 {
                     key: 'pomodoroEndPopupWindow',
                     value: settings.pomodoroEndPopupWindow,
                     type: 'checkbox',
-                    title: t('pomodoroEndPopupWindow') || '启用番茄钟结束全局弹窗提醒',
+                    title: i18n('pomodoroEndPopupWindow') || '启用番茄钟结束全局弹窗提醒',
                     description:
-                        t('pomodoroEndPopupWindowDesc') ||
+                        i18n('pomodoroEndPopupWindowDesc') ||
                         '开启后，番茄钟工作结束时会在屏幕中央显示弹窗提醒，10秒后自动关闭（仅电脑桌面端有效）',
                 },
                 {
                     key: 'dailyFocusGoal',
                     value: settings.dailyFocusGoal,
                     type: 'number',
-                    title: t('dailyFocusGoal'),
-                    description: t('dailyFocusGoalDesc'),
+                    title: i18n('dailyFocusGoal'),
+                    description: i18n('dailyFocusGoalDesc'),
                 },
                 {
                     key: 'backgroundVolume',
                     value: settings.backgroundVolume,
                     type: 'slider',
-                    title: t('backgroundVolume'),
-                    description: t('backgroundVolumeDesc'),
+                    title: i18n('backgroundVolume'),
+                    description: i18n('backgroundVolumeDesc'),
                     slider: {
                         min: 0,
                         max: 1,
@@ -400,55 +401,55 @@
                     key: 'pomodoroWorkSound',
                     value: settings.pomodoroWorkSound,
                     type: 'textinput',
-                    title: t('pomodoroWorkSound'),
-                    description: t('pomodoroWorkSoundDesc'),
+                    title: i18n('pomodoroWorkSound'),
+                    description: i18n('pomodoroWorkSoundDesc'),
                 },
                 {
                     key: 'pomodoroBreakSound',
                     value: settings.pomodoroBreakSound,
                     type: 'textinput',
-                    title: t('pomodoroBreakSound'),
-                    description: t('pomodoroBreakSoundDesc'),
+                    title: i18n('pomodoroBreakSound'),
+                    description: i18n('pomodoroBreakSoundDesc'),
                 },
                 {
                     key: 'pomodoroLongBreakSound',
                     value: settings.pomodoroLongBreakSound,
                     type: 'textinput',
-                    title: t('pomodoroLongBreakSound'),
-                    description: t('pomodoroLongBreakSoundDesc'),
+                    title: i18n('pomodoroLongBreakSound'),
+                    description: i18n('pomodoroLongBreakSoundDesc'),
                 },
                 {
                     key: 'pomodoroWorkEndSound',
                     value: settings.pomodoroWorkEndSound,
                     type: 'textinput',
-                    title: t('pomodoroWorkEndSound'),
-                    description: t('pomodoroWorkEndSoundDesc'),
+                    title: i18n('pomodoroWorkEndSound'),
+                    description: i18n('pomodoroWorkEndSoundDesc'),
                 },
                 {
                     key: 'pomodoroBreakEndSound',
                     value: settings.pomodoroBreakEndSound,
                     type: 'textinput',
-                    title: t('pomodoroBreakEndSound'),
-                    description: t('pomodoroBreakEndSoundDesc'),
+                    title: i18n('pomodoroBreakEndSound'),
+                    description: i18n('pomodoroBreakEndSoundDesc'),
                 },
             ],
         },
         {
-            name: t('randomNotificationSettings'),
+            name: i18n('randomNotificationSettings'),
             items: [
                 {
                     key: 'randomNotificationEnabled',
                     value: settings.randomNotificationEnabled,
                     type: 'checkbox',
-                    title: t('randomNotificationEnabled'),
-                    description: t('randomNotificationEnabledDesc'),
+                    title: i18n('randomNotificationEnabled'),
+                    description: i18n('randomNotificationEnabledDesc'),
                 },
                 {
                     key: 'randomNotificationSystemNotification',
                     value: settings.randomNotificationSystemNotification,
                     type: 'checkbox',
-                    title: t('randomNotificationSystemNotification'),
-                    description: t('randomNotificationSystemNotificationDesc'),
+                    title: i18n('randomNotificationSystemNotification'),
+                    description: i18n('randomNotificationSystemNotificationDesc'),
                 },
                 {
                     key: 'randomNotificationPopupWindow',
@@ -462,49 +463,49 @@
                     key: 'randomNotificationMinInterval',
                     value: settings.randomNotificationMinInterval,
                     type: 'number',
-                    title: t('randomNotificationMinInterval'),
-                    description: t('randomNotificationMinIntervalDesc'),
+                    title: i18n('randomNotificationMinInterval'),
+                    description: i18n('randomNotificationMinIntervalDesc'),
                 },
                 {
                     key: 'randomNotificationMaxInterval',
                     value: settings.randomNotificationMaxInterval,
                     type: 'number',
-                    title: t('randomNotificationMaxInterval'),
-                    description: t('randomNotificationMaxIntervalDesc'),
+                    title: i18n('randomNotificationMaxInterval'),
+                    description: i18n('randomNotificationMaxIntervalDesc'),
                 },
                 {
                     key: 'randomNotificationBreakDuration',
                     value: settings.randomNotificationBreakDuration,
                     type: 'number',
-                    title: t('randomNotificationBreakDuration'),
-                    description: t('randomNotificationBreakDurationDesc'),
+                    title: i18n('randomNotificationBreakDuration'),
+                    description: i18n('randomNotificationBreakDurationDesc'),
                 },
                 {
                     key: 'randomNotificationSounds',
                     value: settings.randomNotificationSounds,
                     type: 'textinput',
-                    title: t('randomNotificationSounds'),
-                    description: t('randomNotificationSoundsDesc'),
+                    title: i18n('randomNotificationSounds'),
+                    description: i18n('randomNotificationSoundsDesc'),
                 },
                 {
                     key: 'randomNotificationEndSound',
                     value: settings.randomNotificationEndSound,
                     type: 'textinput',
-                    title: t('randomNotificationEndSound'),
-                    description: t('randomNotificationEndSoundDesc'),
+                    title: i18n('randomNotificationEndSound'),
+                    description: i18n('randomNotificationEndSoundDesc'),
                 },
             ],
         },
 
         {
-            name: '📁' + t('dataStorageLocation'),
+            name: '📁' + i18n('dataStorageLocation'),
             items: [
                 {
                     key: 'dataStorageInfo',
                     value: 'data/storage/petal/siyuan-plugin-task-note-management',
                     type: 'hint',
-                    title: t('dataStorageLocationTitle'),
-                    description: t('dataStorageLocationDesc'),
+                    title: i18n('dataStorageLocationTitle'),
+                    description: i18n('dataStorageLocationDesc'),
                 },
                 {
                     key: 'openDataFolder',
@@ -633,23 +634,23 @@
             ],
         },
         {
-            name: '📅' + t('icsSubscription'),
+            name: '📅' + i18n('icsSubscription'),
             items: [
                 {
                     key: 'icsSubscriptionHint',
                     value: '',
                     type: 'hint',
-                    title: t('icsSubscription'),
-                    description: t('icsSubscriptionDesc'),
+                    title: i18n('icsSubscription'),
+                    description: i18n('icsSubscriptionDesc'),
                 },
                 {
                     key: 'manageSubscriptions',
                     value: '',
                     type: 'button',
-                    title: t('manageSubscriptions'),
+                    title: i18n('manageSubscriptions'),
                     description: '管理ICS日历订阅，支持设置项目、分类、优先级和同步频率',
                     button: {
-                        label: t('manageSubscriptions'),
+                        label: i18n('manageSubscriptions'),
                         callback: async () => {
                             showSubscriptionManagementDialog();
                         },
@@ -1430,19 +1431,19 @@
         const subscriptions = Object.values(data.subscriptions);
 
         const dialog = new Dialog({
-            title: t('manageSubscriptions'),
+            title: i18n('manageSubscriptions'),
             content: `
                 <div class="b3-dialog__content" style="padding: 16px;">
                     <div class="fn__flex-column" style="gap: 16px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <h3 style="margin: 0;">${t('icsSubscription')}</h3>
+                            <h3 style="margin: 0;">${i18n('icsSubscription')}</h3>
                             <button class="b3-button b3-button--outline" id="add-subscription">
                                 <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
-                                ${t('addSubscription')}
+                                ${i18n('addSubscription')}
                             </button>
                         </div>
                         <div id="subscription-list" style="max-height: 400px; overflow-y: auto;">
-                            ${subscriptions.length === 0 ? `<div style="text-align: center; padding: 32px; color: var(--b3-theme-on-surface-light);">${t('noSubscriptions')}</div>` : ''}
+                            ${subscriptions.length === 0 ? `<div style="text-align: center; padding: 32px; color: var(--b3-theme-on-surface-light);">${i18n('noSubscriptions')}</div>` : ''}
                         </div>
                     </div>
                 </div>
@@ -1456,7 +1457,7 @@
         // 渲染订阅列表
         function renderSubscriptions() {
             if (subscriptions.length === 0) {
-                listContainer.innerHTML = `<div style="text-align: center; padding: 32px; color: var(--b3-theme-on-surface-light);">${t('noSubscriptions')}</div>`;
+                listContainer.innerHTML = `<div style="text-align: center; padding: 32px; color: var(--b3-theme-on-surface-light);">${i18n('noSubscriptions')}</div>`;
                 return;
             }
 
@@ -1469,21 +1470,21 @@
                             <div style="font-weight: 500; margin-bottom: 4px;">${sub.name}</div>
                             <div style="font-size: 12px; color: var(--b3-theme-on-surface-light); margin-bottom: 4px;">${sub.url}</div>
                             <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">
-                                ${t('subscriptionSyncInterval')}: ${t(sub.syncInterval === '15min' ? 'every15Minutes' : sub.syncInterval === '30min' ? 'every30Minutes' : sub.syncInterval === 'hourly' ? 'everyHour' : sub.syncInterval === '4hour' ? 'every4Hours' : sub.syncInterval === '12hour' ? 'every12Hours' : 'everyDay')}
-                                ${sub.lastSync ? ` | ${t('subscriptionLastSync')}: ${new Date(sub.lastSync).toLocaleString()}` : ''}
+                                ${i18n('subscriptionSyncInterval')}: ${i18n(sub.syncInterval === '15min' ? 'every15Minutes' : sub.syncInterval === '30min' ? 'every30Minutes' : sub.syncInterval === 'hourly' ? 'everyHour' : sub.syncInterval === '4hour' ? 'every4Hours' : sub.syncInterval === '12hour' ? 'every12Hours' : 'everyDay')}
+                                ${sub.lastSync ? ` | ${i18n('subscriptionLastSync')}: ${new Date(sub.lastSync).toLocaleString()}` : ''}
                             </div>
                         </div>
                         <div style="display: flex; gap: 4px;">
                             <button class="b3-button b3-button--outline" data-action="toggle" data-id="${sub.id}" title="${sub.enabled ? '停用' : '启用'}">
                                 <svg class="b3-button__icon ${!sub.enabled ? 'fn__opacity' : ''}"><use xlink:href="${sub.enabled ? '#iconEye' : '#iconEyeoff'}"></use></svg>
                             </button>
-                            <button class="b3-button b3-button--outline" data-action="sync" data-id="${sub.id}" title="${t('syncNow')}">
+                            <button class="b3-button b3-button--outline" data-action="sync" data-id="${sub.id}" title="${i18n('syncNow')}">
                                 <svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>
                             </button>
-                            <button class="b3-button b3-button--outline" data-action="edit" data-id="${sub.id}" title="${t('editSubscription')}">
+                            <button class="b3-button b3-button--outline" data-action="edit" data-id="${sub.id}" title="${i18n('editSubscription')}">
                                 <svg class="b3-button__icon"><use xlink:href="#iconEdit"></use></svg>
                             </button>
-                            <button class="b3-button b3-button--outline" data-action="delete" data-id="${sub.id}" title="${t('deleteSubscription')}">
+                            <button class="b3-button b3-button--outline" data-action="delete" data-id="${sub.id}" title="${i18n('deleteSubscription')}">
                                 <svg class="b3-button__icon"><use xlink:href="#iconTrashcan"></use></svg>
                             </button>
                         </div>
@@ -1515,7 +1516,9 @@
                     } else if (action === 'edit' && sub) {
                         showEditSubscriptionDialog(sub);
                     } else if (action === 'delete' && sub) {
-                        if (confirm(t('confirmDeleteSubscription').replace('${name}', sub.name))) {
+                        if (
+                            confirm(i18n('confirmDeleteSubscription').replace('${name}', sub.name))
+                        ) {
                             await removeSubscription(plugin, sub.id);
                             delete data.subscriptions[sub.id];
                             await saveSubscriptions(plugin, data);
@@ -1534,36 +1537,36 @@
         function showEditSubscriptionDialog(subscription?: any) {
             const isEdit = !!subscription;
             const editDialog = new Dialog({
-                title: isEdit ? t('editSubscription') : t('addSubscription'),
+                title: isEdit ? i18n('editSubscription') : i18n('addSubscription'),
                 content: `
                     <div class="b3-dialog__content" style="padding: 16px;">
                         <div class="fn__flex-column" style="gap: 12px;">
                             <div class="b3-label">
-                                <div class="b3-label__text">${t('subscriptionName')}</div>
-                                <input class="b3-text-field fn__block" id="sub-name" value="${subscription?.name || ''}" placeholder="${t('pleaseEnterSubscriptionName')}">
+                                <div class="b3-label__text">${i18n('subscriptionName')}</div>
+                                <input class="b3-text-field fn__block" id="sub-name" value="${subscription?.name || ''}" placeholder="${i18n('pleaseEnterSubscriptionName')}">
                             </div>
                             <div class="b3-label">
-                                <div class="b3-label__text">${t('subscriptionUrl')}</div>
-                                <input class="b3-text-field fn__block" id="sub-url" value="${subscription?.url || ''}" placeholder="${t('subscriptionUrlPlaceholder')}">
+                                <div class="b3-label__text">${i18n('subscriptionUrl')}</div>
+                                <input class="b3-text-field fn__block" id="sub-url" value="${subscription?.url || ''}" placeholder="${i18n('subscriptionUrlPlaceholder')}">
                             </div>
                             <div class="b3-label">
-                                <div class="b3-label__text">${t('subscriptionSyncInterval')}</div>
+                                <div class="b3-label__text">${i18n('subscriptionSyncInterval')}</div>
                                 <select class="b3-select fn__block" id="sub-interval">
-                                    <option value="manual" ${subscription?.syncInterval === 'manual' ? 'selected' : ''}>${t('manual')}</option>
-                                    <option value="15min" ${subscription?.syncInterval === '15min' ? 'selected' : ''}>${t('every15Minutes')}</option>
-                                    <option value="30min" ${subscription?.syncInterval === '30min' ? 'selected' : ''}>${t('every30Minutes')}</option>
-                                    <option value="hourly" ${subscription?.syncInterval === 'hourly' ? 'selected' : ''}>${t('everyHour')}</option>
-                                    <option value="4hour" ${subscription?.syncInterval === '4hour' ? 'selected' : ''}>${t('every4Hours')}</option>
-                                    <option value="12hour" ${subscription?.syncInterval === '12hour' ? 'selected' : ''}>${t('every12Hours')}</option>
-                                    <option value="daily" ${subscription?.syncInterval === 'daily' ? 'selected' : ''}>${t('everyDay')}</option>
+                                    <option value="manual" ${subscription?.syncInterval === 'manual' ? 'selected' : ''}>${i18n('manual')}</option>
+                                    <option value="15min" ${subscription?.syncInterval === '15min' ? 'selected' : ''}>${i18n('every15Minutes')}</option>
+                                    <option value="30min" ${subscription?.syncInterval === '30min' ? 'selected' : ''}>${i18n('every30Minutes')}</option>
+                                    <option value="hourly" ${subscription?.syncInterval === 'hourly' ? 'selected' : ''}>${i18n('everyHour')}</option>
+                                    <option value="4hour" ${subscription?.syncInterval === '4hour' ? 'selected' : ''}>${i18n('every4Hours')}</option>
+                                    <option value="12hour" ${subscription?.syncInterval === '12hour' ? 'selected' : ''}>${i18n('every12Hours')}</option>
+                                    <option value="daily" ${subscription?.syncInterval === 'daily' ? 'selected' : ''}>${i18n('everyDay')}</option>
                                 </select>
                             </div>
                             <div class="b3-label">
-                                <div class="b3-label__text">${t('subscriptionProject')} *</div>
+                                <div class="b3-label__text">${i18n('subscriptionProject')} *</div>
                                 <div class="fn__hr"></div>
                                 <div style="display: flex; gap: 8px;">
                                     <select class="b3-select fn__flex-1" id="sub-project" required>
-                                        <option value="">${t('pleaseSelectProject')}</option>
+                                        <option value="">${i18n('pleaseSelectProject')}</option>
                                         ${Object.entries(groupedProjects)
                                             .map(([statusId, statusProjects]) => {
                                                 if (statusProjects.length === 0) return '';
@@ -1593,26 +1596,26 @@
                                 </div>
                             </div>
                             <div class="b3-label">
-                                <div class="b3-label__text">${t('subscriptionPriority')}</div>
+                                <div class="b3-label__text">${i18n('subscriptionPriority')}</div>
                                 <select class="b3-select fn__block" id="sub-priority">
-                                    <option value="none" ${!subscription?.priority || subscription?.priority === 'none' ? 'selected' : ''}>${t('noPriority')}</option>
-                                    <option value="high" ${subscription?.priority === 'high' ? 'selected' : ''}>${t('highPriority')}</option>
-                                    <option value="medium" ${subscription?.priority === 'medium' ? 'selected' : ''}>${t('mediumPriority')}</option>
-                                    <option value="low" ${subscription?.priority === 'low' ? 'selected' : ''}>${t('lowPriority')}</option>
+                                    <option value="none" ${!subscription?.priority || subscription?.priority === 'none' ? 'selected' : ''}>${i18n('noPriority')}</option>
+                                    <option value="high" ${subscription?.priority === 'high' ? 'selected' : ''}>${i18n('highPriority')}</option>
+                                    <option value="medium" ${subscription?.priority === 'medium' ? 'selected' : ''}>${i18n('mediumPriority')}</option>
+                                    <option value="low" ${subscription?.priority === 'low' ? 'selected' : ''}>${i18n('lowPriority')}</option>
                                 </select>
                             </div>
                             <div class="b3-label">
-                                <div class="b3-label__text">${t('subscriptionCategory')}</div>
+                                <div class="b3-label__text">${i18n('subscriptionCategory')}</div>
                                 <select class="b3-select fn__block" id="sub-category">
-                                    <option value="" ${!subscription?.categoryId ? 'selected' : ''}>${t('noCategory') || '无分类'}</option>
+                                    <option value="" ${!subscription?.categoryId ? 'selected' : ''}>${i18n('noCategory') || '无分类'}</option>
                                     ${categories.map(c => `<option value="${c.id}" ${subscription?.categoryId === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
                                 </select>
                             </div>
 
                         </div>
                         <div class="b3-dialog__action" style="margin-top: 16px;">
-                            <button class="b3-button b3-button--cancel">${t('cancel')}</button>
-                            <button class="b3-button b3-button--text" id="confirm-sub">${t('save')}</button>
+                            <button class="b3-button b3-button--cancel">${i18n('cancel')}</button>
+                            <button class="b3-button b3-button--text" id="confirm-sub">${i18n('save')}</button>
                         </div>
                     </div>
                 `,
@@ -1639,7 +1642,7 @@
                         await projectManager.loadProjects();
                         const groupedProjects = projectManager.getProjectsGroupedByStatus();
 
-                        projectSelect.innerHTML = `<option value="">${t('pleaseSelectProject')}</option>`;
+                        projectSelect.innerHTML = `<option value="">${i18n('pleaseSelectProject')}</option>`;
                         Object.entries(groupedProjects).forEach(([statusId, statusProjects]) => {
                             if (statusProjects.length === 0) return;
                             const status = projectManager
@@ -1700,15 +1703,15 @@
                 const tagIds: string[] = [];
 
                 if (!name) {
-                    await pushErrMsg(t('pleaseEnterSubscriptionName'));
+                    await pushErrMsg(i18n('pleaseEnterSubscriptionName'));
                     return;
                 }
                 if (!url) {
-                    await pushErrMsg(t('pleaseEnterSubscriptionUrl'));
+                    await pushErrMsg(i18n('pleaseEnterSubscriptionUrl'));
                     return;
                 }
                 if (!projectId) {
-                    await pushErrMsg(t('pleaseSelectProject'));
+                    await pushErrMsg(i18n('pleaseSelectProject'));
                     return;
                 }
 
@@ -1739,7 +1742,7 @@
 
                 renderSubscriptions();
                 editDialog.destroy();
-                await pushMsg(isEdit ? t('subscriptionUpdated') : t('subscriptionCreated'));
+                await pushMsg(isEdit ? i18n('subscriptionUpdated') : i18n('subscriptionCreated'));
             });
 
             cancelBtn?.addEventListener('click', () => {

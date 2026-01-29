@@ -9,7 +9,7 @@
 
 import { Dialog, confirm, showMessage } from "siyuan";
 import { PomodoroRecordManager, PomodoroSession } from "../utils/pomodoroRecord";
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 
 export class PomodoroSessionsDialog {
     private dialog: Dialog;
@@ -30,7 +30,7 @@ export class PomodoroSessionsDialog {
         await this.loadSessions();
 
         this.dialog = new Dialog({
-            title: "🍅 " + (t("pomodoros") || "番茄钟记录"),
+            title: "🍅 " + (i18n("pomodoros") || "番茄钟记录"),
             content: `
                 <div class="pomodoro-sessions-dialog" style="padding: 16px; display: flex; flex-direction: column; gap: 16px; max-height: 80vh;">
                     <div id="pomodoroSessionsList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 100px;">
@@ -39,7 +39,7 @@ export class PomodoroSessionsDialog {
                     <div class="pomodoro-actions" style="display: flex; gap: 8px; justify-content: flex-end; padding-top: 8px; border-top: 1px solid var(--b3-border-color);">
                         <button id="addPomodoroBtn" class="b3-button b3-button--primary">
                             <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
-                            ${t("addPomodoro") || "补录番茄钟"}
+                            ${i18n("addPomodoro") || "补录番茄钟"}
                         </button>
                     </div>
                 </div>
@@ -94,7 +94,7 @@ export class PomodoroSessionsDialog {
         if (this.sessions.length === 0) {
             listEl.innerHTML = `
                 <div style="text-align: center; color: var(--b3-theme-on-surface-light); padding: 20px;">
-                    ${t("noPomodoros") || "暂无番茄钟记录"}
+                    ${i18n("noPomodoros") || "暂无番茄钟记录"}
                 </div>
             `;
             return;
@@ -208,10 +208,10 @@ export class PomodoroSessionsDialog {
                     </div>
                 </div>
                 <div style="display: flex; gap: 4px;">
-                    <button class="b3-button b3-button--outline edit-pomodoro-btn" title="${t("edit")}" style="padding: 4px 8px;">
+                    <button class="b3-button b3-button--outline edit-pomodoro-btn" title="${i18n("edit")}" style="padding: 4px 8px;">
                         <svg class="b3-button__icon"><use xlink:href="#iconEdit"></use></svg>
                     </button>
-                    <button class="b3-button b3-button--outline delete-pomodoro-btn" title="${t("delete")}" style="padding: 4px 8px;">
+                    <button class="b3-button b3-button--outline delete-pomodoro-btn" title="${i18n("delete")}" style="padding: 4px 8px;">
                         <svg class="b3-button__icon"><use xlink:href="#iconTrashcan"></use></svg>
                     </button>
                 </div>
@@ -270,11 +270,11 @@ export class PomodoroSessionsDialog {
         }
 
         const addDialog = new Dialog({
-            title: "➕ " + (t("addPomodoro") || "补录番茄钟"),
+            title: "➕ " + (i18n("addPomodoro") || "补录番茄钟"),
             content: `
                 <div class="add-pomodoro-dialog" style="padding: 16px;">
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("sessionType") || "会话类型"}</label>
+                        <label class="b3-form__label">${i18n("sessionType") || "会话类型"}</label>
                         <select id="sessionType" class="b3-select" style="width: 100%;">
                             <option value="work">🍅 工作番茄</option>
                             <option value="shortBreak">☕ 短休息</option>
@@ -284,26 +284,26 @@ export class PomodoroSessionsDialog {
                     <div class="b3-form__group">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; margin-top: 8px;">
                             <select id="timeMode" class="b3-select" style="font-size: 12px; padding: 2px 24px 2px 8px; height: 24px; min-width: 80px;">
-                                <option value="end">${t("endTime") || "结束时间"}</option>
-                                <option value="start">${t("startTime") || "开始时间"}</option>
+                                <option value="end">${i18n("endTime") || "结束时间"}</option>
+                                <option value="start">${i18n("startTime") || "开始时间"}</option>
                             </select>
                         </div>
                         <input type="datetime-local" id="sessionTimePoint" class="b3-text-field" style="width: 100%;" required>
                     </div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("duration") || "持续时长"} (${t("minutes") || "分钟"})</label>
+                        <label class="b3-form__label">${i18n("duration") || "持续时长"} (${i18n("minutes") || "分钟"})</label>
                         <input type="number" id="sessionDuration" class="b3-text-field" value="${workDuration}" min="1" style="width: 100%;" required>
                     </div>
                     <div class="b3-form__group" id="countUpGroup">
                         <label class="b3-checkbox">
                             <input type="checkbox" id="sessionIsCountUp">
                             <span class="b3-checkbox__graphic"></span>
-                            <span class="b3-checkbox__label">${t("isCountUp") || "正计时 (自动计算番茄数)"}</span>
+                            <span class="b3-checkbox__label">${i18n("isCountUp") || "正计时 (自动计算番茄数)"}</span>
                         </label>
                     </div>
                     <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel">${t("cancel")}</button>
-                        <button class="b3-button b3-button--primary" id="confirmAddPomodoro">${t("save")}</button>
+                        <button class="b3-button b3-button--cancel">${i18n("cancel")}</button>
+                        <button class="b3-button b3-button--primary" id="confirmAddPomodoro">${i18n("save")}</button>
                     </div>
                 </div>
             `,
@@ -321,9 +321,9 @@ export class PomodoroSessionsDialog {
 
         timeModeSelect.addEventListener("change", () => {
             if (timeModeSelect.value === 'end') {
-                timeLabel.textContent = t("endTime") || "结束时间";
+                timeLabel.textContent = i18n("endTime") || "结束时间";
             } else {
-                timeLabel.textContent = t("startTime") || "开始时间";
+                timeLabel.textContent = i18n("startTime") || "开始时间";
             }
         });
 
@@ -377,7 +377,7 @@ export class PomodoroSessionsDialog {
             const isCountUp = (addDialog.element.querySelector("#sessionIsCountUp") as HTMLInputElement).checked;
 
             if (!timePointStr || !duration || duration <= 0) {
-                showMessage(t("pleaseEnterValidInfo") || "请输入有效信息", 3000, "error");
+                showMessage(i18n("pleaseEnterValidInfo") || "请输入有效信息", 3000, "error");
                 return;
             }
 
@@ -456,7 +456,7 @@ export class PomodoroSessionsDialog {
                 // 刷新统计索引
                 this.recordManager.refreshIndex();
 
-                showMessage("✅ " + (t("addPomodoroSuccess") || "补录番茄钟成功"), 3000, "info");
+                showMessage("✅ " + (i18n("addPomodoroSuccess") || "补录番茄钟成功"), 3000, "info");
 
                 addDialog.destroy();
                 await this.loadSessions();
@@ -469,7 +469,7 @@ export class PomodoroSessionsDialog {
                 if (this.onUpdate) this.onUpdate();
             } catch (error) {
                 console.error("补录番茄钟失败:", error);
-                showMessage("❌ " + (t("addPomodoroFailed") || "补录番茄钟失败"), 3000, "error");
+                showMessage("❌ " + (i18n("addPomodoroFailed") || "补录番茄钟失败"), 3000, "error");
             }
         });
     }
@@ -481,11 +481,11 @@ export class PomodoroSessionsDialog {
         if (!session) return;
 
         const editDialog = new Dialog({
-            title: "✏️ " + (t("editPomodoro") || "编辑番茄钟"),
+            title: "✏️ " + (i18n("editPomodoro") || "编辑番茄钟"),
             content: `
                 <div class="edit-pomodoro-dialog" style="padding: 16px;">
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("sessionType") || "会话类型"}</label>
+                        <label class="b3-form__label">${i18n("sessionType") || "会话类型"}</label>
                         <select id="editSessionType" class="b3-select" style="width: 100%;">
                             <option value="work">🍅 工作番茄</option>
                             <option value="shortBreak">☕ 短休息</option>
@@ -493,16 +493,16 @@ export class PomodoroSessionsDialog {
                         </select>
                     </div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("startTime") || "开始时间"}</label>
+                        <label class="b3-form__label">${i18n("startTime") || "开始时间"}</label>
                         <input type="datetime-local" id="editSessionStartTime" class="b3-text-field" style="width: 100%;" required>
                     </div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("duration") || "持续时长"} (${t("minutes") || "分钟"})</label>
+                        <label class="b3-form__label">${i18n("duration") || "持续时长"} (${i18n("minutes") || "分钟"})</label>
                         <input type="number" id="editSessionDuration" class="b3-text-field" min="1" style="width: 100%;" required>
                     </div>
                     <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel">${t("cancel")}</button>
-                        <button class="b3-button b3-button--primary" id="confirmEditPomodoro">${t("save")}</button>
+                        <button class="b3-button b3-button--cancel">${i18n("cancel")}</button>
+                        <button class="b3-button b3-button--primary" id="confirmEditPomodoro">${i18n("save")}</button>
                     </div>
                 </div>
             `,
@@ -534,7 +534,7 @@ export class PomodoroSessionsDialog {
             const completed = true; // 强制为已完成
 
             if (!startTimeStr || !duration || duration <= 0) {
-                showMessage(t("pleaseEnterValidInfo") || "请输入有效信息", 3000, "error");
+                showMessage(i18n("pleaseEnterValidInfo") || "请输入有效信息", 3000, "error");
                 return;
             }
 
@@ -600,7 +600,7 @@ export class PomodoroSessionsDialog {
                 // 刷新统计索引
                 this.recordManager.refreshIndex();
 
-                showMessage("✅ " + (t("editPomodoroSuccess") || "修改番茄钟成功"), 3000, "info");
+                showMessage("✅ " + (i18n("editPomodoroSuccess") || "修改番茄钟成功"), 3000, "info");
 
                 editDialog.destroy();
                 await this.loadSessions();
@@ -613,7 +613,7 @@ export class PomodoroSessionsDialog {
                 if (this.onUpdate) this.onUpdate();
             } catch (error) {
                 console.error("修改番茄钟失败:", error);
-                showMessage("❌ " + (t("editPomodoroFailed") || "修改番茄钟失败"), 3000, "error");
+                showMessage("❌ " + (i18n("editPomodoroFailed") || "修改番茄钟失败"), 3000, "error");
             }
         });
     }
@@ -626,9 +626,9 @@ export class PomodoroSessionsDialog {
         if (!session) return;
 
         confirm(
-            "⚠️ " + (t("confirmDelete") || "确认删除"),
+            "⚠️ " + (i18n("confirmDelete") || "确认删除"),
             `<div style="padding: 16px;">
-                <p>${t("confirmDeletePomodoro") || "确定要删除这个番茄钟记录吗？"}</p>
+                <p>${i18n("confirmDeletePomodoro") || "确定要删除这个番茄钟记录吗？"}</p>
                 <p style="color: var(--b3-theme-on-surface-light); font-size: 12px;">
                     ${session.eventTitle} - ${new Date(session.startTime).toLocaleString('zh-CN')} (${session.duration}分钟)
                 </p>
@@ -639,7 +639,7 @@ export class PomodoroSessionsDialog {
                     const success = await this.recordManager.deleteSession(sessionId);
 
                     if (success) {
-                        showMessage("✅ " + (t("deletePomodoroSuccess") || "删除番茄钟成功"), 3000, "info");
+                        showMessage("✅ " + (i18n("deletePomodoroSuccess") || "删除番茄钟成功"), 3000, "info");
                         await this.loadSessions();
                         await this.syncReminderPomodoroCount();
                         this.renderSessions();
@@ -649,11 +649,11 @@ export class PomodoroSessionsDialog {
 
                         if (this.onUpdate) this.onUpdate();
                     } else {
-                        showMessage("❌ " + (t("deletePomodoroFailed") || "删除番茄钟失败"), 3000, "error");
+                        showMessage("❌ " + (i18n("deletePomodoroFailed") || "删除番茄钟失败"), 3000, "error");
                     }
                 } catch (error) {
                     console.error("删除番茄钟失败:", error);
-                    showMessage("❌ " + (t("deletePomodoroFailed") || "删除番茄钟失败"), 3000, "error");
+                    showMessage("❌ " + (i18n("deletePomodoroFailed") || "删除番茄钟失败"), 3000, "error");
                 }
             }
         );

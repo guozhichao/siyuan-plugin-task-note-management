@@ -2,7 +2,7 @@ import { Dialog } from "siyuan";
 import { showMessage } from "siyuan";
 import { confirm } from "siyuan";
 import { PomodoroRecordManager, PomodoroSession } from "../utils/pomodoroRecord";
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 import { getLocalDateString, getLogicalDateString, getDayStartMinutes } from "../utils/dateUtils";
 import { init, use, EChartsType } from 'echarts/core';
 import { PieChart, HeatmapChart, CustomChart } from 'echarts/charts';
@@ -61,7 +61,7 @@ export class PomodoroStatsView {
 
     private createDialog() {
         this.dialog = new Dialog({
-            title: "🍅 " + t("pomodoroStats"),
+            title: "🍅 " + i18n("pomodoroStats"),
             content: this.createContent(),
             width: "90vw",
             height: "85vh",
@@ -94,31 +94,31 @@ export class PomodoroStatsView {
             <div class="pomodoro-stats-view">
                 <div class="stats-switch">
                     <button class="stats-switch-btn" data-mode="task">
-                        ✅ ${t("taskStats")}
+                        ✅ ${i18n("taskStats")}
                     </button>
                     <button class="stats-switch-btn active" data-mode="pomodoro">
-                        🍅 ${t("pomodoroStats")}
+                        🍅 ${i18n("pomodoroStats")}
                     </button>
                 </div>
                 <!-- 导航标签 -->
                 <div class="stats-nav">
                     <button class="nav-btn ${this.currentView === 'overview' ? 'active' : ''}" data-view="overview">
-                        📊 ${t("overview")}
+                        📊 ${i18n("overview")}
                     </button>
                     <button class="nav-btn ${this.currentView === 'details' ? 'active' : ''}" data-view="details">
-                        📈 ${t("focusDetails")}
+                        📈 ${i18n("focusDetails")}
                     </button>
                     <button class="nav-btn ${this.currentView === 'records' ? 'active' : ''}" data-view="records">
-                        📝 ${t("focusRecords")}
+                        📝 ${i18n("focusRecords")}
                     </button>
                     <button class="nav-btn ${this.currentView === 'trends' ? 'active' : ''}" data-view="trends">
-                        📉 ${t("focusTrends")}
+                        📉 ${i18n("focusTrends")}
                     </button>
                     <button class="nav-btn ${this.currentView === 'timeline' ? 'active' : ''}" data-view="timeline">
-                        ⏰ ${t("focusTimeline")}
+                        ⏰ ${i18n("focusTimeline")}
                     </button>
                     <button class="nav-btn ${this.currentView === 'heatmap' ? 'active' : ''}" data-view="heatmap">
-                        🔥 ${t("yearlyHeatmap")}
+                        🔥 ${i18n("yearlyHeatmap")}
                     </button>
                 </div>
 
@@ -160,7 +160,7 @@ export class PomodoroStatsView {
                     <div class="overview-card today">
                         <div class="card-icon">🌅</div>
                         <div class="card-content">
-                            <div class="card-title">${t("todayFocus")}</div>
+                            <div class="card-title">${i18n("todayFocus")}</div>
                             <div class="card-value">${this.recordManager.formatTime(todayTime)}</div>
                             <div class="card-subtitle">${this.getTodayPomodoroCount()}个番茄钟</div>
                         </div>
@@ -169,7 +169,7 @@ export class PomodoroStatsView {
                     <div class="overview-card week">
                         <div class="card-icon">📅</div>
                         <div class="card-content">
-                            <div class="card-title">${t("weekFocus")}</div>
+                            <div class="card-title">${i18n("weekFocus")}</div>
                             <div class="card-value">${this.recordManager.formatTime(weekTime)}</div>
                             <div class="card-subtitle">${this.getWeekPomodoroCount()}个番茄钟</div>
                         </div>
@@ -178,7 +178,7 @@ export class PomodoroStatsView {
                     <div class="overview-card total">
                         <div class="card-icon">🏆</div>
                         <div class="card-content">
-                            <div class="card-title">${t("totalFocus")}</div>
+                            <div class="card-title">${i18n("totalFocus")}</div>
                             <div class="card-value">${this.recordManager.formatTime(totalTime)}</div>
                             <div class="card-subtitle">${this.getTotalPomodoroCount()}个番茄钟</div>
                         </div>
@@ -187,13 +187,13 @@ export class PomodoroStatsView {
 
                 <!-- 今日专注进度 -->
                 <div class="today-progress">
-                    <h3>📈 ${t("todayProgress")}</h3>
+                    <h3>📈 ${i18n("todayProgress")}</h3>
                     ${this.renderTodayProgress()}
                 </div>
 
                 <!-- 最近7天趋势 -->
                 <div class="recent-trend">
-                    <h3>📊 ${t("recentTrend")}</h3>
+                    <h3>📊 ${i18n("recentTrend")}</h3>
                     ${this.renderRecentTrend()}
                 </div>
             </div>
@@ -206,21 +206,21 @@ export class PomodoroStatsView {
             <div class="details-container">
                 <div class="details-header">
                     <div class="details-title">
-                        <h3>📈 ${t("focusDetails")}</h3>
+                        <h3>📈 ${i18n("focusDetails")}</h3>
                         ${dateRangeText ? `<span class="date-range-text">${dateRangeText}</span>` : ''}
                     </div>
                     <div class="time-range-selector">
                         <button class="range-btn ${this.currentTimeRange === 'today' ? 'active' : ''}" data-range="today">
-                            ${t("today")}
+                            ${i18n("today")}
                         </button>
                         <button class="range-btn ${this.currentTimeRange === 'week' ? 'active' : ''}" data-range="week">
-                            ${t("week")}
+                            ${i18n("week")}
                         </button>
                         <button class="range-btn ${this.currentTimeRange === 'month' ? 'active' : ''}" data-range="month">
-                            ${t("month")}
+                            ${i18n("month")}
                         </button>
                         <button class="range-btn ${this.currentTimeRange === 'year' ? 'active' : ''}" data-range="year">
-                            ${t("year")}
+                            ${i18n("year")}
                         </button>
                         <div class="nav-arrows">
                             <button class="nav-arrow" data-action="prev">◀</button>
@@ -242,8 +242,8 @@ export class PomodoroStatsView {
         return `
             <div class="records-container">
                 <div class="records-header">
-                    <h3>📝 ${t("focusRecords")}</h3>
-                    <div class="records-subtitle">${t("recent7DaysFocus")}</div>
+                    <h3>📝 ${i18n("focusRecords")}</h3>
+                    <div class="records-subtitle">${i18n("recent7DaysFocus")}</div>
                 </div>
                 
                 <div class="records-list">
@@ -259,18 +259,18 @@ export class PomodoroStatsView {
             <div class="trends-container">
                 <div class="trends-header">
                     <div class="trends-title">
-                        <h3>📉 ${t("focusTrends")}</h3>
+                        <h3>📉 ${i18n("focusTrends")}</h3>
                         ${dateRangeText ? `<span class="date-range-text">${dateRangeText}</span>` : ''}
                     </div>
                     <div class="time-range-selector">
                         <button class="range-btn ${this.currentTimeRange === 'week' ? 'active' : ''}" data-range="week">
-                            ${t("thisWeek")}
+                            ${i18n("thisWeek")}
                         </button>
                         <button class="range-btn ${this.currentTimeRange === 'month' ? 'active' : ''}" data-range="month">
-                            ${t("thisMonth")}
+                            ${i18n("thisMonth")}
                         </button>
                         <button class="range-btn ${this.currentTimeRange === 'year' ? 'active' : ''}" data-range="year">
-                            ${t("thisYear")}
+                            ${i18n("thisYear")}
                         </button>
                         <div class="nav-arrows">
                             <button class="nav-arrow" data-action="prev">◀</button>
@@ -292,18 +292,18 @@ export class PomodoroStatsView {
             <div class="timeline-container">
                 <div class="timeline-header">
                     <div class="timeline-title">
-                        <h3>⏰ ${t("focusTimeline")}</h3>
+                        <h3>⏰ ${i18n("focusTimeline")}</h3>
                         ${dateRangeText ? `<span class="date-range-text">${dateRangeText}</span>` : ''}
                     </div>
                     <div class="time-range-selector">
                         <button class="range-btn ${this.currentTimeRange === 'week' ? 'active' : ''}" data-range="week">
-                            ${t("thisWeek")}
+                            ${i18n("thisWeek")}
                         </button>
                         <button class="range-btn ${this.currentTimeRange === 'month' ? 'active' : ''}" data-range="month">
-                            ${t("thisMonth")}
+                            ${i18n("thisMonth")}
                         </button>
                         <button class="range-btn ${this.currentTimeRange === 'year' ? 'active' : ''}" data-range="year">
-                            ${t("thisYear")}
+                            ${i18n("thisYear")}
                         </button>
                         <div class="nav-arrows">
                             <button class="nav-arrow" data-action="prev">◀</button>
@@ -323,7 +323,7 @@ export class PomodoroStatsView {
         return `
             <div class="heatmap-container">
                 <div class="heatmap-header">
-                    <h3>🔥 ${t("yearlyHeatmap")}</h3>
+                    <h3>🔥 ${i18n("yearlyHeatmap")}</h3>
                     <div class="year-selector">
                         <button class="nav-arrow" data-action="prev-year">◀</button>
                         <span class="current-year">${this.currentYear}</span>
@@ -349,11 +349,11 @@ export class PomodoroStatsView {
         return `
             <div class="progress-info">
                 <div class="progress-item">
-                    <span class="progress-label">${t("completedPomodoros")}</span>
+                    <span class="progress-label">${i18n("completedPomodoros")}</span>
                     <span class="progress-value">${completedPomodoros}</span>
                 </div>
                 <div class="progress-item">
-                    <span class="progress-label">${t("focusTime")}</span>
+                    <span class="progress-label">${i18n("focusTime")}</span>
                     <span class="progress-value">${this.recordManager.formatTime(todayTime)}</span>
                 </div>
             </div>
@@ -399,7 +399,7 @@ export class PomodoroStatsView {
         const total = Object.values(stats).reduce((sum: number, value: any) => sum + value.time, 0);
 
         if (total === 0) {
-            return `<div class="no-data">${t("noData")}</div>`;
+            return `<div class="no-data">${i18n("noData")}</div>`;
         }
 
         // 生成唯一的图表ID
@@ -427,12 +427,12 @@ export class PomodoroStatsView {
                     <div class="record-meta">
                         <span class="record-date">${dateStr}</span>
                         <span class="record-time">${timeStr}</span>
-                        <span class="record-duration">${session.duration}${t("minutes")}</span>
+                        <span class="record-duration">${session.duration}${i18n("minutes")}</span>
                         ${session.completed ? '<span class="record-completed">✅</span>' : '<span class="record-incomplete">⏸</span>'}
                     </div>
                 </div>
                 <div class="record-actions">
-                    <button class="delete-btn" data-session-id="${session.id}" title="${t("delete")}">🗑️</button>
+                    <button class="delete-btn" data-session-id="${session.id}" title="${i18n("delete")}">🗑️</button>
                 </div>
             </div>
         `;
@@ -553,7 +553,7 @@ export class PomodoroStatsView {
                 .reduce((sum, s) => sum + s.duration, 0);
 
             data.push({
-                label: i === 0 ? t("today") : date.toLocaleDateString('zh-CN', { weekday: 'short' }),
+                label: i === 0 ? i18n("today") : date.toLocaleDateString('zh-CN', { weekday: 'short' }),
                 value
             });
         }
@@ -585,7 +585,7 @@ export class PomodoroStatsView {
         const stats: Record<string, { time: number, count: number }> = {};
 
         sessions.filter(s => s.type === 'work').forEach(session => {
-            const category = session.eventTitle || t("uncategorized");
+            const category = session.eventTitle || i18n("uncategorized");
             if (!stats[category]) {
                 stats[category] = { time: 0, count: 0 };
             }
@@ -1142,7 +1142,7 @@ export class PomodoroStatsView {
                 },
                 series: [
                     {
-                        name: t("focusTime"),
+                        name: i18n("focusTime"),
                         type: 'pie',
                         radius: ['40%', '70%'],
                         center: ['50%', '45%'],
@@ -1204,7 +1204,7 @@ export class PomodoroStatsView {
             const heatmapData = this.getHeatmapData(this.currentYear);
 
             if (heatmapData.length === 0) {
-                chartElement.innerHTML = `<div class="no-data" style="text-align: center; padding: 50px;">${t("noData")}</div>`;
+                chartElement.innerHTML = `<div class="no-data" style="text-align: center; padding: 50px;">${i18n("noData")}</div>`;
                 return;
             }
 
@@ -1274,7 +1274,7 @@ export class PomodoroStatsView {
                     inRange: {
                         color: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39']
                     },
-                    text: [t("more"), t("less")],
+                    text: [i18n("more"), i18n("less")],
                     textStyle: {
                         fontSize: 12
                     }
@@ -1344,7 +1344,7 @@ export class PomodoroStatsView {
             const timelineData = this.getTimelineData();
 
             if (timelineData.length === 0) {
-                chartElement.innerHTML = `<div class="no-data" style="text-align: center; padding: 50px;">${t("noData")}</div>`;
+                chartElement.innerHTML = `<div class="no-data" style="text-align: center; padding: 50px;">${i18n("noData")}</div>`;
                 return;
             }
 
@@ -1647,13 +1647,13 @@ export class PomodoroStatsView {
                 // 重新加载数据并更新视图
                 await this.recordManager.refreshData();
                 this.updateContent();
-                showMessage(t("deleteSuccess"));
+                showMessage(i18n("deleteSuccess"));
             } else {
-                showMessage(t("deleteFailed"), 3000, "error");
+                showMessage(i18n("deleteFailed"), 3000, "error");
             }
         } catch (error) {
             console.error('删除会话失败:', error);
-            showMessage(t("deleteFailed"), 3000, "error");
+            showMessage(i18n("deleteFailed"), 3000, "error");
         }
     }
 

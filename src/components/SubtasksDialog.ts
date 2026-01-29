@@ -1,6 +1,6 @@
 import { Dialog, showMessage } from "siyuan";
 import { } from "../api";
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 
 export class SubtasksDialog {
@@ -20,7 +20,7 @@ export class SubtasksDialog {
         await this.loadSubtasks();
 
         this.dialog = new Dialog({
-            title: t("subtasks") || "子任务",
+            title: i18n("subtasks") || "子任务",
             content: `
                 <div class="subtasks-dialog" style="padding: 16px; display: flex; flex-direction: column; gap: 16px; max-height: 80vh;">
                     <div id="subtasksList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 100px;">
@@ -29,7 +29,7 @@ export class SubtasksDialog {
                     <div class="subtasks-actions" style="display: flex; gap: 8px; justify-content: flex-end; padding-top: 8px; border-top: 1px solid var(--b3-border-color);">
                         <button id="addSubtaskBtn" class="b3-button b3-button--primary">
                             <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
-                            ${t("createSubtask") || "创建子任务"}
+                            ${i18n("createSubtask") || "创建子任务"}
                         </button>
                     </div>
                 </div>
@@ -55,7 +55,7 @@ export class SubtasksDialog {
         if (!listEl) return;
 
         if (this.subtasks.length === 0) {
-            listEl.innerHTML = `<div style="text-align: center; color: var(--b3-theme-on-surface-light); padding: 20px;">${t("noSubtasks") || "暂无子任务"}</div>`;
+            listEl.innerHTML = `<div style="text-align: center; color: var(--b3-theme-on-surface-light); padding: 20px;">${i18n("noSubtasks") || "暂无子任务"}</div>`;
             return;
         }
 
@@ -69,10 +69,10 @@ export class SubtasksDialog {
                     ${priorityIcon} ${task.title}
                 </div>
                 <div class="subtask-ops" style="display: flex; gap: 4px; opacity: 0.6;">
-                    <button class="b3-button b3-button--outline b3-button--small edit-subtask-btn" title="${t("edit")}" style="padding: 4px;">
+                    <button class="b3-button b3-button--outline b3-button--small edit-subtask-btn" title="${i18n("edit")}" style="padding: 4px;">
                         <svg class="b3-button__icon" style="width: 12px; height: 12px;"><use xlink:href="#iconEdit"></use></svg>
                     </button>
-                    <button class="b3-button b3-button--outline b3-button--small delete-subtask-btn" title="${t("delete")}" style="padding: 4px;">
+                    <button class="b3-button b3-button--outline b3-button--small delete-subtask-btn" title="${i18n("delete")}" style="padding: 4px;">
                         <svg class="b3-button__icon" style="width: 12px; height: 12px;"><use xlink:href="#iconTrashcan"></use></svg>
                     </button>
                 </div>
@@ -179,9 +179,9 @@ export class SubtasksDialog {
 
         // Count subtasks of this task
         const childrenCount = Object.values(reminderData).filter((r: any) => r.parentId === id).length;
-        let confirmMsg = t("confirmDeleteTask", { title: task.title }) || `确定要删除任务 "${task.title}" 吗？此操作不可撤销。`;
+        let confirmMsg = i18n("confirmDeleteTask", { title: task.title }) || `确定要删除任务 "${task.title}" 吗？此操作不可撤销。`;
         if (childrenCount > 0) {
-            confirmMsg += `\n${t("includesNSubtasks", { count: childrenCount.toString() }) || `此任务包含 ${childrenCount} 个子任务，它们也将被一并删除。`}`;
+            confirmMsg += `\n${i18n("includesNSubtasks", { count: childrenCount.toString() }) || `此任务包含 ${childrenCount} 个子任务，它们也将被一并删除。`}`;
         }
 
         // Use native confirm or siyuan confirm if available
@@ -197,7 +197,7 @@ export class SubtasksDialog {
             await this.plugin.saveReminderData(reminderData);
             await this.loadSubtasks();
             this.renderSubtasks();
-            showMessage(t("deleteSuccess"));
+            showMessage(i18n("deleteSuccess"));
         }
     }
 
@@ -269,6 +269,6 @@ export class SubtasksDialog {
 
         await this.plugin.saveReminderData(reminderData);
         this.renderSubtasks();
-        showMessage(t("sortUpdated") || "排序已更新");
+        showMessage(i18n("sortUpdated") || "排序已更新");
     }
 }

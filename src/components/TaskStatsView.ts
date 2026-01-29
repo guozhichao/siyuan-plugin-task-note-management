@@ -2,7 +2,7 @@ import { Dialog } from "siyuan";
 import { showMessage } from "siyuan";
 import { confirm } from "siyuan";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 import { compareDateStrings, getLocalDateString, getLogicalDateString, getDayStartMinutes } from "../utils/dateUtils";
 import { getFile } from "../api";
 import { generateRepeatInstances } from "../utils/repeatUtils";
@@ -59,7 +59,7 @@ export class TaskStatsView {
 
     private createDialog() {
         this.dialog = new Dialog({
-            title: "✅ " + (t("taskStats") || "任务统计"),
+            title: "✅ " + (i18n("taskStats") || "任务统计"),
             content: this.createContent(),
             width: "90vw",
             height: "85vh",
@@ -92,31 +92,31 @@ export class TaskStatsView {
             <div class="pomodoro-stats-view">
                 <div class="stats-switch">
                     <button class="stats-switch-btn active" data-mode="task">
-                        ✅ ${t("taskStats")}
+                        ✅ ${i18n("taskStats")}
                     </button>
                     <button class="stats-switch-btn" data-mode="pomodoro">
-                        🍅 ${t("pomodoroStats")}
+                        🍅 ${i18n("pomodoroStats")}
                     </button>
                 </div>
                 <!-- 导航标签 -->
                 <div class="stats-nav">
                     <button class="nav-btn ${this.currentView === 'overview' ? 'active' : ''}" data-view="overview">
-                        📊 ${t("overview")}
+                        📊 ${i18n("overview")}
                     </button>
                     <button class="nav-btn ${this.currentView === 'details' ? 'active' : ''}" data-view="details">
-                        📈 ${t("taskDetails")}
+                        📈 ${i18n("taskDetails")}
                     </button>
                     <button class="nav-btn ${this.currentView === 'records' ? 'active' : ''}" data-view="records">
-                        📝 ${t("taskRecords")}
+                        📝 ${i18n("taskRecords")}
                     </button>
                     <button class="nav-btn ${this.currentView === 'trends' ? 'active' : ''}" data-view="trends">
-                        📉 ${t("taskTrends")}
+                        📉 ${i18n("taskTrends")}
                     </button>
                     <button class="nav-btn ${this.currentView === 'timeline' ? 'active' : ''}" data-view="timeline">
-                        ⏰ ${t("taskTimeline")}
+                        ⏰ ${i18n("taskTimeline")}
                     </button>
                     <button class="nav-btn ${this.currentView === 'heatmap' ? 'active' : ''}" data-view="heatmap">
-                        🔥 ${t("yearlyHeatmap")}
+                        🔥 ${i18n("yearlyHeatmap")}
                     </button>
                 </div>
 
@@ -130,7 +130,7 @@ export class TaskStatsView {
 
     private renderCurrentView(): string {
         if (!this.isReady) {
-            return `<div class="no-data">${t("loading")}</div>`;
+            return `<div class="no-data">${i18n("loading")}</div>`;
         }
         switch (this.currentView) {
             case 'overview':
@@ -161,7 +161,7 @@ export class TaskStatsView {
                     <div class="overview-card today">
                         <div class="card-icon">🌅</div>
                         <div class="card-content">
-                            <div class="card-title">${t("todayTask")}</div>
+                            <div class="card-title">${i18n("todayTask")}</div>
                             <div class="card-value">${this.formatTime(todayTime)}</div>
                             <div class="card-subtitle">${this.getTodayTaskCount()}个任务</div>
                         </div>
@@ -170,7 +170,7 @@ export class TaskStatsView {
                     <div class="overview-card week">
                         <div class="card-icon">📅</div>
                         <div class="card-content">
-                            <div class="card-title">${t("weekTask")}</div>
+                            <div class="card-title">${i18n("weekTask")}</div>
                             <div class="card-value">${this.formatTime(weekTime)}</div>
                             <div class="card-subtitle">${this.getWeekTaskCount()}个任务</div>
                         </div>
@@ -179,7 +179,7 @@ export class TaskStatsView {
                     <div class="overview-card total">
                         <div class="card-icon">🏆</div>
                         <div class="card-content">
-                            <div class="card-title">${t("totalTask")}</div>
+                            <div class="card-title">${i18n("totalTask")}</div>
                             <div class="card-value">${this.formatTime(totalTime)}</div>
                             <div class="card-subtitle">${this.getTotalTaskCount()}个任务</div>
                         </div>
@@ -188,13 +188,13 @@ export class TaskStatsView {
 
                 <!-- 今日任务进度 -->
                 <div class="today-progress">
-                    <h3>📈 ${t("todayTaskProgress")}</h3>
+                    <h3>📈 ${i18n("todayTaskProgress")}</h3>
                     ${this.renderTodayProgress()}
                 </div>
 
                 <!-- 最近7天趋势 -->
                 <div class="recent-trend">
-                    <h3>📊 ${t("recentTaskTrend")}</h3>
+                    <h3>📊 ${i18n("recentTaskTrend")}</h3>
                     ${this.renderRecentTrend()}
                 </div>
             </div>
@@ -207,21 +207,21 @@ export class TaskStatsView {
             <div class="details-container">
                 <div class="details-header">
                     <div class="details-title">
-                        <h3>📈 ${t("taskDetails")}</h3>
+                        <h3>📈 ${i18n("taskDetails")}</h3>
                         ${dateRangeText ? `<span class="date-range-text">${dateRangeText}</span>` : ''}
                     </div>
                     <div class="time-range-selector">
                         <button class="range-btn ${this.currentTimeRange === 'today' ? 'active' : ''}" data-range="today">
-                            ${t("today")}
+                            ${i18n("today")}
                         </button>
                         <button class="range-btn ${this.currentTimeRange === 'week' ? 'active' : ''}" data-range="week">
-                            ${t("week")}
+                            ${i18n("week")}
                         </button>
                         <button class="range-btn ${this.currentTimeRange === 'month' ? 'active' : ''}" data-range="month">
-                            ${t("month")}
+                            ${i18n("month")}
                         </button>
                         <button class="range-btn ${this.currentTimeRange === 'year' ? 'active' : ''}" data-range="year">
-                            ${t("year")}
+                            ${i18n("year")}
                         </button>
                         <div class="nav-arrows">
                             <button class="nav-arrow" data-action="prev">◀</button>
@@ -230,13 +230,13 @@ export class TaskStatsView {
                     </div>
                     <div class="details-group-selector">
                         <button class="details-group-btn ${this.currentDetailGroup === 'task' ? 'active' : ''}" data-group="task">
-                            ${t("taskGroupByTask")}
+                            ${i18n("taskGroupByTask")}
                         </button>
                         <button class="details-group-btn ${this.currentDetailGroup === 'project' ? 'active' : ''}" data-group="project">
-                            ${t("taskGroupByProject")}
+                            ${i18n("taskGroupByProject")}
                         </button>
                         <button class="details-group-btn ${this.currentDetailGroup === 'category' ? 'active' : ''}" data-group="category">
-                            ${t("taskGroupByCategory")}
+                            ${i18n("taskGroupByCategory")}
                         </button>
                     </div>
                 </div>
@@ -254,8 +254,8 @@ export class TaskStatsView {
         return `
             <div class="records-container">
                 <div class="records-header">
-                    <h3>📝 ${t("taskRecords")}</h3>
-                    <div class="records-subtitle">${t("recent7DaysTasks")}</div>
+                    <h3>📝 ${i18n("taskRecords")}</h3>
+                    <div class="records-subtitle">${i18n("recent7DaysTasks")}</div>
                 </div>
                 
                 <div class="records-list">
@@ -271,18 +271,18 @@ export class TaskStatsView {
             <div class="trends-container">
                 <div class="trends-header">
                     <div class="trends-title">
-                        <h3>📉 ${t("taskTrends")}</h3>
+                        <h3>📉 ${i18n("taskTrends")}</h3>
                         ${dateRangeText ? `<span class="date-range-text">${dateRangeText}</span>` : ''}
                     </div>
                     <div class="time-range-selector">
                         <button class="range-btn ${this.currentTimeRange === 'week' ? 'active' : ''}" data-range="week">
-                            ${t("thisWeek")}
+                            ${i18n("thisWeek")}
                         </button>
                         <button class="range-btn ${this.currentTimeRange === 'month' ? 'active' : ''}" data-range="month">
-                            ${t("thisMonth")}
+                            ${i18n("thisMonth")}
                         </button>
                         <button class="range-btn ${this.currentTimeRange === 'year' ? 'active' : ''}" data-range="year">
-                            ${t("thisYear")}
+                            ${i18n("thisYear")}
                         </button>
                         <div class="nav-arrows">
                             <button class="nav-arrow" data-action="prev">◀</button>
@@ -304,18 +304,18 @@ export class TaskStatsView {
             <div class="timeline-container">
                 <div class="timeline-header">
                     <div class="timeline-title">
-                        <h3>⏰ ${t("taskTimeline")}</h3>
+                        <h3>⏰ ${i18n("taskTimeline")}</h3>
                         ${dateRangeText ? `<span class="date-range-text">${dateRangeText}</span>` : ''}
                     </div>
                     <div class="time-range-selector">
                         <button class="range-btn ${this.currentTimeRange === 'week' ? 'active' : ''}" data-range="week">
-                            ${t("thisWeek")}
+                            ${i18n("thisWeek")}
                         </button>
                         <button class="range-btn ${this.currentTimeRange === 'month' ? 'active' : ''}" data-range="month">
-                            ${t("thisMonth")}
+                            ${i18n("thisMonth")}
                         </button>
                         <button class="range-btn ${this.currentTimeRange === 'year' ? 'active' : ''}" data-range="year">
-                            ${t("thisYear")}
+                            ${i18n("thisYear")}
                         </button>
                         <div class="nav-arrows">
                             <button class="nav-arrow" data-action="prev">◀</button>
@@ -335,7 +335,7 @@ export class TaskStatsView {
         return `
             <div class="heatmap-container">
                 <div class="heatmap-header">
-                    <h3>🔥 ${t("yearlyHeatmap")}</h3>
+                    <h3>🔥 ${i18n("yearlyHeatmap")}</h3>
                     <div class="year-selector">
                         <button class="nav-arrow" data-action="prev-year">◀</button>
                         <span class="current-year">${this.currentYear}</span>
@@ -358,11 +358,11 @@ export class TaskStatsView {
         return `
             <div class="progress-info">
                 <div class="progress-item">
-                    <span class="progress-label">${t("completedTasks")}</span>
+                    <span class="progress-label">${i18n("completedTasks")}</span>
                     <span class="progress-value">${todayCount}</span>
                 </div>
                 <div class="progress-item">
-                    <span class="progress-label">${t("taskTime")}</span>
+                    <span class="progress-label">${i18n("taskTime")}</span>
                     <span class="progress-value">${this.formatTime(todayTime)}</span>
                 </div>
             </div>
@@ -408,7 +408,7 @@ export class TaskStatsView {
         const total = Object.values(stats).reduce((sum: number, value: any) => sum + value.time, 0);
 
         if (total === 0) {
-            return `<div class="no-data">${t("noData")}</div>`;
+            return `<div class="no-data">${i18n("noData")}</div>`;
         }
 
         // 生成唯一的图表ID
@@ -426,7 +426,7 @@ export class TaskStatsView {
         const dateStr = dateForDisplay.toLocaleDateString('zh-CN');
         const timeStr = session.startTime
             ? new Date(session.startTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-            : t("allDayReminder") || "\u5168\u5929";
+            : i18n("allDayReminder") || "\u5168\u5929";
 
         return `
             <div class="record-item task">
@@ -438,7 +438,7 @@ export class TaskStatsView {
                     <div class="record-meta">
                         <span class="record-date">${dateStr}</span>
                         <span class="record-time">${timeStr}</span>
-                        <span class="record-duration">${session.duration}${t("minutes")}</span>
+                        <span class="record-duration">${session.duration}${i18n("minutes")}</span>
                         ${session.completed ? '<span class=\"record-completed\">\u2705</span>' : ''}
                     </div>
                 </div>
@@ -602,7 +602,7 @@ export class TaskStatsView {
                 .reduce((sum, s) => sum + s.duration, 0);
 
             data.push({
-                label: i === 0 ? t("today") : date.toLocaleDateString('zh-CN', { weekday: 'short' }),
+                label: i === 0 ? i18n("today") : date.toLocaleDateString('zh-CN', { weekday: 'short' }),
                 value
             });
         }
@@ -1007,7 +1007,7 @@ export class TaskStatsView {
         return {
             id: sessionId,
             date: sessionDate,
-            eventTitle: reminder.title || t("unnamedNote"),
+            eventTitle: reminder.title || i18n("unnamedNote"),
             projectId: reminder.projectId || undefined,
             categoryId: reminder.categoryId || undefined,
             startTime: timing.startTime ? timing.startTime.toISOString() : undefined,
@@ -1035,19 +1035,19 @@ export class TaskStatsView {
         switch (this.currentDetailGroup) {
             case 'project': {
                 const projectName = session.projectId ? this.projectNameMap[session.projectId] : '';
-                return [projectName || t("uncategorizedProject")];
+                return [projectName || i18n("uncategorizedProject")];
             }
             case 'category': {
                 if (session.categoryId) {
                     const ids = session.categoryId.split(',').map(id => id.trim()).filter(id => id);
                     if (ids.length > 0) {
-                        return ids.map(id => this.categoryNameMap[id] || t("uncategorizedCategory"));
+                        return ids.map(id => this.categoryNameMap[id] || i18n("uncategorizedCategory"));
                     }
                 }
-                return [t("uncategorizedCategory")];
+                return [i18n("uncategorizedCategory")];
             }
             default:
-                return [session.eventTitle || t("uncategorized")];
+                return [session.eventTitle || i18n("uncategorized")];
         }
     }
 
@@ -1269,7 +1269,7 @@ export class TaskStatsView {
                 },
                 series: [
                     {
-                        name: t("taskTime"),
+                        name: i18n("taskTime"),
                         type: 'pie',
                         radius: ['40%', '70%'],
                         center: ['50%', '45%'],
@@ -1331,7 +1331,7 @@ export class TaskStatsView {
             const heatmapData = this.getHeatmapData(this.currentYear);
 
             if (heatmapData.length === 0) {
-                chartElement.innerHTML = `<div class="no-data" style="text-align: center; padding: 50px;">${t("noData")}</div>`;
+                chartElement.innerHTML = `<div class="no-data" style="text-align: center; padding: 50px;">${i18n("noData")}</div>`;
                 return;
             }
 
@@ -1401,7 +1401,7 @@ export class TaskStatsView {
                     inRange: {
                         color: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39']
                     },
-                    text: [t("more"), t("less")],
+                    text: [i18n("more"), i18n("less")],
                     textStyle: {
                         fontSize: 12
                     }
@@ -1471,7 +1471,7 @@ export class TaskStatsView {
             const timelineData = this.getTimelineData();
 
             if (timelineData.length === 0) {
-                chartElement.innerHTML = `<div class="no-data" style="text-align: center; padding: 50px;">${t("noData")}</div>`;
+                chartElement.innerHTML = `<div class="no-data" style="text-align: center; padding: 50px;">${i18n("noData")}</div>`;
                 return;
             }
 
@@ -1769,7 +1769,7 @@ export class TaskStatsView {
     }
 
     private async handleDeleteSession(_sessionId: string) {
-        showMessage(t("taskStatsDeleteUnsupported") || "任务统计暂不支持删除记录", 3000, "error");
+        showMessage(i18n("taskStatsDeleteUnsupported") || "任务统计暂不支持删除记录", 3000, "error");
     }
 
     private showDeleteConfirmation(): Promise<boolean> {

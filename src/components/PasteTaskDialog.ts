@@ -1,5 +1,5 @@
 import { Dialog, showMessage } from "siyuan";
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 import { autoDetectDateTimeFromTitle, getLocalDateTimeString } from "../utils/dateUtils";
 import { getBlockByID, updateBindBlockAtrrs } from "../api";
 import { getAllReminders, saveReminders } from "../utils/icsSubscription";
@@ -60,18 +60,18 @@ export class PasteTaskDialog {
         }
 
         const dialog = new Dialog({
-            title: isSubtask ? (t("pasteAsSubtasks") || "粘贴列表新建子任务") : (t("pasteAsTasks") || "粘贴列表新建任务"),
+            title: isSubtask ? (i18n("pasteAsSubtasks") || "粘贴列表新建子任务") : (i18n("pasteAsTasks") || "粘贴列表新建任务"),
             content: `
                 <div class="b3-dialog__content">
-                    <p>${t("pasteInstructions") || "粘贴Markdown列表或多行文本，每行将创建一个任务。支持多层级列表自动创建父子任务。"}</p>
+                    <p>${i18n("pasteInstructions") || "粘贴Markdown列表或多行文本，每行将创建一个任务。支持多层级列表自动创建父子任务。"}</p>
                     <p style="font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8; margin-bottom: 4px;">
-                        ${t("supportPrioritySyntax") || "支持语法："}<code>@priority=high&startDate=2025-08-12&endDate=2025-08-30</code>
+                        ${i18n("supportPrioritySyntax") || "支持语法："}<code>@priority=high&startDate=2025-08-12&endDate=2025-08-30</code>
                     </p>
                     <p style="font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8; margin-bottom: 4px;">
-                        ${t("supportBlockLink") || "支持块链接："}<code>[任务标题](siyuan://blocks/块ID)</code> 或 <code>((块ID '任务标题'))</code>
+                        ${i18n("supportBlockLink") || "支持块链接："}<code>[任务标题](siyuan://blocks/块ID)</code> 或 <code>((块ID '任务标题'))</code>
                     </p>
                     <p style="font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8; margin-bottom: 8px;">
-                        ${t("supportHierarchy") || "支持多层级：使用缩进或多个<code>-</code>符号创建父子任务关系"}
+                        ${i18n("supportHierarchy") || "支持多层级：使用缩进或多个<code>-</code>符号创建父子任务关系"}
                     </p>
                     ${selectorsHtml}
                     <textarea id="taskList" class="b3-text-field"
@@ -80,17 +80,17 @@ export class PasteTaskDialog {
                     <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;">
                         <label style="display: flex; align-items: center; cursor: pointer;">
                             <input id="autoDetectDate" type="checkbox" style="margin-right: 8px;">
-                            <span>${t("autoDetectDateTime")}</span>
+                            <span>${i18n("autoDetectDateTime")}</span>
                         </label>
                         <label id="removeDateLabel" style="display: flex; align-items: center; cursor: pointer; margin-left: 20px;">
                             <input id="removeDate" type="checkbox" style="margin-right: 8px;">
-                            <span>${t("removeDateAfterDetection")}</span>
+                            <span>${i18n("removeDateAfterDetection")}</span>
                         </label>
                     </div>
                 </div>
                 <div class="b3-dialog__action">
-                    <button class="b3-button b3-button--cancel" id="cancelBtn">${t("cancel") || "取消"}</button>
-                    <button class="b3-button b3-button--primary" id="createBtn">${isSubtask ? (t("createSubtasks") || "创建子任务") : (t("createTasks") || "创建任务")}</button>
+                    <button class="b3-button b3-button--cancel" id="cancelBtn">${i18n("cancel") || "取消"}</button>
+                    <button class="b3-button b3-button--primary" id="createBtn">${isSubtask ? (i18n("createSubtasks") || "创建子任务") : (i18n("createTasks") || "创建任务")}</button>
                 </div>
             `,
             width: "520px",
@@ -133,7 +133,7 @@ export class PasteTaskDialog {
         createBtn.addEventListener('click', async () => {
             const text = textArea.value.trim();
             if (!text) {
-                showMessage(t("contentNotEmpty") || "列表内容不能为空");
+                showMessage(i18n("contentNotEmpty") || "列表内容不能为空");
                 return;
             }
 
@@ -168,14 +168,14 @@ export class PasteTaskDialog {
                     if (this.config.onSuccess) {
                         this.config.onSuccess(totalTasks);
                     } else {
-                        showMessage(`${totalTasks} ${t("tasksCreated") || "个任务已创建"}`);
+                        showMessage(`${totalTasks} ${i18n("tasksCreated") || "个任务已创建"}`);
                     }
                 } catch (error) {
                     console.error('批量创建任务失败:', error);
                     if (this.config.onError) {
                         this.config.onError(error);
                     } else {
-                        showMessage(t("batchCreateFailed") || "批量创建任务失败");
+                        showMessage(i18n("batchCreateFailed") || "批量创建任务失败");
                     }
                 }
             }
@@ -309,7 +309,7 @@ export class PasteTaskDialog {
             if (endDate && !dateRegex.test(endDate)) endDate = undefined;
         }
 
-        return { title: title.trim() || t('noContentHint') || '未命名任务', priority, startDate, time, endDate, endTime, blockId, completed };
+        return { title: title.trim() || i18n('noContentHint') || '未命名任务', priority, startDate, time, endDate, endTime, blockId, completed };
     }
 
     private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[], selectedStatus?: string, selectedGroupId?: string | null) {
@@ -386,8 +386,8 @@ export class PasteTaskDialog {
                         newTask.blockId = task.blockId;
                         newTask.docId = block.root_id || task.blockId;
 
-                        if (!task.title || task.title === t('noContentHint') || task.title === '未命名任务') {
-                            newTask.title = block.content || block.fcontent || t('noContentHint') || '未命名任务';
+                        if (!task.title || task.title === i18n('noContentHint') || task.title === '未命名任务') {
+                            newTask.title = block.content || block.fcontent || i18n('noContentHint') || '未命名任务';
                         }
 
                         if (projectId) {
@@ -494,7 +494,7 @@ export class PasteTaskDialog {
 
         return `
             <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
-                <label style="font-size: 12px; color: var(--b3-theme-on-surface); white-space: nowrap;">${t('taskStatus') || '任务状态'}:</label>
+                <label style="font-size: 12px; color: var(--b3-theme-on-surface); white-space: nowrap;">${i18n('taskStatus') || '任务状态'}:</label>
                 <select id="pasteTaskStatus" class="b3-select" style="flex: 1; min-width: 100px;">
                     ${statusOptionsHtml}
                 </select>
@@ -507,7 +507,7 @@ export class PasteTaskDialog {
         const defaultGroupId = this.config.customGroupId || 'none';
 
         // 构建分组选项
-        let groupOptionsHtml = `<option value="none" ${!this.config.customGroupId ? 'selected' : ''}>${t('noGroup') || '无分组'}</option>`;
+        let groupOptionsHtml = `<option value="none" ${!this.config.customGroupId ? 'selected' : ''}>${i18n('noGroup') || '无分组'}</option>`;
 
         projectGroups.forEach((group: any) => {
             const selected = group.id === defaultGroupId ? 'selected' : '';
@@ -516,7 +516,7 @@ export class PasteTaskDialog {
 
         return `
             <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
-                <label style="font-size: 12px; color: var(--b3-theme-on-surface); white-space: nowrap;">${t('taskGroup') || '任务分组'}:</label>
+                <label style="font-size: 12px; color: var(--b3-theme-on-surface); white-space: nowrap;">${i18n('taskGroup') || '任务分组'}:</label>
                 <select id="pasteTaskGroup" class="b3-select" style="flex: 1; min-width: 100px;">
                     ${groupOptionsHtml}
                 </select>

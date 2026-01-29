@@ -4,7 +4,7 @@ import { getLocalDateString, compareDateStrings, getLocalDateTimeString, getLogi
 import { CategoryManager } from "../utils/categoryManager";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 
 export class DocumentReminderDialog {
     private dialog: Dialog;
@@ -44,7 +44,7 @@ export class DocumentReminderDialog {
 
     private createDialog() {
         this.dialog = new Dialog({
-            title: t("documentReminderManagement"),
+            title: i18n("documentReminderManagement"),
             content: this.createContent(),
             width: "800px",
             height: "800px",
@@ -66,41 +66,41 @@ export class DocumentReminderDialog {
                     <div class="doc-reminder-toolbar">
                         <div class="doc-reminder-filters">
                             <select class="b3-select doc-filter-select">
-                                <option value="all">${t("allReminders")}</option>
-                                <option value="uncompleted">${t("uncompleted")}</option>
-                                <option value="completed">${t("completed")}</option>
+                                <option value="all">${i18n("allReminders")}</option>
+                                <option value="uncompleted">${i18n("uncompleted")}</option>
+                                <option value="completed">${i18n("completed")}</option>
                             </select>
                             
                             <select class="b3-select doc-sort-select">
-                                <option value="time">${t("sortByTime")}</option>
-                                <option value="priority">${t("sortByPriority")}</option>
-                                <option value="completedTime" selected>${t("sortByCreated")}</option>
+                                <option value="time">${i18n("sortByTime")}</option>
+                                <option value="priority">${i18n("sortByPriority")}</option>
+                                <option value="completedTime" selected>${i18n("sortByCreated")}</option>
                             </select>
                             
-                            <button class="b3-button b3-button--outline doc-sort-order-btn" title="${t("sortDirection")}">
+                            <button class="b3-button b3-button--outline doc-sort-order-btn" title="${i18n("sortDirection")}">
                                 <svg class="b3-button__icon"><use xlink:href="#iconSort"></use></svg>
-                                <span>${t("descending")}</span>
+                                <span>${i18n("descending")}</span>
                             </button>
                             
-                            <button class="b3-button b3-button--primary doc-add-reminder-btn" title="${t("setTimeReminder")}">
+                            <button class="b3-button b3-button--primary doc-add-reminder-btn" title="${i18n("setTimeReminder")}">
                                 <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
-                                <span>${t("reminder")}</span>
+                                <span>${i18n("reminder")}</span>
                             </button>
                         </div>
                         
                         <div class="doc-reminder-search">
-                            <input type="text" class="b3-text-field doc-search-input" placeholder="${t("searchReminders")}">
+                            <input type="text" class="b3-text-field doc-search-input" placeholder="${i18n("searchReminders")}">
                         </div>
                     </div>
                     
                     <div class="doc-reminder-stats">
-                        <span class="doc-reminder-count">${t("loading")}</span>
+                        <span class="doc-reminder-count">${i18n("loading")}</span>
                     </div>
                 </div>
                 
                 <div class="doc-reminder-content">
                     <div class="doc-reminders-container">
-                        <div class="doc-reminder-loading">${t("loadingReminders")}</div>
+                        <div class="doc-reminder-loading">${i18n("loadingReminders")}</div>
                     </div>
                 </div>
             </div>
@@ -198,9 +198,9 @@ export class DocumentReminderDialog {
 
         const span = this.sortOrderBtn.querySelector('span');
         if (span) {
-            span.textContent = this.currentSortOrder === 'asc' ? t("ascending") : t("descending");
+            span.textContent = this.currentSortOrder === 'asc' ? i18n("ascending") : i18n("descending");
         }
-        this.sortOrderBtn.title = `${t("sortDirection")}: ${this.currentSortOrder === 'asc' ? t("ascending") : t("descending")}`;
+        this.sortOrderBtn.title = `${i18n("sortDirection")}: ${this.currentSortOrder === 'asc' ? i18n("ascending") : i18n("descending")}`;
     }
 
     private async loadReminders() {
@@ -211,13 +211,13 @@ export class DocumentReminderDialog {
                 return;
             }
 
-            this.remindersContainer.innerHTML = `<div class="doc-reminder-loading">${t("loadingReminders")}</div>`;
+            this.remindersContainer.innerHTML = `<div class="doc-reminder-loading">${i18n("loadingReminders")}</div>`;
 
             // 获取所有提醒数据
             const reminderData = await this.plugin.loadReminderData();
             if (!reminderData || typeof reminderData !== 'object') {
-                this.remindersContainer.innerHTML = `<div class="doc-reminder-empty">${t("noReminders")}</div>`;
-                this.countDisplay.textContent = `0 ${t("remindersCount")}`;
+                this.remindersContainer.innerHTML = `<div class="doc-reminder-empty">${i18n("noReminders")}</div>`;
+                this.countDisplay.textContent = `0 ${i18n("remindersCount")}`;
                 return;
             }
 
@@ -242,10 +242,10 @@ export class DocumentReminderDialog {
         } catch (error) {
             console.error('加载文档提醒失败:', error);
             if (this.remindersContainer) {
-                this.remindersContainer.innerHTML = `<div class="doc-reminder-error">${t("loadReminderError")}</div>`;
+                this.remindersContainer.innerHTML = `<div class="doc-reminder-error">${i18n("loadReminderError")}</div>`;
             }
             if (this.countDisplay) {
-                this.countDisplay.textContent = t("loadingFailed");
+                this.countDisplay.textContent = i18n("loadingFailed");
             }
         }
     }
@@ -488,13 +488,13 @@ export class DocumentReminderDialog {
         const uncompletedCount = totalCount - completedCount;
         const displayedCount = displayedReminders.length;
 
-        let statsText = `${t("totalRemindersCount")} ${totalCount} ${t("remindersCount")}`;
+        let statsText = `${i18n("totalRemindersCount")} ${totalCount} ${i18n("remindersCount")}`;
         if (totalCount > 0) {
-            statsText += ` (${uncompletedCount} ${t("uncompletedRemindersCount")}, ${completedCount} ${t("completedRemindersCount")})`;
+            statsText += ` (${uncompletedCount} ${i18n("uncompletedRemindersCount")}, ${completedCount} ${i18n("completedRemindersCount")})`;
         }
 
         if (displayedCount !== totalCount) {
-            statsText += ` ${t("displayCount")} ${displayedCount} ${t("displaying")}`;
+            statsText += ` ${i18n("displayCount")} ${displayedCount} ${i18n("displaying")}`;
         }
 
         this.countDisplay.textContent = statsText;
@@ -509,8 +509,8 @@ export class DocumentReminderDialog {
 
         if (reminders.length === 0) {
             const emptyMessage = this.searchQuery ?
-                t("searchNotFound").replace("${query}", this.searchQuery) :
-                t("noMatchingReminders");
+                i18n("searchNotFound").replace("${query}", this.searchQuery) :
+                i18n("noMatchingReminders");
             this.remindersContainer.innerHTML = `<div class="doc-reminder-empty">${emptyMessage}</div>`;
             return;
         }
@@ -565,7 +565,7 @@ export class DocumentReminderDialog {
 
         const titleEl = document.createElement('a');
         titleEl.className = 'doc-reminder-item__title';
-        titleEl.textContent = reminder.title || t("unnamedNote");
+        titleEl.textContent = reminder.title || i18n("unnamedNote");
         titleEl.href = '#';
         titleEl.addEventListener('click', (e) => {
             e.preventDefault();
@@ -591,7 +591,7 @@ export class DocumentReminderDialog {
             repeatIcon.textContent = '🔄';
             repeatIcon.title = reminder.repeat?.enabled ?
                 getRepeatDescription(reminder.repeat) :
-                t("repeatInstance");
+                i18n("repeatInstance");
             repeatIcon.style.cssText = `
                 font-size: 12px;
                 opacity: 0.7;
@@ -611,9 +611,9 @@ export class DocumentReminderDialog {
             const priorityLabel = document.createElement('span');
             priorityLabel.className = `doc-reminder-priority-label ${priority}`;
             const priorityNames = {
-                'high': t("highPriority"),
-                'medium': t("mediumPriority"),
-                'low': t("lowPriority")
+                'high': i18n("highPriority"),
+                'medium': i18n("mediumPriority"),
+                'low': i18n("lowPriority")
             };
             priorityLabel.innerHTML = `<div class="priority-dot ${priority}"></div>${priorityNames[priority]}`;
             timeEl.appendChild(priorityLabel);
@@ -623,7 +623,7 @@ export class DocumentReminderDialog {
         if (isOverdue) {
             const overdueLabel = document.createElement('span');
             overdueLabel.className = 'doc-reminder-overdue-label';
-            overdueLabel.textContent = t("overdue");
+            overdueLabel.textContent = i18n("overdue");
             timeEl.appendChild(overdueLabel);
         }
 
@@ -735,7 +735,7 @@ export class DocumentReminderDialog {
                     const extraCount = '';
                     const focusText = focusMinutes > 0 ? ` ⏱ ${pomodoroManager.formatTime(focusMinutes)}` : '';
                     pomodoroDisplay.innerHTML = `
-                        <span title="${t("completedPomodoroCount")}: ${count}">${tomatoEmojis}${extraCount}</span>
+                        <span title="${i18n("completedPomodoroCount")}: ${count}">${tomatoEmojis}${extraCount}</span>
                         <span title="总专注时长: ${focusMinutes} 分钟" style="margin-left:8px; opacity:0.9;">${focusText}</span>
                     `;
                     pomodoroDisplay.style.display = '';
@@ -778,7 +778,7 @@ export class DocumentReminderDialog {
                 completedIcon.style.cssText = 'font-size: 10px;';
 
                 const completedText = document.createElement('span');
-                completedText.textContent = `${t("completedAtTime")}${this.formatCompletedTime(completedTime)}`;
+                completedText.textContent = `${i18n("completedAtTime")}${this.formatCompletedTime(completedTime)}`;
 
                 completedTimeEl.appendChild(completedIcon);
                 completedTimeEl.appendChild(completedText);
@@ -793,7 +793,7 @@ export class DocumentReminderDialog {
 
         const editBtn = document.createElement('button');
         editBtn.className = 'b3-button b3-button--small';
-        editBtn.textContent = t("edit");
+        editBtn.textContent = i18n("edit");
         editBtn.addEventListener('click', () => {
             this.editReminder(reminder);
         });
@@ -828,9 +828,9 @@ export class DocumentReminderDialog {
 
         let dateStr = '';
         if (date === today) {
-            dateStr = t("today");
+            dateStr = i18n("today");
         } else if (date === tomorrowStr) {
-            dateStr = t("tomorrow");
+            dateStr = i18n("tomorrow");
         } else {
             const reminderDate = new Date(date + 'T00:00:00');
             dateStr = reminderDate.toLocaleDateString('zh-CN', {
@@ -843,9 +843,9 @@ export class DocumentReminderDialog {
         if (endDate && endDate !== date) {
             let endDateStr = '';
             if (endDate === today) {
-                endDateStr = t("today");
+                endDateStr = i18n("today");
             } else if (endDate === tomorrowStr) {
-                endDateStr = t("tomorrow");
+                endDateStr = i18n("tomorrow");
             } else {
                 const endReminderDate = new Date(endDate + 'T00:00:00');
                 endDateStr = endReminderDate.toLocaleDateString('zh-CN', {
@@ -875,9 +875,9 @@ export class DocumentReminderDialog {
             });
 
             if (completedDateStr === today) {
-                return `${t("completedToday")} ${timeStr}`;
+                return `${i18n("completedToday")} ${timeStr}`;
             } else if (completedDateStr === yesterdayStr) {
-                return `${t("completedYesterday")} ${timeStr}`;
+                return `${i18n("completedYesterday")} ${timeStr}`;
             } else {
                 const dateStr = completedDate.toLocaleDateString('zh-CN', {
                     month: 'short',
@@ -950,7 +950,7 @@ export class DocumentReminderDialog {
 
         } catch (error) {
             console.error('切换提醒状态失败:', error);
-            showMessage(t("operationFailed"));
+            showMessage(i18n("operationFailed"));
         }
     }
 
@@ -982,7 +982,7 @@ export class DocumentReminderDialog {
             openBlock(blockId);
         } catch (error) {
             console.error('打开块失败:', error);
-            showMessage(t("openNoteFailed"));
+            showMessage(i18n("openNoteFailed"));
         }
     }
 
@@ -1046,7 +1046,7 @@ export class DocumentReminderDialog {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
             </svg>
-            ${t("editReminder")}
+            ${i18n("editReminder")}
         `;
         editOption.addEventListener('click', () => {
             menu.remove();
@@ -1069,7 +1069,7 @@ export class DocumentReminderDialog {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
             </svg>
-            ${t("deleteReminderContextMenu")}
+            ${i18n("deleteReminderContextMenu")}
         `;
         deleteOption.addEventListener('click', () => {
             menu.remove();
@@ -1119,15 +1119,15 @@ export class DocumentReminderDialog {
 
         // 确认删除
         const confirmMessage = reminder.isRepeatInstance
-            ? t("deleteRepeatInstanceConfirm")
-                .replace("${title}", reminder.title || t("unnamedNote"))
+            ? i18n("deleteRepeatInstanceConfirm")
+                .replace("${title}", reminder.title || i18n("unnamedNote"))
                 .replace("${date}", reminder.date)
-            : t("deleteReminderConfirm")
-                .replace("${title}", reminder.title || t("unnamedNote"))
+            : i18n("deleteReminderConfirm")
+                .replace("${title}", reminder.title || i18n("unnamedNote"))
                 .replace("${date}", reminder.date);
 
         const confirmed = await confirm(
-            t("deleteReminderTitle"),
+            i18n("deleteReminderTitle"),
             confirmMessage,
             () => {
                 this.performDeleteReminder(reminder);
@@ -1163,11 +1163,11 @@ export class DocumentReminderDialog {
             // 重新加载提醒列表
             this.loadReminders();
 
-            showMessage(t("reminderDeletedSuccess"));
+            showMessage(i18n("reminderDeletedSuccess"));
 
         } catch (error) {
             console.error('删除提醒失败:', error);
-            showMessage(t("operationFailed"));
+            showMessage(i18n("operationFailed"));
         }
     }
 
@@ -1177,7 +1177,7 @@ export class DocumentReminderDialog {
         const originalReminder = reminderData[originalId];
 
         if (!originalReminder) {
-            throw new Error(t("originalReminderNotExist"));
+            throw new Error(i18n("originalReminderNotExist"));
         }
 
         // 如果是删除特定日期的实例，我们需要将其标记为已删除
@@ -1215,7 +1215,7 @@ export class DocumentReminderDialog {
         const reminderId = reminder.id;
 
         if (!reminderData[reminderId]) {
-            throw new Error(t("reminderNotExistError"));
+            throw new Error(i18n("reminderNotExistError"));
         }
 
         // 直接删除提醒

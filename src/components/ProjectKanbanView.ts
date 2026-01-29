@@ -1,7 +1,7 @@
 import { showMessage, confirm, Menu, Dialog } from "siyuan";
 
 import { refreshSql, getBlockByID, updateBindBlockAtrrs, openBlock } from "../api";
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 import { getLocalDateString, getLocalDateTimeString, compareDateStrings, getLogicalDateString, getRelativeDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
@@ -133,30 +133,30 @@ export class ProjectKanbanView {
 
     private async createGroupDialog(container: HTMLElement) {
         const dialog = new Dialog({
-            title: t('newGroup'),
+            title: i18n('newGroup'),
             content: `
                 <div class="b3-dialog__content">
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t('groupName')}</label>
-                        <input type="text" id="newGroupName" class="b3-text-field" placeholder="${t('pleaseEnterGroupName')}" style="width: 100%;">
+                        <label class="b3-form__label">${i18n('groupName')}</label>
+                        <input type="text" id="newGroupName" class="b3-text-field" placeholder="${i18n('pleaseEnterGroupName')}" style="width: 100%;">
                     </div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t('bindBlockId')} (${t('optional')})</label>
-                        <input type="text" id="newGroupBlockId" class="b3-text-field" placeholder="${t('pleaseEnterBlockId')}" style="width: 100%;">
-                        <div class="b3-label__text" style="margin-top: 4px; color: var(--b3-theme-on-surface-light);">${t('bindBlockIdHint')}</div>
+                        <label class="b3-form__label">${i18n('bindBlockId')} (${i18n('optional')})</label>
+                        <input type="text" id="newGroupBlockId" class="b3-text-field" placeholder="${i18n('pleaseEnterBlockId')}" style="width: 100%;">
+                        <div class="b3-label__text" style="margin-top: 4px; color: var(--b3-theme-on-surface-light);">${i18n('bindBlockIdHint')}</div>
                     </div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t('groupColor')}</label>
+                        <label class="b3-form__label">${i18n('groupColor')}</label>
                         <input type="color" id="newGroupColor" class="b3-text-field" value="#3498db" style="width: 100%;">
                     </div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t('iconOptional')}</label>
-                        <input type="text" id="newGroupIcon" class="b3-text-field" placeholder="${t('emojiIconExample')}" style="width: 100%;">
+                        <label class="b3-form__label">${i18n('iconOptional')}</label>
+                        <input type="text" id="newGroupIcon" class="b3-text-field" placeholder="${i18n('emojiIconExample')}" style="width: 100%;">
                     </div>
                 </div>
                 <div class="b3-dialog__action">
-                    <button class="b3-button b3-button--cancel" id="newGroupCancel">${t('cancel')}</button>
-                    <button class="b3-button b3-button--primary" id="newGroupSave">${t('createGroup')}</button>
+                    <button class="b3-button b3-button--cancel" id="newGroupCancel">${i18n('cancel')}</button>
+                    <button class="b3-button b3-button--primary" id="newGroupSave">${i18n('createGroup')}</button>
                 </div>
             `,
             width: '420px'
@@ -178,7 +178,7 @@ export class ProjectKanbanView {
             const blockId = blockIdInput.value.trim();
 
             if (!name) {
-                showMessage(t('pleaseEnterGroupName') || '请输入分组名称');
+                showMessage(i18n('pleaseEnterGroupName') || '请输入分组名称');
                 return;
             }
 
@@ -200,11 +200,11 @@ export class ProjectKanbanView {
                 await this.loadAndDisplayGroups(container);
                 this.queueLoadTasks();
 
-                showMessage(t('groupCreated'));
+                showMessage(i18n('groupCreated'));
                 dialog.destroy();
             } catch (error) {
                 console.error('创建分组失败:', error);
-                showMessage(t('createGroupFailed') || '创建分组失败');
+                showMessage(i18n('createGroupFailed') || '创建分组失败');
             }
         });
     }
@@ -299,15 +299,15 @@ export class ProjectKanbanView {
 
     private async showManageGroupsDialog() {
         const dialog = new Dialog({
-            title: t('manageCustomGroups'),
+            title: i18n('manageCustomGroups'),
             content: `
                 <div class="manage-groups-dialog">
                     <div class="b3-dialog__content">
                         <div class="groups-list" style="margin-bottom: 16px;">
                             <div class="groups-header" style="display: flex; justify-content: space-between; align-items: center;">
-                                <h4 style="margin: 0;">${t('existingGroups')}</h4>
+                                <h4 style="margin: 0;">${i18n('existingGroups')}</h4>
                                 <button id="addGroupBtn" class="b3-button b3-button--small b3-button--primary">
-                                    <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg> ${t('newGroup')}
+                                    <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg> ${i18n('newGroup')}
                                 </button>
                             </div>
                             <div id="groupsContainer" class="groups-container" style="max-height: 300px; overflow-y: auto;">
@@ -316,25 +316,25 @@ export class ProjectKanbanView {
                         </div>
 
                         <div id="groupForm" class="group-form" style="display: none; padding: 16px; background: var(--b3-theme-surface-lighter); border-radius: 8px; border: 1px solid var(--b3-theme-border);">
-                            <h4 id="formTitle" style="margin-top: 0;">${t('newGroup')}</h4>
+                            <h4 id="formTitle" style="margin-top: 0;">${i18n('newGroup')}</h4>
                             <div class="b3-form__group">
-                                <label class="b3-form__label">${t('groupName')}</label>
-                                <input type="text" id="groupNameInput" class="b3-text-field" placeholder="${t('pleaseEnterGroupName')}" style="width: 100%;">
+                                <label class="b3-form__label">${i18n('groupName')}</label>
+                                <input type="text" id="groupNameInput" class="b3-text-field" placeholder="${i18n('pleaseEnterGroupName')}" style="width: 100%;">
                             </div>
                             <div class="b3-form__group">
-                                <label class="b3-form__label">${t('groupColor')}</label>
+                                <label class="b3-form__label">${i18n('groupColor')}</label>
                                 <div class="color-picker" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
                                     <!-- 预设颜色选项 -->
                                 </div>
                                 <input type="color" id="groupColorInput" class="b3-text-field" value="#3498db" style="width: 100%; margin-top: 8px;">
                             </div>
                             <div class="b3-form__group">
-                                <label class="b3-form__label">${t('iconOptional')}</label>
-                                <input type="text" id="groupIconInput" class="b3-text-field" placeholder="${t('emojiIconExample')}" style="width: 100%;">
+                                <label class="b3-form__label">${i18n('iconOptional')}</label>
+                                <input type="text" id="groupIconInput" class="b3-text-field" placeholder="${i18n('emojiIconExample')}" style="width: 100%;">
                             </div>
                             <div class="form-actions" style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
-                                <button id="cancelFormBtn" class="b3-button b3-button--outline">${t('cancel')}</button>
-                                <button id="saveGroupBtn" class="b3-button b3-button--primary">${t('save')}</button>
+                                <button id="cancelFormBtn" class="b3-button b3-button--outline">${i18n('cancel')}</button>
+                                <button id="saveGroupBtn" class="b3-button b3-button--primary">${i18n('save')}</button>
                             </div>
                         </div>
                     </div>
@@ -396,7 +396,7 @@ export class ProjectKanbanView {
                 await this.createGroupDialog(groupsContainer);
             } catch (err) {
                 console.error('打开创建分组对话框失败:', err);
-                showMessage(t('openCreateGroupFailed') || '打开创建分组对话框失败');
+                showMessage(i18n('openCreateGroupFailed') || '打开创建分组对话框失败');
             }
         });
 
@@ -430,7 +430,7 @@ export class ProjectKanbanView {
                         currentGroups[groupIndex] = { ...currentGroups[groupIndex], name, color, icon };
                         newGroup = currentGroups[groupIndex];
                     }
-                    showMessage(t('groupUpdated'));
+                    showMessage(i18n('groupUpdated'));
                 } else {
                     // 创建新分组
                     const maxSort = currentGroups.reduce((max: number, g: any) => Math.max(max, g.sort || 0), 0);
@@ -442,7 +442,7 @@ export class ProjectKanbanView {
                         sort: maxSort + 10
                     };
                     currentGroups.push(newGroup);
-                    showMessage(t('groupCreated'));
+                    showMessage(i18n('groupCreated'));
                 }
 
                 // 保存到项目数据
@@ -456,7 +456,7 @@ export class ProjectKanbanView {
                 this.queueLoadTasks();
             } catch (error) {
                 console.error('保存分组失败:', error);
-                showMessage(t('saveGroupFailed'));
+                showMessage(i18n('saveGroupFailed'));
             }
         });
     }
@@ -471,15 +471,15 @@ export class ProjectKanbanView {
         let statuses = await projectManager.getProjectKanbanStatuses(this.projectId);
 
         const dialog = new Dialog({
-            title: t('manageKanbanStatuses') || '管理任务状态',
+            title: i18n('manageKanbanStatuses') || '管理任务状态',
             content: `
                 <div class="manage-statuses-dialog">
                     <div class="b3-dialog__content">
                         <div class="statuses-list" style="margin-bottom: 16px;">
                             <div class="statuses-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                                <h4 style="margin: 0;">${t('existingStatuses') || '现有状态'}</h4>
+                                <h4 style="margin: 0;">${i18n('existingStatuses') || '现有状态'}</h4>
                                 <button id="addStatusBtn" class="b3-button b3-button--small b3-button--primary">
-                                    <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg> ${t('newStatus') || '新增状态'}
+                                    <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg> ${i18n('newStatus') || '新增状态'}
                                 </button>
                             </div>
                             <div id="statusesContainer" class="statuses-container" style="max-height: 350px; overflow-y: auto;">
@@ -487,7 +487,7 @@ export class ProjectKanbanView {
                             </div>
                         </div>
                         <div class="b3-label__text" style="color: var(--b3-theme-on-surface-light); font-size: 12px;">
-                            ${t('kanbanStatusHint') || '提示："进行中"和"已完成"为固定状态，不支持重命名和删除，但支持排序和修改颜色。'}
+                            ${i18n('kanbanStatusHint') || '提示："进行中"和"已完成"为固定状态，不支持重命名和删除，但支持排序和修改颜色。'}
                         </div>
                     </div>
                 </div>
@@ -590,7 +590,7 @@ export class ProjectKanbanView {
             this.kanbanStatuses = statuses;
             this._lastRenderedProjectId = null;
             this.queueLoadTasks();
-            showMessage(t('statusOrderSaved') || '状态顺序已保存');
+            showMessage(i18n('statusOrderSaved') || '状态顺序已保存');
         });
 
         // 渲染状态列表
@@ -598,7 +598,7 @@ export class ProjectKanbanView {
             statusesContainer.innerHTML = '';
 
             if (statuses.length === 0) {
-                statusesContainer.innerHTML = `<div style="text-align: center; color: var(--b3-theme-on-surface); opacity: 0.6; padding: 20px;">${t('noStatuses') || '暂无状态'}</div>`;
+                statusesContainer.innerHTML = `<div style="text-align: center; color: var(--b3-theme-on-surface); opacity: 0.6; padding: 20px;">${i18n('noStatuses') || '暂无状态'}</div>`;
                 return;
             }
 
@@ -656,7 +656,7 @@ export class ProjectKanbanView {
                     padding: 2px 4px;
                     user-select: none;
                 `;
-                dragHandle.title = t('dragToSort') || '拖拽排序';
+                dragHandle.title = i18n('dragToSort') || '拖拽排序';
                 statusItem.appendChild(dragHandle);
 
                 // 颜色圆点
@@ -684,7 +684,7 @@ export class ProjectKanbanView {
 
                 // 状态名称
                 const nameSpan = document.createElement('span');
-                nameSpan.textContent = status.name + (status.isFixed ? ` (${t('fixed') || '固定'})` : '');
+                nameSpan.textContent = status.name + (status.isFixed ? ` (${i18n('fixed') || '固定'})` : '');
                 nameSpan.style.cssText = `
                     flex: 1;
                     font-weight: 500;
@@ -702,7 +702,7 @@ export class ProjectKanbanView {
                     const moveUpBtn = document.createElement('button');
                     moveUpBtn.className = 'b3-button b3-button--text';
                     moveUpBtn.innerHTML = '<svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconUp"></use></svg>';
-                    moveUpBtn.title = t('moveUp') || '上移';
+                    moveUpBtn.title = i18n('moveUp') || '上移';
                     moveUpBtn.style.cssText = 'padding: 2px; min-width: unset;';
                     moveUpBtn.addEventListener('click', async () => {
                         const currentIndex = statuses.findIndex(s => s.id === status.id);
@@ -729,7 +729,7 @@ export class ProjectKanbanView {
                     const moveDownBtn = document.createElement('button');
                     moveDownBtn.className = 'b3-button b3-button--text';
                     moveDownBtn.innerHTML = '<svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconDown"></use></svg>';
-                    moveDownBtn.title = t('moveDown') || '下移';
+                    moveDownBtn.title = i18n('moveDown') || '下移';
                     moveDownBtn.style.cssText = 'padding: 2px; min-width: unset;';
                     moveDownBtn.addEventListener('click', async () => {
                         const currentIndex = statuses.findIndex(s => s.id === status.id);
@@ -755,7 +755,7 @@ export class ProjectKanbanView {
                 const editBtn = document.createElement('button');
                 editBtn.className = 'b3-button b3-button--text';
                 editBtn.innerHTML = '<svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconEdit"></use></svg>';
-                editBtn.title = status.isFixed ? (t('editColor') || '编辑颜色') : (t('edit') || '编辑');
+                editBtn.title = status.isFixed ? (i18n('editColor') || '编辑颜色') : (i18n('edit') || '编辑');
                 editBtn.style.cssText = 'padding: 2px; min-width: unset;';
                 editBtn.addEventListener('click', () => showEditStatusDialog(status));
                 actionsDiv.appendChild(editBtn);
@@ -765,10 +765,10 @@ export class ProjectKanbanView {
                     const deleteBtn = document.createElement('button');
                     deleteBtn.className = 'b3-button b3-button--text';
                     deleteBtn.innerHTML = '<svg class="b3-button__icon" style="width: 14px; height: 14px; color: var(--b3-theme-error);"><use xlink:href="#iconTrashcan"></use></svg>';
-                    deleteBtn.title = t('delete') || '删除';
+                    deleteBtn.title = i18n('delete') || '删除';
                     deleteBtn.style.cssText = 'padding: 2px; min-width: unset;';
                     deleteBtn.addEventListener('click', () => {
-                        const confirmMsg = t('confirmDeleteStatus', { name: status.name }) || `确定要删除状态"${status.name}"吗？`;
+                        const confirmMsg = i18n('confirmDeleteStatus', { name: status.name }) || `确定要删除状态"${status.name}"吗？`;
                         confirm('确认删除', confirmMsg, async () => {
                             // 检查该状态下是否有任务
                             const tasksInStatus = this.tasks.filter(t => this.getTaskStatus(t) === status.id);
@@ -850,27 +850,27 @@ export class ProjectKanbanView {
         const showEditStatusDialog = (status: import('../utils/projectManager').KanbanStatus) => {
             const isFixed = status.isFixed;
             const editDialog = new Dialog({
-                title: isFixed ? (t('editStatusColor') || '编辑状态颜色') : (t('editStatus') || '编辑状态'),
+                title: isFixed ? (i18n('editStatusColor') || '编辑状态颜色') : (i18n('editStatus') || '编辑状态'),
                 content: `
                     <div class="b3-dialog__content">
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t('statusName') || '状态名称'}</label>
+                            <label class="b3-form__label">${i18n('statusName') || '状态名称'}</label>
                             <input type="text" id="editStatusName" class="b3-text-field" value="${status.name}" style="width: 100%;" ${isFixed ? 'disabled readonly' : ''}>
-                            ${isFixed ? `<div class="b3-label__text" style="color: var(--b3-theme-on-surface-light); font-size: 12px; margin-top: 4px;">${t('fixedStatusCannotRename') || '固定状态不支持修改名称'}</div>` : ''}
+                            ${isFixed ? `<div class="b3-label__text" style="color: var(--b3-theme-on-surface-light); font-size: 12px; margin-top: 4px;">${i18n('fixedStatusCannotRename') || '固定状态不支持修改名称'}</div>` : ''}
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t('statusIcon') || '状态图标'} <span style="font-weight: normal; color: var(--b3-theme-on-surface-light);">(${t('optional') || '可选'})</span></label>
-                            <input type="text" id="editStatusIcon" class="b3-text-field" value="${status.icon || ''}" placeholder="${t('emojiIconExample') || '例如: 📋'}" style="width: 100%;">
-                            <div class="b3-label__text" style="color: var(--b3-theme-on-surface-light); font-size: 12px; margin-top: 4px;">${t('statusIconHint') || '使用 emoji 作为状态图标，留空则不显示图标'}</div>
+                            <label class="b3-form__label">${i18n('statusIcon') || '状态图标'} <span style="font-weight: normal; color: var(--b3-theme-on-surface-light);">(${i18n('optional') || '可选'})</span></label>
+                            <input type="text" id="editStatusIcon" class="b3-text-field" value="${status.icon || ''}" placeholder="${i18n('emojiIconExample') || '例如: 📋'}" style="width: 100%;">
+                            <div class="b3-label__text" style="color: var(--b3-theme-on-surface-light); font-size: 12px; margin-top: 4px;">${i18n('statusIconHint') || '使用 emoji 作为状态图标，留空则不显示图标'}</div>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t('statusColor') || '状态颜色'}</label>
+                            <label class="b3-form__label">${i18n('statusColor') || '状态颜色'}</label>
                             <input type="color" id="editStatusColor" class="b3-text-field" value="${status.color}" style="width: 100%; height: 40px;">
                         </div>
                     </div>
                     <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="cancelEditBtn">${t('cancel')}</button>
-                        <button class="b3-button b3-button--primary" id="saveEditBtn">${t('save')}</button>
+                        <button class="b3-button b3-button--cancel" id="cancelEditBtn">${i18n('cancel')}</button>
+                        <button class="b3-button b3-button--primary" id="saveEditBtn">${i18n('save')}</button>
                     </div>
                 `,
                 width: "360px",
@@ -892,7 +892,7 @@ export class ProjectKanbanView {
 
                 // 固定状态不验证名称（因为不能修改）
                 if (!isFixed && !newName) {
-                    showMessage(t('pleaseEnterStatusName') || '请输入状态名称');
+                    showMessage(i18n('pleaseEnterStatusName') || '请输入状态名称');
                     return;
                 }
 
@@ -913,7 +913,7 @@ export class ProjectKanbanView {
                     this.kanbanStatuses = statuses;
                     this._lastRenderedProjectId = null; // 强制重新创建列
                     this.queueLoadTasks();
-                    showMessage(t('statusUpdated') || '状态已更新');
+                    showMessage(i18n('statusUpdated') || '状态已更新');
                 }
 
                 editDialog.destroy();
@@ -923,26 +923,26 @@ export class ProjectKanbanView {
         // 显示新增状态对话框
         addStatusBtn.addEventListener('click', () => {
             const addDialog = new Dialog({
-                title: t('newStatus') || '新增状态',
+                title: i18n('newStatus') || '新增状态',
                 content: `
                     <div class="b3-dialog__content">
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t('statusName') || '状态名称'}</label>
-                            <input type="text" id="newStatusName" class="b3-text-field" placeholder="${t('pleaseEnterStatusName') || '请输入状态名称'}" style="width: 100%;">
+                            <label class="b3-form__label">${i18n('statusName') || '状态名称'}</label>
+                            <input type="text" id="newStatusName" class="b3-text-field" placeholder="${i18n('pleaseEnterStatusName') || '请输入状态名称'}" style="width: 100%;">
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t('statusIcon') || '状态图标'} <span style="font-weight: normal; color: var(--b3-theme-on-surface-light);">(${t('optional') || '可选'})</span></label>
-                            <input type="text" id="newStatusIcon" class="b3-text-field" placeholder="${t('emojiIconExample') || '例如: 📋'}" style="width: 100%;">
-                            <div class="b3-label__text" style="color: var(--b3-theme-on-surface-light); font-size: 12px; margin-top: 4px;">${t('statusIconHint') || '使用 emoji 作为状态图标，留空则不显示图标'}</div>
+                            <label class="b3-form__label">${i18n('statusIcon') || '状态图标'} <span style="font-weight: normal; color: var(--b3-theme-on-surface-light);">(${i18n('optional') || '可选'})</span></label>
+                            <input type="text" id="newStatusIcon" class="b3-text-field" placeholder="${i18n('emojiIconExample') || '例如: 📋'}" style="width: 100%;">
+                            <div class="b3-label__text" style="color: var(--b3-theme-on-surface-light); font-size: 12px; margin-top: 4px;">${i18n('statusIconHint') || '使用 emoji 作为状态图标，留空则不显示图标'}</div>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t('statusColor') || '状态颜色'}</label>
+                            <label class="b3-form__label">${i18n('statusColor') || '状态颜色'}</label>
                             <input type="color" id="newStatusColor" class="b3-text-field" value="#3498db" style="width: 100%; height: 40px;">
                         </div>
                     </div>
                     <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="cancelAddBtn">${t('cancel')}</button>
-                        <button class="b3-button b3-button--primary" id="confirmAddBtn">${t('save')}</button>
+                        <button class="b3-button b3-button--cancel" id="cancelAddBtn">${i18n('cancel')}</button>
+                        <button class="b3-button b3-button--primary" id="confirmAddBtn">${i18n('save')}</button>
                     </div>
                 `,
                 width: "360px",
@@ -963,13 +963,13 @@ export class ProjectKanbanView {
                 const color = colorInput.value;
 
                 if (!name) {
-                    showMessage(t('pleaseEnterStatusName') || '请输入状态名称');
+                    showMessage(i18n('pleaseEnterStatusName') || '请输入状态名称');
                     return;
                 }
 
                 // 检查是否已存在相同名称
                 if (statuses.some(s => s.name === name)) {
-                    showMessage(t('statusNameExists') || '状态名称已存在');
+                    showMessage(i18n('statusNameExists') || '状态名称已存在');
                     return;
                 }
 
@@ -992,7 +992,7 @@ export class ProjectKanbanView {
                 this.kanbanStatuses = statuses;
                 this._lastRenderedProjectId = null; // 强制重新创建列
                 this.queueLoadTasks();
-                showMessage(t('statusCreated') || '状态已创建');
+                showMessage(i18n('statusCreated') || '状态已创建');
 
                 addDialog.destroy();
             });
@@ -1021,22 +1021,22 @@ export class ProjectKanbanView {
         this.kanbanStatuses = updatedStatuses;
         this._lastRenderedProjectId = null; // 强制重新创建列
         await this.queueLoadTasks();
-        showMessage(t('statusDeleted') || '状态已删除');
+        showMessage(i18n('statusDeleted') || '状态已删除');
         return updatedStatuses;
     }
 
 
     private async showManageTagsDialog() {
         const dialog = new Dialog({
-            title: t('manageProjectTags'),
+            title: i18n('manageProjectTags'),
             content: `
                 <div class="manage-tags-dialog">
                     <div class="b3-dialog__content">
                         <div class="tags-list" style="margin-bottom: 16px;">
                             <div class="tags-header" style="display: flex; justify-content: space-between; align-items: center;">
-                                <h4 style="margin: 0;">${t('existingTags')}</h4>
+                                <h4 style="margin: 0;">${i18n('existingTags')}</h4>
                                 <button id="addTagBtn" class="b3-button b3-button--small b3-button--primary">
-                                    <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg> ${t('newTag')}
+                                    <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg> ${i18n('newTag')}
                                 </button>
                             </div>
                             <div id="tagsContainer" class="tags-container" style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px;">
@@ -1062,7 +1062,7 @@ export class ProjectKanbanView {
                 tagsContainer.innerHTML = '';
 
                 if (projectTags.length === 0) {
-                    tagsContainer.innerHTML = `<div style="text-align: center; color: var(--b3-theme-on-surface); opacity: 0.6; padding: 20px; width: 100%;">${t('noTags')}</div>`;
+                    tagsContainer.innerHTML = `<div style="text-align: center; color: var(--b3-theme-on-surface); opacity: 0.6; padding: 20px; width: 100%;">${i18n('noTags')}</div>`;
                     return;
                 }
 
@@ -1090,7 +1090,7 @@ export class ProjectKanbanView {
                     const editBtn = document.createElement('button');
                     editBtn.className = 'b3-button b3-button--text';
                     editBtn.innerHTML = '<svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconEdit"></use></svg>';
-                    editBtn.title = t('edit');
+                    editBtn.title = i18n('edit');
                     editBtn.style.cssText = `
                         padding: 2px;
                         min-width: unset;
@@ -1106,7 +1106,7 @@ export class ProjectKanbanView {
                     const deleteBtn = document.createElement('button');
                     deleteBtn.className = 'b3-button b3-button--text';
                     deleteBtn.innerHTML = '<svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconClose"></use></svg>';
-                    deleteBtn.title = t('delete');
+                    deleteBtn.title = i18n('delete');
                     deleteBtn.style.cssText = `
                         padding: 2px;
                         min-width: unset;
@@ -1136,10 +1136,10 @@ export class ProjectKanbanView {
                 await projectManager.setProjectTags(this.projectId, updatedTags);
 
                 await loadAndDisplayTags();
-                showMessage(t('tagDeleted'));
+                showMessage(i18n('tagDeleted'));
             } catch (error) {
                 console.error('删除标签失败:', error);
-                showMessage(t('deleteTagFailed'));
+                showMessage(i18n('deleteTagFailed'));
             }
         };
 
@@ -1155,11 +1155,11 @@ export class ProjectKanbanView {
                         projectTags[index] = updatedTag;
                         await projectManager.setProjectTags(this.projectId, projectTags);
                         await loadAndDisplayTags();
-                        showMessage(t('tagUpdated'));
+                        showMessage(i18n('tagUpdated'));
                     }
                 } catch (error) {
                     console.error('更新标签失败:', error);
-                    showMessage(t('updateTagFailed'));
+                    showMessage(i18n('updateTagFailed'));
                 }
             });
         };
@@ -1171,15 +1171,15 @@ export class ProjectKanbanView {
             const defaultName = existingTag?.name || '';
 
             const tagDialog = new Dialog({
-                title: isEdit ? t('editTag') : t('newTag'),
+                title: isEdit ? i18n('editTag') : i18n('newTag'),
                 content: `
                     <div class="b3-dialog__content">
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t('tagName')}</label>
-                            <input type="text" id="tagNameInput" class="b3-text-field" placeholder="${t('pleaseEnterTagName')}" value="${defaultName}" style="width: 100%;">
+                            <label class="b3-form__label">${i18n('tagName')}</label>
+                            <input type="text" id="tagNameInput" class="b3-text-field" placeholder="${i18n('pleaseEnterTagName')}" value="${defaultName}" style="width: 100%;">
                         </div>
                         <div class="b3-form__group" style="margin-top: 12px;">
-                            <label class="b3-form__label">${t('tagColor')}</label>
+                            <label class="b3-form__label">${i18n('tagColor')}</label>
                             <div style="display: flex; gap: 8px; align-items: center;">
                                 <input type="color" id="tagColorInput" value="${defaultColor}" style="width: 60px; height: 32px; border: 1px solid var(--b3-border-color); border-radius: 4px; cursor: pointer;">
                                 <input type="text" id="tagColorText" class="b3-text-field" value="${defaultColor}" style="flex: 1;" readonly>
@@ -1188,8 +1188,8 @@ export class ProjectKanbanView {
                         </div>
                     </div>
                     <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="tagDialogCancel">${t('cancel')}</button>
-                        <button class="b3-button b3-button--primary" id="tagDialogSave">${t('save')}</button>
+                        <button class="b3-button b3-button--cancel" id="tagDialogCancel">${i18n('cancel')}</button>
+                        <button class="b3-button b3-button--primary" id="tagDialogSave">${i18n('save')}</button>
                     </div>
                 `,
                 width: '400px'
@@ -1217,7 +1217,7 @@ export class ProjectKanbanView {
                 const tagColor = colorInput.value;
 
                 if (!tagName) {
-                    showMessage(t('pleaseEnterTagName'));
+                    showMessage(i18n('pleaseEnterTagName'));
                     return;
                 }
 
@@ -1228,7 +1228,7 @@ export class ProjectKanbanView {
                     const projectTags = await projectManager.getProjectTags(this.projectId);
 
                     if (projectTags.some(t => t.name === tagName)) {
-                        showMessage(t('tagAlreadyExists'));
+                        showMessage(i18n('tagAlreadyExists'));
                         return;
                     }
                 }
@@ -1251,10 +1251,10 @@ export class ProjectKanbanView {
                     await projectManager.setProjectTags(this.projectId, projectTags);
 
                     await loadAndDisplayTags();
-                    showMessage(t('tagCreated'));
+                    showMessage(i18n('tagCreated'));
                 } catch (error) {
                     console.error('创建标签失败:', error);
-                    showMessage(t('createTagFailed'));
+                    showMessage(i18n('createTagFailed'));
                 }
             });
         });
@@ -1271,7 +1271,7 @@ export class ProjectKanbanView {
             container.innerHTML = '';
 
             if (projectGroups.length === 0) {
-                container.innerHTML = `<div style="text-align: center; color: var(--b3-theme-on-surface); opacity: 0.6; padding: 20px;">${t('noCustomGroups')}</div>`;
+                container.innerHTML = `<div style="text-align: center; color: var(--b3-theme-on-surface); opacity: 0.6; padding: 20px;">${i18n('noCustomGroups')}</div>`;
                 return;
             }
 
@@ -1403,7 +1403,7 @@ export class ProjectKanbanView {
                 const editBtn = document.createElement('button');
                 editBtn.className = 'b3-button b3-button--small b3-button--outline';
                 editBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconEdit"></use></svg>';
-                editBtn.title = t('editGroup');
+                editBtn.title = i18n('editGroup');
                 editBtn.style.cssText = `
                     display: inline-flex;
                     align-items: center;
@@ -1417,7 +1417,7 @@ export class ProjectKanbanView {
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'b3-button b3-button--outline';
                 deleteBtn.innerHTML = '<svg class="b3-button__icon" style="color: var(--b3-theme-error);"><use xlink:href="#iconTrashcan"></use></svg>';
-                deleteBtn.title = t('deleteGroup');
+                deleteBtn.title = i18n('deleteGroup');
                 deleteBtn.style.cssText = `
                     display: inline-flex;
                     align-items: center;
@@ -1597,30 +1597,30 @@ export class ProjectKanbanView {
 
     private async editGroup(group: any, _groupItem: HTMLElement, container: HTMLElement) {
         const dialog = new Dialog({
-            title: t('editGroup'),
+            title: i18n('editGroup'),
             content: `
                 <div class="b3-dialog__content">
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t('groupName')}</label>
+                        <label class="b3-form__label">${i18n('groupName')}</label>
                         <input type="text" id="editGroupName" class="b3-text-field" value="${group.name}" style="width: 100%;">
                     </div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t('bindBlockId')} (${t('optional')})</label>
-                        <input type="text" id="editGroupBlockId" class="b3-text-field" value="${group.blockId || ''}" placeholder="${t('pleaseEnterBlockId')}" style="width: 100%;">
-                        <div class="b3-label__text" style="margin-top: 4px; color: var(--b3-theme-on-surface-light);">${t('bindBlockIdHint')}</div>
+                        <label class="b3-form__label">${i18n('bindBlockId')} (${i18n('optional')})</label>
+                        <input type="text" id="editGroupBlockId" class="b3-text-field" value="${group.blockId || ''}" placeholder="${i18n('pleaseEnterBlockId')}" style="width: 100%;">
+                        <div class="b3-label__text" style="margin-top: 4px; color: var(--b3-theme-on-surface-light);">${i18n('bindBlockIdHint')}</div>
                     </div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t('groupColor')}</label>
+                        <label class="b3-form__label">${i18n('groupColor')}</label>
                         <input type="color" id="editGroupColor" class="b3-text-field" value="${group.color}" style="width: 100%;">
                     </div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t('iconOptional')}</label>
-                        <input type="text" id="editGroupIcon" class="b3-text-field" value="${group.icon || ''}" placeholder="${t('emojiIconExample')}" style="width: 100%;">
+                        <label class="b3-form__label">${i18n('iconOptional')}</label>
+                        <input type="text" id="editGroupIcon" class="b3-text-field" value="${group.icon || ''}" placeholder="${i18n('emojiIconExample')}" style="width: 100%;">
                     </div>
                 </div>
                 <div class="b3-dialog__action">
-                    <button class="b3-button b3-button--cancel" id="editCancelBtn">${t('cancel')}</button>
-                    <button class="b3-button b3-button--primary" id="editSaveBtn">${t('save')}</button>
+                    <button class="b3-button b3-button--cancel" id="editCancelBtn">${i18n('cancel')}</button>
+                    <button class="b3-button b3-button--primary" id="editSaveBtn">${i18n('save')}</button>
                 </div>
             `,
             width: "400px"
@@ -1705,7 +1705,7 @@ export class ProjectKanbanView {
                             titleEl.style.cursor = 'pointer';
                             titleEl.style.textDecoration = 'underline dotted';
                             titleEl.style.paddingBottom = '2px';
-                            titleEl.title = t('clickToJumpToBlock');
+                            titleEl.title = i18n('clickToJumpToBlock');
                             titleEl.addEventListener('click', (e) => {
                                 e.stopPropagation();
                                 openBlock(newBlockId);
@@ -1730,11 +1730,11 @@ export class ProjectKanbanView {
                     });
                 }
 
-                showMessage(t('groupUpdated'));
+                showMessage(i18n('groupUpdated'));
                 dialog.destroy();
             } catch (error) {
                 console.error('更新分组失败:', error);
-                showMessage(t('updateGroupFailed'));
+                showMessage(i18n('updateGroupFailed'));
             }
         });
     }
@@ -1746,7 +1746,7 @@ export class ProjectKanbanView {
         const groupToDelete = projectGroups.find((g: any) => g.id === groupId);
 
         if (!groupToDelete) {
-            showMessage(t('groupNotExist'));
+            showMessage(i18n('groupNotExist'));
             return;
         }
 
@@ -1758,39 +1758,39 @@ export class ProjectKanbanView {
 
         const hasTasks = tasksInGroup.length > 0;
 
-        let confirmMessage = t('confirmDeleteGroup', { name: groupToDelete.name });
+        let confirmMessage = i18n('confirmDeleteGroup', { name: groupToDelete.name });
 
         if (hasTasks) {
-            confirmMessage += `\n\n${t('groupHasTasks', { count: String(tasksInGroup.length) })}`;
+            confirmMessage += `\n\n${i18n('groupHasTasks', { count: String(tasksInGroup.length) })}`;
         }
 
         const dialog = new Dialog({
-            title: t('deleteGroup'),
+            title: i18n('deleteGroup'),
             content: `
                 <div class="delete-group-dialog">
                     <div class="b3-dialog__content">
                         <p>${confirmMessage}</p>
                         ${hasTasks ? `
                             <div class="b3-form__group">
-                                <label class="b3-form__label">${t('taskAction')}</label>
+                                <label class="b3-form__label">${i18n('taskAction')}</label>
                                 <div class="b3-radio">
                                     <label class="b3-radio">
                                         <input type="radio" name="taskAction" value="ungroup" checked>
                                         <span class="b3-radio__mark"></span>
-                                        <span class="b3-radio__text">${t('setTasksUngrouped')}</span>
+                                        <span class="b3-radio__text">${i18n('setTasksUngrouped')}</span>
                                     </label>
                                     <label class="b3-radio">
                                         <input type="radio" name="taskAction" value="delete">
                                         <span class="b3-radio__mark"></span>
-                                        <span class="b3-radio__text">${t('deleteAllTasks')}</span>
+                                        <span class="b3-radio__text">${i18n('deleteAllTasks')}</span>
                                     </label>
                                 </div>
                             </div>
                         ` : ''}
                     </div>
                     <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="deleteCancelBtn">${t('cancel')}</button>
-                        <button class="b3-button b3-button--error" id="deleteConfirmBtn">${t('deleteGroup')}</button>
+                        <button class="b3-button b3-button--cancel" id="deleteCancelBtn">${i18n('cancel')}</button>
+                        <button class="b3-button b3-button--error" id="deleteConfirmBtn">${i18n('deleteGroup')}</button>
                     </div>
                 </div>
             `,
@@ -1821,16 +1821,16 @@ export class ProjectKanbanView {
                         const taskData = task as any;
                         delete reminderData[taskData.id];
                     }
-                    showMessage(t('groupDeletedWithTasks', { count: String(tasksInGroup.length) }));
+                    showMessage(i18n('groupDeletedWithTasks', { count: String(tasksInGroup.length) }));
                 } else if (hasTasks && taskAction === 'ungroup') {
                     // 将任务设为未分组
                     for (const task of tasksInGroup) {
                         const taskData = task as any;
                         delete taskData.customGroupId;
                     }
-                    showMessage(t('groupDeletedTasksUngrouped', { count: String(tasksInGroup.length) }));
+                    showMessage(i18n('groupDeletedTasksUngrouped', { count: String(tasksInGroup.length) }));
                 } else {
-                    showMessage(t('groupDeleted'));
+                    showMessage(i18n('groupDeleted'));
                 }
 
                 // 保存任务数据（如果有任务被修改或删除）
@@ -1850,7 +1850,7 @@ export class ProjectKanbanView {
                 dialog.destroy();
             } catch (error) {
                 console.error('删除分组失败:', error);
-                showMessage(t('deleteGroupFailed'));
+                showMessage(i18n('deleteGroupFailed'));
                 dialog.destroy();
             }
         });
@@ -1870,7 +1870,7 @@ export class ProjectKanbanView {
         titleContainer.className = 'project-kanban-title';
 
         const titleEl = document.createElement('h2');
-        titleEl.textContent = this.project?.title || t('projectKanban');
+        titleEl.textContent = this.project?.title || i18n('projectKanban');
         titleEl.style.cssText = `
             margin: 0;
             font-size: 18px;
@@ -1883,7 +1883,7 @@ export class ProjectKanbanView {
             titleEl.style.cursor = 'pointer';
             titleEl.style.textDecoration = 'underline dotted';
             titleEl.style.textDecorationStyle = 'dotted';
-            titleEl.title = t('clickToJumpToProjectNote');
+            titleEl.title = i18n('clickToJumpToProjectNote');
             titleEl.setAttribute('data-has-note', 'true');
 
             titleEl.addEventListener('click', () => {
@@ -1928,13 +1928,13 @@ export class ProjectKanbanView {
         // 新建任务按钮
         const addTaskBtn = document.createElement('button');
         addTaskBtn.className = 'b3-button b3-button--primary';
-        addTaskBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg> ${t('newTask')}`;
+        addTaskBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg> ${i18n('newTask')}`;
         addTaskBtn.addEventListener('click', () => this.showCreateTaskDialog());
         controlsGroup.appendChild(addTaskBtn);
 
         const pasteTaskBtn = document.createElement('button');
         pasteTaskBtn.className = 'b3-button';
-        pasteTaskBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg> ${t('pasteNew')}`;
+        pasteTaskBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg> ${i18n('pasteNew')}`;
         pasteTaskBtn.addEventListener('click', () => this.showPasteTaskDialog(undefined, undefined, undefined, true));
         controlsGroup.appendChild(pasteTaskBtn);
 
@@ -1958,7 +1958,7 @@ export class ProjectKanbanView {
         const searchInput = document.createElement('input');
         searchInput.type = 'text';
         searchInput.className = 'b3-text-field search-input';
-        searchInput.placeholder = t('searchReminders');
+        searchInput.placeholder = i18n('searchReminders');
         searchInput.style.cssText = `
             width: 0;
             padding: 4px 0;
@@ -1975,7 +1975,7 @@ export class ProjectKanbanView {
         const searchBtn = document.createElement('button');
         searchBtn.className = 'b3-button b3-button--outline search-btn';
         searchBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconSearch"></use></svg>';
-        searchBtn.title = t('searchReminders');
+        searchBtn.title = i18n('searchReminders');
 
         searchBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -2022,7 +2022,7 @@ export class ProjectKanbanView {
         const refreshBtn = document.createElement('button');
         refreshBtn.className = 'b3-button b3-button--outline';
         refreshBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>';
-        refreshBtn.title = t('refresh');
+        refreshBtn.title = i18n('refresh');
         refreshBtn.addEventListener('click', async () => {
             // 重新加载项目信息（包括分组信息）
             await this.loadProject();
@@ -2065,7 +2065,7 @@ export class ProjectKanbanView {
         // 添加选项
         const statusOption = document.createElement('option');
         statusOption.value = 'status';
-        statusOption.textContent = t('statusKanban');
+        statusOption.textContent = i18n('statusKanban');
         if (this.kanbanMode === 'status') {
             statusOption.selected = true;
         }
@@ -2073,7 +2073,7 @@ export class ProjectKanbanView {
 
         const customOption = document.createElement('option');
         customOption.value = 'custom';
-        customOption.textContent = t('customGroupKanban');
+        customOption.textContent = i18n('customGroupKanban');
         if (this.kanbanMode === 'custom') {
             customOption.selected = true;
         }
@@ -2093,24 +2093,24 @@ export class ProjectKanbanView {
         // 设置任务状态按钮
         const manageStatusesBtn = document.createElement('button');
         manageStatusesBtn.className = 'b3-button b3-button--outline';
-        manageStatusesBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg> ${t('manageStatuses') || '任务状态'}`;
-        manageStatusesBtn.title = t('manageKanbanStatuses') || '管理任务状态';
+        manageStatusesBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg> ${i18n('manageStatuses') || '任务状态'}`;
+        manageStatusesBtn.title = i18n('manageKanbanStatuses') || '管理任务状态';
         manageStatusesBtn.addEventListener('click', () => this.showManageKanbanStatusesDialog());
         controlsGroup.appendChild(manageStatusesBtn);
 
         // 管理分组按钮
         const manageGroupsBtn = document.createElement('button');
         manageGroupsBtn.className = 'b3-button b3-button--outline';
-        manageGroupsBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg> ${t('manageGroups')}`;
-        manageGroupsBtn.title = t('manageCustomGroups');
+        manageGroupsBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg> ${i18n('manageGroups')}`;
+        manageGroupsBtn.title = i18n('manageCustomGroups');
         manageGroupsBtn.addEventListener('click', () => this.showManageGroupsDialog());
         controlsGroup.appendChild(manageGroupsBtn);
 
         // 管理标签按钮
         const manageTagsBtn = document.createElement('button');
         manageTagsBtn.className = 'b3-button b3-button--outline';
-        manageTagsBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconTags"></use></svg> ${t('manageTags')}`;
-        manageTagsBtn.title = t('manageProjectTags');
+        manageTagsBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconTags"></use></svg> ${i18n('manageTags')}`;
+        manageTagsBtn.title = i18n('manageProjectTags');
         manageTagsBtn.addEventListener('click', () => this.showManageTagsDialog());
         controlsGroup.appendChild(manageTagsBtn);
 
@@ -2118,8 +2118,8 @@ export class ProjectKanbanView {
         const multiSelectBtn = document.createElement('button');
         multiSelectBtn.className = 'b3-button b3-button--outline';
         multiSelectBtn.id = 'multiSelectBtn';
-        multiSelectBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconCheck"></use></svg> ${t('batchSelect') || '批量选择'}`;
-        multiSelectBtn.title = t('batchSelectMode') || '进入批量选择模式';
+        multiSelectBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconCheck"></use></svg> ${i18n('batchSelect') || '批量选择'}`;
+        multiSelectBtn.title = i18n('batchSelectMode') || '进入批量选择模式';
         multiSelectBtn.addEventListener('click', () => this.toggleMultiSelectMode());
         controlsGroup.appendChild(multiSelectBtn);
 
@@ -2131,10 +2131,10 @@ export class ProjectKanbanView {
         this.container.appendChild(kanbanContainer);
 
         // 创建四个列：进行中、短期、长期、已完成
-        this.createKanbanColumn(kanbanContainer, 'doing', t('doing'), '#f39c12');
-        this.createKanbanColumn(kanbanContainer, 'short_term', t('shortTerm'), '#3498db');
-        this.createKanbanColumn(kanbanContainer, 'long_term', t('longTerm'), '#9b59b6');
-        this.createKanbanColumn(kanbanContainer, 'completed', t('done'), '#27ae60');
+        this.createKanbanColumn(kanbanContainer, 'doing', i18n('doing'), '#f39c12');
+        this.createKanbanColumn(kanbanContainer, 'short_term', i18n('shortTerm'), '#3498db');
+        this.createKanbanColumn(kanbanContainer, 'long_term', i18n('longTerm'), '#9b59b6');
+        this.createKanbanColumn(kanbanContainer, 'completed', i18n('done'), '#27ae60');
 
         // 添加自定义样式
         this.addCustomStyles();
@@ -2222,7 +2222,7 @@ export class ProjectKanbanView {
             const addTaskBtn = document.createElement('button');
             addTaskBtn.className = 'b3-button b3-button--outline';
             addTaskBtn.style.cssText = 'margin-left:8px;';
-            addTaskBtn.title = t('newTask');
+            addTaskBtn.title = i18n('newTask');
             addTaskBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>`;
             addTaskBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -2234,7 +2234,7 @@ export class ProjectKanbanView {
             // 粘贴新建任务按钮
             const pasteTaskBtn = document.createElement('button');
             pasteTaskBtn.className = 'b3-button b3-button--outline';
-            pasteTaskBtn.title = t('pasteNew');
+            pasteTaskBtn.title = i18n('pasteNew');
             pasteTaskBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg>`;
             pasteTaskBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -2373,7 +2373,7 @@ export class ProjectKanbanView {
                         await this.projectManager.setProjectKanbanStatuses(this.projectId, this.kanbanStatuses);
                         this._lastRenderedProjectId = null;
                         this.queueLoadTasks();
-                        showMessage(t('statusOrderSaved') || '状态顺序已保存');
+                        showMessage(i18n('statusOrderSaved') || '状态顺序已保存');
                     } catch (err) {
                         console.error('保存状态顺序失败', err);
                     }
@@ -3417,31 +3417,31 @@ export class ProjectKanbanView {
     private updateSortButtonTitle() {
         if (this.sortButton) {
             const sortNames = {
-                'time': t('sortingTime'),
-                'priority': t('sortingPriority'),
-                'title': t('sortingTitle')
+                'time': i18n('sortingTime'),
+                'priority': i18n('sortingPriority'),
+                'title': i18n('sortingTitle')
             };
             const orderNames = {
-                'asc': t('ascendingOrder'),
-                'desc': t('descendingOrder')
+                'asc': i18n('ascendingOrder'),
+                'desc': i18n('descendingOrder')
             };
-            this.sortButton.title = `${t('sortBy')}: ${sortNames[this.currentSort]} (${orderNames[this.currentSortOrder]})`;
+            this.sortButton.title = `${i18n('sortBy')}: ${sortNames[this.currentSort]} (${orderNames[this.currentSortOrder]})`;
         }
     }
 
     private updateDoneSortButtonTitle() {
         if (this.doneSortButton) {
             const sortNames = {
-                'completedTime': t('sortByCompletedTime'),
-                'title': t('sortingTitle'),
-                'priority': t('sortingPriority'),
-                'time': t('sortBySetTime')
+                'completedTime': i18n('sortByCompletedTime'),
+                'title': i18n('sortingTitle'),
+                'priority': i18n('sortingPriority'),
+                'time': i18n('sortBySetTime')
             };
             const orderNames = {
-                'asc': t('ascendingOrder'),
-                'desc': t('descendingOrder')
+                'asc': i18n('ascendingOrder'),
+                'desc': i18n('descendingOrder')
             };
-            this.doneSortButton.title = `${t('sortBy')}: ${sortNames[this.doneSort] || t('sortByCompletedTime')} (${orderNames[this.doneSortOrder] || t('descendingOrder')})`;
+            this.doneSortButton.title = `${i18n('sortBy')}: ${sortNames[this.doneSort] || i18n('sortByCompletedTime')} (${orderNames[this.doneSortOrder] || i18n('descendingOrder')})`;
         }
     }
 
@@ -4159,7 +4159,7 @@ export class ProjectKanbanView {
                     const addGroupTaskBtn = document.createElement('button');
                     addGroupTaskBtn.className = 'b3-button b3-button--small b3-button--primary';
                     addGroupTaskBtn.style.cssText = 'margin-left:8px;';
-                    addGroupTaskBtn.title = t('newTask');
+                    addGroupTaskBtn.title = i18n('newTask');
                     addGroupTaskBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>`;
                     addGroupTaskBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
@@ -4324,7 +4324,7 @@ export class ProjectKanbanView {
             titleEl.style.cursor = 'pointer';
             titleEl.style.textDecoration = 'underline dotted';
             titleEl.style.paddingBottom = '2px';
-            titleEl.title = t('clickToJumpToBlock');
+            titleEl.title = i18n('clickToJumpToBlock');
             titleEl.addEventListener('click', (e) => {
                 e.stopPropagation();
                 openBlock(group.blockId);
@@ -4352,7 +4352,7 @@ export class ProjectKanbanView {
         const addGroupTaskBtn = document.createElement('button');
         addGroupTaskBtn.className = 'b3-button b3-button--outline';
         addGroupTaskBtn.style.cssText = 'margin-left:8px;';
-        addGroupTaskBtn.title = t('newTask');
+        addGroupTaskBtn.title = i18n('newTask');
         addGroupTaskBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>`;
         addGroupTaskBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -4363,7 +4363,7 @@ export class ProjectKanbanView {
         // 粘贴新建任务按钮（对应该自定义分组）
         const pasteGroupTaskBtn = document.createElement('button');
         pasteGroupTaskBtn.className = 'b3-button b3-button--outline';
-        pasteGroupTaskBtn.title = t('pasteNew');
+        pasteGroupTaskBtn.title = i18n('pasteNew');
         pasteGroupTaskBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg>`;
         pasteGroupTaskBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -4610,7 +4610,7 @@ export class ProjectKanbanView {
             const addTaskBtn = document.createElement('button');
             addTaskBtn.className = 'b3-button b3-button--text';
             addTaskBtn.style.cssText = 'padding: 2px; margin-left: 4px;';
-            addTaskBtn.title = t('newTask');
+            addTaskBtn.title = i18n('newTask');
             addTaskBtn.innerHTML = `<svg style="width: 14px; height: 14px;"><use xlink:href="#iconAdd"></use></svg>`;
             addTaskBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -4621,7 +4621,7 @@ export class ProjectKanbanView {
             const pasteTaskBtn = document.createElement('button');
             pasteTaskBtn.className = 'b3-button b3-button--text';
             pasteTaskBtn.style.cssText = 'padding: 2px; margin-left: 2px;';
-            pasteTaskBtn.title = t('pasteNew');
+            pasteTaskBtn.title = i18n('pasteNew');
             pasteTaskBtn.innerHTML = `<svg style="width: 14px; height: 14px;"><use xlink:href="#iconPaste"></use></svg>`;
             pasteTaskBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -4857,7 +4857,7 @@ export class ProjectKanbanView {
             const addTaskBtn = document.createElement('button');
             addTaskBtn.className = 'b3-button b3-button--text';
             addTaskBtn.style.cssText = 'padding: 2px; margin-left: 2px;';
-            addTaskBtn.title = t('newTask');
+            addTaskBtn.title = i18n('newTask');
             addTaskBtn.innerHTML = `<svg style="width: 14px; height: 14px;"><use xlink:href="#iconAdd"></use></svg>`;
             addTaskBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -4869,7 +4869,7 @@ export class ProjectKanbanView {
             const pasteTaskBtn = document.createElement('button');
             pasteTaskBtn.className = 'b3-button b3-button--text';
             pasteTaskBtn.style.cssText = 'padding: 2px; margin-left: 2px;';
-            pasteTaskBtn.title = t('pasteNew');
+            pasteTaskBtn.title = i18n('pasteNew');
             pasteTaskBtn.innerHTML = `<svg style="width: 14px; height: 14px;"><use xlink:href="#iconPaste"></use></svg>`;
             pasteTaskBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -5076,7 +5076,7 @@ export class ProjectKanbanView {
             const collapseBtn = document.createElement('button');
             collapseBtn.className = 'b3-button b3-button--text kanban-task-collapse-btn';
             collapseBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#icon${isCollapsed ? 'Right' : 'Down'}"></use></svg>`;
-            collapseBtn.title = isCollapsed ? t('expandSubtasks') : t('collapseSubtasks');
+            collapseBtn.title = isCollapsed ? i18n('expandSubtasks') : i18n('collapseSubtasks');
             collapseBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (isCollapsed) {
@@ -5100,7 +5100,7 @@ export class ProjectKanbanView {
             checkboxEl.title = '点击完成/取消完成任务';
             if (task.isSubscribed) {
                 checkboxEl.disabled = true;
-                checkboxEl.title = t("subscribedTaskReadOnly") || "订阅任务（只读）";
+                checkboxEl.title = i18n("subscribedTaskReadOnly") || "订阅任务（只读）";
             } else {
                 checkboxEl.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -5160,15 +5160,15 @@ export class ProjectKanbanView {
             `;
         }
 
-        titleEl.textContent = task.title || t('noContentHint');
-        titleEl.title = (task.blockId || task.docId) ? t('clickToOpenBoundBlock', { title: task.title || t('noContentHint') }) : (task.title || t('noContentHint'));
+        titleEl.textContent = task.title || i18n('noContentHint');
+        titleEl.title = (task.blockId || task.docId) ? i18n('clickToOpenBoundBlock', { title: task.title || i18n('noContentHint') }) : (task.title || i18n('noContentHint'));
 
         // 如果有子任务，添加数量指示器
         if (childTasks.length > 0) {
             const subtaskIndicator = document.createElement('span');
             subtaskIndicator.className = 'subtask-indicator';
             subtaskIndicator.textContent = ` (${childTasks.length})`;
-            subtaskIndicator.title = t('containsNSubtasks', { count: String(childTasks.length) });
+            subtaskIndicator.title = i18n('containsNSubtasks', { count: String(childTasks.length) });
             subtaskIndicator.style.cssText = `
                 font-size: 12px;
                 color: var(--b3-theme-on-surface);
@@ -5188,7 +5188,7 @@ export class ProjectKanbanView {
             urlIcon.className = 'kanban-task-url-icon';
             urlIcon.href = task.url;
             urlIcon.target = '_blank';
-            urlIcon.title = t("openUrl") + ': ' + task.url;
+            urlIcon.title = i18n("openUrl") + ': ' + task.url;
             urlIcon.innerHTML = '<svg style="width: 14px; height: 14px;"><use xlink:href="#iconLink"></use></svg>';
             urlIcon.style.cssText = 'color: var(--b3-theme-primary); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; flex-shrink: 0;';
             urlIcon.addEventListener('click', (e) => {
@@ -5772,7 +5772,7 @@ export class ProjectKanbanView {
 
         // 辅助函数：创建过期徽章（completed 为 true 时使用“X天前”的词语）
         const createExpiredBadge = (days: number, completed: boolean = false): string => {
-            const text = completed ? t('daysAgo', { days: String(days) }) : t('overdueDays', { days: String(days) });
+            const text = completed ? i18n('daysAgo', { days: String(days) }) : i18n('overdueDays', { days: String(days) });
             return `<span class="countdown-badge countdown-normal" style="background-color: rgba(231, 76, 60, 0.15); color: #e74c3c; border: 1px solid rgba(231, 76, 60, 0.3);">${text}</span>`;
         };
 
@@ -5793,21 +5793,21 @@ export class ProjectKanbanView {
             }
 
             if (logicalEnd === today) {
-                return t('todayDeadline');
+                return i18n('todayDeadline');
             } else if (logicalEnd === tomorrowStr) {
-                return t('tomorrowDeadline');
+                return i18n('tomorrowDeadline');
             } else {
                 const dateStr = formatDateWithYear(task.endDate, endDate);
-                return `${dateStr} ${t('countdownEnd')}`;
+                return `${dateStr} ${i18n('countdownEnd')}`;
             }
         }
 
         // 如果有开始时间，按逻辑日期显示
         let dateStr = '';
         if (logicalStart === today) {
-            dateStr = t('today');
+            dateStr = i18n('today');
         } else if (logicalStart === tomorrowStr) {
-            dateStr = t('tomorrow');
+            dateStr = i18n('tomorrow');
         } else {
             const taskDate = new Date(task.date);
             const taskYear = taskDate.getFullYear();
@@ -5893,7 +5893,7 @@ export class ProjectKanbanView {
 
             if (endDays >= 0) {
                 return {
-                    text: endDays === 0 ? t('todayEnd') : t('endsInNDays', { days: String(endDays) }),
+                    text: endDays === 0 ? i18n('todayEnd') : i18n('endsInNDays', { days: String(endDays) }),
                     days: endDays,
                     type: 'end'
                 };
@@ -5909,7 +5909,7 @@ export class ProjectKanbanView {
             // 如果还没开始
             if (startDays > 0) {
                 return {
-                    text: t('startsInNDays', { days: String(startDays) }),
+                    text: i18n('startsInNDays', { days: String(startDays) }),
                     days: startDays,
                     type: 'start'
                 };
@@ -5922,7 +5922,7 @@ export class ProjectKanbanView {
 
                 if (endDays >= 0) {
                     return {
-                        text: endDays === 0 ? t('todayEnd') : t('endsInNDays', { days: String(endDays) }),
+                        text: endDays === 0 ? i18n('todayEnd') : i18n('endsInNDays', { days: String(endDays) }),
                         days: endDays,
                         type: 'end'
                     };
@@ -5937,7 +5937,7 @@ export class ProjectKanbanView {
 
             if (endDays >= 0) {
                 return {
-                    text: endDays === 0 ? t('todayEnd') : t('endsInNDays', { days: String(endDays) }),
+                    text: endDays === 0 ? i18n('todayEnd') : i18n('endsInNDays', { days: String(endDays) }),
                     days: endDays,
                     type: 'end'
                 };
@@ -6045,7 +6045,7 @@ export class ProjectKanbanView {
 
         menu.addItem({
             iconHTML: "ℹ️",
-            label: t("subscribedTaskReadOnly") || "订阅任务（只读）",
+            label: i18n("subscribedTaskReadOnly") || "订阅任务（只读）",
             disabled: true
         });
         menu.addSeparator();
@@ -6055,12 +6055,12 @@ export class ProjectKanbanView {
         if (targetId) {
             menu.addItem({
                 iconHTML: "📖",
-                label: t("openNote") || "打开笔记",
+                label: i18n("openNote") || "打开笔记",
                 click: () => this.openBlockTab(targetId)
             });
             menu.addItem({
                 iconHTML: "📋",
-                label: t("copyBlockRef") || "复制块引用",
+                label: i18n("copyBlockRef") || "复制块引用",
                 click: () => this.copyBlockRef(task)
             });
         }
@@ -6070,12 +6070,12 @@ export class ProjectKanbanView {
         // 生产力工具
         menu.addItem({
             iconHTML: "🍅",
-            label: t("startPomodoro") || "开始番茄钟",
+            label: i18n("startPomodoro") || "开始番茄钟",
             click: () => this.startPomodoro(task)
         });
         menu.addItem({
             iconHTML: "⏱️",
-            label: t("startCountUp") || "开始正向计时",
+            label: i18n("startCountUp") || "开始正向计时",
             click: () => this.startPomodoroCountUp(task)
         });
 
@@ -6095,39 +6095,39 @@ export class ProjectKanbanView {
             // 周期事件实例 - 显示修改此实例和修改所有实例
             menu.addItem({
                 iconHTML: "📝",
-                label: t('modifyThisInstance'),
+                label: i18n('modifyThisInstance'),
                 click: () => this.editInstanceReminder(task)
             });
             menu.addItem({
                 iconHTML: "🔄",
-                label: t('modifyAllInstances'),
+                label: i18n('modifyAllInstances'),
                 click: () => this.editTask(task)
             });
         } else if (task.repeat?.enabled) {
             // 原始周期事件 - 只显示编辑选项
             menu.addItem({
                 iconHTML: "📝",
-                label: t('editTask'),
+                label: i18n('editTask'),
                 click: () => this.editTask(task)
             });
         } else {
             // 普通任务
             menu.addItem({
                 iconHTML: "📝",
-                label: t('editTask'),
+                label: i18n('editTask'),
                 click: () => this.editTask(task)
             });
             // 绑定块功能
             if (task.blockId || task.docId) {
                 menu.addItem({
                     iconHTML: "📋",
-                    label: t('copyBlockRef'),
+                    label: i18n('copyBlockRef'),
                     click: () => this.copyBlockRef(task)
                 });
             } else {
                 menu.addItem({
                     iconHTML: "🔗",
-                    label: t('bindToBlock'),
+                    label: i18n('bindToBlock'),
                     click: () => this.showBindToBlockDialog(task)
                 });
             }
@@ -6135,14 +6135,14 @@ export class ProjectKanbanView {
 
         menu.addItem({
             iconHTML: "➕",
-            label: t('createSubtask'),
+            label: i18n('createSubtask'),
             click: () => this.showCreateTaskDialog(task)
         });
 
         // 粘贴新建子任务
         menu.addItem({
             iconHTML: "📋",
-            label: t('pasteCreateSubtask'),
+            label: i18n('pasteCreateSubtask'),
             click: () => this.showPasteTaskDialog(task)
         });
 
@@ -6150,7 +6150,7 @@ export class ProjectKanbanView {
         if (task.parentId) {
             menu.addItem({
                 iconHTML: "🔗",
-                label: t('unsetParentRelation'),
+                label: i18n('unsetParentRelation'),
                 click: () => this.unsetParentChildRelation(task)
             });
         }
@@ -6162,10 +6162,10 @@ export class ProjectKanbanView {
         // 设置优先级子菜单
         const priorityMenuItems = [];
         const priorities = [
-            { key: 'high', label: t('priorityHigh'), icon: '🔴' },
-            { key: 'medium', label: t('priorityMedium'), icon: '🟡' },
-            { key: 'low', label: t('priorityLow'), icon: '🔵' },
-            { key: 'none', label: t('none'), icon: '⚫' }
+            { key: 'high', label: i18n('priorityHigh'), icon: '🔴' },
+            { key: 'medium', label: i18n('priorityMedium'), icon: '🟡' },
+            { key: 'low', label: i18n('priorityLow'), icon: '🔵' },
+            { key: 'none', label: i18n('none'), icon: '⚫' }
         ];
 
         const currentPriority = task.priority || 'none';
@@ -6180,7 +6180,7 @@ export class ProjectKanbanView {
 
         menu.addItem({
             iconHTML: "🎯",
-            label: t('setPriority'),
+            label: i18n('setPriority'),
             submenu: priorityMenuItems
         });
 
@@ -6197,7 +6197,7 @@ export class ProjectKanbanView {
                 // 添加"移除分组"选项
                 groupMenuItems.push({
                     iconHTML: "❌",
-                    label: t('removeGroup'),
+                    label: i18n('removeGroup'),
                     current: !currentGroupId,
                     // 传入 task 对象（setTaskCustomGroup 期望第一个参数为 task 对象）
                     click: () => this.setTaskCustomGroup(task, null)
@@ -6272,7 +6272,7 @@ export class ProjectKanbanView {
 
                 menu.addItem({
                     iconHTML: "🏷️",
-                    label: t('setTags'),
+                    label: i18n('setTags'),
                     submenu: tagMenuItems
                 });
             }
@@ -6292,7 +6292,7 @@ export class ProjectKanbanView {
         if (currentStatus !== 'doing') {
             menu.addItem({
                 iconHTML: "⚡",
-                label: t('moveToDoing'),
+                label: i18n('moveToDoing'),
                 click: () => this.changeTaskStatus(task, 'doing')
             });
         }
@@ -6300,7 +6300,7 @@ export class ProjectKanbanView {
         if (currentStatus !== 'done') {
             menu.addItem({
                 iconHTML: "✅",
-                label: t('markCompleted'),
+                label: i18n('markCompleted'),
                 click: () => this.changeTaskStatus(task, 'done')
             });
         }
@@ -6310,13 +6310,13 @@ export class ProjectKanbanView {
         // 番茄钟
         menu.addItem({
             iconHTML: "🍅",
-            label: t('startPomodoro'),
+            label: i18n('startPomodoro'),
             click: () => this.startPomodoro(task)
         });
 
         menu.addItem({
             iconHTML: "⏱️",
-            label: t('startStopwatch'),
+            label: i18n('startStopwatch'),
             click: () => this.startPomodoroCountUp(task)
         });
 
@@ -6327,19 +6327,19 @@ export class ProjectKanbanView {
             // 周期事件实例 - 显示删除此实例和删除所有实例
             menu.addItem({
                 iconHTML: "🗑️",
-                label: t('deleteThisInstance'),
+                label: i18n('deleteThisInstance'),
                 click: () => this.deleteInstanceOnly(task)
             });
             menu.addItem({
                 iconHTML: "🗑️",
-                label: t('deleteAllInstances'),
+                label: i18n('deleteAllInstances'),
                 click: () => this.deleteTask(task)
             });
         } else {
             // 普通任务或原始周期事件
             menu.addItem({
                 iconHTML: "🗑️",
-                label: t('deleteTask'),
+                label: i18n('deleteTask'),
                 click: () => this.deleteTask(task)
             });
         }
@@ -6348,7 +6348,7 @@ export class ProjectKanbanView {
         if (childTasks.length > 0) {
             menu.addItem({
                 iconHTML: "📋",
-                label: t('copySubtasksAsList'),
+                label: i18n('copySubtasksAsList'),
                 click: () => {
                     const childLines = this.buildMarkdownListFromChildren(task.id);
                     if (childLines && childLines.length > 0) {
@@ -6356,7 +6356,7 @@ export class ProjectKanbanView {
                         // 复制到剪贴板
                         try {
                             navigator.clipboard.writeText(text);
-                            showMessage(t('copiedSubtasksList'));
+                            showMessage(i18n('copiedSubtasksList'));
                         } catch (err) {
                             // 备用：使用临时 textarea
                             const ta = document.createElement('textarea');
@@ -6365,10 +6365,10 @@ export class ProjectKanbanView {
                             ta.select();
                             document.execCommand('copy');
                             document.body.removeChild(ta);
-                            showMessage(t('copiedSubtasksList'));
+                            showMessage(i18n('copiedSubtasksList'));
                         }
                     } else {
-                        showMessage(t('noSubtasksToCopy'));
+                        showMessage(i18n('noSubtasksToCopy'));
                     }
                 }
             });
@@ -6749,7 +6749,7 @@ export class ProjectKanbanView {
             }
 
             if (completedCount > 0) {
-                showMessage(t('autoCompleteSubtasks', { count: String(completedCount) }), 2000);
+                showMessage(i18n('autoCompleteSubtasks', { count: String(completedCount) }), 2000);
             }
         } catch (error) {
             console.error('自动完成子任务失败:', error);
@@ -6809,7 +6809,7 @@ export class ProjectKanbanView {
             }
 
             if (completedCount > 0) {
-                showMessage(t('autoCompleteSubtasks', { count: String(completedCount) }), 2000);
+                showMessage(i18n('autoCompleteSubtasks', { count: String(completedCount) }), 2000);
             }
         } catch (error) {
             console.error('自动完成子任务实例失败:', error);
@@ -6962,7 +6962,7 @@ export class ProjectKanbanView {
             // Use valid <span> tags (no stray spaces in tag names), and keep layout compact
             button.innerHTML = `
                     <span style="font-size: 16px; margin-right: 8px;">${option.icon}</span>
-                    <span>${option.label} (${order === 'asc' ? t('ascendingOrder') : t('descendingOrder')})</span>
+                    <span>${option.label} (${order === 'asc' ? i18n('ascendingOrder') : i18n('descendingOrder')})</span>
                 `;
             button.addEventListener('click', () => {
                 this.currentSort = option.key;
@@ -7030,17 +7030,17 @@ export class ProjectKanbanView {
             });
         };
 
-        addMenuItem(`${t('sortByCompletedTime')} (${t('descendingOrder')})`, 'completedTime', 'desc');
-        addMenuItem(`${t('sortByCompletedTime')} (${t('ascendingOrder')})`, 'completedTime', 'asc');
+        addMenuItem(`${i18n('sortByCompletedTime')} (${i18n('descendingOrder')})`, 'completedTime', 'desc');
+        addMenuItem(`${i18n('sortByCompletedTime')} (${i18n('ascendingOrder')})`, 'completedTime', 'asc');
         menu.addSeparator();
-        addMenuItem(`${t('sortingPriority')} (${t('descendingOrder')})`, 'priority', 'desc');
-        addMenuItem(`${t('sortingPriority')} (${t('ascendingOrder')})`, 'priority', 'asc');
+        addMenuItem(`${i18n('sortingPriority')} (${i18n('descendingOrder')})`, 'priority', 'desc');
+        addMenuItem(`${i18n('sortingPriority')} (${i18n('ascendingOrder')})`, 'priority', 'asc');
         menu.addSeparator();
-        addMenuItem(`${t('sortBySetTime')} (${t('descendingOrder')})`, 'time', 'desc');
-        addMenuItem(`${t('sortBySetTime')} (${t('ascendingOrder')})`, 'time', 'asc');
+        addMenuItem(`${i18n('sortBySetTime')} (${i18n('descendingOrder')})`, 'time', 'desc');
+        addMenuItem(`${i18n('sortBySetTime')} (${i18n('ascendingOrder')})`, 'time', 'asc');
         menu.addSeparator();
-        addMenuItem(`${t('sortingTitle')} (${t('ascendingOrder')})`, 'title', 'asc');
-        addMenuItem(`${t('sortingTitle')} (${t('descendingOrder')})`, 'title', 'desc');
+        addMenuItem(`${i18n('sortingTitle')} (${i18n('ascendingOrder')})`, 'title', 'asc');
+        addMenuItem(`${i18n('sortingTitle')} (${i18n('descendingOrder')})`, 'title', 'desc');
 
         menu.open({
             x: event.clientX,
@@ -7300,20 +7300,20 @@ export class ProjectKanbanView {
 
         // 先尝试读取数据以计算所有后代任务数量，用于更准确的确认提示
         let confirmMessage = task.isRepeatInstance ?
-            t('confirmDeleteRepeat', { title: task.title }) :
-            t('confirmDeleteTask', { title: task.title });
+            i18n('confirmDeleteRepeat', { title: task.title }) :
+            i18n('confirmDeleteTask', { title: task.title });
         try {
             const reminderDataForPreview = await this.getReminders();
             const descendantIdsPreview = this.getAllDescendantIds(taskToDelete.id, reminderDataForPreview);
             if (descendantIdsPreview.length > 0) {
-                confirmMessage += `\n\n${t('includesNSubtasks', { count: String(descendantIdsPreview.length) })}`;
+                confirmMessage += `\n\n${i18n('includesNSubtasks', { count: String(descendantIdsPreview.length) })}`;
             }
         } catch (err) {
             // 无法读取数据时，仍然显示通用提示
         }
 
         confirm(
-            t('deleteTask'),
+            i18n('deleteTask'),
             confirmMessage,
             async () => {
                 // --- Optimistic UI Update ---
@@ -7401,7 +7401,7 @@ export class ProjectKanbanView {
 
     private startPomodoro(task: any) {
         if (!this.plugin) {
-            showMessage(t('pomodoroUnavailable'));
+            showMessage(i18n('pomodoroUnavailable'));
             return;
         }
 
@@ -7409,10 +7409,10 @@ export class ProjectKanbanView {
         const currentTimer = this.pomodoroManager.getCurrentPomodoroTimer();
         if (currentTimer && currentTimer.isWindowActive()) {
             const currentState = currentTimer.getCurrentState();
-            const currentTitle = currentState.reminderTitle || t('currentPomodoroTask');
-            const newTitle = task.title || t('newPomodoroTask');
+            const currentTitle = currentState.reminderTitle || i18n('currentPomodoroTask');
+            const newTitle = task.title || i18n('newPomodoroTask');
 
-            let confirmMessage = `${t('currentPomodoroTask')}："${currentTitle}"，${t('switchPomodoroTask')}："${newTitle}"？`;
+            let confirmMessage = `${i18n('currentPomodoroTask')}："${currentTitle}"，${i18n('switchPomodoroTask')}："${newTitle}"？`;
 
             if (currentState.isRunning && !currentState.isPaused) {
                 try {
@@ -7421,11 +7421,11 @@ export class ProjectKanbanView {
                     console.error('暂停当前番茄钟失败:', error);
                 }
 
-                confirmMessage += `\n\n${t('switchAndInherit')}`;
+                confirmMessage += `\n\n${i18n('switchAndInherit')}`;
             }
 
             confirm(
-                t('switchPomodoroTask'),
+                i18n('switchPomodoroTask'),
                 confirmMessage,
                 () => {
                     this.performStartPomodoro(task, currentState);
@@ -7447,7 +7447,7 @@ export class ProjectKanbanView {
 
     private startPomodoroCountUp(task: any) {
         if (!this.plugin) {
-            showMessage(t('pomodoroUnavailable'));
+            showMessage(i18n('pomodoroUnavailable'));
             return;
         }
 
@@ -7455,10 +7455,10 @@ export class ProjectKanbanView {
         const currentTimer = this.pomodoroManager.getCurrentPomodoroTimer();
         if (currentTimer && currentTimer.isWindowActive()) {
             const currentState = currentTimer.getCurrentState();
-            const currentTitle = currentState.reminderTitle || t('currentPomodoroTask');
-            const newTitle = task.title || t('newPomodoroTask');
+            const currentTitle = currentState.reminderTitle || i18n('currentPomodoroTask');
+            const newTitle = task.title || i18n('newPomodoroTask');
 
-            let confirmMessage = `${t('currentPomodoroTask')}："${currentTitle}"，${t('switchToStopwatch')}："${newTitle}"？`;
+            let confirmMessage = `${i18n('currentPomodoroTask')}："${currentTitle}"，${i18n('switchToStopwatch')}："${newTitle}"？`;
 
             if (currentState.isRunning && !currentState.isPaused) {
                 try {
@@ -7467,11 +7467,11 @@ export class ProjectKanbanView {
                     console.error('暂停当前番茄钟失败:', error);
                 }
 
-                confirmMessage += `\n\n${t('switchAndInherit')}`;
+                confirmMessage += `\n\n${i18n('switchAndInherit')}`;
             }
 
             confirm(
-                t('switchToStopwatch'),
+                i18n('switchToStopwatch'),
                 confirmMessage,
                 () => {
                     this.performStartPomodoroCountUp(task, currentState);
@@ -7565,10 +7565,10 @@ export class ProjectKanbanView {
 
                 // 如果继承了状态且原来正在运行，显示继承信息
                 if (inheritState && inheritState.isRunning && !inheritState.isPaused) {
-                    const phaseText = inheritState.isWorkPhase ? t('workTime') : t('breakTime');
-                    showMessage(t('switchToStopwatchWithInherit', { phase: phaseText }), 2000);
+                    const phaseText = inheritState.isWorkPhase ? i18n('workTime') : i18n('breakTime');
+                    showMessage(i18n('switchToStopwatchWithInherit', { phase: phaseText }), 2000);
                 } else {
-                    showMessage(t('startStopwatchSuccess'), 2000);
+                    showMessage(i18n('startStopwatchSuccess'), 2000);
                 }
             }
         } else {
@@ -8661,11 +8661,11 @@ export class ProjectKanbanView {
         const blockBindingDialog = new BlockBindingDialog(this.plugin, async (blockId: string) => {
             try {
                 await this.bindReminderToBlock(reminder, blockId);
-                showMessage(t("reminderBoundToBlock"));
+                showMessage(i18n("reminderBoundToBlock"));
                 this.queueLoadTasks();
             } catch (error) {
                 console.error('绑定提醒到块失败:', error);
-                showMessage(t("bindToBlockFailed"));
+                showMessage(i18n("bindToBlockFailed"));
             }
         }, {
             defaultTab: 'bind',
@@ -8697,7 +8697,7 @@ export class ProjectKanbanView {
                 titleEl.style.color = 'var(--b3-theme-primary)';
                 titleEl.style.textDecoration = 'underline dotted';
                 titleEl.style.cursor = 'pointer';
-                titleEl.title = t('clickToOpenBoundBlock', { title: reminder.title || t('noContentHint') });
+                titleEl.title = i18n('clickToOpenBoundBlock', { title: reminder.title || i18n('noContentHint') });
 
                 const newTitleEl = titleEl.cloneNode(true) as HTMLElement;
                 newTitleEl.addEventListener('click', (e) => {
@@ -9210,7 +9210,7 @@ export class ProjectKanbanView {
 
         } catch (error) {
             console.error('处理拖放排序失败:', error);
-            showMessage(t("sortUpdateFailed") || "排序更新失败");
+            showMessage(i18n("sortUpdateFailed") || "排序更新失败");
         }
     }
 
@@ -9681,8 +9681,8 @@ export class ProjectKanbanView {
      */
     private async deleteInstanceOnly(task: any) {
         await confirm(
-            t('deleteThisInstance'),
-            t('confirmDeleteInstanceOf', { title: task.title, date: task.date }),
+            i18n('deleteThisInstance'),
+            i18n('confirmDeleteInstanceOf', { title: task.title, date: task.date }),
             async () => {
                 // --- Optimistic UI Update ---
                 try {
@@ -10019,7 +10019,7 @@ export class ProjectKanbanView {
             if (titleEl) {
                 // 保留子任务数量指示器
                 const subtaskIndicator = titleEl.querySelector('.subtask-indicator');
-                titleEl.textContent = task.title || t('noContentHint');
+                titleEl.textContent = task.title || i18n('noContentHint');
                 if (subtaskIndicator) {
                     titleEl.appendChild(subtaskIndicator);
                 }
@@ -10378,18 +10378,18 @@ export class ProjectKanbanView {
             if (this.isMultiSelectMode) {
                 multiSelectBtn.classList.add('b3-button--primary');
                 multiSelectBtn.classList.remove('b3-button--outline');
-                multiSelectBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconClose"></use></svg> ${t('exitBatchSelect') || '退出选择'}`;
+                multiSelectBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconClose"></use></svg> ${i18n('exitBatchSelect') || '退出选择'}`;
             } else {
                 multiSelectBtn.classList.remove('b3-button--primary');
                 multiSelectBtn.classList.add('b3-button--outline');
-                multiSelectBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconCheck"></use></svg> ${t('batchSelect') || '批量选择'}`;
+                multiSelectBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconCheck"></use></svg> ${i18n('batchSelect') || '批量选择'}`;
             }
         }
 
         // 重新渲染看板以显示/隐藏多选复选框
         this.renderKanban();
 
-        showMessage(this.isMultiSelectMode ? (t('batchSelectModeOn') || '已进入批量选择模式') : (t('batchSelectModeOff') || '已退出批量选择模式'));
+        showMessage(this.isMultiSelectMode ? (i18n('batchSelectModeOn') || '已进入批量选择模式') : (i18n('batchSelectModeOff') || '已退出批量选择模式'));
     }
 
     /**
@@ -10436,7 +10436,7 @@ export class ProjectKanbanView {
         // 更新计数显示
         const countEl = this.batchToolbar?.querySelector('.batch-toolbar-count') as HTMLElement;
         if (countEl) {
-            countEl.textContent = `${selectedCount} ${t('tasksSelected') || '个任务已选择'}`;
+            countEl.textContent = `${selectedCount} ${i18n('tasksSelected') || '个任务已选择'}`;
         }
     }
 
@@ -10472,7 +10472,7 @@ export class ProjectKanbanView {
             color: var(--b3-theme-primary);
             min-width: 100px;
         `;
-        countEl.textContent = `0 ${t('tasksSelected') || '个任务已选择'}`;
+        countEl.textContent = `0 ${i18n('tasksSelected') || '个任务已选择'}`;
         this.batchToolbar.appendChild(countEl);
 
         // 分隔线
@@ -10495,7 +10495,7 @@ export class ProjectKanbanView {
         // 设置日期按钮
         const setDateBtn = document.createElement('button');
         setDateBtn.className = 'b3-button b3-button--outline b3-button--small';
-        setDateBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconCalendar"></use></svg> ${t('setDate') || '设置日期'}`;
+        setDateBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconCalendar"></use></svg> ${i18n('setDate') || '设置日期'}`;
         setDateBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.batchSetDate();
@@ -10505,7 +10505,7 @@ export class ProjectKanbanView {
         // 设置状态按钮
         const setStatusBtn = document.createElement('button');
         setStatusBtn.className = 'b3-button b3-button--outline b3-button--small';
-        setStatusBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg> ${t('setStatus') || '设置状态'}`;
+        setStatusBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg> ${i18n('setStatus') || '设置状态'}`;
         setStatusBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.batchSetStatus();
@@ -10515,7 +10515,7 @@ export class ProjectKanbanView {
         // 设置分组按钮
         const setGroupBtn = document.createElement('button');
         setGroupBtn.className = 'b3-button b3-button--outline b3-button--small';
-        setGroupBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconFolder"></use></svg> ${t('setGroup') || '设置分组'}`;
+        setGroupBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconFolder"></use></svg> ${i18n('setGroup') || '设置分组'}`;
         setGroupBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.batchSetGroup();
@@ -10525,7 +10525,7 @@ export class ProjectKanbanView {
         // 设置优先级按钮
         const setPriorityBtn = document.createElement('button');
         setPriorityBtn.className = 'b3-button b3-button--outline b3-button--small';
-        setPriorityBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconOrderedList"></use></svg> ${t('setPriority') || '设置优先级'}`;
+        setPriorityBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconOrderedList"></use></svg> ${i18n('setPriority') || '设置优先级'}`;
         setPriorityBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.batchSetPriority();
@@ -10536,7 +10536,7 @@ export class ProjectKanbanView {
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'b3-button b3-button--outline b3-button--small';
         deleteBtn.style.color = 'var(--b3-card-error-color)';
-        deleteBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconTrashcan"></use></svg> ${t('delete') || '删除'}`;
+        deleteBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconTrashcan"></use></svg> ${i18n('delete') || '删除'}`;
         deleteBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             e.preventDefault();
@@ -10557,7 +10557,7 @@ export class ProjectKanbanView {
         // 全选按钮
         const selectAllBtn = document.createElement('button');
         selectAllBtn.className = 'b3-button b3-button--text b3-button--small';
-        selectAllBtn.textContent = t('selectAll') || '全选';
+        selectAllBtn.textContent = i18n('selectAll') || '全选';
         selectAllBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.selectAllTasks();
@@ -10567,7 +10567,7 @@ export class ProjectKanbanView {
         // 取消选择按钮
         const clearBtn = document.createElement('button');
         clearBtn.className = 'b3-button b3-button--text b3-button--small';
-        clearBtn.textContent = t('clearSelection') || '取消选择';
+        clearBtn.textContent = i18n('clearSelection') || '取消选择';
         clearBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.clearSelection();
@@ -10619,22 +10619,22 @@ export class ProjectKanbanView {
 
         // 创建日期选择对话框
         const dialog = new Dialog({
-            title: t('batchSetDate') || '批量设置日期',
+            title: i18n('batchSetDate') || '批量设置日期',
             content: `
                 <div class="b3-dialog__content">
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t('selectDate') || '选择日期'}</label>
+                        <label class="b3-form__label">${i18n('selectDate') || '选择日期'}</label>
                         <input type="date" id="batchDateInput" class="b3-text-field" style="width: 100%;">
                     </div>
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t('clearDate') || '清空日期'}</label>
+                        <label class="b3-form__label">${i18n('clearDate') || '清空日期'}</label>
                         <input type="checkbox" id="clearDateCheck" style="margin-left: 8px;">
-                        <span style="color: var(--b3-theme-on-surface-light); font-size: 12px;">${t('clearDateHint') || '勾选后将清空所选任务的日期'}</span>
+                        <span style="color: var(--b3-theme-on-surface-light); font-size: 12px;">${i18n('clearDateHint') || '勾选后将清空所选任务的日期'}</span>
                     </div>
                 </div>
                 <div class="b3-dialog__action">
-                    <button class="b3-button b3-button--cancel" id="batchDateCancel">${t('cancel')}</button>
-                    <button class="b3-button b3-button--primary" id="batchDateConfirm">${t('confirm')}</button>
+                    <button class="b3-button b3-button--cancel" id="batchDateCancel">${i18n('cancel')}</button>
+                    <button class="b3-button b3-button--primary" id="batchDateConfirm">${i18n('confirm')}</button>
                 </div>
             `,
             width: '360px'
@@ -10659,7 +10659,7 @@ export class ProjectKanbanView {
             const dateValue = dateInput.value;
 
             if (!clearDate && !dateValue) {
-                showMessage(t('pleaseSelectDate') || '请选择日期');
+                showMessage(i18n('pleaseSelectDate') || '请选择日期');
                 return;
             }
 
@@ -10675,11 +10675,11 @@ export class ProjectKanbanView {
                         successCount++;
                     }
                 }
-                showMessage(t('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
+                showMessage(i18n('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
                 this.queueLoadTasks();
             } catch (error) {
                 console.error('批量设置日期失败:', error);
-                showMessage(t('batchUpdateFailed') || '批量更新失败');
+                showMessage(i18n('batchUpdateFailed') || '批量更新失败');
             }
         });
     }
@@ -10699,19 +10699,19 @@ export class ProjectKanbanView {
         ).join('');
 
         const dialog = new Dialog({
-            title: t('batchSetStatus') || '批量设置状态',
+            title: i18n('batchSetStatus') || '批量设置状态',
             content: `
                 <div class="b3-dialog__content">
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t('selectStatus') || '选择状态'}</label>
+                        <label class="b3-form__label">${i18n('selectStatus') || '选择状态'}</label>
                         <select id="batchStatusSelect" class="b3-select" style="width: 100%;">
                             ${statusOptions}
                         </select>
                     </div>
                 </div>
                 <div class="b3-dialog__action">
-                    <button class="b3-button b3-button--cancel" id="batchStatusCancel">${t('cancel')}</button>
-                    <button class="b3-button b3-button--primary" id="batchStatusConfirm">${t('confirm')}</button>
+                    <button class="b3-button b3-button--cancel" id="batchStatusCancel">${i18n('cancel')}</button>
+                    <button class="b3-button b3-button--primary" id="batchStatusConfirm">${i18n('confirm')}</button>
                 </div>
             `,
             width: '320px'
@@ -10736,11 +10736,11 @@ export class ProjectKanbanView {
                         successCount++;
                     }
                 }
-                showMessage(t('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
+                showMessage(i18n('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
                 this.queueLoadTasks();
             } catch (error) {
                 console.error('批量设置状态失败:', error);
-                showMessage(t('batchUpdateFailed') || '批量更新失败');
+                showMessage(i18n('batchUpdateFailed') || '批量更新失败');
             }
         });
     }
@@ -10781,24 +10781,24 @@ export class ProjectKanbanView {
             const groups = await projectManager.getProjectCustomGroups(this.projectId);
 
             const groupOptions = [
-                `<option value="">${t('noGroup') || '无分组'}</option>`,
+                `<option value="">${i18n('noGroup') || '无分组'}</option>`,
                 ...groups.map(g => `<option value="${g.id}">${g.icon || '📋'} ${g.name}</option>`)
             ].join('');
 
             const dialog = new Dialog({
-                title: t('batchSetGroup') || '批量设置分组',
+                title: i18n('batchSetGroup') || '批量设置分组',
                 content: `
                     <div class="b3-dialog__content">
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t('selectGroup') || '选择分组'}</label>
+                            <label class="b3-form__label">${i18n('selectGroup') || '选择分组'}</label>
                             <select id="batchGroupSelect" class="b3-select" style="width: 100%;">
                                 ${groupOptions}
                             </select>
                         </div>
                     </div>
                     <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="batchGroupCancel">${t('cancel')}</button>
-                        <button class="b3-button b3-button--primary" id="batchGroupConfirm">${t('confirm')}</button>
+                        <button class="b3-button b3-button--cancel" id="batchGroupCancel">${i18n('cancel')}</button>
+                        <button class="b3-button b3-button--primary" id="batchGroupConfirm">${i18n('confirm')}</button>
                     </div>
                 `,
                 width: '320px'
@@ -10824,16 +10824,16 @@ export class ProjectKanbanView {
                             successCount++;
                         }
                     }
-                    showMessage(t('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
+                    showMessage(i18n('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
                     this.queueLoadTasks();
                 } catch (error) {
                     console.error('批量设置分组失败:', error);
-                    showMessage(t('batchUpdateFailed') || '批量更新失败');
+                    showMessage(i18n('batchUpdateFailed') || '批量更新失败');
                 }
             });
         } catch (error) {
             console.error('获取分组列表失败:', error);
-            showMessage(t('loadGroupsFailed') || '加载分组失败');
+            showMessage(i18n('loadGroupsFailed') || '加载分组失败');
         }
     }
 
@@ -10845,10 +10845,10 @@ export class ProjectKanbanView {
         if (selectedIds.length === 0) return;
 
         const priorities = [
-            { id: 'none', name: t('noPriority') || '无优先级', icon: '' },
-            { id: 'low', name: t('lowPriority') || '低优先级', icon: '🔵' },
-            { id: 'medium', name: t('mediumPriority') || '中优先级', icon: '🟡' },
-            { id: 'high', name: t('highPriority') || '高优先级', icon: '🔴' }
+            { id: 'none', name: i18n('noPriority') || '无优先级', icon: '' },
+            { id: 'low', name: i18n('lowPriority') || '低优先级', icon: '🔵' },
+            { id: 'medium', name: i18n('mediumPriority') || '中优先级', icon: '🟡' },
+            { id: 'high', name: i18n('highPriority') || '高优先级', icon: '🔴' }
         ];
 
         const priorityOptions = priorities.map(p =>
@@ -10856,19 +10856,19 @@ export class ProjectKanbanView {
         ).join('');
 
         const dialog = new Dialog({
-            title: t('batchSetPriority') || '批量设置优先级',
+            title: i18n('batchSetPriority') || '批量设置优先级',
             content: `
                 <div class="b3-dialog__content">
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t('selectPriority') || '选择优先级'}</label>
+                        <label class="b3-form__label">${i18n('selectPriority') || '选择优先级'}</label>
                         <select id="batchPrioritySelect" class="b3-select" style="width: 100%;">
                             ${priorityOptions}
                         </select>
                     </div>
                 </div>
                 <div class="b3-dialog__action">
-                    <button class="b3-button b3-button--cancel" id="batchPriorityCancel">${t('cancel')}</button>
-                    <button class="b3-button b3-button--primary" id="batchPriorityConfirm">${t('confirm')}</button>
+                    <button class="b3-button b3-button--cancel" id="batchPriorityCancel">${i18n('cancel')}</button>
+                    <button class="b3-button b3-button--primary" id="batchPriorityConfirm">${i18n('confirm')}</button>
                 </div>
             `,
             width: '320px'
@@ -10894,11 +10894,11 @@ export class ProjectKanbanView {
                         successCount++;
                     }
                 }
-                showMessage(t('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
+                showMessage(i18n('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
                 this.queueLoadTasks();
             } catch (error) {
                 console.error('批量设置优先级失败:', error);
-                showMessage(t('batchUpdateFailed') || '批量更新失败');
+                showMessage(i18n('batchUpdateFailed') || '批量更新失败');
             }
         });
     }
@@ -10912,8 +10912,8 @@ export class ProjectKanbanView {
 
         // 确认对话框 - 思源 confirm 使用回调方式
         confirm(
-            t('confirmBatchDelete') || '确认批量删除',
-            t('confirmBatchDeleteMessage', { count: String(selectedIds.length) }) || `确定要删除选中的 ${selectedIds.length} 个任务吗？此操作不可恢复。`,
+            i18n('confirmBatchDelete') || '确认批量删除',
+            i18n('confirmBatchDeleteMessage', { count: String(selectedIds.length) }) || `确定要删除选中的 ${selectedIds.length} 个任务吗？此操作不可恢复。`,
             async () => {
                 try {
                     let successCount = 0;
@@ -10926,11 +10926,11 @@ export class ProjectKanbanView {
                     this.selectedTaskIds.clear();
                     this.hideBatchToolbar();
 
-                    showMessage(t('batchDeleteSuccess', { count: String(successCount) }) || `成功删除 ${successCount} 个任务`);
+                    showMessage(i18n('batchDeleteSuccess', { count: String(successCount) }) || `成功删除 ${successCount} 个任务`);
                     this.queueLoadTasks();
                 } catch (error) {
                     console.error('批量删除失败:', error);
-                    showMessage(t('batchDeleteFailed') || '批量删除失败');
+                    showMessage(i18n('batchDeleteFailed') || '批量删除失败');
                 }
             }
         );

@@ -9,7 +9,7 @@ export function getPluginInstance(): any {
     return pluginInstance;
 }
 
-export function t(key: string, params?: { [key: string]: string }): string {
+export function i18n(key: string, params?: { [key: string]: string }): string {
     // 首先尝试从插件实例获取i18n数据
     let i18nData = null;
 

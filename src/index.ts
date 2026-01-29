@@ -17,7 +17,7 @@ import { CalendarView } from "./components/CalendarView";
 import { EisenhowerMatrixView } from "./components/EisenhowerMatrixView";
 import { CategoryManager } from "./utils/categoryManager";
 import { getLocalTimeString, compareDateStrings, getLogicalDateString, setDayStartTime } from "./utils/dateUtils";
-import { t, setPluginInstance } from "./utils/i18n";
+import { i18n, setPluginInstance } from "./utils/i18n";
 import { SettingUtils } from "./libs/setting-utils";
 import { PomodoroRecordManager } from "./utils/pomodoroRecord";
 import { NotificationDialog } from "./components/NotificationDialog";
@@ -587,7 +587,7 @@ export default class ReminderPlugin extends Plugin {
 
                     // 仅在至少有一个实例实际被更新时提示用户（跳过运行中计时器时不提示）
                     if (updatedCount > 0) {
-                        try { showMessage(t('pomodoroSettingsApplied') || '番茄钟设置已应用到打开的计时器', 1500); } catch (e) { }
+                        try { showMessage(i18n('pomodoroSettingsApplied') || '番茄钟设置已应用到打开的计时器', 1500); } catch (e) { }
                     }
                 } catch (err2) {
                     console.warn('更新番茄钟设置时发生错误:', err2);
@@ -685,7 +685,7 @@ export default class ReminderPlugin extends Plugin {
     // 重写 openSetting 方法
     async openSetting() {
         let dialog = new Dialog({
-            title: t("settingsPanel"),
+            title: i18n("settingsPanel"),
             content: `<div id="SettingPanel" style="height: 100%;"></div>`,
             width: "800px",
             height: "700px",
@@ -882,7 +882,7 @@ export default class ReminderPlugin extends Plugin {
                 position: "LeftTop",
                 size: { width: 300, height: 0 },
                 icon: "iconProject",
-                title: t("projectDockTitle"),
+                title: i18n("projectDockTitle"),
                 hotkey: ""
             },
             data: {
@@ -905,7 +905,7 @@ export default class ReminderPlugin extends Plugin {
                 position: "LeftTop",
                 size: { width: 300, height: 0 },
                 icon: "iconClock",
-                title: t("dockPanelTitle"),
+                title: i18n("dockPanelTitle"),
                 hotkey: ""
             },
             data: {
@@ -1864,8 +1864,8 @@ export default class ReminderPlugin extends Plugin {
         detail.menu.addItem({
             iconHTML: "⏰",
             label: documentIds.length > 1 ?
-                t("batchSetReminderBlocks", { count: documentIds.length.toString() }) :
-                t("setTimeReminder"),
+                i18n("batchSetReminderBlocks", { count: documentIds.length.toString() }) :
+                i18n("setTimeReminder"),
             click: async () => {
                 if (documentIds.length > 1) {
                     // 确保 batchReminderDialog 已初始化
@@ -1905,7 +1905,7 @@ export default class ReminderPlugin extends Plugin {
         if (documentIds.length === 1) {
             detail.menu.addItem({
                 iconHTML: "📋",
-                label: t("viewDocumentAllReminders"),
+                label: i18n("viewDocumentAllReminders"),
                 click: () => {
                     const documentReminderDialog = new DocumentReminderDialog(documentIds[0], this);
                     documentReminderDialog.show();
@@ -1917,7 +1917,7 @@ export default class ReminderPlugin extends Plugin {
         // 添加设置为项目笔记菜单项（只处理第一个选中的文档）
         detail.menu.addItem({
             iconHTML: "📂",
-            label: t("projectManagement"),
+            label: i18n("projectManagement"),
             click: async () => {
                 const projectData = await this.loadProjectData();
                 const isProject = projectData && projectData.hasOwnProperty(firstDocumentId);
@@ -1942,7 +1942,7 @@ export default class ReminderPlugin extends Plugin {
 
         detail.menu.addItem({
             iconHTML: "⏰",
-            label: t("setTimeReminder"),
+            label: i18n("setTimeReminder"),
             click: async () => {
                 if (documentId) {
                     const autoDetect = await this.getAutoDetectDateTimeEnabled();
@@ -1973,7 +1973,7 @@ export default class ReminderPlugin extends Plugin {
         // 添加文档提醒查看功能
         detail.menu.addItem({
             iconHTML: "📋",
-            label: t("documentReminderManagement"),
+            label: i18n("documentReminderManagement"),
             click: () => {
                 if (documentId) {
                     const documentReminderDialog = new DocumentReminderDialog(documentId, this);
@@ -1985,7 +1985,7 @@ export default class ReminderPlugin extends Plugin {
         // 添加项目笔记设置功能
         detail.menu.addItem({
             iconHTML: "📂",
-            label: t("projectManagement"),
+            label: i18n("projectManagement"),
             click: async () => {
                 if (documentId) {
                     const projectData = await this.loadProjectData();
@@ -2011,7 +2011,7 @@ export default class ReminderPlugin extends Plugin {
     private handleBlockMenu({ detail }) {
         detail.menu.addItem({
             iconHTML: "⏰",
-            label: detail.blockElements.length > 1 ? t("batchSetReminderBlocks", { count: detail.blockElements.length.toString() }) : t("setTimeReminder"),
+            label: detail.blockElements.length > 1 ? i18n("batchSetReminderBlocks", { count: detail.blockElements.length.toString() }) : i18n("setTimeReminder"),
             click: async () => {
                 if (detail.blockElements && detail.blockElements.length > 0) {
                     const blockIds = detail.blockElements
@@ -2284,7 +2284,7 @@ export default class ReminderPlugin extends Plugin {
                 const reminderInfo = {
                     id: reminder.id,
                     blockId: reminder.blockId,
-                    title: reminder.title || t("unnamedNote"),
+                    title: reminder.title || i18n("unnamedNote"),
                     note: reminder.note,
                     priority: reminder.priority || 'none',
                     categoryId: reminder.categoryId,
@@ -2352,7 +2352,7 @@ export default class ReminderPlugin extends Plugin {
                 // 如果启用了系统弹窗，显示系统通知
                 if (systemNotificationEnabled) {
                     const totalCount = sortedReminders.length;
-                    const title = '📅 ' + t("dailyRemindersNotification") + ` (${totalCount})`;
+                    const title = '📅 ' + i18n("dailyRemindersNotification") + ` (${totalCount})`;
 
                     // 创建任务列表 - 直接显示所有任务
                     let taskList = ``;
@@ -2374,7 +2374,7 @@ export default class ReminderPlugin extends Plugin {
 
                     // 如果任务超过2个，显示省略信息
                     if (sortedReminders.length > 2) {
-                        taskList += `... ${t("moreItems", { count: (sortedReminders.length - 2).toString() })}\n`;
+                        taskList += `... ${i18n("moreItems", { count: (sortedReminders.length - 2).toString() })}\n`;
                     }
 
                     const message = taskList.trim();
@@ -2502,7 +2502,7 @@ export default class ReminderPlugin extends Plugin {
                                 if (exists) continue;
 
                                 const constructed = {
-                                    title: modObj.title || reminderObj.title || t('unnamedNote'),
+                                    title: modObj.title || reminderObj.title || i18n('unnamedNote'),
                                     date: modObj.date || today,
                                     time: modObj.time || reminderObj.time,
                                     endDate: modObj.endDate || reminderObj.endDate,
@@ -2901,7 +2901,7 @@ export default class ReminderPlugin extends Plugin {
                         const reminderInfo = {
                             id: habit.id,
                             blockId: habit.blockId || '',
-                            title: habit.title || t('unnamedNote'),
+                            title: habit.title || i18n('unnamedNote'),
                             note: rtObj.note || habit.note || '',
                             priority: habit.priority || 'none',
                             categoryId: habit.groupId || undefined,
@@ -2920,7 +2920,7 @@ export default class ReminderPlugin extends Plugin {
                         }
 
                         if (systemNotificationEnabled) {
-                            const title = `⏰ ${t('habitReminder')}: ${reminderInfo.title}`;
+                            const title = `⏰ ${i18n('habitReminder')}: ${reminderInfo.title}`;
                             let message = `${reminderInfo.time}`.trim();
                             if (reminderInfo.note) {
                                 message += `\n📝 ${reminderInfo.note}`;
@@ -2967,7 +2967,7 @@ export default class ReminderPlugin extends Plugin {
             const reminderInfo = {
                 id: reminder.id,
                 blockId: reminder.blockId,
-                title: reminder.title || t("unnamedNote"),
+                title: reminder.title || i18n("unnamedNote"),
                 note: reminder.note,
                 priority: reminder.priority || 'none',
                 categoryId: reminder.categoryId,
@@ -3000,7 +3000,7 @@ export default class ReminderPlugin extends Plugin {
 
             // 如果启用了系统弹窗，同时也显示系统通知
             if (systemNotificationEnabled) {
-                const title = '⏰ ' + t("timeReminderNotification");
+                const title = '⏰ ' + i18n("timeReminderNotification");
                 const categoryText = (categoryInfo as any).categoryName ? ` [${(categoryInfo as any).categoryName}]` : '';
                 let timeText = '';
                 if (displayChosen) {
@@ -3077,7 +3077,7 @@ export default class ReminderPlugin extends Plugin {
         if (isMobile) {
             // 手机端：使用Dialog打开日历视图
             const dialog = new Dialog({
-                title: t("calendarView"),
+                title: i18n("calendarView"),
                 content: '<div id="mobileCalendarContainer" style="height: 100%; width: 100%;"></div>',
                 width: "95vw",
                 height: "90vh",
@@ -3106,7 +3106,7 @@ export default class ReminderPlugin extends Plugin {
                 app: this.app,
                 custom:
                 {
-                    title: t("calendarView"),
+                    title: i18n("calendarView"),
                     icon: 'iconCalendar',
                     id: this.name + TAB_TYPE,
                     data: data || {}
@@ -3169,7 +3169,7 @@ export default class ReminderPlugin extends Plugin {
         if (isMobile) {
             // 手机端：使用Dialog打开四象限矩阵
             const dialog = new Dialog({
-                title: t("eisenhowerMatrix"),
+                title: i18n("eisenhowerMatrix"),
                 content: '<div id="mobileEisenhowerContainer" style="height: 100%; width: 100%;"></div>',
                 width: "95vw",
                 height: "90vh",
@@ -3199,7 +3199,7 @@ export default class ReminderPlugin extends Plugin {
             openTab({
                 app: this.app,
                 custom: {
-                    title: t("eisenhowerMatrix"),
+                    title: i18n("eisenhowerMatrix"),
                     icon: "iconGrid",
                     id: this.name + EISENHOWER_TAB_TYPE,
                     data: {}
@@ -3231,7 +3231,7 @@ export default class ReminderPlugin extends Plugin {
             if (!existingProjectButton) {
                 const projectBtn = document.createElement('button');
                 projectBtn.className = 'project-breadcrumb-btn block__icon fn__flex-center ariaLabel';
-                projectBtn.setAttribute('aria-label', t("projectManagement"));
+                projectBtn.setAttribute('aria-label', i18n("projectManagement"));
                 projectBtn.innerHTML = `<svg class="b3-list-item__graphic"><use xlink:href="#iconProject"></use></svg>`;
                 projectBtn.style.cssText = `
                     margin-right: 4px;
@@ -3586,7 +3586,7 @@ export default class ReminderPlugin extends Plugin {
     private _createProjectButton(projectId: string, blockId: string): HTMLElement {
         const btn = document.createElement('button');
         btn.className = 'block-project-btn block__icon fn__flex-center ariaLabel';
-        btn.setAttribute('aria-label', t('openProjectKanban'));
+        btn.setAttribute('aria-label', i18n('openProjectKanban'));
         btn.style.cssText = `
             margin-left: 6px;
             padding: 2px;
@@ -3607,7 +3607,7 @@ export default class ReminderPlugin extends Plugin {
         btn.dataset.projectId = projectId;
         btn.dataset.blockId = blockId;
         btn.setAttribute('data-plugin-added', 'reminder-plugin');
-        btn.title = t('openProjectKanban');
+        btn.title = i18n('openProjectKanban');
 
         btn.addEventListener('click', async (e) => {
             e.preventDefault();
@@ -3716,7 +3716,7 @@ export default class ReminderPlugin extends Plugin {
                 }
             },
             callback: () => {
-                showMessage(t("selectBlockFirst"), 3000, "info");
+                showMessage(i18n("selectBlockFirst"), 3000, "info");
             }
         });
 
@@ -3727,7 +3727,7 @@ export default class ReminderPlugin extends Plugin {
             editorCallback: async (protyle: any) => {
                 // 通过 protyle.element 获取编辑器元素，然后查找选中的块
                 if (!protyle || !protyle.element) {
-                    showMessage(t("selectBlockFirst"), 3000, "info");
+                    showMessage(i18n("selectBlockFirst"), 3000, "info");
                     return;
                 }
 
@@ -3742,7 +3742,7 @@ export default class ReminderPlugin extends Plugin {
                     if (blockIds.length > 0) {
                         await this.handleMultipleBlocks(blockIds);
                     } else {
-                        showMessage(t("selectBlockFirst"), 3000, "info");
+                        showMessage(i18n("selectBlockFirst"), 3000, "info");
                     }
                 } else {
                     // 如果没有选中块，获取当前光标所在的块
@@ -3754,11 +3754,11 @@ export default class ReminderPlugin extends Plugin {
                             return;
                         }
                     }
-                    showMessage(t("selectBlockFirst"), 3000, "info");
+                    showMessage(i18n("selectBlockFirst"), 3000, "info");
                 }
             },
             callback: () => {
-                showMessage(t("selectBlockFirst"), 3000, "info");
+                showMessage(i18n("selectBlockFirst"), 3000, "info");
             }
         });
 
@@ -3785,7 +3785,7 @@ export default class ReminderPlugin extends Plugin {
                 }
             },
             callback: () => {
-                showMessage(t("selectBlockFirst"), 3000, "info");
+                showMessage(i18n("selectBlockFirst"), 3000, "info");
             }
         });
 

@@ -1,5 +1,5 @@
 import { Dialog, showMessage } from "siyuan";
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 import { solarToLunar } from "../utils/lunarUtils";
 import { getLogicalDateString } from "../utils/dateUtils";
 
@@ -74,7 +74,7 @@ export class RepeatSettingsDialog {
 
     public show() {
         this.dialog = new Dialog({
-            title: t("repeatSettings"),
+            title: i18n("repeatSettings"),
             content: this.createDialogContent(),
             width: "480px",
             height: "290px"
@@ -92,30 +92,30 @@ export class RepeatSettingsDialog {
                         <label class="b3-checkbox">
                             <input type="checkbox" id="enableRepeat" ${this.repeatConfig.enabled ? 'checked' : ''}>
                             <span class="b3-checkbox__graphic"></span>
-                            <span class="b3-checkbox__label">${t("enableRepeat")}</span>
+                            <span class="b3-checkbox__label">${i18n("enableRepeat")}</span>
                         </label>
                     </div>
 
                     <div id="repeatOptions" class="repeat-options" style="display: ${this.repeatConfig.enabled ? 'block' : 'none'}">
                         <!-- 重复类型选择 -->
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t("repeatType")}</label>
+                            <label class="b3-form__label">${i18n("repeatType")}</label>
                             <select id="repeatType" class="b3-select">
-                                <option value="daily" ${this.repeatConfig.type === 'daily' ? 'selected' : ''}>${t("daily")}</option>
-                                <option value="weekly" ${this.repeatConfig.type === 'weekly' ? 'selected' : ''}>${t("weekly")}</option>
-                                <option value="monthly" ${this.repeatConfig.type === 'monthly' ? 'selected' : ''}>${t("monthly")}</option>
-                                <option value="yearly" ${this.repeatConfig.type === 'yearly' ? 'selected' : ''}>${t("yearly")}</option>
-                                <option value="lunar-monthly" ${this.repeatConfig.type === 'lunar-monthly' ? 'selected' : ''}>${t("lunarMonthly")}</option>
-                                <option value="lunar-yearly" ${this.repeatConfig.type === 'lunar-yearly' ? 'selected' : ''}>${t("lunarYearly")}</option>
-                                <option value="ebbinghaus" ${this.repeatConfig.type === 'ebbinghaus' ? 'selected' : ''}>${t("ebbinghaus")}</option>
+                                <option value="daily" ${this.repeatConfig.type === 'daily' ? 'selected' : ''}>${i18n("daily")}</option>
+                                <option value="weekly" ${this.repeatConfig.type === 'weekly' ? 'selected' : ''}>${i18n("weekly")}</option>
+                                <option value="monthly" ${this.repeatConfig.type === 'monthly' ? 'selected' : ''}>${i18n("monthly")}</option>
+                                <option value="yearly" ${this.repeatConfig.type === 'yearly' ? 'selected' : ''}>${i18n("yearly")}</option>
+                                <option value="lunar-monthly" ${this.repeatConfig.type === 'lunar-monthly' ? 'selected' : ''}>${i18n("lunarMonthly")}</option>
+                                <option value="lunar-yearly" ${this.repeatConfig.type === 'lunar-yearly' ? 'selected' : ''}>${i18n("lunarYearly")}</option>
+                                <option value="ebbinghaus" ${this.repeatConfig.type === 'ebbinghaus' ? 'selected' : ''}>${i18n("ebbinghaus")}</option>
                             </select>
                         </div>
 
                         <!-- 间隔设置 -->
                         <div id="intervalGroup" class="b3-form__group">
-                            <label class="b3-form__label">${t("repeatInterval")}</label>
+                            <label class="b3-form__label">${i18n("repeatInterval")}</label>
                             <div class="repeat-interval-container">
-                                <span>${t("every")}</span>
+                                <span>${i18n("every")}</span>
                                 <input type="number" id="repeatInterval" class="b3-text-field" min="1" max="99" value="${this.repeatConfig.interval || 1}" style="width: 60px; margin: 0 8px;">
                                 <span id="intervalUnit">${this.getIntervalUnit()}</span>
                             </div>
@@ -123,7 +123,7 @@ export class RepeatSettingsDialog {
 
                         <!-- 每周选项（星期选择） -->
                         <div id="weeklyOptions" class="b3-form__group" style="display: none;">
-                            <label class="b3-form__label">${t("repeatOnDays")}</label>
+                            <label class="b3-form__label">${i18n("repeatOnDays")}</label>
                             <div class="weekday-selector">
                                 ${this.createWeekdaySelector()}
                             </div>
@@ -131,7 +131,7 @@ export class RepeatSettingsDialog {
 
                         <!-- 每月选项（日期选择） -->
                         <div id="monthlyOptions" class="b3-form__group" style="display: none;">
-                            <label class="b3-form__label">${t("repeatOnDates")}</label>
+                            <label class="b3-form__label">${i18n("repeatOnDates")}</label>
                             <div class="monthday-selector">
                                 ${this.createMonthdaySelector()}
                             </div>
@@ -139,7 +139,7 @@ export class RepeatSettingsDialog {
 
                         <!-- 每年选项（日期输入框 MM-DD） -->
                         <div id="yearlyOptions" class="b3-form__group" style="display: none;">
-                            <label class="b3-form__label">${t("repeatDate") || '日期'}</label>
+                            <label class="b3-form__label">${i18n("repeatDate") || '日期'}</label>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <input type="text" id="yearlyDateInput" class="b3-text-field" placeholder="例如: 01-01 或 06-15" style="width: 120px;" value="${this.getYearlyDateValue()}">
                                 <span style="font-size: 12px; color: var(--b3-theme-on-surface-light);">(格式：MM-DD)</span>
@@ -149,73 +149,73 @@ export class RepeatSettingsDialog {
                         <!-- 艾宾浩斯说明 -->
                         <div id="ebbinghausInfo" class="b3-form__group" style="display: none;">
                             <div class="b3-form__desc">
-                                ${t("ebbinghausDesc")}
+                                ${i18n("ebbinghausDesc")}
                                 <br>
-                                <span class="ebbinghaus-pattern">${t("ebbinghausPattern")}: 1, 2, 4, 7, 15 ${t("days")}</span>
+                                <span class="ebbinghaus-pattern">${i18n("ebbinghausPattern")}: 1, 2, 4, 7, 15 ${i18n("days")}</span>
                             </div>
                         </div>
 
                         <!-- 农历日期选择 -->
                         <div id="lunarOptions" class="b3-form__group" style="display: none;">
-                            <label class="b3-form__label">${t("lunarDate")}</label>
+                            <label class="b3-form__label">${i18n("lunarDate")}</label>
                             <div class="lunar-date-selector">
                                 <span id="lunarMonthlyGroup" style="display: none;">
-                                    ${t("lunarDay")}: 
+                                    ${i18n("lunarDay")}: 
                                     <input type="number" id="lunarDay" class="b3-text-field" min="1" max="30" value="${this.repeatConfig.lunarDay || 1}" style="width: 60px; margin: 0 8px;">
                                 </span>
                                 <span id="lunarYearlyGroup" style="display: none;">
-                                    ${t("lunarMonth")}: 
+                                    ${i18n("lunarMonth")}: 
                                     <select id="lunarMonth" class="b3-select" style="width: 100px; margin: 0 8px;">
                                         ${this.createLunarMonthSelector()}
                                     </select>
-                                    ${t("lunarDay")}: 
+                                    ${i18n("lunarDay")}: 
                                     <input type="number" id="lunarDayYearly" class="b3-text-field" min="1" max="30" value="${this.repeatConfig.lunarDay || 1}" style="width: 60px; margin: 0 8px;">
                                 </span>
                             </div>
                             <div class="b3-form__desc" style="margin-top: 8px;">
-                                ${t("lunarDateDesc")}
+                                ${i18n("lunarDateDesc")}
                             </div>
                         </div>
 
                         <!-- 结束条件 -->
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t("repeatEnd")}</label>
+                            <label class="b3-form__label">${i18n("repeatEnd")}</label>
                             <div class="repeat-end-options">
                                 <label class="b3-radio">
                                     <input type="radio" name="endType" value="never" ${this.repeatConfig.endType === 'never' ? 'checked' : ''}>
                                     <span class="b3-radio__graphic"></span>
-                                    <span class="b3-radio__label">${t("never")}</span>
+                                    <span class="b3-radio__label">${i18n("never")}</span>
                                 </label>
                                 <label class="b3-radio">
                                     <input type="radio" name="endType" value="date" ${this.repeatConfig.endType === 'date' ? 'checked' : ''}>
                                     <span class="b3-radio__graphic"></span>
-                                    <span class="b3-radio__label">${t("endByDate")}</span>
+                                    <span class="b3-radio__label">${i18n("endByDate")}</span>
                                 </label>
                                 <label class="b3-radio">
                                     <input type="radio" name="endType" value="count" ${this.repeatConfig.endType === 'count' ? 'checked' : ''}>
                                     <span class="b3-radio__graphic"></span>
-                                    <span class="b3-radio__label">${t("endByCount")}</span>
+                                    <span class="b3-radio__label">${i18n("endByCount")}</span>
                                 </label>
                             </div>
                         </div>
 
                         <!-- 结束日期 -->
                         <div id="endDateGroup" class="b3-form__group" style="display: ${this.repeatConfig.endType === 'date' ? 'block' : 'none'}">
-                            <label class="b3-form__label">${t("endDate")}</label>
+                            <label class="b3-form__label">${i18n("endDate")}</label>
                             <input type="date" id="endDate" class="b3-text-field" value="${this.repeatConfig.endDate || ''}" max="9999-12-31">
                         </div>
 
                         <!-- 结束次数 -->
                         <div id="endCountGroup" class="b3-form__group" style="display: ${this.repeatConfig.endType === 'count' ? 'block' : 'none'}">
-                            <label class="b3-form__label">${t("endAfterCount")}</label>
+                            <label class="b3-form__label">${i18n("endAfterCount")}</label>
                             <input type="number" id="endCount" class="b3-text-field" min="1" max="999" value="${this.repeatConfig.endCount || 10}" style="width: 80px;">
-                            <span style="margin-left: 8px;">${t("times")}</span>
+                            <span style="margin-left: 8px;">${i18n("times")}</span>
                         </div>
                     </div>
                 </div>
                 <div class="b3-dialog__action">
-                    <button class="b3-button b3-button--cancel" id="cancelBtn">${t("cancel")}</button>
-                    <button class="b3-button b3-button--primary" id="confirmBtn">${t("save")}</button>
+                    <button class="b3-button b3-button--cancel" id="cancelBtn">${i18n("cancel")}</button>
+                    <button class="b3-button b3-button--primary" id="confirmBtn">${i18n("save")}</button>
                 </div>
             </div>
         `;
@@ -247,13 +247,13 @@ export class RepeatSettingsDialog {
 
     private createWeekdaySelector(): string {
         const weekdays = [
-            { value: 0, label: t("sunday"), short: t("sun") },
-            { value: 1, label: t("monday"), short: t("mon") },
-            { value: 2, label: t("tuesday"), short: t("tue") },
-            { value: 3, label: t("wednesday"), short: t("wed") },
-            { value: 4, label: t("thursday"), short: t("thu") },
-            { value: 5, label: t("friday"), short: t("fri") },
-            { value: 6, label: t("saturday"), short: t("sat") }
+            { value: 0, label: i18n("sunday"), short: i18n("sun") },
+            { value: 1, label: i18n("monday"), short: i18n("mon") },
+            { value: 2, label: i18n("tuesday"), short: i18n("tue") },
+            { value: 3, label: i18n("wednesday"), short: i18n("wed") },
+            { value: 4, label: i18n("thursday"), short: i18n("thu") },
+            { value: 5, label: i18n("friday"), short: i18n("fri") },
+            { value: 6, label: i18n("saturday"), short: i18n("sat") }
         ];
 
         // 如果没有设置weekDays但有startDate，自动选中起始日期的星期
@@ -306,9 +306,9 @@ export class RepeatSettingsDialog {
 
     private createMonthSelector(): string {
         const months = [
-            t("january"), t("february"), t("march"), t("april"),
-            t("may"), t("june"), t("july"), t("august"),
-            t("september"), t("october"), t("november"), t("december")
+            i18n("january"), i18n("february"), i18n("march"), i18n("april"),
+            i18n("may"), i18n("june"), i18n("july"), i18n("august"),
+            i18n("september"), i18n("october"), i18n("november"), i18n("december")
         ];
 
         return months.map((month, index) => `
@@ -322,9 +322,9 @@ export class RepeatSettingsDialog {
 
     private createLunarMonthSelector(): string {
         const lunarMonths = [
-            t("lunarMonth1"), t("lunarMonth2"), t("lunarMonth3"), t("lunarMonth4"),
-            t("lunarMonth5"), t("lunarMonth6"), t("lunarMonth7"), t("lunarMonth8"),
-            t("lunarMonth9"), t("lunarMonth10"), t("lunarMonth11"), t("lunarMonth12")
+            i18n("lunarMonth1"), i18n("lunarMonth2"), i18n("lunarMonth3"), i18n("lunarMonth4"),
+            i18n("lunarMonth5"), i18n("lunarMonth6"), i18n("lunarMonth7"), i18n("lunarMonth8"),
+            i18n("lunarMonth9"), i18n("lunarMonth10"), i18n("lunarMonth11"), i18n("lunarMonth12")
         ];
 
         return lunarMonths.map((month, index) => `
@@ -451,15 +451,15 @@ export class RepeatSettingsDialog {
     private getIntervalUnit(): string {
         switch (this.repeatConfig.type) {
             case 'daily':
-                return this.repeatConfig.interval === 1 ? t("day") : t("days");
+                return this.repeatConfig.interval === 1 ? i18n("day") : i18n("days");
             case 'weekly':
-                return this.repeatConfig.interval === 1 ? t("week") : t("weeks");
+                return this.repeatConfig.interval === 1 ? i18n("week") : i18n("weeks");
             case 'monthly':
-                return this.repeatConfig.interval === 1 ? t("month") : t("months");
+                return this.repeatConfig.interval === 1 ? i18n("month") : i18n("months");
             case 'yearly':
-                return this.repeatConfig.interval === 1 ? t("year") : t("years");
+                return this.repeatConfig.interval === 1 ? i18n("year") : i18n("years");
             default:
-                return t("day");
+                return i18n("day");
         }
     }
 
@@ -526,7 +526,7 @@ export class RepeatSettingsDialog {
                 const lunarDayInput = this.dialog.element.querySelector('#lunarDay') as HTMLInputElement;
                 this.repeatConfig.lunarDay = parseInt(lunarDayInput.value) || 1;
                 if (this.repeatConfig.lunarDay < 1 || this.repeatConfig.lunarDay > 30) {
-                    showMessage(t("invalidLunarDay"));
+                    showMessage(i18n("invalidLunarDay"));
                     return;
                 }
             }
@@ -537,7 +537,7 @@ export class RepeatSettingsDialog {
                 this.repeatConfig.lunarMonth = parseInt(lunarMonthInput.value) || 1;
                 this.repeatConfig.lunarDay = parseInt(lunarDayYearlyInput.value) || 1;
                 if (this.repeatConfig.lunarDay < 1 || this.repeatConfig.lunarDay > 30) {
-                    showMessage(t("invalidLunarDay"));
+                    showMessage(i18n("invalidLunarDay"));
                     return;
                 }
             }
@@ -545,7 +545,7 @@ export class RepeatSettingsDialog {
             if (this.repeatConfig.endType === 'date') {
                 this.repeatConfig.endDate = endDateInput.value;
                 if (!this.repeatConfig.endDate) {
-                    showMessage(t("pleaseSelectEndDate"));
+                    showMessage(i18n("pleaseSelectEndDate"));
                     return;
                 }
             } else if (this.repeatConfig.endType === 'count') {

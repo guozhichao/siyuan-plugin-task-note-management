@@ -5,7 +5,7 @@ import { init, use, EChartsType } from 'echarts/core';
 import { HeatmapChart, ScatterChart, CustomChart } from 'echarts/charts';
 import { TooltipComponent, VisualMapComponent, GridComponent, TitleComponent, LegendComponent, CalendarComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 
 // 注册 ECharts 组件
 use([
@@ -41,7 +41,7 @@ export class HabitStatsDialog {
 
     show() {
         this.dialog = new Dialog({
-            title: `${this.habit.title} - ${t("habitStats")}`,
+            title: `${this.habit.title} - ${i18n("habitStats")}`,
             content: '<div id="habitStatsContainer"></div>',
             width: "900px",
             height: "850px",
@@ -83,7 +83,7 @@ export class HabitStatsDialog {
 
         const overviewTab = document.createElement('button');
         overviewTab.className = `b3-button ${this.currentTab !== 'overview' ? 'b3-button--outline' : ''}`;
-        overviewTab.textContent = t("habitOverviewTab");
+        overviewTab.textContent = i18n("habitOverviewTab");
         overviewTab.style.cssText = this.currentTab === 'overview' ? 'font-weight: bold;' : '';
         overviewTab.addEventListener('click', () => {
             this.currentTab = 'overview';
@@ -92,7 +92,7 @@ export class HabitStatsDialog {
 
         const timeTab = document.createElement('button');
         timeTab.className = `b3-button ${this.currentTab !== 'time' ? 'b3-button--outline' : ''}`;
-        timeTab.textContent = t("habitTimeTab");
+        timeTab.textContent = i18n("habitTimeTab");
         timeTab.style.cssText = this.currentTab === 'time' ? 'font-weight: bold;' : '';
         timeTab.addEventListener('click', () => {
             this.currentTab = 'time';
@@ -410,7 +410,7 @@ export class HabitStatsDialog {
                     contentWrap.appendChild(emojiContainer);
                     const checkInCount = checkIn.count || 0;
                     const target = this.habit.target || 1;
-                    const statusText = isComplete ? t("habitComplete") : `${checkInCount}/${target}`;
+                    const statusText = isComplete ? i18n("habitComplete") : `${checkInCount}/${target}`;
                     // 将每条 entry 的 emoji 与备注合并到 title 中，便于鼠标悬停查看
                     const entrySummary = entries.map(e => e.note ? `${e.emoji} (${e.note})` : e.emoji).join(' ');
                     dayCell.title = `${day}日: ${entrySummary}\n${statusText}`;
@@ -426,7 +426,7 @@ export class HabitStatsDialog {
                     contentWrap.appendChild(emojiContainer);
                     const checkInCount = checkIn.count || 0;
                     const target = this.habit.target || 1;
-                    const statusText = isComplete ? t("habitComplete") : `${checkInCount}/${target}`;
+                    const statusText = isComplete ? i18n("habitComplete") : `${checkInCount}/${target}`;
                     dayCell.title = `${day}日: ${statuses.join(' ')}\n${statusText}`;
                 } else {
                     const emptyPlaceholder = document.createElement('div');
@@ -485,7 +485,7 @@ export class HabitStatsDialog {
 
         const todayBtn = document.createElement('button');
         todayBtn.className = 'b3-button';
-        todayBtn.textContent = t("today");
+        todayBtn.textContent = i18n("today");
         todayBtn.addEventListener('click', () => {
             this.yearViewOffset = 0;
             this.rerenderYearlyView(container);
@@ -504,7 +504,7 @@ export class HabitStatsDialog {
 
         const dateLabel = document.createElement('span');
         dateLabel.style.cssText = 'font-weight:bold; margin-left:8px;';
-        dateLabel.textContent = `${year}${t("year")}`;
+        dateLabel.textContent = `${year}${i18n("year")}`;
 
         toolbar.appendChild(prevBtn);
         toolbar.appendChild(todayBtn);
@@ -512,7 +512,7 @@ export class HabitStatsDialog {
         toolbar.appendChild(dateLabel);
 
         const title = document.createElement('h3');
-        title.textContent = t("habitYearlyView");
+        title.textContent = i18n("habitYearlyView");
         title.style.cssText = 'margin:0;';
 
         const titleRow = document.createElement('div');
@@ -529,7 +529,7 @@ export class HabitStatsDialog {
             monthCard.style.cssText = 'padding: 8px; background: var(--b3-theme-surface); border-radius: 4px;';
 
             const monthName = document.createElement('div');
-            monthName.textContent = `${month + 1}${t("month")}`;
+            monthName.textContent = `${month + 1}${i18n("month")}`;
             monthName.style.cssText = 'font-size: 12px; font-weight: bold; margin-bottom: 4px; text-align: center;';
             monthCard.appendChild(monthName);
 
@@ -546,7 +546,7 @@ export class HabitStatsDialog {
             }
 
             const countDiv = document.createElement('div');
-            countDiv.textContent = `${checkInCount}${t("habitDays")}`;
+            countDiv.textContent = `${checkInCount}${i18n("habitDays")}`;
             countDiv.style.cssText = 'font-size: 16px; font-weight: bold; text-align: center; color: var(--b3-theme-primary);';
             monthCard.appendChild(countDiv);
 
@@ -561,7 +561,7 @@ export class HabitStatsDialog {
         heatmapSection.style.cssText = 'margin-top: 24px;';
 
         const heatmapTitle = document.createElement('h3');
-        heatmapTitle.textContent = t("habitYearlyHeatmap");
+        heatmapTitle.textContent = i18n("habitYearlyHeatmap");
         heatmapTitle.style.marginBottom = '12px';
         heatmapSection.appendChild(heatmapTitle);
 
@@ -615,9 +615,9 @@ export class HabitStatsDialog {
                     const dateObj = new Date(date);
                     const formattedDate = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
                     if (count === 0) {
-                        return `${formattedDate}<br/>${t("habitNoCheckIn")}`;
+                        return `${formattedDate}<br/>${i18n("habitNoCheckIn")}`;
                     }
-                    return `${formattedDate}<br/>${t("habitCheckInCount")}: ${count}`;
+                    return `${formattedDate}<br/>${i18n("habitCheckInCount")}: ${count}`;
                 }
             },
             visualMap: {
@@ -633,7 +633,7 @@ export class HabitStatsDialog {
                 inRange: {
                     color: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39']
                 },
-                text: [t("more"), t("less")],
+                text: [i18n("more"), i18n("less")],
                 textStyle: {
                     fontSize: 12
                 }
@@ -697,9 +697,9 @@ export class HabitStatsDialog {
         viewSelector.style.cssText = 'display: flex; gap: 8px; margin-bottom: 16px; align-items: center;';
 
         const views: Array<{ key: 'week' | 'month' | 'year', label: string }> = [
-            { key: 'week', label: t("habitTimeWeekView") },
-            { key: 'month', label: t("habitTimeMonthView") },
-            { key: 'year', label: t("habitTimeYearView") }
+            { key: 'week', label: i18n("habitTimeWeekView") },
+            { key: 'month', label: i18n("habitTimeMonthView") },
+            { key: 'year', label: i18n("habitTimeYearView") }
         ];
 
         views.forEach(view => {
@@ -729,7 +729,7 @@ export class HabitStatsDialog {
 
         const todayBtn = document.createElement('button');
         todayBtn.className = 'b3-button';
-        todayBtn.textContent = t("today");
+        todayBtn.textContent = i18n("today");
         todayBtn.addEventListener('click', () => {
             this.timeViewOffset = 0;
             this.renderTimeStats(container);
@@ -901,7 +901,7 @@ export class HabitStatsDialog {
 
         const option: echarts.EChartsOption = {
             title: {
-                text: t("habitTimeWeekChartTitle"),
+                text: i18n("habitTimeWeekChartTitle"),
                 left: 'center',
                 top: 10
             },
@@ -911,7 +911,7 @@ export class HabitStatsDialog {
                     const dateLabel = weekLabels[params.data[1]];
                     const time = params.data[2];
                     const meaning = this.getEmojiMeaning(params.seriesName);
-                    return `${params.seriesName} ${meaning}<br/>${dateLabel.replace('\n', ' ')}<br/>${t("habitCheckInTime")}: ${time}`;
+                    return `${params.seriesName} ${meaning}<br/>${dateLabel.replace('\n', ' ')}<br/>${i18n("habitCheckInTime")}: ${time}`;
                 }
             },
             legend: {
@@ -928,7 +928,7 @@ export class HabitStatsDialog {
             },
             xAxis: {
                 type: 'value',
-                name: t("habitTimeAxisLabel"),
+                name: i18n("habitTimeAxisLabel"),
                 min: 0,
                 max: 24,
                 interval: 2,
@@ -997,7 +997,7 @@ export class HabitStatsDialog {
         const emojis = Array.from(emojiSet);
 
         if (emojis.length === 0) {
-            container.innerHTML = `<div style="text-align: center; padding: 100px; color: var(--b3-theme-on-surface-light);">${t("noData")}</div>`;
+            container.innerHTML = `<div style="text-align: center; padding: 100px; color: var(--b3-theme-on-surface-light);">${i18n("noData")}</div>`;
             return;
         }
 
@@ -1079,7 +1079,7 @@ export class HabitStatsDialog {
                             const count = params.value[3];
                             const emoji = params.value[4];
                             const meaning = this.getEmojiMeaning(emoji);
-                            return `${emoji} ${meaning}<br/>${hour}:00 - ${hour + 1}:00<br/>${t("habitCheckInCount")}: ${count}`;
+                            return `${emoji} ${meaning}<br/>${hour}:00 - ${hour + 1}:00<br/>${i18n("habitCheckInCount")}: ${count}`;
                         }
                     }
                 });
@@ -1088,7 +1088,7 @@ export class HabitStatsDialog {
 
         const option: echarts.EChartsOption = {
             title: {
-                text: t("habitTimeMonthChartTitle"),
+                text: i18n("habitTimeMonthChartTitle"),
                 left: 'center',
                 top: 10
             },
@@ -1115,7 +1115,7 @@ export class HabitStatsDialog {
                 axisLabel: {
                     formatter: (value: number) => `${value}:00`
                 },
-                name: t("habitTimeAxisLabel"),
+                name: i18n("habitTimeAxisLabel"),
                 nameLocation: 'middle',
                 nameGap: 25
             },
@@ -1170,7 +1170,7 @@ export class HabitStatsDialog {
         const emojis = Array.from(emojiSet);
 
         if (emojis.length === 0) {
-            container.innerHTML = `<div style="text-align: center; padding: 100px; color: var(--b3-theme-on-surface-light);">${t("noData")}</div>`;
+            container.innerHTML = `<div style="text-align: center; padding: 100px; color: var(--b3-theme-on-surface-light);">${i18n("noData")}</div>`;
             return;
         }
 
@@ -1252,7 +1252,7 @@ export class HabitStatsDialog {
                             const count = params.value[3];
                             const emoji = params.value[4];
                             const meaning = this.getEmojiMeaning(emoji);
-                            return `${emoji} ${meaning}<br/>${hour}:00 - ${hour + 1}:00<br/>${t("habitCheckInCount")}: ${count}`;
+                            return `${emoji} ${meaning}<br/>${hour}:00 - ${hour + 1}:00<br/>${i18n("habitCheckInCount")}: ${count}`;
                         }
                     }
                 });
@@ -1261,7 +1261,7 @@ export class HabitStatsDialog {
 
         const option: echarts.EChartsOption = {
             title: {
-                text: t("habitTimeYearChartTitle"),
+                text: i18n("habitTimeYearChartTitle"),
                 left: 'center',
                 top: 10
             },
@@ -1288,7 +1288,7 @@ export class HabitStatsDialog {
                 axisLabel: {
                     formatter: (value: number) => `${value}:00`
                 },
-                name: t("habitTimeAxisLabel"),
+                name: i18n("habitTimeAxisLabel"),
                 nameLocation: 'middle',
                 nameGap: 25
             },

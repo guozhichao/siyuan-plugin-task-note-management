@@ -1,6 +1,6 @@
 import { RepeatConfig } from '../components/RepeatSettingsDialog';
 import { compareDateStrings } from './dateUtils';
-import { t } from './i18n';
+import { i18n } from './i18n';
 import { solarToLunar } from './lunarUtils';
 
 export interface RepeatInstance {
@@ -315,22 +315,22 @@ export function getRepeatDescription(repeatConfig: RepeatConfig): string {
 
     switch (repeatConfig.type) {
         case 'daily':
-            description = interval === 1 ? t("everyDay") : t("everyNDays", { n: interval.toString() });
+            description = interval === 1 ? i18n("everyDay") : i18n("everyNDays", { n: interval.toString() });
             break;
         case 'weekly':
             if (repeatConfig.weekDays && repeatConfig.weekDays.length > 0) {
-                const dayNames = [t("sun"), t("mon"), t("tue"), t("wed"), t("thu"), t("fri"), t("sat")];
+                const dayNames = [i18n("sun"), i18n("mon"), i18n("tue"), i18n("wed"), i18n("thu"), i18n("fri"), i18n("sat")];
                 const days = repeatConfig.weekDays.map(d => dayNames[d]).join(',');
                 description = `每周${days}`;
             } else {
-                description = interval === 1 ? t("everyWeek") : t("everyNWeeks", { n: interval.toString() });
+                description = interval === 1 ? i18n("everyWeek") : i18n("everyNWeeks", { n: interval.toString() });
             }
             break;
         case 'monthly':
             if (repeatConfig.monthDays && repeatConfig.monthDays.length > 0) {
                 description = `每月${repeatConfig.monthDays.join(',')}日`;
             } else {
-                description = interval === 1 ? t("everyMonth") : t("everyNMonths", { n: interval.toString() });
+                description = interval === 1 ? i18n("everyMonth") : i18n("everyNMonths", { n: interval.toString() });
             }
             break;
         case 'yearly':
@@ -338,28 +338,28 @@ export function getRepeatDescription(repeatConfig: RepeatConfig): string {
                 repeatConfig.monthDays && repeatConfig.monthDays.length > 0) {
                 description = `每年${repeatConfig.months[0]}月${repeatConfig.monthDays[0]}日`;
             } else {
-                description = interval === 1 ? t("everyYear") : t("everyNYears", { n: interval.toString() });
+                description = interval === 1 ? i18n("everyYear") : i18n("everyNYears", { n: interval.toString() });
             }
             break;
         case 'lunar-monthly':
-            description = t("lunarMonthlyRepeat");
+            description = i18n("lunarMonthlyRepeat");
             break;
         case 'lunar-yearly':
-            description = t("lunarYearlyRepeat");
+            description = i18n("lunarYearlyRepeat");
             break;
         case 'custom':
-            description = t("customRepeat");
+            description = i18n("customRepeat");
             break;
         case 'ebbinghaus':
-            description = t("ebbinghausRepeat");
+            description = i18n("ebbinghausRepeat");
             break;
     }
 
     // 添加结束条件
     if (repeatConfig.endType === 'date' && repeatConfig.endDate) {
-        description += t("untilDate", { date: repeatConfig.endDate });
+        description += i18n("untilDate", { date: repeatConfig.endDate });
     } else if (repeatConfig.endType === 'count' && repeatConfig.endCount) {
-        description += t("forNTimes", { n: repeatConfig.endCount.toString() });
+        description += i18n("forNTimes", { n: repeatConfig.endCount.toString() });
     }
 
     return description;

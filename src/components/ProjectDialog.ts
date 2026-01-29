@@ -3,7 +3,7 @@ import { getBlockByID } from "../api";
 import { getLogicalDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { StatusManager } from "../utils/statusManager";
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 
 export class ProjectDialog {
     private dialog: Dialog;
@@ -33,14 +33,14 @@ export class ProjectDialog {
                 // Block being converted to project
                 const block = await getBlockByID(this.blockId);
                 if (!block) {
-                    showMessage(t("cannotGetDocumentId"));
+                    showMessage(i18n("cannotGetDocumentId"));
                     return;
                 }
                 blockContent = block.content;
             }
 
             this.dialog = new Dialog({
-                title: existingProject ? (t("edit") + t("projectNote")) : (this.blockId ? (t("setAsProjectNote") || "设置为项目笔记") : (t("createProject") || "创建项目")),
+                title: existingProject ? (i18n("edit") + i18n("projectNote")) : (this.blockId ? (i18n("setAsProjectNote") || "设置为项目笔记") : (i18n("createProject") || "创建项目")),
                 content: this.generateDialogHTML(existingProject?.title || blockContent, existingProject),
                 width: "500px",
                 height: "630px"
@@ -50,7 +50,7 @@ export class ProjectDialog {
             await this.statusManager.initialize();
         } catch (error) {
             console.error('显示项目对话框失败:', error);
-            showMessage(t("openModifyDialogFailed"));
+            showMessage(i18n("openModifyDialogFailed"));
         }
     }
 
@@ -65,69 +65,69 @@ export class ProjectDialog {
             <div class="project-dialog">
                 <div class="b3-dialog__content">
                     <div class="form-group">
-                        <label>${t("eventName") || "项目名称"}:</label>
-                        <input type="text" id="projectTitle" class="b3-text-field" style="width: 100%;" value="${existingProject?.title || title}" placeholder="${t("pleaseEnterTitle") || "输入项目名称"}">
+                        <label>${i18n("eventName") || "项目名称"}:</label>
+                        <input type="text" id="projectTitle" class="b3-text-field" style="width: 100%;" value="${existingProject?.title || title}" placeholder="${i18n("pleaseEnterTitle") || "输入项目名称"}">
                     </div>
                     
                     <div class="form-group">
-                        <label>${t("note") || "项目描述"}:</label>
-                        <textarea id="projectNote" class="b3-text-field" rows="3" style="width: 100%;" placeholder="${t("enterReminderNote") || "输入项目描述"}">${existingProject?.note || ''}</textarea>
+                        <label>${i18n("note") || "项目描述"}:</label>
+                        <textarea id="projectNote" class="b3-text-field" rows="3" style="width: 100%;" placeholder="${i18n("enterReminderNote") || "输入项目描述"}">${existingProject?.note || ''}</textarea>
                     </div>
                     
                     <!-- 绑定块/文档输入，允许手动输入块 ID 或文档 ID -->
                     <div class="form-group">
-                        <label>${t("bindToBlock") || '块或文档 ID'}:</label>
+                        <label>${i18n("bindToBlock") || '块或文档 ID'}:</label>
                         <div style="display: flex; gap: 8px;">
-                            <input type="text" id="projectBlockInput" class="b3-text-field" value="${existingProject ? (existingProject.blockId || '') : (this.blockId || '')}" placeholder="${t("enterBlockId") || '请输入块或文档 ID'}" style="flex: 1;">
-                            <button type="button" id="projectPasteBlockRefBtn" class="b3-button b3-button--outline" title="${t("pasteBlockRef")}">
+                            <input type="text" id="projectBlockInput" class="b3-text-field" value="${existingProject ? (existingProject.blockId || '') : (this.blockId || '')}" placeholder="${i18n("enterBlockId") || '请输入块或文档 ID'}" style="flex: 1;">
+                            <button type="button" id="projectPasteBlockRefBtn" class="b3-button b3-button--outline" title="${i18n("pasteBlockRef")}">
                                 <svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg>
                             </button>
                         </div>
                     </div>
                     
                     <div class="form-group">
-                        <label>${t("projectStatus") || "项目状态"}:</label>
+                        <label>${i18n("projectStatus") || "项目状态"}:</label>
                         <select id="projectStatus" class="b3-select">
                             ${statusOptions}
                         </select>
                     </div>
                     
                     <div class="form-group">
-                        <label>${t("priority") || "优先级"}:</label>
+                        <label>${i18n("priority") || "优先级"}:</label>
                         <select id="projectPriority" class="b3-select">
-                            <option value="none" ${(!existingProject?.priority || existingProject?.priority === 'none') ? 'selected' : ''}>${t("noPriority") || "无"}</option>
-                            <option value="low" ${existingProject?.priority === 'low' ? 'selected' : ''}>${t("lowPriority") || "低"}</option>
-                            <option value="medium" ${existingProject?.priority === 'medium' ? 'selected' : ''}>${t("mediumPriority") || "中"}</option>
-                            <option value="high" ${existingProject?.priority === 'high' ? 'selected' : ''}>${t("highPriority") || "高"}</option>
+                            <option value="none" ${(!existingProject?.priority || existingProject?.priority === 'none') ? 'selected' : ''}>${i18n("noPriority") || "无"}</option>
+                            <option value="low" ${existingProject?.priority === 'low' ? 'selected' : ''}>${i18n("lowPriority") || "低"}</option>
+                            <option value="medium" ${existingProject?.priority === 'medium' ? 'selected' : ''}>${i18n("mediumPriority") || "中"}</option>
+                            <option value="high" ${existingProject?.priority === 'high' ? 'selected' : ''}>${i18n("highPriority") || "高"}</option>
                         </select>
                     </div>
                     
                     <div class="form-group">
-                        <label>${t("category") || "分类"}:</label>
+                        <label>${i18n("category") || "分类"}:</label>
                         <div id="category-selector" class="category-selector" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">
                             <!-- 分类选择器将在这里渲染 -->
                         </div>
                     </div>
                     
                     <div class="form-group">
-                        <label>${t("projectColor") || "项目颜色"}:</label>
+                        <label>${i18n("projectColor") || "项目颜色"}:</label>
                         <input type="color" id="projectColor" class="b3-text-field" value="${existingProject?.color || '#3498db'}" style="width: 100%; height: 40px; cursor: pointer;">
                     </div>
                     
                     <div class="form-group">
-                        <label>${t("startDate") || "开始日期"}:</label>
+                        <label>${i18n("startDate") || "开始日期"}:</label>
                         <input type="date" id="projectStartDate" class="b3-text-field" value="${existingProject?.startDate || today}" max="9999-12-31">
                     </div>
                     
                     <div class="form-group">
-                        <label>${t("endDate") || "截止日期"}:</label>
+                        <label>${i18n("endDate") || "截止日期"}:</label>
                         <input type="date" id="projectEndDate" class="b3-text-field" value="${existingProject?.endDate || ''}" max="9999-12-31">
                     </div>
                 </div>
                 
                 <div class="b3-dialog__action">
-                    <button class="b3-button b3-button--cancel" id="cancelBtn">${t("cancel") || "取消"}</button>
-                    <button class="b3-button b3-button--text" id="saveBtn">${t("save") || "保存"}</button>
+                    <button class="b3-button b3-button--cancel" id="cancelBtn">${i18n("cancel") || "取消"}</button>
+                    <button class="b3-button b3-button--text" id="saveBtn">${i18n("save") || "保存"}</button>
                 </div>
             </div>
             
@@ -189,7 +189,7 @@ export class ProjectDialog {
                 }
             } catch (error) {
                 console.error('读取剪贴板失败:', error);
-                showMessage(t("pasteBlockRefFailed") || "粘贴失败");
+                showMessage(i18n("pasteBlockRefFailed") || "粘贴失败");
             }
         });
 
@@ -213,7 +213,7 @@ export class ProjectDialog {
             const noCategoryEl = document.createElement('div');
             noCategoryEl.className = 'category-option';
             noCategoryEl.setAttribute('data-category', '');
-            noCategoryEl.innerHTML = `<span>${t("noCategory") || "无分类"}</span>`;
+            noCategoryEl.innerHTML = `<span>${i18n("noCategory") || "无分类"}</span>`;
 
             if (this.selectedCategoryIds.length === 0) {
                 noCategoryEl.classList.add('selected');
@@ -311,7 +311,7 @@ export class ProjectDialog {
 
             const title = titleEl.value.trim();
             if (!title) {
-                showMessage(t("pleaseEnterTitle"));
+                showMessage(i18n("pleaseEnterTitle"));
                 titleEl.focus();
                 return;
             }
@@ -321,7 +321,7 @@ export class ProjectDialog {
 
             // 验证日期
             if (endDate && startDate && endDate < startDate) {
-                showMessage(t("endDateCannotBeEarlier"));
+                showMessage(i18n("endDateCannotBeEarlier"));
                 endDateEl.focus();
                 return;
             }
@@ -365,12 +365,12 @@ export class ProjectDialog {
                 detail: { projectId, project }
             }));
 
-            showMessage(t("reminderSaved") || "项目保存成功");
+            showMessage(i18n("reminderSaved") || "项目保存成功");
             this.dialog.destroy();
 
         } catch (error) {
             console.error('保存项目失败:', error);
-            showMessage(t("saveReminderFailed") || "保存项目失败");
+            showMessage(i18n("saveReminderFailed") || "保存项目失败");
         }
     }
 }

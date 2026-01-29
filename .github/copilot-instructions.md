@@ -83,14 +83,14 @@ scripts/                  # Development and build scripts
 ### Internationalization
 
 1. **Always support both English and Chinese**:
-   - Use the `t()` function from `src/utils/i18n.ts` for all user-facing strings
+   - Use the `i18n()` function from `src/utils/i18n.ts` for all user-facing strings
    - Add translations to both `public/i18n/en_US.json` and `public/i18n/zh_CN.json`
    - Translation keys should be descriptive camelCase
 
 2. **Example usage**:
    ```typescript
-   import { t } from "./utils/i18n";
-   showMessage(t("taskCreatedSuccessfully"));
+   import { i18n } from "./utils/i18n";
+   showMessage(i18n("taskCreatedSuccessfully"));
    ```
 
 ### API Integration
@@ -231,10 +231,10 @@ this.addTab({
 
 ```typescript
 import { showMessage } from "siyuan";
-import { t } from "./utils/i18n";
+import { i18n } from "./utils/i18n";
 
-showMessage(t("operationSuccessful"));
-showMessage(t("operationFailed"), 5000, "error");
+showMessage(i18n("operationSuccessful"));
+showMessage(i18n("operationFailed"), 5000, "error");
 ```
 
 ### Working with Blocks

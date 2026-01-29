@@ -1,5 +1,5 @@
 import { Plugin } from "siyuan";
-import { t } from "./i18n";
+import { i18n } from "./i18n";
 
 
 export interface SortConfig {
@@ -46,19 +46,19 @@ export async function saveSortConfig(plugin: Plugin, method: string, order: 'asc
 
 export function getSortMethodName(method: string, order: 'asc' | 'desc' = 'asc'): string {
     const methodNames = {
-        'time': t("sortByTime"),
-        'priority': t("sortByPriority"),
-        'title': t("sortByTitle"),
-        'created': t("sortByCreated")
+        'time': i18n("sortByTime"),
+        'priority': i18n("sortByPriority"),
+        'title': i18n("sortByTitle"),
+        'created': i18n("sortByCreated")
     };
 
     const orderNames = {
-        'asc': t("ascending"),
-        'desc': t("descending")
+        'asc': i18n("ascending"),
+        'desc': i18n("descending")
     };
 
-    const methodName = methodNames[method] || t("sortByTime");
-    const orderName = orderNames[order] || t("ascending");
+    const methodName = methodNames[method] || i18n("sortByTime");
+    const orderName = orderNames[order] || i18n("ascending");
 
     return `${methodName}(${orderName})`;
 }

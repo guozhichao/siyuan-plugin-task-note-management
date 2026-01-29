@@ -14,7 +14,7 @@ import { StatusManager } from "../utils/statusManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { ProjectColorDialog } from "./ProjectColorDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 import { generateRepeatInstances, RepeatInstance, getDaysDifference, addDaysToDate } from "../utils/repeatUtils";
 import { getAllReminders, saveReminders, loadHolidays } from "../utils/icsSubscription";
 import { CalendarConfigManager } from "../utils/calendarConfigManager";
@@ -184,7 +184,7 @@ export class CalendarView {
 
             const resizer = document.createElement('div');
             resizer.className = 'fc-allday-resizer';
-            resizer.title = t("dragToResize") || "拖动调整高度";
+            resizer.title = i18n("dragToResize") || "拖动调整高度";
             harness.appendChild(resizer);
 
             resizer.addEventListener('mousedown', (e: MouseEvent) => {
@@ -300,7 +300,7 @@ export class CalendarView {
         toolbar.appendChild(viewGroup);
         this.yearBtn = document.createElement('button');
         this.yearBtn.className = 'b3-button b3-button--outline';
-        this.yearBtn.textContent = t("year");
+        this.yearBtn.textContent = i18n("year");
         this.yearBtn.addEventListener('click', async () => {
             const viewType = this.calendarConfigManager.getViewType();
             let viewMode: string;
@@ -318,7 +318,7 @@ export class CalendarView {
         viewGroup.appendChild(this.yearBtn);
         this.monthBtn = document.createElement('button');
         this.monthBtn.className = 'b3-button b3-button--outline';
-        this.monthBtn.textContent = t("month");
+        this.monthBtn.textContent = i18n("month");
         this.monthBtn.addEventListener('click', async () => {
             const viewType = this.calendarConfigManager.getViewType();
             let viewMode: string;
@@ -337,7 +337,7 @@ export class CalendarView {
 
         this.weekBtn = document.createElement('button');
         this.weekBtn.className = 'b3-button b3-button--outline';
-        this.weekBtn.textContent = t("week");
+        this.weekBtn.textContent = i18n("week");
         this.weekBtn.addEventListener('click', async () => {
             const viewType = this.calendarConfigManager.getViewType();
             let viewMode: string;
@@ -358,7 +358,7 @@ export class CalendarView {
         // 多天视图按钮（默认最近7天，今日为第二天）
         this.multiDaysBtn = document.createElement('button');
         this.multiDaysBtn.className = 'b3-button b3-button--outline';
-        this.multiDaysBtn.textContent = t("multiDays") || "多天";
+        this.multiDaysBtn.textContent = i18n("multiDays") || "多天";
         this.multiDaysBtn.addEventListener('click', async () => {
             const viewType = this.calendarConfigManager.getViewType();
             let viewMode: string;
@@ -382,7 +382,7 @@ export class CalendarView {
 
         this.dayBtn = document.createElement('button');
         this.dayBtn.className = 'b3-button b3-button--outline';
-        this.dayBtn.textContent = t("day");
+        this.dayBtn.textContent = i18n("day");
         this.dayBtn.addEventListener('click', async () => {
             const viewType = this.calendarConfigManager.getViewType();
             let viewMode: string;
@@ -411,12 +411,12 @@ export class CalendarView {
 
         const currentViewType = this.calendarConfigManager.getViewType();
         const viewTypeOptions = [
-            { value: 'timeline', text: t("viewTypeTimeline") },
-            { value: 'kanban', text: t("viewTypeKanban") },
-            { value: 'list', text: t("viewTypeList") }
+            { value: 'timeline', text: i18n("viewTypeTimeline") },
+            { value: 'kanban', text: i18n("viewTypeKanban") },
+            { value: 'list', text: i18n("viewTypeList") }
         ];
 
-        const currentViewTypeText = viewTypeOptions.find(opt => opt.value === currentViewType)?.text || t("viewTypeTimeline");
+        const currentViewTypeText = viewTypeOptions.find(opt => opt.value === currentViewType)?.text || i18n("viewTypeTimeline");
 
         const viewTypeButton = document.createElement('button');
         viewTypeButton.className = 'b3-button b3-button--outline';
@@ -547,7 +547,7 @@ export class CalendarView {
         this.pomodoroToggleBtn.style.marginRight = '8px';
         this.pomodoroToggleBtn.style.display = 'none'; // Initially hidden, logic controls visibility based on view
         this.pomodoroToggleBtn.innerHTML = '🍅';
-        this.pomodoroToggleBtn.title = t("togglePomodoroRecords") || "显示/隐藏番茄专注记录";
+        this.pomodoroToggleBtn.title = i18n("togglePomodoroRecords") || "显示/隐藏番茄专注记录";
         this.pomodoroToggleBtn.onclick = async () => {
             this.showPomodoro = !this.showPomodoro;
             await this.calendarConfigManager.setShowPomodoro(this.showPomodoro);
@@ -590,7 +590,7 @@ export class CalendarView {
         projectFilterButton.style.justifyContent = 'space-between';
         projectFilterButton.style.alignItems = 'center';
         projectFilterButton.style.textAlign = 'left';
-        projectFilterButton.innerHTML = `<span class="filter-button-text" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${t("allProjects") || "全部项目"}</span> <span style="margin-left: 4px; flex-shrink: 0;">▼</span>`;
+        projectFilterButton.innerHTML = `<span class="filter-button-text" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${i18n("allProjects") || "全部项目"}</span> <span style="margin-left: 4px; flex-shrink: 0;">▼</span>`;
         projectFilterContainer.appendChild(projectFilterButton);
 
         const projectDropdown = document.createElement('div');
@@ -625,7 +625,7 @@ export class CalendarView {
         categoryFilterButton.style.justifyContent = 'space-between';
         categoryFilterButton.style.alignItems = 'center';
         categoryFilterButton.style.textAlign = 'left';
-        categoryFilterButton.innerHTML = `<span class="filter-button-text" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${t("allCategories") || "全部分类"}</span> <span style="margin-left: 4px; flex-shrink: 0;">▼</span>`;
+        categoryFilterButton.innerHTML = `<span class="filter-button-text" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${i18n("allCategories") || "全部分类"}</span> <span style="margin-left: 4px; flex-shrink: 0;">▼</span>`;
         categoryFilterContainer.appendChild(categoryFilterButton);
 
         const categoryDropdown = document.createElement('div');
@@ -668,7 +668,7 @@ export class CalendarView {
         completionFilterButton.style.justifyContent = 'space-between';
         completionFilterButton.style.alignItems = 'center';
         completionFilterButton.style.textAlign = 'left';
-        completionFilterButton.innerHTML = `<span class="filter-button-text" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${t("allStatuses") || "全部状态"}</span> <span style="margin-left: 4px; flex-shrink: 0;">▼</span>`;
+        completionFilterButton.innerHTML = `<span class="filter-button-text" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${i18n("allStatuses") || "全部状态"}</span> <span style="margin-left: 4px; flex-shrink: 0;">▼</span>`;
         completionFilterContainer.appendChild(completionFilterButton);
 
         const completionDropdown = document.createElement('div');
@@ -687,9 +687,9 @@ export class CalendarView {
 
         // 添加完成状态选项
         const completionOptions = [
-            { value: 'all', text: t("allStatuses") || "全部状态" },
-            { value: 'incomplete', text: t("incomplete") || "未完成" },
-            { value: 'completed', text: t("completed") || "已完成" }
+            { value: 'all', text: i18n("allStatuses") || "全部状态" },
+            { value: 'incomplete', text: i18n("incomplete") || "未完成" },
+            { value: 'completed', text: i18n("completed") || "已完成" }
         ];
 
         // 从配置中读取初始完成状态过滤器并更新按钮文案
@@ -741,13 +741,13 @@ export class CalendarView {
 
         // 定义上色选项
         const colorByOptions = [
-            { value: 'project', text: t("colorByProject") },
-            { value: 'category', text: t("colorByCategory") },
-            { value: 'priority', text: t("colorByPriority") }
+            { value: 'project', text: i18n("colorByProject") },
+            { value: 'category', text: i18n("colorByCategory") },
+            { value: 'priority', text: i18n("colorByPriority") }
         ];
 
         // 根据当前colorBy设置按钮文本
-        const currentColorByText = colorByOptions.find(opt => opt.value === this.colorBy)?.text || t("colorByPriority");
+        const currentColorByText = colorByOptions.find(opt => opt.value === this.colorBy)?.text || i18n("colorByPriority");
 
         const colorByButton = document.createElement('button');
         colorByButton.className = 'b3-button b3-button--outline';
@@ -879,15 +879,15 @@ export class CalendarView {
         refreshBtn.className = 'b3-button b3-button--outline';
         refreshBtn.style.padding = '6px';
         refreshBtn.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconRefresh"></use></svg>';
-        refreshBtn.title = t("refresh");
+        refreshBtn.title = i18n("refresh");
         refreshBtn.addEventListener('click', async () => {
             refreshBtn.disabled = true;
             try {
-                showMessage(t("refreshing") || "正在刷新...", 500);
+                showMessage(i18n("refreshing") || "正在刷新...", 500);
                 await this.refreshEvents(true);
             } catch (error) {
                 console.error('手动刷新失败:', error);
-                showMessage(t("refreshFailed") || "刷新失败");
+                showMessage(i18n("refreshFailed") || "刷新失败");
             } finally {
                 refreshBtn.disabled = false;
             }
@@ -899,7 +899,7 @@ export class CalendarView {
         categoryManageBtn.className = 'b3-button b3-button--outline';
         categoryManageBtn.style.padding = '6px';
         categoryManageBtn.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconTags"></use></svg>';
-        categoryManageBtn.title = t("manageCategories");
+        categoryManageBtn.title = i18n("manageCategories");
         categoryManageBtn.addEventListener('click', () => {
             this.showCategoryManageDialog();
         });
@@ -910,7 +910,7 @@ export class CalendarView {
         projectColorManageBtn.className = 'b3-button b3-button--outline';
         projectColorManageBtn.style.padding = '6px';
         projectColorManageBtn.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconProject"></use></svg>';
-        projectColorManageBtn.title = t("manageProjectColors");
+        projectColorManageBtn.title = i18n("manageProjectColors");
         projectColorManageBtn.addEventListener('click', () => {
             this.showProjectColorDialog();
         });
@@ -921,7 +921,7 @@ export class CalendarView {
         summaryBtn.className = 'b3-button b3-button--outline';
         summaryBtn.style.padding = '6px';
         summaryBtn.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconList"></use></svg>';
-        summaryBtn.title = t("taskSummary") || "任务摘要";
+        summaryBtn.title = i18n("taskSummary") || "任务摘要";
         summaryBtn.addEventListener('click', () => {
             this.taskSummaryDialog.showTaskSummaryDialog();
         });
@@ -956,7 +956,7 @@ export class CalendarView {
             },
             customButtons: {
                 myToday: {
-                    text: t("today"),
+                    text: i18n("today"),
                     click: () => {
                         this.lastNavigatedToTodayAt = Date.now();
                         const targetDate = getDayStartAdjustedDate(new Date());
@@ -1477,7 +1477,7 @@ export class CalendarView {
                 this.hideDropIndicator();
             } catch (err) {
                 console.error('处理外部拖放失败', err);
-                showMessage(t('operationFailed'));
+                showMessage(i18n('operationFailed'));
                 this.hideDropIndicator();
             }
         });
@@ -1575,7 +1575,7 @@ export class CalendarView {
             selectAllBtn.style.marginBottom = '8px';
 
             const isAllSelected = this.currentProjectFilter.has('all');
-            selectAllBtn.textContent = isAllSelected ? (t("deselectAll") || "取消全选") : (t("selectAll") || "全选");
+            selectAllBtn.textContent = isAllSelected ? (i18n("deselectAll") || "取消全选") : (i18n("selectAll") || "全选");
 
             selectAllBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1647,7 +1647,7 @@ export class CalendarView {
             };
 
             // 首先添加"无项目"可选项
-            container.appendChild(createCheckboxItem('none', t("noProject") || "无项目", '🚫 '));
+            container.appendChild(createCheckboxItem('none', i18n("noProject") || "无项目", '🚫 '));
 
             if (projectData && Object.keys(projectData).length > 0) {
                 const projectsByStatus: { [key: string]: any[] } = {};
@@ -1699,7 +1699,7 @@ export class CalendarView {
             selectAllBtn.style.marginBottom = '8px';
 
             const isAllSelected = this.currentCategoryFilter.has('all');
-            selectAllBtn.textContent = isAllSelected ? (t("deselectAll") || "取消全选") : (t("selectAll") || "全选");
+            selectAllBtn.textContent = isAllSelected ? (i18n("deselectAll") || "取消全选") : (i18n("selectAll") || "全选");
 
             selectAllBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1769,7 +1769,7 @@ export class CalendarView {
             };
 
             // 首先添加"无分类"
-            container.appendChild(createCheckboxItem('none', t("noCategory") || "无分类", '🚫 '));
+            container.appendChild(createCheckboxItem('none', i18n("noCategory") || "无分类", '🚫 '));
 
             if (categories && categories.length > 0) {
                 categories.forEach(category => {
@@ -1786,20 +1786,20 @@ export class CalendarView {
         if (!textSpan) return;
 
         if (this.currentProjectFilter.has('all')) {
-            textSpan.textContent = t("allProjects") || "全部项目";
+            textSpan.textContent = i18n("allProjects") || "全部项目";
         } else if (this.currentProjectFilter.size === 0) {
-            textSpan.textContent = t("noProjectSelected") || "未选择项目";
+            textSpan.textContent = i18n("noProjectSelected") || "未选择项目";
         } else if (this.currentProjectFilter.size === 1) {
             const projectId = Array.from(this.currentProjectFilter)[0];
             if (projectId === 'none') {
-                textSpan.textContent = t("noProject") || "无项目";
+                textSpan.textContent = i18n("noProject") || "无项目";
             } else {
                 const projectName = this.projectManager.getProjectName(projectId);
-                textSpan.textContent = projectName || t("unnamedProject") || "未命名项目";
+                textSpan.textContent = projectName || i18n("unnamedProject") || "未命名项目";
             }
         } else {
             const count = this.currentProjectFilter.size;
-            textSpan.textContent = `${count} ${t("projectsSelected") || "个项目"}`;
+            textSpan.textContent = `${count} ${i18n("projectsSelected") || "个项目"}`;
         }
     }
 
@@ -1808,20 +1808,20 @@ export class CalendarView {
         if (!textSpan) return;
 
         if (this.currentCategoryFilter.has('all')) {
-            textSpan.textContent = t("allCategories") || "全部分类";
+            textSpan.textContent = i18n("allCategories") || "全部分类";
         } else if (this.currentCategoryFilter.size === 0) {
-            textSpan.textContent = t("noCategorySelected") || "未选择分类";
+            textSpan.textContent = i18n("noCategorySelected") || "未选择分类";
         } else if (this.currentCategoryFilter.size === 1) {
             const categoryId = Array.from(this.currentCategoryFilter)[0];
             if (categoryId === 'none') {
-                textSpan.textContent = t("noCategory") || "无分类";
+                textSpan.textContent = i18n("noCategory") || "无分类";
             } else {
                 const category = this.categoryManager.getCategoryById(categoryId);
-                textSpan.textContent = category ? (category.icon ? `${category.icon} ${category.name}` : category.name) : (t("unnamedCategory") || "未命名分类");
+                textSpan.textContent = category ? (category.icon ? `${category.icon} ${category.name}` : category.name) : (i18n("unnamedCategory") || "未命名分类");
             }
         } else {
             const count = this.currentCategoryFilter.size;
-            textSpan.textContent = `${count} ${t("categoriesSelected") || "个分类"}`;
+            textSpan.textContent = `${count} ${i18n("categoriesSelected") || "个分类"}`;
         }
     }
 
@@ -2022,7 +2022,7 @@ export class CalendarView {
         if (calendarEvent.extendedProps.type === 'pomodoro') {
             menu.addItem({
                 iconHTML: "📝",
-                label: t("viewPomodoroTask") || "查看所属任务",
+                label: i18n("viewPomodoroTask") || "查看所属任务",
                 click: async () => {
                     try {
                         const eventId = calendarEvent.extendedProps.eventId;
@@ -2049,7 +2049,7 @@ export class CalendarView {
                             );
                             dialog.show();
                         } else {
-                            showMessage(t("reminderNotExist"));
+                            showMessage(i18n("reminderNotExist"));
                         }
                     } catch (e) {
                         console.error(e);
@@ -2059,9 +2059,9 @@ export class CalendarView {
 
             menu.addItem({
                 iconHTML: "🗑️",
-                label: t("deletePomodoroRecord") || "删除记录",
+                label: i18n("deletePomodoroRecord") || "删除记录",
                 click: async () => {
-                    confirm(t("deletePomodoroRecord"), t("confirmDelete"), async () => {
+                    confirm(i18n("deletePomodoroRecord"), i18n("confirmDelete"), async () => {
                         const pomodoroManager = this.pomodoroRecordManager;
                         // session id format in prompt: pomodoro-ID
                         const sessionId = calendarEvent.id.replace('pomodoro-', '');
@@ -2081,14 +2081,14 @@ export class CalendarView {
         if (calendarEvent.extendedProps.isSubscribed) {
             menu.addItem({
                 iconHTML: "ℹ️",
-                label: t("subscribedTaskReadOnly") || "订阅任务（只读）",
+                label: i18n("subscribedTaskReadOnly") || "订阅任务（只读）",
                 disabled: true
             });
 
             if (calendarEvent.extendedProps.projectId) {
                 menu.addItem({
                     iconHTML: "📂",
-                    label: t("openProjectKanban"),
+                    label: i18n("openProjectKanban"),
                     click: () => {
                         this.openProjectKanban(calendarEvent.extendedProps.projectId);
                     }
@@ -2099,7 +2099,7 @@ export class CalendarView {
 
             menu.addItem({
                 iconHTML: "🍅",
-                label: t("startPomodoro"),
+                label: i18n("startPomodoro"),
                 click: () => {
                     this.startPomodoro(calendarEvent);
                 }
@@ -2107,7 +2107,7 @@ export class CalendarView {
 
             menu.addItem({
                 iconHTML: "⏱️",
-                label: t("startCountUp"),
+                label: i18n("startCountUp"),
                 click: () => {
                     this.startPomodoroCountUp(calendarEvent);
                 }
@@ -2124,7 +2124,7 @@ export class CalendarView {
         if (!calendarEvent.extendedProps.blockId) {
             menu.addItem({
                 iconHTML: "🔗",
-                label: t("bindToBlock"),
+                label: i18n("bindToBlock"),
                 click: () => {
                     this.showBindToBlockDialog(calendarEvent);
                 }
@@ -2133,7 +2133,7 @@ export class CalendarView {
         } else {
             menu.addItem({
                 iconHTML: "📖",
-                label: t("openNote"),
+                label: i18n("openNote"),
                 click: () => {
                     this.handleEventClick({ event: calendarEvent });
                 }
@@ -2145,7 +2145,7 @@ export class CalendarView {
             if (!calendarEvent.extendedProps.isSubscribed) {
                 menu.addItem({
                     iconHTML: "📝",
-                    label: t("modifyThisInstance"),
+                    label: i18n("modifyThisInstance"),
                     click: () => {
                         this.showInstanceEditDialog(calendarEvent);
                     }
@@ -2153,7 +2153,7 @@ export class CalendarView {
 
                 menu.addItem({
                     iconHTML: "📝",
-                    label: t("modifyAllInstances"),
+                    label: i18n("modifyAllInstances"),
                     click: () => {
                         this.showTimeEditDialogForSeries(calendarEvent);
                     }
@@ -2163,7 +2163,7 @@ export class CalendarView {
             // 对于周期原始事件，提供与实例一致的选项
             menu.addItem({
                 iconHTML: "📝",
-                label: t("modifyThisInstance"),
+                label: i18n("modifyThisInstance"),
                 click: () => {
                     this.splitRecurringEvent(calendarEvent);
                 }
@@ -2171,7 +2171,7 @@ export class CalendarView {
 
             menu.addItem({
                 iconHTML: "📝",
-                label: t("modifyAllInstances"),
+                label: i18n("modifyAllInstances"),
                 click: () => {
                     this.showTimeEditDialog(calendarEvent);
                 }
@@ -2179,7 +2179,7 @@ export class CalendarView {
         } else {
             menu.addItem({
                 iconHTML: "📝",
-                label: t("modify"),
+                label: i18n("modify"),
                 click: () => {
                     this.showTimeEditDialog(calendarEvent);
                 }
@@ -2188,7 +2188,7 @@ export class CalendarView {
 
         menu.addItem({
             iconHTML: "✅",
-            label: calendarEvent.extendedProps.completed ? t("markAsUncompleted") : t("markAsCompleted"),
+            label: calendarEvent.extendedProps.completed ? i18n("markAsUncompleted") : i18n("markAsCompleted"),
             click: () => {
                 this.toggleEventCompleted(calendarEvent);
             }
@@ -2199,10 +2199,10 @@ export class CalendarView {
         // 添加优先级设置子菜单
         const priorityMenuItems = [];
         const priorities = [
-            { key: 'high', label: t("high"), color: '#e74c3c', icon: '🔴' },
-            { key: 'medium', label: t("medium"), color: '#f39c12', icon: '🟡' },
-            { key: 'low', label: t("low"), color: '#3498db', icon: '🔵' },
-            { key: 'none', label: t("none"), color: '#8f8f8f', icon: '⚫' }
+            { key: 'high', label: i18n("high"), color: '#e74c3c', icon: '🔴' },
+            { key: 'medium', label: i18n("medium"), color: '#f39c12', icon: '🟡' },
+            { key: 'low', label: i18n("low"), color: '#3498db', icon: '🔵' },
+            { key: 'none', label: i18n("none"), color: '#8f8f8f', icon: '⚫' }
         ];
 
         priorities.forEach(priority => {
@@ -2217,13 +2217,13 @@ export class CalendarView {
 
         menu.addItem({
             iconHTML: "🎯",
-            label: t("setPriority"),
+            label: i18n("setPriority"),
             submenu: priorityMenuItems
         });
 
         menu.addItem({
             iconHTML: calendarEvent.allDay ? "⏰" : "📅",
-            label: calendarEvent.allDay ? t("changeToTimed") : t("changeToAllDay"),
+            label: calendarEvent.allDay ? i18n("changeToTimed") : i18n("changeToAllDay"),
             click: () => {
                 this.toggleAllDayEvent(calendarEvent);
             }
@@ -2235,7 +2235,7 @@ export class CalendarView {
         if (calendarEvent.extendedProps.blockId) {
             menu.addItem({
                 iconHTML: "📋",
-                label: t("copyBlockRef"),
+                label: i18n("copyBlockRef"),
                 click: () => {
                     this.copyBlockRef(calendarEvent);
                 }
@@ -2245,7 +2245,7 @@ export class CalendarView {
         // 添加复制事件标题菜单项
         menu.addItem({
             iconHTML: "📄",
-            label: t("copyEventTitle"),
+            label: i18n("copyEventTitle"),
             click: () => {
                 this.copyEventTitle(calendarEvent);
             }
@@ -2254,7 +2254,7 @@ export class CalendarView {
         // 添加创建副本菜单项
         menu.addItem({
             iconHTML: "📅",
-            label: t("createCopy"),
+            label: i18n("createCopy"),
             click: () => {
                 this.createCopy(calendarEvent);
             }
@@ -2265,7 +2265,7 @@ export class CalendarView {
         if (calendarEvent.extendedProps.isRepeated) {
             menu.addItem({
                 iconHTML: "🗑️",
-                label: t("deleteThisInstance"),
+                label: i18n("deleteThisInstance"),
                 click: () => {
                     this.deleteInstanceOnly(calendarEvent);
                 }
@@ -2273,7 +2273,7 @@ export class CalendarView {
 
             menu.addItem({
                 iconHTML: "🗑️",
-                label: t("deleteAllInstances"),
+                label: i18n("deleteAllInstances"),
                 click: () => {
                     this.deleteEvent(calendarEvent);
                 }
@@ -2282,7 +2282,7 @@ export class CalendarView {
             // 对于周期原始事件，提供与实例一致的删除选项
             menu.addItem({
                 iconHTML: "🗑️",
-                label: t("deleteThisInstance"),
+                label: i18n("deleteThisInstance"),
                 click: () => {
                     this.skipFirstOccurrence(calendarEvent);
                 }
@@ -2290,7 +2290,7 @@ export class CalendarView {
 
             menu.addItem({
                 iconHTML: "🗑️",
-                label: t("deleteAllInstances"),
+                label: i18n("deleteAllInstances"),
                 click: () => {
                     this.deleteEvent(calendarEvent);
                 }
@@ -2298,7 +2298,7 @@ export class CalendarView {
         } else {
             menu.addItem({
                 iconHTML: "🗑️",
-                label: t("deleteReminder"),
+                label: i18n("deleteReminder"),
                 click: () => {
                     this.deleteEvent(calendarEvent);
                 }
@@ -2311,7 +2311,7 @@ export class CalendarView {
         if (calendarEvent.extendedProps.projectId) {
             menu.addItem({
                 iconHTML: "📂",
-                label: t("openProjectKanban"),
+                label: i18n("openProjectKanban"),
                 click: () => {
                     this.openProjectKanban(calendarEvent.extendedProps.projectId);
                 }
@@ -2322,7 +2322,7 @@ export class CalendarView {
         // 添加番茄钟选项
         menu.addItem({
             iconHTML: "🍅",
-            label: t("startPomodoro"),
+            label: i18n("startPomodoro"),
             click: () => {
                 this.startPomodoro(calendarEvent);
             }
@@ -2330,7 +2330,7 @@ export class CalendarView {
 
         menu.addItem({
             iconHTML: "⏱️",
-            label: t("startCountUp"),
+            label: i18n("startCountUp"),
             click: () => {
                 this.startPomodoroCountUp(calendarEvent);
             }
@@ -2355,7 +2355,7 @@ export class CalendarView {
             const originalReminder = reminderData[originalId];
 
             if (!originalReminder) {
-                showMessage(t("reminderDataNotExist"));
+                showMessage(i18n("reminderDataNotExist"));
                 return;
             }
 
@@ -2397,15 +2397,15 @@ export class CalendarView {
             editDialog.show();
         } catch (error) {
             console.error('打开实例编辑对话框失败:', error);
-            showMessage(t("openModifyDialogFailed"));
+            showMessage(i18n("openModifyDialogFailed"));
         }
     }
 
     private async deleteInstanceOnly(calendarEvent: any) {
         // 删除重复事件的单个实例
         await confirm(
-            t("deleteThisInstance"),
-            t("confirmDeleteInstance"),
+            i18n("deleteThisInstance"),
+            i18n("confirmDeleteInstance"),
             async () => {
                 try {
                     const originalId = calendarEvent.extendedProps.originalId;
@@ -2415,12 +2415,12 @@ export class CalendarView {
 
                     await this.addExcludedDate(originalId, instanceDate);
 
-                    showMessage(t("instanceDeleted"));
+                    showMessage(i18n("instanceDeleted"));
                     await this.refreshEvents();
                     window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
                 } catch (error) {
                     console.error('删除重复实例失败:', error);
-                    showMessage(t("deleteInstanceFailed"));
+                    showMessage(i18n("deleteInstanceFailed"));
                 }
             }
         );
@@ -2459,7 +2459,7 @@ export class CalendarView {
         try {
             // 检查是否有绑定的块ID
             if (!calendarEvent.extendedProps.blockId) {
-                showMessage(t("unboundReminder") + "，请先绑定到块");
+                showMessage(i18n("unboundReminder") + "，请先绑定到块");
                 return;
             }
 
@@ -2467,12 +2467,12 @@ export class CalendarView {
             const blockId = calendarEvent.extendedProps.blockId;
 
             if (!blockId) {
-                showMessage(t("cannotGetDocumentId"));
+                showMessage(i18n("cannotGetDocumentId"));
                 return;
             }
 
             // 获取事件标题（移除可能存在的分类图标前缀）
-            let title = calendarEvent.title || t("unnamedNote");
+            let title = calendarEvent.title || i18n("unnamedNote");
 
             // 移除分类图标（如果存在）
             // 移除分类图标（如果存在）
@@ -2499,7 +2499,7 @@ export class CalendarView {
 
         } catch (error) {
             console.error('复制块引失败:', error);
-            showMessage(t("operationFailed"));
+            showMessage(i18n("operationFailed"));
         }
     }
 
@@ -2507,7 +2507,7 @@ export class CalendarView {
     private async copyEventTitle(calendarEvent: any) {
         try {
             // 获取事件标题（移除可能存在的分类图标前缀）
-            let title = calendarEvent.title || t("unnamedNote");
+            let title = calendarEvent.title || i18n("unnamedNote");
 
             // 移除分类图标（如果存在）
             // 移除分类图标（如果存在）
@@ -2527,11 +2527,11 @@ export class CalendarView {
 
             // 复制到剪贴板
             await navigator.clipboard.writeText(title);
-            showMessage(t("eventTitleCopied") || "事件标题已复制到剪贴板");
+            showMessage(i18n("eventTitleCopied") || "事件标题已复制到剪贴板");
 
         } catch (error) {
             console.error('复制事件标题失败:', error);
-            showMessage(t("operationFailed"));
+            showMessage(i18n("operationFailed"));
         }
     }
 
@@ -2546,7 +2546,7 @@ export class CalendarView {
             const originalReminder = reminderData[originalId];
 
             if (!originalReminder) {
-                showMessage(t("operationFailed"));
+                showMessage(i18n("operationFailed"));
                 return;
             }
 
@@ -2604,11 +2604,11 @@ export class CalendarView {
 
             // 刷新日历事件
             await this.refreshEvents();
-            showMessage(t("copyCreated") || "副本已创建");
+            showMessage(i18n("copyCreated") || "副本已创建");
 
         } catch (error) {
             console.error('创建副本失败:', error);
-            showMessage(t("operationFailed"));
+            showMessage(i18n("operationFailed"));
         }
     }
 
@@ -2633,16 +2633,16 @@ export class CalendarView {
                 await this.refreshEvents();
 
                 const priorityNames = {
-                    'high': t("high"),
-                    'medium': t("medium"),
-                    'low': t("low"),
-                    'none': t("none")
+                    'high': i18n("high"),
+                    'medium': i18n("medium"),
+                    'low': i18n("low"),
+                    'none': i18n("none")
                 };
-                showMessage(t("prioritySet", { priority: priorityNames[priority] }));
+                showMessage(i18n("prioritySet", { priority: priorityNames[priority] }));
             }
         } catch (error) {
             console.error('设置优先级失败:', error);
-            showMessage(t("setPriorityFailed"));
+            showMessage(i18n("setPriorityFailed"));
         }
     }
 
@@ -2652,16 +2652,16 @@ export class CalendarView {
         // 对于重复事件实例，删除的是整个系列
         if (calendarEvent.extendedProps.isRepeated) {
             await confirm(
-                t("deleteAllInstances"),
-                t("confirmDelete", { title: calendarEvent.title }),
+                i18n("deleteAllInstances"),
+                i18n("confirmDelete", { title: calendarEvent.title }),
                 () => {
                     this.performDeleteEvent(calendarEvent.extendedProps.originalId);
                 }
             );
         } else {
             await confirm(
-                t("deleteReminder"),
-                t("confirmDelete", { title: calendarEvent.title }),
+                i18n("deleteReminder"),
+                i18n("confirmDelete", { title: calendarEvent.title }),
                 () => {
                     this.performDeleteEvent(calendarEvent.id);
                 }
@@ -2700,11 +2700,11 @@ export class CalendarView {
 
                     // 触发更新事件
                     window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
-                    showMessage(t("reminderDeleted"));
+                    showMessage(i18n("reminderDeleted"));
                 }
             } catch (error) {
                 console.error('后台删除提醒过程出错:', error);
-                showMessage(t("deleteReminderFailed"));
+                showMessage(i18n("deleteReminderFailed"));
                 // 失败时同步数据回滚显示
                 await this.refreshEvents();
             }
@@ -2749,7 +2749,7 @@ export class CalendarView {
         if (props.isSubscribed) {
             const subIcon = document.createElement('span');
             subIcon.innerHTML = '🗓';
-            subIcon.title = t("subscribedTaskReadOnly") || "订阅任务（只读）";
+            subIcon.title = i18n("subscribedTaskReadOnly") || "订阅任务（只读）";
             subIcon.style.width = '14px';
             subIcon.style.height = '14px';
             subIcon.style.display = 'flex';
@@ -2846,10 +2846,10 @@ export class CalendarView {
             repeatIcon.className = 'reminder-event-icon';
             if (props.isRepeated) {
                 repeatIcon.innerHTML = '🔄';
-                repeatIcon.title = t("repeatInstance");
+                repeatIcon.title = i18n("repeatInstance");
             } else {
                 repeatIcon.innerHTML = '🔁';
-                repeatIcon.title = t("repeatSeries");
+                repeatIcon.title = i18n("repeatSeries");
             }
             indicatorsRow.appendChild(repeatIcon);
         }
@@ -3423,7 +3423,7 @@ export class CalendarView {
 
         } catch (error) {
             console.error('全天事件重排序失败:', error);
-            showMessage(t("operationFailed"));
+            showMessage(i18n("operationFailed"));
         }
     }
 
@@ -3445,9 +3445,9 @@ export class CalendarView {
         // 如果没有绑定块，提示用户绑定块 (订阅任务除外)
         if (!reminder.blockId) {
             if (reminder.isSubscribed) {
-                showMessage(t("subscribedTaskReadOnly") || "订阅任务（只读）");
+                showMessage(i18n("subscribedTaskReadOnly") || "订阅任务（只读）");
             } else {
-                showMessage(t("unboundReminder") + "，请右键选择\"绑定到块\"");
+                showMessage(i18n("unboundReminder") + "，请右键选择\"绑定到块\"");
             }
             return;
         }
@@ -3459,14 +3459,14 @@ export class CalendarView {
 
             // 询问用户是否删除无效的提醒
             await confirm(
-                t("openNoteFailedDelete"),
-                t("noteBlockDeleted"),
+                i18n("openNoteFailedDelete"),
+                i18n("noteBlockDeleted"),
                 async () => {
                     // 删除当前提醒
                     await this.performDeleteEvent(info.event.id);
                 },
                 () => {
-                    showMessage(t("openNoteFailed"));
+                    showMessage(i18n("openNoteFailed"));
                 }
             );
         }
@@ -3815,7 +3815,7 @@ export class CalendarView {
 
         } catch (error) {
             console.error('更新重复事件系列失败:', error);
-            showMessage(t("operationFailed"));
+            showMessage(i18n("operationFailed"));
             info.revert();
         }
     }
@@ -3823,14 +3823,14 @@ export class CalendarView {
     private async askApplyToAllInstances(): Promise<'single' | 'all' | 'cancel'> {
         return new Promise((resolve) => {
             const dialog = new Dialog({
-                title: t("modifyRepeatEvent"),
+                title: i18n("modifyRepeatEvent"),
                 content: `
                     <div class="b3-dialog__content">
-                        <div style="margin-bottom: 16px;">${t("howToApplyChanges")}</div>
+                        <div style="margin-bottom: 16px;">${i18n("howToApplyChanges")}</div>
                         <div class="fn__flex fn__flex-justify-center" style="gap: 8px;">
-                            <button class="b3-button" id="btn-single">${t("onlyThisInstance")}</button>
-                            <button class="b3-button b3-button--primary" id="btn-all">${t("allInstances")}</button>
-                            <button class="b3-button b3-button--cancel" id="btn-cancel">${t("cancel")}</button>
+                            <button class="b3-button" id="btn-single">${i18n("onlyThisInstance")}</button>
+                            <button class="b3-button b3-button--primary" id="btn-all">${i18n("allInstances")}</button>
+                            <button class="b3-button b3-button--cancel" id="btn-cancel">${i18n("cancel")}</button>
                         </div>
                     </div>
                 `,
@@ -3953,12 +3953,12 @@ export class CalendarView {
                 ...instanceModification
             });
 
-            showMessage(t("instanceTimeUpdated"));
+            showMessage(i18n("instanceTimeUpdated"));
             window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
 
         } catch (error) {
             console.error('更新单个实例失败:', error);
-            showMessage(t("updateInstanceFailed"));
+            showMessage(i18n("updateInstanceFailed"));
             info.revert();
         }
     }
@@ -4093,7 +4093,7 @@ export class CalendarView {
             }
         } catch (error) {
             console.error(isResize ? '调整事件大小失败:' : '更新事件时间失败:', error);
-            showMessage(t("operationFailed"));
+            showMessage(i18n("operationFailed"));
             info.revert();
         }
     }
@@ -4523,11 +4523,11 @@ export class CalendarView {
 
                 editDialog.show();
             } else {
-                showMessage(t("reminderDataNotExist"));
+                showMessage(i18n("reminderDataNotExist"));
             }
         } catch (error) {
             console.error('打开修改对话框失败:', error);
-            showMessage(t("openModifyDialogFailed"));
+            showMessage(i18n("openModifyDialogFailed"));
         }
     }
 
@@ -4564,11 +4564,11 @@ export class CalendarView {
 
                 editDialog.show();
             } else {
-                showMessage(t("reminderDataNotExist"));
+                showMessage(i18n("reminderDataNotExist"));
             }
         } catch (error) {
             console.error('打开系列修改对话框失败:', error);
-            showMessage(t("openModifyDialogFailed"));
+            showMessage(i18n("openModifyDialogFailed"));
         }
     }
 
@@ -4600,11 +4600,11 @@ export class CalendarView {
                 // 立即刷新事件显示
                 await this.refreshEvents();
 
-                showMessage(calendarEvent.allDay ? t("changedToTimed") : t("changedToAllDay"));
+                showMessage(calendarEvent.allDay ? i18n("changedToTimed") : i18n("changedToAllDay"));
             }
         } catch (error) {
             console.error('切换全天事件失败:', error);
-            showMessage(t("toggleAllDayFailed"));
+            showMessage(i18n("toggleAllDayFailed"));
         }
     }
 
@@ -5029,7 +5029,7 @@ export class CalendarView {
                         if (!session.startTime || !session.endTime) continue;
 
                         // Construct title: "<TomatoIcon> TaskName"
-                        const title = `🍅 ${session.eventTitle || t('unnamedTask')}`;
+                        const title = `🍅 ${session.eventTitle || i18n('unnamedTask')}`;
 
                         // Determine colors based on session type
                         let backgroundColor = '#f23145'; // Default to work type
@@ -5067,7 +5067,7 @@ export class CalendarView {
             return events;
         } catch (error) {
             console.error('获取事件数据失败:', error);
-            showMessage(t("loadReminderDataFailed"));
+            showMessage(i18n("loadReminderDataFailed"));
             return [];
         }
     }
@@ -5313,7 +5313,7 @@ export class CalendarView {
         // 构建事件对象（优化：直接使用colors.backgroundColor和colors.borderColor）
         const eventObj: any = {
             id: eventId,
-            title: reminder.title || t("unnamedNote"),
+            title: reminder.title || i18n("unnamedNote"),
             backgroundColor: colors.backgroundColor,
             borderColor: colors.borderColor,
             textColor: 'var(--b3-theme-on-background)',
@@ -5362,7 +5362,7 @@ export class CalendarView {
                 eventObj.allDay = true;
 
                 if (reminder.time) {
-                    eventObj.title = `${reminder.title || t("unnamedNote")} (${reminder.time})`;
+                    eventObj.title = `${reminder.title || i18n("unnamedNote")} (${reminder.time})`;
                 }
             }
         } else {
@@ -5433,7 +5433,7 @@ export class CalendarView {
             }
 
             // 显示加载状态
-            this.tooltip.innerHTML = `<div style="color: var(--b3-theme-on-surface-light); font-size: 12px;">${t("loading")}</div>`;
+            this.tooltip.innerHTML = `<div style="color: var(--b3-theme-on-surface-light); font-size: 12px;">${i18n("loading")}</div>`;
             this.tooltip.style.display = 'block';
             this.updateTooltipPosition(event);
 
@@ -5514,7 +5514,7 @@ export class CalendarView {
         // Special tooltip for Pomodoro events
         if (reminder.type === 'pomodoro') {
             const htmlParts: string[] = [];
-            const title = reminder.eventTitle || t("unnamedTask");
+            const title = reminder.eventTitle || i18n("unnamedTask");
 
             // Title
             htmlParts.push(
@@ -5539,7 +5539,7 @@ export class CalendarView {
             if (reminder.eventId) {
                 htmlParts.push(
                     `<div style="color: var(--b3-theme-on-surface-light); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--b3-theme-border); font-size: 12px; font-style: italic;">`,
-                    `${t("rightClickToManage") || "右键管理记录"}`,
+                    `${i18n("rightClickToManage") || "右键管理记录"}`,
                     `</div>`
                 );
             }
@@ -5585,13 +5585,13 @@ export class CalendarView {
                 htmlParts.push(
                     `<div style="color: var(--b3-theme-on-background); font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-align: left;">`,
                     `<span>${labelIcon}</span>`,
-                    `<span title="${t("belongsToDocument")}">${this.escapeHtml(labelText)}</span>`,
+                    `<span title="${i18n("belongsToDocument")}">${this.escapeHtml(labelText)}</span>`,
                     `</div>`
                 );
             }
 
             // 2. 事项名称
-            let eventTitle = calendarEvent.title || t("unnamedNote");
+            let eventTitle = calendarEvent.title || i18n("unnamedNote");
             if (reminder.categoryId) {
                 const categoryIds = reminder.categoryId.split(',');
                 for (const id of categoryIds) {
@@ -5627,7 +5627,7 @@ export class CalendarView {
                 htmlParts.push(
                     `<div style="color: var(--b3-theme-on-surface); margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">`,
                     `<span style="opacity: 0.7;">↪️</span>`,
-                    `<span style="font-size: 13px;">${t("parentTask") || '父任务'}: ${this.escapeHtml(reminder.parentTitle)}</span>`,
+                    `<span style="font-size: 13px;">${i18n("parentTask") || '父任务'}: ${this.escapeHtml(reminder.parentTitle)}</span>`,
                     `</div>`
                 );
             }
@@ -5677,7 +5677,7 @@ export class CalendarView {
                 htmlParts.push(
                     `<div style="color: var(--b3-theme-on-surface-light); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; font-size: 12px;">`,
                     `<span>🔄</span>`,
-                    `<span>${t("repeatInstance")}</span>`,
+                    `<span>${i18n("repeatInstance")}</span>`,
                     `</div>`
                 );
             } else if (reminder.repeat?.enabled) {
@@ -5696,7 +5696,7 @@ export class CalendarView {
             if (reminder.note?.trim()) {
                 htmlParts.push(
                     `<div style="color: var(--b3-theme-on-surface-light); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--b3-theme-border); font-size: 12px;">`,
-                    `<div style="margin-bottom: 4px; opacity: 0.7;">${t("note")}:</div>`,
+                    `<div style="margin-bottom: 4px; opacity: 0.7;">${i18n("note")}:</div>`,
                     `<div>${this.escapeHtml(reminder.note)}</div>`,
                     `</div>`
                 );
@@ -5730,7 +5730,7 @@ export class CalendarView {
                 htmlParts.push(
                     `<div style="color: var(--b3-theme-success); margin-top: 6px; display: flex; align-items: center; gap: 4px; font-size: 12px;">`,
                     `<span>✅</span>`,
-                    `<span>${t("completed")}</span>`
+                    `<span>${i18n("completed")}</span>`
                 );
 
                 if (completedTime) {
@@ -5746,7 +5746,7 @@ export class CalendarView {
 
         } catch (error) {
             console.error('构建提示框内容失败:', error);
-            return `<div style="color: var(--b3-theme-error);">${t("loadFailed")}</div>`;
+            return `<div style="color: var(--b3-theme-error);">${i18n("loadFailed")}</div>`;
         }
     }
 
@@ -5768,9 +5768,9 @@ export class CalendarView {
             });
 
             if (completedDateStr === today) {
-                return `${t("completedToday")} ${timeStr}`;
+                return `${i18n("completedToday")} ${timeStr}`;
             } else if (completedDateStr === yesterdayStr) {
-                return `${t("completedYesterday")} ${timeStr}`;
+                return `${i18n("completedYesterday")} ${timeStr}`;
             } else {
                 const dateStr = completedDate.toLocaleDateString('zh-CN', {
                     month: 'short',
@@ -5793,9 +5793,9 @@ export class CalendarView {
 
             let dateStr = '';
             if (reminder.date === today) {
-                dateStr = t("today");
+                dateStr = i18n("today");
             } else if (reminder.date === tomorrowStr) {
-                dateStr = t("tomorrow");
+                dateStr = i18n("tomorrow");
             } else {
                 const reminderDate = new Date(reminder.date + 'T00:00:00');
 
@@ -5811,9 +5811,9 @@ export class CalendarView {
             if (reminder.endDate && reminder.endDate !== reminder.date) {
                 let endDateStr = '';
                 if (reminder.endDate === today) {
-                    endDateStr = t("today");
+                    endDateStr = i18n("today");
                 } else if (reminder.endDate === tomorrowStr) {
-                    endDateStr = t("tomorrow");
+                    endDateStr = i18n("tomorrow");
                 } else {
                     const endReminderDate = new Date(reminder.endDate + 'T00:00:00');
                     endDateStr = endReminderDate.toLocaleDateString('zh-CN', {
@@ -5855,9 +5855,9 @@ export class CalendarView {
      */
     private formatPriorityInfo(priority: string): string {
         const priorityMap = {
-            'high': { label: t("high"), icon: '🔴', color: '#e74c3c' },
-            'medium': { label: t("medium"), icon: '🟡', color: '#f39c12' },
-            'low': { label: t("low"), icon: '🔵', color: '#3498db' }
+            'high': { label: i18n("high"), icon: '🔴', color: '#e74c3c' },
+            'medium': { label: i18n("medium"), icon: '🟡', color: '#f39c12' },
+            'low': { label: i18n("low"), icon: '🔵', color: '#3498db' }
         };
 
         const priorityInfo = priorityMap[priority];
@@ -5876,27 +5876,27 @@ export class CalendarView {
         try {
             switch (repeat.type) {
                 case 'daily':
-                    return repeat.interval === 1 ? t("dailyRepeat") : t("everyNDaysRepeat", { n: repeat.interval });
+                    return repeat.interval === 1 ? i18n("dailyRepeat") : i18n("everyNDaysRepeat", { n: repeat.interval });
                 case 'weekly':
-                    return repeat.interval === 1 ? t("weeklyRepeat") : t("everyNWeeksRepeat", { n: repeat.interval });
+                    return repeat.interval === 1 ? i18n("weeklyRepeat") : i18n("everyNWeeksRepeat", { n: repeat.interval });
                 case 'monthly':
-                    return repeat.interval === 1 ? t("monthlyRepeat") : t("everyNMonthsRepeat", { n: repeat.interval });
+                    return repeat.interval === 1 ? i18n("monthlyRepeat") : i18n("everyNMonthsRepeat", { n: repeat.interval });
                 case 'yearly':
-                    return repeat.interval === 1 ? t("yearlyRepeat") : t("everyNYearsRepeat", { n: repeat.interval });
+                    return repeat.interval === 1 ? i18n("yearlyRepeat") : i18n("everyNYearsRepeat", { n: repeat.interval });
                 case 'lunar-monthly':
-                    return t("lunarMonthlyRepeat");
+                    return i18n("lunarMonthlyRepeat");
                 case 'lunar-yearly':
-                    return t("lunarYearlyRepeat");
+                    return i18n("lunarYearlyRepeat");
                 case 'custom':
-                    return t("customRepeat");
+                    return i18n("customRepeat");
                 case 'ebbinghaus':
-                    return t("ebbinghausRepeat");
+                    return i18n("ebbinghausRepeat");
                 default:
-                    return t("repeatEvent");
+                    return i18n("repeatEvent");
             }
         } catch (error) {
             console.error('获取重复描述失败:', error);
-            return t("repeatEvent");
+            return i18n("repeatEvent");
         }
     }
 
@@ -5982,14 +5982,14 @@ export class CalendarView {
             const originalReminder = reminderData[calendarEvent.id];
 
             if (!originalReminder || !originalReminder.repeat?.enabled) {
-                showMessage(t("operationFailed"));
+                showMessage(i18n("operationFailed"));
                 return;
             }
 
             // 计算下一个周期日期
             const nextDate = this.calculateNextDate(originalReminder.date, originalReminder.repeat);
             if (!nextDate) {
-                showMessage(t("operationFailed") + ": " + t("invalidRepeatConfig"));
+                showMessage(i18n("operationFailed") + ": " + i18n("invalidRepeatConfig"));
                 return;
             }
             const nextDateStr = getLocalDateTime(nextDate).dateStr;
@@ -6022,7 +6022,7 @@ export class CalendarView {
 
         } catch (error) {
             console.error('分割重复事件系列失败:', error);
-            showMessage(t("operationFailed"));
+            showMessage(i18n("operationFailed"));
         }
     }
 
@@ -6097,11 +6097,11 @@ export class CalendarView {
             // 5. 更新界面
             await this.refreshEvents();
             window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
-            showMessage(t("seriesSplitSuccess"));
+            showMessage(i18n("seriesSplitSuccess"));
 
         } catch (error) {
             console.error('执行分割重复事件系列失败:', error);
-            showMessage(t("operationFailed"));
+            showMessage(i18n("operationFailed"));
         }
     }
 
@@ -6111,22 +6111,22 @@ export class CalendarView {
 
     private async skipFirstOccurrence(reminder: any) {
         await confirm(
-            t("deleteThisInstance"),
-            t("confirmSkipFirstOccurrence"),
+            i18n("deleteThisInstance"),
+            i18n("confirmSkipFirstOccurrence"),
             async () => {
                 try {
                     const reminderData = await getAllReminders(this.plugin);
                     const originalReminder = reminderData[reminder.id];
 
                     if (!originalReminder || !originalReminder.repeat?.enabled) {
-                        showMessage(t("operationFailed"));
+                        showMessage(i18n("operationFailed"));
                         return;
                     }
 
                     // 计算下一个周期的日期
                     const nextDate = this.calculateNextDate(originalReminder.date, originalReminder.repeat);
                     if (!nextDate) {
-                        showMessage(t("operationFailed") + ": " + t("invalidRepeatConfig"));
+                        showMessage(i18n("operationFailed") + ": " + i18n("invalidRepeatConfig"));
                         return;
                     }
 
@@ -6164,11 +6164,11 @@ export class CalendarView {
                     }
 
                     await saveReminders(this.plugin, reminderData);
-                    showMessage(t("firstOccurrenceSkipped"));
+                    showMessage(i18n("firstOccurrenceSkipped"));
                     window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
                 } catch (error) {
                     console.error('跳过首次发生失败:', error);
-                    showMessage(t("operationFailed"));
+                    showMessage(i18n("operationFailed"));
                 }
             }
         );
@@ -6312,16 +6312,16 @@ export class CalendarView {
             async (blockId: string) => {
                 try {
                     await this.bindReminderToBlock(calendarEvent, blockId);
-                    showMessage(t("reminderBoundToBlock"));
+                    showMessage(i18n("reminderBoundToBlock"));
                     // 刷新日历显示
                     await this.refreshEvents();
                 } catch (error) {
                     console.error('绑定提醒到块失败:', error);
-                    showMessage(t("bindToBlockFailed"));
+                    showMessage(i18n("bindToBlockFailed"));
                 }
             },
             {
-                title: t("bindReminderToBlock"),
+                title: i18n("bindReminderToBlock"),
                 defaultTab: 'bind',
                 reminder: calendarEvent,
                 defaultTitle: calendarEvent.title || ''

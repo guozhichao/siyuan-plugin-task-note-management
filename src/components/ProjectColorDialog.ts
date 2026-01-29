@@ -1,5 +1,5 @@
 import { Dialog, showMessage } from "siyuan";
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 import { Project, ProjectManager } from "../utils/projectManager";
 import { StatusManager } from "../utils/statusManager";
 
@@ -17,7 +17,7 @@ export class ProjectColorDialog {
 
     public show() {
         this.dialog = new Dialog({
-            title: t("setProjectColors"),
+            title: i18n("setProjectColors"),
             content: `<div class="b3-dialog__content" id="project-color-dialog-content"></div>`,
             width: "520px",
             height: "600px",
@@ -36,7 +36,7 @@ export class ProjectColorDialog {
             const projects = projectsByStatus[statusId];
             if (projects.length > 0) {
                 const status = this.statusManager.getStatusById(statusId);
-                const statusName = status ? status.name : t("uncategorized");
+                const statusName = status ? status.name : i18n("uncategorized");
                 content += `
                     <div class="project-group">
                         <details open>
@@ -71,7 +71,7 @@ export class ProjectColorDialog {
                 const target = e.target as HTMLInputElement;
                 const projectId = (target.closest('.project-item') as HTMLElement).dataset.projectId;
                 await this.projectManager.setProjectColor(projectId, target.value);
-                showMessage(t("colorSetSuccess"));
+                showMessage(i18n("colorSetSuccess"));
                 this.onSave();
             });
         });

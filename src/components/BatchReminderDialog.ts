@@ -1,5 +1,5 @@
 import { Dialog, showMessage } from "siyuan";
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 import { updateBindBlockAtrrs, getBlockByID } from "../api";
 import { getRepeatDescription } from "../utils/repeatUtils";
 import { getLogicalDateString, parseNaturalDateTime, autoDetectDateTimeFromTitle } from "../utils/dateUtils";
@@ -245,7 +245,7 @@ class SmartBatchDialog {
         await this.projectManager.initialize();
 
         const dialog = new Dialog({
-            title: t("smartBatchTitle", { count: this.blockIds.length.toString() }),
+            title: i18n("smartBatchTitle", { count: this.blockIds.length.toString() }),
             content: this.buildSmartBatchContent(),
             width: "700px",
             height: "700px"
@@ -267,10 +267,10 @@ class SmartBatchDialog {
                     <!-- 批量操作面板 -->
                     <div class="batch-operations-panel">
                         <div class="batch-operations-header">
-                            <h3>${t("batchOperations")}</h3>
+                            <h3>${i18n("batchOperations")}</h3>
                             <div class="batch-toggle">
                                 <button type="button" id="batchToggleBtn" class="b3-button b3-button--outline">
-                                    <span>${t("expand")}</span>
+                                    <span>${i18n("expand")}</span>
                                     <svg class="b3-button__icon toggle-icon"><use xlink:href="#iconDown"></use></svg>
                                 </button>
                             </div>
@@ -278,70 +278,70 @@ class SmartBatchDialog {
                         <div class="batch-operations-content" id="batchOperationsContent" style="display: none;">
                             <div class="batch-operation-row">
                                 <div class="batch-operation-item">
-                                    <label class="b3-form__label">${t("batchSetCategory")}</label>
+                                    <label class="b3-form__label">${i18n("batchSetCategory")}</label>
                                     <div class="batch-category-container">
                                         <div class="category-selector-compact" id="batchCategorySelector">
                                             <!-- 分类选择器将在这里渲染 -->
                                         </div>
                                         <button type="button" id="batchApplyCategoryBtn" class="b3-button b3-button--primary" disabled>
-                                            ${t("applyToAll")}
+                                            ${i18n("applyToAll")}
                                         </button>
                                     </div>
                                 </div>
                                 <div class="batch-operation-item">
-                                    <label class="b3-form__label">${t("batchSetPriority")}</label>
+                                    <label class="b3-form__label">${i18n("batchSetPriority")}</label>
                                     <div class="batch-priority-container">
                                         <div class="priority-selector-compact" id="batchPrioritySelector">
                                             <div class="priority-option-compact" data-priority="high">
                                                 <div class="priority-dot high"></div>
-                                                <span>${t("highPriority")}</span>
+                                                <span>${i18n("highPriority")}</span>
                                             </div>
                                             <div class="priority-option-compact" data-priority="medium">
                                                 <div class="priority-dot medium"></div>
-                                                <span>${t("mediumPriority")}</span>
+                                                <span>${i18n("mediumPriority")}</span>
                                             </div>
                                             <div class="priority-option-compact" data-priority="low">
                                                 <div class="priority-dot low"></div>
-                                                <span>${t("lowPriority")}</span>
+                                                <span>${i18n("lowPriority")}</span>
                                             </div>
                                             <div class="priority-option-compact" data-priority="none">
                                                 <div class="priority-dot none"></div>
-                                                <span>${t("noPriority")}</span>
+                                                <span>${i18n("noPriority")}</span>
                                             </div>
                                         </div>
                                         <button type="button" id="batchApplyPriorityBtn" class="b3-button b3-button--primary" disabled>
-                                            ${t("applyToAll")}
+                                            ${i18n("applyToAll")}
                                         </button>
                                     </div>
                                 </div>
                             </div>
                             <div class="batch-operation-row">
                                 <div class="batch-operation-item">
-                                    <label class="b3-form__label">${t("batchSetProject")}</label>
+                                    <label class="b3-form__label">${i18n("batchSetProject")}</label>
                                     <div class="batch-project-container">
                                         <select id="batchProjectSelector" class="b3-select" style="flex: 1;">
-                                            <option value="">${t("noProject")}</option>
+                                            <option value="">${i18n("noProject")}</option>
                                             <!-- 项目选择器将在这里渲染 -->
                                         </select>
                                             <button type="button" id="batchApplyProjectBtn" class="b3-button b3-button--primary" disabled>
-                                                ${t("applyToAll")}
+                                                ${i18n("applyToAll")}
                                             </button>
                                             <select id="batchStatusSelector" class="b3-select" style="margin-left:8px; min-width:140px; display: none;">
-                                                <option value="">${t("selectStatus") || '选择状态'}</option>
+                                                <option value="">${i18n("selectStatus") || '选择状态'}</option>
                                             </select>
                                             <button type="button" id="batchApplyStatusBtn" class="b3-button b3-button--primary" disabled style="display:none; margin-left:6px;">
-                                                ${t("applyStatusToAll") || '应用状态'}
+                                                ${i18n("applyStatusToAll") || '应用状态'}
                                             </button>
                                     </div>
                                 </div>
                                 <div class="batch-operation-item">
-                                    <label class="b3-form__label">${t("batchSetDate")}</label>
+                                    <label class="b3-form__label">${i18n("batchSetDate")}</label>
                                     <div class="batch-date-container">
                                         <input type="date" id="batchDateInput" class="b3-text-field" value="${getLogicalDateString()}" max="9999-12-31">
                                         <button type="button" id="batchApplyDateBtn" class="b3-button b3-button--primary">
-                                            ${t("applyDateToAll")}
+                                            ${i18n("applyDateToAll")}
                                         </button>
-                                        <button type="button" id="batchNlDateBtn" class="b3-button b3-button--outline" title="${t('smartDateRecognition')}">
+                                        <button type="button" id="batchNlDateBtn" class="b3-button b3-button--outline" title="${i18n('smartDateRecognition')}">
                                             ✨
                                         </button>
                                     </div>
@@ -354,14 +354,14 @@ class SmartBatchDialog {
                     
                     <div class="block-list-header">
                         <div class="list-summary">
-                            <span class="summary-text">${t("totalBlocks", { count: this.blockIds.length.toString(), detected: this.autoDetectedData.filter(d => d.date).length.toString() })}</span>
+                            <span class="summary-text">${i18n("totalBlocks", { count: this.blockIds.length.toString(), detected: this.autoDetectedData.filter(d => d.date).length.toString() })}</span>
                         </div>
                         <div class="list-actions">
                             <button type="button" id="selectAllBtn" class="b3-button b3-button--outline">
-                                ${t("selectAll")}
+                                ${i18n("selectAll")}
                             </button>
                             <button type="button" id="deselectAllBtn" class="b3-button b3-button--outline">
-                                ${t("deselectAll")}
+                                ${i18n("deselectAll")}
                             </button>
                         </div>
                     </div>
@@ -370,8 +370,8 @@ class SmartBatchDialog {
                     </div>
                 </div>
                 <div class="b3-dialog__action">
-                    <button class="b3-button b3-button--cancel" id="smartBatchCancelBtn">${t("cancel")}</button>
-                    <button class="b3-button b3-button--primary" id="smartBatchConfirmBtn">${t("batchSetReminders")}</button>
+                    <button class="b3-button b3-button--cancel" id="smartBatchCancelBtn">${i18n("cancel")}</button>
+                    <button class="b3-button b3-button--primary" id="smartBatchConfirmBtn">${i18n("batchSetReminders")}</button>
                 </div>
             </div>
         `;
@@ -437,7 +437,7 @@ class SmartBatchDialog {
                     </div>
                     <div class="block-actions">
                         <button type="button" class="b3-button b3-button--outline block-edit-btn" data-block-id="${data.blockId}">
-                            ⚙️  ${t("edit")}
+                            ⚙️  ${i18n("edit")}
                         </button>
                     </div>
                 </div>
@@ -452,7 +452,7 @@ class SmartBatchDialog {
     }
 
     private getCategoryDisplay(categoryId?: string): string {
-        if (!categoryId) return `🏷️ ${t("noCategory")}`;
+        if (!categoryId) return `🏷️ ${i18n("noCategory")}`;
 
         try {
             const categoryIds = categoryId.split(',');
@@ -473,22 +473,22 @@ class SmartBatchDialog {
             console.error('获取分类显示失败:', error);
         }
 
-        return `🏷️ ${t("noCategory")}`;
+        return `🏷️ ${i18n("noCategory")}`;
     }
 
     private getPriorityDisplay(priority?: string): string {
         const priorityMap = {
-            'high': `<span class="priority-badge high">🔴 ${t("highPriority")}</span>`,
-            'medium': `<span class="priority-badge medium">🟡 ${t("mediumPriority")}</span>`,
-            'low': `<span class="priority-badge low">🟢 ${t("lowPriority")}</span>`,
-            'none': `<span class="priority-badge none">⚪ ${t("noPriority")}</span>`
+            'high': `<span class="priority-badge high">🔴 ${i18n("highPriority")}</span>`,
+            'medium': `<span class="priority-badge medium">🟡 ${i18n("mediumPriority")}</span>`,
+            'low': `<span class="priority-badge low">🟢 ${i18n("lowPriority")}</span>`,
+            'none': `<span class="priority-badge none">⚪ ${i18n("noPriority")}</span>`
         };
 
         return priorityMap[priority as keyof typeof priorityMap] || priorityMap.none;
     }
 
     private getProjectDisplay(projectId?: string): string {
-        if (!projectId) return `📂 ${t("noProject")}`;
+        if (!projectId) return `📂 ${i18n("noProject")}`;
 
         try {
             const project = this.projectManager.getProjectById(projectId);
@@ -499,7 +499,7 @@ class SmartBatchDialog {
             console.error('获取项目显示失败:', error);
         }
 
-        return `📂 ${t("noProject")}`;
+        return `📂 ${i18n("noProject")}`;
     }
 
     private bindSmartBatchEvents(dialog: Dialog) {
@@ -529,7 +529,7 @@ class SmartBatchDialog {
             const toggleText = batchToggleBtn.querySelector('span');
             if (toggleIcon && toggleText) {
                 toggleIcon.setAttribute('xlink:href', isVisible ? '#iconDown' : '#iconUp');
-                toggleText.textContent = isVisible ? t("expand") : t("collapse");
+                toggleText.textContent = isVisible ? i18n("expand") : i18n("collapse");
             }
         });
 
@@ -605,7 +605,7 @@ class SmartBatchDialog {
             // reset status selector
             if (batchStatusSelector) {
                 batchStatusSelector.style.display = 'none';
-                batchStatusSelector.innerHTML = `<option value="">${t("selectStatus") || '选择状态'}</option>`;
+                batchStatusSelector.innerHTML = `<option value="">${i18n("selectStatus") || '选择状态'}</option>`;
             }
             if (batchApplyStatusBtn) {
                 batchApplyStatusBtn.style.display = 'none';
@@ -645,7 +645,7 @@ class SmartBatchDialog {
             if (!statusId || !projectId) return;
             const selectedBlocks = this.getSelectedBlockIds(dialog);
             if (selectedBlocks.length === 0) {
-                showMessage(t("pleaseSelectBlocks"));
+                showMessage(i18n("pleaseSelectBlocks"));
                 return;
             }
             selectedBlocks.forEach(blockId => {
@@ -656,7 +656,7 @@ class SmartBatchDialog {
                 }
             });
             this.updateBlockListDisplay(dialog);
-            showMessage(t("settingsApplied"));
+            showMessage(i18n("settingsApplied"));
             // disable until next selection
             if (batchApplyStatusBtn) batchApplyStatusBtn.disabled = true;
         });
@@ -697,26 +697,26 @@ class SmartBatchDialog {
     }
     private showBatchNaturalLanguageDialog(dialog: Dialog) {
         const nlDialog = new Dialog({
-            title: t("smartDateRecognitionDialog"),
+            title: i18n("smartDateRecognitionDialog"),
             content: `
                 <div class="nl-dialog">
                     <div class="b3-dialog__content">
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t("inputNaturalLanguage")}</label>
-                            <input type="text" id="batchNlInput" class="b3-text-field" placeholder="${t('exampleInputs')}" style="width: 100%;" autofocus>
+                            <label class="b3-form__label">${i18n("inputNaturalLanguage")}</label>
+                            <input type="text" id="batchNlInput" class="b3-text-field" placeholder="${i18n('exampleInputs')}" style="width: 100%;" autofocus>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t("recognitionPreview")}</label>
-                            <div id="batchNlPreview" class="nl-preview">${t("pleaseInputDescription")}</div>
+                            <label class="b3-form__label">${i18n("recognitionPreview")}</label>
+                            <div id="batchNlPreview" class="nl-preview">${i18n("pleaseInputDescription")}</div>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t("applyScope")}</label>
-                            <div id="batchNlScope" class="nl-scope">${t("applyToSelected")}</div>
+                            <label class="b3-form__label">${i18n("applyScope")}</label>
+                            <div id="batchNlScope" class="nl-scope">${i18n("applyToSelected")}</div>
                         </div>
                     </div>
                     <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="batchNlCancelBtn">${t("cancel")}</button>
-                        <button class="b3-button b3-button--primary" id="batchNlConfirmBtn" disabled>${t("batchApply")}</button>
+                        <button class="b3-button b3-button--cancel" id="batchNlCancelBtn">${i18n("cancel")}</button>
+                        <button class="b3-button b3-button--primary" id="batchNlConfirmBtn" disabled>${i18n("batchApply")}</button>
                     </div>
                 </div>
             `,
@@ -734,7 +734,7 @@ class SmartBatchDialog {
         const nlConfirmBtn = nlDialog.element.querySelector('#batchNlConfirmBtn') as HTMLButtonElement;
 
         const selectedCount = this.getSelectedBlockIds(parentDialog).length;
-        nlScope.textContent = t("applyToSelectedBlocks", { count: selectedCount.toString() });
+        nlScope.textContent = i18n("applyToSelectedBlocks", { count: selectedCount.toString() });
 
         let currentParseResult: { date?: string; time?: string; hasTime?: boolean; endDate?: string; endTime?: string; hasEndTime?: boolean } = {};
 
@@ -742,7 +742,7 @@ class SmartBatchDialog {
         const updatePreview = () => {
             const text = nlInput.value.trim();
             if (!text) {
-                nlPreview.textContent = t("pleaseInputDescription");
+                nlPreview.textContent = i18n("pleaseInputDescription");
                 nlPreview.className = 'nl-preview';
                 nlConfirmBtn.disabled = true;
                 return;
@@ -778,7 +778,7 @@ class SmartBatchDialog {
                 nlPreview.className = 'nl-preview nl-preview--success';
                 nlConfirmBtn.disabled = selectedCount === 0;
             } else {
-                nlPreview.textContent = t("cannotRecognize");
+                nlPreview.textContent = i18n("cannotRecognize");
                 nlPreview.className = 'nl-preview nl-preview--error';
                 nlConfirmBtn.disabled = true;
             }
@@ -810,7 +810,7 @@ class SmartBatchDialog {
 
         const selectedBlocks = this.getSelectedBlockIds(dialog);
         if (selectedBlocks.length === 0) {
-            showMessage(t("pleaseSelectBlocks"));
+            showMessage(i18n("pleaseSelectBlocks"));
             return;
         }
 
@@ -839,7 +839,7 @@ class SmartBatchDialog {
         this.updateBlockListDisplay(dialog);
 
         const dateStr = new Date(result.date + 'T00:00:00').toLocaleDateString('zh-CN');
-        showMessage(t("dateTimeSet", {
+        showMessage(i18n("dateTimeSet", {
             date: dateStr,
             time: result.time ? ` ${result.time}` : ''
         }));
@@ -974,7 +974,7 @@ class SmartBatchDialog {
             const noCategoryEl = document.createElement('div');
             noCategoryEl.className = 'category-option-compact';
             noCategoryEl.setAttribute('data-category', '');
-            noCategoryEl.innerHTML = `<span>${t("noCategory")}</span>`;
+            noCategoryEl.innerHTML = `<span>${i18n("noCategory")}</span>`;
             categorySelector.appendChild(noCategoryEl);
 
             categories.forEach(category => {
@@ -988,7 +988,7 @@ class SmartBatchDialog {
 
         } catch (error) {
             console.error('渲染批量分类选择器失败:', error);
-            categorySelector.innerHTML = `<div class="category-error">${t("loadCategoryFailed")}</div>`;
+            categorySelector.innerHTML = `<div class="category-error">${i18n("loadCategoryFailed")}</div>`;
         }
     }
 
@@ -1000,7 +1000,7 @@ class SmartBatchDialog {
             const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
 
             // 清空选择器
-            projectSelector.innerHTML = `<option value="">${t("noProject")}</option>`;
+            projectSelector.innerHTML = `<option value="">${i18n("noProject")}</option>`;
 
             // 添加项目选项
             Object.keys(groupedProjects).forEach(statusKey => {
@@ -1058,7 +1058,7 @@ class SmartBatchDialog {
         const selectedBlocks = this.getSelectedBlockIds(dialog);
 
         if (selectedBlocks.length === 0) {
-            showMessage(t("pleaseSelectBlocks"));
+            showMessage(i18n("pleaseSelectBlocks"));
             return;
         }
 
@@ -1070,7 +1070,7 @@ class SmartBatchDialog {
         });
 
         this.updateBlockListDisplay(dialog);
-        showMessage(t("settingsApplied"));
+        showMessage(i18n("settingsApplied"));
     }
 
     private batchApplyPriority(dialog: Dialog) {
@@ -1081,7 +1081,7 @@ class SmartBatchDialog {
         const selectedBlocks = this.getSelectedBlockIds(dialog);
 
         if (selectedBlocks.length === 0) {
-            showMessage(t("pleaseSelectBlocks"));
+            showMessage(i18n("pleaseSelectBlocks"));
             return;
         }
 
@@ -1093,7 +1093,7 @@ class SmartBatchDialog {
         });
 
         this.updateBlockListDisplay(dialog);
-        showMessage(t("settingsApplied"));
+        showMessage(i18n("settingsApplied"));
     }
 
     private batchApplyProject(dialog: Dialog) {
@@ -1102,7 +1102,7 @@ class SmartBatchDialog {
 
         const selectedBlocks = this.getSelectedBlockIds(dialog);
         if (selectedBlocks.length === 0) {
-            showMessage(t("pleaseSelectBlocks"));
+            showMessage(i18n("pleaseSelectBlocks"));
             return;
         }
 
@@ -1114,7 +1114,7 @@ class SmartBatchDialog {
         });
 
         this.updateBlockListDisplay(dialog);
-        showMessage(t("settingsApplied"));
+        showMessage(i18n("settingsApplied"));
 
         // 重置按钮状态
         const batchApplyProjectBtn = dialog.element.querySelector('#batchApplyProjectBtn') as HTMLButtonElement;
@@ -1124,13 +1124,13 @@ class SmartBatchDialog {
     private batchApplyDate(dialog: Dialog) {
         const dateInput = dialog.element.querySelector('#batchDateInput') as HTMLInputElement;
         if (!dateInput.value) {
-            showMessage(t("pleaseSelectDate"));
+            showMessage(i18n("pleaseSelectDate"));
             return;
         }
 
         const selectedBlocks = this.getSelectedBlockIds(dialog);
         if (selectedBlocks.length === 0) {
-            showMessage(t("pleaseSelectBlocks"));
+            showMessage(i18n("pleaseSelectBlocks"));
             return;
         }
 
@@ -1142,7 +1142,7 @@ class SmartBatchDialog {
         });
 
         this.updateBlockListDisplay(dialog);
-        showMessage(t("settingsApplied"));
+        showMessage(i18n("settingsApplied"));
     }
 
     private async updateBlockDisplay(dialog: Dialog, blockId: string) {
@@ -1337,12 +1337,12 @@ class SmartBatchDialog {
             }
 
             if (successCount > 0) {
-                showMessage(t("batchCompleted", {
+                showMessage(i18n("batchCompleted", {
                     success: successCount.toString(),
-                    failure: failureCount > 0 ? t("failureCount", { count: failureCount.toString() }) : ''
+                    failure: failureCount > 0 ? i18n("failureCount", { count: failureCount.toString() }) : ''
                 }));
             } else {
-                showMessage(t("batchSetFailed"));
+                showMessage(i18n("batchSetFailed"));
             }
 
             dialog.destroy();
@@ -1352,7 +1352,7 @@ class SmartBatchDialog {
 
         } catch (error) {
             console.error('保存批量提醒失败:', error);
-            showMessage(t("batchSaveFailed"));
+            showMessage(i18n("batchSaveFailed"));
         }
     }
 }
@@ -1395,7 +1395,7 @@ class BlockEditDialog {
         await this.projectManager.initialize();
 
         const dialog = new Dialog({
-            title: t("settingsDialog", { title: this.setting.cleanTitle }),
+            title: i18n("settingsDialog", { title: this.setting.cleanTitle }),
             content: this.buildEditContent(),
             width: "500px",
             height: "80vh"
@@ -1414,9 +1414,9 @@ class BlockEditDialog {
                     <div class="fn__hr"></div>
                     
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("eventTitle")}</label>
+                        <label class="b3-form__label">${i18n("eventTitle")}</label>
                         <div class="title-input-container" style="display: flex; gap: 8px;">
-                            <input type="text" id="editReminderTitle" class="b3-text-field" value="${this.setting.cleanTitle}" placeholder="${t("enterReminderTitle")}" style="flex: 1;">
+                            <input type="text" id="editReminderTitle" class="b3-text-field" value="${this.setting.cleanTitle}" placeholder="${i18n("enterReminderTitle")}" style="flex: 1;">
                             <button type="button" id="editNlBtn" class="b3-button b3-button--outline" title="✨ 智能日期识别">
                                 ✨
                             </button>
@@ -1424,12 +1424,12 @@ class BlockEditDialog {
                     </div>
                     
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("blockContent")}</label>
+                        <label class="b3-form__label">${i18n("blockContent")}</label>
                         <div class="block-content-display" style="padding: 8px; background: var(--b3-theme-surface-lighter); border-radius: 4px; font-size: 14px; color: var(--b3-theme-on-surface-light);">${this.setting.content}</div>
                     </div>
                     
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("eventCategory")}
+                        <label class="b3-form__label">${i18n("eventCategory")}
                             <button type="button" id="editManageCategoriesBtn" class="b3-button b3-button--outline" title="管理分类">
                                 <svg class="b3-button__icon"><use xlink:href="#iconSettings"></use></svg>
                             </button>
@@ -1440,31 +1440,31 @@ class BlockEditDialog {
                     </div>
                     
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("projectManagement")}</label>
+                        <label class="b3-form__label">${i18n("projectManagement")}</label>
                         <select id="editProjectSelector" class="b3-select" style="width: 100%;">
-                            <option value="">${t("noProject")}</option>
+                            <option value="">${i18n("noProject")}</option>
                             <!-- 项目选择器将在这里渲染 -->
                         </select>
                     </div>
                     
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("priority")}</label>
+                        <label class="b3-form__label">${i18n("priority")}</label>
                         <div class="priority-selector" id="editPrioritySelector">
                             <div class="priority-option ${this.setting.priority === 'high' ? 'selected' : ''}" data-priority="high">
                                 <div class="priority-dot high"></div>
-                                <span>${t("highPriority")}</span>
+                                <span>${i18n("highPriority")}</span>
                             </div>
                             <div class="priority-option ${this.setting.priority === 'medium' ? 'selected' : ''}" data-priority="medium">
                                 <div class="priority-dot medium"></div>
-                                <span>${t("mediumPriority")}</span>
+                                <span>${i18n("mediumPriority")}</span>
                             </div>
                             <div class="priority-option ${this.setting.priority === 'low' ? 'selected' : ''}" data-priority="low">
                                 <div class="priority-dot low"></div>
-                                <span>${t("lowPriority")}</span>
+                                <span>${i18n("lowPriority")}</span>
                             </div>
                             <div class="priority-option ${this.setting.priority === 'none' ? 'selected' : ''}" data-priority="none">
                                 <div class="priority-dot none"></div>
-                                <span>${t("noPriority")}</span>
+                                <span>${i18n("noPriority")}</span>
                             </div>
                         </div>
                     </div>
@@ -1473,38 +1473,38 @@ class BlockEditDialog {
                         <label class="b3-checkbox">
                             <input type="checkbox" id="editNoSpecificTime" ${!this.setting.hasTime ? 'checked' : ''}>
                             <span class="b3-checkbox__graphic"></span>
-                            <span class="b3-checkbox__label">${t("noSpecificTime")}</span>
+                            <span class="b3-checkbox__label">${i18n("noSpecificTime")}</span>
                         </label>
                     </div>
                     
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("reminderDate")}</label>
+                        <label class="b3-form__label">${i18n("reminderDate")}</label>
                         <div class="reminder-date-container">
                             <input type="date" id="editReminderDate" class="b3-text-field" value="${this.setting.date}" max="9999-12-31">
                             <span class="reminder-arrow">→</span>
-                            <input type="date" id="editReminderEndDate" class="b3-text-field" placeholder="${t("endDateOptional")}" value="${this.setting.endDate || ''}" max="9999-12-31">
+                            <input type="date" id="editReminderEndDate" class="b3-text-field" placeholder="${i18n("endDateOptional")}" value="${this.setting.endDate || ''}" max="9999-12-31">
                         </div>
-                        <div class="b3-form__desc" id="editDateTimeDesc">${this.setting.hasTime ? t("dateTimeDesc") : t("dateOnlyDesc")}</div>
+                        <div class="b3-form__desc" id="editDateTimeDesc">${this.setting.hasTime ? i18n("dateTimeDesc") : i18n("dateOnlyDesc")}</div>
                     </div>
                     
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("repeatSettings")}</label>
+                        <label class="b3-form__label">${i18n("repeatSettings")}</label>
                         <div class="repeat-setting-container">
                             <button type="button" id="editRepeatSettingsBtn" class="b3-button b3-button--outline" style="width: 100%;">
-                                <span id="editRepeatDescription">${this.setting.repeatConfig?.enabled ? getRepeatDescription(this.setting.repeatConfig) : t("noRepeat")}</span>
+                                <span id="editRepeatDescription">${this.setting.repeatConfig?.enabled ? getRepeatDescription(this.setting.repeatConfig) : i18n("noRepeat")}</span>
                                 <svg class="b3-button__icon" style="margin-left: auto;"><use xlink:href="#iconRight"></use></svg>
                             </button>
                         </div>
                     </div>
                     
                     <div class="b3-form__group">
-                        <label class="b3-form__label">${t("reminderNoteOptional")}</label>
-                        <textarea id="editReminderNote" class="b3-text-field" placeholder="${t("enterReminderNote")}" rows="2" style="width: 100%;resize: vertical; min-height: 60px;">${this.setting.note}</textarea>
+                        <label class="b3-form__label">${i18n("reminderNoteOptional")}</label>
+                        <textarea id="editReminderNote" class="b3-text-field" placeholder="${i18n("enterReminderNote")}" rows="2" style="width: 100%;resize: vertical; min-height: 60px;">${this.setting.note}</textarea>
                     </div>
                 </div>
                 <div class="b3-dialog__action">
-                    <button class="b3-button b3-button--cancel" id="editCancelBtn">${t("cancel")}</button>
-                    <button class="b3-button b3-button--primary" id="editSaveBtn">${t("saveSettings")}</button>
+                    <button class="b3-button b3-button--cancel" id="editCancelBtn">${i18n("cancel")}</button>
+                    <button class="b3-button b3-button--primary" id="editSaveBtn">${i18n("saveSettings")}</button>
                 </div>
             </div>
         `;
@@ -1525,7 +1525,7 @@ class BlockEditDialog {
             const isNoCategorySelected = currentCategoryIds.length === 0 || (currentCategoryIds.length === 1 && currentCategoryIds[0] === '');
             noCategoryEl.className = `category-option ${isNoCategorySelected ? 'selected' : ''}`;
             noCategoryEl.setAttribute('data-category', '');
-            noCategoryEl.innerHTML = `<span>${t("noCategory")}</span>`;
+            noCategoryEl.innerHTML = `<span>${i18n("noCategory")}</span>`;
             categorySelector.appendChild(noCategoryEl);
 
             categories.forEach(category => {
@@ -1540,7 +1540,7 @@ class BlockEditDialog {
 
         } catch (error) {
             console.error('渲染分类选择器失败:', error);
-            categorySelector.innerHTML = `<div class="category-error">${t("loadCategoryFailed")}</div>`;
+            categorySelector.innerHTML = `<div class="category-error">${i18n("loadCategoryFailed")}</div>`;
         }
     }
 
@@ -1552,7 +1552,7 @@ class BlockEditDialog {
             const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
 
             // 清空选择器
-            projectSelector.innerHTML = `<option value="">${t("noProject")}</option>`;
+            projectSelector.innerHTML = `<option value="">${i18n("noProject")}</option>`;
 
             // 添加项目选项
             Object.keys(groupedProjects).forEach(statusKey => {
@@ -1719,7 +1719,7 @@ class BlockEditDialog {
         const dateTimeDesc = dialog.element.querySelector('#editDateTimeDesc') as HTMLElement;
 
         if (dateTimeDesc) {
-            dateTimeDesc.textContent = noSpecificTime ? t("dateOnlyDesc") : t("dateTimeDesc");
+            dateTimeDesc.textContent = noSpecificTime ? i18n("dateOnlyDesc") : i18n("dateTimeDesc");
         }
     }
 
@@ -1731,7 +1731,7 @@ class BlockEditDialog {
     private updateRepeatDescription(dialog: Dialog) {
         const repeatDescription = dialog.element.querySelector('#editRepeatDescription') as HTMLElement;
         if (repeatDescription) {
-            const description = this.setting.repeatConfig?.enabled ? getRepeatDescription(this.setting.repeatConfig) : t("noRepeat");
+            const description = this.setting.repeatConfig?.enabled ? getRepeatDescription(this.setting.repeatConfig) : i18n("noRepeat");
             repeatDescription.textContent = description;
         }
     }
@@ -1829,7 +1829,7 @@ class BlockEditDialog {
         const projectSelector = dialog.element.querySelector('#editProjectSelector') as HTMLSelectElement;
 
         if (!dateInput.value) {
-            showMessage(t("pleaseSelectDate"));
+            showMessage(i18n("pleaseSelectDate"));
             return;
         }
 
@@ -1861,7 +1861,7 @@ class BlockEditDialog {
         // 调用保存回调
         this.onSave(this.setting);
 
-        showMessage(t("settingsApplied"));
+        showMessage(i18n("settingsApplied"));
         dialog.destroy();
     }
 

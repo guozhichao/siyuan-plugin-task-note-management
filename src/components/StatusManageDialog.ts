@@ -1,6 +1,6 @@
 import { Dialog, showMessage, confirm } from "siyuan";
 import { StatusManager, Status } from "../utils/statusManager";
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 import { Picker } from "emoji-picker-element";
 export class StatusManageDialog {
     private dialog: Dialog;
@@ -24,7 +24,7 @@ export class StatusManageDialog {
 
     public show() {
         this.dialog = new Dialog({
-            title: t("statusManagement") || "状态管理",
+            title: i18n("statusManagement") || "状态管理",
             content: this.createDialogContent(),
             width: "500px",
             height: "500px"
@@ -41,22 +41,22 @@ export class StatusManageDialog {
                     <div class="status-toolbar">
                         <button class="b3-button b3-button--primary" id="addStatusBtn">
                             <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
-                            ${t("addStatus") || "添加状态"}
+                            ${i18n("addStatus") || "添加状态"}
                         </button>
                         <button class="b3-button b3-button--outline" id="resetStatusesBtn">
                             <svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>
-                            ${t("resetToDefault") || "重置为默认"}
+                            ${i18n("resetToDefault") || "重置为默认"}
                         </button>
                     </div>
                     <div class="status-drag-hint">
-                        <span>💡 ${t("dragHint")}</span>
+                        <span>💡 ${i18n("dragHint")}</span>
                     </div>
                     <div class="statuses-list" id="statusesList">
                         <!-- 状态列表将在这里渲染 -->
                     </div>
                 </div>
                 <div class="b3-dialog__action">
-                    <button class="b3-button b3-button--primary" id="closeBtn">${t("close") || "关闭"}</button>
+                    <button class="b3-button b3-button--primary" id="closeBtn">${i18n("close") || "关闭"}</button>
                 </div>
             </div>
             <style>
@@ -177,8 +177,8 @@ export class StatusManageDialog {
                 statusesList.appendChild(statusEl);
             });
         } catch (error) {
-            console.error(t("loadStatusesFailed") || "加载状态失败", error);
-            statusesList.innerHTML = `<div class="status-error">${t("loadStatusesFailed") || "加载状态失败"}</div>`;
+            console.error(i18n("loadStatusesFailed") || "加载状态失败", error);
+            statusesList.innerHTML = `<div class="status-error">${i18n("loadStatusesFailed") || "加载状态失败"}</div>`;
         }
     }
 
@@ -194,11 +194,11 @@ export class StatusManageDialog {
                 <div class="status-name">${status.name}</div>
             </div>
             <div class="status-actions">
-                <button class="b3-button b3-button--outline status-edit-btn" data-action="edit" data-id="${status.id}" title="${t("editStatus") || "编辑状态"}">
+                <button class="b3-button b3-button--outline status-edit-btn" data-action="edit" data-id="${status.id}" title="${i18n("editStatus") || "编辑状态"}">
                     <svg class="b3-button__icon"><use xlink:href="#iconEdit"></use></svg>
                 </button>
                 ${!status.isArchived ? `
-                <button class="b3-button b3-button--outline status-delete-btn" data-action="delete" data-id="${status.id}" title="${t("deleteStatus") || "删除状态"}">
+                <button class="b3-button b3-button--outline status-delete-btn" data-action="delete" data-id="${status.id}" title="${i18n("deleteStatus") || "删除状态"}">
                     <svg class="b3-button__icon"><use xlink:href="#iconTrashcan"></use></svg>
                 </button>
                 ` : ''}
@@ -329,22 +329,22 @@ export class StatusManageDialog {
     private showEditStatusDialog(status?: Status) {
         const isEdit = !!status;
         const editDialog = new Dialog({
-            title: isEdit ? (t("editStatus") || "编辑状态") : (t("addStatus") || "添加状态"),
+            title: isEdit ? (i18n("editStatus") || "编辑状态") : (i18n("addStatus") || "添加状态"),
             content: `
                 <div class="status-edit-dialog">
                     <div class="b3-dialog__content">
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t("statusName") || "状态名称"}</label>
-                            <input type="text" id="statusName" class="b3-text-field" value="${status?.name || ''}" placeholder="${t("pleaseEnterStatusName") || "请输入状态名称"}">
+                            <label class="b3-form__label">${i18n("statusName") || "状态名称"}</label>
+                            <input type="text" id="statusName" class="b3-text-field" value="${status?.name || ''}" placeholder="${i18n("pleaseEnterStatusName") || "请输入状态名称"}">
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${t("statusIcon") || "状态图标"}</label>
+                            <label class="b3-form__label">${i18n("statusIcon") || "状态图标"}</label>
                             <div id="statusIcon" class="status-icon-display">${status?.icon || '📝'}</div>
                         </div>
                     </div>
                     <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="editCancelBtn">${t("cancel") || "取消"}</button>
-                        <button class="b3-button b3-button--primary" id="editConfirmBtn">${t("save") || "保存"}</button>
+                        <button class="b3-button b3-button--cancel" id="editCancelBtn">${i18n("cancel") || "取消"}</button>
+                        <button class="b3-button b3-button--primary" id="editConfirmBtn">${i18n("save") || "保存"}</button>
                     </div>
                     <style>
                         .status-icon-display {
@@ -411,45 +411,45 @@ export class StatusManageDialog {
             const icon = iconDisplay.textContent || '';
 
             if (!name) {
-                showMessage(t("pleaseEnterStatusName") || "请输入状态名称");
+                showMessage(i18n("pleaseEnterStatusName") || "请输入状态名称");
                 return;
             }
 
             try {
                 if (isEdit && status) {
                     await this.statusManager.updateStatus(status.id, { name, icon });
-                    showMessage(t("statusUpdated") || "状态已更新");
+                    showMessage(i18n("statusUpdated") || "状态已更新");
                 } else {
                     await this.statusManager.addStatus({ name, icon });
-                    showMessage(t("statusAdded") || "状态已添加");
+                    showMessage(i18n("statusAdded") || "状态已添加");
                 }
 
                 editDialog.destroy();
                 this.renderStatuses();
             } catch (error) {
                 console.error('保存状态失败:', error);
-                showMessage(t("saveStatusFailed") || "保存状态失败，请重试");
+                showMessage(i18n("saveStatusFailed") || "保存状态失败，请重试");
             }
         });
     }
 
     private async deleteStatus(status: Status) {
         if (status.isArchived) {
-            showMessage(t("cannotDeleteArchivedStatus") || "归档状态不可删除");
+            showMessage(i18n("cannotDeleteArchivedStatus") || "归档状态不可删除");
             return;
         }
 
         await confirm(
-            t("deleteStatus") || "删除状态",
-            t("confirmDeleteStatus", { name: status.name }) || `确定要删除状态 "${status.name}" 吗？`,
+            i18n("deleteStatus") || "删除状态",
+            i18n("confirmDeleteStatus", { name: status.name }) || `确定要删除状态 "${status.name}" 吗？`,
             async () => {
                 try {
                     await this.statusManager.deleteStatus(status.id);
-                    showMessage(t("statusDeleted") || "状态已删除");
+                    showMessage(i18n("statusDeleted") || "状态已删除");
                     this.renderStatuses();
                 } catch (error) {
-                    console.error(t("deleteStatusFailed") || "删除状态失败", error);
-                    showMessage(t("deleteStatusFailed") || "删除状态失败");
+                    console.error(i18n("deleteStatusFailed") || "删除状态失败", error);
+                    showMessage(i18n("deleteStatusFailed") || "删除状态失败");
                 }
             }
         );
@@ -457,16 +457,16 @@ export class StatusManageDialog {
 
     private async resetStatuses() {
         await confirm(
-            t("resetStatuses") || "重置状态",
-            t("confirmResetStatuses") || "确定要将状态列表重置为默认设置吗？此操作不可撤销。",
+            i18n("resetStatuses") || "重置状态",
+            i18n("confirmResetStatuses") || "确定要将状态列表重置为默认设置吗？此操作不可撤销。",
             async () => {
                 try {
                     await this.statusManager.resetToDefault();
-                    showMessage(t("statusesReset") || "状态已重置");
+                    showMessage(i18n("statusesReset") || "状态已重置");
                     this.renderStatuses();
                 } catch (error) {
-                    console.error(t("resetStatusesFailed") || "重置状态失败", error);
-                    showMessage(t("resetStatusesFailed") || "重置状态失败");
+                    console.error(i18n("resetStatusesFailed") || "重置状态失败", error);
+                    showMessage(i18n("resetStatusesFailed") || "重置状态失败");
                 }
             }
         );

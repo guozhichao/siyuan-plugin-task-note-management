@@ -13,7 +13,7 @@ import { CategoryManageDialog } from "./CategoryManageDialog";
 import { StatusManageDialog } from "./StatusManageDialog";
 import { ProjectKanbanView } from "./ProjectKanbanView";
 import { BlockBindingDialog } from "./BlockBindingDialog";
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 import { getAllReminders } from "../utils/icsSubscription";
 
 
@@ -124,7 +124,7 @@ export class ProjectPanel {
         iconSpan.textContent = '📁';
 
         const titleSpan = document.createElement('span');
-        titleSpan.textContent = t("projectManagement") || "项目管理";
+        titleSpan.textContent = i18n("projectManagement") || "项目管理";
 
         titleContainer.appendChild(iconSpan);
         titleContainer.appendChild(titleSpan);
@@ -138,7 +138,7 @@ export class ProjectPanel {
         const createProjectBtn = document.createElement('button');
         createProjectBtn.className = 'b3-button b3-button--outline';
         createProjectBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>';
-        createProjectBtn.title = t("createProject") || "创建项目";
+        createProjectBtn.title = i18n("createProject") || "创建项目";
         createProjectBtn.addEventListener('click', () => {
             this.createQuickProject();
         });
@@ -148,7 +148,7 @@ export class ProjectPanel {
         this.sortButton = document.createElement('button');
         this.sortButton.className = 'b3-button b3-button--outline';
         this.sortButton.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconSort"></use></svg>';
-        this.sortButton.title = t("sortBy") || "排序";
+        this.sortButton.title = i18n("sortBy") || "排序";
         this.sortButton.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -161,7 +161,7 @@ export class ProjectPanel {
             const calendarBtn = document.createElement('button');
             calendarBtn.className = 'b3-button b3-button--outline';
             calendarBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconCalendar"></use></svg>';
-            calendarBtn.title = t("calendarView") || "日历视图";
+            calendarBtn.title = i18n("calendarView") || "日历视图";
             calendarBtn.addEventListener('click', () => {
                 this.plugin.openCalendarTab();
             });
@@ -171,7 +171,7 @@ export class ProjectPanel {
             const eisenhowerBtn = document.createElement('button');
             eisenhowerBtn.className = 'b3-button b3-button--outline';
             eisenhowerBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconGrid"></use></svg>';
-            eisenhowerBtn.title = t("eisenhowerMatrix") || "四象限面板";
+            eisenhowerBtn.title = i18n("eisenhowerMatrix") || "四象限面板";
             eisenhowerBtn.addEventListener('click', () => {
                 this.openEisenhowerMatrix();
             });
@@ -181,7 +181,7 @@ export class ProjectPanel {
             const pomodoroStatsBtn = document.createElement('button');
             pomodoroStatsBtn.className = 'b3-button b3-button--outline';
             pomodoroStatsBtn.innerHTML = '📊';
-            pomodoroStatsBtn.title = t("pomodoroStats") || "番茄钟统计";
+            pomodoroStatsBtn.title = i18n("pomodoroStats") || "番茄钟统计";
             pomodoroStatsBtn.addEventListener('click', () => {
                 this.showPomodoroStatsView();
             });
@@ -191,7 +191,7 @@ export class ProjectPanel {
             const refreshBtn = document.createElement('button');
             refreshBtn.className = 'b3-button b3-button--outline';
             refreshBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>';
-            refreshBtn.title = t("refresh") || "刷新";
+            refreshBtn.title = i18n("refresh") || "刷新";
             refreshBtn.addEventListener('click', () => {
                 this.loadProjects();
             });
@@ -202,7 +202,7 @@ export class ProjectPanel {
         const moreBtn = document.createElement('button');
         moreBtn.className = 'b3-button b3-button--outline';
         moreBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconMore"></use></svg>';
-        moreBtn.title = t("more") || "更多";
+        moreBtn.title = i18n("more") || "更多";
         moreBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -290,7 +290,7 @@ export class ProjectPanel {
         });
 
         const doingFilterText = document.createElement('span');
-        doingFilterText.textContent = t("showOnlyWithDoingTasks") || '进行中>0';
+        doingFilterText.textContent = i18n("showOnlyWithDoingTasks") || '进行中>0';
         doingFilterText.style.cssText = `
             font-size: 12px;
             color: var(--b3-theme-on-surface);
@@ -314,7 +314,7 @@ export class ProjectPanel {
         this.searchInput = document.createElement('input');
         this.searchInput.className = 'b3-text-field';
         this.searchInput.type = 'text';
-        this.searchInput.placeholder = t("searchProjects") || "搜索项目...";
+        this.searchInput.placeholder = i18n("searchProjects") || "搜索项目...";
         this.searchInput.style.cssText = `
             flex: 1;
         `;
@@ -344,7 +344,7 @@ export class ProjectPanel {
         try {
             const statuses = this.statusManager.getStatuses();
 
-            this.filterSelect.innerHTML = `<option value="all">${t("allProjects") || "全部项目"}</option>`;
+            this.filterSelect.innerHTML = `<option value="all">${i18n("allProjects") || "全部项目"}</option>`;
 
             statuses.forEach(status => {
                 const optionEl = document.createElement('option');
@@ -357,7 +357,7 @@ export class ProjectPanel {
 
         } catch (error) {
             console.error('渲染状态过滤器失败:', error);
-            this.filterSelect.innerHTML = `<option value="all">${t("allProjects") || "全部项目"}</option>`;
+            this.filterSelect.innerHTML = `<option value="all">${i18n("allProjects") || "全部项目"}</option>`;
         }
     }
 
@@ -365,11 +365,11 @@ export class ProjectPanel {
         if (!this.categoryFilterButton) return;
 
         if (this.selectedCategories.length === 0 || this.selectedCategories.includes('all')) {
-            this.categoryFilterButton.textContent = t("categoryFilter") || "分类筛选";
+            this.categoryFilterButton.textContent = i18n("categoryFilter") || "分类筛选";
         } else {
             // 显示选中的分类名称
             const names = this.selectedCategories.map(id => {
-                if (id === 'none') return t("noCategory") || "无分类";
+                if (id === 'none') return i18n("noCategory") || "无分类";
                 const cat = this.categoryManager.getCategoryById(id);
                 return cat ? cat.name : id;
             });
@@ -380,15 +380,15 @@ export class ProjectPanel {
     private updateSortButtonTitle() {
         if (this.sortButton) {
             const sortNames = {
-                'time': t("sortByTime") || '时间',
-                'priority': t("sortByPriority") || '优先级',
-                'title': t("sortByTitle") || '标题'
+                'time': i18n("sortByTime") || '时间',
+                'priority': i18n("sortByPriority") || '优先级',
+                'title': i18n("sortByTitle") || '标题'
             };
             const orderNames = {
-                'asc': t("ascending") || '升序',
-                'desc': t("descending") || '降序'
+                'asc': i18n("ascending") || '升序',
+                'desc': i18n("descending") || '降序'
             };
-            this.sortButton.title = `${t("sortBy") || "排序"}: ${sortNames[this.currentSort]} (${orderNames[this.currentSortOrder]})`;
+            this.sortButton.title = `${i18n("sortBy") || "排序"}: ${sortNames[this.currentSort]} (${orderNames[this.currentSortOrder]})`;
         }
     }
 
@@ -397,16 +397,16 @@ export class ProjectPanel {
             const menu = new Menu("projectSortMenu");
 
             const sortOptions = [
-                { key: 'time', label: t("sortByTime") || '时间', icon: '🕐' },
-                { key: 'priority', label: t("sortByPriority") || '优先级', icon: '🎯' },
-                { key: 'title', label: t("sortByTitle") || '标题', icon: '📝' }
+                { key: 'time', label: i18n("sortByTime") || '时间', icon: '🕐' },
+                { key: 'priority', label: i18n("sortByPriority") || '优先级', icon: '🎯' },
+                { key: 'title', label: i18n("sortByTitle") || '标题', icon: '📝' }
             ];
 
             sortOptions.forEach(option => {
                 // 升序
                 menu.addItem({
                     iconHTML: option.icon,
-                    label: `${option.label} (${t("ascending") || "升序"}↑)`,
+                    label: `${option.label} (${i18n("ascending") || "升序"}↑)`,
                     current: this.currentSort === option.key && this.currentSortOrder === 'asc',
                     click: () => {
                         this.currentSort = option.key;
@@ -419,7 +419,7 @@ export class ProjectPanel {
                 // 降序
                 menu.addItem({
                     iconHTML: option.icon,
-                    label: `${option.label} (${t("descending") || "降序"}↓)`,
+                    label: `${option.label} (${i18n("descending") || "降序"}↓)`,
                     current: this.currentSort === option.key && this.currentSortOrder === 'desc',
                     click: () => {
                         this.currentSort = option.key;
@@ -652,11 +652,11 @@ export class ProjectPanel {
         if (!projects || projects.length === 0) {
             // 当在 "all" 标签下，排除归档后可能为空
             if (this.currentTab === 'all') {
-                this.projectsContainer.innerHTML = `<div class="project-empty">${t("noProjects") || '暂无项目'}</div>`;
+                this.projectsContainer.innerHTML = `<div class="project-empty">${i18n("noProjects") || '暂无项目'}</div>`;
             } else {
                 const status = this.statusManager.getStatusById(this.currentTab);
-                const statusName = status ? status.name : t("allProjects");
-                const emptyText = t("noProjectsInStatus")?.replace("${status}", statusName) || `暂无“${statusName}”状态的项目`;
+                const statusName = status ? status.name : i18n("allProjects");
+                const emptyText = i18n("noProjectsInStatus")?.replace("${status}", statusName) || `暂无“${statusName}”状态的项目`;
                 this.projectsContainer.innerHTML = `<div class="project-empty">${emptyText}</div>`;
             }
             // 清空缓存
@@ -794,7 +794,7 @@ export class ProjectPanel {
         // 标题
         const titleEl = document.createElement('span');
         titleEl.className = 'project-item__title';
-        titleEl.textContent = project.title || t("unnamedNote") || '未命名项目';
+        titleEl.textContent = project.title || i18n("unnamedNote") || '未命名项目';
 
         if (project.blockId) {
             titleEl.setAttribute('data-type', 'a');
@@ -853,9 +853,9 @@ export class ProjectPanel {
             const priorityLabel = document.createElement('span');
             priorityLabel.className = `project-priority-label ${priority}`;
             const priorityNames = {
-                'high': t("highPriority") || '高优先级',
-                'medium': t("mediumPriority") || '中优先级',
-                'low': t("lowPriority") || '低优先级'
+                'high': i18n("highPriority") || '高优先级',
+                'medium': i18n("mediumPriority") || '中优先级',
+                'low': i18n("lowPriority") || '低优先级'
             };
             priorityLabel.innerHTML = `<div class="priority-dot ${priority}"></div>${priorityNames[priority]}`;
             timeContainer.appendChild(priorityLabel);
@@ -868,7 +868,7 @@ export class ProjectPanel {
         const statusLabel = document.createElement('div');
         statusLabel.className = `project-status-label project-status-${status}`;
         const statusInfo = this.statusManager.getStatusById(status);
-        statusLabel.textContent = statusInfo ? `${statusInfo.icon || ''} ${statusInfo.name}` : (t("unknownStatus") || '未知状态');
+        statusLabel.textContent = statusInfo ? `${statusInfo.icon || ''} ${statusInfo.name}` : (i18n("unknownStatus") || '未知状态');
         infoEl.appendChild(statusLabel);
 
         // 添加项目下顶级任务计数（todo/doing/done）
@@ -882,10 +882,10 @@ export class ProjectPanel {
         dynamicCountsWrapper.style.cssText = `display:flex; gap:8px; align-items:center; flex-wrap:wrap;`;
         // initial legacy placeholders to avoid layout shift
         dynamicCountsWrapper.innerHTML = `
-            <span class="project-count project-count--doing">${t("doing") || '进行中'}: ...</span>
-            <span class="project-count project-count--short-term">${t("shortTerm") || '短期'}: ...</span>
-            <span class="project-count project-count--long-term">${t("longTerm") || '长期'}: ...</span>
-            <span class="project-count project-count--done">${t("done") || '已完成'}: ...</span>
+            <span class="project-count project-count--doing">${i18n("doing") || '进行中'}: ...</span>
+            <span class="project-count project-count--short-term">${i18n("shortTerm") || '短期'}: ...</span>
+            <span class="project-count project-count--long-term">${i18n("longTerm") || '长期'}: ...</span>
+            <span class="project-count project-count--done">${i18n("done") || '已完成'}: ...</span>
         `;
         countsContainer.appendChild(dynamicCountsWrapper);
 
@@ -1070,10 +1070,10 @@ export class ProjectPanel {
                 const longTerm = countsMap['long_term'] || 0;
                 const done = completedCount;
                 dynamicWrapper.innerHTML = `
-                    <span class="project-count project-count--doing">${t("doing") || '进行中'}: ${doing}</span>
-                    <span class="project-count project-count--short-term">${t("shortTerm") || '短期'}: ${shortTerm}</span>
-                    <span class="project-count project-count--long-term">${t("longTerm") || '长期'}: ${longTerm}</span>
-                    <span class="project-count project-count--done">${t("done") || '已完成'}: ${done}</span>
+                    <span class="project-count project-count--doing">${i18n("doing") || '进行中'}: ${doing}</span>
+                    <span class="project-count project-count--short-term">${i18n("shortTerm") || '短期'}: ${shortTerm}</span>
+                    <span class="project-count project-count--long-term">${i18n("longTerm") || '长期'}: ${longTerm}</span>
+                    <span class="project-count project-count--done">${i18n("done") || '已完成'}: ${done}</span>
                 `;
             }
 
@@ -1102,10 +1102,10 @@ export class ProjectPanel {
             console.error('获取项目顶级任务计数失败:', error);
             // on error, show placeholders
             if (dynamicWrapper) dynamicWrapper.innerHTML = `
-                <span class="project-count project-count--doing">${t("doing") || '进行中'}: ?</span>
-                <span class="project-count project-count--short-term">${t("shortTerm") || '短期'}: ?</span>
-                <span class="project-count project-count--long-term">${t("longTerm") || '长期'}: ?</span>
-                <span class="project-count project-count--done">${t("done") || '已完成'}: ?</span>
+                <span class="project-count project-count--doing">${i18n("doing") || '进行中'}: ?</span>
+                <span class="project-count project-count--short-term">${i18n("shortTerm") || '短期'}: ?</span>
+                <span class="project-count project-count--long-term">${i18n("longTerm") || '长期'}: ?</span>
+                <span class="project-count project-count--done">${i18n("done") || '已完成'}: ?</span>
             `;
             if (pomodoroEl) pomodoroEl.textContent = `🍅 总计: ?`;
             if (progressBarInner && progressText) {
@@ -1458,7 +1458,7 @@ export class ProjectPanel {
                     border-radius: 4px;
                     padding: 2px 6px;
                 `;
-                countdownEl.textContent = t("overdueDays").replace("${days}", overdueDays.toString()) || `已过期${overdueDays}天`;
+                countdownEl.textContent = i18n("overdueDays").replace("${days}", overdueDays.toString()) || `已过期${overdueDays}天`;
             } else if (daysDiff === 0) {
                 countdownEl.style.cssText = `
                     color: var(--b3-font-color2);
@@ -1469,7 +1469,7 @@ export class ProjectPanel {
                     border-radius: 4px;
                     padding: 2px 6px;
                 `;
-                countdownEl.textContent = t("dueToday") || '今天截止';
+                countdownEl.textContent = i18n("dueToday") || '今天截止';
             } else {
                 countdownEl.style.cssText = `
                     color: var(--b3-font-color4);
@@ -1480,7 +1480,7 @@ export class ProjectPanel {
                     border-radius: 4px;
                     padding: 2px 6px;
                 `;
-                countdownEl.textContent = t("daysRemaining").replace("${days}", daysDiff.toString()) || `还剩${daysDiff}天`;
+                countdownEl.textContent = i18n("daysRemaining").replace("${days}", daysDiff.toString()) || `还剩${daysDiff}天`;
             }
         } else {
             // 没有结束日期，但有开始日期时，显示已开始天数
@@ -1494,7 +1494,7 @@ export class ProjectPanel {
                 border-radius: 4px;
                 padding: 2px 6px;
             `;
-            countdownEl.textContent = t("projectStarted") || '项目已开始';
+            countdownEl.textContent = i18n("projectStarted") || '项目已开始';
         }
 
         return countdownEl;
@@ -1555,7 +1555,7 @@ export class ProjectPanel {
                 border-radius: 4px;
                 padding: 2px 6px;
             `;
-            startedEl.textContent = t("startInDays").replace("${days}", futureDays.toString()) || `${futureDays}天后开始`;
+            startedEl.textContent = i18n("startInDays").replace("${days}", futureDays.toString()) || `${futureDays}天后开始`;
         } else if (daysDiff === 0) {
             // 今天开始
             startedEl.style.cssText = `
@@ -1567,7 +1567,7 @@ export class ProjectPanel {
                 border-radius: 4px;
                 padding: 2px 6px;
             `;
-            startedEl.textContent = t("startToday") || '今天开始';
+            startedEl.textContent = i18n("startToday") || '今天开始';
         } else {
             // 已经开始
             startedEl.style.cssText = `
@@ -1579,7 +1579,7 @@ export class ProjectPanel {
                 border-radius: 4px;
                 padding: 2px 6px;
             `;
-            startedEl.textContent = t("startedDays").replace("${days}", daysDiff.toString()) || `已开始${daysDiff}天`;
+            startedEl.textContent = i18n("startedDays").replace("${days}", daysDiff.toString()) || `已开始${daysDiff}天`;
         }
 
         return startedEl;
@@ -1592,7 +1592,7 @@ export class ProjectPanel {
             // 打开项目看板
             menu.addItem({
                 iconHTML: "📋",
-                label: t("openProjectKanban") || "打开项目看板",
+                label: i18n("openProjectKanban") || "打开项目看板",
                 click: () => this.openProjectKanban(project)
             });
 
@@ -1601,14 +1601,14 @@ export class ProjectPanel {
             // 复制块引用
             menu.addItem({
                 iconHTML: "📋",
-                label: t("copyBlockRef") || "复制块引用",
+                label: i18n("copyBlockRef") || "复制块引用",
                 click: () => this.copyProjectRef(project)
             });
         } else {
             // 绑定到块
             menu.addItem({
                 iconHTML: "🔗",
-                label: t("bindToBlock") || "绑定到块",
+                label: i18n("bindToBlock") || "绑定到块",
                 click: () => this.showBindToBlockDialog(project)
             });
             menu.addSeparator();
@@ -1624,24 +1624,24 @@ export class ProjectPanel {
         // 编辑项目
         menu.addItem({
             iconHTML: "📝",
-            label: t("edit") || "编辑项目",
+            label: i18n("edit") || "编辑项目",
             click: () => this.editProject(project)
         });
 
         // 合并到其他项目
         menu.addItem({
             iconHTML: "🔀",
-            label: t("mergeProject") || "合并到其他项目",
+            label: i18n("mergeProject") || "合并到其他项目",
             click: () => this.showMergeDialog(project)
         });
 
         // 设置优先级子菜单
         const createPriorityMenuItems = () => {
             const priorities = [
-                { key: 'high', label: t("highPriority") || '高', icon: '🔴' },
-                { key: 'medium', label: t("mediumPriority") || '中', icon: '🟡' },
-                { key: 'low', label: t("lowPriority") || '低', icon: '🔵' },
-                { key: 'none', label: t("noPriority") || '无', icon: '⚫' }
+                { key: 'high', label: i18n("highPriority") || '高', icon: '🔴' },
+                { key: 'medium', label: i18n("mediumPriority") || '中', icon: '🟡' },
+                { key: 'low', label: i18n("lowPriority") || '低', icon: '🔵' },
+                { key: 'none', label: i18n("noPriority") || '无', icon: '⚫' }
             ];
 
             const currentPriority = project.priority || 'none';
@@ -1658,7 +1658,7 @@ export class ProjectPanel {
 
         menu.addItem({
             iconHTML: "🎯",
-            label: t("setPriority") || "设置优先级",
+            label: i18n("setPriority") || "设置优先级",
             submenu: createPriorityMenuItems()
         });
 
@@ -1671,7 +1671,7 @@ export class ProjectPanel {
 
             menuItems.push({
                 iconHTML: "❌",
-                label: t("noCategory") || "无分类",
+                label: i18n("noCategory") || "无分类",
                 current: !currentCategoryId,
                 click: () => {
                     this.setCategory(project.id, null);
@@ -1694,7 +1694,7 @@ export class ProjectPanel {
 
         menu.addItem({
             iconHTML: "🏷️",
-            label: t("setCategory") || "设置分类",
+            label: i18n("setCategory") || "设置分类",
             submenu: createCategoryMenuItems()
         });
 
@@ -1715,7 +1715,7 @@ export class ProjectPanel {
 
         menu.addItem({
             iconHTML: "📊",
-            label: t("setStatus") || "设置状态",
+            label: i18n("setStatus") || "设置状态",
             submenu: createStatusMenuItems()
         });
 
@@ -1724,7 +1724,7 @@ export class ProjectPanel {
         // 删除项目
         menu.addItem({
             iconHTML: "🗑️",
-            label: t("deleteProject") || "删除项目",
+            label: i18n("deleteProject") || "删除项目",
             click: () => this.deleteProject(project)
         });
 
@@ -1737,13 +1737,13 @@ export class ProjectPanel {
     private async copyProjectRef(project: any) {
         try {
             const blockId = project.blockId || project.id;
-            const title = project.title || t("unnamedNote") || '未命名项目';
+            const title = project.title || i18n("unnamedNote") || '未命名项目';
             const blockRef = `((${blockId} "${title}"))`;
             await navigator.clipboard.writeText(blockRef);
-            showMessage(t("copyBlockRef") + t("success") || "块引用已复制到剪贴板");
+            showMessage(i18n("copyBlockRef") + i18n("success") || "块引用已复制到剪贴板");
         } catch (error) {
             console.error('复制块引失败:', error);
-            showMessage(t("copyBlockRef") + t("operationFailed") || "复制块引失败");
+            showMessage(i18n("copyBlockRef") + i18n("operationFailed") || "复制块引失败");
         }
     }
 
@@ -1770,17 +1770,17 @@ export class ProjectPanel {
                         <select id="mergeGroupSelect" style="width:100%; padding:6px;"></select>
                         <input id="mergeNewGroupInput" type="text" placeholder="新分组名称" style="display:none; padding:6px;" />
 
-                        <label style="display:flex; align-items:center; gap:8px;"><input id="mergeDeleteSource" type="checkbox" /> ${t("deleteSourceProjectAfterMerge") || '合并后删除源项目'}</label>
+                        <label style="display:flex; align-items:center; gap:8px;"><input id="mergeDeleteSource" type="checkbox" /> ${i18n("deleteSourceProjectAfterMerge") || '合并后删除源项目'}</label>
                     </div>
                     <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="mergeCancel">${t("cancel") || '取消'}</button>
-                        <button class="b3-button b3-button--primary" id="mergeConfirm">${t("confirm") || '确认'}</button>
+                        <button class="b3-button b3-button--cancel" id="mergeCancel">${i18n("cancel") || '取消'}</button>
+                        <button class="b3-button b3-button--primary" id="mergeConfirm">${i18n("confirm") || '确认'}</button>
                     </div>
                 </div>
             `;
 
             const dialog = new Dialog({
-                title: t("mergeProject") || `合并项目: ${project.title}`,
+                title: i18n("mergeProject") || `合并项目: ${project.title}`,
                 content: html,
                 width: "520px",
                 height: "320px"
@@ -1800,7 +1800,7 @@ export class ProjectPanel {
                 // 添加空选项（与 QuickReminderDialog 一致）
                 const noProjectOption = document.createElement('option');
                 noProjectOption.value = '';
-                noProjectOption.textContent = t('noProject') || '无项目';
+                noProjectOption.textContent = i18n('noProject') || '无项目';
                 targetSelect.appendChild(noProjectOption);
 
                 Object.keys(groupedProjects).forEach(async statusKey => {
@@ -1833,7 +1833,7 @@ export class ProjectPanel {
                         nonArchivedProjects.forEach(p => {
                             const option = document.createElement('option');
                             option.value = p.id;
-                            option.textContent = p.name || (t('unnamedNote') || '未命名项目');
+                            option.textContent = p.name || (i18n('unnamedNote') || '未命名项目');
                             optgroup.appendChild(option);
                         });
 
@@ -1849,12 +1849,12 @@ export class ProjectPanel {
                 groupSelect.innerHTML = '';
                 const keepOpt = document.createElement('option');
                 keepOpt.value = '';
-                keepOpt.textContent = t("keepGroup") || '保持原分组';
+                keepOpt.textContent = i18n("keepGroup") || '保持原分组';
                 groupSelect.appendChild(keepOpt);
 
                 const newOpt = document.createElement('option');
                 newOpt.value = '__new__';
-                newOpt.textContent = t("createNewGroup") || '新建分组...';
+                newOpt.textContent = i18n("createNewGroup") || '新建分组...';
                 groupSelect.appendChild(newOpt);
 
                 if (targetId) {
@@ -1896,7 +1896,7 @@ export class ProjectPanel {
             confirmBtn.addEventListener('click', async () => {
                 const targetId = targetSelect.value;
                 if (!targetId) {
-                    showMessage(t("selectTargetProject") || '请选择目标项目');
+                    showMessage(i18n("selectTargetProject") || '请选择目标项目');
                     return;
                 }
 
@@ -1905,7 +1905,7 @@ export class ProjectPanel {
                 if (groupSelect.value === '__new__') {
                     const name = (newGroupInput.value || '').trim();
                     if (!name) {
-                        showMessage(t("enterNewGroupName") || '请输入新分组名称');
+                        showMessage(i18n("enterNewGroupName") || '请输入新分组名称');
                         return;
                     }
                     newGroupName = name;
@@ -1922,7 +1922,7 @@ export class ProjectPanel {
 
         } catch (error) {
             console.error('显示合并对话框失败:', error);
-            showMessage(t("showMergeDialogFailed") || '显示合并对话框失败');
+            showMessage(i18n("showMergeDialogFailed") || '显示合并对话框失败');
         }
     }
 
@@ -1933,7 +1933,7 @@ export class ProjectPanel {
         try {
             const projectData = await this.plugin.loadProjectData();
             if (!projectData[sourceId] || !projectData[targetId]) {
-                showMessage(t("projectNotFound") || '项目未找到');
+                showMessage(i18n("projectNotFound") || '项目未找到');
                 return;
             }
 
@@ -1978,12 +1978,12 @@ export class ProjectPanel {
             window.dispatchEvent(new CustomEvent('reminderUpdated'));
             window.dispatchEvent(new CustomEvent('projectUpdated'));
 
-            showMessage((t("mergeSuccess") || '合并成功') + ` (${movedCount})`);
+            showMessage((i18n("mergeSuccess") || '合并成功') + ` (${movedCount})`);
             this.loadProjects();
 
         } catch (error) {
             console.error('合并项目失败:', error);
-            showMessage(t("mergeFailed") || '合并失败');
+            showMessage(i18n("mergeFailed") || '合并失败');
         }
     }
 
@@ -1996,13 +1996,13 @@ export class ProjectPanel {
                 await this.plugin.saveProjectData(projectData);
                 window.dispatchEvent(new CustomEvent('projectUpdated'));
                 this.loadProjects();
-                showMessage(t("priorityUpdated") || "优先级更新成功");
+                showMessage(i18n("priorityUpdated") || "优先级更新成功");
             } else {
-                showMessage(t("projectNotExist") || "项目不存在");
+                showMessage(i18n("projectNotExist") || "项目不存在");
             }
         } catch (error) {
             console.error('设置优先级失败:', error);
-            showMessage(t("setPriorityFailed") || "操作失败");
+            showMessage(i18n("setPriorityFailed") || "操作失败");
         }
     }
 
@@ -2017,15 +2017,15 @@ export class ProjectPanel {
                 this.loadProjects();
 
                 const categoryName = categoryId ?
-                    this.categoryManager.getCategoryById(categoryId)?.name || t("unknownCategory") || "未知分类" :
-                    t("noCategory") || "无分类";
-                showMessage(`${t("setCategory") || "已设置分类为"}：${categoryName}`);
+                    this.categoryManager.getCategoryById(categoryId)?.name || i18n("unknownCategory") || "未知分类" :
+                    i18n("noCategory") || "无分类";
+                showMessage(`${i18n("setCategory") || "已设置分类为"}：${categoryName}`);
             } else {
-                showMessage(t("projectNotExist") || "项目不存在");
+                showMessage(i18n("projectNotExist") || "项目不存在");
             }
         } catch (error) {
             console.error('设置分类失败:', error);
-            showMessage(t("setCategoryFailed") || "操作失败");
+            showMessage(i18n("setCategoryFailed") || "操作失败");
         }
     }
 
@@ -2042,14 +2042,14 @@ export class ProjectPanel {
                 this.loadProjects();
 
                 const statusInfo = this.statusManager.getStatusById(status);
-                const statusName = statusInfo ? statusInfo.name : t("unknown");
-                showMessage(`${t("setStatus") || "已设置状态为"}：${statusName}`);
+                const statusName = statusInfo ? statusInfo.name : i18n("unknown");
+                showMessage(`${i18n("setStatus") || "已设置状态为"}：${statusName}`);
             } else {
-                showMessage(t("projectNotExist") || "项目不存在");
+                showMessage(i18n("projectNotExist") || "项目不存在");
             }
         } catch (error) {
             console.error('设置状态失败:', error);
-            showMessage(t("setStatusFailed") || "操作失败");
+            showMessage(i18n("setStatusFailed") || "操作失败");
         }
     }
 
@@ -2064,22 +2064,22 @@ export class ProjectPanel {
             const taskCount = projectTasks.length;
 
             // 构建确认消息
-            let confirmMessage = t("confirmDeleteProject")?.replace("${title}", project.title) || `确定要删除项目"${project.title}"吗？`;
+            let confirmMessage = i18n("confirmDeleteProject")?.replace("${title}", project.title) || `确定要删除项目"${project.title}"吗？`;
 
             if (taskCount > 0) {
-                const taskCountMessage = t("projectHasNTasks")?.replace("${count}", taskCount.toString()) || `该项目包含 ${taskCount} 个任务。`;
+                const taskCountMessage = i18n("projectHasNTasks")?.replace("${count}", taskCount.toString()) || `该项目包含 ${taskCount} 个任务。`;
                 confirmMessage = `${confirmMessage}\n\n${taskCountMessage}`;
             }
 
             await confirm(
-                t("deleteProject") || "删除项目",
+                i18n("deleteProject") || "删除项目",
                 confirmMessage,
                 async () => {
                     // 如果有任务，询问是否一并删除
                     if (taskCount > 0) {
                         await confirm(
-                            t("deleteProjectTasks") || "删除项目任务",
-                            t("confirmDeleteProjectTasks")?.replace("${count}", taskCount.toString()) || `是否同时删除项目的所有 ${taskCount} 个任务？\n\n选择"确定"将删除所有任务，选择"取消"将仅删除项目。`,
+                            i18n("deleteProjectTasks") || "删除项目任务",
+                            i18n("confirmDeleteProjectTasks")?.replace("${count}", taskCount.toString()) || `是否同时删除项目的所有 ${taskCount} 个任务？\n\n选择"确定"将删除所有任务，选择"取消"将仅删除项目。`,
                             async () => {
                                 // 用户选择删除任务
                                 await this.deleteProjectAndTasks(project.id, true);
@@ -2097,7 +2097,7 @@ export class ProjectPanel {
             );
         } catch (error) {
             console.error('检查项目任务失败:', error);
-            showMessage(t("deleteProjectFailed") || "删除项目失败");
+            showMessage(i18n("deleteProjectFailed") || "删除项目失败");
         }
     }
 
@@ -2105,7 +2105,7 @@ export class ProjectPanel {
         try {
             const projectData = await this.plugin.loadProjectData();
             if (!projectData[projectId]) {
-                showMessage(t("projectNotExist") || "项目不存在");
+                showMessage(i18n("projectNotExist") || "项目不存在");
                 return;
             }
 
@@ -2129,19 +2129,19 @@ export class ProjectPanel {
 
                 if (deletedCount > 0) {
                     await this.plugin.saveReminderData(reminderData);
-                    showMessage(t("projectAndTasksDeleted")?.replace("${count}", deletedCount.toString()) || `项目及 ${deletedCount} 个任务已删除`);
+                    showMessage(i18n("projectAndTasksDeleted")?.replace("${count}", deletedCount.toString()) || `项目及 ${deletedCount} 个任务已删除`);
                 } else {
-                    showMessage(t("projectDeleted") || "项目删除成功");
+                    showMessage(i18n("projectDeleted") || "项目删除成功");
                 }
             } else {
-                showMessage(t("projectDeleted") || "项目删除成功");
+                showMessage(i18n("projectDeleted") || "项目删除成功");
             }
 
             // 重新加载项目列表
             this.loadProjects();
         } catch (error) {
             console.error('删除项目失败:', error);
-            showMessage(t("deleteProjectFailed") || "删除项目失败");
+            showMessage(i18n("deleteProjectFailed") || "删除项目失败");
         }
     }
 
@@ -2152,13 +2152,13 @@ export class ProjectPanel {
         } catch (error) {
             console.error('打开项目失败:', error);
             confirm(
-                t("openNoteFailed") || "打开项目失败",
-                t("noteBlockDeleted") || "项目文档可能已被删除，是否删除相关的项目记录？",
+                i18n("openNoteFailed") || "打开项目失败",
+                i18n("noteBlockDeleted") || "项目文档可能已被删除，是否删除相关的项目记录？",
                 async () => {
                     await this.deleteProjectByBlockId(blockId);
                 },
                 () => {
-                    showMessage(t("openNoteFailedDelete") || "打开项目失败");
+                    showMessage(i18n("openNoteFailedDelete") || "打开项目失败");
                 }
             );
         }
@@ -2171,14 +2171,14 @@ export class ProjectPanel {
                 delete projectData[blockId];
                 await this.plugin.saveProjectData(projectData);
                 window.dispatchEvent(new CustomEvent('projectUpdated'));
-                showMessage(t("deletedRelatedReminders") || "相关项目记录已删除");
+                showMessage(i18n("deletedRelatedReminders") || "相关项目记录已删除");
                 this.loadProjects();
             } else {
-                showMessage(t("projectNotExist") || "项目记录不存在");
+                showMessage(i18n("projectNotExist") || "项目记录不存在");
             }
         } catch (error) {
             console.error('删除项目记录失败:', error);
-            showMessage(t("deleteProjectFailed") || "删除项目记录失败");
+            showMessage(i18n("deleteProjectFailed") || "删除项目记录失败");
         }
     }
 
@@ -2221,9 +2221,9 @@ export class ProjectPanel {
         const blockBindingDialog = new BlockBindingDialog(this.plugin, async (blockId: string) => {
             try {
                 await this.bindProjectToBlock(project, blockId);
-                showMessage(t("bindSuccess") || "绑定成功");
+                showMessage(i18n("bindSuccess") || "绑定成功");
             } catch (error) {
-                showMessage(t("bindFailed") || "绑定失败");
+                showMessage(i18n("bindFailed") || "绑定失败");
                 console.error(error);
             }
         }, {
@@ -2269,7 +2269,7 @@ export class ProjectPanel {
             // 添加分类管理
             menu.addItem({
                 icon: 'iconTags',
-                label: t("manageCategories") || "管理分类",
+                label: i18n("manageCategories") || "管理分类",
                 click: () => {
                     this.showCategoryManageDialog();
                 }
@@ -2278,7 +2278,7 @@ export class ProjectPanel {
             // 添加状态管理
             menu.addItem({
                 icon: 'iconSettings',
-                label: t("manageStatuses") || "管理状态",
+                label: i18n("manageStatuses") || "管理状态",
                 click: () => {
                     this.showStatusManageDialog();
                 }
@@ -2428,7 +2428,7 @@ export class ProjectPanel {
         const categories = await this.categoryManager.loadCategories();
 
         const dialog = new Dialog({
-            title: t("selectCategories") || "选择分类",
+            title: i18n("selectCategories") || "选择分类",
             content: this.createCategorySelectContent(categories),
             width: "400px",
             height: "250px"
@@ -2483,13 +2483,13 @@ export class ProjectPanel {
                     <div class="category-option">
                         <label>
                             <input type="checkbox" id="categoryAll" value="all" ${this.selectedCategories.includes('all') || this.selectedCategories.length === 0 ? 'checked' : ''}>
-                            ${t("allCategories") || "全部"}
+                            ${i18n("allCategories") || "全部"}
                         </label>
                     </div>
                     <div class="category-option">
                         <label>
                             <input type="checkbox" class="category-checkbox" value="none" ${this.selectedCategories.includes('none') ? 'checked' : ''}>
-                            ${t("noCategory") || "无分类"}
+                            ${i18n("noCategory") || "无分类"}
                         </label>
                     </div>
         `;
@@ -2508,8 +2508,8 @@ export class ProjectPanel {
         html += `
                 </div>
                 <div class="b3-dialog__action">
-                    <button class="b3-button b3-button--cancel" id="categorySelectCancel">${t("cancel")}</button>
-                    <button class="b3-button b3-button--primary" id="categorySelectConfirm">${t("confirm")}</button>
+                    <button class="b3-button b3-button--cancel" id="categorySelectCancel">${i18n("cancel")}</button>
+                    <button class="b3-button b3-button--primary" id="categorySelectConfirm">${i18n("confirm")}</button>
                 </div>
             </div>
         `;

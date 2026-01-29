@@ -1,6 +1,6 @@
 import { Dialog, showMessage, confirm } from "siyuan";
 import { CategoryManager, Category } from "../utils/categoryManager";
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 import { Picker } from "emoji-picker-element";
 export class CategoryManageDialog {
     private dialog: Dialog;
@@ -24,7 +24,7 @@ export class CategoryManageDialog {
 
     public show() {
         this.dialog = new Dialog({
-            title: t("categoryManagement"),
+            title: i18n("categoryManagement"),
             content: this.createDialogContent(),
             width: "500px",
             height: "600px"
@@ -41,22 +41,22 @@ export class CategoryManageDialog {
                     <div class="category-toolbar">
                         <button class="b3-button b3-button--primary" id="addCategoryBtn">
                             <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
-                            ${t("addCategory")}
+                            ${i18n("addCategory")}
                         </button>
                         <button class="b3-button b3-button--outline" id="resetCategoriesBtn">
                             <svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg>
-                            ${t("resetToDefault")}
+                            ${i18n("resetToDefault")}
                         </button>
                     </div>
                     <div class="category-drag-hint">
-                        <span>💡 ${t("dragHint")}</span>
+                        <span>💡 ${i18n("dragHint")}</span>
                     </div>
                     <div class="categories-list" id="categoriesList">
                         <!-- 分类列表将在这里渲染 -->
                     </div>
                 </div>
                 <div class="b3-dialog__action">
-                    <button class="b3-button b3-button--primary" id="closeBtn">${t("save")}</button>
+                    <button class="b3-button b3-button--primary" id="closeBtn">${i18n("save")}</button>
                 </div>
             </div>
             <style>
@@ -203,8 +203,8 @@ export class CategoryManageDialog {
                 categoriesList.appendChild(categoryEl);
             });
         } catch (error) {
-            console.error(t("loadCategoriesFailed"), error);
-            categoriesList.innerHTML = `<div class="category-error">${t("loadCategoriesFailed")}</div>`;
+            console.error(i18n("loadCategoriesFailed"), error);
+            categoriesList.innerHTML = `<div class="category-error">${i18n("loadCategoriesFailed")}</div>`;
         }
     }
 
@@ -407,8 +407,8 @@ export class CategoryManageDialog {
                         </div>
                     </div>
                     <div class="b3-dialog__action">
-                        <button class="b3-button b3-button--cancel" id="editCancelBtn">${t("cancel")}</button>
-                        <button class="b3-button b3-button--primary" id="editConfirmBtn">${t("save")}</button>
+                        <button class="b3-button b3-button--cancel" id="editCancelBtn">${i18n("cancel")}</button>
+                        <button class="b3-button b3-button--primary" id="editConfirmBtn">${i18n("save")}</button>
                     </div>
                     <style>
                         .category-icon-display {
@@ -522,16 +522,16 @@ export class CategoryManageDialog {
 
     private async deleteCategory(category: Category) {
         await confirm(
-            t("deleteCategory"),
-            t("confirmDeleteCategory", { name: category.name }),
+            i18n("deleteCategory"),
+            i18n("confirmDeleteCategory", { name: category.name }),
             async () => {
                 try {
                     await this.categoryManager.deleteCategory(category.id);
-                    showMessage(t("categoryDeleted"));
+                    showMessage(i18n("categoryDeleted"));
                     this.renderCategories();
                 } catch (error) {
-                    console.error(t("deleteCategoryFailed"), error);
-                    showMessage(t("deleteCategoryFailed"));
+                    console.error(i18n("deleteCategoryFailed"), error);
+                    showMessage(i18n("deleteCategoryFailed"));
                 }
             }
         );
@@ -539,16 +539,16 @@ export class CategoryManageDialog {
 
     private async resetCategories() {
         await confirm(
-            t("resetCategories"),
-            t("confirmResetCategories"),
+            i18n("resetCategories"),
+            i18n("confirmResetCategories"),
             async () => {
                 try {
                     await this.categoryManager.resetToDefault();
-                    showMessage(t("categoriesReset"));
+                    showMessage(i18n("categoriesReset"));
                     this.renderCategories();
                 } catch (error) {
-                    console.error(t("resetCategoriesFailed"), error);
-                    showMessage(t("resetCategoriesFailed"));
+                    console.error(i18n("resetCategoriesFailed"), error);
+                    showMessage(i18n("resetCategoriesFailed"));
                 }
             }
         );

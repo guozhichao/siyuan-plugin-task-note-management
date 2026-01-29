@@ -3,7 +3,7 @@ import { openBlock } from "../api";
 import { getLocalDateTimeString, getLogicalDateString, getRelativeDateString } from "../utils/dateUtils";
 import { HabitGroupManager } from "../utils/habitGroupManager";
 import { HabitCalendarDialog } from "./HabitCalendarDialog";
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 import { HabitEditDialog } from "./HabitEditDialog";
 import { HabitStatsDialog } from "./HabitStatsDialog";
 import { HabitGroupManageDialog } from "./HabitGroupManageDialog";
@@ -288,14 +288,14 @@ export class HabitPanel {
             const menu = new Menu("habitSortMenu");
 
             const sortOptions = [
-                { key: 'priority', label: t('sortByPriority') || '按优先级排序', icon: '🎯' },
-                { key: 'title', label: t('sortByTitle') || '按标题排序', icon: '📝' }
+                { key: 'priority', label: i18n('sortByPriority') || '按优先级排序', icon: '🎯' },
+                { key: 'title', label: i18n('sortByTitle') || '按标题排序', icon: '📝' }
             ];
 
             sortOptions.forEach(option => {
                 menu.addItem({
                     iconHTML: option.icon,
-                    label: `${option.label} (${t('ascending') || '升序'})`,
+                    label: `${option.label} (${i18n('ascending') || '升序'})`,
                     current: this.sortKey === option.key && this.sortOrder === 'asc',
                     click: () => {
                         this.setSort(option.key as any, 'asc');
@@ -304,7 +304,7 @@ export class HabitPanel {
 
                 menu.addItem({
                     iconHTML: option.icon,
-                    label: `${option.label} (${t('descending') || '降序'})`,
+                    label: `${option.label} (${i18n('descending') || '降序'})`,
                     current: this.sortKey === option.key && this.sortOrder === 'desc',
                     click: () => {
                         this.setSort(option.key as any, 'desc');

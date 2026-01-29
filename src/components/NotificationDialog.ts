@@ -1,4 +1,4 @@
-import { t } from "../utils/i18n";
+import { i18n } from "../utils/i18n";
 import { openTab } from "siyuan";
 import { getLogicalDateString } from "../utils/dateUtils";
 import { openBlock } from "../api"
@@ -103,9 +103,9 @@ export class NotificationDialog {
         // 构建优先级显示
         let priorityDisplay = '';
         if (priority !== 'none') {
-            const priorityText = priority === 'high' ? t("highPriority") :
-                priority === 'medium' ? t("mediumPriority") :
-                    priority === 'low' ? t("lowPriority") : '';
+            const priorityText = priority === 'high' ? i18n("highPriority") :
+                priority === 'medium' ? i18n("mediumPriority") :
+                    priority === 'low' ? i18n("lowPriority") : '';
             priorityDisplay = `
                 <div class="notification-priority">
                     <div class="priority-dot ${priority}"></div>
@@ -124,7 +124,7 @@ export class NotificationDialog {
                         <div class="notification-title" data-block-id="${reminder.blockId}">${this.escapeHtml(title)}</div>
                         <div class="notification-time">${timeDisplay}</div>
                     </div>
-                    <button class="notification-close" aria-label="${t('close')}">
+                    <button class="notification-close" aria-label="${i18n('close')}">
                         <svg><use xlink:href="#iconClose"></use></svg>
                     </button>
                 </div>
@@ -202,7 +202,7 @@ export class NotificationDialog {
                         <div class="notification-title">今日事件 (${reminders.length})</div>
                         <div class="notification-time">${new Date().toLocaleDateString('zh-CN')}</div>
                     </div>
-                    <button class="notification-close" aria-label="${t('close')}">
+                    <button class="notification-close" aria-label="${i18n('close')}">
                         <svg><use xlink:href="#iconClose"></use></svg>
                     </button>
                 </div>
