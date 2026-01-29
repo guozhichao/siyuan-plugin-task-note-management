@@ -7188,7 +7188,6 @@ export class ReminderPanel {
 
             // 创建文档
             const docId = await createDocWithMd(notebook, renderedPath, docContent);
-            await refreshSql();
             // 绑定提醒到新创建的文档
             await this.bindReminderToBlock(reminder, docId);
 
