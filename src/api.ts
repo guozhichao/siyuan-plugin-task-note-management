@@ -937,23 +937,11 @@ export async function updateBindBlockAtrrs(blockId: string, plugin: any): Promis
         // 如果没有提醒，清理所有相关属性
         if (blockReminders.length === 0) {
             try {
-                // 清理 custom-bind-reminders
-                try {
-                    await setBlockAttrs(blockId, { 'custom-bind-reminders': '' });
-                } catch (err) {
-                    console.warn('clear block reminder ids failed for', blockId, err);
-                }
-
-                // 清理 custom-task-projectId
-                try {
-                    await setBlockAttrs(blockId, { 'custom-task-projectId': '' });
-                } catch (err) {
-                    console.warn('clear block project ids failed for', blockId, err);
-                }
-
-                // 移除 bookmark
-                // await removeBlockBookmark(blockId);
-                await setBlockAttrs(blockId, { "bookmark": "" });
+                await setBlockAttrs(blockId, {
+                    "bookmark": "",
+                    'custom-bind-reminders': '',
+                    'custom-task-projectId': ''
+                });
 
                 return;
             } catch (err) {
