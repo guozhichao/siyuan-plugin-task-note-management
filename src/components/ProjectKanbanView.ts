@@ -4,10 +4,10 @@ import { refreshSql, getBlockByID, updateBindBlockAtrrs, openBlock } from "../ap
 import { t } from "../utils/i18n";
 import { getLocalDateString, getLocalDateTimeString, compareDateStrings, getLogicalDateString, getRelativeDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
+import { ProjectManager } from "../utils/projectManager";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroManager } from "../utils/pomodoroManager";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord"; // Add import
-import { CategoryManageDialog } from "./CategoryManageDialog";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
 import { getSolarDateLunarString } from "../utils/lunarUtils";
 import { QuickReminderDialog } from "./QuickReminderDialog";
@@ -22,6 +22,7 @@ export class ProjectKanbanView {
     private projectId: string;
     private project: any;
     private categoryManager: CategoryManager;
+    private projectManager: ProjectManager;
     private currentSort: string = 'priority';
     private kanbanMode: 'status' | 'custom' = 'status';
     private currentSortOrder: 'asc' | 'desc' = 'desc';
@@ -106,6 +107,7 @@ export class ProjectKanbanView {
         this.pomodoroRecordManager = PomodoroRecordManager.getInstance(this.plugin); // Initialization
         this.projectId = projectId;
         this.categoryManager = CategoryManager.getInstance(this.plugin);
+        this.projectManager = ProjectManager.getInstance(this.plugin);
         this.initializeAsync();
     }
 
@@ -181,8 +183,7 @@ export class ProjectKanbanView {
             }
 
             try {
-                const { ProjectManager } = await import('../utils/projectManager');
-                const projectManager = ProjectManager.getInstance(this.plugin);
+                const projectManager = this.projectManager;
                 const currentGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
                 const maxSort = currentGroups.reduce((max: number, g: any) => Math.max(max, g.sort || 0), 0);
@@ -245,8 +246,7 @@ export class ProjectKanbanView {
     private async loadKanbanMode() {
         try {
             // 使用项目管理器的方法来获取看板模式
-            const { ProjectManager } = await import('../utils/projectManager');
-            const projectManager = ProjectManager.getInstance(this.plugin);
+            const projectManager = this.projectManager;
             this.kanbanMode = await projectManager.getProjectKanbanMode(this.projectId);
             // 同时加载看板状态配置
             this.kanbanStatuses = await projectManager.getProjectKanbanStatuses(this.projectId);
@@ -254,9 +254,7 @@ export class ProjectKanbanView {
             console.error('加载看板模式失败:', error);
             this.kanbanMode = 'status';
             // 使用默认状态配置
-            const { ProjectManager } = await import('../utils/projectManager');
-            const projectManager = ProjectManager.getInstance(this.plugin);
-            this.kanbanStatuses = projectManager.getDefaultKanbanStatuses();
+            this.kanbanStatuses = this.projectManager.getDefaultKanbanStatuses();
         }
     }
 
@@ -266,9 +264,7 @@ export class ProjectKanbanView {
             this.kanbanMode = newMode;
 
             // 使用项目管理器保存看板模式
-            const { ProjectManager } = await import('../utils/projectManager');
-            const projectManager = ProjectManager.getInstance(this.plugin);
-            await projectManager.setProjectKanbanMode(this.projectId, newMode);
+            await this.projectManager.setProjectKanbanMode(this.projectId, newMode);
 
             // 更新下拉选择框选中状态
             this.updateModeSelect();
@@ -469,8 +465,7 @@ export class ProjectKanbanView {
      * 显示管理任务状态对话框
      */
     private async showManageKanbanStatusesDialog() {
-        const { ProjectManager } = await import('../utils/projectManager');
-        const projectManager = ProjectManager.getInstance(this.plugin);
+        const projectManager = this.projectManager;
 
         // 加载当前项目的状态配置
         let statuses = await projectManager.getProjectKanbanStatuses(this.projectId);
@@ -1061,8 +1056,7 @@ export class ProjectKanbanView {
         // 加载并显示现有标签
         const loadAndDisplayTags = async () => {
             try {
-                const { ProjectManager } = await import('../utils/projectManager');
-                const projectManager = ProjectManager.getInstance(this.plugin);
+                const projectManager = this.projectManager;
                 const projectTags = await projectManager.getProjectTags(this.projectId);
 
                 tagsContainer.innerHTML = '';
@@ -1135,8 +1129,7 @@ export class ProjectKanbanView {
         // 删除标签
         const deleteTag = async (tagNameToDelete: string) => {
             try {
-                const { ProjectManager } = await import('../utils/projectManager');
-                const projectManager = ProjectManager.getInstance(this.plugin);
+                const projectManager = this.projectManager;
                 const projectTags = await projectManager.getProjectTags(this.projectId);
 
                 const updatedTags = projectTags.filter(tag => tag.name !== tagNameToDelete);
@@ -1154,8 +1147,7 @@ export class ProjectKanbanView {
         const showEditTagDialog = (existingTag: { id: string, name: string, color: string }) => {
             showTagEditDialog(existingTag, async (updatedTag) => {
                 try {
-                    const { ProjectManager } = await import('../utils/projectManager');
-                    const projectManager = ProjectManager.getInstance(this.plugin);
+                    const projectManager = this.projectManager;
                     const projectTags = await projectManager.getProjectTags(this.projectId);
 
                     const index = projectTags.findIndex(t => t.id === existingTag.id);
@@ -1252,8 +1244,7 @@ export class ProjectKanbanView {
         addTagBtn.addEventListener('click', () => {
             showTagEditDialog(null, async (newTag) => {
                 try {
-                    const { ProjectManager } = await import('../utils/projectManager');
-                    const projectManager = ProjectManager.getInstance(this.plugin);
+                    const projectManager = this.projectManager;
                     const projectTags = await projectManager.getProjectTags(this.projectId);
 
                     projectTags.push(newTag);
@@ -1274,8 +1265,7 @@ export class ProjectKanbanView {
 
     private async loadAndDisplayGroups(container: HTMLElement) {
         try {
-            const { ProjectManager } = await import('../utils/projectManager');
-            const projectManager = ProjectManager.getInstance(this.plugin);
+            const projectManager = this.projectManager;
             const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
             container.innerHTML = '';
@@ -1564,8 +1554,7 @@ export class ProjectKanbanView {
                     if (!draggedGroupId) return;
 
                     try {
-                        const { ProjectManager } = await import('../utils/projectManager');
-                        const projectManager = ProjectManager.getInstance(this.plugin);
+                        const projectManager = this.projectManager;
                         const currentGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
                         const draggedIndex = currentGroups.findIndex((g: any) => g.id === draggedGroupId);
@@ -1659,8 +1648,7 @@ export class ProjectKanbanView {
 
             try {
                 // 获取当前项目的分组列表
-                const { ProjectManager } = await import('../utils/projectManager');
-                const projectManager = ProjectManager.getInstance(this.plugin);
+                const projectManager = this.projectManager;
                 const currentGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
                 // 更新分组信息
@@ -1753,8 +1741,7 @@ export class ProjectKanbanView {
 
     private async deleteGroup(groupId: string, _groupItem: HTMLElement, container: HTMLElement) {
         // 获取分组信息用于显示名称
-        const { ProjectManager } = await import('../utils/projectManager');
-        const projectManager = ProjectManager.getInstance(this.plugin);
+        const projectManager = this.projectManager;
         const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
         const groupToDelete = projectGroups.find((g: any) => g.id === groupId);
 
@@ -2383,9 +2370,7 @@ export class ProjectKanbanView {
 
                 (async () => {
                     try {
-                        const { ProjectManager } = await import('../utils/projectManager');
-                        const projectManager = ProjectManager.getInstance(this.plugin);
-                        await projectManager.setProjectKanbanStatuses(this.projectId, this.kanbanStatuses);
+                        await this.projectManager.setProjectKanbanStatuses(this.projectId, this.kanbanStatuses);
                         this._lastRenderedProjectId = null;
                         this.queueLoadTasks();
                         showMessage(t('statusOrderSaved') || '状态顺序已保存');
@@ -2697,8 +2682,7 @@ export class ProjectKanbanView {
             }
 
             // 获取标签名称用于显示
-            const { ProjectManager } = await import('../utils/projectManager');
-            const projectManager = ProjectManager.getInstance(this.plugin);
+            const projectManager = this.projectManager;
             const projectTags = await projectManager.getProjectTags(this.projectId);
             const tag = projectTags.find(t => t.id === tagId);
             const tagName = tag?.name || tagId;
@@ -3606,8 +3590,7 @@ export class ProjectKanbanView {
 
     private async renderCustomGroupKanban() {
         // 使用项目管理器获取自定义分组
-        const { ProjectManager } = await import('../utils/projectManager');
-        const projectManager = ProjectManager.getInstance(this.plugin);
+        const projectManager = this.projectManager;
         const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
         // Sort groups by 'sort' field to ensure correct display order
@@ -3786,8 +3769,7 @@ export class ProjectKanbanView {
                     if (!draggedId) return;
 
                     try {
-                        const { ProjectManager } = await import('../utils/projectManager');
-                        const projectManager = ProjectManager.getInstance(this.plugin);
+                        const projectManager = this.projectManager;
                         const currentGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
                         const draggedIndex = currentGroups.findIndex((g: any) => g.id === draggedId);
@@ -4031,8 +4013,7 @@ export class ProjectKanbanView {
 
     private async renderTasksGroupedByCustomGroupInStableContainer(groupsContainer: HTMLElement, tasks: any[], status: string) {
         // 获取项目自定义分组
-        const { ProjectManager } = await import('../utils/projectManager');
-        const projectManager = ProjectManager.getInstance(this.plugin);
+        const projectManager = this.projectManager;
         const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
         // Sort groups by 'sort' field
         projectGroups.sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
@@ -10711,15 +10692,10 @@ export class ProjectKanbanView {
         if (selectedIds.length === 0) return;
 
         // 获取可用的状态列表（kanbanStatuses 已包含已完成状态）
-        const statuses = this.kanbanStatuses.length > 0 ? this.kanbanStatuses : [
-            { id: 'doing', name: t('doing') || '进行中', color: '#f39c12' },
-            { id: 'short_term', name: t('shortTerm') || '短期', color: '#3498db' },
-            { id: 'long_term', name: t('longTerm') || '长期', color: '#9b59b6' },
-            { id: 'completed', name: t('done') || '已完成', color: '#27ae60' }
-        ];
+        const statuses = this.kanbanStatuses.length > 0 ? this.kanbanStatuses : this.projectManager.getDefaultKanbanStatuses();
 
         const statusOptions = statuses.map(s =>
-            `<option value="${s.id}">${s.name}</option>`
+            `<option value="${s.id}">${s.icon ? s.icon + ' ' : ''}${s.name}</option>`
         ).join('');
 
         const dialog = new Dialog({
