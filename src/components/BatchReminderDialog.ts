@@ -250,7 +250,7 @@ class SmartBatchDialog {
             title: i18n("smartBatchTitle", { count: this.blockIds.length.toString() }),
             content: this.buildSmartBatchContent(),
             width: "700px",
-            height: "700px"
+            height: "81vh"
         });
 
         await this.renderBlockList(dialog);
@@ -1249,7 +1249,7 @@ class SmartBatchDialog {
                         }
                     }
 
-                    const reminderId = existingReminderId || `${blockId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    const reminderId = existingReminderId || `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                     const block = await getBlockByID(blockId);
 
                     const reminder: any = existingReminderId ? { ...reminderData[existingReminderId] } : {
@@ -1335,21 +1335,6 @@ class SmartBatchDialog {
                     }
 
                     reminderData[reminderId] = reminder;
-                    // 如果设置了 projectId，则将块的 custom-task-projectId 更新为追加projectId（避免重复）
-                    try {
-                        const { addBlockProjectId, setBlockProjectIds } = await import('../api');
-                        if (setting.projectId && blockId) {
-                            await addBlockProjectId(blockId, setting.projectId);
-                            console.debug('BatchReminderDialog: addBlockProjectId for block', blockId, 'projectId', setting.projectId);
-                        }
-                        // 如果 projectId 为空则清理属性
-                        if ((!setting.projectId || setting.projectId === '') && blockId) {
-                            await setBlockProjectIds(blockId, []);
-                            console.debug('BatchReminderDialog: cleared custom-task-projectId for block', blockId);
-                        }
-                    } catch (error) {
-                        console.warn('批量设置块属性 custom-task-projectId 失败:', error);
-                    }
                     successCount++;
                     successfulBlockIds.push(blockId);
                 } catch (error) {
@@ -1360,7 +1345,7 @@ class SmartBatchDialog {
 
             await this.plugin.saveReminderData(reminderData);
 
-            // 为所有成功创建提醒的块添加书签
+            // 为所有成功创建提醒的块更新属性
             for (const blockId of successfulBlockIds) {
                 try {
                     await updateBindBlockAtrrs(blockId, this.plugin);
