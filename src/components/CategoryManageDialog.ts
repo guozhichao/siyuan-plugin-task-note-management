@@ -1,6 +1,6 @@
 import { Dialog, showMessage, confirm } from "siyuan";
 import { CategoryManager, Category } from "../utils/categoryManager";
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 import { Picker } from "emoji-picker-element";
 export class CategoryManageDialog {
     private dialog: Dialog;

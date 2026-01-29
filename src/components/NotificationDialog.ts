@@ -1,4 +1,4 @@
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 import { openTab } from "siyuan";
 import { getLogicalDateString } from "../utils/dateUtils";
 import { openBlock } from "../api"

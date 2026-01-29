@@ -1,5 +1,5 @@
 import { Dialog, showMessage } from "siyuan";
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 import { autoDetectDateTimeFromTitle, getLocalDateTimeString } from "../utils/dateUtils";
 import { getBlockByID, updateBindBlockAtrrs } from "../api";
 import { getAllReminders, saveReminders } from "../utils/icsSubscription";

@@ -3,7 +3,7 @@ import { openBlock } from "../api";
 import { getLocalDateTimeString, getLogicalDateString, getRelativeDateString } from "../utils/dateUtils";
 import { HabitGroupManager } from "../utils/habitGroupManager";
 import { HabitCalendarDialog } from "./HabitCalendarDialog";
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 import { HabitEditDialog } from "./HabitEditDialog";
 import { HabitStatsDialog } from "./HabitStatsDialog";
 import { HabitGroupManageDialog } from "./HabitGroupManageDialog";

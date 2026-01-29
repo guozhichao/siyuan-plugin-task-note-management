@@ -17,7 +17,7 @@ import { CalendarView } from "./components/CalendarView";
 import { EisenhowerMatrixView } from "./components/EisenhowerMatrixView";
 import { CategoryManager } from "./utils/categoryManager";
 import { getLocalTimeString, compareDateStrings, getLogicalDateString, setDayStartTime } from "./utils/dateUtils";
-import { i18n, setPluginInstance } from "./utils/i18n";
+import { i18n, setPluginInstance } from "./pluginInstance";
 import { SettingUtils } from "./libs/setting-utils";
 import { PomodoroRecordManager } from "./utils/pomodoroRecord";
 import { NotificationDialog } from "./components/NotificationDialog";

@@ -3,7 +3,7 @@ import { getBlockByID, getBlockDOM, refreshSql, updateBindBlockAtrrs } from "../
 import { compareDateStrings, getLogicalDateString, parseNaturalDateTime, autoDetectDateTimeFromTitle } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 import { RepeatSettingsDialog, RepeatConfig } from "./RepeatSettingsDialog";
 import { getRepeatDescription } from "../utils/repeatUtils";
 import { CategoryManageDialog } from "./CategoryManageDialog";

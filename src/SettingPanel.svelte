@@ -2,7 +2,7 @@
     import { onMount } from 'svelte';
     import { Dialog } from 'siyuan';
     import SettingPanel from '@/libs/components/setting-panel.svelte';
-    import { i18n } from './utils/i18n';
+    import { i18n } from './pluginInstance';
     import {
         DEFAULT_SETTINGS,
         SETTINGS_FILE,

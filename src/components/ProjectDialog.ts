@@ -3,7 +3,7 @@ import { getBlockByID } from "../api";
 import { getLogicalDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { StatusManager } from "../utils/statusManager";
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 
 export class ProjectDialog {
     private dialog: Dialog;

@@ -1,6 +1,6 @@
 import { Dialog, showMessage } from "siyuan";
 import { } from "../api";
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 
 export class SubtasksDialog {

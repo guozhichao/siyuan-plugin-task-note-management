@@ -5,7 +5,7 @@ import { init, use, EChartsType } from 'echarts/core';
 import { HeatmapChart, ScatterChart, CustomChart } from 'echarts/charts';
 import { TooltipComponent, VisualMapComponent, GridComponent, TitleComponent, LegendComponent, CalendarComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 
 // 注册 ECharts 组件
 use([

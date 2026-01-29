@@ -1,5 +1,5 @@
 import { Plugin } from "siyuan";
-import { i18n } from "./i18n";
+import { i18n } from "../pluginInstance";
 
 
 export interface SortConfig {

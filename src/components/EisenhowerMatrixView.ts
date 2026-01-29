@@ -7,7 +7,7 @@ import { BlockBindingDialog } from "./BlockBindingDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroManager } from "../utils/pomodoroManager";
 import { showMessage, confirm, Menu, Dialog } from "siyuan";
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 import { getLocalDateTimeString, getLocalDateString, compareDateStrings, getLogicalDateString } from "../utils/dateUtils";
 import { getSolarDateLunarString } from "../utils/lunarUtils";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";

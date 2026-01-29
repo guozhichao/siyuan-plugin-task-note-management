@@ -13,7 +13,7 @@ import { CategoryManageDialog } from "./CategoryManageDialog";
 import { StatusManageDialog } from "./StatusManageDialog";
 import { ProjectKanbanView } from "./ProjectKanbanView";
 import { BlockBindingDialog } from "./BlockBindingDialog";
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 import { getAllReminders } from "../utils/icsSubscription";
 
 

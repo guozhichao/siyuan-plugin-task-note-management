@@ -2,7 +2,7 @@ import { Dialog } from "siyuan";
 import { showMessage } from "siyuan";
 import { confirm } from "siyuan";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 import { compareDateStrings, getLocalDateString, getLogicalDateString, getDayStartMinutes } from "../utils/dateUtils";
 import { getFile } from "../api";
 import { generateRepeatInstances } from "../utils/repeatUtils";

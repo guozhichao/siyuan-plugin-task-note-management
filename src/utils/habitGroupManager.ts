@@ -1,4 +1,4 @@
-import { getPluginInstance } from './i18n';
+import { getPluginInstance } from '../pluginInstance';
 export interface HabitGroup {
     id: string;
     name: string;

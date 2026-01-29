@@ -9,7 +9,7 @@
 
 import { Dialog, confirm, showMessage } from "siyuan";
 import { PomodoroRecordManager, PomodoroSession } from "../utils/pomodoroRecord";
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 
 export class PomodoroSessionsDialog {
     private dialog: Dialog;

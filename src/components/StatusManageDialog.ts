@@ -1,6 +1,6 @@
 import { Dialog, showMessage, confirm } from "siyuan";
 import { StatusManager, Status } from "../utils/statusManager";
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 import { Picker } from "emoji-picker-element";
 export class StatusManageDialog {
     private dialog: Dialog;

@@ -1,6 +1,6 @@
 import { RepeatConfig } from '../components/RepeatSettingsDialog';
 import { compareDateStrings } from './dateUtils';
-import { i18n } from './i18n';
+import { i18n } from '../pluginInstance';
 import { solarToLunar } from './lunarUtils';
 
 export interface RepeatInstance {

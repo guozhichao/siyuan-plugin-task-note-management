@@ -1,7 +1,7 @@
 import { showMessage, confirm, getFrontend } from "siyuan";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
 import { getBlockByID, openBlock } from "../api";
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 
 
 export class PomodoroTimer {

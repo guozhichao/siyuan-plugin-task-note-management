@@ -1,5 +1,5 @@
 import { Dialog, showMessage, Menu } from "siyuan";
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 import { getLocalDateString, getLogicalDateString } from "../utils/dateUtils";
 import { ProjectManager } from "../utils/projectManager";
 

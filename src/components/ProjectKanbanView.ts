@@ -1,7 +1,7 @@
 import { showMessage, confirm, Menu, Dialog } from "siyuan";
 
 import { refreshSql, getBlockByID, updateBindBlockAtrrs, openBlock } from "../api";
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 import { getLocalDateString, getLocalDateTimeString, compareDateStrings, getLogicalDateString, getRelativeDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";

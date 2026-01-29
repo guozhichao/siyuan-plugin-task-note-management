@@ -4,7 +4,7 @@ import { getLocalDateString, compareDateStrings, getLocalDateTimeString, getLogi
 import { CategoryManager } from "../utils/categoryManager";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 
 export class DocumentReminderDialog {
     private dialog: Dialog;

@@ -1,5 +1,5 @@
 import { Dialog, showMessage } from "siyuan";
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 import { Project, ProjectManager } from "../utils/projectManager";
 import { StatusManager } from "../utils/statusManager";
 

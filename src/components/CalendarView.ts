@@ -14,7 +14,7 @@ import { StatusManager } from "../utils/statusManager";
 import { CategoryManageDialog } from "./CategoryManageDialog";
 import { ProjectColorDialog } from "./ProjectColorDialog";
 import { PomodoroTimer } from "./PomodoroTimer";
-import { i18n } from "../utils/i18n";
+import { i18n } from "../pluginInstance";
 import { generateRepeatInstances, RepeatInstance, getDaysDifference, addDaysToDate } from "../utils/repeatUtils";
 import { getAllReminders, saveReminders, loadHolidays } from "../utils/icsSubscription";
 import { CalendarConfigManager } from "../utils/calendarConfigManager";
