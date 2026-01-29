@@ -1126,7 +1126,7 @@ export default class ReminderPlugin extends Plugin {
                 const outline = document.querySelector('.file-tree.sy__outline');
                 if (!outline) return;
                 this.updateOutlinePrefixes();
-            }, 50);
+            }, 0);
         };
 
         // 创建观察器函数
@@ -3271,37 +3271,42 @@ export default class ReminderPlugin extends Plugin {
     /**
      * 处理单个 Node 的按钮（用于 MutationObserver 的快速响应）
      */
-    private async _processSingleBlock(protyle: any, node: Element) {
+    private _processSingleBlock(protyle: any, node: Element) {
         if (!node || !node.getAttribute) return;
 
-        const blockId = this._getBlockIdFromElement(node);
+        // 总是找到最近的块元素
+        const blockEl = (node.hasAttribute('data-node-id') ? node : node.closest('[data-node-id]')) as HTMLElement;
+        if (!blockEl) return;
+
+        const blockId = blockEl.getAttribute('data-node-id');
         if (!blockId) return;
 
-        // Check availability
-        const rawAttr = node.getAttribute('custom-task-projectid');
-        const hasBind = node.hasAttribute('custom-bind-reminders');
-
-        // 如果既没有项目引用也没有绑定，说明不需要按钮（或者需要移除）
-        if (!rawAttr && !hasBind) {
-            // 这里我们不主动清理，交给全量 scan 去清理孤立按钮，避免误删
-            // 为了快速响应“移除绑定”操作，可以尝试移除该块对应的按钮
-            // 但需要小心不要移除依然有效的（这里不做移除，仅做添加/更新）
-            return;
-        }
+        // 在块元素上检查属性
+        const rawAttr = blockEl.getAttribute('custom-task-projectid');
+        const hasBind = blockEl.hasAttribute('custom-bind-reminders');
 
         const projectIds = rawAttr ? rawAttr.split(',').map(s => s.trim()).filter(s => s) : [];
         const info = {
             projectIds,
             hasBind,
-            element: node
+            element: blockEl // 传递块元素本身作为 sourceElement
         };
+
+        // 如果既没有项目引用也没有绑定，且存在旧按钮，则需要移除
+        if (!rawAttr && !hasBind) {
+            const btns = protyle.element.querySelectorAll(`[data-block-id="${blockId}"][data-plugin-added="reminder-plugin"]`);
+            if (btns.length > 0) {
+                btns.forEach((b: Element) => b.remove());
+            }
+            return;
+        }
 
         // Prevent redundant processing if logic is already running for this block
         if (this.processingBlockButtons.has(blockId)) return;
 
         this.processingBlockButtons.add(blockId);
         try {
-            await this._processBlockButtons(protyle, blockId, info);
+            this._processBlockButtons(protyle, blockId, info);
         } finally {
             this.processingBlockButtons.delete(blockId);
         }
@@ -3314,21 +3319,15 @@ export default class ReminderPlugin extends Plugin {
     /**
      * 扫描 Protyle 内容并更新项目/绑定按钮
      */
-    private async _scanProtyleForButtons(protyle: any) {
+    private _scanProtyleForButtons(protyle: any) {
         try {
             if (!protyle || !protyle.element) return;
 
-            // 仅扫描具有自定义项目属性的节点，避免遍历所有块
-            const projectSelector = 'div[data-node-id][custom-task-projectid], .protyle-wysiwyg[custom-task-projectid]';
-            // 同时扫瞄绑定了任务的节点
-            const bindSelector = 'div[data-node-id][custom-bind-reminders], .protyle-wysiwyg[custom-bind-reminders]';
-
-            const projectBlocks = Array.from(protyle.element.querySelectorAll(projectSelector)) as Element[];
-            const bindBlocks = Array.from(protyle.element.querySelectorAll(bindSelector)) as Element[];
-            const allBlocks = Array.from(new Set([...projectBlocks, ...bindBlocks]));
+            // 仅扫描具有自定义项目属性或绑定属性的节点
+            const selector = 'div[data-node-id][custom-task-projectid], .protyle-wysiwyg[custom-task-projectid], div[data-node-id][custom-bind-reminders], .protyle-wysiwyg[custom-bind-reminders]';
+            const allBlocks = Array.from(protyle.element.querySelectorAll(selector)) as Element[];
 
             if (allBlocks.length === 0) {
-                // 清理可能存在的孤立按钮
                 this._cleanupOrphanedButtons(protyle);
                 return;
             }
@@ -3337,7 +3336,7 @@ export default class ReminderPlugin extends Plugin {
             const blocksToProcess = new Map<string, { projectIds: string[], hasBind: boolean, element: Element }>();
 
             for (const node of allBlocks) {
-                const blockId = this._getBlockIdFromElement(node);
+                const blockId = node.getAttribute('data-node-id') || this._getBlockIdFromElement(node);
                 if (!blockId) continue;
 
                 const rawAttr = node.getAttribute('custom-task-projectid');
@@ -3359,12 +3358,11 @@ export default class ReminderPlugin extends Plugin {
                 if (this.processingBlockButtons.has(blockId)) continue;
                 this.processingBlockButtons.add(blockId);
                 try {
-                    await this._processBlockButtons(protyle, blockId, info);
+                    this._processBlockButtons(protyle, blockId, info);
                 } finally {
                     this.processingBlockButtons.delete(blockId);
                 }
             }
-
         } catch (error) {
             console.error('扫描块按钮失败:', error);
         }
@@ -3432,7 +3430,22 @@ export default class ReminderPlugin extends Plugin {
                 childList: true,
                 subtree: true,
                 attributes: true,
-                attributeFilter: ['custom-task-projectid', 'custom-bind-reminders']
+                // 监听更多属性以应对思源对 DOM 的重构
+                attributeFilter: ['custom-task-projectid', 'custom-bind-reminders', 'updated', 'bookmark']
+            });
+
+            // 额外监听属性栏本身的变化，有些时候思源会重写 protyle-attr
+            const attrObserver = new MutationObserver((mutations) => {
+                for (const m of mutations) {
+                    if (m.target instanceof Element && m.target.classList.contains('protyle-attr')) {
+                        const block = m.target.closest('[data-node-id]');
+                        if (block) this._processSingleBlock(protyle, block);
+                    }
+                }
+            });
+            attrObserver.observe(protyle.element, {
+                childList: true,
+                subtree: true
             });
 
             this.protyleObservers.set(protyle.element, observer);
@@ -3440,6 +3453,7 @@ export default class ReminderPlugin extends Plugin {
             // 注册清理逻辑 (当插件卸载时)
             this.addCleanup(() => {
                 observer.disconnect();
+                attrObserver.disconnect();
                 this.protyleObservers.delete(protyle.element);
             });
         }
@@ -3470,7 +3484,9 @@ export default class ReminderPlugin extends Plugin {
 
     // 清理孤立的按钮
     private _cleanupOrphanedButtons(protyle: any, activeBlocks?: Map<string, any>) {
-        const activeBlockIds = activeBlocks ? new Set(activeBlocks.keys()) : new Set();
+        if (!activeBlocks) return; // 如果没有提供活跃块列表（例如初始全量扫描），则不执行移除逻辑，由 _processBlockButtons 处理
+
+        const activeBlockIds = new Set(activeBlocks.keys());
 
         // 清理并去重项目按钮：对于同一 (blockId, projectId) 只保留第一个
         const projectButtons = Array.from(protyle.element.querySelectorAll('.block-project-btn')) as HTMLElement[];
@@ -3510,8 +3526,12 @@ export default class ReminderPlugin extends Plugin {
     }
 
     // 处理单个块的按钮
-    private async _processBlockButtons(protyle: any, blockId: string, info: { projectIds: string[], hasBind: boolean, element: Element }) {
-        const blockEl = protyle.element.querySelector(`[data-node-id="${blockId}"]`) as HTMLElement;
+    private _processBlockButtons(protyle: any, blockId: string, info: { projectIds: string[], hasBind: boolean, element: Element }) {
+        // 使用已知的 blockEl 或者在容器内查找
+        const blockEl = (info.element && info.element.getAttribute('data-node-id') === blockId) ?
+            info.element as HTMLElement :
+            protyle.element.querySelector(`[data-node-id="${blockId}"]`) as HTMLElement;
+
         if (!blockEl) return;
 
         const container = this._findButtonContainer(blockEl, info.element);
@@ -3519,8 +3539,7 @@ export default class ReminderPlugin extends Plugin {
 
         // 处理项目按钮
         const existingProjectButtons = new Map<string, HTMLElement>();
-        // 搜索整个 protyle 以发现该块的所有项目按钮，避免重复
-        protyle.element.querySelectorAll(`.block-project-btn[data-block-id="${blockId}"]`).forEach((btn: HTMLElement) => {
+        container.querySelectorAll(`.block-project-btn[data-block-id="${blockId}"]`).forEach((btn: HTMLElement) => {
             const pid = btn.dataset.projectId;
             if (pid) existingProjectButtons.set(pid, btn);
         });
@@ -3531,13 +3550,15 @@ export default class ReminderPlugin extends Plugin {
             if (!existingBtn) {
                 const btn = this._createProjectButton(pid, blockId);
                 container.appendChild(btn);
-            } else if (existingBtn.parentElement !== container) {
-                // 如果已存在但不在当前期望的容器中，则移动它
-                container.appendChild(existingBtn);
+            } else {
+                // 如果已存在但位置发生了微调或不在当前容器（虽然 container.querySelectorAll 已限制范围，但为了严谨性），确保其仍在
+                if (existingBtn.parentElement !== container) {
+                    container.appendChild(existingBtn);
+                }
             }
         }
 
-        // 移除不需要的按钮
+        // 移除不需要的项目按钮
         for (const [pid, btn] of existingProjectButtons) {
             if (!info.projectIds.includes(pid)) {
                 btn.remove();
@@ -3545,13 +3566,12 @@ export default class ReminderPlugin extends Plugin {
         }
 
         // 处理绑定按钮
-        const existingBindBtn = protyle.element.querySelector(`.block-bind-reminders-btn[data-block-id="${blockId}"]`) as HTMLElement;
+        const existingBindBtn = container.querySelector(`.block-bind-reminders-btn[data-block-id="${blockId}"]`) as HTMLElement;
         if (info.hasBind) {
             if (!existingBindBtn) {
                 const bindBtn = this._createBindButton(blockId);
                 container.appendChild(bindBtn);
             } else if (existingBindBtn.parentElement !== container) {
-                // 如果位置不正确，移动到正确容器
                 container.appendChild(existingBindBtn);
             }
         } else if (existingBindBtn) {
@@ -3570,13 +3590,19 @@ export default class ReminderPlugin extends Plugin {
             if (protyleRoot) {
                 const titleElement = protyleRoot.querySelector('.protyle-top .protyle-title.protyle-wysiwyg--attr') ||
                     protyleRoot.querySelector('.protyle-top .protyle-title');
-                return (titleElement?.querySelector('div.protyle-attr') || titleElement) as HTMLElement;
+                if (!titleElement) return null;
+                // 查找直接子级属性栏
+                const attr = Array.from(titleElement.children).find(c => c.classList.contains('protyle-attr'));
+                return (attr || titleElement) as HTMLElement;
             }
         } else {
-            // 普通块：优先使用 protyle-attr
-            return blockEl.querySelector('div.protyle-attr') ||
-                blockEl.querySelector('.protyle-title') ||
-                blockEl.firstElementChild as HTMLElement;
+            // 普通块：优先使用直属属性栏 (protyle-attr)，避免查找到嵌套块（如列表项中的第一段）的属性栏
+            const directAttr = Array.from(blockEl.children).find(child => child.classList.contains('protyle-attr'));
+            if (directAttr) return directAttr as HTMLElement;
+
+            // 回退逻辑
+            return (blockEl.querySelector('.protyle-title') ||
+                blockEl.firstElementChild) as HTMLElement;
         }
 
         return null;
