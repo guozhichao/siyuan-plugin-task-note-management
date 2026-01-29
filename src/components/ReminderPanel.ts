@@ -192,7 +192,6 @@ export class ReminderPanel {
                     .reminder-item.dragging { opacity: 0.5 !important; }
                     .reminder-item.reminder-completed { opacity: 0.5 !important; }
                     .reminder-list.drag-over-active {
-                        background-color: var(--b3-theme-surface-lighter);
                         box-shadow: inset 0 0 0 2px var(--b3-theme-primary);
                     }
                 `;
