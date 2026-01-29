@@ -46,6 +46,8 @@ export class ProjectKanbanView {
     private searchKeyword: string = '';
     private searchInput: HTMLInputElement;
     private collapsedTasks: Set<string> = new Set();
+    // 临时保存要在下一次渲染后恢复的父任务折叠状态
+    private _preserveCollapsedTasks: Set<string> | null = null;
 
     // 分页：每页最多显示的顶层任务数量
     private pageSize: number = 30;
@@ -90,6 +92,9 @@ export class ProjectKanbanView {
 
     // 缓存的任务数据
     private reminderData: any = null;
+
+    // 标记是否已应用过默认的折叠策略（避免后续操作重复应用）
+    private _defaultCollapseApplied: boolean = false;
 
     // 当前项目的看板状态配置
     private kanbanStatuses: import('../utils/projectManager').KanbanStatus[] = [];
@@ -2972,6 +2977,11 @@ export class ProjectKanbanView {
             // - 之后的加载尽量保留用户通过界面展开/折叠的偏好（即不再盲目 clear 并重新折叠已展开的父任务）；
             // - 同时移除那些已经不存在的任务 id，防止内存泄漏或过期状态。
             try {
+                // 如果外部（例如 queueLoadTasks）请求在本次加载后恢复某些父任务折叠状态，优先恢复
+                if (this._preserveCollapsedTasks && this._preserveCollapsedTasks.size > 0) {
+                    this.collapsedTasks = new Set(this._preserveCollapsedTasks);
+                    this._preserveCollapsedTasks = null;
+                }
                 const taskIds = new Set(this.tasks.map(t => t.id));
 
                 // 清理 collapsedTasks 中已不存在的任务 id
@@ -2990,14 +3000,15 @@ export class ProjectKanbanView {
                     }
                 });
 
-                // 仅在用户没有任何折叠偏好（collapsedTasks 为空）时，应用默认折叠策略
-                if (this.collapsedTasks.size === 0) {
+                // 仅在首次加载且用户没有任何折叠偏好（collapsedTasks 为空）时，应用默认折叠策略
+                if (!this._defaultCollapseApplied && this.collapsedTasks.size === 0) {
                     parentMap.forEach((_children, parentId) => {
                         const parent = this.tasks.find(p => p.id === parentId);
                         if (!parent) return;
                         // 默认折叠所有父任务
                         this.collapsedTasks.add(parentId);
                     });
+                    this._defaultCollapseApplied = true;
                 }
             } catch (err) {
                 console.warn('设置默认折叠任务失败:', err);
@@ -3038,6 +3049,13 @@ export class ProjectKanbanView {
         // 如果已有挂起的 promise，则复用
         if (!this._pendingLoadPromise) {
             this._pendingLoadPromise = new Promise<void>((resolve) => { this._pendingLoadResolve = resolve; });
+        }
+
+        // 在防抖定时执行前，缓存当前父任务折叠状态，避免在短时间内新建子任务等操作导致折叠状态丢失或被重置
+        try {
+            this._preserveCollapsedTasks = new Set(this.collapsedTasks);
+        } catch (e) {
+            this._preserveCollapsedTasks = null;
         }
 
         if (this._debounceTimer) {
@@ -7265,9 +7283,7 @@ export class ProjectKanbanView {
 
         if (showSelectors && !parentTask) {
             try {
-                const { ProjectManager } = await import('../utils/projectManager');
-                const projectManager = ProjectManager.getInstance(this.plugin);
-                projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
+                projectGroups = await this.projectManager.getProjectCustomGroups(this.projectId);
             } catch (error) {
                 console.error('获取项目分组失败:', error);
             }
