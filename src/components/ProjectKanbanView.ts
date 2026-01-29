@@ -224,6 +224,11 @@ export class ProjectKanbanView {
         await this.categoryManager.initialize();
         await this.loadProject();
         await this.loadKanbanMode();
+
+        // 加载项目排序设置
+        this.currentSort = await this.projectManager.getProjectSortRule(this.projectId) || 'priority';
+        this.currentSortOrder = await this.projectManager.getProjectSortOrder(this.projectId) || 'desc';
+
         this.initUI();
         await this.loadTasks();
 
@@ -3698,6 +3703,9 @@ export class ProjectKanbanView {
                 case 'title':
                     result = this.compareByTitle(a, b);
                     break;
+                case 'createdAt':
+                    result = this.compareByCreatedAt(a, b);
+                    break;
                 default:
                     result = this.compareByPriority(a, b);
             }
@@ -3760,6 +3768,12 @@ export class ProjectKanbanView {
         return new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime();
     }
 
+    private compareByCreatedAt(a: any, b: any): number {
+        const timeA = a.createdTime ? new Date(a.createdTime).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.createdTime ? new Date(b.createdTime).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return timeA - timeB;
+    }
+
     private compareByCompletedTime(a: any, b: any): number {
         const timeA = a.completedTime ? new Date(a.completedTime).getTime() : 0;
         const timeB = b.completedTime ? new Date(b.completedTime).getTime() : 0;
@@ -3789,6 +3803,9 @@ export class ProjectKanbanView {
                     break;
                 case 'time':
                     result = this.compareByTime(a, b);
+                    break;
+                case 'createdAt':
+                    result = this.compareByCreatedAt(a, b);
                     break;
                 default:
                     result = this.compareByCompletedTime(a, b);
@@ -8001,7 +8018,8 @@ export class ProjectKanbanView {
         const sortOptions = [
             { key: 'priority', label: '优先级', icon: '🎯' },
             { key: 'time', label: '时间', icon: '🕐' },
-            { key: 'title', label: '标题', icon: '📝' }
+            { key: 'title', label: '标题', icon: '📝' },
+            { key: 'createdAt', label: i18n('sortByCreated'), icon: '📅' }
         ];
 
         const createOption = (option: any, order: 'asc' | 'desc') => {
@@ -8023,9 +8041,14 @@ export class ProjectKanbanView {
                     <span style="font-size: 16px; margin-right: 8px;">${option.icon}</span>
                     <span>${option.label} (${order === 'asc' ? i18n('ascendingOrder') : i18n('descendingOrder')})</span>
                 `;
-            button.addEventListener('click', () => {
+            button.addEventListener('click', async () => {
                 this.currentSort = option.key;
                 this.currentSortOrder = order;
+
+                // 保存排序设置
+                await this.projectManager.setProjectSortRule(this.projectId, option.key);
+                await this.projectManager.setProjectSortOrder(this.projectId, order);
+
                 this.updateSortButtonTitle();
                 this.sortTasks();
                 this.renderKanban();
@@ -8083,6 +8106,7 @@ export class ProjectKanbanView {
                 click: () => {
                     this.doneSort = sortKey;
                     this.doneSortOrder = sortOrder;
+
                     this.updateDoneSortButtonTitle();
                     this.renderKanban();
                 }
@@ -8100,6 +8124,9 @@ export class ProjectKanbanView {
         menu.addSeparator();
         addMenuItem(`${i18n('sortingTitle')} (${i18n('ascendingOrder')})`, 'title', 'asc');
         addMenuItem(`${i18n('sortingTitle')} (${i18n('descendingOrder')})`, 'title', 'desc');
+        menu.addSeparator();
+        addMenuItem(`${i18n('sortByCreated')} (${i18n('descendingOrder')})`, 'createdAt', 'desc');
+        addMenuItem(`${i18n('sortByCreated')} (${i18n('ascendingOrder')})`, 'createdAt', 'asc');
 
         menu.open({
             x: event.clientX,

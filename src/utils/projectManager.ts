@@ -9,6 +9,8 @@ export interface Project {
     kanbanMode?: 'status' | 'custom' | 'list';
     customGroups?: any[];
     blockId?: string;
+    sortRule?: string;
+    sortOrder?: 'asc' | 'desc';
 }
 
 /**
@@ -237,6 +239,68 @@ export class ProjectManager {
             throw error;
         }
     }
+
+    /**
+     * 获取项目的排序规则
+     */
+    public async getProjectSortRule(projectId: string): Promise<string> {
+        try {
+            const projectData = await this.plugin.loadProjectData() || {};
+            const project = projectData[projectId];
+            return project?.sortRule || 'priority';
+        } catch (error) {
+            console.error('获取项目排序规则失败:', error);
+            return 'priority';
+        }
+    }
+
+    /**
+     * 设置项目的排序规则
+     */
+    public async setProjectSortRule(projectId: string, sortRule: string): Promise<void> {
+        try {
+            const projectData = await this.plugin.loadProjectData() || {};
+            if (projectData[projectId]) {
+                projectData[projectId].sortRule = sortRule;
+                await this.plugin.saveProjectData(projectData);
+            }
+        } catch (error) {
+            console.error('设置项目排序规则失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 获取项目的排序方向
+     */
+    public async getProjectSortOrder(projectId: string): Promise<'asc' | 'desc'> {
+        try {
+            const projectData = await this.plugin.loadProjectData() || {};
+            const project = projectData[projectId];
+            return project?.sortOrder || 'desc';
+        } catch (error) {
+            console.error('获取项目排序方向失败:', error);
+            return 'desc';
+        }
+    }
+
+    /**
+     * 设置项目的排序方向
+     */
+    public async setProjectSortOrder(projectId: string, sortOrder: 'asc' | 'desc'): Promise<void> {
+        try {
+            const projectData = await this.plugin.loadProjectData() || {};
+            if (projectData[projectId]) {
+                projectData[projectId].sortOrder = sortOrder;
+                await this.plugin.saveProjectData(projectData);
+            }
+        } catch (error) {
+            console.error('设置项目排序方向失败:', error);
+            throw error;
+        }
+    }
+
+
 
 
 
