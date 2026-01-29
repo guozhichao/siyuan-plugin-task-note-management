@@ -7289,12 +7289,15 @@ export class ProjectKanbanView {
             }
         }
 
+        // 如果有父任务，则默认采用父任务的状态；否则使用传入的 defaultStatus
+        const effectiveDefaultStatus = parentTask ? this.getTaskStatus(parentTask) : defaultStatus;
+
         const dialog = new PasteTaskDialog({
             plugin: this.plugin,
             parentTask,
             projectId: this.projectId,
             customGroupId,
-            defaultStatus: defaultStatus,
+            defaultStatus: effectiveDefaultStatus,
             showStatusSelector: showSelectors && !parentTask, // 只在非子任务且显示选择器时显示
             showGroupSelector: showSelectors && !parentTask,  // 只在非子任务且显示选择器时显示
             projectGroups,
