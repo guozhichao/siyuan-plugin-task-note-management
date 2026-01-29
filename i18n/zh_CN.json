@@ -256,11 +256,6 @@
     "moveToTomorrow": "移至明天",
     "moveToDayAfterTomorrow": "移至后天",
     "moveToNextWeek": "移至下周",
-    "quickReschedule": "快速调整日期",
-    "moveToToday": "移至今天",
-    "moveToTomorrow": "移至明天",
-    "moveToDayAfterTomorrow": "移至后天",
-    "moveToNextWeek": "移至下周",
     "categoryFilter": "分类筛选",
     "eventCategory": "任务分类",
     "categoryManagement": "分类管理",
@@ -1057,5 +1052,6 @@
     "deletePomodoroFailed": "删除番茄钟失败",
     "confirmDeletePomodoro": "确定要删除这个番茄钟记录吗？",
     "pleaseEnterValidInfo": "请输入有效信息",
-    "batchSetReminders": "批量设置任务"
+    "batchSetReminders": "批量设置任务",
+    "selectAllUnfinished": "全选未完成"
 }

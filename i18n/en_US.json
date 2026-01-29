@@ -980,8 +980,6 @@
     "sessionType": "Session Type",
     "startTime": "Start Time",
     "duration": "Duration",
-    "minutes": "Minutes",
-    "completed": "Completed",
     "addPomodoroSuccess": "Pomodoro added successfully",
     "addPomodoroFailed": "Failed to add pomodoro",
     "editPomodoroSuccess": "Pomodoro updated successfully",
@@ -989,5 +987,6 @@
     "deletePomodoroSuccess": "Pomodoro deleted successfully",
     "deletePomodoroFailed": "Failed to delete pomodoro",
     "confirmDeletePomodoro": "Are you sure you want to delete this pomodoro record?",
-    "pleaseEnterValidInfo": "Please enter valid information"
+    "pleaseEnterValidInfo": "Please enter valid information",
+    "selectAllUnfinished": "Select Unfinished"
 }

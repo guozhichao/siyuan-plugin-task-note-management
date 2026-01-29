@@ -10673,6 +10673,16 @@ export class ProjectKanbanView {
         });
         rightGroup.appendChild(selectAllBtn);
 
+        // 全选未完成按钮
+        const selectUnfinishedBtn = document.createElement('button');
+        selectUnfinishedBtn.className = 'b3-button b3-button--text b3-button--small';
+        selectUnfinishedBtn.textContent = i18n('selectAllUnfinished') || '全选未完成';
+        selectUnfinishedBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.selectAllUnfinishedTasks();
+        });
+        rightGroup.appendChild(selectUnfinishedBtn);
+
         // 取消选择按钮
         const clearBtn = document.createElement('button');
         clearBtn.className = 'b3-button b3-button--text b3-button--small';
@@ -10705,6 +10715,20 @@ export class ProjectKanbanView {
     private selectAllTasks(): void {
         this.tasks.forEach(task => {
             this.selectedTaskIds.add(task.id);
+        });
+        this.renderKanban();
+        this.updateBatchToolbar();
+    }
+
+    /**
+     * 选择所有未完成的任务
+     */
+    private selectAllUnfinishedTasks(): void {
+        this.selectedTaskIds.clear();
+        this.tasks.forEach(task => {
+            if (!task.completed) {
+                this.selectedTaskIds.add(task.id);
+            }
         });
         this.renderKanban();
         this.updateBatchToolbar();
