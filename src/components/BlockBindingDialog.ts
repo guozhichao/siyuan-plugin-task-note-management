@@ -307,10 +307,14 @@ export class BlockBindingDialog {
                 return;
             }
 
-            // 如果输入的是块ID格式，直接显示预览
-            if (/^\d{14}-[a-z0-9]{7}$/.test(query)) {
+            // 尝试从输入中提取块ID (支持直接输入ID, ((id 'alias')), [text](siyuan://blocks/id))
+            const extractedId = this.extractBlockId(query);
+            if (extractedId) {
+                if (extractedId !== query) {
+                    bindBlockInput.value = extractedId;
+                }
                 bindSearchResults.style.display = 'none';
-                updateBindBlockPreview(query);
+                updateBindBlockPreview(extractedId);
                 return;
             }
 
@@ -575,10 +579,14 @@ export class BlockBindingDialog {
                 return;
             }
 
-            // 如果输入的是块ID格式，直接显示预览
-            if (/^\d{14}-[a-z0-9]{7}$/.test(query)) {
+            // 尝试从输入中提取块ID (支持直接输入ID, ((id 'alias')), [text](siyuan://blocks/id))
+            const extractedId = this.extractBlockId(query);
+            if (extractedId) {
+                if (extractedId !== query) {
+                    headingParentInput.value = extractedId;
+                }
                 headingSearchResults.style.display = 'none';
-                updatePreview(query);
+                updatePreview(extractedId);
                 return;
             }
 
@@ -689,6 +697,33 @@ export class BlockBindingDialog {
             console.error('初始化标题标签页默认值失败:', error);
             return null;
         }
+    }
+
+    /**
+     * 从输入中提取块ID
+     */
+    private extractBlockId(input: string): string | null {
+        if (!input) return null;
+        const query = input.trim();
+
+        // 1. 如果直接是块ID
+        if (/^\d{14}-[a-z0-9]{7}$/.test(query)) {
+            return query;
+        }
+
+        // 2. 处理思源块引用 ((id 'alias')) 或 ((id))
+        const refMatch = query.match(/\(\((\d{14}-[a-z0-9]{7})/);
+        if (refMatch) {
+            return refMatch[1];
+        }
+
+        // 3. 处理思源块链接 [text](siyuan://blocks/id) 或 siyuan://blocks/id
+        const linkMatch = query.match(/siyuan:\/\/blocks\/(\d{14}-[a-z0-9]{7})/);
+        if (linkMatch) {
+            return linkMatch[1];
+        }
+
+        return null;
     }
     private async getParentReminder(parentId: string): Promise<any> {
         try {
