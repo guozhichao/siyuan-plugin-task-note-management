@@ -6423,49 +6423,9 @@ export class ProjectKanbanView {
                 delete optimisticTask.completedTime;
             }
 
-            // 重新渲染相关DOM
-            if (this.kanbanMode === 'custom') {
-                if (optimisticTask.customGroupId) {
-                    const group = this.project?.customGroups?.find((g: any) => g.id === optimisticTask.customGroupId);
-                    if (group) {
-                        const groupTasks = this.tasks.filter(t => t.customGroupId === group.id);
-                        this.renderCustomGroupColumn(group, groupTasks);
-                    }
-                } else {
-                    const ungroupedTasks = this.tasks.filter(t => !t.customGroupId);
-                    this.renderUngroupedColumn(ungroupedTasks);
-                }
-            } else {
-                // 状态看板模式：已完成任务通常会移动到 completed 列，或者留在原列但变灰
-                // 根据当前逻辑，如果任务完成，它可能会移动到 'completed' 列
-                // 这里简单粗暴一点：刷新所有涉及的列。通常是 source 和 target。
-                // 如果是简单勾选，任务状态可能没变，只是 completed 属性变了。
-                // 检查 loadTasks 逻辑，completed 的任务通常有自己的归宿。
-                // 为了简化，我们假定任务状态流转只涉及到它当前的 kanbanStatus 和 completed 状态。
-                const status = optimisticTask.kanbanStatus || 'todo';
-                const tasksInColumn = this.tasks.filter(t => {
-                    const tStatus = t.kanbanStatus || 'todo';
-                    const targetColumn = t.customGroupId && !['doing', 'short_term', 'long_term', 'completed'].includes(t.customGroupId) ? t.customGroupId : tStatus;
-                    return targetColumn === status;
-                });
-                // 同时刷新 completed 列，因为任务可能跳到那里去，或者从那里跳出来
-                // 但为了避免过于复杂的全量计算，我们只重绘当前状态列。
-                // 如果任务应该从当前列消失（进入Completed列），renderColumn 会正确过滤吗？
-                // 回看 renderColumn，它通常渲染特定 status 的任务。
-                // 如果 completed 的任务被归类为 'completed' status，那么我们需要刷新 'completed' 列。
-                // 这里采取保守策略：刷新当前列。如果视觉上不对，稍后的 queueLoadTasks 会修正。
-                // 更好的策略是：如果任务完成了，刷新 'completed' 列 和 原状态列。
-                this.renderColumn(status, tasksInColumn);
-
-                // 尝试刷新 Completed 列 (假设有一个状态叫 completed)
-                const completedTasks = this.tasks.filter(t => t.completed); // 简化的获取方式
-                // 注意：状态看板可能没有显式的 "completed" status 列，除非用户启用了。
-                // 如果有这个列：
-                if (this.container.querySelector('.kanban-column-completed')) {
-                    // 这个逻辑有点绕，因为 completed 属性和 kanbanStatus='completed' 是两个维度。
-                    // 暂时只刷新原列，依靠 queueLoadTasks 最终一致。
-                }
-            }
+            // 重新渲染：统一通过防抖刷新以保证数据一致性，避免局部渲染留下旧 DOM
+            // 这会在短延迟后调用 loadTasks()，并由事件广播/队列保证最终一致性。
+            this.queueLoadTasks();
         }
 
         // 2. 后台执行保存逻辑
@@ -7232,44 +7192,9 @@ export class ProjectKanbanView {
                     // 立即重新排序（可能修改了优先级或时间）
                     this.sortTasks();
 
-                    // 2. 刷新对应列（增量渲染）
-                    if (this.kanbanMode === 'custom') {
-                        // 尝试找到任务所属的自定义分组
-                        // 注意：如果任务被移动到了另一个分组，需要刷新原分组和新分组
-                        // 为简单起见，这里重新渲染所有相关的列，或者简单地只渲染新位置
-                        // 考虑到移动分组的情况比较复杂（需要知道旧分组），且 sortTasks 已经处理了数据
-                        // 这里我们尝试刷新任务当前所属的分组列
-                        const group = this.project?.customGroups?.find((g: any) => g.id === savedTask.customGroupId);
-                        if (group) {
-                            const groupTasks = this.tasks.filter(t => t.customGroupId === group.id);
-                            this.renderCustomGroupColumn(group, groupTasks);
-                        } else {
-                            const ungroupedTasks = this.tasks.filter(t => !t.customGroupId);
-                            this.renderUngroupedColumn(ungroupedTasks);
-                        }
-
-                        // 如果任务跨分组移动了，旧分组的列不会自动刷新，可能会导致任务显示两遍（旧位置一个，新位置一个）
-                        // 为了解决这个问题，对于 Custom Kanban 模式，我们可以更激进一点：
-                        // 检查是否有其他分组也包含此任务ID（理论上 filter 会排除，但 DOM 不会自动清除）
-                        // 但由于 renderCustomGroupColumn 会清空内容重新渲染，所以只要我们知道要刷新哪些列就行。
-                        // 由于无法轻易得知旧分组ID，且总分组数通常不多，
-                        // 在编辑场景下，简单起见，如果不想全量刷新，至少要刷新 savedTask.customGroupId 对应的列。
-                        // 如果任务从 Group A 移到 Group B，只刷新 Group B 的话，Group A 里旧的 DOM 还在。
-                        // 因此，为了稳妥的乐观更新，建议遍历所有 custom group 列，如果发现其中包含该任务且 groupId 不匹配，则刷新该列。
-                        // 或者更简单：重新渲染整个看板区域（非全量 reload，只是 DOM 操作）
-                        // 考虑到性能，我们先只刷新目标列。对于“移出旧列”的效果，依靠稍后的 queueLoadTasks 来最终一致化。
-                    } else {
-                        // 状态看板模式
-                        const status = savedTask.kanbanStatus || 'todo';
-                        // 同样，如果改变了状态，旧状态列的 DOM 需要清除。
-                        // 简单处理：刷新目标列，让 queueLoadTasks 处理清理旧列
-                        const tasksInColumn = this.tasks.filter(t => {
-                            const tStatus = t.kanbanStatus || 'todo';
-                            const targetColumn = t.customGroupId && !['doing', 'short_term', 'long_term', 'completed'].includes(t.customGroupId) ? t.customGroupId : tStatus;
-                            return targetColumn === status;
-                        });
-                        this.renderColumn(status, tasksInColumn);
-                    }
+                    // 2. 统一使用防抖加载刷新以保证最终一致性
+                    // 局部渲染容易导致旧 DOM 残留（特别是跨列/分组移动），使用 queueLoadTasks 可简化逻辑并保证一致性
+                    this.queueLoadTasks();
                 }
 
                 this.dispatchReminderUpdate(true);
