@@ -6213,6 +6213,29 @@ export class ProjectKanbanView {
             submenu: priorityMenuItems
         });
 
+        // 状态切换：显示“设置状态”子菜单，列出所有可用状态（优先使用项目自定义的看板状态）
+        const currentStatus = this.getTaskStatus(task);
+
+        const statuses = (this.kanbanStatuses && this.kanbanStatuses.length > 0)
+            ? this.kanbanStatuses
+            : this.projectManager.getDefaultKanbanStatuses();
+
+        const statusMenuItems: any[] = [];
+        statuses.forEach((s: any) => {
+            statusMenuItems.push({
+                iconHTML: s.icon || '',
+                label: s.name || s.id,
+                current: currentStatus === s.id,
+                click: () => this.changeTaskStatus(task, s.id)
+            });
+        });
+
+        menu.addItem({
+            iconHTML: "🔀",
+            label: i18n('setStatus') || '设置状态',
+            submenu: statusMenuItems
+        });
+
         // 设置分组子菜单（仅在项目有自定义分组时显示）
         try {
             const { ProjectManager } = await import('../utils/projectManager');
@@ -6311,28 +6334,6 @@ export class ProjectKanbanView {
 
 
 
-        menu.addSeparator();
-
-
-
-        // 状态切换
-        const currentStatus = this.getTaskStatus(task);
-
-        if (currentStatus !== 'doing') {
-            menu.addItem({
-                iconHTML: "⚡",
-                label: i18n('moveToDoing'),
-                click: () => this.changeTaskStatus(task, 'doing')
-            });
-        }
-
-        if (currentStatus !== 'done') {
-            menu.addItem({
-                iconHTML: "✅",
-                label: i18n('markCompleted'),
-                click: () => this.changeTaskStatus(task, 'done')
-            });
-        }
 
         menu.addSeparator();
 
