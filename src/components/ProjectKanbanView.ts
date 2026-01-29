@@ -107,6 +107,7 @@ export class ProjectKanbanView {
     private batchToolbar: HTMLElement | null = null;
     // 筛选标签集合
     private selectedFilterTags: Set<string> = new Set();
+    private isFilterActive: boolean = false;
     private filterButton: HTMLButtonElement;
     // 上一次点击的任务ID（用于Shift多选范围）
     private lastClickedTaskId: string | null = null;
@@ -3151,36 +3152,40 @@ export class ProjectKanbanView {
             }
 
             // [NEW] 标签(Tag)过滤逻辑
-            if (this.selectedFilterTags.size > 0) {
-                const matchesTag = (t: any) => {
-                    const tagIds = t.tagIds || [];
-                    const hasNoTags = tagIds.length === 0;
+            if (this.isFilterActive) {
+                if (this.selectedFilterTags.size === 0) {
+                    this.tasks = [];
+                } else {
+                    const matchesTag = (t: any) => {
+                        const tagIds = t.tagIds || [];
+                        const hasNoTags = tagIds.length === 0;
 
-                    if (this.selectedFilterTags.has('__no_tag__') && hasNoTags) return true;
+                        if (this.selectedFilterTags.has('__no_tag__') && hasNoTags) return true;
 
-                    // 如果任务有标签，检查是否有交集
-                    if (tagIds.length > 0) {
-                        return tagIds.some((id: string) => this.selectedFilterTags.has(id));
-                    }
-
-                    return false;
-                };
-
-                const matchingIds = new Set<string>();
-                const taskMap = new Map(this.tasks.map(t => [t.id, t]));
-
-                this.tasks.forEach(t => {
-                    if (matchesTag(t)) {
-                        // 匹配的任务及其所有祖先都需要保留
-                        let current = t;
-                        while (current) {
-                            matchingIds.add(current.id);
-                            current = current.parentId ? taskMap.get(current.parentId) : null;
+                        // 如果任务有标签，检查是否有交集
+                        if (tagIds.length > 0) {
+                            return tagIds.some((id: string) => this.selectedFilterTags.has(id));
                         }
-                    }
-                });
 
-                this.tasks = this.tasks.filter(t => matchingIds.has(t.id));
+                        return false;
+                    };
+
+                    const matchingIds = new Set<string>();
+                    const taskMap = new Map(this.tasks.map(t => [t.id, t]));
+
+                    this.tasks.forEach(t => {
+                        if (matchesTag(t)) {
+                            // 匹配的任务及其所有祖先都需要保留
+                            let current = t;
+                            while (current) {
+                                matchingIds.add(current.id);
+                                current = current.parentId ? taskMap.get(current.parentId) : null;
+                            }
+                        }
+                    });
+
+                    this.tasks = this.tasks.filter(t => matchingIds.has(t.id));
+                }
             }
 
             this.sortTasks();
@@ -7288,7 +7293,20 @@ export class ProjectKanbanView {
     }
 
 
+
     private async showFilterMenu(event: MouseEvent) {
+        // 获取项目标签
+        const tags = await this.projectManager.getProjectTags(this.projectId);
+        const allTagIds = tags.map(t => t.id);
+        allTagIds.push('__no_tag__');
+
+        // 如果未激活筛选，则激活并默认全选
+        if (!this.isFilterActive) {
+            this.isFilterActive = true;
+            allTagIds.forEach(id => this.selectedFilterTags.add(id));
+            this.queueLoadTasks();
+        }
+
         // 创建弹窗容器
         const menu = document.createElement('div');
         menu.className = 'filter-dropdown-menu';
@@ -7311,27 +7329,53 @@ export class ProjectKanbanView {
         menu.style.top = `${rect.bottom + 4}px`;
         menu.style.left = `${rect.left}px`;
 
-        // 取消全选按钮
-        const clearBtn = document.createElement('button');
-        clearBtn.className = 'b3-button b3-button--text';
-        clearBtn.style.cssText = 'width: 100%; margin-bottom: 8px; justify-content: flex-start;';
-        clearBtn.textContent = i18n('clearSelection') || '取消全选'; // Assuming i18n key exists or fallback
-        clearBtn.addEventListener('click', () => {
-            this.selectedFilterTags.clear();
+        // 操作按钮容器
+        const btnsContainer = document.createElement('div');
+        btnsContainer.style.cssText = 'display: flex; gap: 8px; margin-bottom: 8px;';
+
+        // 全选按钮
+        const selectAllBtn = document.createElement('button');
+        selectAllBtn.className = 'b3-button b3-button--text';
+        selectAllBtn.style.cssText = 'flex: 1; justify-content: center;';
+        selectAllBtn.textContent = i18n('selectAll') || '全选';
+        selectAllBtn.addEventListener('click', () => {
+            allTagIds.forEach(id => this.selectedFilterTags.add(id));
+
+            // Update UI
+            const checkboxes = menu.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
+            checkboxes.forEach(cb => cb.checked = true);
+
             this.queueLoadTasks();
-            menu.remove();
-            // Update button style
             this.filterButton.classList.remove('b3-button--primary');
             this.filterButton.classList.add('b3-button--outline');
         });
-        menu.appendChild(clearBtn);
+        btnsContainer.appendChild(selectAllBtn);
+
+        // 取消全选按钮
+        const clearBtn = document.createElement('button');
+        clearBtn.className = 'b3-button b3-button--text';
+        clearBtn.style.cssText = 'flex: 1; justify-content: center;';
+        clearBtn.textContent = i18n('clearSelection') || '取消全选';
+        clearBtn.addEventListener('click', () => {
+            this.selectedFilterTags.clear();
+
+            // 更新 UI：所有 checkbox 取消选中
+            const checkboxes = menu.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
+            checkboxes.forEach(cb => cb.checked = false);
+
+            this.queueLoadTasks();
+
+            // Update button style
+            this.filterButton.classList.add('b3-button--primary');
+            this.filterButton.classList.remove('b3-button--outline');
+        });
+        btnsContainer.appendChild(clearBtn);
+
+        menu.appendChild(btnsContainer);
 
         const divider = document.createElement('div');
         divider.style.cssText = 'border-top: 1px solid var(--b3-border-color); margin: 8px 0px;';
         menu.appendChild(divider);
-
-        // 获取项目标签
-        const tags = await this.projectManager.getProjectTags(this.projectId);
 
         // "无标签" 选项
         const renderItem = (id: string, name: string, color?: string, icon?: string) => {
@@ -7353,7 +7397,8 @@ export class ProjectKanbanView {
                 }
 
                 // Update button style real-time
-                if (this.selectedFilterTags.size > 0) {
+                const isAllSelected = this.selectedFilterTags.size === allTagIds.length;
+                if (!isAllSelected) {
                     this.filterButton.classList.add('b3-button--primary');
                     this.filterButton.classList.remove('b3-button--outline');
                 } else {
