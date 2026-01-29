@@ -1,7 +1,7 @@
 import { Dialog, showMessage } from "siyuan";
 import { i18n } from "../pluginInstance";
 import { autoDetectDateTimeFromTitle, getLocalDateTimeString } from "../utils/dateUtils";
-import { getBlockByID, updateBindBlockAtrrs } from "../api";
+import { getBlockByID, updateBindBlockAtrrs, addBlockProjectId } from "../api";
 import { getAllReminders, saveReminders } from "../utils/icsSubscription";
 
 export interface HierarchicalTask {
@@ -325,6 +325,8 @@ export class PasteTaskDialog {
 
         let sortCounter = maxSort;
 
+        const boundBlockIds = new Set<string>();
+
         const createTaskRecursively = async (
             task: HierarchicalTask,
             parentId?: string,
@@ -391,11 +393,10 @@ export class PasteTaskDialog {
                         }
 
                         if (projectId) {
-                            const { addBlockProjectId } = await import('../api');
                             await addBlockProjectId(task.blockId, projectId);
                         }
 
-                        await updateBindBlockAtrrs(task.blockId, this.config.plugin);
+                        boundBlockIds.add(task.blockId);
                     }
                 } catch (error) {
                     console.error('绑定块失败:', error);
@@ -423,6 +424,15 @@ export class PasteTaskDialog {
         }
 
         await saveReminders(this.config.plugin, reminderData);
+
+        // 更新块属性
+        for (const blockId of boundBlockIds) {
+            try {
+                await updateBindBlockAtrrs(blockId, this.config.plugin);
+            } catch (error) {
+                console.error(`更新块 ${blockId} 属性失败:`, error);
+            }
+        }
     }
 
     private countTotalTasks(tasks: HierarchicalTask[]): number {
