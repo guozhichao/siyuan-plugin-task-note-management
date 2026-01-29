@@ -4901,8 +4901,6 @@ export class ReminderPanel {
         const endLogical = this.getReminderLogicalDate(reminder.endDate || reminder.date, reminder.endTime || reminder.time);
         const isSpanningInToday = isSpanningDays && compareDateStrings(startLogical, today) <= 0 && compareDateStrings(today, endLogical) <= 0;
 
-        // 检查是否为未绑定的快速事件
-        // const isUnboundQuickReminder = (reminder.isQuickReminder || reminder.id.startsWith('quick')) && !reminder.blockId;
 
         // 添加项目管理选项（仅当任务有projectId时显示）
         if (reminder.projectId) {
@@ -7215,7 +7213,6 @@ export class ReminderPanel {
                 // 更新提醒数据
                 reminderData[reminderId].blockId = blockId;
                 reminderData[reminderId].docId = block.root_id || blockId;
-                reminderData[reminderId].isQuickReminder = false; // 移除快速提醒标记
 
                 await saveReminders(this.plugin, reminderData);
 

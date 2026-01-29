@@ -779,11 +779,7 @@ export class TaskSummaryDialog {
     const priority = reminder.priority || 'none';
     let backgroundColor, borderColor;
 
-    // 如果是快速创建的提醒（没有绑定块），使用特殊的样式
-    if (reminder.isQuickReminder || !reminder.blockId) {
-      backgroundColor = backgroundColor + 'aa'; // 添加透明度
-      borderColor = borderColor + 'aa';
-    }
+
 
     // 检查完成状态
     let isCompleted = false;
@@ -838,7 +834,6 @@ export class TaskSummaryDialog {
         isRepeated: isRepeated,
         originalId: originalId || reminder.id,
         repeat: reminder.repeat,
-        isQuickReminder: reminder.isQuickReminder || false, // 添加快速提醒标记
         estimatedPomodoroDuration: reminder.estimatedPomodoroDuration // 预计番茄时长
       }
     };

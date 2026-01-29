@@ -2569,7 +2569,6 @@ export class CalendarView {
                 completed: false, // 复制出来的始终是未完成
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
-                isQuickReminder: true,
                 notifiedTime: false,
                 notifiedCustomTime: false,
                 repeat: undefined, // 复制为普通副本，不继承重复性
@@ -5344,7 +5343,6 @@ export class CalendarView {
                 isRepeated: isRepeated,
                 originalId: originalId || reminder.id,
                 repeat: reminder.repeat,
-                isQuickReminder: reminder.isQuickReminder || false,
                 isSubscribed: reminder.isSubscribed || false,
                 subscriptionId: reminder.subscriptionId
             }
@@ -6352,7 +6350,6 @@ export class CalendarView {
                 // 更新提醒数据
                 reminderData[reminderId].blockId = blockId;
                 reminderData[reminderId].docId = block.root_id || blockId;
-                reminderData[reminderId].isQuickReminder = false; // 移除快速提醒标记
 
                 await saveReminders(this.plugin, reminderData);
 

@@ -79,9 +79,7 @@ export class EisenhowerMatrixView {
         this.categoryManager = CategoryManager.getInstance(plugin);
         this.reminderUpdatedHandler = () => this.refresh(false);
         this.initQuadrants();
-        // 引用方法以避免编译器提示未使用（此方法通过动态绑定使用）
-        // 读取属性作为引用，不执行调用
-        void (this as any).setParentTaskRelationship;
+
     }
 
     private initQuadrants() {
@@ -3737,50 +3735,7 @@ export class EisenhowerMatrixView {
         }
     }
 
-    /**
-     * 设置父任务关系（在 QuickReminderDialog 保存任务后调用）
-     * 注意：此方法通过动态绑定在 showCreateTaskDialog 中被调用
-     */
-    // 该方法在 showCreateTaskDialog 中通过动态绑定调用，静态分析可能提示未使用，禁用相关检查
-    // eslint-disable-next-line @typescript-eslint/no-unused-private-class-members
-    // @ts-ignore: 方法通过动态绑定使用，避免未使用提示
-    private async setParentTaskRelationship(parentTask: QuadrantTask): Promise<void> {
-        try {
-            const reminderData = await getAllReminders(this.plugin);
 
-            // 找到最近创建的任务（通过 isQuickReminder 标识和时间戳）
-            let latestTaskId: string | null = null;
-            let latestCreatedAt = 0;
-
-            for (const [id, reminder] of Object.entries(reminderData as any)) {
-                const reminderObj = reminder as any;
-                if (reminderObj?.isQuickReminder && reminderObj?.createdAt) {
-                    const createdAt = new Date(reminderObj.createdAt).getTime();
-                    if (createdAt > latestCreatedAt) {
-                        latestCreatedAt = createdAt;
-                        latestTaskId = id;
-                    }
-                }
-            }
-
-            if (latestTaskId && reminderData[latestTaskId]) {
-                const taskToUpdate = reminderData[latestTaskId] as any;
-
-                // 设置父任务ID
-                taskToUpdate.parentId = parentTask.id;
-
-                // 注意：象限信息已经在创建时通过 defaultQuadrant 设置了
-                // 这里不再需要重新设置象限
-
-                // 保存数据
-                await saveReminders(this.plugin, reminderData);
-
-                console.log(`成功创建子任务: ${taskToUpdate.title}，父任务: ${parentTask.title}`);
-            }
-        } catch (error) {
-            console.error('设置父任务关系失败:', error);
-        }
-    }
 
     private startPomodoro(task: QuadrantTask) {
         if (!this.plugin) {

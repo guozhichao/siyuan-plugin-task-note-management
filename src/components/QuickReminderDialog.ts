@@ -2750,7 +2750,6 @@ export class QuickReminderDialog {
                 createdAt: nowStr,
                 createdTime: nowStr, // 补齐 sorting 字段
                 repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined,
-                isQuickReminder: true,
                 quadrant: this.defaultQuadrant,
                 kanbanStatus: kanbanStatus,
                 reminderTimes: this.customTimes.length > 0 ? [...this.customTimes] : undefined,
@@ -2976,7 +2975,6 @@ export class QuickReminderDialog {
                         tagIds: tagIds.length > 0 ? tagIds : undefined,
                         createdAt: new Date().toISOString(),
                         repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined,
-                        isQuickReminder: true, // 标记为快速创建的提醒
                         quadrant: this.defaultQuadrant, // 添加象限信息
                         kanbanStatus: kanbanStatus, // 添加任务状态（短期/长期）
                         isAvailableToday: isAvailableToday,
