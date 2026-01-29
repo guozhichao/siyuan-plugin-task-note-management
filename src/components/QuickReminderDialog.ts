@@ -1044,13 +1044,14 @@ export class QuickReminderDialog {
                                 <!-- 自定义分组选择器将在这里渲染 -->
                             </select>
                         </div>
+                        <!-- 任务状态渲染 -->
+                        ${this.renderStatusSelector()}
                         <div class="b3-form__group" id="quickTagsGroup" style="display: none;">
                             <label class="b3-form__label">设置标签</label>
                             <div id="quickTagsSelector" class="tags-selector" style="display: flex; flex-wrap: wrap; gap: 6px;">
                                 <!-- 标签选择器将在这里渲染 -->
                             </div>
                         </div>
-                        ${this.renderStatusSelector()}
                         <div class="b3-form__group">
                             <label class="b3-form__label">${t("priority")}</label>
                             <div class="priority-selector" id="quickPrioritySelector">
