@@ -975,18 +975,8 @@ export async function updateBindBlockAtrrs(blockId: string, plugin: any): Promis
         }
 
         // ----- 3. 计算 custom-task-projectId -----
-        // 收集提醒中引用的 project ids
-        const referencedProjectIds = new Set<string>();
-        for (const r of blockReminders as any[]) {
-            if (!r) continue;
-            if (typeof r.projectId === 'string' && r.projectId.trim()) referencedProjectIds.add(r.projectId.trim());
-            else if (Array.isArray(r.projectIds)) {
-                r.projectIds.forEach((p: any) => { if (p && String(p).trim()) referencedProjectIds.add(String(p).trim()); });
-            } else if (r.project && typeof r.project === 'string' && r.project.trim()) referencedProjectIds.add(r.project.trim());
-            else if (r.project && typeof r.project === 'object' && r.project.id) referencedProjectIds.add(String(r.project.id).trim());
-        }
-        const newProjectIds = Array.from(referencedProjectIds).map(s => String(s).trim()).filter(s => s).sort().join(',');
-        attrs['custom-task-projectId'] = newProjectIds;
+        const projectIds = Array.from(new Set(blockReminders.map((r: any) => r.projectId).filter(id => id)));
+        attrs['custom-task-projectId'] = projectIds.length > 0 ? projectIds.join(',') : '';
 
         // 一次性更新所有属性
         await setBlockAttrs(blockId, attrs);

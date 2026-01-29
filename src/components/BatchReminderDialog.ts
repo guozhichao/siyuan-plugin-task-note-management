@@ -49,7 +49,11 @@ export class BatchReminderDialog {
 
     async show(blockIds: string[]) {
         if (blockIds.length === 1) {
-            const dialog = new QuickReminderDialog(blockIds[0]);
+            const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
+                blockId: blockIds[0],
+                mode: 'block',
+                plugin: this.plugin
+            });
             dialog.show();
         } else {
             // 直接显示智能批量设置
@@ -1240,19 +1244,10 @@ class SmartBatchDialog {
                         continue;
                     }
 
-                    // 检查是否已有该块的提醒
-                    let existingReminderId: string | undefined;
-                    for (const id in reminderData) {
-                        if (reminderData[id].blockId === blockId) {
-                            existingReminderId = id;
-                            break;
-                        }
-                    }
-
-                    const reminderId = existingReminderId || `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    const reminderId = `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                     const block = await getBlockByID(blockId);
 
-                    const reminder: any = existingReminderId ? { ...reminderData[existingReminderId] } : {
+                    const reminder: any = {
                         id: reminderId,
                         blockId: blockId,
                         docId: block.root_id,
