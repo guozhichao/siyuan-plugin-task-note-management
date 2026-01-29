@@ -251,7 +251,9 @@ class SmartBatchDialog {
             height: "700px"
         });
 
-        this.renderBlockList(dialog);
+        await this.renderBlockList(dialog);
+        // 绑定块列表相关事件，确保编辑按钮在初次渲染后可用
+        this.bindBlockListEvents(dialog);
         await this.renderBatchProjectSelector(dialog);
         this.bindSmartBatchEvents(dialog);
     }
@@ -321,9 +323,15 @@ class SmartBatchDialog {
                                             <option value="">${t("noProject")}</option>
                                             <!-- 项目选择器将在这里渲染 -->
                                         </select>
-                                        <button type="button" id="batchApplyProjectBtn" class="b3-button b3-button--primary" disabled>
-                                            ${t("applyToAll")}
-                                        </button>
+                                            <button type="button" id="batchApplyProjectBtn" class="b3-button b3-button--primary" disabled>
+                                                ${t("applyToAll")}
+                                            </button>
+                                            <select id="batchStatusSelector" class="b3-select" style="margin-left:8px; min-width:140px; display: none;">
+                                                <option value="">${t("selectStatus") || '选择状态'}</option>
+                                            </select>
+                                            <button type="button" id="batchApplyStatusBtn" class="b3-button b3-button--primary" disabled style="display:none; margin-left:6px;">
+                                                ${t("applyStatusToAll") || '应用状态'}
+                                            </button>
                                     </div>
                                 </div>
                                 <div class="batch-operation-item">
@@ -369,11 +377,11 @@ class SmartBatchDialog {
         `;
     }
 
-    private renderBlockList(dialog: Dialog) {
+    private async renderBlockList(dialog: Dialog) {
         const container = dialog.element.querySelector('#blockListContainer') as HTMLElement;
         if (!container) return;
 
-        const listHtml = this.autoDetectedData.map(data => {
+        const listHtml = await Promise.all(this.autoDetectedData.map(async data => {
             const setting = this.blockSettings.get(data.blockId);
             const dateStatus = data.date ? '✅' : '❌';
             const dateDisplay = setting?.date ? new Date(setting.date + 'T00:00:00').toLocaleDateString('zh-CN') : '未设置';
@@ -383,6 +391,21 @@ class SmartBatchDialog {
             const categoryDisplay = this.getCategoryDisplay(setting?.categoryId);
             const priorityDisplay = this.getPriorityDisplay(setting?.priority);
             const projectDisplay = this.getProjectDisplay(setting?.projectId);
+
+            // 获取状态显示
+            let statusDisplay = '';
+            if (setting?.kanbanStatus && setting.projectId) {
+                try {
+                    const statuses = await this.projectManager.getProjectKanbanStatuses(setting.projectId);
+                    const status = statuses.find(s => s.id === setting.kanbanStatus);
+                    if (status) {
+                        const color = status.color || '#666';
+                        statusDisplay = `<span class="status-badge"><span class="status-dot" style="background-color: ${color};"></span><span>${status.name}</span></span>`;
+                    }
+                } catch (error) {
+                    console.error('获取状态失败:', error);
+                }
+            }
 
             return `
                 <div class="block-item" data-block-id="${data.blockId}">
@@ -404,7 +427,10 @@ class SmartBatchDialog {
                                 <div class="block-attributes">
                                     <span class="block-category">${categoryDisplay}</span>
                                     <span class="block-priority">${priorityDisplay}</span>
+                                </div>
+                                <div class="block-project-status">
                                     <span class="block-project">${projectDisplay}</span>
+                                    <span class="block-status">${statusDisplay}</span>
                                 </div>
                             </div>
                         </div>
@@ -416,17 +442,17 @@ class SmartBatchDialog {
                     </div>
                 </div>
             `;
-        }).join('');
+        }));
 
         container.innerHTML = `
             <div class="block-list">
-                ${listHtml}
+                ${listHtml.join('')}
             </div>
         `;
     }
 
     private getCategoryDisplay(categoryId?: string): string {
-        if (!categoryId) return `📂 ${t("noCategory")}`;
+        if (!categoryId) return `🏷️ ${t("noCategory")}`;
 
         try {
             const categoryIds = categoryId.split(',');
@@ -447,7 +473,7 @@ class SmartBatchDialog {
             console.error('获取分类显示失败:', error);
         }
 
-        return `📂 ${t("noCategory")}`;
+        return `🏷️ ${t("noCategory")}`;
     }
 
     private getPriorityDisplay(priority?: string): string {
@@ -462,18 +488,18 @@ class SmartBatchDialog {
     }
 
     private getProjectDisplay(projectId?: string): string {
-        if (!projectId) return `📁 ${t("noProject")}`;
+        if (!projectId) return `📂 ${t("noProject")}`;
 
         try {
             const project = this.projectManager.getProjectById(projectId);
             if (project) {
-                return `<span class="project-badge" style="background-color: ${project.color || '#E0E0E0'}; padding: 2px 6px; border-radius: 3px; font-size: 12px;">📁 ${project.name}</span>`;
+                return `<span class="project-badge" style="background-color: ${project.color || '#E0E0E0'}; padding: 2px 6px; border-radius: 3px; font-size: 12px;">📂 ${project.name}</span>`;
             }
         } catch (error) {
             console.error('获取项目显示失败:', error);
         }
 
-        return `📁 ${t("noProject")}`;
+        return `📂 ${t("noProject")}`;
     }
 
     private bindSmartBatchEvents(dialog: Dialog) {
@@ -571,8 +597,75 @@ class SmartBatchDialog {
 
         // 批量项目选择
         const batchProjectSelector = dialog.element.querySelector('#batchProjectSelector') as HTMLSelectElement;
-        batchProjectSelector?.addEventListener('change', () => {
+        const batchStatusSelector = dialog.element.querySelector('#batchStatusSelector') as HTMLSelectElement;
+        const batchApplyStatusBtn = dialog.element.querySelector('#batchApplyStatusBtn') as HTMLButtonElement;
+        batchProjectSelector?.addEventListener('change', async () => {
             batchApplyProjectBtn.disabled = false;
+            const projectId = batchProjectSelector.value;
+            // reset status selector
+            if (batchStatusSelector) {
+                batchStatusSelector.style.display = 'none';
+                batchStatusSelector.innerHTML = `<option value="">${t("selectStatus") || '选择状态'}</option>`;
+            }
+            if (batchApplyStatusBtn) {
+                batchApplyStatusBtn.style.display = 'none';
+                batchApplyStatusBtn.disabled = true;
+            }
+            if (!projectId) return;
+            try {
+                const statuses = await this.projectManager.getProjectKanbanStatuses(projectId);
+                if (statuses && statuses.length > 0 && batchStatusSelector) {
+                    // 排除已完成状态（id === 'completed'）
+                    statuses
+                        .filter(s => s.id !== 'completed')
+                        .forEach(s => {
+                            const opt = document.createElement('option');
+                            opt.value = s.id;
+                            opt.text = `${s.icon || ''} ${s.name || s.id}`;
+                            batchStatusSelector.appendChild(opt);
+                        });
+                    // 如果过滤后仍有选项则显示
+                    if (batchStatusSelector.options.length > 1) {
+                        batchStatusSelector.style.display = '';
+                        if (batchApplyStatusBtn) {
+                            batchApplyStatusBtn.style.display = '';
+                            batchApplyStatusBtn.disabled = false;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('加载项目状态失败:', error);
+            }
+        });
+
+        // 批量应用状态
+        batchApplyStatusBtn?.addEventListener('click', () => {
+            const statusId = batchStatusSelector?.value || '';
+            const projectId = batchProjectSelector?.value || '';
+            if (!statusId || !projectId) return;
+            const selectedBlocks = this.getSelectedBlockIds(dialog);
+            if (selectedBlocks.length === 0) {
+                showMessage(t("pleaseSelectBlocks"));
+                return;
+            }
+            selectedBlocks.forEach(blockId => {
+                const setting = this.blockSettings.get(blockId);
+                if (setting) {
+                    setting.projectId = projectId;
+                    setting.kanbanStatus = statusId;
+                }
+            });
+            this.updateBlockListDisplay(dialog);
+            showMessage(t("settingsApplied"));
+            // disable until next selection
+            if (batchApplyStatusBtn) batchApplyStatusBtn.disabled = true;
+        });
+
+        // 状态选择器改变时重新启用应用按钮
+        batchStatusSelector?.addEventListener('change', () => {
+            if (batchApplyStatusBtn && batchStatusSelector?.value) {
+                batchApplyStatusBtn.disabled = false;
+            }
         });
 
         // 批量应用项目
@@ -600,17 +693,7 @@ class SmartBatchDialog {
             this.saveBatchReminders(dialog);
         });
 
-        // 设置按钮事件
-        container?.addEventListener('click', (e) => {
-            const target = e.target as HTMLElement;
-            const editBtn = target.closest('.block-edit-btn') as HTMLElement;
-            if (editBtn) {
-                const blockId = editBtn.getAttribute('data-block-id');
-                if (blockId) {
-                    this.showBlockEditDialog(dialog, blockId);
-                }
-            }
-        });
+        // 设置按钮事件（已移至 bindBlockListEvents，避免重复绑定）
     }
     private showBatchNaturalLanguageDialog(dialog: Dialog) {
         const nlDialog = new Dialog({
@@ -766,9 +849,9 @@ class SmartBatchDialog {
         return Array.from(checkboxes).map(checkbox => checkbox.getAttribute('data-block-id')).filter(Boolean) as string[];
     }
 
-    private updateBlockListDisplay(dialog: Dialog) {
+    private async updateBlockListDisplay(dialog: Dialog) {
         // 重新渲染块列表以反映更新
-        this.renderBlockList(dialog);
+        await this.renderBlockList(dialog);
         // 重新绑定事件（只绑定块相关的事件）
         this.bindBlockListEvents(dialog);
     }
@@ -776,8 +859,14 @@ class SmartBatchDialog {
     private bindBlockListEvents(dialog: Dialog) {
         const container = dialog.element.querySelector('#blockListContainer') as HTMLElement;
 
-        // 设置按钮事件
-        container?.addEventListener('click', (e) => {
+        if (!container) return;
+
+        // 防止重复绑定：如果已绑定过则直接返回
+        if (container.dataset.batchEventsBound === '1') return;
+        container.dataset.batchEventsBound = '1';
+
+        // 设置按钮事件（点击编辑按钮打开编辑对话框）
+        container.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
             const editBtn = target.closest('.block-edit-btn') as HTMLElement;
             if (editBtn) {
@@ -803,6 +892,7 @@ class SmartBatchDialog {
             priority: setting.priority,
             categoryId: setting.categoryId || undefined,
             projectId: setting.projectId || undefined,
+            kanbanStatus: setting.kanbanStatus || undefined,
             note: setting.note,
             repeat: setting.repeatConfig?.enabled ? setting.repeatConfig : undefined,
             completed: false,
@@ -825,6 +915,7 @@ class SmartBatchDialog {
                     setting.priority = modifiedReminder.priority || 'none';
                     setting.categoryId = modifiedReminder.categoryId || '';
                     setting.projectId = modifiedReminder.projectId || '';
+                    setting.kanbanStatus = modifiedReminder.kanbanStatus || '';
                     setting.note = modifiedReminder.note || '';
                     setting.repeatConfig = modifiedReminder.repeat || {
                         enabled: false,
@@ -850,6 +941,7 @@ class SmartBatchDialog {
                         setting.priority = modifiedReminder.priority || 'none';
                         setting.categoryId = modifiedReminder.categoryId || '';
                         setting.projectId = modifiedReminder.projectId || '';
+                        setting.kanbanStatus = modifiedReminder.kanbanStatus || '';
                         setting.note = modifiedReminder.note || '';
                         setting.repeatConfig = modifiedReminder.repeat || {
                             enabled: false,
@@ -1053,7 +1145,7 @@ class SmartBatchDialog {
         showMessage(t("settingsApplied"));
     }
 
-    private updateBlockDisplay(dialog: Dialog, blockId: string) {
+    private async updateBlockDisplay(dialog: Dialog, blockId: string) {
         const setting = this.blockSettings.get(blockId);
         if (!setting) return;
 
@@ -1075,12 +1167,29 @@ class SmartBatchDialog {
         const blockCategory = blockItem.querySelector('.block-category') as HTMLElement;
         const blockPriority = blockItem.querySelector('.block-priority') as HTMLElement;
         const blockProject = blockItem.querySelector('.block-project') as HTMLElement;
+        const blockStatus = blockItem.querySelector('.block-project-status .block-status') as HTMLElement;
 
         if (blockDate) blockDate.textContent = dateDisplay;
         if (blockTime) blockTime.textContent = timeDisplay;
         if (blockCategory) blockCategory.innerHTML = this.getCategoryDisplay(setting.categoryId);
         if (blockPriority) blockPriority.innerHTML = this.getPriorityDisplay(setting.priority);
         if (blockProject) blockProject.innerHTML = this.getProjectDisplay(setting.projectId);
+
+        // 更新状态显示
+        let statusDisplay = '';
+        if (setting.kanbanStatus && setting.projectId) {
+            try {
+                const statuses = await this.projectManager.getProjectKanbanStatuses(setting.projectId);
+                const status = statuses.find(s => s.id === setting.kanbanStatus);
+                if (status) {
+                    const color = status.color || '#666';
+                    statusDisplay = `<span class="status-badge"><span class="status-dot" style="background-color: ${color};"></span><span>${status.name}</span></span>`;
+                }
+            } catch (error) {
+                console.error('获取状态失败:', error);
+            }
+        }
+        if (blockStatus) blockStatus.innerHTML = statusDisplay;
     }
 
     private async saveBatchReminders(dialog: Dialog) {
@@ -1125,6 +1234,7 @@ class SmartBatchDialog {
                     reminder.priority = setting.priority;
                     reminder.categoryId = setting.categoryId || undefined;
                     reminder.projectId = setting.projectId || undefined;
+                    if (setting.kanbanStatus) reminder.kanbanStatus = setting.kanbanStatus;
                     reminder.repeat = setting.repeatConfig?.enabled ? setting.repeatConfig : undefined;
 
                     // 如果新建时没有 docId 或者是新建的 reminder 对象，重新设置
@@ -1260,6 +1370,7 @@ interface BlockSetting {
     priority: string;
     categoryId: string;
     projectId?: string;
+    kanbanStatus?: string;
     note: string;
     repeatConfig: RepeatConfig;
 }

@@ -599,7 +599,6 @@
     "completedPomodoros": "完成番茄钟",
     "focusTime": "专注时间",
     "averageSession": "平均时长",
-    "minutes": "分钟",
     "noData": "暂无数据",
     "year": "年",
     "uncategorized": "未分类",
@@ -1050,7 +1049,6 @@
     "startTime": "开始时间",
     "duration": "持续时长",
     "minutes": "分钟",
-    "completed": "已完成",
     "addPomodoroSuccess": "补录番茄钟成功",
     "addPomodoroFailed": "补录番茄钟失败",
     "editPomodoroSuccess": "修改番茄钟成功",
@@ -1058,5 +1056,6 @@
     "deletePomodoroSuccess": "删除番茄钟成功",
     "deletePomodoroFailed": "删除番茄钟失败",
     "confirmDeletePomodoro": "确定要删除这个番茄钟记录吗？",
-    "pleaseEnterValidInfo": "请输入有效信息"
+    "pleaseEnterValidInfo": "请输入有效信息",
+    "batchSetReminders": "批量设置任务"
 }

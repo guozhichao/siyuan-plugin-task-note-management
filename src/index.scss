@@ -511,10 +511,26 @@
     }
 
     .block-status {
-        font-size: 18px;
         line-height: 1;
         flex-shrink: 0;
         transition: transform 0.2s ease;
+    }
+
+    .status-badge {
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 11px;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .status-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        display: inline-block;
     }
 
     .block-item:hover .block-status {
@@ -552,6 +568,13 @@
     }
 
     .block-attributes {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+    }
+
+    .block-project-status {
         display: flex;
         align-items: center;
         gap: 8px;
