@@ -7,6 +7,7 @@ import { RepeatConfig, RepeatSettingsDialog } from "./RepeatSettingsDialog";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { CategoryManager } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
+import LoadingDialog from './LoadingDialog.svelte';
 
 export interface BlockDetail {
     blockId: string;
@@ -201,6 +202,7 @@ class SmartBatchDialog {
     private blockSettings: Map<string, BlockSetting> = new Map();
     private categoryManager: CategoryManager;
     private projectManager: ProjectManager;
+    private loadingDialog: Dialog | null = null;
 
     constructor(plugin: any, blockIds: string[], autoDetectedData: AutoDetectResult[]) {
         this.plugin = plugin;
@@ -1192,8 +1194,39 @@ class SmartBatchDialog {
         if (blockStatus) blockStatus.innerHTML = statusDisplay;
     }
 
+    private showLoadingDialog(message: string) {
+        if (this.loadingDialog) {
+            this.loadingDialog.destroy();
+        }
+        this.loadingDialog = new Dialog({
+            title: "Processing",
+            content: `<div id="loadingDialogContent"></div>`,
+            width: "350px",
+            height: "230px",
+            disableClose: true,
+            destroyCallback: null
+        });
+
+        const loadingComponent = new LoadingDialog({
+            target: this.loadingDialog.element.querySelector('#loadingDialogContent'),
+            props: {
+                message: message
+            }
+        });
+    }
+
+    private closeLoadingDialog() {
+        if (this.loadingDialog) {
+            this.loadingDialog.destroy();
+            this.loadingDialog = null;
+        }
+    }
+
     private async saveBatchReminders(dialog: Dialog) {
         try {
+            // 显示加载对话框
+            this.showLoadingDialog("正在批量创建任务...");
+
             const reminderData = await this.plugin.loadReminderData();
 
             let successCount = 0;
@@ -1353,6 +1386,9 @@ class SmartBatchDialog {
         } catch (error) {
             console.error('保存批量提醒失败:', error);
             showMessage(i18n("batchSaveFailed"));
+        } finally {
+            // 关闭加载对话框
+            this.closeLoadingDialog();
         }
     }
 }
