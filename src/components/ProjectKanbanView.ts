@@ -8535,37 +8535,61 @@ export class ProjectKanbanView {
 
     // 设置任务优先级
     private async setPriority(task: any, priority: string) {
-        // 1. 乐观更新 UI
-        const taskIndex = this.tasks.findIndex(t => t.id === task.id);
-        const optimisticTask = taskIndex >= 0 ? this.tasks[taskIndex] : null;
-
+        // 1. 乐观更新内存数据和 DOM
+        const optimisticTask = this.tasks.find(t => t.id === task.id);
         if (optimisticTask) {
-            // 更新内存中的任务数据
             optimisticTask.priority = priority;
+        }
 
-            // 如果当前排序依优先级，则重新排序
-            if (this.currentSort === 'priority') {
-                this.sortTasks();
+        const taskEl = this.container.querySelector(`.kanban-task[data-task-id="${task.id}"]`) as HTMLElement;
+        if (taskEl) {
+            // 更新 CSS 类
+            taskEl.classList.remove('kanban-task-priority-high', 'kanban-task-priority-medium', 'kanban-task-priority-low');
+            if (priority !== 'none') {
+                taskEl.classList.add(`kanban-task-priority-${priority}`);
             }
 
-            // 直接刷新对应列/分组（借鉴 showCreateTaskDialog 中的增量刷新逻辑）
-            if (this.kanbanMode === 'custom') {
-                const group = this.project?.customGroups?.find((g: any) => g.id === optimisticTask.customGroupId);
-                if (group) {
-                    const groupTasks = this.tasks.filter(t => t.customGroupId === group.id);
-                    this.renderCustomGroupColumn(group, groupTasks);
-                } else {
-                    const ungroupedTasks = this.tasks.filter(t => !t.customGroupId);
-                    this.renderUngroupedColumn(ungroupedTasks);
-                }
+            // 更新背景和边框
+            let backgroundColor = '';
+            let borderColor = '';
+            switch (priority) {
+                case 'high':
+                    backgroundColor = 'rgba(from var(--b3-card-error-background) r g b / .5)';
+                    borderColor = 'var(--b3-card-error-color)';
+                    break;
+                case 'medium':
+                    backgroundColor = 'rgba(from var(--b3-card-warning-background) r g b / .5)';
+                    borderColor = 'var(--b3-card-warning-color)';
+                    break;
+                case 'low':
+                    backgroundColor = 'rgba(from var(--b3-card-info-background) r g b / .7)';
+                    borderColor = 'var(--b3-card-info-color)';
+                    break;
+                default:
+                    backgroundColor = 'rgba(from var(--b3-theme-background-light) r g b / .1)';
+                    borderColor = 'var(--b3-theme-background-light)';
+            }
+            taskEl.style.backgroundColor = backgroundColor;
+            taskEl.style.borderColor = borderColor;
+
+            // 更新优先级标签
+            let priorityEl = taskEl.querySelector('.kanban-task-priority') as HTMLElement;
+            if (priority === 'none') {
+                if (priorityEl) priorityEl.remove();
             } else {
-                const status = optimisticTask.kanbanStatus || 'todo';
-                const tasksInColumn = this.tasks.filter(t => {
-                    const tStatus = t.kanbanStatus || 'todo';
-                    const targetColumn = t.customGroupId && !['doing', 'short_term', 'long_term', 'completed'].includes(t.customGroupId) ? t.customGroupId : tStatus;
-                    return targetColumn === status;
-                });
-                this.renderColumn(status, tasksInColumn);
+                if (!priorityEl) {
+                    priorityEl = document.createElement('div');
+                    priorityEl.className = 'kanban-task-priority';
+                    const infoEl = taskEl.querySelector('.kanban-task-info');
+                    if (infoEl) infoEl.appendChild(priorityEl);
+                }
+                const priorityNames = {
+                    'high': '高优先级',
+                    'medium': '中优先级',
+                    'low': '低优先级'
+                };
+                priorityEl.className = `kanban-task-priority priority-label-${priority}`;
+                priorityEl.innerHTML = `<span class="priority-dot ${priority}"></span><span>${priorityNames[priority]}</span>`;
             }
         }
 
@@ -8618,12 +8642,11 @@ export class ProjectKanbanView {
                     return;
                 }
             }
-
+            // 防抖加载
+            this.queueLoadTasks();
             // 保存成功后，分发更新事件（通知其他视图），但不请求重新加载当前视图（因为已经乐观更新了）
             this.dispatchReminderUpdate(true);
 
-            // 还是调用一次防抖加载以确保最终一致性（防止乐观更新逻辑有误），但不 await，以免阻塞交互
-            this.queueLoadTasks(); // 这里的 queueLoadTasks 内部有防抖，不会立即触发 heavy load
         } catch (error) {
             console.error('设置优先级失败:', error);
             showMessage("设置优先级失败，正在恢复...");
@@ -8679,39 +8702,35 @@ export class ProjectKanbanView {
      * 将提醒绑定到指定的块（adapted from ReminderPanel）
      */
     private async bindReminderToBlock(reminder: any, blockId: string) {
-        // 1. 乐观更新 UI
+        // 1. 乐观更新内存数据和 DOM
         const optimisticTask = this.tasks.find(t => t.id === reminder.id);
         if (optimisticTask) {
             optimisticTask.blockId = blockId;
-            // docId 暂时无法获取，但这不影响基本链接图标的显示
+        }
 
-            // 直接刷新对应列/分组
-            if (this.kanbanMode === 'custom') {
-                const group = this.project?.customGroups?.find((g: any) => g.id === optimisticTask.customGroupId);
-                if (group) {
-                    const groupTasks = this.tasks.filter(t => t.customGroupId === group.id);
-                    this.renderCustomGroupColumn(group, groupTasks);
-                } else {
-                    const ungroupedTasks = this.tasks.filter(t => !t.customGroupId);
-                    this.renderUngroupedColumn(ungroupedTasks);
-                }
-            } else {
-                const status = optimisticTask.kanbanStatus || 'todo';
-                const tasksInColumn = this.tasks.filter(t => {
-                    const tStatus = t.kanbanStatus || 'todo';
-                    const targetColumn = t.customGroupId && !['doing', 'short_term', 'long_term', 'completed'].includes(t.customGroupId) ? t.customGroupId : tStatus;
-                    return targetColumn === status;
+        const taskEl = this.container.querySelector(`.kanban-task[data-task-id="${reminder.id}"]`) as HTMLElement;
+        if (taskEl) {
+            const titleEl = taskEl.querySelector('.kanban-task-title') as HTMLElement;
+            if (titleEl) {
+                // 直接更新样式和行为，避免全量重绘导致的闪烁
+                titleEl.style.color = 'var(--b3-theme-primary)';
+                titleEl.style.textDecoration = 'underline dotted';
+                titleEl.style.cursor = 'pointer';
+                titleEl.title = t('clickToOpenBoundBlock', { title: reminder.title || t('noContentHint') });
+
+                const newTitleEl = titleEl.cloneNode(true) as HTMLElement;
+                newTitleEl.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.openBlockTab(blockId);
                 });
-                this.renderColumn(status, tasksInColumn);
+                titleEl.parentNode?.replaceChild(newTitleEl, titleEl);
             }
         }
 
-        // 2. 后台执行繁重的绑定操作
         try {
             let reminderData = await this.getReminders();
             let reminderId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
-
-
 
             if (reminderData[reminderId]) {
                 // 获取块信息
@@ -8739,12 +8758,12 @@ export class ProjectKanbanView {
 
                 // 更新块的书签状态（添加⏰书签）
                 await updateBindBlockAtrrs(blockId, this.plugin);
-
+                // 防抖加载
+                this.queueLoadTasks();
                 // 触发更新事件
                 this.dispatchReminderUpdate(true);
 
-                // 确保最终一致性
-                this.queueLoadTasks();
+
             } else {
                 throw new Error('提醒不存在');
             }
