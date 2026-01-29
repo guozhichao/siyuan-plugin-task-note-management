@@ -66,17 +66,14 @@ export class ProjectPanel {
             if (detail && detail.projectId) {
                 const projectEl = this.projectsContainer.querySelector(`.project-item[data-project-id="${detail.projectId}"]`) as HTMLElement;
                 if (projectEl) {
-                    const doingEl = projectEl.querySelector('.project-count--doing') as HTMLElement;
-                    const shortTermEl = projectEl.querySelector('.project-count--short-term') as HTMLElement;
-                    const longTermEl = projectEl.querySelector('.project-count--long-term') as HTMLElement;
-                    const doneEl = projectEl.querySelector('.project-count--done') as HTMLElement;
+                    const dynamicWrapper = projectEl.querySelector('.project-counts-dynamic') as HTMLElement;
                     const pomodoroEl = projectEl.querySelector('.project-count--pomodoro') as HTMLElement;
                     const progressBarInner = projectEl.querySelector('.project-progress-inner') as HTMLElement;
                     const progressText = projectEl.querySelector('.project-progress-text') as HTMLElement;
 
-                    if (doingEl && shortTermEl && longTermEl && doneEl) {
-                        // 重新计算并更新该项目的统计信息
-                        await this.fillProjectTopLevelCounts(detail.projectId, doingEl, shortTermEl, longTermEl, doneEl, pomodoroEl, progressBarInner, progressText);
+                    if (dynamicWrapper) {
+                        // 重新计算并更新该项目的统计信息（会根据项目的 kanban statuses 渲染）
+                        await this.fillProjectTopLevelCounts(detail.projectId, dynamicWrapper, pomodoroEl, progressBarInner, progressText);
                         return;
                     }
                 }
@@ -516,10 +513,17 @@ export class ProjectPanel {
 
             // 如果勾选了"只显示进行中>0"，则过滤项目
             if (this.showOnlyWithDoingTasks && this.reminderDataCache) {
-                displayProjects = displayProjects.filter((project: any) => {
-                    const counts = this.countTopLevelKanbanStatus(project.id, this.reminderDataCache);
-                    return counts.doing > 0;
-                });
+                const filtered: any[] = [];
+                for (const project of displayProjects) {
+                    try {
+                        const counts = await this.countTopLevelKanbanStatus(project.id, this.reminderDataCache);
+                        if (counts.doing > 0) filtered.push(project);
+                    } catch (err) {
+                        // on error, conservatively include the project
+                        filtered.push(project);
+                    }
+                }
+                displayProjects = filtered;
             }
 
             // 渲染项目
@@ -873,26 +877,17 @@ export class ProjectPanel {
         countsContainer.style.cssText = `display:flex; gap:8px; margin-top:6px; align-items:center; flex-wrap: wrap;`;
 
 
-        const doingCountEl = document.createElement('span');
-        doingCountEl.className = 'project-count project-count--doing';
-        doingCountEl.textContent = '进行中: ...';
-        countsContainer.appendChild(doingCountEl);
-
-        const shortTermCountEl = document.createElement('span');
-        shortTermCountEl.className = 'project-count project-count--short-term';
-        shortTermCountEl.textContent = '短期: ...';
-        countsContainer.appendChild(shortTermCountEl);
-
-        const longTermCountEl = document.createElement('span');
-        longTermCountEl.className = 'project-count project-count--long-term';
-        longTermCountEl.textContent = '长期: ...';
-        countsContainer.appendChild(longTermCountEl);
-
-
-        const doneCountEl = document.createElement('span');
-        doneCountEl.className = 'project-count project-count--done';
-        doneCountEl.textContent = '已完成: ...';
-        countsContainer.appendChild(doneCountEl);
+        const dynamicCountsWrapper = document.createElement('div');
+        dynamicCountsWrapper.className = 'project-counts-dynamic';
+        dynamicCountsWrapper.style.cssText = `display:flex; gap:8px; align-items:center; flex-wrap:wrap;`;
+        // initial legacy placeholders to avoid layout shift
+        dynamicCountsWrapper.innerHTML = `
+            <span class="project-count project-count--doing">${t("doing") || '进行中'}: ...</span>
+            <span class="project-count project-count--short-term">${t("shortTerm") || '短期'}: ...</span>
+            <span class="project-count project-count--long-term">${t("longTerm") || '长期'}: ...</span>
+            <span class="project-count project-count--done">${t("done") || '已完成'}: ...</span>
+        `;
+        countsContainer.appendChild(dynamicCountsWrapper);
 
         // 添加番茄钟总数显示
         const pomodoroCountEl = document.createElement('span');
@@ -961,7 +956,7 @@ export class ProjectPanel {
         infoEl.appendChild(progressWrapper);
 
         // 异步填充计数（使用缓存或实时读取），并同时更新进度条
-        this.fillProjectTopLevelCounts(project.id, doingCountEl, shortTermCountEl, longTermCountEl, doneCountEl, pomodoroCountEl, progressBarInner, progressText).catch(err => {
+        this.fillProjectTopLevelCounts(project.id, dynamicCountsWrapper, pomodoroCountEl, progressBarInner, progressText).catch(err => {
             console.warn('填充项目任务计数失败:', err);
         });
         // 分类显示
@@ -1039,7 +1034,7 @@ export class ProjectPanel {
     /**
      * 填充某个项目的顶级任务计数到元素
      */
-    private async fillProjectTopLevelCounts(projectId: string, doingEl: HTMLElement, shortTermEl: HTMLElement, longTermEl: HTMLElement, doneEl: HTMLElement, pomodoroEl?: HTMLElement | null, progressBarInner?: HTMLElement | null, progressText?: HTMLElement | null) {
+    private async fillProjectTopLevelCounts(projectId: string, dynamicWrapper: HTMLElement, pomodoroEl?: HTMLElement | null, progressBarInner?: HTMLElement | null, progressText?: HTMLElement | null) {
         try {
             let reminderData = this.reminderDataCache;
             if (!reminderData) {
@@ -1047,17 +1042,44 @@ export class ProjectPanel {
                 this.reminderDataCache = reminderData;
             }
 
-            const counts = this.countTopLevelKanbanStatus(projectId, reminderData);
-            const totalPomodoro = await this.countProjectTotalPomodoro(projectId, reminderData);
+            const { ProjectManager } = await import("../utils/projectManager");
+            const projectManager = ProjectManager.getInstance(this.plugin);
+            const statuses = await projectManager.getProjectKanbanStatuses(projectId);
 
-            doingEl.textContent = `${t("doing") || '进行中'}: ${counts.doing}`;
-            shortTermEl.textContent = `${t("shortTerm") || '短期'}: ${counts.short_term}`;
-            longTermEl.textContent = `${t("longTerm") || '长期'}: ${counts.long_term}`;
-            doneEl.textContent = `${t("done") || '已完成'}: ${counts.completed}`;
+            const result = ProjectKanbanView.countTopLevelTasksByStatus(projectId, reminderData, statuses);
+            const countsMap = result.counts || {};
+            const completedCount = result.completed || (countsMap['completed'] || 0);
+
+            // Render dynamic status badges in order
+            dynamicWrapper.innerHTML = '';
+            if (statuses && Array.isArray(statuses) && statuses.length > 0) {
+                for (const s of statuses) {
+                    const id = s.id;
+                    const name = s.name || id;
+                    const icon = s.icon || '';
+                    const count = id === 'completed' ? completedCount : (countsMap[id] || 0);
+                    const span = document.createElement('span');
+                    span.className = `project-count project-count--${id}`;
+                    span.textContent = `${icon} ${name}: ${count}`;
+                    dynamicWrapper.appendChild(span);
+                }
+            } else {
+                // Fallback to legacy labels
+                const doing = countsMap['doing'] || 0;
+                const shortTerm = countsMap['short_term'] || 0;
+                const longTerm = countsMap['long_term'] || 0;
+                const done = completedCount;
+                dynamicWrapper.innerHTML = `
+                    <span class="project-count project-count--doing">${t("doing") || '进行中'}: ${doing}</span>
+                    <span class="project-count project-count--short-term">${t("shortTerm") || '短期'}: ${shortTerm}</span>
+                    <span class="project-count project-count--long-term">${t("longTerm") || '长期'}: ${longTerm}</span>
+                    <span class="project-count project-count--done">${t("done") || '已完成'}: ${done}</span>
+                `;
+            }
 
             // 更新番茄钟总数显示
             if (pomodoroEl) {
-                // 同时计算总专注时长（所有任务总和）
+                const totalPomodoro = await this.countProjectTotalPomodoro(projectId, reminderData);
                 const totalFocus = await this.countProjectTotalFocusTime(projectId, reminderData);
                 const formatMinutesToString = (minutes: number) => {
                     const hours = Math.floor(minutes / 60);
@@ -1068,22 +1090,24 @@ export class ProjectPanel {
                 pomodoroEl.textContent = `🍅 总计: ${totalPomodoro}${focusText}`;
             }
 
-            // 计算进度： done / (doing + short_term + long_term + done)
+            // 计算进度： done / (sum of non-completed statuses + done)
             if (progressBarInner && progressText) {
-                const total = counts.doing + counts.short_term + counts.long_term + counts.completed;
-                const percent = total === 0 ? 0 : Math.round((counts.completed / total) * 100);
+                const nonCompletedSum = Object.keys(countsMap).reduce((s, k) => k === 'completed' ? s : s + (countsMap[k] || 0), 0);
+                const total = nonCompletedSum + completedCount;
+                const percent = total === 0 ? 0 : Math.round((completedCount / total) * 100);
                 progressBarInner.style.width = `${percent}%`;
                 progressText.textContent = `${percent}%`;
             }
         } catch (error) {
             console.error('获取项目顶级任务计数失败:', error);
-            doingEl.textContent = `${t("doing") || '进行中'}: ?`;
-            shortTermEl.textContent = `${t("shortTerm") || '短期'}: ?`;
-            longTermEl.textContent = `${t("longTerm") || '长期'}: ?`;
-            doneEl.textContent = `${t("done") || '已完成'}: ?`;
-            if (pomodoroEl) {
-                pomodoroEl.textContent = `🍅 总计: ?`;
-            }
+            // on error, show placeholders
+            if (dynamicWrapper) dynamicWrapper.innerHTML = `
+                <span class="project-count project-count--doing">${t("doing") || '进行中'}: ?</span>
+                <span class="project-count project-count--short-term">${t("shortTerm") || '短期'}: ?</span>
+                <span class="project-count project-count--long-term">${t("longTerm") || '长期'}: ?</span>
+                <span class="project-count project-count--done">${t("done") || '已完成'}: ?</span>
+            `;
+            if (pomodoroEl) pomodoroEl.textContent = `🍅 总计: ?`;
             if (progressBarInner && progressText) {
                 progressBarInner.style.width = `0%`;
                 progressText.textContent = `0%`;
@@ -1095,8 +1119,52 @@ export class ProjectPanel {
      * 计算给定项目的顶级任务在 kanbanStatus 上的数量（只计顶级，即没有 parentId）
      * 使用 ProjectKanbanView 的静态方法，确保统计逻辑一致（包括日期自动归档到进行中的逻辑）
      */
-    private countTopLevelKanbanStatus(projectId: string, reminderData: any): { doing: number; short_term: number; long_term: number; done: number } {
-        return ProjectKanbanView.countTopLevelTasksByStatus(projectId, reminderData);
+    private async countTopLevelKanbanStatus(projectId: string, reminderData: any): Promise<{ doing: number; short_term: number; long_term: number; done: number }> {
+        try {
+            const projectManager = ProjectManager.getInstance(this.plugin);
+            const statuses = await projectManager.getProjectKanbanStatuses(projectId);
+            const result = ProjectKanbanView.countTopLevelTasksByStatus(projectId, reminderData, statuses);
+
+            // Map dynamic status counts to the legacy four labels for display
+            const countsMap = result.counts || {};
+            const nonCompletedIds = Object.keys(countsMap).filter(k => k !== 'completed');
+
+            // Preferred mapping keys
+            const prefer = ['doing', 'short_term', 'long_term'];
+            const mapped: any = { doing: 0, short_term: 0, long_term: 0, done: result.completed || 0 };
+
+            const used: Set<string> = new Set();
+            // First try to pick by key names if exist
+            prefer.forEach((key) => {
+                if (countsMap.hasOwnProperty(key)) {
+                    mapped[key] = countsMap[key];
+                    used.add(key);
+                }
+            });
+
+            // Fill remaining prefer slots from available non-completed statuses
+            for (const key of prefer) {
+                if (mapped[key] === 0) {
+                    const next = nonCompletedIds.find(id => !used.has(id));
+                    if (next) {
+                        mapped[key] = countsMap[next] || 0;
+                        used.add(next);
+                    }
+                }
+            }
+
+            return { doing: mapped.doing || 0, short_term: mapped.short_term || 0, long_term: mapped.long_term || 0, done: mapped.done || 0 };
+        } catch (error) {
+            console.error('countTopLevelKanbanStatus error:', error);
+            // Fallback to legacy call if something fails
+            const legacy = ProjectKanbanView.countTopLevelTasksByStatus(projectId, reminderData);
+            // legacy may return { counts, completed } or old shape; handle both
+            if ((legacy as any).counts) {
+                const c = (legacy as any).counts;
+                return { doing: c.doing || 0, short_term: c.short_term || 0, long_term: c.long_term || 0, done: (legacy as any).completed || 0 };
+            }
+            return { doing: (legacy as any).doing || 0, short_term: (legacy as any).short_term || 0, long_term: (legacy as any).long_term || 0, done: (legacy as any).completed || 0 };
+        }
     }
 
     /**

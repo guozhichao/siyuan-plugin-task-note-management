@@ -3277,122 +3277,128 @@ export class ProjectKanbanView {
      * 静态方法：计算给定项目的顶级任务在 kanbanStatus 上的数量（只计顶级，即没有 parentId）
      * 使用与 getTaskStatus 相同的逻辑，包括日期自动归档到进行中的逻辑
      */
-    public static countTopLevelTasksByStatus(projectId: string, reminderData: any): { doing: number; short_term: number; long_term: number; completed: number } {
+    public static countTopLevelTasksByStatus(projectId: string, reminderData: any, kanbanStatuses?: Array<{ id: string; name?: string }>): { counts: Record<string, number>; completed: number } {
         const allReminders = reminderData && typeof reminderData === 'object' ? Object.values(reminderData) : [];
-        let doing = 0, short_term = 0, long_term = 0, completed = 0;
         const today = getLogicalDateString();
+
+        // Build initial counts map based on provided kanbanStatuses or fallback to legacy keys
+        const counts: Record<string, number> = {};
+        if (kanbanStatuses && Array.isArray(kanbanStatuses) && kanbanStatuses.length > 0) {
+            kanbanStatuses.forEach(s => counts[s.id] = 0);
+            if (!counts['completed']) counts['completed'] = 0;
+        } else {
+            counts['doing'] = 0;
+            counts['short_term'] = 0;
+            counts['long_term'] = 0;
+            counts['completed'] = 0;
+        }
+
+        const firstNonCompletedStatus = Object.keys(counts).find(k => k !== 'completed') || null;
+
+        const safeInc = (statusId: string | null) => {
+            if (!statusId) {
+                if (firstNonCompletedStatus) counts[firstNonCompletedStatus] = (counts[firstNonCompletedStatus] || 0) + 1;
+                return;
+            }
+            if (counts.hasOwnProperty(statusId)) counts[statusId] = (counts[statusId] || 0) + 1;
+            else if (firstNonCompletedStatus) counts[firstNonCompletedStatus] = (counts[firstNonCompletedStatus] || 0) + 1;
+        };
 
         allReminders.forEach((r: any) => {
             if (!r || typeof r !== 'object') return;
-            // 仅统计属于该 project 且为顶级任务（parentId 严格为 undefined/null/空字符串认为是顶级）
             const hasParent = r.hasOwnProperty('parentId') && r.parentId !== undefined && r.parentId !== null && String(r.parentId).trim() !== '';
+            if (r.projectId !== projectId || hasParent) return;
 
-            if (r.projectId === projectId && !hasParent) {
-                // 判断是否为周期任务
-                if (r.repeat && r.repeat.enabled) {
-                    // 周期任务：逻辑需与 loadTasks 保持一致，统计"实例"而非原始任务
-                    const completedInstances = r.repeat.completedInstances || [];
-                    const instanceModifications = r.repeat.instanceModifications || {};
+            const isCompletedFlag = !!r.completed || (r.completedTime !== undefined && r.completedTime !== null && String(r.completedTime).trim() !== '');
 
-                    // 1. 生成实例
-                    // 为了性能，我们近似生成范围：从任务开始时间（或较早前）到未来一年
-                    // 这能覆盖所有"过去未完成"（视为进行中）和"未来"（视为待办/短期/长期）的情况
-                    const rangeStart = r.startDate || r.date || r.createdTime?.split('T')[0] || '2020-01-01';
-                    const futureDate = new Date();
-                    futureDate.setDate(futureDate.getDate() + 365); // 往后一年，确保能覆盖到下一个周期
-                    const rangeEnd = getLocalDateString(futureDate);
+            if (r.repeat && r.repeat.enabled) {
+                const completedInstances = r.repeat.completedInstances || [];
+                const instanceModifications = r.repeat.instanceModifications || {};
 
-                    let repeatInstances: any[] = [];
-                    try {
-                        repeatInstances = generateRepeatInstances(r, rangeStart, rangeEnd);
-                    } catch (e) {
-                        console.error('生成重复实例失败', e);
-                        repeatInstances = [];
-                    }
+                const rangeStart = r.startDate || r.date || r.createdTime?.split('T')[0] || '2020-01-01';
+                const futureDate = new Date();
+                futureDate.setDate(futureDate.getDate() + 365);
+                const rangeEnd = getLocalDateString(futureDate);
 
-                    // 2. 模拟 loadTasks 的筛选逻辑
-                    let hasTodayIncomplete = false;
-                    const futureIncompleteList: any[] = [];
+                let repeatInstances: any[] = [];
+                try {
+                    repeatInstances = generateRepeatInstances(r, rangeStart, rangeEnd);
+                } catch (e) {
+                    console.error('生成重复实例失败', e);
+                    repeatInstances = [];
+                }
 
-                    repeatInstances.forEach((instance: any) => {
-                        const instanceIdStr = (instance as any).instanceId || `${r.id}_${instance.date}`;
-                        const originalKey = instanceIdStr.split('_').pop() || instance.date;
-                        const isInstanceCompleted = completedInstances.includes(originalKey);
-                        const instanceMod = instanceModifications[originalKey] || {};
+                let hasTodayIncomplete = false;
+                const futureIncompleteList: any[] = [];
 
-                        const instanceLogical = this.getTaskLogicalDate(instance.date, instance.time);
-                        const dateComparison = compareDateStrings(instanceLogical, today);
+                repeatInstances.forEach((instance: any) => {
+                    const instanceIdStr = (instance as any).instanceId || `${r.id}_${instance.date}`;
+                    const originalKey = instanceIdStr.split('_').pop() || instance.date;
+                    const isInstanceCompleted = completedInstances.includes(originalKey);
+                    const instanceMod = instanceModifications[originalKey] || {};
 
-                        if (isInstanceCompleted) {
-                            // 所有已完成的实例都会显示在看板上，计入 completed
-                            completed++;
-                        } else {
-                            // 未完成实例处理
-                            if (dateComparison <= 0) {
-                                // 过去或今天的未完成实例 -> 计入 doing (自动归档逻辑)
-                                doing++;
-                                if (dateComparison === 0) hasTodayIncomplete = true;
-                            } else {
-                                // 未来的未完成实例，先收集
-                                futureIncompleteList.push({
-                                    ...instance,
-                                    // 合并修改属性以便后续判断状态
-                                    kanbanStatus: instanceMod.kanbanStatus || r.kanbanStatus,
-                                });
-                            }
-                        }
-                    });
+                    const instanceLogical = this.getTaskLogicalDate(instance.date, instance.time);
+                    const dateComparison = compareDateStrings(instanceLogical, today);
 
-                    // 3. 处理未来实例显示规则：
-                    // 如果今天没有未完成实例，则显示未来第一个未完成实例
-                    if (!hasTodayIncomplete && futureIncompleteList.length > 0) {
-                        const firstFuture = futureIncompleteList[0];
-                        // 判断这个未来实例的状态
-                        if (firstFuture.kanbanStatus === 'doing') {
-                            doing++;
-                        } else {
-                            const tType = firstFuture.termType;
-                            if (tType === 'long_term') long_term++;
-                            else if (tType === 'doing') doing++;
-                            else short_term++; // 默认为短期
-                        }
-                    }
-
-                } else {
-                    // 非周期任务：原有逻辑
-                    const isCompleted = !!r.completed || (r.completedTime !== undefined && r.completedTime !== null && String(r.completedTime).trim() !== '');
-                    if (isCompleted) {
-                        completed += 1;
-                        return;
-                    }
-
-                    if (r.kanbanStatus === 'doing') {
-                        doing += 1;
-                        return;
-                    }
-
-                    if (r.date) {
-                        const logicalR = this.getTaskLogicalDate(r.date, r.time);
-                        const dateComparison = compareDateStrings(logicalR, today);
-                        if (dateComparison <= 0) { // 今天或过去
-                            doing += 1;
-                            return;
-                        }
-                    }
-
-                    // 根据termType确定是长期还是短期
-                    if (r.termType === 'long_term') {
-                        long_term += 1;
-                    } else if (r.termType === 'doing') {
-                        doing += 1;
+                    if (isInstanceCompleted) {
+                        counts['completed'] = (counts['completed'] || 0) + 1;
                     } else {
-                        short_term += 1; // 默认为短期
+                        const effectiveStatus = instanceMod.kanbanStatus || r.kanbanStatus || null;
+                        if (dateComparison <= 0) {
+                            // past or today -> prefer a 'doing' status if present
+                            if (counts.hasOwnProperty('doing')) safeInc('doing');
+                            else safeInc(effectiveStatus);
+                            if (dateComparison === 0) hasTodayIncomplete = true;
+                        } else {
+                            futureIncompleteList.push({ ...instance, kanbanStatus: effectiveStatus });
+                        }
                     }
+                });
+
+                if (!hasTodayIncomplete && futureIncompleteList.length > 0) {
+                    const firstFuture = futureIncompleteList[0];
+                    const eff = firstFuture.kanbanStatus || null;
+                    if (eff) safeInc(eff);
+                    else if (firstFuture.termType === 'long_term' && counts.hasOwnProperty('long_term')) safeInc('long_term');
+                    else if (counts.hasOwnProperty('short_term')) safeInc('short_term');
+                    else safeInc(null);
+                }
+
+            } else {
+                if (isCompletedFlag) {
+                    counts['completed'] = (counts['completed'] || 0) + 1;
+                    return;
+                }
+
+                const eff = r.kanbanStatus || null;
+                if (eff && eff !== 'completed') {
+                    safeInc(eff);
+                    return;
+                }
+
+                if (r.date) {
+                    const logicalR = this.getTaskLogicalDate(r.date, r.time);
+                    const dateComparison = compareDateStrings(logicalR, today);
+                    if (dateComparison <= 0) {
+                        if (counts.hasOwnProperty('doing')) safeInc('doing');
+                        else safeInc(null);
+                        return;
+                    }
+                }
+
+                if (r.termType === 'long_term' && counts.hasOwnProperty('long_term')) {
+                    safeInc('long_term');
+                } else if (r.termType === 'doing' && counts.hasOwnProperty('doing')) {
+                    safeInc('doing');
+                } else if (counts.hasOwnProperty('short_term')) {
+                    safeInc('short_term');
+                } else {
+                    safeInc(null);
                 }
             }
         });
 
-        return { doing, short_term, long_term, completed };
+        return { counts, completed: counts['completed'] || 0 };
     }
 
     /**
