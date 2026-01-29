@@ -105,6 +105,8 @@ export class ProjectKanbanView {
     private selectedTaskIds: Set<string> = new Set();
     // 批量操作工具栏元素
     private batchToolbar: HTMLElement | null = null;
+    // 上一次点击的任务ID（用于Shift多选范围）
+    private lastClickedTaskId: string | null = null;
 
     constructor(container: HTMLElement, plugin: any, projectId: string) {
         this.container = container;
@@ -5203,8 +5205,42 @@ export class ProjectKanbanView {
             taskEl.addEventListener('click', (e) => {
                 // 如果点击的是多选复选框本身，不处理（让复选框自己的事件处理）
                 if ((e.target as HTMLElement).classList.contains('kanban-task-multiselect-checkbox')) {
+                    // 更新最后点击的任务ID，以便作为下次Shift选取的起点
+                    this.lastClickedTaskId = task.id;
                     return;
                 }
+
+                // 支持 Shift 键范围选择
+                if (e.shiftKey && this.lastClickedTaskId) {
+                    // 获取当前所有可视任务的ID顺序
+                    const allTaskEls = Array.from(this.container.querySelectorAll('.kanban-task'));
+                    const allTaskIds = allTaskEls.map(el => (el as HTMLElement).dataset.taskId);
+
+                    const lastIndex = allTaskIds.indexOf(this.lastClickedTaskId);
+                    const currentIndex = allTaskIds.indexOf(task.id);
+
+                    if (lastIndex !== -1 && currentIndex !== -1) {
+                        const start = Math.min(lastIndex, currentIndex);
+                        const end = Math.max(lastIndex, currentIndex);
+
+                        // 选中范围内的所有任务
+                        for (let i = start; i <= end; i++) {
+                            const tid = allTaskIds[i];
+                            if (tid && !this.selectedTaskIds.has(tid)) {
+                                this.toggleTaskSelection(tid, true);
+                            }
+                        }
+
+                        // 更新复选框状态（如果是当前点击的任务）
+                        if (multiSelectCheckbox) {
+                            multiSelectCheckbox.checked = true;
+                        }
+                        // Shift选择不更新 anchor (lastClickedTaskId)，这是常见习惯，或者更新？
+                        // 这里选择不更新，保持 Anchor 不变，类似 Windows 文件资源管理器 behavior
+                        return;
+                    }
+                }
+
                 // 切换选择状态
                 const newSelected = !this.selectedTaskIds.has(task.id);
                 this.toggleTaskSelection(task.id, newSelected);
@@ -5212,6 +5248,9 @@ export class ProjectKanbanView {
                 if (multiSelectCheckbox) {
                     multiSelectCheckbox.checked = newSelected;
                 }
+
+                // 记录最后一次点击的任务ID
+                this.lastClickedTaskId = task.id;
             });
         }
 
@@ -10549,7 +10588,10 @@ export class ProjectKanbanView {
         if (!this.isMultiSelectMode) {
             // 退出多选模式时清空选择
             this.selectedTaskIds.clear();
+            this.lastClickedTaskId = null;
             this.hideBatchToolbar();
+        } else {
+            this.lastClickedTaskId = null;
         }
 
         // 更新多选按钮状态
@@ -10591,9 +10633,13 @@ export class ProjectKanbanView {
             if (selected) {
                 taskEl.classList.add('kanban-task-selected');
                 taskEl.style.boxShadow = '0 0 0 2px var(--b3-theme-primary)';
+                const checkbox = taskEl.querySelector('.kanban-task-multiselect-checkbox') as HTMLInputElement;
+                if (checkbox) checkbox.checked = true;
             } else {
                 taskEl.classList.remove('kanban-task-selected');
                 taskEl.style.boxShadow = '';
+                const checkbox = taskEl.querySelector('.kanban-task-multiselect-checkbox') as HTMLInputElement;
+                if (checkbox) checkbox.checked = false;
             }
         }
 
