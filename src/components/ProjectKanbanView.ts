@@ -3418,29 +3418,30 @@ export class ProjectKanbanView {
      * 优先使用kanbanStatus
      */
     private getTaskStatus(task: any): string {
+        // 如果任务已完成，直接返回
         if (task.completed) return 'completed';
 
-        // 如果有kanbanStatus且是有效的状态ID，直接使用
-        if (task.kanbanStatus && task.kanbanStatus !== 'completed') {
-            // 检查是否是有效的kanbanStatus
-            const validStatus = this.kanbanStatuses.find(s => s.id === task.kanbanStatus);
-            if (validStatus) {
-                return task.kanbanStatus;
-            }
-        }
-
-
-
-        // 如果未完成的任务设置了日期，且日期为今天或过期，放入进行中列
+        // 优先依据任务的日期判断：如果任务设置了日期且为今天或过去，优先视为进行中
         if (task.date) {
-            const today = getLogicalDateString();
-            const dateComparison = compareDateStrings(this.getTaskLogicalDate(task.date, task.time), today);
-            if (dateComparison <= 0) { // 今天或过去
-                return 'doing';
+            try {
+                const today = getLogicalDateString();
+                const dateComparison = compareDateStrings(this.getTaskLogicalDate(task.date, task.time), today);
+                if (dateComparison <= 0) { // 今天或过去
+                    return 'doing';
+                }
+            } catch (e) {
+                // 解析错误时忽略，继续使用 kanbanStatus 或默认值
             }
         }
 
-        return 'doing'; // 默认为doing
+        // 如果有 kanbanStatus 且是有效的状态ID，使用之
+        if (task.kanbanStatus && task.kanbanStatus !== 'completed') {
+            const validStatus = this.kanbanStatuses.find(s => s.id === task.kanbanStatus);
+            if (validStatus) return task.kanbanStatus;
+        }
+
+        // 默认返回进行中
+        return 'doing';
     }
 
     private updateSortButtonTitle() {
