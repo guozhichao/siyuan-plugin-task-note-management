@@ -2631,7 +2631,55 @@ export class ProjectKanbanView {
             // 归一化：确保 'ungrouped' 字符串也会被当作 null 处理
             if (groupId === 'ungrouped') groupId = null;
             const reminderData = await this.getReminders();
+            // 支持重复实例：如果是实例，写入原始提醒的 repeat.instanceModifications[date]
+            if (task.isRepeatInstance && task.originalId) {
+                const instanceDate = task.date;
+                const originalId = task.originalId;
+                // 获取原始及其后代原始ID
+                const originalIds = [originalId, ...this.getAllDescendantIds(originalId, reminderData)];
+                let updatedCount = 0;
 
+                for (const oid of originalIds) {
+                    const orig = reminderData[oid];
+                    if (!orig) continue;
+                    if (!orig.repeat) orig.repeat = {};
+                    if (!orig.repeat.instanceModifications) orig.repeat.instanceModifications = {};
+                    if (!orig.repeat.instanceModifications[instanceDate]) orig.repeat.instanceModifications[instanceDate] = {};
+
+                    const instMod = orig.repeat.instanceModifications[instanceDate];
+                    if (groupId === null) {
+                        if (instMod.customGroupId !== undefined) {
+                            delete instMod.customGroupId;
+                            updatedCount++;
+                        }
+                    } else {
+                        if (instMod.customGroupId !== groupId) {
+                            instMod.customGroupId = groupId;
+                            updatedCount++;
+                        }
+                    }
+                }
+
+                if (updatedCount === 0) {
+                    showMessage('没有需要更新的任务分组');
+                    return;
+                }
+
+                await saveReminders(this.plugin, reminderData);
+
+                this.dispatchReminderUpdate(true);
+
+                if (groupId === null) {
+                    showMessage(`已将 ${updatedCount} 个任务实例移出分组`);
+                } else {
+                    showMessage(`已将 ${updatedCount} 个任务实例添加到分组`);
+                }
+
+                await this.queueLoadTasks();
+                return;
+            }
+
+            // 非实例情况：按原逻辑更新实际任务及其后代
             if (!reminderData[task.id]) {
                 showMessage("任务不存在");
                 return;
@@ -2692,9 +2740,12 @@ export class ProjectKanbanView {
         try {
             const reminderData = await this.getReminders();
 
-            if (!reminderData[task.id]) {
-                showMessage("任务不存在");
-                return;
+            // 如果是重复实例，优先走实例处理逻辑；否则确保目标任务存在
+            if (!(task.isRepeatInstance && task.originalId)) {
+                if (!reminderData[task.id]) {
+                    showMessage("任务不存在");
+                    return;
+                }
             }
 
             // 获取标签名称用于显示
@@ -2702,6 +2753,65 @@ export class ProjectKanbanView {
             const projectTags = await projectManager.getProjectTags(this.projectId);
             const tag = projectTags.find(t => t.id === tagId);
             const tagName = tag?.name || tagId;
+
+            // 支持重复实例：如果是实例，写入原始提醒的 repeat.instanceModifications[date]
+            if (task.isRepeatInstance && task.originalId) {
+                const instanceDate = task.date;
+                const originalId = task.originalId;
+                // 获取原始及其后代原始ID
+                const originalIds = [originalId, ...this.getAllDescendantIds(originalId, reminderData)];
+                let updatedCount = 0;
+
+                // 判断原始任务当前实例是否包含该标签（用于判断是添加还是移除）
+                const origFirst = reminderData[originalId];
+                const origInstanceMods = origFirst?.repeat?.instanceModifications || {};
+                const instanceModExample = origInstanceMods[instanceDate] || {};
+                const instanceTags = instanceModExample.tagIds || origFirst?.tagIds || [];
+                const isAdding = instanceTags.indexOf(tagId) === -1;
+
+                for (const oid of originalIds) {
+                    const orig = reminderData[oid];
+                    if (!orig) continue;
+                    if (!orig.repeat) orig.repeat = {};
+                    if (!orig.repeat.instanceModifications) orig.repeat.instanceModifications = {};
+                    if (!orig.repeat.instanceModifications[instanceDate]) orig.repeat.instanceModifications[instanceDate] = {};
+
+                    const instMod = orig.repeat.instanceModifications[instanceDate];
+                    if (!instMod.tagIds) {
+                        // 如果实例层没有定义标签，初始化为原始任务的标签副本（避免覆盖原始）
+                        instMod.tagIds = Array.isArray(orig.tagIds) ? [...orig.tagIds] : [];
+                    }
+
+                    const idx = instMod.tagIds.indexOf(tagId);
+                    if (isAdding) {
+                        if (idx === -1) {
+                            instMod.tagIds.push(tagId);
+                            updatedCount++;
+                        }
+                    } else {
+                        if (idx > -1) {
+                            instMod.tagIds.splice(idx, 1);
+                            updatedCount++;
+                        }
+                    }
+                }
+
+                if (updatedCount === 0) {
+                    showMessage('没有需要更新的任务标签');
+                    return;
+                }
+
+                await saveReminders(this.plugin, reminderData);
+                this.dispatchReminderUpdate(true);
+                if (isAdding) {
+                    showMessage(`已为 ${updatedCount} 个任务实例添加标签"${tagName}"`);
+                } else {
+                    showMessage(`已从 ${updatedCount} 个任务实例移除标签"${tagName}"`);
+                }
+
+                await this.queueLoadTasks();
+                return;
+            }
 
             // 计算要更新的任务列表：包含当前任务及其所有后代
             const toUpdateIds = [task.id, ...this.getAllDescendantIds(task.id, reminderData)];
@@ -2870,6 +2980,8 @@ export class ProjectKanbanView {
                             projectId: instanceMod?.projectId !== undefined ? instanceMod.projectId : reminder.projectId,
                             customGroupId: instanceMod?.customGroupId !== undefined ? instanceMod.customGroupId : reminder.customGroupId,
                             kanbanStatus: instanceMod?.kanbanStatus !== undefined ? instanceMod.kanbanStatus : reminder.kanbanStatus,
+                            // 实例层标签支持：优先使用 instanceMod 的 tagIds，否则使用原始提醒的 tagIds
+                            tagIds: instanceMod?.tagIds !== undefined ? instanceMod.tagIds : reminder.tagIds,
                             // 为已完成的实例添加完成时间（用于排序）
                             completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined
                         };
