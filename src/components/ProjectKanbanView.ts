@@ -105,6 +105,9 @@ export class ProjectKanbanView {
     private selectedTaskIds: Set<string> = new Set();
     // 批量操作工具栏元素
     private batchToolbar: HTMLElement | null = null;
+    // 筛选标签集合
+    private selectedFilterTags: Set<string> = new Set();
+    private filterButton: HTMLButtonElement;
     // 上一次点击的任务ID（用于Shift多选范围）
     private lastClickedTaskId: string | null = null;
 
@@ -2008,6 +2011,18 @@ export class ProjectKanbanView {
         this.sortButton.addEventListener('click', (e) => this.showSortMenu(e));
         controlsGroup.appendChild(this.sortButton);
 
+        // 筛选按钮
+        this.filterButton = document.createElement('button');
+        this.filterButton.className = 'b3-button b3-button--outline';
+        this.filterButton.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconFilter"></use></svg>';
+        this.filterButton.addEventListener('click', (e) => this.showFilterMenu(e));
+        // 如果有激活的筛选，高亮按钮
+        if (this.selectedFilterTags.size > 0) {
+            this.filterButton.classList.add('b3-button--primary');
+            this.filterButton.classList.remove('b3-button--outline');
+        }
+        controlsGroup.appendChild(this.filterButton);
+
         // 搜索按钮和输入框
         const searchContainer = document.createElement('div');
         searchContainer.className = 'kanban-search-container';
@@ -3124,6 +3139,39 @@ export class ProjectKanbanView {
                 this.tasks.forEach(t => {
                     if (matches(t)) {
                         // 匹配的任务及其所有祖先都需要保留，以维持层级显示
+                        let current = t;
+                        while (current) {
+                            matchingIds.add(current.id);
+                            current = current.parentId ? taskMap.get(current.parentId) : null;
+                        }
+                    }
+                });
+
+                this.tasks = this.tasks.filter(t => matchingIds.has(t.id));
+            }
+
+            // [NEW] 标签(Tag)过滤逻辑
+            if (this.selectedFilterTags.size > 0) {
+                const matchesTag = (t: any) => {
+                    const tagIds = t.tagIds || [];
+                    const hasNoTags = tagIds.length === 0;
+
+                    if (this.selectedFilterTags.has('__no_tag__') && hasNoTags) return true;
+
+                    // 如果任务有标签，检查是否有交集
+                    if (tagIds.length > 0) {
+                        return tagIds.some((id: string) => this.selectedFilterTags.has(id));
+                    }
+
+                    return false;
+                };
+
+                const matchingIds = new Set<string>();
+                const taskMap = new Map(this.tasks.map(t => [t.id, t]));
+
+                this.tasks.forEach(t => {
+                    if (matchesTag(t)) {
+                        // 匹配的任务及其所有祖先都需要保留
                         let current = t;
                         while (current) {
                             matchingIds.add(current.id);
@@ -7145,6 +7193,119 @@ export class ProjectKanbanView {
             }
         }
         return result;
+    }
+
+
+    private async showFilterMenu(event: MouseEvent) {
+        // 创建弹窗容器
+        const menu = document.createElement('div');
+        menu.className = 'filter-dropdown-menu';
+        menu.style.cssText = `
+            display: block; 
+            position: fixed; 
+            z-index: 1000; 
+            background-color: var(--b3-theme-background); 
+            border: 1px solid var(--b3-border-color); 
+            border-radius: 4px; 
+            box-shadow: rgba(0, 0, 0, 0.15) 0px 2px 8px; 
+            min-width: 200px; 
+            max-height: 400px; 
+            overflow-y: auto; 
+            padding: 8px;
+        `;
+
+        // 计算定位
+        const rect = (event.target as HTMLElement).getBoundingClientRect();
+        menu.style.top = `${rect.bottom + 4}px`;
+        menu.style.left = `${rect.left}px`;
+
+        // 取消全选按钮
+        const clearBtn = document.createElement('button');
+        clearBtn.className = 'b3-button b3-button--text';
+        clearBtn.style.cssText = 'width: 100%; margin-bottom: 8px; justify-content: flex-start;';
+        clearBtn.textContent = i18n('clearSelection') || '取消全选'; // Assuming i18n key exists or fallback
+        clearBtn.addEventListener('click', () => {
+            this.selectedFilterTags.clear();
+            this.queueLoadTasks();
+            menu.remove();
+            // Update button style
+            this.filterButton.classList.remove('b3-button--primary');
+            this.filterButton.classList.add('b3-button--outline');
+        });
+        menu.appendChild(clearBtn);
+
+        const divider = document.createElement('div');
+        divider.style.cssText = 'border-top: 1px solid var(--b3-border-color); margin: 8px 0px;';
+        menu.appendChild(divider);
+
+        // 获取项目标签
+        const tags = await this.projectManager.getProjectTags(this.projectId);
+
+        // "无标签" 选项
+        const renderItem = (id: string, name: string, color?: string, icon?: string) => {
+            const label = document.createElement('label');
+            label.style.cssText = 'display: flex; align-items: center; padding: 4px 8px; cursor: pointer; user-select: none; border-radius: 4px;';
+            label.addEventListener('mouseenter', () => label.style.backgroundColor = 'var(--b3-theme-on-surface-light)'); // rudimentary hover
+            label.addEventListener('mouseleave', () => label.style.backgroundColor = '');
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.style.cssText = 'margin-right: 8px;';
+            checkbox.checked = this.selectedFilterTags.has(id);
+
+            checkbox.addEventListener('change', () => {
+                if (checkbox.checked) {
+                    this.selectedFilterTags.add(id);
+                } else {
+                    this.selectedFilterTags.delete(id);
+                }
+
+                // Update button style real-time
+                if (this.selectedFilterTags.size > 0) {
+                    this.filterButton.classList.add('b3-button--primary');
+                    this.filterButton.classList.remove('b3-button--outline');
+                } else {
+                    this.filterButton.classList.remove('b3-button--primary');
+                    this.filterButton.classList.add('b3-button--outline');
+                }
+
+                // 实时刷新
+                this.queueLoadTasks();
+            });
+
+            // 标签颜色圆点
+            let iconHtml = '';
+            if (icon) {
+                iconHtml = `<span style="margin-right: 6px;">${icon}</span>`;
+            } else if (color) {
+                iconHtml = `<span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: ${color}; margin-right: 8px;"></span>`;
+            }
+
+            const span = document.createElement('span');
+            span.innerHTML = `${iconHtml}${name}`;
+            span.style.cssText = 'display: flex; align-items: center;';
+
+            label.appendChild(checkbox);
+            label.appendChild(span);
+            menu.appendChild(label);
+        };
+
+        renderItem('__no_tag__', i18n('noTag') || '无标签', undefined, '🚫');
+
+        tags.forEach(tag => {
+            renderItem(tag.id, tag.name, tag.color);
+        });
+
+        document.body.appendChild(menu);
+
+        // 点击外部关闭
+        const closeHandler = (e: MouseEvent) => {
+            if (!menu.contains(e.target as Node) && !this.filterButton.contains(e.target as Node)) {
+                menu.remove();
+                document.removeEventListener('click', closeHandler);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', closeHandler), 0);
     }
 
     private showSortMenu(event: MouseEvent) {
