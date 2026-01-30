@@ -944,39 +944,15 @@ export class ReminderPanel {
             const menu = new Menu("reminderSortMenu");
 
             const sortOptions = [
-                { key: 'time', label: i18n("sortByTime"), icon: '🗓' },
                 { key: 'priority', label: i18n("sortByPriority"), icon: '🎯' },
+                { key: 'time', label: i18n("sortByTime"), icon: '🗓' },
                 { key: 'title', label: i18n("sortByTitle"), icon: '📝' }
             ];
 
             sortOptions.forEach(option => {
-                // 为每个排序方式添加升序和降序选项
                 menu.addItem({
                     iconHTML: option.icon,
-                    label: `${option.label} (${i18n("ascending")}↓)`,
-                    current: this.currentSort === option.key && this.currentSortOrder === 'asc',
-                    click: async () => {
-                        try {
-                            this.currentSort = option.key;
-                            this.currentSortOrder = 'asc';
-                            this.updateSortButtonTitle();
-                            await saveSortConfig(this.plugin, option.key, 'asc');
-                            // 重置分页状态
-                            this.currentPage = 1;
-                            this.totalPages = 1;
-                            this.totalItems = 0;
-                            await this.loadReminders();
-                            // console.log('排序已更新为:', option.key, 'asc');
-                        } catch (error) {
-                            console.error('保存排序配置失败:', error);
-                            await this.loadReminders();
-                        }
-                    }
-                });
-
-                menu.addItem({
-                    iconHTML: option.icon,
-                    label: `${option.label} (${i18n("descending")}↑)`,
+                    label: `${option.label} (${i18n("descendingOrder")})`,
                     current: this.currentSort === option.key && this.currentSortOrder === 'desc',
                     click: async () => {
                         try {
@@ -990,6 +966,30 @@ export class ReminderPanel {
                             this.totalItems = 0;
                             await this.loadReminders();
                             // console.log('排序已更新为:', option.key, 'desc');
+                        } catch (error) {
+                            console.error('保存排序配置失败:', error);
+                            await this.loadReminders();
+                        }
+                    }
+                });
+
+                // 为每个排序方式添加升序和降序选项
+                menu.addItem({
+                    iconHTML: option.icon,
+                    label: `${option.label} (${i18n("ascendingOrder")})`,
+                    current: this.currentSort === option.key && this.currentSortOrder === 'asc',
+                    click: async () => {
+                        try {
+                            this.currentSort = option.key;
+                            this.currentSortOrder = 'asc';
+                            this.updateSortButtonTitle();
+                            await saveSortConfig(this.plugin, option.key, 'asc');
+                            // 重置分页状态
+                            this.currentPage = 1;
+                            this.totalPages = 1;
+                            this.totalItems = 0;
+                            await this.loadReminders();
+                            // console.log('排序已更新为:', option.key, 'asc');
                         } catch (error) {
                             console.error('保存排序配置失败:', error);
                             await this.loadReminders();

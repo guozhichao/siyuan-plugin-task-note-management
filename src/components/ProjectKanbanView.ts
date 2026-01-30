@@ -7756,7 +7756,10 @@ export class ProjectKanbanView {
                 if ((isInTopSortZone || isInBottomSortZone)) {
                     // 排序操作
                     // [修改]：如果可以排序、成为同级 或 改变状态，则允许放置
-                    if (canSort || canBecomeSibling || canChangeStatus) {
+                    // [New Logic] Only allow sort indicator if current sort mode is 'priority' OR if we are changing hierarchy/status
+                    const isPrioritySort = this.currentSort === 'priority';
+
+                    if ((isPrioritySort && (canSort || canBecomeSibling)) || canChangeStatus) {
                         e.preventDefault();
                         if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
                         const position = isInTopSortZone ? 'top' : 'bottom';
@@ -9419,10 +9422,10 @@ export class ProjectKanbanView {
                 `;
 
         const sortOptions = [
-            { key: 'priority', label: '优先级', icon: '🎯' },
-            { key: 'time', label: '时间', icon: '🕐' },
-            { key: 'title', label: '标题', icon: '📝' },
-            { key: 'createdAt', label: i18n('sortByCreated'), icon: '📅' }
+            { key: 'priority', label: i18n('sortByPriority'), icon: '🎯' },
+            { key: 'time', label: i18n('sortByTime'), icon: '🕐' },
+            { key: 'createdAt', label: i18n('sortByCreated'), icon: '📅' },
+            { key: 'title', label: i18n('sortByTitle'), icon: '📝' },
         ];
 
         const createOption = (option: any, order: 'asc' | 'desc') => {
@@ -9442,7 +9445,7 @@ export class ProjectKanbanView {
             // Use valid <span> tags (no stray spaces in tag names), and keep layout compact
             button.innerHTML = `
                     <span style="font-size: 16px; margin-right: 8px;">${option.icon}</span>
-                    <span>${option.label} (${order === 'asc' ? i18n('ascendingOrder') : i18n('descendingOrder')})</span>
+                    <span>${option.label} (${order === 'asc' ? i18n('ascendingOrder') + '↑' : i18n('descendingOrder') + '↓'})</span>
                 `;
             button.addEventListener('click', async () => {
                 this.currentSort = option.key;
@@ -11807,6 +11810,11 @@ export class ProjectKanbanView {
     }
 
     private async reorderTasks(draggedTask: any, targetTask: any, insertBefore: boolean): Promise<boolean> {
+        // [New Logic] Only allow reordering if in 'priority' sort mode
+        if (this.currentSort !== 'priority') {
+            return false;
+        }
+
         try {
             const reminderData = await this.getReminders();
 
