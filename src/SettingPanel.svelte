@@ -577,7 +577,7 @@
                     button: {
                         label: '生成 ICS',
                         callback: async () => {
-                            await exportIcsFile(plugin, true);
+                            await exportIcsFile(plugin, true, true, false, settings.icsTaskFilter);
                         },
                     },
                 },
@@ -590,7 +590,7 @@
                     button: {
                         label: '生成 ICS（小米）',
                         callback: async () => {
-                            await exportIcsFile(plugin, true);
+                            await exportIcsFile(plugin, true, true, false, settings.icsTaskFilter);
                         },
                     },
                 },
@@ -668,6 +668,18 @@
                     title: 'ICS 云端同步',
                     description:
                         '将ICS文件上传到云端，实现多设备间的提醒同步。支持思源服务器或S3存储。',
+                },
+                {
+                    key: 'icsTaskFilter',
+                    value: settings.icsTaskFilter || 'all',
+                    type: 'select',
+                    title: '任务状态筛选',
+                    description: '选择导出哪些任务到 ICS 文件',
+                    options: {
+                        all: '全部任务',
+                        completed: '已完成任务',
+                        uncompleted: '未完成任务',
+                    },
                 },
                 {
                     key: 'icsFormat',

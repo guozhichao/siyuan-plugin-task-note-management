@@ -116,7 +116,7 @@ export const DEFAULT_SETTINGS = {
     // 项目排序配置
     projectSortOrder: [],
     projectSortMode: 'custom',
-    // ICS 云端同步配置
+    // 日历上传：ICS云端同步配置
     icsSyncInterval: 'daily', // 'manual' | '15min' | 'hourly' | '4hour' | '12hour' | 'daily'
     icsCloudUrl: '',
     icsLastSyncAt: '', // 上一次上传时间
@@ -124,6 +124,7 @@ export const DEFAULT_SETTINGS = {
     icsFormat: 'normal', // 'normal' | 'xiaomi' - ICS格式
     icsFileName: '', // ICS文件名，默认为空时自动生成
     icsSilentUpload: false, // 是否静默上传ICS文件，不显示成功提示
+    icsTaskFilter: 'all', // 'all' | 'completed' | 'uncompleted' - 任务筛选
     // ICS 同步方式配置
     icsSyncMethod: 'siyuan', // 'siyuan' | 's3' - 同步方式
     // S3 配置

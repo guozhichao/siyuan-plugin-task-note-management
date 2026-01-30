@@ -29,7 +29,8 @@ export async function exportIcsFile(
     plugin: any,
     normalizeForXiaomi: boolean,
     openFolder: boolean = true,
-    isSilent: boolean = false
+    isSilent: boolean = false,
+    filterType: 'all' | 'completed' | 'uncompleted' = 'all'
 ) {
     try {
         const dataDir = 'data/storage/petal/siyuan-plugin-task-note-management';
@@ -263,6 +264,12 @@ export async function exportIcsFile(
                                 status: child.completed ? 'CONFIRMED' : 'TENTATIVE',
                             };
 
+                            let childMatches = true;
+                            if (filterType === 'completed' && !child.completed) childMatches = false;
+                            if (filterType === 'uncompleted' && child.completed) childMatches = false;
+
+                            if (!childMatches) continue;
+
                             if (childStartTimeArray) {
                                 childEvent.start = [
                                     ...childStartDateArray,
@@ -369,6 +376,13 @@ export async function exportIcsFile(
             } catch (e) {
                 console.warn('处理子任务出错', e);
             }
+
+            // Check parent filter
+            let parentMatches = true;
+            if (filterType === 'completed' && !r.completed) parentMatches = false;
+            if (filterType === 'uncompleted' && r.completed) parentMatches = false;
+
+            if (!parentMatches) continue;
 
             let startDateArray = parseDateArray(r.date);
             if (!startDateArray) continue;
@@ -821,7 +835,8 @@ export async function uploadIcsToCloud(plugin: any, settings: any, silent: boole
 
         // 1. 调用 exportIcsFile 生成 ICS 文件
         const isXiaomiFormat = settings.icsFormat === 'xiaomi';
-        await exportIcsFile(plugin, isXiaomiFormat, false, true);
+        const filterType = settings.icsTaskFilter || 'all';
+        await exportIcsFile(plugin, isXiaomiFormat, false, true, filterType);
 
         // 2. 读取生成的 reminders.ics 文件
         const dataDir = 'data/storage/petal/siyuan-plugin-task-note-management';
