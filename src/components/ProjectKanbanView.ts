@@ -4770,10 +4770,11 @@ export class ProjectKanbanView {
         });
 
         // 处理未分组任务：仅在存在未分组任务时显示未分组列
+        const validGroupIds = new Set(projectGroups.map((g: any) => g.id));
         const ungroupedStatusTasks: { [status: string]: any[] } = {};
         let hasUngrouped = false;
         this.kanbanStatuses.forEach(status => {
-            ungroupedStatusTasks[status.id] = statusTasks[status.id].filter(task => !task.customGroupId);
+            ungroupedStatusTasks[status.id] = statusTasks[status.id].filter(task => !task.customGroupId || !validGroupIds.has(task.customGroupId));
             if (ungroupedStatusTasks[status.id].length > 0) {
                 hasUngrouped = true;
             }
@@ -5036,7 +5037,7 @@ export class ProjectKanbanView {
         if (!kanbanContainer) return;
 
         // 确保状态列存在，如果不存在才创建
-        this.ensureStatusColumnsExist(kanbanContainer);
+        await this.ensureStatusColumnsExist(kanbanContainer);
 
         // 按任务状态分组 - 使用kanbanStatuses中定义的所有状态
         const statusTasks: { [status: string]: any[] } = {};
@@ -5092,7 +5093,38 @@ export class ProjectKanbanView {
                     header.style.background = `${status.color}15`;
 
                     let rightContainer = header.querySelector('.custom-header-right') as HTMLElement;
-                    if (rightContainer && hasAnyMilestones) {
+
+                    // 确保 rightContainer 存在
+                    if (!rightContainer) {
+                        rightContainer = document.createElement('div');
+                        rightContainer.className = 'custom-header-right';
+                        rightContainer.style.cssText = 'display:flex; align-items:center; gap:8px;';
+                        header.appendChild(rightContainer);
+                    }
+
+                    // 确保 count 存在
+                    let count = rightContainer.querySelector('.kanban-column-count') as HTMLElement;
+                    if (!count) {
+                        count = document.createElement('span');
+                        count.className = 'kanban-column-count';
+
+                        const titleH3 = header.querySelector('h3');
+                        const titleColor = titleH3?.style?.color || status.color || 'var(--b3-theme-primary)';
+
+                        count.style.cssText = `
+                            background: ${titleColor};
+                            color: white;
+                            border-radius: 12px;
+                            padding: 2px 8px;
+                            font-size: 12px;
+                            font-weight: 500;
+                            min-width: 20px;
+                            text-align: center;
+                        `;
+                        rightContainer.insertBefore(count, rightContainer.firstChild);
+                    }
+
+                    if (hasAnyMilestones) {
                         if (!rightContainer.querySelector('.milestone-filter-btn')) {
                             // 里程碑筛选按钮
                             const milestoneFilterBtn = document.createElement('button');
@@ -5222,7 +5254,7 @@ export class ProjectKanbanView {
 
         if (hasCustomGroups) {
             // 如果有自定义分组，使用原有的分组渲染逻辑
-            this.renderTasksGroupedByCustomGroupInStableContainer(groupsContainer, tasks, status);
+            await this.renderTasksGroupedByCustomGroupInStableContainer(groupsContainer, tasks, status);
         } else {
             // 如果没有自定义分组，直接在状态子分组中渲染任务
             this.renderTasksInStableStatusGroups(groupsContainer, tasks, status);
@@ -5325,6 +5357,8 @@ export class ProjectKanbanView {
 
             // 为每个自定义分组创建子容器
             const isCollapsedDefault = status === 'completed';
+            const validGroupIds = new Set(projectGroups.map((g: any) => g.id));
+
             projectGroups.forEach((group: any) => {
                 const groupTasks = tasks.filter(task => task.customGroupId === group.id);
                 if (groupTasks.length > 0) {
@@ -5333,8 +5367,8 @@ export class ProjectKanbanView {
                 }
             });
 
-            // 添加未分组任务
-            const ungroupedTasks = tasks.filter(task => !task.customGroupId);
+            // 添加未分组任务（包括指向不存在分组的任务）
+            const ungroupedTasks = tasks.filter(task => !task.customGroupId || !validGroupIds.has(task.customGroupId));
             if (ungroupedTasks.length > 0) {
                 const ungroupedGroup = {
                     id: 'ungrouped',
@@ -5342,7 +5376,6 @@ export class ProjectKanbanView {
                     color: '#95a5a6',
                     icon: '📋'
                 };
-                const isCollapsedDefault = status === 'completed';
                 const ungroupedContainer = this.createCustomGroupInStatusColumn(ungroupedGroup, ungroupedTasks, isCollapsedDefault, status);
                 groupsSubContainer.appendChild(ungroupedContainer);
             }
@@ -5539,8 +5572,9 @@ export class ProjectKanbanView {
     }
 
     private async renderGroupedListColumns(container: HTMLElement, groups: any[]) {
-        // Handle ungrouped tasks
-        const ungroupedTasks = this.tasks.filter(t => !t.customGroupId);
+        // Handle ungrouped tasks (orphaned tasks should be considered ungrouped)
+        const validGroupIds = new Set(groups.map(g => g.id));
+        const ungroupedTasks = this.tasks.filter(t => !t.customGroupId || !validGroupIds.has(t.customGroupId));
 
         // Sort groups
         const sortedGroups = [...groups].sort((a, b) => (a.sort || 0) - (b.sort || 0));
@@ -6601,7 +6635,7 @@ export class ProjectKanbanView {
         projectGroups.forEach((group: any) => {
             const groupTasks = tasks.filter(task => task.customGroupId === group.id);
             if (groupTasks.length > 0) {
-                const groupContainer = this.createCustomGroupInStatusColumn(group, groupTasks, false, status);
+                const groupContainer = this.createCustomGroupInStatusColumn(group, groupTasks, false, '');
                 groupsContainer.appendChild(groupContainer);
             }
         });
@@ -6615,7 +6649,7 @@ export class ProjectKanbanView {
                 color: '#95a5a6',
                 icon: '📋'
             };
-            const ungroupedContainer = this.createCustomGroupInStatusColumn(ungroupedGroup, ungroupedTasks, false, status);
+            const ungroupedContainer = this.createCustomGroupInStatusColumn(ungroupedGroup, ungroupedTasks, false, '');
             groupsContainer.appendChild(ungroupedContainer);
         }
 
