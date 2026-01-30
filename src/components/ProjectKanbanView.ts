@@ -109,6 +109,8 @@ export class ProjectKanbanView {
     private selectedFilterTags: Set<string> = new Set();
     // 筛选里程碑集合 (groupId -> Set of milestoneIds)
     private selectedFilterMilestones: Map<string, Set<string>> = new Map();
+    // 每个分组的所有可用里程碑ID (groupId -> Set of all available milestoneIds)
+    private allAvailableMilestones: Map<string, Set<string>> = new Map();
     private milestoneFilterButton: HTMLButtonElement;
     private isFilterActive: boolean = false;
     private selectedDateFilters: Set<string> = new Set();
@@ -2977,8 +2979,14 @@ export class ProjectKanbanView {
                 }
             }
 
-            // 更新高亮状态
-            if (hasActiveMilestoneFilter) {
+            // 更新高亮状态：只在部分选择时添加 b3-button--primary
+            const allAvailableSet = this.allAvailableMilestones.get(groupId);
+            const selectedSet = this.selectedFilterMilestones.get(groupId);
+            const isPartialSelection = selectedSet && allAvailableSet &&
+                selectedSet.size > 0 &&
+                selectedSet.size < allAvailableSet.size;
+
+            if (isPartialSelection) {
                 milestoneFilterBtn.classList.add('b3-button--primary');
                 milestoneFilterBtn.classList.remove('b3-button--outline');
             } else {
@@ -3074,6 +3082,24 @@ export class ProjectKanbanView {
                 groupId: targetGroupId // 在 Status 视图下，targetGroupId 是 Status ID；Custom 视图下是 Group ID
             });
 
+            // 收集所有可用里程碑ID（用于后续比较是否全选）
+            const allAvailableMilestoneIds = new Set<string>();
+            milestonesToShow.forEach(group => {
+                group.milestones.forEach(m => allAvailableMilestoneIds.add(m.id));
+            });
+
+            // 存储该分组的所有可用里程碑ID
+            this.allAvailableMilestones.set(targetGroupId, allAvailableMilestoneIds);
+
+            // 如果之前没有选择过，默认全选（但不视为筛选状态）
+            const hasExistingFilter = this.selectedFilterMilestones.has(targetGroupId);
+            if (!hasExistingFilter) {
+                // 默认全选，将所有里程碑加入筛选
+                const defaultSet = new Set<string>();
+                allAvailableMilestoneIds.forEach(id => defaultSet.add(id));
+                this.selectedFilterMilestones.set(targetGroupId, defaultSet);
+            }
+
             // 创建弹窗容器
             const menu = document.createElement('div');
             menu.className = 'milestone-filter-dropdown-menu';
@@ -3106,14 +3132,10 @@ export class ProjectKanbanView {
             selectAllBtn.style.flex = '1';
             selectAllBtn.textContent = i18n('selectAll') || '全选';
             selectAllBtn.addEventListener('click', () => {
-                // 清只除当前 targetGroupId 的 filter
-                this.selectedFilterMilestones.set(targetGroupId, new Set()); // 先重置为空 Set
-                const currentSet = this.selectedFilterMilestones.get(targetGroupId)!;
-
                 // 将所有显示的 milestone 加入 set
-                milestonesToShow.forEach(group => {
-                    group.milestones.forEach(m => currentSet.add(m.id));
-                });
+                const currentSet = new Set<string>();
+                allAvailableMilestoneIds.forEach(id => currentSet.add(id));
+                this.selectedFilterMilestones.set(targetGroupId, currentSet);
 
                 // 更新 UI
                 const checkboxes = menu.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
@@ -3130,7 +3152,8 @@ export class ProjectKanbanView {
             clearBtn.style.flex = '1';
             clearBtn.textContent = i18n('clearSelection') || '清除';
             clearBtn.addEventListener('click', () => {
-                this.selectedFilterMilestones.delete(targetGroupId);
+                // 设置为空 Set，表示清除所有选择（不显示任何任务）
+                this.selectedFilterMilestones.set(targetGroupId, new Set());
                 const checkboxes = menu.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
                 checkboxes.forEach(cb => cb.checked = false);
                 this.queueLoadTasks();
@@ -3206,7 +3229,7 @@ export class ProjectKanbanView {
                         if (checkbox.checked) set.add(ms.id);
                         else set.delete(ms.id);
 
-                        if (set.size === 0) this.selectedFilterMilestones.delete(section.groupId);
+                        // 不再删除空 Set，保留空 Set 表示清除状态（不显示任何任务）
 
                         this.queueLoadTasks();
                         this.updateMilestoneFilterButtonsState();
@@ -3259,8 +3282,16 @@ export class ProjectKanbanView {
         const buttons = this.container.querySelectorAll('.milestone-filter-btn') as NodeListOf<HTMLButtonElement>;
         buttons.forEach(btn => {
             const groupId = btn.dataset.groupId;
-            // Check if there is an active filter for this specific group/context
-            if (groupId && this.selectedFilterMilestones.has(groupId)) {
+            const selectedSet = groupId ? this.selectedFilterMilestones.get(groupId) : undefined;
+            const allAvailableSet = groupId ? this.allAvailableMilestones.get(groupId) : undefined;
+
+            // 检查是否是部分选择（有选择但不等于全部）
+            const isPartialSelection = selectedSet && allAvailableSet &&
+                selectedSet.size > 0 &&
+                selectedSet.size < allAvailableSet.size;
+
+            // 只在部分选择时添加 b3-button--primary
+            if (isPartialSelection) {
                 btn.classList.add('b3-button--primary');
                 btn.classList.remove('b3-button--outline');
             } else {
@@ -4340,6 +4371,9 @@ export class ProjectKanbanView {
             this._statusHasMilestoneTasks.clear();
             this._availableMilestonesInView.clear();
             this._statusGroupsInView.clear();
+            // 创建任务映射以便查找父任务
+            const taskMapForStats = new Map(this.tasks.map(t => [t.id, t]));
+
             this.tasks.forEach(t => {
                 const status = t.status || this.getTaskStatus(t);
                 const customGroup = t.customGroupId || 'ungrouped';
@@ -4350,10 +4384,20 @@ export class ProjectKanbanView {
                 }
                 this._statusGroupsInView.get(status)!.add(customGroup);
 
-                if (t.milestoneId) {
+                // 获取任务的有效里程碑（考虑继承父任务的情况）
+                let effectiveMilestoneId = t.milestoneId;
+                if (!effectiveMilestoneId && t.parentId) {
+                    // 如果子任务没有里程碑，尝试继承父任务的里程碑
+                    const parentTask = taskMapForStats.get(t.parentId);
+                    if (parentTask) {
+                        effectiveMilestoneId = parentTask.milestoneId;
+                    }
+                }
+
+                if (effectiveMilestoneId) {
                     this._statusHasMilestoneTasks.add(status);
                     this._statusHasMilestoneTasks.add(customGroup);
-                    this._availableMilestonesInView.add(t.milestoneId);
+                    this._availableMilestonesInView.add(effectiveMilestoneId);
                 }
             });
 
@@ -4374,14 +4418,27 @@ export class ProjectKanbanView {
                         return true;
                     }
 
-                    const milestoneId = t.milestoneId;
                     const set = this.selectedFilterMilestones.get(filterKey);
                     if (!set) return true;
 
-                    if (!milestoneId) {
+                    // 如果 Set 为空，不显示任何任务
+                    if (set.size === 0) {
+                        return false;
+                    }
+
+                    // 获取任务的有效里程碑（考虑继承父任务的情况）
+                    let effectiveMilestoneId = t.milestoneId;
+                    if (!effectiveMilestoneId && t.parentId) {
+                        const parentTask = taskMap.get(t.parentId);
+                        if (parentTask) {
+                            effectiveMilestoneId = parentTask.milestoneId;
+                        }
+                    }
+
+                    if (!effectiveMilestoneId) {
                         return set.has('__no_milestone__');
                     }
-                    return set.has(milestoneId);
+                    return set.has(effectiveMilestoneId);
                 };
 
                 const taskMap = new Map(this.tasks.map(t => [t.id, t]));
@@ -6323,7 +6380,12 @@ export class ProjectKanbanView {
                         e.stopPropagation();
                         this.showMilestoneFilterMenu(e, status);
                     });
-                    if (milestoneFilterSet && milestoneFilterSet.size > 0) {
+                    // 只在部分选择时添加 b3-button--primary
+                    const allAvailableSet = this.allAvailableMilestones.get(status);
+                    const isPartialSelection = milestoneFilterSet && allAvailableSet &&
+                        milestoneFilterSet.size > 0 &&
+                        milestoneFilterSet.size < allAvailableSet.size;
+                    if (isPartialSelection) {
                         milestoneFilterBtn.classList.add('b3-button--primary');
                         milestoneFilterBtn.classList.remove('b3-button--outline');
                     }
