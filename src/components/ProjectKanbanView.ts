@@ -259,6 +259,13 @@ export class ProjectKanbanView {
             await this.getReminders(false);
             this.queueLoadTasks();
         });
+
+        // 监听键盘事件，支持 Esc 退出多选模式
+        document.addEventListener('keydown', (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && this.isMultiSelectMode) {
+                this.toggleMultiSelectMode();
+            }
+        });
     }
 
     private async loadProject() {
@@ -7327,6 +7334,17 @@ export class ProjectKanbanView {
 
                 // 记录最后一次点击的任务ID
                 this.lastClickedTaskId = task.id;
+            });
+        } else {
+            // 非多选模式下支持 Ctrl+点击 快速进入多选模式
+            taskEl.addEventListener('click', (e) => {
+                if (e.ctrlKey || e.metaKey) {
+                    e.stopPropagation();
+                    // 进入多选模式并选中当前任务
+                    this.toggleMultiSelectMode();
+                    this.toggleTaskSelection(task.id, true);
+                    this.lastClickedTaskId = task.id;
+                }
             });
         }
 
