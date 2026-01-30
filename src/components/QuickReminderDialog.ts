@@ -398,7 +398,8 @@ export class QuickReminderDialog {
         const urlInput = this.dialog.element.querySelector('#quickUrlInput') as HTMLInputElement;
         const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
         const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
-        const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
+        const timeInput = this.dialog.element.querySelector('#quickReminderTime') as HTMLInputElement;
+        const endTimeInput = this.dialog.element.querySelector('#quickReminderEndTime') as HTMLInputElement;
         const noteInput = this.dialog.element.querySelector('#quickReminderNote') as HTMLTextAreaElement;
         const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
 
@@ -477,48 +478,24 @@ export class QuickReminderDialog {
             estimatedPomodoroDurationInput.value = this.reminder.estimatedPomodoroDuration;
         }
 
-        // 填充日期和时间
+        // 填充日期和时间（使用独立的日期和时间输入框）
         if (this.reminder.date) {
-            if (this.reminder.time) {
-                // 有时间：设置datetime-local格式
-                noTimeCheckbox.checked = false;
-                this.toggleDateTimeInputs(false);
-                dateInput.value = `${this.reminder.date}T${this.reminder.time}`;
-            } else {
-                // 无时间：设置date格式
-                noTimeCheckbox.checked = true;
-                this.toggleDateTimeInputs(true);
-                dateInput.value = this.reminder.date;
+            dateInput.value = this.reminder.date;
+
+            // 填充时间（独立输入框）
+            if (this.reminder.time && timeInput) {
+                timeInput.value = this.reminder.time;
             }
 
             // 填充结束日期
             if (this.reminder.endDate) {
-                if (this.reminder.endTime) {
-                    endDateInput.value = `${this.reminder.endDate}T${this.reminder.endTime}`;
-                } else {
-                    // 如果是时间模式（有开始时间），但只有结束日期没有结束时间，需要补全时间以适配 datetime-local
-                    if (this.reminder.time) {
-                        // 默认使用开始时间作为结束时间，或者是 23:59
-                        endDateInput.value = `${this.reminder.endDate}T${this.reminder.time}`;
-                    } else {
-                        endDateInput.value = this.reminder.endDate;
-                    }
-                }
-            } else if (this.reminder.endTime) {
-                // 如果有 endTime 但没有 endDate，默认 endDate 为任务的开始日期或今天
-                const defaultEndDate = this.reminder.date || getLogicalDateString();
-                if (this.reminder.time) {
-                    // 如果开始时间存在，使用 datetime-local 格式
-                    endDateInput.value = `${defaultEndDate}T${this.reminder.endTime}`;
-                } else {
-                    // 如果开始时间不存在，只设置日期
-                    endDateInput.value = defaultEndDate;
-                }
+                endDateInput.value = this.reminder.endDate;
             }
-        } else {
-            // 无日期
-            noTimeCheckbox.checked = true;
-            this.toggleDateTimeInputs(true);
+
+            // 填充结束时间
+            if (this.reminder.endTime && endTimeInput) {
+                endTimeInput.value = this.reminder.endTime;
+            }
         }
 
         // 填充项目
@@ -859,22 +836,28 @@ export class QuickReminderDialog {
 
         const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
         const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
-        const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
+        const timeInput = this.dialog.element.querySelector('#quickReminderTime') as HTMLInputElement;
+        const endTimeInput = this.dialog.element.querySelector('#quickReminderEndTime') as HTMLInputElement;
 
-        // 设置日期和时间
-        const hasAnyTime = result.hasTime || result.hasEndTime;
-        noTimeCheckbox.checked = !hasAnyTime;
-        this.toggleDateTimeInputs(!hasAnyTime);
-
+        // 设置日期
         if (result.date) {
-            dateInput.value = hasAnyTime && result.time ? `${result.date}T${result.time}` : result.date;
+            dateInput.value = result.date;
         } else if (result.endDate) {
-            // 如果只有结束日期，通常是“截止”形式，将其作为起始日期以触发提醒
-            dateInput.value = hasAnyTime && result.endTime ? `${result.endDate}T${result.endTime}` : result.endDate;
+            // 如果只有结束日期，通常是"截止"形式，将其作为起始日期以触发提醒
+            dateInput.value = result.endDate;
         }
 
+        // 设置时间（独立输入框）
+        if (result.time && timeInput) {
+            timeInput.value = result.time;
+        }
+
+        // 设置结束日期和时间
         if (result.endDate) {
-            endDateInput.value = hasAnyTime && result.endTime ? `${result.endDate}T${result.endTime}` : result.endDate;
+            endDateInput.value = result.endDate;
+        }
+        if (result.endTime && endTimeInput) {
+            endTimeInput.value = result.endTime;
         }
 
         // 触发日期变化事件以更新结束日期限制
@@ -1120,23 +1103,29 @@ export class QuickReminderDialog {
                             <input type="date" id="quickAvailableStartDate" class="b3-text-field" style="width: 100%;">
                         </div>
                         <div class="b3-form__group">
-
-                            <label class="b3-checkbox">
-                                <input type="checkbox" id="quickNoSpecificTime" ${this.initialTime ? '' : 'checked'}>
-                                <span class="b3-checkbox__graphic"></span>
-                                <span class="b3-checkbox__label">${i18n("noSpecificTime")}</span>
-                            </label>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">${i18n("reminderDate")} (可选)</label>
-                            <div class="reminder-date-container">
-                                <input type="date" id="quickReminderDate" class="b3-text-field" value="${this.initialDate || ''}" max="9999-12-31">
-                                <span class="reminder-arrow">→</span>
-                                <input type="date" id="quickReminderEndDate" class="b3-text-field reminder-end-date" placeholder="${i18n("endDateOptional")}" title="${i18n("spanningEventDesc")}" max="9999-12-31">
+                            <label class="b3-form__label">${i18n("reminderDate") || "日期时间"} (可选)</label>
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                <!-- 开始行 -->
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 13px; color: var(--b3-theme-on-surface); white-space: nowrap; min-width: 45px;">开始：</span>
+                                    <input type="date" id="quickReminderDate" class="b3-text-field" value="${this.initialDate || ''}" max="9999-12-31" style="flex: 1;">
+                                    <input type="time" id="quickReminderTime" class="b3-text-field" value="${this.initialTime || ''}" style="flex: 1;">
+                                    <button type="button" id="quickClearStartTimeBtn" class="b3-button b3-button--outline" title="${i18n("clearTime") || "清除时间"}" style="padding: 4px 8px; font-size: 12px;">
+                                        <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconTrashcan"></use></svg>
+                                    </button>
+                                </div>
+                                <!-- 结束行 -->
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 13px; color: var(--b3-theme-on-surface); white-space: nowrap; min-width: 45px;">结束：</span>
+                                    <input type="date" id="quickReminderEndDate" class="b3-text-field" placeholder="${i18n("endDateOptional")}" title="${i18n("spanningEventDesc")}" max="9999-12-31" style="flex: 1;">
+                                    <input type="time" id="quickReminderEndTime" class="b3-text-field" placeholder="${i18n("endTimeOptional") || "结束时间"}" style="flex: 1;">
+                                    <button type="button" id="quickClearEndTimeBtn" class="b3-button b3-button--outline" title="${i18n("clearTime") || "清除时间"}" style="padding: 4px 8px; font-size: 12px;">
+                                        <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconTrashcan"></use></svg>
+                                    </button>
+                                </div>
                             </div>
-                            <div class="b3-form__desc" id="quickDateTimeDesc">${this.initialTime ? i18n("dateTimeDesc") : '可以不设置日期'}</div>
+                            <div class="b3-form__desc">${i18n("dateTimeOptionalDesc") || "不设置时间则创建为全天任务"}</div>
                         </div>
-
 
                         <div class="b3-form__group">
                             <label class="b3-form__label">自定义提醒时间 (可选，支持多个)</label>
@@ -1197,39 +1186,28 @@ export class QuickReminderDialog {
         setTimeout(async () => {
             const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
             const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
-            const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
+            const timeInput = this.dialog.element.querySelector('#quickReminderTime') as HTMLInputElement;
+            const endTimeInput = this.dialog.element.querySelector('#quickReminderEndTime') as HTMLInputElement;
             const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
 
-            // 根据是否有初始时间设置输入框类型和值
-            if (this.initialTime) {
-                // 有时间：先设置复选框状态，再切换输入框类型，最后设置值
-                noTimeCheckbox.checked = false;
-                this.toggleDateTimeInputs(false);
-                // 确保在切换类型后设置正确格式的值
-                dateInput.value = `${this.initialDate}T${this.initialTime}`;
+            // 设置日期（独立的日期输入框）
+            if (this.initialDate) {
+                dateInput.value = this.initialDate;
+            }
 
-                // 如果是时间段选择且有结束时间，设置结束日期时间
-                if (this.isTimeRange && this.initialEndDate) {
-                    const endDateTime = this.initialEndTime ?
-                        `${this.initialEndDate}T${this.initialEndTime}` :
-                        `${this.initialEndDate}T${this.initialTime}`;
-                    endDateInput.value = endDateTime;
-                }
-            } else {
-                // 无时间：先设置复选框状态，再切换输入框类型，最后设置值
-                noTimeCheckbox.checked = true;
-                this.toggleDateTimeInputs(true);
-                // 确保在切换类型后设置正确格式的值
-                // 如果没有初始日期（空字符串），则保持输入框为空
-                if (this.initialDate) {
-                    dateInput.value = this.initialDate;
-                }
+            // 设置时间（独立的时间输入框）
+            if (this.initialTime && timeInput) {
+                timeInput.value = this.initialTime;
+            }
 
-                // 如果是时间段选择，设置结束日期
-                if (this.isTimeRange && this.initialEndDate) {
-                    // 确保结束日期输入框也是正确的类型
-                    endDateInput.value = this.initialEndDate;
-                }
+            // 设置结束日期
+            if (this.initialEndDate && endDateInput) {
+                endDateInput.value = this.initialEndDate;
+            }
+
+            // 设置结束时间
+            if (this.initialEndTime && endTimeInput) {
+                endTimeInput.value = this.initialEndTime;
             }
 
             // 设置默认值：优先使用 this.blockContent，其次使用 this.defaultTitle
@@ -1242,22 +1220,16 @@ export class QuickReminderDialog {
                         const detected = autoDetectDateTimeFromTitle(this.blockContent);
                         if (detected && detected.date) {
                             const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
-                            const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
+                            const timeInput = this.dialog.element.querySelector('#quickReminderTime') as HTMLInputElement;
 
-                            if (detected.hasTime && detected.time) {
-                                // 确保显示带时间的输入控件并填充 datetime-local
-                                this.toggleDateTimeInputs(false);
-                                if (dateInput) {
-                                    dateInput.value = `${detected.date}T${detected.time}`;
-                                }
-                                if (noTimeCheckbox) noTimeCheckbox.checked = false;
-                            } else {
-                                // 仅日期
-                                this.toggleDateTimeInputs(true);
-                                if (dateInput) {
-                                    dateInput.value = detected.date as string;
-                                }
-                                if (noTimeCheckbox) noTimeCheckbox.checked = true;
+                            // 设置日期
+                            if (dateInput) {
+                                dateInput.value = detected.date;
+                            }
+
+                            // 设置时间（如果有）
+                            if (detected.hasTime && detected.time && timeInput) {
+                                timeInput.value = detected.time;
                             }
 
                             // 如果启用了识别后移除日期设置，更新标题
@@ -1604,131 +1576,6 @@ export class QuickReminderDialog {
         }
     }
 
-    // 切换日期时间输入框类型
-    private toggleDateTimeInputs(noSpecificTime: boolean) {
-        const startDateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
-        const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
-        const dateTimeDesc = this.dialog.element.querySelector('#quickDateTimeDesc') as HTMLElement;
-
-        if (noSpecificTime) {
-            // 不设置具体时间：使用date类型
-            // 先保存当前值
-            const startValue = startDateInput.value;
-            const endValue = endDateInput.value;
-
-            // 切换类型和max属性
-            startDateInput.type = 'date';
-            endDateInput.type = 'date';
-            startDateInput.max = '9999-12-31';
-            endDateInput.max = '9999-12-31';
-
-            // 如果当前值包含时间，只保留日期部分，不清空日期
-            if (startValue && startValue.includes('T')) {
-                startDateInput.value = startValue.split('T')[0];
-            } else if (startValue) {
-                startDateInput.value = startValue;
-            } else if (this.initialDate) {
-                // 如果没有当前值但有初始日期，设置初始日期
-                startDateInput.value = this.initialDate;
-            }
-
-            if (endValue && endValue.includes('T')) {
-                endDateInput.value = endValue.split('T')[0];
-            } else if (endValue) {
-                endDateInput.value = endValue;
-            } else if (this.isTimeRange && this.initialEndDate) {
-                // 如果没有当前值但是时间段选择且有初始结束日期，设置初始结束日期
-                endDateInput.value = this.initialEndDate;
-            }
-
-            if (dateTimeDesc) {
-                dateTimeDesc.textContent = i18n("dateOnlyDesc");
-            }
-
-            // 隐藏/禁用快速预设下拉（仅在有具体时间时可用）
-            try {
-                const preset = this.dialog.element.querySelector('#quickCustomReminderPreset') as HTMLSelectElement;
-                if (preset) {
-                    preset.disabled = true;
-                    preset.style.opacity = '0.6';
-                }
-            } catch (e) {
-                // ignore
-            }
-        } else {
-            // 设置具体时间：使用datetime-local类型
-            // 先保存当前值
-            const startValue = startDateInput.value;
-            const endValue = endDateInput.value;
-
-            // 先清空值以避免格式冲突，然后切换类型
-            startDateInput.value = '';
-            endDateInput.value = '';
-            startDateInput.type = 'datetime-local';
-            endDateInput.type = 'datetime-local';
-            startDateInput.max = '9999-12-31T23:59';
-            endDateInput.max = '9999-12-31T23:59';
-
-            // 如果当前值只有日期，添加默认时间，保留原有日期
-            if (startValue && !startValue.includes('T')) {
-                const currentTime = this.initialTime;
-                if (currentTime) {
-                    startDateInput.value = `${startValue}T${currentTime}`;
-                } else {
-                    // 如果没有初始时间，使用当前时间
-                    const now = new Date();
-                    const currentTimeStr = now.toTimeString().slice(0, 5); // HH:MM
-                    startDateInput.value = `${startValue}T${currentTimeStr}`;
-                }
-            } else if (!startValue) {
-                // 如果没有日期值，设置默认日期和时间
-                const currentTime = this.initialTime;
-                if (currentTime) {
-                    startDateInput.value = `${this.initialDate}T${currentTime}`;
-                }
-            } else {
-                // 如果已经有完整的datetime-local格式，直接设置
-                startDateInput.value = startValue;
-            }            // 处理结束日期输入框
-            if (endValue && !endValue.includes('T')) {
-                // 如果结束日期有值但没有时间，添加默认时间
-                const endTime = this.initialEndTime || this.initialTime;
-                if (endTime) {
-                    endDateInput.value = `${endValue}T${endTime}`;
-                } else {
-                    // 如果没有初始时间，使用当前时间
-                    const now = new Date();
-                    const currentTimeStr = now.toTimeString().slice(0, 5); // HH:MM
-                    endDateInput.value = `${endValue}T${currentTimeStr}`;
-                }
-            } else if (endValue) {
-                // 如果已经有完整的datetime-local格式，直接设置
-                endDateInput.value = endValue;
-            } else if (this.isTimeRange && this.initialEndDate) {
-                // 如果没有当前值但是时间段选择且有初始结束日期和时间，设置初始值
-                const endTime = this.initialEndTime || this.initialTime;
-                if (endTime) {
-                    endDateInput.value = `${this.initialEndDate}T${endTime}`;
-                }
-            }
-
-            if (dateTimeDesc) {
-                dateTimeDesc.textContent = i18n("dateTimeDesc");
-            }
-
-            // 启用快速预设下拉
-            try {
-                const preset = this.dialog.element.querySelector('#quickCustomReminderPreset') as HTMLSelectElement;
-                if (preset) {
-                    preset.disabled = false;
-                    preset.style.opacity = '';
-                }
-            } catch (e) {
-                // ignore
-            }
-        }
-    }
-
     // 渲染自定义时间列表
     // 渲染自定义时间列表
     private renderCustomTimeList() {
@@ -1830,9 +1677,10 @@ export class QuickReminderDialog {
     private bindEvents() {
         const cancelBtn = this.dialog.element.querySelector('#quickCancelBtn') as HTMLButtonElement;
         const confirmBtn = this.dialog.element.querySelector('#quickConfirmBtn') as HTMLButtonElement;
-        const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
         const startDateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
         const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
+        const timeInput = this.dialog.element.querySelector('#quickReminderTime') as HTMLInputElement;
+        const endTimeInput = this.dialog.element.querySelector('#quickReminderEndTime') as HTMLInputElement;
         const prioritySelector = this.dialog.element.querySelector('#quickPrioritySelector') as HTMLElement;
         const categorySelector = this.dialog.element.querySelector('#quickCategorySelector') as HTMLElement;
         const repeatSettingsBtn = this.dialog.element.querySelector('#quickRepeatSettingsBtn') as HTMLButtonElement;
@@ -1841,7 +1689,6 @@ export class QuickReminderDialog {
         const createDocBtn = this.dialog.element.querySelector('#quickCreateDocBtn') as HTMLButtonElement;
         const pasteBlockRefBtn = this.dialog.element.querySelector('#quickPasteBlockRefBtn') as HTMLButtonElement;
         const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
-        const dateTimeDesc = this.dialog.element.querySelector('#quickDateTimeDesc') as HTMLElement;
         const viewSubtasksBtn = this.dialog.element.querySelector('#quickViewSubtasksBtn') as HTMLButtonElement;
         const viewPomodorosBtn = this.dialog.element.querySelector('#quickViewPomodorosBtn') as HTMLButtonElement;
 
@@ -2019,11 +1866,6 @@ export class QuickReminderDialog {
             this.saveReminder();
         });
 
-        // 时间复选框 - 切换日期输入框类型
-        noTimeCheckbox?.addEventListener('change', () => {
-            this.toggleDateTimeInputs(noTimeCheckbox.checked);
-        });
-
         // 日期验证
         startDateInput?.addEventListener('change', () => {
             const startDate = startDateInput.value;
@@ -2034,6 +1876,24 @@ export class QuickReminderDialog {
         // 结束日期验证
         endDateInput?.addEventListener('change', () => {
             // 移除立即验证逻辑，只在保存时验证
+        });
+
+        // 清除开始时间按钮
+        const clearStartTimeBtn = this.dialog.element.querySelector('#quickClearStartTimeBtn') as HTMLButtonElement;
+        clearStartTimeBtn?.addEventListener('click', () => {
+            const timeInput = this.dialog.element.querySelector('#quickReminderTime') as HTMLInputElement;
+            if (timeInput) {
+                timeInput.value = '';
+            }
+        });
+
+        // 清除结束时间按钮
+        const clearEndTimeBtn = this.dialog.element.querySelector('#quickClearEndTimeBtn') as HTMLButtonElement;
+        clearEndTimeBtn?.addEventListener('click', () => {
+            const endTimeInput = this.dialog.element.querySelector('#quickReminderEndTime') as HTMLInputElement;
+            if (endTimeInput) {
+                endTimeInput.value = '';
+            }
         });
 
         // 重复设置按钮
@@ -2167,16 +2027,16 @@ export class QuickReminderDialog {
                 if (!val) return;
 
                 const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
-                const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
+                const timeInput = this.dialog.element.querySelector('#quickReminderTime') as HTMLInputElement;
 
-                // 仅在任务已设置具体时间时可用
-                if (!dateInput || !dateInput.value || noTimeCheckbox.checked || !dateInput.value.includes('T')) {
-                    showMessage('请先为任务设置具体时间，然后使用快速设置。');
+                // 仅在任务已设置日期和时间时可用
+                if (!dateInput || !dateInput.value || !timeInput || !timeInput.value) {
+                    showMessage('请先为任务设置日期和时间，然后使用快速设置。');
                     presetSelect.value = '';
                     return;
                 }
 
-                const base = new Date(dateInput.value);
+                const base = new Date(`${dateInput.value}T${timeInput.value}`);
                 if (isNaN(base.getTime())) {
                     presetSelect.value = '';
                     return;
@@ -2224,15 +2084,16 @@ export class QuickReminderDialog {
             }
         });
 
-        // 如果 custom input 聚焦且为空，尝试从任务日期初始化（保持现有行为）
+        // 如果 custom input 聚焦且为空，尝试从任务日期和时间初始化（保持现有行为）
         try {
             customReminderInput?.addEventListener('focus', () => {
                 try {
                     if (customReminderInput.value) return;
                     const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
-                    const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
-                    if (dateInput && !noTimeCheckbox.checked && dateInput.value && dateInput.value.includes('T')) {
-                        customReminderInput.value = dateInput.value;
+                    const timeInput = this.dialog.element.querySelector('#quickReminderTime') as HTMLInputElement;
+                    // 仅在任务设置了日期和时间时初始化
+                    if (dateInput && timeInput && dateInput.value && timeInput.value) {
+                        customReminderInput.value = `${dateInput.value}T${timeInput.value}`;
                     }
                 } catch (e) {
                     console.warn('初始化自定义提醒时间失败:', e);
@@ -2242,9 +2103,9 @@ export class QuickReminderDialog {
                 try {
                     if (customReminderInput.value) return;
                     const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
-                    const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
-                    if (dateInput && !noTimeCheckbox.checked && dateInput.value && dateInput.value.includes('T')) {
-                        customReminderInput.value = dateInput.value;
+                    const timeInput = this.dialog.element.querySelector('#quickReminderTime') as HTMLInputElement;
+                    if (dateInput && timeInput && dateInput.value && timeInput.value) {
+                        customReminderInput.value = `${dateInput.value}T${timeInput.value}`;
                     }
                 } catch (e) {
                     console.warn('初始化自定义提醒时间失败:', e);
@@ -2276,10 +2137,10 @@ export class QuickReminderDialog {
                 try {
                     if (customReminderInput.value) return;
                     const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
-                    const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
-                    // 仅在任务设置了具体时间（datetime-local）时初始化
-                    if (dateInput && !noTimeCheckbox.checked && dateInput.value && dateInput.value.includes('T')) {
-                        customReminderInput.value = dateInput.value;
+                    const timeInput = this.dialog.element.querySelector('#quickReminderTime') as HTMLInputElement;
+                    // 仅在任务设置了日期和时间时初始化
+                    if (dateInput && timeInput && dateInput.value && timeInput.value) {
+                        customReminderInput.value = `${dateInput.value}T${timeInput.value}`;
                     }
                 } catch (e) {
                     console.warn('初始化自定义提醒时间失败:', e);
@@ -2289,9 +2150,9 @@ export class QuickReminderDialog {
                 try {
                     if (customReminderInput.value) return;
                     const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
-                    const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
-                    if (dateInput && !noTimeCheckbox.checked && dateInput.value && dateInput.value.includes('T')) {
-                        customReminderInput.value = dateInput.value;
+                    const timeInput = this.dialog.element.querySelector('#quickReminderTime') as HTMLInputElement;
+                    if (dateInput && timeInput && dateInput.value && timeInput.value) {
+                        customReminderInput.value = `${dateInput.value}T${timeInput.value}`;
                     }
                 } catch (e) {
                     console.warn('初始化自定义提醒时间失败:', e);
@@ -2623,7 +2484,8 @@ export class QuickReminderDialog {
         const urlInput = this.dialog.element.querySelector('#quickUrlInput') as HTMLInputElement;
         const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
         const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
-        const noTimeCheckbox = this.dialog.element.querySelector('#quickNoSpecificTime') as HTMLInputElement;
+        const timeInput = this.dialog.element.querySelector('#quickReminderTime') as HTMLInputElement;
+        const endTimeInput = this.dialog.element.querySelector('#quickReminderEndTime') as HTMLInputElement;
         const noteInput = this.dialog.element.querySelector('#quickReminderNote') as HTMLTextAreaElement;
         const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
         const selectedPriority = this.dialog.element.querySelector('#quickPrioritySelector .priority-option.selected') as HTMLElement;
@@ -2664,40 +2526,11 @@ export class QuickReminderDialog {
         // 获取选中的标签ID（使用 selectedTagIds 属性）
         const tagIds = this.selectedTagIds;
 
-        // 解析日期和时间
-        let date: string;
-        let endDate: string;
-        let time: string | undefined;
-        let endTime: string | undefined;
-
-        if (noTimeCheckbox.checked) {
-            // 不设置具体时间：直接使用date值
-            date = dateInput.value;
-            endDate = endDateInput.value;
-            time = undefined;
-            endTime = undefined;
-        } else {
-            // 设置具体时间：从datetime-local值中解析
-            if (dateInput.value.includes('T')) {
-                const [dateStr, timeStr] = dateInput.value.split('T');
-                date = dateStr;
-                time = timeStr;
-            } else {
-                date = dateInput.value;
-                time = undefined;
-            }
-
-            if (endDateInput.value) {
-                if (endDateInput.value.includes('T')) {
-                    const [endDateStr, endTimeStr] = endDateInput.value.split('T');
-                    endDate = endDateStr;
-                    endTime = endTimeStr;
-                } else {
-                    endDate = endDateInput.value;
-                    endTime = undefined;
-                }
-            }
-        }
+        // 解析日期和时间（使用独立的日期和时间输入框）
+        let date: string = dateInput.value;
+        let endDate: string = endDateInput.value;
+        let time: string | undefined = timeInput?.value || undefined;
+        let endTime: string | undefined = endTimeInput?.value || undefined;
 
         // 自动根据日期更新状态：如果是今天或过去的任务，且未完成，自动设为进行中
         if (date && kanbanStatus !== 'completed') {
