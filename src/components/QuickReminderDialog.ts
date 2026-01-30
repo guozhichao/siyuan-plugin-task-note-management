@@ -2869,8 +2869,6 @@ export class QuickReminderDialog {
 
                             let anyChildChanged = false;
 
-                            const oldMilestone = this.reminder.milestoneId;
-                            const newMilestone = reminder.milestoneId;
                             const oldProject = this.reminder.projectId;
                             const newProject = reminder.projectId;
 
@@ -2892,11 +2890,7 @@ export class QuickReminderDialog {
                                             r.customGroupId = newGroup;
                                             changed = true;
                                         }
-                                        // 更新里程碑
-                                        if (oldMilestone !== newMilestone) {
-                                            r.milestoneId = newMilestone;
-                                            changed = true;
-                                        }
+ 
 
                                         if (changed) {
                                             r.updatedAt = new Date().toISOString();
