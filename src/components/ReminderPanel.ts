@@ -2749,7 +2749,7 @@ export class ReminderPanel {
                         reminderTimes: instanceMod?.reminderTimes !== undefined ? instanceMod.reminderTimes : reminder.reminderTimes,
                         customReminderPreset: instanceMod?.customReminderPreset !== undefined ? instanceMod.customReminderPreset : reminder.customReminderPreset,
                         // 为已完成的实例添加完成时间（用于排序）
-                        completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined
+                        completedTime: isInstanceCompleted ? (instance.completedTime || reminder.repeat?.completedTimes?.[originalInstanceDate] || getLocalDateTimeString(new Date(instance.date))) : undefined
                     };
 
                     // 按日期和完成状态分类
@@ -3249,6 +3249,10 @@ export class ReminderPanel {
         }
 
         if (reminder.isRepeatInstance) {
+            // 优先使用实例自带的完成时间（如果已由 generateRepeatInstances 生成）
+            if (reminder.completedTime) {
+                return reminder.completedTime;
+            }
             // 重复事件实例的完成时间
             const originalReminder = this.getOriginalReminder(reminder.originalId);
             const today = getLogicalDateString();

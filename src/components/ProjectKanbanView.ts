@@ -3989,7 +3989,7 @@ export class ProjectKanbanView {
                             // 实例层里程碑支持：优先使用 instanceMod 的 milestoneId，否则使用原始提醒的 milestoneId
                             milestoneId: instanceMod?.milestoneId !== undefined ? instanceMod.milestoneId : reminder.milestoneId,
                             // 为已完成的实例添加完成时间（用于排序）
-                            completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined,
+                            completedTime: isInstanceCompleted ? (instance.completedTime || reminder.repeat?.instanceCompletedTimes?.[originalKey] || getLocalDateTimeString(new Date(instance.date))) : undefined,
                             // 支持实例级别的排序字段（优先使用 instanceMod 中的 sort）
                             sort: (instanceMod && typeof instanceMod.sort === 'number') ? instanceMod.sort : (reminder.sort || 0)
                         };
