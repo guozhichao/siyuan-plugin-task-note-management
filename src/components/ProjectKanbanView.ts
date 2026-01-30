@@ -3785,6 +3785,53 @@ export class ProjectKanbanView {
                     console.error('保存任务状态修正失败:', err);
                 });
             }
+            // 根据日期自动将到期（今天或过去）且未完成的父任务设置为 doing，并级联到所有后代
+            try {
+                const todayForDateCheck = getLogicalDateString();
+                const hasDoingStatus = this.kanbanStatuses.some(s => s.id === 'doing');
+                let dateCascadeChanged = false;
+
+                if (hasDoingStatus) {
+                    for (const t of projectTasks) {
+                        if (!t) continue;
+                        // 仅对未完成且有明确 date 的任务处理（不处理实例层的逻辑，这里作用于原始提醒与普通任务）
+                        if (!t.completed && t.date && compareDateStrings(t.date, todayForDateCheck) <= 0) {
+                            // 如果父任务已经是进行中，则跳过，避免重复设置及不必要的级联
+                            if (t.kanbanStatus === 'doing') {
+                                continue;
+                            }
+
+                            // 仅当父任务不是 doing 时，设置为 doing 并级联到后代
+                            t.kanbanStatus = 'doing';
+                            if (reminderData[t.id]) {
+                                reminderData[t.id].kanbanStatus = 'doing';
+                            }
+                            dateCascadeChanged = true;
+
+                            // 级联到后代
+                            try {
+                                const descendantIds = this.getAllDescendantIds(t.id, reminderData);
+                                for (const did of descendantIds) {
+                                    const desc = reminderData[did];
+                                    if (!desc) continue;
+                                    if (!desc.completed && desc.kanbanStatus !== 'doing') {
+                                        desc.kanbanStatus = 'doing';
+                                        dateCascadeChanged = true;
+                                    }
+                                }
+                            } catch (err) {
+                                console.warn('date cascade descendants failed', err);
+                            }
+                        }
+                    }
+                }
+
+                if (dateCascadeChanged) {
+                    await saveReminders(this.plugin, reminderData);
+                }
+            } catch (err) {
+                console.warn('自动根据日期级联设置状态失败:', err);
+            }
             const taskMap = new Map(projectTasks.map((t: any) => [t.id, { ...t }]));
 
             const getRootStatus = (task: any): string => {
@@ -4499,18 +4546,7 @@ export class ProjectKanbanView {
         // 如果任务已完成，直接返回
         if (task.completed) return 'completed';
 
-        // 优先依据任务的日期判断：如果任务设置了日期且为今天或过去，优先视为进行中
-        if (task.date) {
-            try {
-                const today = getLogicalDateString();
-                const dateComparison = compareDateStrings(this.getTaskLogicalDate(task.date, task.time), today);
-                if (dateComparison <= 0) { // 今天或过去
-                    return 'doing';
-                }
-            } catch (e) {
-                // 解析错误时忽略，继续使用 kanbanStatus 或默认值
-            }
-        }
+
 
         // 如果有 kanbanStatus 且是有效的状态ID，使用之
         if (task.kanbanStatus) {
