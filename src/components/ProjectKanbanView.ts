@@ -4050,6 +4050,35 @@ export class ProjectKanbanView {
         return this.reminderData;
     }
 
+    /**
+     * 过滤已归档分组的未完成任务
+     */
+    private async filterArchivedGroupTasks(tasks: any[]): Promise<any[]> {
+        try {
+            // 获取当前项目的分组信息
+            const groups = await this.projectManager.getProjectCustomGroups(this.projectId);
+
+            // 构建已归档分组的ID集合
+            const archivedGroupIds = new Set<string>();
+            groups.forEach((g: any) => {
+                if (g.archived) {
+                    archivedGroupIds.add(g.id);
+                }
+            });
+
+            // 过滤：如果任务属于已归档分组且未完成，则过滤掉
+            return tasks.filter(t => {
+                if (t.customGroupId && archivedGroupIds.has(t.customGroupId) && !t.completed) {
+                    return false;
+                }
+                return true;
+            });
+        } catch (error) {
+            console.error('过滤已归档分组任务失败', error);
+            return tasks;
+        }
+    }
+
     private async loadTasks() {
         if (this.isLoading) {
             return;
@@ -4064,7 +4093,11 @@ export class ProjectKanbanView {
             await this.buildMilestoneMap();
 
             const reminderData = await this.getReminders();
-            const projectTasks = Object.values(reminderData).filter((reminder: any) => reminder && reminder.projectId === this.projectId);
+            let projectTasks = Object.values(reminderData).filter((reminder: any) => reminder && reminder.projectId === this.projectId);
+
+            // 过滤已归档分组的未完成任务
+            projectTasks = await this.filterArchivedGroupTasks(projectTasks);
+
             // 修复遗留：如果任务中存在 customGroupId === 'ungrouped'，视为未分组（删除该字段）
             projectTasks.forEach((t: any) => {
                 if (t && t.customGroupId === 'ungrouped') {
