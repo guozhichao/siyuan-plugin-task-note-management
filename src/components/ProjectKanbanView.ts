@@ -8619,7 +8619,10 @@ export class ProjectKanbanView {
             // 则阻止直接把它移出 "进行中"，提示用户需要修改任务时间才能移出。
             try {
                 const today = getLogicalDateString();
-                if (this.isDragging && task && task.date && compareDateStrings(this.getTaskLogicalDate(task.date, task.time), today) <= 0 && newStatus !== 'doing' && newStatus !== 'completed') {
+                // 如果任务未完成且有设置日期，且该日期为今天或已过，且目标状态不是“进行中/完成”，
+                // 无论是通过拖拽还是右键菜单修改，都应提示用户：系统会自动将该任务显示在“进行中”列，
+                // 如要移出“进行中”需先修改任务的日期或时间。
+                if (task && !task.completed && task.date && compareDateStrings(this.getTaskLogicalDate(task.date, task.time), today) <= 0 && newStatus !== 'doing' && newStatus !== 'completed') {
                     const dialog = new Dialog({
                         title: '提示',
                         content: `
@@ -11439,9 +11442,7 @@ export class ProjectKanbanView {
             // 如果是订阅任务且试图改变状态（KanbanStatus），则由于只读限制应阻止（除了同状态内的排序）
             // 但如果 reorderTasks 中处理了这些逻辑，我们直接调用
 
-            // Optimistic UI update: 直接在 DOM 层面移动元素，无需等待后台保存
-            this.reorderTasksDOM(this.draggedTask.id, targetTask.id, insertBefore);
-
+            // 不再进行乐观 DOM 更新；等待后端保存并由 reorderTasks 在成功后更新 DOM
             await this.reorderTasks(this.draggedTask, targetTask, insertBefore);
 
         } catch (error) {
@@ -11553,7 +11554,7 @@ export class ProjectKanbanView {
         }
     }
 
-    private async reorderTasks(draggedTask: any, targetTask: any, insertBefore: boolean) {
+    private async reorderTasks(draggedTask: any, targetTask: any, insertBefore: boolean): Promise<boolean> {
         try {
             const reminderData = await this.getReminders();
 
@@ -11569,6 +11570,47 @@ export class ProjectKanbanView {
 
             const oldStatus = this.getTaskStatus(draggedTaskInDb);
             const newStatus = this.getTaskStatus(targetTaskInDb);
+
+            // 如果尝试通过拖拽改变状态，且任务未完成且任务日期为今天或已过，弹窗提示用户
+            try {
+                const today = getLogicalDateString();
+                if (oldStatus !== newStatus && !draggedTaskInDb.completed && draggedTaskInDb.date && compareDateStrings(this.getTaskLogicalDate(draggedTaskInDb.date, draggedTaskInDb.time), today) <= 0) {
+                    // 弹窗：取消 / 编辑任务时间
+                    const dialog = new Dialog({
+                        title: '提示',
+                        content: `
+                            <div class="b3-dialog__content">
+                                <p>该任务的日期为今天或已过，系统会将其自动显示在“进行中”列。</p>
+                                <p>要将任务移出“进行中”，需要修改任务的日期或时间。</p>
+                            </div>
+                            <div class="b3-dialog__action">
+                                <button class="b3-button b3-button--cancel" id="cancelBtn">取消</button>
+                                <button class="b3-button b3-button--primary" id="editBtn">编辑任务时间</button>
+                            </div>
+                        `,
+                        width: "460px"
+                    });
+
+                    const choice = await new Promise<string>((resolve) => {
+                        const cancelBtn = dialog.element.querySelector('#cancelBtn') as HTMLButtonElement;
+                        const editBtn = dialog.element.querySelector('#editBtn') as HTMLButtonElement;
+
+                        cancelBtn.addEventListener('click', () => { dialog.destroy(); resolve('cancel'); });
+                        editBtn.addEventListener('click', () => { dialog.destroy(); resolve('edit'); });
+                    });
+
+                    if (choice === 'cancel') {
+                        return false; // 中断移动
+                    }
+                    if (choice === 'edit') {
+                        await this.editTask(draggedTaskInDb);
+                        return false; // 中断，等待用户编辑
+                    }
+                    // 如果选择 'force' 则继续后续逻辑并强制变更状态
+                }
+            } catch (err) {
+                // 忽略日期解析错误，继续执行
+            }
             
 
             // 如果当前为自定义分组看板模式，且目标任务所在分组与被拖拽任务不同，
@@ -11754,10 +11796,7 @@ export class ProjectKanbanView {
                 }
 
                 this.dispatchReminderUpdate(true);
-
-                
-
-                return;
+                return true;
             }
 
             // --- Fallback (Status Mode) Logic ---
@@ -11799,7 +11838,7 @@ export class ProjectKanbanView {
                 const domUpdated = this.reorderTasksDOM(draggedId, targetId, insertBefore);
                 if (!domUpdated) await this.queueLoadTasks();
                 this.dispatchReminderUpdate(true);
-                return;
+                return true;
             }
 
             // ... (top level logic) ...
@@ -11940,8 +11979,7 @@ export class ProjectKanbanView {
 
             this.dispatchReminderUpdate(true);
 
-            
-
+            return true;
         } catch (error) {
             console.error('重新排序任务失败:', error);
             throw error;
@@ -12368,7 +12406,6 @@ export class ProjectKanbanView {
         const taskEl = this.container.querySelector(`[data-task-id="${taskId}"]`) as HTMLElement;
         if (!taskEl) {
             // 如果找不到DOM元素，可能需要重新渲染
-            console.warn('找不到任务DOM元素，将重新渲染看板:', taskId);
             this.queueLoadTasks();
             return;
         }
@@ -12698,10 +12735,11 @@ export class ProjectKanbanView {
 
     private async handleBatchSortDrop(taskIds: string[], targetTask: any, insertBefore: boolean, event: DragEvent) {
         try {
-            // Optimistic DOM update
-            this.batchReorderTasksDOM(taskIds, targetTask.id, insertBefore);
-
-            await this.batchReorderTasks(taskIds, targetTask, insertBefore);
+            // 执行批量重排并在成功后再更新 DOM，避免用户在弹窗取消时造成 DOM 已经变更的视觉问题
+            const proceeded = await this.batchReorderTasks(taskIds, targetTask, insertBefore);
+            if (proceeded) {
+                this.batchReorderTasksDOM(taskIds, targetTask.id, insertBefore);
+            }
         } catch (error) {
             console.error('批量排序失败:', error);
             showMessage(i18n("sortUpdateFailed") || "排序更新失败");
@@ -12733,7 +12771,7 @@ export class ProjectKanbanView {
         }
     }
 
-    private async batchReorderTasks(taskIds: string[], targetTask: any, insertBefore: boolean) {
+    private async batchReorderTasks(taskIds: string[], targetTask: any, insertBefore: boolean): Promise<boolean> {
         try {
             const reminderData = await this.getReminders();
             const targetId = targetTask.id;
@@ -12747,6 +12785,75 @@ export class ProjectKanbanView {
             // Filter out tasks that are not found
             const validTaskIds = taskIds.filter(id => reminderData[id]);
 
+            // 如果尝试将一组任务移动到另一个状态，且其中有未完成且日期为今天或已过的任务，弹窗提示用户
+            try {
+                const today = getLogicalDateString();
+                const offending = validTaskIds.filter(id => {
+                    const t = reminderData[id];
+                    if (!t) return false;
+                    const oldStatus = this.getTaskStatus(t);
+                    if (oldStatus === newStatus) return false; // 状态未变则不算
+                    if (t.completed) return false; // 已完成的忽略
+                    if (!t.date) return false; // 无日期的忽略
+                    try {
+                        const logical = this.getTaskLogicalDate(t.date, t.time);
+                        return compareDateStrings(logical, today) <= 0;
+                    } catch (err) {
+                        return false;
+                    }
+                });
+
+                if (offending.length > 0) {
+                    const listHtml = offending.slice(0, 6).map(id => `- ${(reminderData[id] && reminderData[id].title) || id}`).join('<br>');
+                    const dialog = new Dialog({
+                        title: '提示',
+                        content: `
+                            <div class="b3-dialog__content">
+                                <p>所选任务中包含以下日期为今天或已过的未完成任务，系统会将它们自动显示在“进行中”列：</p>
+                                <div style="max-height:180px;overflow:auto;margin:8px 0;padding:6px;border:1px solid var(--b3-border);">${listHtml}${offending.length>6?'<div>...</div>':''}</div>
+                                <p>要将这些任务移出“进行中”，需要修改任务的日期或时间。</p>
+                            </div>
+                            <div class="b3-dialog__action">
+                                <button class="b3-button b3-button--cancel" id="cancelBtn">取消</button>
+                                <button class="b3-button" id="continueBtn">继续（跳过这些任务）</button>
+                                <button class="b3-button b3-button--primary" id="editBtn">编辑第一个任务时间</button>
+                            </div>
+                        `,
+                        width: "520px"
+                    });
+
+                    const choice = await new Promise<string>((resolve) => {
+                        const cancelBtn = dialog.element.querySelector('#cancelBtn') as HTMLButtonElement;
+                        const continueBtn = dialog.element.querySelector('#continueBtn') as HTMLButtonElement;
+                        const editBtn = dialog.element.querySelector('#editBtn') as HTMLButtonElement;
+
+                        cancelBtn.addEventListener('click', () => { dialog.destroy(); resolve('cancel'); });
+                        continueBtn.addEventListener('click', () => { dialog.destroy(); resolve('continue'); });
+                        editBtn.addEventListener('click', () => { dialog.destroy(); resolve('edit'); });
+                    });
+
+                    if (choice === 'cancel') {
+                        return false; // 中断批量移动
+                    }
+                    if (choice === 'edit') {
+                        await this.editTask(reminderData[offending[0]]);
+                        return false; // 中断，等待用户编辑
+                    }
+                    if (choice === 'continue') {
+                        // 从 validTaskIds 中移除 offending
+                        for (const id of offending) {
+                            const idx = validTaskIds.indexOf(id);
+                            if (idx !== -1) validTaskIds.splice(idx, 1);
+                        }
+                        if (validTaskIds.length === 0) {
+                            showMessage(i18n('noTasksToMove') || '没有可移动的任务');
+                            return false;
+                        }
+                    }
+                }
+            } catch (err) {
+                // 忽略日期解析错误，继续执行批量重排
+            }
             // Current Target List (based on target context)
             const targetList = Object.values(reminderData)
                 .filter((r: any) => r && r.projectId === this.projectId && !r.parentId)
@@ -12832,6 +12939,8 @@ export class ProjectKanbanView {
 
             this.dispatchReminderUpdate(true);
             validTaskIds.forEach(id => this.refreshTaskElement(id));
+
+            return true;
 
         } catch (e) {
             console.error(e);
@@ -13486,6 +13595,77 @@ export class ProjectKanbanView {
     private async batchUpdateTasks(taskIds: string[], updates: { kanbanStatus?: string, customGroupId?: string | null, tagIds?: string[], milestoneId?: string | null, projectId?: string | null }) {
         try {
             const reminderData = await this.getReminders();
+            // 如果尝试修改状态（尤其是将任务移出 doing/completed），在执行前先检查是否有未完成且日期为今天或已过的任务。
+            // 若存在此类任务，提示用户需先修改任务时间才能移出“进行中”。
+            try {
+                const today = getLogicalDateString();
+                const offendingTasks: any[] = [];
+                if (updates.kanbanStatus) {
+                    for (const tid of taskIds) {
+                        const uiTask = this.tasks.find(t => t.id === tid);
+                        if (!uiTask) continue;
+                        if (uiTask.completed) continue;
+                        if (uiTask.date && compareDateStrings(this.getTaskLogicalDate(uiTask.date, uiTask.time), today) <= 0) {
+                            const target = updates.kanbanStatus;
+                            if (target !== 'doing' && target !== 'completed') {
+                                offendingTasks.push(uiTask);
+                            }
+                        }
+                    }
+                }
+
+                if (offendingTasks.length > 0) {
+                    // 弹窗提示：告知哪些任务为今天或已过。用户可选择：取消、继续移动其余任务（跳过这些任务）、编辑首个任务时间。
+                    const listHtml = offendingTasks.slice(0, 6).map(t => `<li style="margin-bottom:4px;">${(t.title||'（无标题）')}</li>`).join('');
+                    const moreNote = offendingTasks.length > 6 ? `<div style="margin-top:6px; color:var(--b3-theme-on-surface-light);">... 还有 ${offendingTasks.length-6} 个任务</div>` : '';
+                    const dialog = new Dialog({
+                        title: '警告：包含今日/已过任务',
+                        content: `
+                            <div class="b3-dialog__content">
+                                <p>所选任务中有 <strong>${offendingTasks.length}</strong> 个任务的日期为今天或已过，系统会将这些任务自动显示在“进行中”列。</p>
+                                <p>要将这些任务移出“进行中”，请先修改它们的日期或时间。</p>
+                                <ul style="margin-top:8px; padding-left:16px;">${listHtml}</ul>
+                                ${moreNote}
+                            </div>
+                            <div class="b3-dialog__action">
+                                <button class="b3-button b3-button--cancel" id="cancelBtn">取消</button>
+                                <button class="b3-button b3-button--outline" id="continueBtn">继续移动其余任务（跳过这些）</button>
+                                <button class="b3-button b3-button--primary" id="editBtn">编辑第一个任务时间</button>
+                            </div>
+                        `,
+                        width: "520px"
+                    });
+
+                    const choice = await new Promise<string>((resolve) => {
+                        const cancelBtn = dialog.element.querySelector('#cancelBtn') as HTMLButtonElement;
+                        const continueBtn = dialog.element.querySelector('#continueBtn') as HTMLButtonElement;
+                        const editBtn = dialog.element.querySelector('#editBtn') as HTMLButtonElement;
+
+                        cancelBtn.addEventListener('click', () => { dialog.destroy(); resolve('cancel'); });
+                        continueBtn.addEventListener('click', () => { dialog.destroy(); resolve('continue'); });
+                        editBtn.addEventListener('click', async () => { dialog.destroy(); resolve('edit'); });
+                    });
+
+                    if (choice === 'cancel') {
+                        return; // 中断所有操作
+                    }
+
+                    if (choice === 'edit') {
+                        // 编辑第一个有问题的任务
+                        await this.editTask(offendingTasks[0]);
+                        return;
+                    }
+
+                    if (choice === 'continue') {
+                        // 过滤掉有问题的任务，继续处理其余任务
+                        const offendingIds = new Set(offendingTasks.map(t => t.id));
+                        taskIds = taskIds.filter(id => !offendingIds.has(id));
+                        if (taskIds.length === 0) return; // 没有剩余任务可处理
+                    }
+                }
+            } catch (err) {
+                // 忽略日期解析错误，继续后续更新
+            }
             const blocksToUpdate = new Set<string>();
             let hasChanges = false;
             let updatedCount = 0;
