@@ -4513,7 +4513,7 @@ export class ProjectKanbanView {
         }
 
         // 如果有 kanbanStatus 且是有效的状态ID，使用之
-        if (task.kanbanStatus && task.kanbanStatus !== 'completed') {
+        if (task.kanbanStatus) {
             const validStatus = this.kanbanStatuses.find(s => s.id === task.kanbanStatus);
             if (validStatus) return task.kanbanStatus;
         }
@@ -9311,8 +9311,8 @@ export class ProjectKanbanView {
                 defaultMilestoneId: parentTask?.milestoneId ?? defaultMilestoneId,
                 hideProjectSelector: true, // 隐藏项目选择器
                 showKanbanStatus: 'term', // 显示任务类型选择
-                // 使用上一次选择的 termType 作为默认值
-                defaultStatus: defaultStatus || this.lastSelectedStatus,
+                // 使用父任务的状态优先；否则使用传入的 defaultStatus 或上一次选择的 status
+                defaultStatus: parentTask ? this.getTaskStatus(parentTask) : (defaultStatus || this.lastSelectedStatus),
                 plugin: this.plugin, // 传入plugin实例
                 defaultSort: defaultSort
             }
