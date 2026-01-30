@@ -32,6 +32,8 @@ export interface PasteTaskDialogConfig {
     showGroupSelector?: boolean;
     // 项目自定义分组列表
     projectGroups?: any[];
+    // 项目里程碑列表（未分组时的里程碑）
+    projectMilestones?: any[];
     // 看板状态配置
     kanbanStatuses?: any[];
 }
@@ -49,14 +51,20 @@ export class PasteTaskDialog {
         const showStatusSelector = this.config.showStatusSelector && !isSubtask;
         const showGroupSelector = this.config.showGroupSelector && !isSubtask && this.config.projectGroups && this.config.projectGroups.length > 0;
 
+        // 允许显示里程碑选择器，如果有分组或项目有里程碑
+        const hasMilestones = (this.config.projectMilestones && this.config.projectMilestones.length > 0) ||
+            (this.config.projectGroups && this.config.projectGroups.some(g => g.milestones && g.milestones.length > 0));
+        const showMilestoneSelector = !isSubtask && hasMilestones;
+
         // 构建状态和分组选择器HTML
         let selectorsHtml = '';
 
-        if (showStatusSelector || showGroupSelector) {
+        if (showStatusSelector || showGroupSelector || showMilestoneSelector) {
             selectorsHtml = `
-                <div style="display: flex; gap: 12px; margin-bottom: 12px; padding: 12px; background: var(--b3-theme-surface); border-radius: 6px;">
+                <div style="display: flex; gap: 12px; margin-bottom: 12px; padding: 12px; background: var(--b3-theme-surface); border-radius: 6px; flex-wrap: wrap;">
                     ${showStatusSelector ? this.buildStatusSelectorHtml() : ''}
                     ${showGroupSelector ? this.buildGroupSelectorHtml() : ''}
+                    ${showMilestoneSelector ? this.buildMilestoneSelectorHtml() : ''}
                 </div>
             `;
         }
@@ -70,7 +78,7 @@ export class PasteTaskDialog {
                         ${i18n("supportPrioritySyntax") || "支持语法："}<code>@priority=high&startDate=2025-08-12&endDate=2025-08-30</code>
                     </p>
                     <p style="font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8; margin-bottom: 4px;">
-                        ${i18n("supportBlockLink") || "支持块链接："}<code>[任务标题](siyuan://blocks/块ID)</code> 或 <code>((块ID '任务标题'))</code>
+                        ${i18n("supportBlockLink") || "支持绑定块："}<code>[任务标题](siyuan://blocks/块ID)</code> 或 <code>((块ID '任务标题'))</code>
                     </p>
                     <p style="font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8; margin-bottom: 8px;">
                         ${i18n("supportHierarchy") || "支持多层级：使用缩进或多个<code>-</code>符号创建父子任务关系"}
@@ -104,6 +112,32 @@ export class PasteTaskDialog {
         const autoDetectCheckbox = dialog.element.querySelector('#autoDetectDate') as HTMLInputElement;
         const removeDateCheckbox = dialog.element.querySelector('#removeDate') as HTMLInputElement;
         const removeDateLabel = dialog.element.querySelector('#removeDateLabel') as HTMLElement;
+        const groupSelect = dialog.element.querySelector('#pasteTaskGroup') as HTMLSelectElement;
+        const milestoneSelect = dialog.element.querySelector('#pasteTaskMilestone') as HTMLSelectElement;
+        const milestoneContainer = dialog.element.querySelector('#pasteTaskMilestoneContainer') as HTMLElement;
+
+        // 监听分组变更，更新里程碑选项
+        if (groupSelect && milestoneSelect) {
+            groupSelect.addEventListener('change', () => {
+                const selectedGroupId = groupSelect.value === 'none' ? undefined : groupSelect.value;
+                const milestones = this.getMilestonesForGroup(selectedGroupId || 'none');
+
+                if (milestoneContainer) {
+                    if (milestones.length > 0) {
+                        milestoneContainer.style.display = 'flex';
+                        const optionsHtml = this.getMilestoneOptionsHtml(selectedGroupId || 'none');
+                        milestoneSelect.innerHTML = optionsHtml;
+                    } else {
+                        milestoneContainer.style.display = 'none';
+                        milestoneSelect.value = ''; // 清空选择
+                    }
+                } else {
+                    // Fallback if container not found but elements exist (shouldn't happen with current logic)
+                    const optionsHtml = this.getMilestoneOptionsHtml(selectedGroupId || 'none');
+                    milestoneSelect.innerHTML = optionsHtml;
+                }
+            });
+        }
 
         // 初始化选中状态
         this.config.plugin.getAutoDetectDateTimeEnabled().then((enabled: boolean) => {
@@ -157,6 +191,7 @@ export class PasteTaskDialog {
             // 获取用户选择的状态和分组
             let selectedStatus = this.config.defaultStatus;
             let selectedGroupId = this.config.customGroupId;
+            let selectedMilestoneId: string | undefined = undefined;
 
             if (showStatusSelector) {
                 const statusSelect = dialog.element.querySelector('#pasteTaskStatus') as HTMLSelectElement;
@@ -173,9 +208,16 @@ export class PasteTaskDialog {
                 }
             }
 
+            if (showMilestoneSelector) {
+                const milestoneSelect = dialog.element.querySelector('#pasteTaskMilestone') as HTMLSelectElement;
+                if (milestoneSelect) {
+                    selectedMilestoneId = milestoneSelect.value || undefined;
+                }
+            }
+
             if (hierarchicalTasks.length > 0) {
                 try {
-                    await this.batchCreateTasksWithHierarchy(hierarchicalTasks, selectedStatus, selectedGroupId);
+                    await this.batchCreateTasksWithHierarchy(hierarchicalTasks, selectedStatus, selectedGroupId, selectedMilestoneId);
                     dialog.destroy();
                     const totalTasks = this.countTotalTasks(hierarchicalTasks);
                     if (this.config.onSuccess) {
@@ -369,7 +411,7 @@ export class PasteTaskDialog {
         return { title: title.trim() || i18n('noContentHint') || '未命名任务', priority, startDate, time, endDate, endTime, blockId, completed };
     }
 
-    private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[], selectedStatus?: string, selectedGroupId?: string | null) {
+    private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[], selectedStatus?: string, selectedGroupId?: string | null, selectedMilestoneId?: string) {
         const reminderData = await getAllReminders(this.config.plugin, undefined, true);
         const parentTask = this.config.parentTask;
         const projectId = this.config.projectId || (parentTask ? parentTask.projectId : undefined);
@@ -424,6 +466,10 @@ export class PasteTaskDialog {
                 endTime: task.endTime,
                 sort: sortCounter,
             };
+
+            if (selectedMilestoneId) {
+                newTask.milestoneId = selectedMilestoneId;
+            }
 
             if (parentId) {
                 newTask.parentId = parentId;
@@ -589,5 +635,47 @@ export class PasteTaskDialog {
                 </select>
             </div>
         `;
+    }
+
+    private buildMilestoneSelectorHtml(): string {
+        // 初始构建HTML，选项将由JS根据当前选中的分组动态填充
+        // 这里可以预填充默认选项（基于 config.customGroupId）
+        const initialGroupId = this.config.customGroupId || 'none';
+        const milestones = this.getMilestonesForGroup(initialGroupId);
+        const optionsHtml = this.getMilestoneOptionsHtml(initialGroupId);
+
+        // 如果当前分组没有里程碑，则初始隐藏
+        const displayStyle = milestones.length > 0 ? 'flex' : 'none';
+
+        return `
+            <div id="pasteTaskMilestoneContainer" style="display: ${displayStyle}; align-items: center; gap: 6px; flex: 1;">
+                <label style="font-size: 12px; color: var(--b3-theme-on-surface); white-space: nowrap;">${i18n('milestone') || '里程碑'}:</label>
+                <select id="pasteTaskMilestone" class="b3-select" style="flex: 1; min-width: 100px;">
+                    ${optionsHtml}
+                </select>
+            </div>
+        `;
+    }
+
+    private getMilestonesForGroup(groupId: string): any[] {
+        let milestones: any[] = [];
+        if (groupId === 'none' || !groupId) {
+            milestones = this.config.projectMilestones || [];
+        } else {
+            const group = this.config.projectGroups?.find(g => g.id === groupId);
+            milestones = group?.milestones || [];
+        }
+
+        // 过滤掉已归档的里程碑
+        return milestones.filter(m => !m.archived);
+    }
+
+    private getMilestoneOptionsHtml(groupId: string): string {
+        const milestones = this.getMilestonesForGroup(groupId);
+        let html = `<option value="">${i18n('noMilestone') || '无里程碑'}</option>`;
+        milestones.forEach(m => {
+            html += `<option value="${m.id}">${m.icon ? m.icon + ' ' : ''}${m.name}</option>`;
+        });
+        return html;
     }
 }

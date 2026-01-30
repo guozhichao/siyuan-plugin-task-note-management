@@ -9343,13 +9343,15 @@ export class ProjectKanbanView {
     private async showPasteTaskDialog(parentTask?: any, customGroupId?: string, defaultStatus?: string, showSelectors: boolean = false) {
         // 如果需要显示选择器，获取项目配置
         let projectGroups: any[] = [];
+        let projectMilestones: any[] = [];
         let kanbanStatuses: any[] = this.kanbanStatuses;
 
         if (showSelectors && !parentTask) {
             try {
                 projectGroups = await this.projectManager.getProjectCustomGroups(this.projectId);
+                projectMilestones = await this.projectManager.getProjectMilestones(this.projectId);
             } catch (error) {
-                console.error('获取项目分组失败:', error);
+                console.error('获取项目配置失败:', error);
             }
         }
 
@@ -9365,6 +9367,7 @@ export class ProjectKanbanView {
             showStatusSelector: showSelectors && !parentTask, // 只在非子任务且显示选择器时显示
             showGroupSelector: showSelectors && !parentTask,  // 只在非子任务且显示选择器时显示
             projectGroups,
+            projectMilestones,
             kanbanStatuses,
             onSuccess: (totalCount) => {
                 showMessage(`${totalCount} 个任务已创建`);
