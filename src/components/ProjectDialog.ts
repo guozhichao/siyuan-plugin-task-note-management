@@ -40,7 +40,7 @@ export class ProjectDialog {
             }
 
             this.dialog = new Dialog({
-                title: existingProject ? (i18n("edit") + i18n("projectNote")) : (this.blockId ? (i18n("setAsProjectNote") || "设置为项目笔记") : (i18n("createProject") || "创建项目")),
+                title: existingProject ? (i18n("edit") + i18n("project")) : (this.blockId ? (i18n("setAsProjectNote") || "设置为项目笔记") : (i18n("createProject") || "创建项目")),
                 content: this.generateDialogHTML(existingProject?.title || blockContent, existingProject),
                 width: "500px",
                 height: "630px"
