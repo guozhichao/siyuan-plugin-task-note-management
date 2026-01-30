@@ -298,6 +298,22 @@
                     },
                 },
                 {
+                    key: 'milestoneDefaultHeadingLevel',
+                    value: settings.milestoneDefaultHeadingLevel,
+                    type: 'select',
+                    title: i18n('milestoneDefaultHeadingLevel') || '新建标题默认层级（里程碑）',
+                    description:
+                        i18n('milestoneDefaultHeadingLevelDesc') || '设置添加标题里程碑的默认层级',
+                    options: {
+                        1: '1',
+                        2: '2',
+                        3: '3',
+                        4: '4',
+                        5: '5',
+                        6: '6',
+                    },
+                },
+                {
                     key: 'defaultHeadingPosition',
                     value: settings.defaultHeadingPosition,
                     type: 'select',

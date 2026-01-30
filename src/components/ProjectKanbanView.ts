@@ -1662,7 +1662,12 @@ export class ProjectKanbanView {
                     </div>
                     <div class="b3-form__group">
                         <label class="b3-form__label">${i18n('milestoneBlockId')}</label>
-                        <input type="text" id="msBlockId" class="b3-text-field" value="${milestone?.blockId || ''}" placeholder="." style="width: 100%;">
+                        <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
+                            <input type="text" id="msBlockId" class="b3-text-field" value="${milestone?.blockId || ''}" placeholder="." style="flex: 1;">
+                            <button class="b3-button b3-button--outline" id="msBindBlockBtn" title="绑定块">
+                                <svg class="b3-button__icon" style="width: 16px; height: 16px;"><use xlink:href="#iconAdd"></use></svg>
+                            </button>
+                        </div>
                     </div>
                     <div class="b3-form__group" style="display: flex; align-items: center; gap: 8px;">
                         <input type="checkbox" id="msArchived" ${milestone?.archived ? 'checked' : ''} class="b3-switch">
@@ -1688,6 +1693,33 @@ export class ProjectKanbanView {
         const noteInput = dialog.element.querySelector('#msNote') as HTMLTextAreaElement;
         const saveBtn = dialog.element.querySelector('#msSave') as HTMLButtonElement;
         const cancelBtn = dialog.element.querySelector('#msCancel') as HTMLButtonElement;
+        const bindBlockBtn = dialog.element.querySelector('#msBindBlockBtn') as HTMLButtonElement;
+
+        // 绑定块按钮点击事件
+        bindBlockBtn?.addEventListener('click', async () => {
+            // 获取分组的绑定块ID（如果有）
+            let defaultParentId: string | undefined;
+            if (groupId) {
+                const groups = await this.projectManager.getProjectCustomGroups(this.projectId);
+                const group = groups.find((g: any) => g.id === groupId);
+                if (group?.blockId) {
+                    defaultParentId = group.blockId;
+                }
+            }
+
+            const blockBindingDialog = new BlockBindingDialog(this.plugin, (blockId: string) => {
+                blockIdInput.value = blockId;
+            }, {
+                title: '绑定里程碑块',
+                defaultTab: 'heading',
+                defaultParentId: defaultParentId || blockIdInput.value,
+                defaultProjectId: this.projectId,
+                defaultCustomGroupId: groupId,
+                defaultTitle: nameInput.value,
+                forMilestone: true,
+            });
+            blockBindingDialog.show();
+        });
 
         cancelBtn.addEventListener('click', () => dialog.destroy());
         saveBtn.addEventListener('click', async () => {

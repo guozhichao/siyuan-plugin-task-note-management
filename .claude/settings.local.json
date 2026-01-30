@@ -4,9 +4,12 @@
       "Bash(grep:*)",
       "Bash(rg:*)",
       "Bash(npm run build:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(pnpm tsc:*)",
+      "Bash(pnpm run build:*)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "defaultMode":"acceptEdits"
   }
 }

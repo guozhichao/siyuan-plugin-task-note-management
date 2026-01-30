@@ -17,6 +17,7 @@ export class BlockBindingDialog {
     private selectedPathNotebookId?: string;
     private notebooks: any;
     private defaultTitle?: string;
+    private forMilestone: boolean = false;
     constructor(
         plugin: any,
         callback: (blockId: string) => void,
@@ -29,6 +30,7 @@ export class BlockBindingDialog {
             defaultCustomGroupId?: string | null;
             reminder?: any;
             defaultTitle?: string;
+            forMilestone?: boolean;
         }
     ) {
         this.plugin = plugin;
@@ -40,6 +42,7 @@ export class BlockBindingDialog {
         this.defaultCustomGroupId = options?.defaultCustomGroupId;
         this.reminder = options?.reminder;
         this.defaultTitle = options?.defaultTitle;
+        this.forMilestone = options?.forMilestone || false;
 
         this.dialog = new Dialog({
             title: options?.title || "绑定块",
@@ -553,7 +556,10 @@ export class BlockBindingDialog {
         // 加载默认设置
         try {
             const settings = await this.plugin.loadSettings();
-            const defaultLevel = settings.defaultHeadingLevel || 3;
+            // 如果是里程碑场景，使用里程碑默认层级，否则使用普通默认层级
+            const defaultLevel = this.forMilestone
+                ? (settings.milestoneDefaultHeadingLevel || 2)
+                : (settings.defaultHeadingLevel || 3);
             const defaultPosition = settings.defaultHeadingPosition || 'append';
 
             const levelSelect = this.dialog.element.querySelector('#headingLevelSelect') as HTMLSelectElement;
@@ -897,7 +903,10 @@ export class BlockBindingDialog {
     private async adjustHeadingLevel(parentBlock: any, levelSelect: HTMLSelectElement) {
         try {
             const settings = await this.plugin.loadSettings();
-            const defaultLevel = settings.defaultHeadingLevel || 3;
+            // 如果是里程碑场景，使用里程碑默认层级
+            const defaultLevel = this.forMilestone
+                ? (settings.milestoneDefaultHeadingLevel || 3)
+                : (settings.defaultHeadingLevel || 3);
 
             if (parentBlock.type === 'h') {
                 const parentLevel = parseInt(parentBlock.subtype.replace('h', ''));
