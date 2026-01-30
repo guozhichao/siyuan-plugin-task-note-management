@@ -9238,7 +9238,7 @@ export class ProjectKanbanView {
     }
 
     // 使用 QuickReminderDialog 创建任务
-    private showCreateTaskDialog(parentTask?: any, defaultCustomGroupId?: string | null, defaultStatus?) {
+    private showCreateTaskDialog(parentTask?: any, defaultCustomGroupId?: string | null, defaultStatus?: any, defaultMilestoneId?: string) {
         // Calculate max sort value to place new task at the end
         const maxSort = this.tasks.reduce((max, task) => Math.max(max, task.sort || 0), 0);
         const defaultSort = maxSort + 10000;
@@ -9299,7 +9299,7 @@ export class ProjectKanbanView {
                 }
             },
             undefined, // 无时间段选项
-            {
+                {
                 defaultProjectId: this.projectId, // 默认项目ID
                 defaultParentId: parentTask?.id, // 传递父任务ID
                 defaultCategoryId: parentTask?.categoryId || this.project.categoryId, // 如果是子任务，继承父任务分类；否则使用项目分类
@@ -9307,6 +9307,8 @@ export class ProjectKanbanView {
                 defaultTitle: parentTask ? '' : undefined, // 子任务不预填标题
                 // 传入默认 custom group id（可能为 undefined 或 null）
                 defaultCustomGroupId: parentTask?.customGroupId ?? defaultCustomGroupId,
+                // 传入默认里程碑 id（优先使用父任务的里程碑）
+                defaultMilestoneId: parentTask?.milestoneId ?? defaultMilestoneId,
                 hideProjectSelector: true, // 隐藏项目选择器
                 showKanbanStatus: 'term', // 显示任务类型选择
                 // 使用上一次选择的 termType 作为默认值
