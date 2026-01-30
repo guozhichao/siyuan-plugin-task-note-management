@@ -41,7 +41,7 @@ export class ReminderPanel {
     private collapsedTasks: Set<string> = new Set(); // 管理任务的折叠状态
     // 记录用户手动展开的任务（优先于默认折叠）
     private userExpandedTasks: Set<string> = new Set();
-    private milestoneMap: Map<string, { name: string, icon?: string, projectId?: string, projectName?: string }> = new Map();
+    private milestoneMap: Map<string, { name: string, icon?: string, projectId?: string, projectName?: string, blockId?: string }> = new Map();
 
     // 是否在“今日任务”视图下显示已完成的子任务（由 header 中的开关控制）
     private showCompletedSubtasks: boolean = false;
@@ -880,14 +880,14 @@ export class ReminderPanel {
 
                 // 1. 默认里程碑
                 (project.milestones || []).forEach((ms: any) => {
-                    this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon, projectId, projectName });
+                    this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon, projectId, projectName, blockId: ms.blockId });
                 });
 
                 // 2. 分组里程碑
                 const projectGroups = await projectManager.getProjectCustomGroups(projectId);
                 projectGroups.forEach((group: any) => {
                     (group.milestones || []).forEach((ms: any) => {
-                        this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon, projectId, projectName: `${projectName} - ${group.name}` });
+                        this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon, projectId, projectName: `${projectName} - ${group.name}`, blockId: ms.blockId });
                     });
                 });
             }
@@ -2355,6 +2355,14 @@ export class ReminderPanel {
                     font-weight: 500;
                     opacity: 0.8;
                 `;
+                // 如果里程碑绑定了块，添加悬浮预览支持
+                if (milestone.blockId) {
+                    milestoneTag.setAttribute('data-type', 'a');
+                    milestoneTag.setAttribute('data-href', `siyuan://blocks/${milestone.blockId}`);
+                    milestoneTag.style.color = 'var(--b3-theme-primary)';
+                    milestoneTag.style.cursor = 'pointer';
+                    milestoneTag.style.textDecoration = 'underline dotted';
+                }
                 milestoneTag.innerHTML = `<span>${milestone.icon || '🚩'}</span><span>${milestone.name}</span>`;
                 milestoneTag.title = `${i18n('milestone') || '里程碑'}: ${milestone.name}`;
                 infoEl.appendChild(milestoneTag);

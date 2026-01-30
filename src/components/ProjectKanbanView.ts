@@ -115,7 +115,7 @@ export class ProjectKanbanView {
     private filterButton: HTMLButtonElement;
     // 上一次点击的任务ID（用于Shift多选范围）
     private lastClickedTaskId: string | null = null;
-    private milestoneMap: Map<string, { name: string, icon?: string }> = new Map();
+    private milestoneMap: Map<string, { name: string, icon?: string, blockId?: string }> = new Map();
     // 里程碑分组折叠状态
     private collapsedMilestoneGroups: Set<string> = new Set();
     // 记录在经过搜索/标签/日期等过滤后，哪些状态/分组还有带里程碑的任务（用于显示筛选按钮）
@@ -1856,13 +1856,13 @@ export class ProjectKanbanView {
 
             // 1. 默认里程碑
             (project?.milestones || []).forEach((ms: any) => {
-                this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon });
+                this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon, blockId: ms.blockId });
             });
 
             // 2. 分组里程碑
             projectGroups.forEach((group: any) => {
                 (group.milestones || []).forEach((ms: any) => {
-                    this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon });
+                    this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon, blockId: ms.blockId });
                 });
             });
         } catch (error) {
@@ -7538,6 +7538,14 @@ export class ProjectKanbanView {
                     width: fit-content;
                     border: 1px solid var(--b3-theme-border);
                 `;
+                // 如果里程碑绑定了块，添加悬浮预览支持
+                if (milestone.blockId) {
+                    milestoneEl.setAttribute('data-type', 'a');
+                    milestoneEl.setAttribute('data-href', `siyuan://blocks/${milestone.blockId}`);
+                    milestoneEl.style.color = 'var(--b3-theme-primary)';
+                    milestoneEl.style.cursor = 'pointer';
+                    milestoneEl.style.textDecoration = 'underline dotted';
+                }
                 milestoneEl.innerHTML = `<span>${milestone.icon || '🚩'}</span><span style="font-weight: 500;">${milestone.name}</span>`;
                 infoEl.appendChild(milestoneEl);
             }
