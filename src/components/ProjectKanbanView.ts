@@ -1342,6 +1342,9 @@ export class ProjectKanbanView {
 
             container.innerHTML = '';
 
+            // 判断是否全局模式（未指定 groupId 时为全局模式）
+            const isGlobalMode = !groupId;
+
             // 如果指定了 groupId，只显示该分组的里程碑
             if (groupId) {
                 // 查找对应的分组
@@ -1349,7 +1352,7 @@ export class ProjectKanbanView {
                 if (targetGroup) {
                     const groupKey = targetGroup.id;
                     const isCollapsed = this.collapsedMilestoneGroups.has(groupKey);
-                    const groupSection = this.createMilestoneSection(targetGroup.name, targetGroup.id, targetGroup.milestones || [], container, isCollapsed);
+                    const groupSection = this.createMilestoneSection(targetGroup.name, targetGroup.id, targetGroup.milestones || [], container, isCollapsed, false);
                     container.appendChild(groupSection);
                 }
                 return;
@@ -1358,14 +1361,14 @@ export class ProjectKanbanView {
             // 1. 默认里程碑（未分组）
             const defaultGroupKey = 'global';
             const defaultIsCollapsed = this.collapsedMilestoneGroups.has(defaultGroupKey);
-            const defaultSection = this.createMilestoneSection(i18n('defaultMilestones'), null, defaultMilestones, container, defaultIsCollapsed);
+            const defaultSection = this.createMilestoneSection(i18n('defaultMilestones'), null, defaultMilestones, container, defaultIsCollapsed, isGlobalMode);
             container.appendChild(defaultSection);
 
             // 2. 分组里程碑
             for (const group of projectGroups) {
                 const groupKey = group.id;
                 const isCollapsed = this.collapsedMilestoneGroups.has(groupKey);
-                const groupSection = this.createMilestoneSection(group.name, group.id, group.milestones || [], container, isCollapsed);
+                const groupSection = this.createMilestoneSection(group.name, group.id, group.milestones || [], container, isCollapsed, isGlobalMode);
                 container.appendChild(groupSection);
             }
         } catch (error) {
@@ -1374,7 +1377,7 @@ export class ProjectKanbanView {
         }
     }
 
-    private createMilestoneSection(title: string, groupId: string | null, milestones: any[], parentContainer: HTMLElement, isCollapsed: boolean): HTMLElement {
+    private createMilestoneSection(title: string, groupId: string | null, milestones: any[], parentContainer: HTMLElement, isCollapsed: boolean, isGlobalMode: boolean = false): HTMLElement {
         const groupKey = groupId || 'global';
         const section = document.createElement('div');
         section.className = 'milestone-section';
@@ -1423,7 +1426,9 @@ export class ProjectKanbanView {
         addBtn.className = 'b3-button b3-button--small b3-button--primary';
         addBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg> ${i18n('newMilestone')}`;
         addBtn.addEventListener('click', () => {
-            this.showMilestoneEditDialog(null, groupId, () => this.renderMilestonesInDialog(parentContainer, groupId), milestones);
+            // 全局模式下刷新所有里程碑，分组模式下只刷新该分组
+            const refreshCallback = () => this.renderMilestonesInDialog(parentContainer, isGlobalMode ? undefined : groupId);
+            this.showMilestoneEditDialog(null, groupId, refreshCallback, milestones);
         });
         header.appendChild(addBtn);
 
@@ -1512,7 +1517,9 @@ export class ProjectKanbanView {
                 editBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconEdit"></use></svg>';
                 editBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    this.showMilestoneEditDialog(ms, groupId, () => this.renderMilestonesInDialog(parentContainer, groupId), milestones);
+                    // 全局模式下刷新所有里程碑，分组模式下只刷新该分组
+                    const refreshCallback = () => this.renderMilestonesInDialog(parentContainer, isGlobalMode ? undefined : groupId);
+                    this.showMilestoneEditDialog(ms, groupId, refreshCallback, milestones);
                 });
                 actions.appendChild(editBtn);
 
@@ -1526,7 +1533,8 @@ export class ProjectKanbanView {
                         i18n('confirmDeleteMilestone').replace('${name}', ms.name),
                         async () => {
                             await this.deleteMilestone(ms.id, groupId);
-                            this.renderMilestonesInDialog(parentContainer, groupId);
+                            // 全局模式下刷新所有里程碑，分组模式下只刷新该分组
+                            this.renderMilestonesInDialog(parentContainer, isGlobalMode ? undefined : groupId);
                         },
                         () => {
                             console.log("用户取消了删除");
