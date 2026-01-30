@@ -968,6 +968,13 @@ export class QuickReminderDialog {
                                 </button>
                             </div>
                         </div>
+                        <div class="b3-form__group">
+                            <label class="b3-checkbox">
+                                <input type="checkbox" id="quickPasteAutoDetect" ${this.autoDetectDateTime ? 'checked' : ''}>
+                                <span class="b3-checkbox__graphic"></span>
+                                <span class="b3-checkbox__label">${i18n("pasteAutoDetectDate") || "粘贴自动识别日期"}</span>
+                            </label>
+                        </div>
                         <!-- 绑定块/文档输入，允许手动输入块 ID 或文档 ID -->
                         <div class="b3-form__group">
                             <label class="b3-form__label">${i18n("bindToBlock") || '块或文档 ID'}</label>
@@ -1896,7 +1903,8 @@ export class QuickReminderDialog {
                 }
 
                 // 如果启用了自动识别，检测日期时间
-                if (this.autoDetectDateTime) {
+                const pasteAutoDetect = this.dialog.element.querySelector('#quickPasteAutoDetect') as HTMLInputElement;
+                if (pasteAutoDetect && pasteAutoDetect.checked) {
                     // 使用粘贴的所有非空行进行识别，以便第二行或后续行中的自然语言也能被识别
                     const joined = lines.join(' ');
                     const detected = autoDetectDateTimeFromTitle(joined);
