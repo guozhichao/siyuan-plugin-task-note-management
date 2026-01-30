@@ -558,6 +558,7 @@
     "loadStatusesFailed": "Failed to load statuses",
     "noProjectsInStatus": "No projects in \"${status}\" status",
     "manageMilestones": "Manage Milestones",
+    "manage": "Manage",
     "newMilestone": "New Milestone",
     "editMilestone": "Edit Milestone",
     "deleteMilestone": "Delete Milestone",

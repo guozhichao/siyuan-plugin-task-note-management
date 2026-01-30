@@ -1305,7 +1305,7 @@ export class ProjectKanbanView {
         await loadAndDisplayTags();
     }
 
-    private async showManageMilestonesDialog() {
+    private async showManageMilestonesDialog(groupId?: string) {
         const dialog = new Dialog({
             title: i18n('manageMilestones'),
             content: `
@@ -1320,10 +1320,10 @@ export class ProjectKanbanView {
         });
 
         const container = dialog.element.querySelector('#milestonesGroupsContainer') as HTMLElement;
-        this.renderMilestonesInDialog(container);
+        this.renderMilestonesInDialog(container, groupId);
     }
 
-    private async renderMilestonesInDialog(container: HTMLElement) {
+    private async renderMilestonesInDialog(container: HTMLElement, groupId?: string) {
         try {
             const projectManager = this.projectManager;
             const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
@@ -1332,6 +1332,19 @@ export class ProjectKanbanView {
             const defaultMilestones = project?.milestones || [];
 
             container.innerHTML = '';
+
+            // 如果指定了 groupId，只显示该分组的里程碑
+            if (groupId) {
+                // 查找对应的分组
+                const targetGroup = projectGroups.find(g => g.id === groupId);
+                if (targetGroup) {
+                    const groupKey = targetGroup.id;
+                    const isCollapsed = this.collapsedMilestoneGroups.has(groupKey);
+                    const groupSection = this.createMilestoneSection(targetGroup.name, targetGroup.id, targetGroup.milestones || [], container, isCollapsed);
+                    container.appendChild(groupSection);
+                }
+                return;
+            }
 
             // 1. 默认里程碑（未分组）
             const defaultGroupKey = 'global';
@@ -2986,8 +2999,8 @@ export class ProjectKanbanView {
             const projectData = await this.plugin.loadProjectData() || {};
             const project = projectData[this.projectId];
 
-            // 确定要显示的里程碑集合 (初始包含所有未归档)
-            const defaultMilestones = (project?.milestones || []).filter((m: any) => !m.archived);
+            // 确定要显示的里程碑集合 (包含所有里程碑，包括已归档的，以便筛选历史任务)
+            const defaultMilestones = (project?.milestones || []);
             let milestonesToShow: { title: string, milestones: any[], groupId: string }[] = [];
 
             // [新增] 使用在 loadTasks 中预先统计好的带里程碑的任务 ID 和所属分组
@@ -3001,8 +3014,8 @@ export class ProjectKanbanView {
             const isUngrouped = targetGroupId === 'ungrouped';
 
             if (isCustomGroup) {
-                // 如果是特定自定义分组，只显示该分组的任务所使用的里程碑
-                const ms = (targetGroup.milestones || []).filter((m: any) => !m.archived && usedMilestoneIds.has(m.id));
+                // 如果是特定自定义分组，只显示该分组的任务所使用的里程碑（包含已归档）
+                const ms = (targetGroup.milestones || []).filter((m: any) => usedMilestoneIds.has(m.id));
                 if (ms.length > 0) {
                     milestonesToShow.push({
                         title: targetGroup.name,
@@ -3034,12 +3047,12 @@ export class ProjectKanbanView {
                     }
                 }
 
-                // 分组里程碑（只显示未归档分组的里程碑）
+                // 分组里程碑（包含所有里程碑，包括已归档的，以便筛选历史任务）
                 projectGroups
                     .filter((g: any) => !g.archived)
                     .forEach((g: any) => {
                         if (!allowedGroups.has(g.id)) return;
-                        const ms = (g.milestones || []).filter((m: any) => !m.archived && usedMilestoneIds.has(m.id));
+                        const ms = (g.milestones || []).filter((m: any) => usedMilestoneIds.has(m.id));
                         if (ms.length > 0) {
                             milestonesToShow.push({
                                 title: g.name,
@@ -3124,6 +3137,21 @@ export class ProjectKanbanView {
                 this.updateMilestoneFilterButtonsState();
             });
             btnsContainer.appendChild(clearBtn);
+
+            // 管理按钮（仅自定义分组显示）
+            if (targetGroup) {
+                const manageBtn = document.createElement('button');
+                manageBtn.className = 'b3-button b3-button--text b3-button--small';
+                manageBtn.style.flex = '1';
+                manageBtn.textContent = i18n('manage') || '管理';
+                manageBtn.addEventListener('click', () => {
+                    // 关闭筛选菜单
+                    menu.remove();
+                    // 打开管理对话框，只显示当前分组的里程碑
+                    this.showManageMilestonesDialog(targetGroupId);
+                });
+                btnsContainer.appendChild(manageBtn);
+            }
 
             menu.appendChild(btnsContainer);
 

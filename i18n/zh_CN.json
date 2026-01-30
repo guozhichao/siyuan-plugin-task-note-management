@@ -645,6 +645,7 @@
     "loadStatusesFailed": "加载状态失败",
     "noProjectsInStatus": "暂无“${status}”状态的项目",
     "manageMilestones": "管理里程碑",
+    "manage": "管理",
     "newMilestone": "新建里程碑",
     "editMilestone": "编辑里程碑",
     "deleteMilestone": "删除里程碑",
