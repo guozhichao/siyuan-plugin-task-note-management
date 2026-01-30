@@ -565,6 +565,8 @@
     "milestoneIcon": "Milestone Icon",
     "milestoneArchived": "Archived",
     "milestoneBlockId": "Bind Block ID",
+    "milestoneNote": "Milestone Note",
+    "milestoneNotePlaceholder": "Enter milestone note (optional)",
     "milestoneSaved": "Milestone saved",
     "milestoneDeleted": "Milestone deleted",
     "confirmDeleteMilestone": "Are you sure you want to delete milestone \"${name}\"?",

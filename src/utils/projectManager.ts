@@ -8,6 +8,7 @@ export interface Milestone {
     archived: boolean;
     blockId?: string;
     sort: number;
+    note?: string;
 }
 
 export interface ProjectGroup {

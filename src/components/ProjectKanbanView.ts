@@ -1646,6 +1646,10 @@ export class ProjectKanbanView {
                         <input type="checkbox" id="msArchived" ${milestone?.archived ? 'checked' : ''} class="b3-switch">
                         <label class="b3-form__label" style="margin: 0;">${i18n('milestoneArchived')}</label>
                     </div>
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">${i18n('milestoneNote')}</label>
+                        <textarea id="msNote" class="b3-text-field" rows="4" placeholder="${i18n('milestoneNotePlaceholder') || ''}" style="width: 100%; resize: vertical;">${milestone?.note || ''}</textarea>
+                    </div>
                 </div>
                 <div class="b3-dialog__action">
                     <button class="b3-button b3-button--cancel" id="msCancel">${i18n('cancel')}</button>
@@ -1659,6 +1663,7 @@ export class ProjectKanbanView {
         const iconInput = dialog.element.querySelector('#msIcon') as HTMLInputElement;
         const blockIdInput = dialog.element.querySelector('#msBlockId') as HTMLInputElement;
         const archivedInput = dialog.element.querySelector('#msArchived') as HTMLInputElement;
+        const noteInput = dialog.element.querySelector('#msNote') as HTMLTextAreaElement;
         const saveBtn = dialog.element.querySelector('#msSave') as HTMLButtonElement;
         const cancelBtn = dialog.element.querySelector('#msCancel') as HTMLButtonElement;
 
@@ -1687,6 +1692,7 @@ export class ProjectKanbanView {
                 icon: iconInput.value.trim(),
                 blockId: blockIdInput.value.trim(),
                 archived: archivedInput.checked,
+                note: noteInput.value.trim(),
                 sort: sortValue
             };
 

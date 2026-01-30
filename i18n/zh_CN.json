@@ -652,6 +652,8 @@
     "milestoneIcon": "里程碑图标",
     "milestoneArchived": "已归档",
     "milestoneBlockId": "绑定块ID",
+    "milestoneNote": "里程碑备注",
+    "milestoneNotePlaceholder": "请输入里程碑的备注信息（可选）",
     "milestoneSaved": "里程碑已保存",
     "milestoneDeleted": "里程碑已删除",
     "confirmDeleteMilestone": "确定要删除里程碑 \"${name}\" 吗？",
