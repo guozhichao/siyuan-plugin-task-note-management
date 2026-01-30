@@ -31,6 +31,7 @@ export class QuickReminderDialog {
     private showKanbanStatus?: 'todo' | 'term' | 'none' = 'term'; // 看板状态显示模式，默认为 'term'
     private defaultStatus?: 'short_term' | 'long_term' | 'doing' | 'todo'; // 默认任务状态
     private defaultCustomGroupId?: string | null;
+    private defaultMilestoneId?: string;
     private defaultCustomReminderTime?: string;
     private isTimeRange: boolean = false;
     private initialDate: string;
@@ -71,6 +72,7 @@ export class QuickReminderDialog {
             showKanbanStatus?: 'todo' | 'term' | 'none';
             defaultStatus?: 'short_term' | 'long_term' | 'doing' | 'todo';
             defaultCustomGroupId?: string | null;
+            defaultMilestoneId?: string;
             defaultCustomReminderTime?: string;
             plugin?: any;
             hideProjectSelector?: boolean;
@@ -104,6 +106,7 @@ export class QuickReminderDialog {
             this.showKanbanStatus = options.showKanbanStatus || 'term';
             this.defaultStatus = options.defaultStatus || 'doing';
             this.defaultCustomGroupId = options.defaultCustomGroupId !== undefined ? options.defaultCustomGroupId : options.reminder?.customGroupId;
+            this.defaultMilestoneId = options.defaultMilestoneId !== undefined ? options.defaultMilestoneId : options.reminder?.milestoneId;
             this.defaultCustomReminderTime = options.defaultCustomReminderTime;
             this.plugin = options.plugin;
             this.hideProjectSelector = options.hideProjectSelector;
@@ -2564,12 +2567,12 @@ export class QuickReminderDialog {
                 milestoneGroup.style.display = 'block';
 
                 // 尝试保留选中的值
-                // 注意：在 populateEditForm 中会单独设置值，这里主要是响应变化时重置或保持
-                if (this.reminder && this.reminder.milestoneId) {
-                    // 检查当前选项中是否存在该 milestoneId
-                    const exists = Array.from(milestoneSelector.options).some(opt => opt.value === this.reminder.milestoneId);
+                // 优先使用 constructor 传入的 defaultMilestoneId，其次使用编辑模式下的 reminder.milestoneId
+                const targetMilestoneId = (this as any).defaultMilestoneId !== undefined ? (this as any).defaultMilestoneId : (this.reminder?.milestoneId || undefined);
+                if (targetMilestoneId) {
+                    const exists = Array.from(milestoneSelector.options).some(opt => opt.value === targetMilestoneId);
                     if (exists) {
-                        milestoneSelector.value = this.reminder.milestoneId;
+                        milestoneSelector.value = targetMilestoneId;
                     }
                 }
             } else {
@@ -2684,6 +2687,17 @@ export class QuickReminderDialog {
                 } else {
                     endDate = endDateInput.value;
                     endTime = undefined;
+                }
+            }
+        }
+
+        // 自动根据日期更新状态：如果是今天或过去的任务，且未完成，自动设为进行中
+        if (date && kanbanStatus !== 'completed') {
+            const today = getLogicalDateString();
+            if (compareDateStrings(date, today) <= 0) {
+                const hasDoingStatus = this.currentKanbanStatuses.some(s => s.id === 'doing');
+                if (hasDoingStatus) {
+                    kanbanStatus = 'doing';
                 }
             }
         }
@@ -2995,6 +3009,95 @@ export class QuickReminderDialog {
                         reminderData[reminderId] = reminder;
                         await this.plugin.saveReminderData(reminderData);
 
+                        // 如果看板状态或自定义分组发生变化，将该字段递归应用到所有子任务（包含多层子孙）
+                        try {
+                            const oldStatus = this.reminder.kanbanStatus;
+                            const newStatus = reminder.kanbanStatus;
+                            const oldGroup = this.reminder.customGroupId;
+                            const newGroup = reminder.customGroupId;
+
+                            let anyChildChanged = false;
+
+                            const oldMilestone = this.reminder.milestoneId;
+                            const newMilestone = reminder.milestoneId;
+                            const oldProject = this.reminder.projectId;
+                            const newProject = reminder.projectId;
+
+                            // 收集需要同步到块属性的变更（{blockId, projectId}）
+                            const changedBlockProjects: Array<{ blockId: string; projectId?: string | null }> = [];
+
+                            const updateChildren = (parentId: string) => {
+                                for (const key of Object.keys(reminderData)) {
+                                    const r = reminderData[key];
+                                    if (r && r.parentId === parentId) {
+                                        let changed = false;
+                                        // 更新状态（仅在值确实改变时）
+                                        if (oldStatus !== newStatus) {
+                                            r.kanbanStatus = newStatus;
+                                            changed = true;
+                                        }
+                                        // 更新自定义分组
+                                        if (oldGroup !== newGroup) {
+                                            r.customGroupId = newGroup;
+                                            changed = true;
+                                        }
+                                        // 更新里程碑
+                                        if (oldMilestone !== newMilestone) {
+                                            r.milestoneId = newMilestone;
+                                            changed = true;
+                                        }
+
+                                        if (changed) {
+                                            r.updatedAt = new Date().toISOString();
+                                            anyChildChanged = true;
+                                        }
+
+                                        // 更新项目ID（支持从有到无或无到有）
+                                        if (oldProject !== newProject) {
+                                            r.projectId = newProject;
+                                            // 如果该子任务绑定了块，记录以便后续同步块属性
+                                            if (r.blockId) {
+                                                changedBlockProjects.push({ blockId: r.blockId, projectId: newProject });
+                                            }
+                                            changed = true;
+                                        }
+
+                                        // 递归更新其子任务
+                                        updateChildren(r.id);
+                                    }
+                                }
+                            };
+
+                            updateChildren(reminderId);
+
+                            // 持久化子任务变更（如果有）
+                            if (anyChildChanged) {
+                                await this.plugin.saveReminderData(reminderData);
+
+                                // 如果有绑定块需要同步 projectId，异步调用 API 处理
+                                if (changedBlockProjects.length > 0) {
+                                    try {
+                                        const { addBlockProjectId, setBlockProjectIds } = await import('../api');
+                                        for (const item of changedBlockProjects) {
+                                            try {
+                                                if (item.projectId) {
+                                                    await addBlockProjectId(item.blockId, item.projectId as string);
+                                                } else {
+                                                    await setBlockProjectIds(item.blockId, []);
+                                                }
+                                            } catch (e) {
+                                                console.warn('同步子任务绑定块的 projectId 失败:', item.blockId, e);
+                                            }
+                                        }
+                                    } catch (e) {
+                                        console.warn('导入 API 以同步块 projectId 失败:', e);
+                                    }
+                                }
+                            }
+                        } catch (err) {
+                            console.warn('更新子任务状态/分组失败:', err);
+                        }
+
                         // 处理块绑定变更
                         const oldBlockId = this.reminder.blockId;
                         const newBlockId = reminder.blockId;
@@ -3208,20 +3311,7 @@ export class QuickReminderDialog {
                 }
 
 
-                // 如果是新建任务且有日期，且日期为今天或过去，但用户没有显式设置为进行中，提示自动显示为进行中
-                try {
-                    const today = getLogicalDateString();
-                    if (!this.mode || this.mode !== 'edit') {
-                        if (reminder.date && typeof compareDateStrings === 'function') {
-                            const cmp = compareDateStrings(reminder.date, today);
-                            if (cmp <= 0 && reminder.kanbanStatus !== 'doing') {
-                                showMessage('注意：任务日期为今天或过去，系统会将其自动显示在“进行中”列。若需移出，请修改任务的日期/时间。', 5000);
-                            }
-                        }
-                    }
-                } catch (err) {
-                    // ignore
-                }
+
 
                 // 如果项目发生了变更，不传递 projectId 以触发全量刷新；否则传递 projectId 进行增量刷新
                 const isProjectChanged = this.mode === 'edit' && this.reminder && this.reminder.projectId !== projectId;

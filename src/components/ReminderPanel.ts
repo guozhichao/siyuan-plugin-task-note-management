@@ -6946,6 +6946,10 @@ export class ReminderPanel {
                 defaultProjectId: parentReminder.projectId,
                 defaultCategoryId: parentReminder.categoryId,
                 defaultPriority: parentReminder.priority || 'none',
+                // 自动填充父任务的自定义分组与状态
+                defaultCustomGroupId: parentReminder.customGroupId || undefined,
+                defaultStatus: parentReminder.kanbanStatus || undefined,
+                defaultMilestoneId: parentReminder.milestoneId || undefined,
                 plugin: this.plugin,
                 defaultTitle: '', // 子任务标题默认为空
                 defaultSort: defaultSort
