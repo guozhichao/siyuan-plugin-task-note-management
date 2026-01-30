@@ -4232,6 +4232,7 @@ export class ProjectKanbanView {
                     if (this.kanbanMode === 'custom') {
                         filterKey = t.customGroupId || 'ungrouped';
                     } else if (this.kanbanMode === 'status') {
+                        // 使用已计算好的 status 字段
                         filterKey = t.status;
                     } else if (this.kanbanMode === 'list') {
                         filterKey = t.customGroupId || 'ungrouped';
@@ -4251,20 +4252,51 @@ export class ProjectKanbanView {
                     return set.has(milestoneId);
                 };
 
-                const matchingIds = new Set<string>();
                 const taskMap = new Map(this.tasks.map(t => [t.id, t]));
-
+                const childrenMap = new Map<string, any[]>();
                 this.tasks.forEach(t => {
-                    if (matchesMilestone(t)) {
-                        let current = t;
-                        while (current) {
-                            matchingIds.add(current.id);
-                            current = current.parentId ? taskMap.get(current.parentId) : null;
-                        }
+                    if (t.parentId && taskMap.has(t.parentId)) {
+                        if (!childrenMap.has(t.parentId)) childrenMap.set(t.parentId, []);
+                        childrenMap.get(t.parentId)!.push(t);
                     }
                 });
 
-                this.tasks = this.tasks.filter(t => matchingIds.has(t.id));
+                // 1. 识别直接匹配里程碑过滤器的任务
+                const directMatches = new Set<string>();
+                this.tasks.forEach(t => {
+                    if (matchesMilestone(t)) {
+                        directMatches.add(t.id);
+                    }
+                });
+
+                // 2. 收集包含子任务的集合
+                const includedIds = new Set<string>();
+                const addWithDescendants = (taskId: string) => {
+                    if (includedIds.has(taskId)) return;
+                    includedIds.add(taskId);
+
+                    const children = childrenMap.get(taskId) || [];
+                    for (const child of children) {
+                        // [关键改动] 如果子任务没有设置里程碑，则跟随父任务显示
+                        if (!child.milestoneId) {
+                            addWithDescendants(child.id);
+                        }
+                    }
+                };
+
+                directMatches.forEach(id => addWithDescendants(id));
+
+                // 3. 向上追溯祖先，确保路径完整
+                const finalIds = new Set<string>();
+                includedIds.forEach(id => {
+                    let current = taskMap.get(id);
+                    while (current) {
+                        finalIds.add(current.id);
+                        current = current.parentId ? taskMap.get(current.parentId) : null;
+                    }
+                });
+
+                this.tasks = this.tasks.filter(t => finalIds.has(t.id));
             }
 
             this.sortTasks();
