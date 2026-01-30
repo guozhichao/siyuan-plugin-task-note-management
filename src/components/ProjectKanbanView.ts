@@ -3903,7 +3903,9 @@ export class ProjectKanbanView {
                             // 实例层里程碑支持：优先使用 instanceMod 的 milestoneId，否则使用原始提醒的 milestoneId
                             milestoneId: instanceMod?.milestoneId !== undefined ? instanceMod.milestoneId : reminder.milestoneId,
                             // 为已完成的实例添加完成时间（用于排序）
-                            completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined
+                            completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined,
+                            // 支持实例级别的排序字段（优先使用 instanceMod 中的 sort）
+                            sort: (instanceMod && typeof instanceMod.sort === 'number') ? instanceMod.sort : (reminder.sort || 0)
                         };
 
                         // 按日期和完成状态分类（使用逻辑日期）
@@ -3933,6 +3935,14 @@ export class ProjectKanbanView {
                             }
                         }
                     });
+
+                    // 在合并前按 sort 排序，确保实例层的 sort 被应用
+                    const sortBySort = (a: any, b: any) => (a.sort || 0) - (b.sort || 0);
+                    pastIncompleteList.sort(sortBySort);
+                    todayIncompleteList.sort(sortBySort);
+                    futureIncompleteList.sort(sortBySort);
+                    pastCompletedList.sort(sortBySort);
+                    futureCompletedList.sort(sortBySort);
 
                     // 添加过去的未完成实例
                     allTasksWithInstances.push(...pastIncompleteList);
@@ -11561,8 +11571,167 @@ export class ProjectKanbanView {
             const draggedId = draggedTask.id;
             const targetId = targetTask.id;
 
-            const draggedTaskInDb = reminderData[draggedId];
-            const targetTaskInDb = reminderData[targetId];
+            let draggedTaskInDb = reminderData[draggedId];
+            let targetTaskInDb = reminderData[targetId];
+
+            // 支持对重复实例排序：如果被拖拽项或目标项为实例（有 originalId 且实例本身不在 reminderData 中），
+            // 则将该实例的 sort 写入原始提醒的 repeat.instanceModifications[date].sort
+            const handleInstanceReorder = async (): Promise<boolean> => {
+                try {
+                    // 处理被拖拽项为实例的情况
+                    if (!draggedTaskInDb && draggedTask && draggedTask.originalId) {
+                        const originalId = draggedTask.originalId;
+                        const instanceDate = draggedTask.date;
+                        const original = reminderData[originalId];
+                        if (!original) return false;
+
+                        // 计算目标 sort
+                        let targetSort = 0;
+                        if (targetTaskInDb && typeof targetTaskInDb.sort === 'number') {
+                            targetSort = targetTaskInDb.sort as number;
+                        } else if (targetTask && targetTask.isRepeatInstance && targetTask.originalId && reminderData[targetTask.originalId]) {
+                            const tOrig = reminderData[targetTask.originalId];
+                            const tDate = targetTask.date;
+                            const tMods = tOrig.repeat?.instanceModifications || {};
+                            const tInst = tMods[tDate] || {};
+                            if (typeof tInst.sort === 'number') targetSort = tInst.sort;
+                        } else if (targetTask && typeof targetTask.sort === 'number') {
+                            targetSort = targetTask.sort;
+                        }
+
+                        const newSort = insertBefore ? (targetSort - 5) : (targetSort + 5);
+
+                        if (!original.repeat) original.repeat = {};
+                        if (!original.repeat.instanceModifications) original.repeat.instanceModifications = {};
+                        if (!original.repeat.instanceModifications[instanceDate]) original.repeat.instanceModifications[instanceDate] = {};
+                        const instMod = original.repeat.instanceModifications[instanceDate];
+                        instMod.sort = newSort;
+
+                        // 如果目标导致状态或分组变更，写入实例级别的 kanbanStatus 与 customGroupId
+                        try {
+                            let newStatus: string | undefined = undefined;
+                            let newGroup: string | null | undefined = undefined;
+
+                            if (targetTaskInDb) {
+                                newStatus = this.getTaskStatus(targetTaskInDb);
+                                newGroup = targetTaskInDb.customGroupId === undefined ? null : targetTaskInDb.customGroupId;
+                            } else if (targetTask && targetTask.isRepeatInstance && targetTask.originalId && reminderData[targetTask.originalId]) {
+                                const tOrig = reminderData[targetTask.originalId];
+                                const tDate = targetTask.date;
+                                const tMods = tOrig.repeat?.instanceModifications || {};
+                                const tInst = tMods[tDate] || {};
+                                newStatus = tInst.kanbanStatus !== undefined ? tInst.kanbanStatus : this.getTaskStatus(tOrig);
+                                newGroup = tInst.customGroupId !== undefined ? tInst.customGroupId : (tOrig.customGroupId === undefined ? null : tOrig.customGroupId);
+                            } else if (targetTask) {
+                                newStatus = targetTask.kanbanStatus !== undefined ? targetTask.kanbanStatus : undefined;
+                                newGroup = (targetTask.customGroupId === undefined) ? undefined : targetTask.customGroupId;
+                            }
+
+                            // 当前实例的状态/分组
+                            const currentInstStatus = draggedTask.kanbanStatus !== undefined ? draggedTask.kanbanStatus : undefined;
+                            const currentInstGroup = draggedTask.customGroupId !== undefined ? draggedTask.customGroupId : undefined;
+
+                            if (newStatus !== undefined && newStatus !== currentInstStatus) {
+                                instMod.kanbanStatus = newStatus;
+                            }
+                            if (newGroup !== undefined && newGroup !== currentInstGroup) {
+                                // 使用 null 表示未分组
+                                instMod.customGroupId = newGroup === undefined ? instMod.customGroupId : newGroup;
+                            }
+                        } catch (err) {
+                            console.warn('Compute instance status/group failed', err);
+                        }
+
+                        await saveReminders(this.plugin, reminderData);
+                        // 更新本地缓存（尝试更新在内存 tasks 中的实例表示）
+                        const local = this.tasks.find(t => t.id === draggedId);
+                        if (local) {
+                            local.sort = newSort;
+                            // 应用可能的实例级修改
+                            const instSaved = original.repeat.instanceModifications[instanceDate] || {};
+                            if (instSaved.kanbanStatus !== undefined) local.kanbanStatus = instSaved.kanbanStatus;
+                            if (instSaved.customGroupId !== undefined) local.customGroupId = instSaved.customGroupId;
+                        }
+                        this.dispatchReminderUpdate(true);
+                        // 尝试立即更新 DOM 以便用户看到即时反馈；若失败，后续的 queueLoadTasks 会刷新
+                        try {
+                            const domUpdated = this.reorderTasksDOM(draggedId, targetTask.id, insertBefore);
+                            if (domUpdated) this.refreshTaskElement(draggedId);
+                        } catch (err) {
+                            // 忽略 DOM 更新错误
+                        }
+                        await this.queueLoadTasks();
+                        return true;
+                    }
+
+                    // 处理目标为实例但被拖拽项为普通任务（将普通任务插入到实例列表）
+                    if (!targetTaskInDb && targetTask && targetTask.originalId) {
+                        const originalId = targetTask.originalId;
+                        const instanceDate = targetTask.date;
+                        const original = reminderData[originalId];
+                        if (!original) return false;
+
+                        // 参考上面逻辑，使用被拖拽项的 sort 作为基准
+                        let baseSort = 0;
+                        if (draggedTaskInDb && typeof draggedTaskInDb.sort === 'number') baseSort = draggedTaskInDb.sort as number;
+                        else if (draggedTask && typeof draggedTask.sort === 'number') baseSort = draggedTask.sort;
+
+                        const newSort = insertBefore ? (baseSort - 5) : (baseSort + 5);
+                        if (!original.repeat) original.repeat = {};
+                        if (!original.repeat.instanceModifications) original.repeat.instanceModifications = {};
+                        if (!original.repeat.instanceModifications[instanceDate]) original.repeat.instanceModifications[instanceDate] = {};
+                        const instMod2 = original.repeat.instanceModifications[instanceDate];
+                        instMod2.sort = newSort;
+
+                        // 如果被插入位置意味着状态或分组改变，也写入实例级别修改
+                        try {
+                            let newStatus2: string | undefined = undefined;
+                            let newGroup2: string | null | undefined = undefined;
+                            if (draggedTaskInDb) {
+                                newStatus2 = this.getTaskStatus(draggedTaskInDb);
+                                newGroup2 = draggedTaskInDb.customGroupId === undefined ? null : draggedTaskInDb.customGroupId;
+                            } else if (draggedTask) {
+                                newStatus2 = draggedTask.kanbanStatus !== undefined ? draggedTask.kanbanStatus : undefined;
+                                newGroup2 = draggedTask.customGroupId !== undefined ? draggedTask.customGroupId : undefined;
+                            }
+
+                            const currentInst2Status = targetTask.kanbanStatus !== undefined ? targetTask.kanbanStatus : undefined;
+                            const currentInst2Group = targetTask.customGroupId !== undefined ? targetTask.customGroupId : undefined;
+
+                            if (newStatus2 !== undefined && newStatus2 !== currentInst2Status) {
+                                instMod2.kanbanStatus = newStatus2;
+                            }
+                            if (newGroup2 !== undefined && newGroup2 !== currentInst2Group) {
+                                instMod2.customGroupId = newGroup2 === undefined ? instMod2.customGroupId : newGroup2;
+                            }
+                        } catch (err) {
+                            console.warn('Compute instance target status/group failed', err);
+                        }
+
+                        await saveReminders(this.plugin, reminderData);
+                        this.dispatchReminderUpdate(true);
+                        try {
+                            const domUpdated = this.reorderTasksDOM(draggedId, targetTask.id, insertBefore);
+                            if (domUpdated) this.refreshTaskElement(draggedId);
+                        } catch (err) {
+                            // 忽略 DOM 更新错误
+                        }
+                        await this.queueLoadTasks();
+                        return true;
+                    }
+
+                    return false;
+                } catch (err) {
+                    console.warn('Instance reorder failed', err);
+                    return false;
+                }
+            };
+
+            // 如果任一端不在 reminderData 中，尝试实例排序处理
+            if (!draggedTaskInDb || !targetTaskInDb) {
+                const instHandled = await handleInstanceReorder();
+                if (instHandled) return true;
+            }
 
             if (!draggedTaskInDb || !targetTaskInDb) {
                 throw new Error("Task not found in data");
