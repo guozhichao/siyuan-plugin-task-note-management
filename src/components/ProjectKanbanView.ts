@@ -1793,7 +1793,40 @@ export class ProjectKanbanView {
     private async setTaskMilestone(task: any, milestoneId: string | null) {
         try {
             const reminderData = await this.getReminders();
-            if (reminderData[task.id]) {
+
+            // 如果是重复实例，修改实例的里程碑
+            if (task.isRepeatInstance && task.originalId) {
+                const originalReminder = reminderData[task.originalId];
+                if (originalReminder) {
+                    if (!originalReminder.repeat) originalReminder.repeat = {};
+                    if (!originalReminder.repeat.instanceModifications) {
+                        originalReminder.repeat.instanceModifications = {};
+                    }
+                    if (!originalReminder.repeat.instanceModifications[task.date]) {
+                        originalReminder.repeat.instanceModifications[task.date] = {};
+                    }
+
+                    if (milestoneId) {
+                        originalReminder.repeat.instanceModifications[task.date].milestoneId = milestoneId;
+                    } else {
+                        delete originalReminder.repeat.instanceModifications[task.date].milestoneId;
+                    }
+
+                    await saveReminders(this.plugin, reminderData);
+
+                    // 乐观更新
+                    const localTask = this.tasks.find(t => t.id === task.id);
+                    if (localTask) {
+                        if (milestoneId) localTask.milestoneId = milestoneId;
+                        else delete localTask.milestoneId;
+                    }
+
+                    this.queueLoadTasks();
+                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    showMessage(i18n('milestoneSaved'));
+                }
+            } else if (reminderData[task.id]) {
+                // 普通任务或原始周期事件
                 if (milestoneId) {
                     reminderData[task.id].milestoneId = milestoneId;
                 } else {
