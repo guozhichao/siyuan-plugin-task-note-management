@@ -305,6 +305,32 @@ export class ProjectManager {
     }
 
     /**
+     * 根据ID获取里程碑（包括项目级和分组级）
+     */
+    public async getMilestoneById(projectId: string, milestoneId: string): Promise<Milestone | undefined> {
+        try {
+            // 1. 查找项目级里程碑
+            const projectMilestones = await this.getProjectMilestones(projectId);
+            const projectMilestone = projectMilestones.find(m => m.id === milestoneId);
+            if (projectMilestone) return projectMilestone;
+
+            // 2. 查找分组级里程碑
+            const groups = await this.getProjectCustomGroups(projectId);
+            for (const group of groups) {
+                if (group.milestones) {
+                    const groupMilestone = group.milestones.find(m => m.id === milestoneId);
+                    if (groupMilestone) return groupMilestone;
+                }
+            }
+
+            return undefined;
+        } catch (error) {
+            console.error('根据ID获取里程碑失败:', error);
+            return undefined;
+        }
+    }
+
+    /**
      * 设置分组的里程碑
      */
     public async setGroupMilestones(projectId: string, groupId: string, milestones: Milestone[]): Promise<void> {

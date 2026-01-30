@@ -406,8 +406,23 @@ export class BlockBindingDialog {
                 try {
                     let boundDocBlockId: string | null = null;
 
+                    // 0. 优先检查里程碑绑定
+                    const milestoneId = this.reminder?.milestoneId || this.reminder?.milestone;
+                    if (milestoneId && this.defaultProjectId) {
+                        try {
+                            const { ProjectManager } = await import('../utils/projectManager');
+                            const projectManager = ProjectManager.getInstance(this.plugin);
+                            const milestone = await projectManager.getMilestoneById(this.defaultProjectId, milestoneId);
+                            if (milestone?.blockId) {
+                                boundDocBlockId = milestone.blockId;
+                            }
+                        } catch (err) {
+                            console.warn('解析里程碑绑定失败:', err);
+                        }
+                    }
+
                     // 1. 父任务/父块绑定（可能存的是 reminder 里的 blockId）
-                    if (this.defaultParentId) {
+                    if (!boundDocBlockId && this.defaultParentId) {
                         const parentReminder = await this.getParentReminder(this.defaultParentId);
                         if (parentReminder?.blockId) {
                             boundDocBlockId = parentReminder.blockId;
@@ -642,8 +657,28 @@ export class BlockBindingDialog {
             // 尝试自动填充父块ID
             let autoFillBlockId: string | null = null;
 
+            // 0. 优先检查里程碑绑定
+            const milestoneId = this.reminder?.milestoneId || this.reminder?.milestone;
+            if (milestoneId && this.defaultProjectId) {
+                try {
+                    const { ProjectManager } = await import('../utils/projectManager');
+                    const projectManager = ProjectManager.getInstance(this.plugin);
+                    const milestone = await projectManager.getMilestoneById(this.defaultProjectId, milestoneId);
+                    if (milestone?.blockId) {
+                        autoFillBlockId = milestone.blockId;
+                        const { getBlockByID } = await import("../api");
+                        const block = await getBlockByID(autoFillBlockId);
+                        if (block) {
+                            this.adjustHeadingLevel(block, levelSelect);
+                        }
+                    }
+                } catch (err) {
+                    console.warn('解析里程碑绑定失败:', err);
+                }
+            }
+
             // 1. 检查父任务绑定
-            if (this.defaultParentId) {
+            if (!autoFillBlockId && this.defaultParentId) {
                 const { getBlockByID } = await import("../api");
                 const parentReminder = await this.getParentReminder(this.defaultParentId);
                 if (parentReminder?.blockId) {
