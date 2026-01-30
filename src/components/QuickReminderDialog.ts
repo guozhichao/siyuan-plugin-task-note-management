@@ -29,7 +29,7 @@ export class QuickReminderDialog {
     private autoDetectDateTime?: boolean; // 是否自动识别日期时间（undefined 表示未指定，使用插件设置）
     private defaultProjectId?: string;
     private showKanbanStatus?: 'todo' | 'term' | 'none' = 'term'; // 看板状态显示模式，默认为 'term'
-    private defaultStatus?: 'doing'; // 默认任务状态
+    private defaultStatus?: 'short_term' | 'long_term' | 'doing' | 'todo'; // 默认任务状态
     private defaultCustomGroupId?: string | null;
     private defaultCustomReminderTime?: string;
     private isTimeRange: boolean = false;
@@ -526,6 +526,11 @@ export class QuickReminderDialog {
         }
 
         // 填充自定义分组 (已经在 onProjectChange -> renderCustomGroupSelector 中通过 defaultCustomGroupId 处理)
+
+        // 填充里程碑
+        if (this.reminder.projectId) {
+            await this.renderMilestoneSelector(this.reminder.projectId, this.reminder.customGroupId);
+        }
 
 
         // 填充重复设置
@@ -1042,6 +1047,13 @@ export class QuickReminderDialog {
                             <select id="quickCustomGroupSelector" class="b3-select" style="width: 100%;">
                                 <option value="">${i18n("noGroup") || '无分组'}</option>
                                 <!-- 自定义分组选择器将在这里渲染 -->
+                            </select>
+                        </div>
+                        <div class="b3-form__group" id="quickMilestoneGroup" style="display: none;">
+                            <label class="b3-form__label">${i18n("milestone") || "里程碑"}</label>
+                            <select id="quickMilestoneSelector" class="b3-select" style="width: 100%;">
+                                <option value="">${i18n("noMilestone") || "无里程碑"}</option>
+                                <!-- 里程碑选择器将在这里渲染 -->
                             </select>
                         </div>
                         <!-- 任务状态渲染 -->
@@ -2434,9 +2446,15 @@ export class QuickReminderDialog {
                     // 显示分组选择器并渲染分组选项
                     customGroupContainer.style.display = 'block';
                     await this.renderCustomGroupSelector(projectId);
+
+                    // 渲染里程碑（根据当前选中的分组）
+                    const groupSelector = this.dialog.element.querySelector('#quickCustomGroupSelector') as HTMLSelectElement;
+                    await this.renderMilestoneSelector(projectId, groupSelector?.value);
                 } else {
                     // 隐藏分组选择器
                     customGroupContainer.style.display = 'none';
+                    // 渲染项目级里程碑
+                    await this.renderMilestoneSelector(projectId);
                 }
 
                 // 加载项目的kanbanStatuses并更新任务状态选择器
@@ -2497,8 +2515,70 @@ export class QuickReminderDialog {
                     groupSelector.value = this['defaultCustomGroupId'];
                 }
             }
+
+            // 监听分组变更，更新里程碑
+            groupSelector.onchange = async () => {
+                await this.renderMilestoneSelector(projectId, groupSelector.value);
+            };
+
         } catch (error) {
             console.error('渲染自定义分组选择器失败:', error);
+        }
+    }
+
+    private async renderMilestoneSelector(projectId: string, groupId?: string) {
+        const milestoneGroup = this.dialog.element.querySelector('#quickMilestoneGroup') as HTMLElement;
+        const milestoneSelector = this.dialog.element.querySelector('#quickMilestoneSelector') as HTMLSelectElement;
+
+        if (!milestoneGroup || !milestoneSelector) return;
+
+        // 默认隐藏
+        milestoneGroup.style.display = 'none';
+
+        if (!projectId) return;
+
+        try {
+            const { ProjectManager } = await import('../utils/projectManager');
+            const projectManager = ProjectManager.getInstance(this.plugin);
+            let milestones: any[] = [];
+
+            // 获取里程碑列表
+            if (groupId && groupId !== 'none' && groupId !== '') {
+                milestones = await projectManager.getGroupMilestones(projectId, groupId);
+            } else {
+                milestones = await projectManager.getProjectMilestones(projectId);
+            }
+
+            // 过滤掉已归档的里程碑
+            milestones = milestones.filter(m => !m.archived);
+
+            // 只有当有里程碑时才显示选择器
+            if (milestones.length > 0) {
+                milestoneSelector.innerHTML = `<option value="">${i18n("noMilestone") || "无里程碑"}</option>`;
+                milestones.forEach(m => {
+                    const option = document.createElement('option');
+                    option.value = m.id;
+                    option.textContent = `${m.icon ? m.icon + ' ' : ''}${m.name}`;
+                    milestoneSelector.appendChild(option);
+                });
+                milestoneGroup.style.display = 'block';
+
+                // 尝试保留选中的值
+                // 注意：在 populateEditForm 中会单独设置值，这里主要是响应变化时重置或保持
+                if (this.reminder && this.reminder.milestoneId) {
+                    // 检查当前选项中是否存在该 milestoneId
+                    const exists = Array.from(milestoneSelector.options).some(opt => opt.value === this.reminder.milestoneId);
+                    if (exists) {
+                        milestoneSelector.value = this.reminder.milestoneId;
+                    }
+                }
+            } else {
+                milestoneGroup.style.display = 'none';
+                milestoneSelector.value = '';
+            }
+        } catch (e) {
+            console.error('渲染里程碑选择器失败:', e);
+            milestoneGroup.style.display = 'none';
         }
     }
 
@@ -2559,6 +2639,8 @@ export class QuickReminderDialog {
             kanbanStatus = availableStatuses.length > 0 ? availableStatuses[0].id : 'short_term';
         }
         const customGroupId = customGroupSelector?.value || undefined;
+        const milestoneSelector = this.dialog.element.querySelector('#quickMilestoneSelector') as HTMLSelectElement;
+        const milestoneId = milestoneSelector?.value || undefined;
         const customReminderTime = (this.dialog.element.querySelector('#quickCustomReminderTime') as HTMLInputElement).value.trim() || undefined;
         const customReminderPreset = (this.dialog.element.querySelector('#quickCustomReminderPreset') as HTMLSelectElement)?.value || undefined;
         const estimatedPomodoroDuration = (this.dialog.element.querySelector('#quickEstimatedPomodoroDuration') as HTMLInputElement)?.value.trim() || undefined;
@@ -2646,6 +2728,7 @@ export class QuickReminderDialog {
                 categoryId: categoryId,
                 projectId: projectId,
                 customGroupId: customGroupId,
+                milestoneId: milestoneId,
                 kanbanStatus: kanbanStatus,
                 tagIds: tagIds.length > 0 ? tagIds : undefined,
                 reminderTimes: this.customTimes.length > 0 ? [...this.customTimes] : undefined,
@@ -2710,6 +2793,7 @@ export class QuickReminderDialog {
             optimisticReminder.categoryId = categoryId;
             optimisticReminder.projectId = projectId;
             optimisticReminder.customGroupId = customGroupId;
+            optimisticReminder.milestoneId = milestoneId;
             optimisticReminder.tagIds = tagIds.length > 0 ? tagIds : undefined;
             optimisticReminder.customReminderPreset = customReminderPreset;
             optimisticReminder.reminderTimes = this.customTimes.length > 0 ? [...this.customTimes] : undefined;
@@ -2841,6 +2925,7 @@ export class QuickReminderDialog {
                         reminder.categoryId = categoryId;
                         reminder.projectId = projectId;
                         reminder.customGroupId = customGroupId;
+                        reminder.milestoneId = milestoneId;
                         reminder.tagIds = tagIds.length > 0 ? tagIds : undefined;
                         // 不再使用旧的 `customReminderTime` 存储；所有自定义提醒统一保存到 `reminderTimes`
                         reminder.customReminderPreset = customReminderPreset;
@@ -2972,6 +3057,7 @@ export class QuickReminderDialog {
                         categoryId: categoryId,
                         projectId: projectId,
                         customGroupId: customGroupId,
+                        milestoneId: milestoneId,
                         tagIds: tagIds.length > 0 ? tagIds : undefined,
                         createdAt: new Date().toISOString(),
                         repeat: this.repeatConfig.enabled ? this.repeatConfig : undefined,
