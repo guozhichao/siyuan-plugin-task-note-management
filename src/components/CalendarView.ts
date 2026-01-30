@@ -4922,7 +4922,6 @@ export class CalendarView {
                 if (reminder.parentId && parentInfoMap.has(reminder.parentId)) {
                     const parentInfo = parentInfoMap.get(reminder.parentId);
                     reminder.parentTitle = parentInfo.title;
-                    reminder.parentBlockId = parentInfo.blockId;
                 }
 
                 // 如果有重复设置，则不显示原始事件（只显示实例）；否则显示原始事件
@@ -5337,7 +5336,6 @@ export class CalendarView {
                 docTitle: reminder.docTitle,
                 parentId: reminder.parentId || null,
                 parentTitle: reminder.parentTitle || null,
-                parentBlockId: reminder.parentBlockId || null,
                 isRepeated: isRepeated,
                 originalId: originalId || reminder.id,
                 repeat: reminder.repeat,
