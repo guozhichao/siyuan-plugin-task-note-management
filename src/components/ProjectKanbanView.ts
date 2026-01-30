@@ -1423,7 +1423,7 @@ export class ProjectKanbanView {
         addBtn.className = 'b3-button b3-button--small b3-button--primary';
         addBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg> ${i18n('newMilestone')}`;
         addBtn.addEventListener('click', () => {
-            this.showMilestoneEditDialog(null, groupId, () => this.renderMilestonesInDialog(parentContainer), milestones);
+            this.showMilestoneEditDialog(null, groupId, () => this.renderMilestonesInDialog(parentContainer, groupId), milestones);
         });
         header.appendChild(addBtn);
 
@@ -1512,7 +1512,7 @@ export class ProjectKanbanView {
                 editBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconEdit"></use></svg>';
                 editBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    this.showMilestoneEditDialog(ms, groupId, () => this.renderMilestonesInDialog(parentContainer), milestones);
+                    this.showMilestoneEditDialog(ms, groupId, () => this.renderMilestonesInDialog(parentContainer, groupId), milestones);
                 });
                 actions.appendChild(editBtn);
 
@@ -1526,7 +1526,7 @@ export class ProjectKanbanView {
                         i18n('confirmDeleteMilestone').replace('${name}', ms.name),
                         async () => {
                             await this.deleteMilestone(ms.id, groupId);
-                            this.renderMilestonesInDialog(parentContainer);
+                            this.renderMilestonesInDialog(parentContainer, groupId);
                         },
                         () => {
                             console.log("用户取消了删除");
@@ -1638,7 +1638,7 @@ export class ProjectKanbanView {
                 }
 
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                this.renderMilestonesInDialog(parentContainer);
+                this.renderMilestonesInDialog(parentContainer, groupId);
             });
         }
 
