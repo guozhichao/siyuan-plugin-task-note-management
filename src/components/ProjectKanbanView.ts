@@ -3204,16 +3204,14 @@ export class ProjectKanbanView {
             const btnsContainer = document.createElement('div');
             btnsContainer.style.cssText = 'display: flex; gap: 8px; margin-bottom: 12px;';
 
-            // 全选按钮
+            // 全选按钮（等于不筛选）
             const selectAllBtn = document.createElement('button');
             selectAllBtn.className = 'b3-button b3-button--text b3-button--small';
             selectAllBtn.style.flex = '1';
             selectAllBtn.textContent = i18n('selectAll') || '全选';
             selectAllBtn.addEventListener('click', () => {
-                // 将所有显示的 milestone 加入 set
-                const currentSet = new Set<string>();
-                allAvailableMilestoneIds.forEach(id => currentSet.add(id));
-                this.selectedFilterMilestones.set(targetGroupId, currentSet);
+                // 全选等于不筛选，删除该分组的筛选设置
+                this.selectedFilterMilestones.delete(targetGroupId);
 
                 // 更新 UI
                 const checkboxes = menu.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
@@ -4512,7 +4510,7 @@ export class ProjectKanbanView {
                 }
             });
 
-            // 里程碑过滤逻辑 (移动至此处，以便在统计“任务是否有里程碑”后进行应用)
+            // 里程碑过滤逻辑 (移动至此处，以便在统计"任务是否有里程碑"后进行应用)
             if (this.selectedFilterMilestones.size > 0) {
                 const matchesMilestone = (t: any) => {
                     let filterKey: string | null = null;
