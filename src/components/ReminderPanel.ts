@@ -2541,6 +2541,8 @@ export class ReminderPanel {
 
                 await saveReminders(this.plugin, reminderData);
                 window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
+                // 刷新界面显示
+                this.loadReminders(true);
             }
         } catch (e) {
             console.error("完成每日可做任务失败", e);
@@ -2567,6 +2569,8 @@ export class ReminderPanel {
 
                     await saveReminders(this.plugin, reminderData);
                     window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
+                    // 刷新界面显示
+                    this.loadReminders(true);
                     showMessage("已取消今日完成标记");
                 }
             }
@@ -2596,6 +2600,8 @@ export class ReminderPanel {
 
                 await saveReminders(this.plugin, reminderData);
                 window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
+                // 刷新界面显示
+                this.loadReminders(true);
                 showMessage("今日已忽略该任务");
             }
         } catch (e) {
@@ -2618,6 +2624,8 @@ export class ReminderPanel {
 
                     await saveReminders(this.plugin, reminderData);
                     window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
+                    // 刷新界面显示
+                    this.loadReminders(true);
                     showMessage("已取消今日忽略");
                 }
             }
