@@ -5068,6 +5068,13 @@ export class ReminderPanel {
                 }
             });
 
+            // 快速调整日期 (重复实例：只修改此实例)
+            menu.addItem({
+                iconHTML: "📆",
+                label: i18n("quickReschedule") || "快速调整日期",
+                submenu: createQuickDateMenuItems(reminder, true)
+            });
+
             // 优先级默认只修改此实例（因为不同实例的优先级可能不同）
             // 分类默认修改所有实例（因为分类一般不变）
             menu.addItem({
@@ -5152,6 +5159,12 @@ export class ReminderPanel {
                 iconHTML: "📝",
                 label: i18n("modifyAllInstances"),
                 click: () => this.showTimeEditDialog(reminder)
+            });
+            // 快速调整日期 (重复任务：修改整个系列)
+            menu.addItem({
+                iconHTML: "📆",
+                label: i18n("quickReschedule") || "快速调整日期",
+                submenu: createQuickDateMenuItems(reminder, false)
             });
             menu.addItem({
                 iconHTML: "🎯",
@@ -5304,7 +5317,8 @@ export class ReminderPanel {
                 try { await updateBindBlockAtrrs(reminder.blockId, this.plugin); } catch (e) { /* ignore */ }
             }
 
-            // 局部刷新
+            // 刷新界面显示并通知其他面板
+            await this.loadReminders();
             window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
         } catch (err) {
             console.error('设置基准日期失败:', err);
@@ -5343,6 +5357,8 @@ export class ReminderPanel {
 
             await saveReminders(this.plugin, reminderData);
 
+            // 刷新界面显示并通知其他面板
+            await this.loadReminders();
             window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
             showMessage(i18n("instanceTimeUpdated") || "实例时间已更新");
         } catch (err) {
@@ -6350,12 +6366,9 @@ export class ReminderPanel {
 
             await saveReminders(this.plugin, reminderData);
 
-            // 触发刷新（如果当前按优先级排序）
-            if (this.currentSort === 'priority') {
-                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
-            } else {
-                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
-            }
+            // 刷新界面显示并通知其他面板
+            await this.loadReminders();
+            window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
 
             showMessage(i18n("instanceModified") || "实例已修改");
         } catch (error) {
@@ -6396,12 +6409,9 @@ export class ReminderPanel {
 
             await saveReminders(this.plugin, reminderData);
 
-            // 触发刷新（如果有分类过滤）
-            if (this.currentCategoryFilter !== 'all') {
-                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
-            } else {
-                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
-            }
+            // 刷新界面显示并通知其他面板
+            await this.loadReminders();
+            window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
 
             showMessage(i18n("instanceModified") || "实例已修改");
         } catch (error) {
