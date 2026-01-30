@@ -1152,7 +1152,7 @@ export class QuickReminderDialog {
                             </div>
 
                             <div style="width: 100%;">
-                                <label class="b3-form__label" style="font-size: 12px;">快速设置</label>
+                                <label class="b3-form__label" style="font-size: 12px;">提醒时间预设</label>
                                 <select id="quickCustomReminderPreset" class="b3-select" style="width: 100%;">
                                     <option value="">选择预设...</option>
                                     <option value="5m">提前 5 分钟</option>
