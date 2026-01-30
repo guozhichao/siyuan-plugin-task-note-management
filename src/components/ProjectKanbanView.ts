@@ -107,10 +107,14 @@ export class ProjectKanbanView {
     private batchToolbar: HTMLElement | null = null;
     // 筛选标签集合
     private selectedFilterTags: Set<string> = new Set();
+    // 筛选里程碑集合 (groupId -> Set of milestoneIds)
+    private selectedFilterMilestones: Map<string, Set<string>> = new Map();
+    private milestoneFilterButton: HTMLButtonElement;
     private isFilterActive: boolean = false;
     private filterButton: HTMLButtonElement;
     // 上一次点击的任务ID（用于Shift多选范围）
     private lastClickedTaskId: string | null = null;
+    private milestoneMap: Map<string, { name: string, icon?: string }> = new Map();
 
     constructor(container: HTMLElement, plugin: any, projectId: string) {
         this.container = container;
@@ -524,7 +528,6 @@ export class ProjectKanbanView {
 
         // 拖拽计数器，避免子元素触发导致闪烁
         let dragCounter = 0;
-        let draggedStatusId: string | null = null;
 
         // 当拖入容器时增加计数
         statusesContainer.addEventListener('dragenter', (ev: DragEvent) => {
@@ -632,7 +635,6 @@ export class ProjectKanbanView {
                 // 允许拖拽排序
                 statusItem.draggable = true;
                 statusItem.addEventListener('dragstart', (e: DragEvent) => {
-                    draggedStatusId = status.id;
                     try {
                         e.dataTransfer?.setData('text/status-id', status.id);
                     } catch (err) { }
@@ -651,7 +653,6 @@ export class ProjectKanbanView {
                     } catch (err) { }
                 });
                 statusItem.addEventListener('dragend', () => {
-                    draggedStatusId = null;
                     statusItem.classList.remove('dragging');
                     placeholder.style.display = 'none';
                 });
@@ -1293,6 +1294,508 @@ export class ProjectKanbanView {
 
         // 初始加载标签
         await loadAndDisplayTags();
+    }
+
+    private async showManageMilestonesDialog() {
+        const dialog = new Dialog({
+            title: i18n('manageMilestones'),
+            content: `
+                <div class="manage-milestones-dialog" style="height: 100%; display: flex; flex-direction: column;">
+                    <div class="b3-dialog__content" style="flex: 1; overflow-y: auto; padding: 16px;">
+                        <div id="milestonesGroupsContainer"></div>
+                    </div>
+                </div>
+            `,
+            width: "650px",
+            height: "600px"
+        });
+
+        const container = dialog.element.querySelector('#milestonesGroupsContainer') as HTMLElement;
+        this.renderMilestonesInDialog(container);
+    }
+
+    private async renderMilestonesInDialog(container: HTMLElement) {
+        try {
+            const projectManager = this.projectManager;
+            const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
+            const projectData = await this.plugin.loadProjectData() || {};
+            const project = projectData[this.projectId];
+            const defaultMilestones = project?.milestones || [];
+
+            container.innerHTML = '';
+
+            // 1. 默认里程碑（未分组）
+            const defaultSection = this.createMilestoneSection(i18n('defaultMilestones'), null, defaultMilestones, container);
+            container.appendChild(defaultSection);
+
+            // 2. 分组里程碑
+            for (const group of projectGroups) {
+                const groupSection = this.createMilestoneSection(group.name, group.id, group.milestones || [], container);
+                container.appendChild(groupSection);
+            }
+        } catch (error) {
+            console.error('渲染里程碑列表失败:', error);
+            container.innerHTML = '<div style="color: var(--b3-theme-error); text-align: center;">加载失败</div>';
+        }
+    }
+
+    private createMilestoneSection(title: string, groupId: string | null, milestones: any[], parentContainer: HTMLElement): HTMLElement {
+        const section = document.createElement('div');
+        section.className = 'milestone-section';
+        section.style.cssText = `
+            margin-bottom: 24px;
+            border: 1px solid var(--b3-theme-border);
+            border-radius: 8px;
+            overflow: hidden;
+        `;
+
+        const header = document.createElement('div');
+        header.style.cssText = `
+            padding: 10px 16px;
+            background: var(--b3-theme-surface-lighter);
+            border-bottom: 1px solid var(--b3-theme-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        `;
+
+        const titleEl = document.createElement('h4');
+        titleEl.textContent = title;
+        titleEl.style.margin = '0';
+        header.appendChild(titleEl);
+
+        const addBtn = document.createElement('button');
+        addBtn.className = 'b3-button b3-button--small b3-button--primary';
+        addBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg> ${i18n('newMilestone')}`;
+        addBtn.addEventListener('click', () => {
+            this.showMilestoneEditDialog(null, groupId, () => this.renderMilestonesInDialog(parentContainer), milestones);
+        });
+        header.appendChild(addBtn);
+
+        section.appendChild(header);
+
+        const list = document.createElement('div');
+        list.style.padding = '8px 16px';
+        list.className = 'milestone-list';
+
+        // 拖拽占位符
+        const placeholder = document.createElement('div');
+        placeholder.style.cssText = `
+            height: 2px;
+            background: var(--b3-theme-primary);
+            margin: 4px 0;
+            display: none;
+        `;
+        list.appendChild(placeholder);
+
+        let draggedMilestoneId: string | null = null;
+
+        if (milestones.length === 0) {
+            list.innerHTML = `<div style="padding: 12px; text-align: center; color: var(--b3-theme-on-surface); opacity: 0.6;">${i18n('noMilestones') || '暂无里程碑'}</div>`;
+        } else {
+            milestones.sort((a, b) => (a.sort || 0) - (b.sort || 0)).forEach(ms => {
+                const item = document.createElement('div');
+                item.className = 'milestone-item';
+                item.dataset.msId = ms.id;
+                item.style.cssText = `
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 8px 12px;
+                    border-bottom: 1px solid var(--b3-theme-border);
+                    transition: all 0.2s ease;
+                    background: var(--b3-theme-surface);
+                    margin: 2px 0;
+                    border-radius: 4px;
+                `;
+                if (milestones.indexOf(ms) === milestones.length - 1) {
+                    item.style.borderBottom = 'none';
+                }
+
+                const info = document.createElement('div');
+                info.style.cssText = `display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;`;
+
+                const icon = document.createElement('span');
+                icon.textContent = ms.icon || '🚩';
+                info.appendChild(icon);
+
+                const name = document.createElement('span');
+                name.textContent = ms.name;
+                name.style.cssText = `overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500;`;
+                if (ms.archived) {
+                    name.style.textDecoration = 'line-through';
+                    name.style.opacity = '0.6';
+                }
+                info.appendChild(name);
+
+                if (ms.archived) {
+                    const archivedTag = document.createElement('span');
+                    archivedTag.textContent = i18n('milestoneArchived');
+                    archivedTag.style.cssText = `font-size: 11px; padding: 1px 4px; background: var(--b3-theme-surface); border-radius: 4px; opacity: 0.7;`;
+                    info.appendChild(archivedTag);
+                }
+
+                item.appendChild(info);
+
+                const actions = document.createElement('div');
+                actions.style.cssText = `display: flex; gap: 8px;`;
+
+                const editBtn = document.createElement('button');
+                editBtn.className = 'b3-button b3-button--text';
+                editBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconEdit"></use></svg>';
+                editBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.showMilestoneEditDialog(ms, groupId, () => this.renderMilestonesInDialog(parentContainer), milestones);
+                });
+                actions.appendChild(editBtn);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'b3-button b3-button--text';
+                deleteBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconTrashcan"></use></svg>';
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    confirm(
+                        i18n('delete'),
+                        i18n('confirmDeleteMilestone').replace('${name}', ms.name),
+                        async () => {
+                            await this.deleteMilestone(ms.id, groupId);
+                            this.renderMilestonesInDialog(parentContainer);
+                        },
+                        () => {
+                            console.log("用户取消了删除");
+                        }
+                    );
+                });
+                actions.appendChild(deleteBtn);
+
+                item.appendChild(actions);
+
+                // --- 拖拽事件 ---
+                item.draggable = true;
+                item.style.cursor = 'grab';
+
+                item.addEventListener('dragstart', (ev) => {
+                    draggedMilestoneId = ms.id;
+                    item.style.opacity = '0.5';
+                    if (ev.dataTransfer) {
+                        ev.dataTransfer.setData('text/plain', ms.id);
+                        ev.dataTransfer.effectAllowed = 'move';
+                    }
+                });
+
+                item.addEventListener('dragend', () => {
+                    draggedMilestoneId = null;
+                    item.style.opacity = '1';
+                    placeholder.style.display = 'none';
+                });
+
+                list.appendChild(item);
+            });
+
+            // 列表级别的拖拽处理
+            list.addEventListener('dragover', (ev) => {
+                ev.preventDefault();
+                if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+
+                const items = Array.from(list.querySelectorAll('.milestone-item')) as HTMLElement[];
+
+                if (items.length === 0) {
+                    list.appendChild(placeholder);
+                    placeholder.style.display = 'block';
+                    return;
+                }
+
+                let inserted = false;
+                for (const el of items) {
+                    if (el.dataset.msId === draggedMilestoneId) continue;
+                    const rect = el.getBoundingClientRect();
+                    const midY = rect.top + rect.height / 2;
+                    if (ev.clientY < midY) {
+                        list.insertBefore(placeholder, el);
+                        inserted = true;
+                        break;
+                    }
+                }
+                if (!inserted) {
+                    list.appendChild(placeholder);
+                }
+                placeholder.style.display = 'block';
+            });
+
+            list.addEventListener('drop', async (ev) => {
+                ev.preventDefault();
+                placeholder.style.display = 'none';
+                const id = ev.dataTransfer?.getData('text/plain');
+                if (!id) return;
+
+                const placeholderIndex = Array.from(list.children).indexOf(placeholder);
+
+                // 找到被拖拽的里程碑对象
+                const movedMs = milestones.find(m => m.id === id);
+                if (!movedMs) return;
+
+                // 移除原有的，重新按照 DOM 顺序排列
+                const otherMs = milestones.filter(m => m.id !== id);
+
+                // 计算插入点
+                let insertPoint = 0;
+                for (let i = 0; i < placeholderIndex; i++) {
+                    if (list.children[i].classList.contains('milestone-item')) {
+                        insertPoint++;
+                    }
+                }
+
+                otherMs.splice(insertPoint, 0, movedMs);
+
+                // 更新 sort 值
+                otherMs.forEach((m, idx) => {
+                    m.sort = idx * 100;
+                });
+
+                // 保存
+                if (groupId === null) {
+                    const projectData = await this.plugin.loadProjectData() || {};
+                    const project = projectData[this.projectId];
+                    if (project) {
+                        project.milestones = otherMs;
+                        await this.plugin.saveProjectData(projectData);
+                    }
+                } else {
+                    const projectManager = ProjectManager.getInstance(this.plugin);
+                    const groups = await projectManager.getProjectCustomGroups(this.projectId);
+                    const group = groups.find((g: any) => g.id === groupId);
+                    if (group) {
+                        group.milestones = otherMs;
+                        await projectManager.setProjectCustomGroups(this.projectId, groups);
+                    }
+                }
+
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                this.renderMilestonesInDialog(parentContainer);
+            });
+        }
+
+        section.appendChild(list);
+        return section;
+    }
+
+    private showMilestoneEditDialog(milestone: any | null, groupId: string | null, onSave: () => void, currentMilestones?: any[]) {
+        const isEdit = !!milestone;
+        const dialog = new Dialog({
+            title: isEdit ? i18n('editMilestone') : i18n('newMilestone'),
+            content: `
+                <div class="b3-dialog__content">
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">${i18n('milestoneName')}</label>
+                        <input type="text" id="msName" class="b3-text-field" value="${milestone?.name || ''}" style="width: 100%;">
+                    </div>
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">${i18n('milestoneIcon')}</label>
+                        <input type="text" id="msIcon" class="b3-text-field" value="${milestone?.icon || '🚩'}" style="width: 100%;">
+                    </div>
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">${i18n('milestoneBlockId')}</label>
+                        <input type="text" id="msBlockId" class="b3-text-field" value="${milestone?.blockId || ''}" placeholder="." style="width: 100%;">
+                    </div>
+                    <div class="b3-form__group" style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="msArchived" ${milestone?.archived ? 'checked' : ''} class="b3-switch">
+                        <label class="b3-form__label" style="margin: 0;">${i18n('milestoneArchived')}</label>
+                    </div>
+                </div>
+                <div class="b3-dialog__action">
+                    <button class="b3-button b3-button--cancel" id="msCancel">${i18n('cancel')}</button>
+                    <button class="b3-button b3-button--primary" id="msSave">${i18n('save')}</button>
+                </div>
+            `,
+            width: "400px"
+        });
+
+        const nameInput = dialog.element.querySelector('#msName') as HTMLInputElement;
+        const iconInput = dialog.element.querySelector('#msIcon') as HTMLInputElement;
+        const blockIdInput = dialog.element.querySelector('#msBlockId') as HTMLInputElement;
+        const archivedInput = dialog.element.querySelector('#msArchived') as HTMLInputElement;
+        const saveBtn = dialog.element.querySelector('#msSave') as HTMLButtonElement;
+        const cancelBtn = dialog.element.querySelector('#msCancel') as HTMLButtonElement;
+
+        cancelBtn.addEventListener('click', () => dialog.destroy());
+        saveBtn.addEventListener('click', async () => {
+            const name = nameInput.value.trim();
+            if (!name) {
+                showMessage(i18n('pleaseEnterMilestoneName') || '请输入里程碑名称');
+                return;
+            }
+
+            let sortValue = milestone?.sort;
+            if (sortValue === undefined) {
+                // 新建，放在最上面
+                if (currentMilestones && currentMilestones.length > 0) {
+                    const minSort = Math.min(...currentMilestones.map(m => m.sort || 0));
+                    sortValue = minSort - 1000;
+                } else {
+                    sortValue = Date.now();
+                }
+            }
+
+            const data = {
+                id: milestone?.id || `ms_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                name,
+                icon: iconInput.value.trim(),
+                blockId: blockIdInput.value.trim(),
+                archived: archivedInput.checked,
+                sort: sortValue
+            };
+
+            await this.saveMilestone(data, groupId);
+            onSave();
+            dialog.destroy();
+            showMessage(i18n('milestoneSaved'));
+        });
+    }
+
+    private async saveMilestone(milestone: any, groupId: string | null) {
+        const projectManager = this.projectManager;
+        if (groupId === null) {
+            // 保存默认里程碑
+            const projectData = await this.plugin.loadProjectData() || {};
+            const project = projectData[this.projectId];
+            if (project) {
+                if (!project.milestones) project.milestones = [];
+                const index = project.milestones.findIndex((m: any) => m.id === milestone.id);
+                if (index !== -1) project.milestones[index] = milestone;
+                else project.milestones.push(milestone);
+                await this.plugin.saveProjectData(projectData);
+            }
+        } else {
+            // 保存到指定分组
+            const groups = await projectManager.getProjectCustomGroups(this.projectId);
+            const group = groups.find((g: any) => g.id === groupId);
+            if (group) {
+                if (!group.milestones) group.milestones = [];
+                const index = group.milestones.findIndex((m: any) => m.id === milestone.id);
+                if (index !== -1) group.milestones[index] = milestone;
+                else group.milestones.push(milestone);
+                await projectManager.setProjectCustomGroups(this.projectId, groups);
+            }
+        }
+        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+    }
+
+    private async deleteMilestone(milestoneId: string, groupId: string | null) {
+        const projectManager = this.projectManager;
+        // 1. 从项目配置或分组配置中移除里程碑定义
+        if (groupId === null) {
+            const projectData = await this.plugin.loadProjectData() || {};
+            const project = projectData[this.projectId];
+            if (project && project.milestones) {
+                project.milestones = project.milestones.filter((m: any) => m.id !== milestoneId);
+                await this.plugin.saveProjectData(projectData);
+            }
+        } else {
+            const groups = await projectManager.getProjectCustomGroups(this.projectId);
+            const group = groups.find((g: any) => g.id === groupId);
+            if (group && group.milestones) {
+                group.milestones = group.milestones.filter((m: any) => m.id !== milestoneId);
+                await projectManager.setProjectCustomGroups(this.projectId, groups);
+            }
+        }
+
+        // 2. 清理所有引用了该里程碑的任务（包括重复实例）
+        try {
+            const reminderData = await this.getReminders();
+            let updatedCount = 0;
+            const keys = Object.keys(reminderData);
+
+            for (const key of keys) {
+                const task = reminderData[key];
+                if (!task) continue;
+
+                let taskChanged = false;
+
+                // 检查任务本身的 milestoneId
+                if (task.milestoneId === milestoneId) {
+                    delete task.milestoneId;
+                    taskChanged = true;
+                }
+
+                // 检查重复实例的 milestoneId
+                if (task.repeat && task.repeat.instanceModifications) {
+                    const mods = task.repeat.instanceModifications;
+                    for (const date in mods) {
+                        if (mods[date] && mods[date].milestoneId === milestoneId) {
+                            delete mods[date].milestoneId;
+                            taskChanged = true;
+                        }
+                    }
+                }
+
+                if (taskChanged) {
+                    updatedCount++;
+                }
+            }
+
+            if (updatedCount > 0) {
+                await saveReminders(this.plugin, reminderData);
+                console.log(`Deleted milestone ${milestoneId} and updated ${updatedCount} related tasks.`);
+            }
+        } catch (err) {
+            console.error('Failed to cleanup tasks for deleted milestone:', err);
+        }
+
+        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+        showMessage(i18n('milestoneDeleted'));
+    }
+
+    private async setTaskMilestone(task: any, milestoneId: string | null) {
+        try {
+            const reminderData = await this.getReminders();
+            if (reminderData[task.id]) {
+                if (milestoneId) {
+                    reminderData[task.id].milestoneId = milestoneId;
+                } else {
+                    delete reminderData[task.id].milestoneId;
+                }
+
+                await saveReminders(this.plugin, reminderData);
+
+                // 乐观更新
+                const localTask = this.tasks.find(t => t.id === task.id);
+                if (localTask) {
+                    if (milestoneId) localTask.milestoneId = milestoneId;
+                    else delete localTask.milestoneId;
+                }
+
+                this.queueLoadTasks();
+                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                showMessage(i18n('milestoneSaved'));
+            }
+        } catch (error) {
+            console.error('设置任务里程碑失败:', error);
+            showMessage(i18n('updateTaskFailed'));
+        }
+    }
+
+    private async buildMilestoneMap() {
+        this.milestoneMap.clear();
+        try {
+            const projectManager = this.projectManager;
+            const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
+            const projectData = await this.plugin.loadProjectData() || {};
+            const project = projectData[this.projectId];
+
+            // 1. 默认里程碑
+            (project?.milestones || []).forEach((ms: any) => {
+                this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon });
+            });
+
+            // 2. 分组里程碑
+            projectGroups.forEach((group: any) => {
+                (group.milestones || []).forEach((ms: any) => {
+                    this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon });
+                });
+            });
+        } catch (error) {
+            console.error('构造里程碑映射失败:', error);
+        }
     }
 
     private async loadAndDisplayGroups(container: HTMLElement) {
@@ -2165,7 +2668,7 @@ export class ProjectKanbanView {
 
         const listOption = document.createElement('option');
         listOption.value = 'list';
-        listOption.textContent = i18n('taskList');
+        listOption.textContent = i18n('taskList') + '视图';
         if (this.kanbanMode === 'list') {
             listOption.selected = true;
         }
@@ -2187,7 +2690,7 @@ export class ProjectKanbanView {
         moreBtn.className = 'b3-button b3-button--outline';
         moreBtn.title = i18n('more') || '更多';
         moreBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconMore"></use></svg>';
-        moreBtn.addEventListener('click', (e) => {
+        moreBtn.addEventListener('click', async (e) => {
             e.stopPropagation();
             e.preventDefault();
             const menu = new Menu("project-kanban-more-menu");
@@ -2214,6 +2717,13 @@ export class ProjectKanbanView {
                 click: () => {
                     this.showManageTagsDialog();
                 }
+            });
+
+
+            menu.addItem({
+                icon: "iconSettings",
+                label: i18n('manageMilestones') || '管理里程碑',
+                click: () => this.showManageMilestonesDialog()
             });
 
             // 显示菜单
@@ -2263,6 +2773,229 @@ export class ProjectKanbanView {
 
         // 更新模式选择下拉框
         this.updateModeSelect();
+    }
+
+    private async showMilestoneFilterMenu(event: MouseEvent, targetGroupId: string) {
+        try {
+            const projectManager = this.projectManager;
+            const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
+            const projectData = await this.plugin.loadProjectData() || {};
+            const project = projectData[this.projectId];
+
+            // 确定要显示的里程碑集合
+            const defaultMilestones = (project?.milestones || []).filter((m: any) => !m.archived);
+            let milestonesToShow: { title: string, milestones: any[], groupId: string }[] = [];
+
+            // 检查 targetGroupId 是否为自定义分组 ID
+            const targetGroup = projectGroups.find((g: any) => g.id === targetGroupId);
+            const isCustomGroup = !!targetGroup;
+            const isUngrouped = targetGroupId === 'ungrouped';
+
+            if (isCustomGroup) {
+                // 如果是特定自定义分组，只显示该分组的 milestone
+                milestonesToShow.push({
+                    title: targetGroup.name,
+                    milestones: (targetGroup.milestones || []).filter((m: any) => !m.archived),
+                    groupId: targetGroupId
+                });
+            } else if (isUngrouped && this.kanbanMode !== 'status') {
+                // 如果是 ungrouped 且不是 Status 视图（Status 视图下 ungrouped 可能指默认），只显示默认
+                // 实际上 Status 视图下 column status ID 肯定不是 ungrouped (或者是 'completed', 'doing' etc)
+                milestonesToShow.push({
+                    title: i18n('defaultMilestones') || '默认里程碑',
+                    milestones: defaultMilestones,
+                    groupId: 'ungrouped'
+                });
+            } else {
+                // 如果是 Status ID 或者其他（即在此列想筛选所有可能的里程碑）
+                // 显示所有里程碑，但筛选 key 都是 targetGroupId (status id)
+
+                // 默认里程碑
+                if (defaultMilestones.length > 0) {
+                    milestonesToShow.push({
+                        title: i18n('defaultMilestones') || '默认里程碑',
+                        milestones: defaultMilestones,
+                        groupId: targetGroupId // 关键：在 Status 视图下，点击 filter，所有 milestone 的 toggle 都作用于这个 status key
+                    });
+                }
+
+                // 分组里程碑
+                projectGroups.forEach((g: any) => {
+                    const ms = (g.milestones || []).filter((m: any) => !m.archived);
+                    if (ms.length > 0) {
+                        milestonesToShow.push({
+                            title: g.name,
+                            milestones: ms,
+                            groupId: targetGroupId // 同上
+                        });
+                    }
+                });
+            }
+
+            // 添加 "无里程碑" 选项
+            milestonesToShow.unshift({
+                title: i18n('noMilestone') || '无里程碑',
+                milestones: [{
+                    id: '__no_milestone__',
+                    name: i18n('noMilestone') || '无里程碑',
+                    icon: '🚫'
+                }],
+                groupId: targetGroupId // 在 Status 视图下，targetGroupId 是 Status ID；Custom 视图下是 Group ID
+            });
+
+            // 创建弹窗容器
+            const menu = document.createElement('div');
+            menu.className = 'milestone-filter-dropdown-menu';
+            menu.style.cssText = `
+                display: block; 
+                position: fixed; 
+                z-index: 1000; 
+                background-color: var(--b3-theme-background); 
+                border: 1px solid var(--b3-border-color); 
+                border-radius: 4px; 
+                box-shadow: rgba(0, 0, 0, 0.15) 0px 2px 8px; 
+                min-width: 220px; 
+                max-height: 500px; 
+                overflow-y: auto; 
+                padding: 12px;
+            `;
+
+            const target = event.currentTarget as HTMLElement;
+            const rect = target.getBoundingClientRect();
+            menu.style.top = `${rect.bottom + 4}px`;
+            menu.style.left = `${rect.left}px`;
+
+            // 操作按钮容器
+            const btnsContainer = document.createElement('div');
+            btnsContainer.style.cssText = 'display: flex; gap: 8px; margin-bottom: 12px;';
+
+            // 全选按钮
+            const selectAllBtn = document.createElement('button');
+            selectAllBtn.className = 'b3-button b3-button--text b3-button--small';
+            selectAllBtn.style.flex = '1';
+            selectAllBtn.textContent = i18n('selectAll') || '全选';
+            selectAllBtn.addEventListener('click', () => {
+                // 清只除当前 targetGroupId 的 filter
+                this.selectedFilterMilestones.set(targetGroupId, new Set()); // 先重置为空 Set
+                const currentSet = this.selectedFilterMilestones.get(targetGroupId)!;
+
+                // 将所有显示的 milestone 加入 set
+                milestonesToShow.forEach(group => {
+                    group.milestones.forEach(m => currentSet.add(m.id));
+                });
+
+                // 更新 UI
+                const checkboxes = menu.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
+                checkboxes.forEach(cb => cb.checked = true);
+
+                this.queueLoadTasks();
+                this.updateMilestoneFilterButtonsState();
+            });
+            btnsContainer.appendChild(selectAllBtn);
+
+            // 清除按钮
+            const clearBtn = document.createElement('button');
+            clearBtn.className = 'b3-button b3-button--text b3-button--small';
+            clearBtn.style.flex = '1';
+            clearBtn.textContent = i18n('clearSelection') || '清除';
+            clearBtn.addEventListener('click', () => {
+                this.selectedFilterMilestones.delete(targetGroupId);
+                const checkboxes = menu.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
+                checkboxes.forEach(cb => cb.checked = false);
+                this.queueLoadTasks();
+                this.updateMilestoneFilterButtonsState();
+            });
+            btnsContainer.appendChild(clearBtn);
+
+            menu.appendChild(btnsContainer);
+
+            // 渲染列表项
+            milestonesToShow.forEach(section => {
+                // 不显示分组标题，直接显示里程碑列表
+                section.milestones.forEach(ms => {
+                    const label = document.createElement('label');
+                    label.style.cssText = 'display: flex; align-items: center; padding: 6px 8px; cursor: pointer; border-radius: 4px; transition: background 0.2s;';
+                    label.onmouseenter = () => label.style.backgroundColor = 'var(--b3-theme-surface-lighter)';
+                    label.onmouseleave = () => label.style.backgroundColor = '';
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'b3-checkbox';
+                    checkbox.style.marginRight = '8px';
+                    // 使用 key: targetGroupId (如果是自定义分组，section.groupId 就是 targetGroupId；如果是 Status，section.groupId 这里也被我们设置为了 targetGroupId)
+                    checkbox.checked = this.selectedFilterMilestones.get(section.groupId)?.has(ms.id) || false;
+
+                    checkbox.addEventListener('change', () => {
+                        let set = this.selectedFilterMilestones.get(section.groupId);
+                        if (!set) {
+                            set = new Set();
+                            this.selectedFilterMilestones.set(section.groupId, set);
+                        }
+                        if (checkbox.checked) set.add(ms.id);
+                        else set.delete(ms.id);
+
+                        if (set.size === 0) this.selectedFilterMilestones.delete(section.groupId);
+
+                        this.queueLoadTasks();
+                        this.updateMilestoneFilterButtonsState();
+                    });
+
+                    const icon = document.createElement('span');
+                    icon.style.marginRight = '6px';
+                    icon.textContent = ms.icon || '🚩';
+
+                    const name = document.createElement('span');
+                    name.textContent = ms.name;
+                    name.style.flex = '1';
+                    name.style.overflow = 'hidden';
+                    name.style.textOverflow = 'ellipsis';
+                    name.style.whiteSpace = 'nowrap';
+
+                    label.appendChild(checkbox);
+                    label.appendChild(icon);
+                    label.appendChild(name);
+                    menu.appendChild(label);
+                });
+            });
+
+            if (milestonesToShow.length === 0) {
+                const emptyTip = document.createElement('div');
+                emptyTip.style.padding = '12px';
+                emptyTip.style.color = 'var(--b3-theme-on-surface)';
+                emptyTip.style.opacity = '0.6';
+                emptyTip.style.textAlign = 'center';
+                emptyTip.textContent = i18n('noMilestones') || '暂无里程碑';
+                menu.appendChild(emptyTip);
+            }
+
+            document.body.appendChild(menu);
+
+            // 点击外部关闭
+            const closeHandler = (e: MouseEvent) => {
+                if (!menu.contains(e.target as Node) && !target.contains(e.target as Node)) {
+                    menu.remove();
+                    document.removeEventListener('click', closeHandler);
+                }
+            };
+            setTimeout(() => document.addEventListener('click', closeHandler), 0);
+        } catch (error) {
+            console.error('加载里程碑筛选菜单失败:', error);
+        }
+    }
+
+    private updateMilestoneFilterButtonsState() {
+        const buttons = this.container.querySelectorAll('.milestone-filter-btn') as NodeListOf<HTMLButtonElement>;
+        buttons.forEach(btn => {
+            const groupId = btn.dataset.groupId;
+            // Check if there is an active filter for this specific group/context
+            if (groupId && this.selectedFilterMilestones.has(groupId)) {
+                btn.classList.add('b3-button--primary');
+                btn.classList.remove('b3-button--outline');
+            } else {
+                btn.classList.remove('b3-button--primary');
+                btn.classList.add('b3-button--outline');
+            }
+        });
     }
 
     private createKanbanColumn(container: HTMLElement, status: string, title: string, color: string) {
@@ -2335,6 +3068,32 @@ export class ProjectKanbanView {
         rightContainer.className = 'custom-header-right';
         rightContainer.style.cssText = 'display:flex; align-items:center; gap:8px;';
         rightContainer.appendChild(countEl);
+
+        // 里程碑筛选按钮
+        const milestoneFilterBtn = document.createElement('button');
+        milestoneFilterBtn.className = 'b3-button b3-button--outline milestone-filter-btn b3-button--small';
+        milestoneFilterBtn.title = i18n('filterMilestone') || '筛选里程碑';
+        milestoneFilterBtn.innerHTML = '🚩';
+        milestoneFilterBtn.dataset.groupId = status;
+        milestoneFilterBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.showMilestoneFilterMenu(e, status);
+        });
+        if (this.selectedFilterMilestones.has(status)) {
+            milestoneFilterBtn.classList.add('b3-button--primary');
+            milestoneFilterBtn.classList.remove('b3-button--outline');
+        }
+        // 初始化时不显示，由 ensureStatusColumnsExist (调用 update) 或者后续 render 来决定是否添加
+        // 但这里是 createKanbanColumn，在初始化时被调用。
+        // 如果我们尚未感知到数据，可以先加上，或者像 ensureStatusColumnsExist 那样稍后处理。
+        // 鉴于 ensureStatusColumnsExist 会在每次 renderStatusKanban 时调用并修正 DOM，
+        // 我们在这里可以先不加，或者先加上（如果在初始化时就有数据）。
+        // 安全起见，为了避免闪烁，如果我们能确定projectLoaded，最好。
+        // 由于这里逻辑上是“Create”，我们先加上，然后让 ensureStatusColumnsExist 负责移除主要逻辑？
+        // 实际上 ensureStatusColumnsExist 逻辑已经覆盖了 Add，我们这里只要加上，ensure 中的逻辑需要处理 Removal 如果不再拥有里程碑。
+        // 上面的 chunk 已经添加了 removal 逻辑。
+        // 为了简单，我们这里默认添加。如果用户真的没有任何里程碑，render cycle 会很快移除它。
+        rightContainer.appendChild(milestoneFilterBtn);
 
         if (status !== 'completed') {
             const addTaskBtn = document.createElement('button');
@@ -2955,6 +3714,9 @@ export class ProjectKanbanView {
             // 保存当前滚动状态，避免界面刷新时丢失滚动位置
             this.captureScrollState();
 
+            // 构造里程碑映射
+            await this.buildMilestoneMap();
+
             const reminderData = await this.getReminders();
             const projectTasks = Object.values(reminderData).filter((reminder: any) => reminder && reminder.projectId === this.projectId);
             // 修复遗留：如果任务中存在 customGroupId === 'ungrouped'，视为未分组（删除该字段）
@@ -3053,6 +3815,8 @@ export class ProjectKanbanView {
                             kanbanStatus: instanceMod?.kanbanStatus !== undefined ? instanceMod.kanbanStatus : reminder.kanbanStatus,
                             // 实例层标签支持：优先使用 instanceMod 的 tagIds，否则使用原始提醒的 tagIds
                             tagIds: instanceMod?.tagIds !== undefined ? instanceMod.tagIds : reminder.tagIds,
+                            // 实例层里程碑支持：优先使用 instanceMod 的 milestoneId，否则使用原始提醒的 milestoneId
+                            milestoneId: instanceMod?.milestoneId !== undefined ? instanceMod.milestoneId : reminder.milestoneId,
                             // 为已完成的实例添加完成时间（用于排序）
                             completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined
                         };
@@ -3153,6 +3917,62 @@ export class ProjectKanbanView {
                 this.tasks.forEach(t => {
                     if (matches(t)) {
                         // 匹配的任务及其所有祖先都需要保留，以维持层级显示
+                        let current = t;
+                        while (current) {
+                            matchingIds.add(current.id);
+                            current = current.parentId ? taskMap.get(current.parentId) : null;
+                        }
+                    }
+                });
+
+                this.tasks = this.tasks.filter(t => matchingIds.has(t.id));
+            }
+
+            // 里程碑过滤逻辑
+            if (this.selectedFilterMilestones.size > 0) {
+                const matchesMilestone = (t: any) => {
+                    // 确定当前视图下该任务的 filterKey (分组依据)
+                    let filterKey: string | null = null;
+
+                    if (this.kanbanMode === 'custom') {
+                        filterKey = t.customGroupId || 'ungrouped';
+                    } else if (this.kanbanMode === 'status') {
+                        // 如果状态无效，默认为 doing，与 render 逻辑保持一致
+                        filterKey = t.kanbanStatus || 'doing';
+                    } else if (this.kanbanMode === 'list') {
+                        // 列表模式：如果是分组列表，key是 customGroupId；如果是单页，key是 ungrouped
+                        // 由于目前 renderListKanban 根据是否有 customGroups 决定是 grouped 还是 single
+                        // 我们可以简单地检查 t.customGroupId。如果项目有分组，任务应分配了组（或 ungrouped）
+                        filterKey = t.customGroupId || 'ungrouped';
+                    }
+
+                    if (!filterKey) return true;
+
+                    // 检查该 key 是否有激活的过滤器
+                    if (!this.selectedFilterMilestones.has(filterKey)) {
+                        // 没有启用针对该列/组的筛选 -> 显示
+                        return true;
+                    }
+
+                    // 启用了筛选 -> 检查任务是否包含选中的里程碑
+                    const milestoneId = t.milestoneId;
+                    const set = this.selectedFilterMilestones.get(filterKey);
+
+                    if (!set) return true; // Should be covered by previous check, but for type safety
+
+                    if (!milestoneId) {
+                        // 任务没有里程碑 -> 检查是否有 "无里程碑" 选项
+                        return set.has('__no_milestone__');
+                    }
+
+                    return set.has(milestoneId);
+                };
+
+                const matchingIds = new Set<string>();
+                const taskMap = new Map(this.tasks.map(t => [t.id, t]));
+
+                this.tasks.forEach(t => {
+                    if (matchesMilestone(t)) {
                         let current = t;
                         while (current) {
                             matchingIds.add(current.id);
@@ -3922,11 +4742,17 @@ export class ProjectKanbanView {
         });
 
         if (hasUngrouped) {
+            // 获取项目的所有未归档默认里程碑
+            const projectData = await this.plugin.loadProjectData() || {};
+            const project = projectData[this.projectId];
+            const defaultMilestones = (project?.milestones || []).filter((m: any) => !m.archived);
+
             const ungroupedGroup = {
                 id: 'ungrouped',
                 name: '未分组',
                 color: '#95a5a6',
-                icon: '📋'
+                icon: '📋',
+                milestones: defaultMilestones
             };
             this.renderCustomGroupColumnWithStatuses(ungroupedGroup, ungroupedStatusTasks);
 
@@ -4192,7 +5018,24 @@ export class ProjectKanbanView {
         }
     }
 
-    private ensureStatusColumnsExist(kanbanContainer: HTMLElement) {
+    private async ensureStatusColumnsExist(kanbanContainer: HTMLElement) {
+        // 检查是否有任何里程碑（以决定是否显示筛选按钮）
+        const projectData = await this.plugin.loadProjectData() || {};
+        const project = projectData[this.projectId];
+        const defaultMilestones = (project?.milestones || []).filter((m: any) => !m.archived);
+
+        // 我们还需要检查自定义分组的里程碑，因为 Status 视图显示所有任务
+        const projectGroups = await this.projectManager.getProjectCustomGroups(this.projectId);
+        let hasAnyMilestones = defaultMilestones.length > 0;
+        if (!hasAnyMilestones) {
+            for (const g of projectGroups) {
+                if ((g.milestones || []).some((m: any) => !m.archived)) {
+                    hasAnyMilestones = true;
+                    break;
+                }
+            }
+        }
+
         // 检查并创建必要的状态列 - 使用kanbanStatuses中定义的状态
         this.kanbanStatuses.forEach(status => {
             let column = kanbanContainer.querySelector(`.kanban-column-${status.id}`) as HTMLElement;
@@ -4209,6 +5052,37 @@ export class ProjectKanbanView {
                 const header = column.querySelector('.kanban-column-header') as HTMLElement;
                 if (header) {
                     header.style.background = `${status.color}15`;
+
+                    let rightContainer = header.querySelector('.custom-header-right') as HTMLElement;
+                    if (rightContainer && hasAnyMilestones) {
+                        if (!rightContainer.querySelector('.milestone-filter-btn')) {
+                            // 里程碑筛选按钮
+                            const milestoneFilterBtn = document.createElement('button');
+                            milestoneFilterBtn.className = 'b3-button b3-button--outline milestone-filter-btn b3-button--small';
+                            milestoneFilterBtn.title = i18n('filterMilestone') || '筛选里程碑';
+                            milestoneFilterBtn.innerHTML = '🚩';
+                            milestoneFilterBtn.dataset.groupId = status.id;
+                            milestoneFilterBtn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                this.showMilestoneFilterMenu(e, status.id);
+                            });
+                            if (this.selectedFilterMilestones.has(status.id)) {
+                                milestoneFilterBtn.classList.add('b3-button--primary');
+                                milestoneFilterBtn.classList.remove('b3-button--outline');
+                            }
+
+                            // 插入到 count 后面 (第一个子元素是 count)
+                            if (rightContainer.firstChild) {
+                                rightContainer.insertBefore(milestoneFilterBtn, rightContainer.firstChild.nextSibling);
+                            } else {
+                                rightContainer.appendChild(milestoneFilterBtn);
+                            }
+                        }
+                    } else if (rightContainer) {
+                        // 如果没有里程碑（总数），移除可能存在的按钮 (虽然 status kanban 不会自动删除列内容，但为了安全)
+                        const btn = rightContainer.querySelector('.milestone-filter-btn');
+                        if (btn) btn.remove();
+                    }
                 }
             }
             // 确保列有稳定的子分组容器结构
@@ -4533,6 +5407,45 @@ export class ProjectKanbanView {
             countBadge.className = 'kanban-column-count';
             countBadge.style.cssText = 'background: var(--b3-theme-primary); color: white; border-radius: 12px; padding: 2px 8px; font-size: 12px; min-width: 20px; text-align: center;';
             headerRight.appendChild(countBadge);
+
+            // Milestone filter button
+            // 列表视图下，我们假设如果是非 CustomGroup 模式，我们处理的是 ungrouped，
+            // 或者是 renderGroupedListColumns 调用 renderListModeGroupColumn 处理 specific group
+            // renderSingleListColumn 是这里。
+            // 我们需要检查 project total milestones.
+            // 由于这是一个 async process to check milestones usually, 
+            // but renderSingleListColumn is mostly called from renderListKanban which is async and has project data
+            // 让我们获取数据
+
+            // Wait, this method doesn't have project data passed in easily. 
+            // It runs in the context of the view.
+            // Let's defer strict checking here or use cached data if possible.
+            // For now, let's just append it and assume the list view is robust enough / or refine later if user complains about list view empty button.
+            // Actually, better to be consistent. Let's try to grab project data logic
+            // But renderSingleListColumn signature is simple.
+            // Let's skip modifying renderSingleListColumn for hiding logic heavily for now unless strictly needed, 
+            // OR we can fetch it async inside event loop? No that causes flicker.
+            // Let's leave it for now (it will show) or we can try to find simple check.
+            // Actually, renderListKanban calls this. 
+            // renderListKanban has projectGroups. 
+            // We can pass `hasAnyMilestones` to renderSingleListColumn if we change signature?
+            // Existing signature: private async renderSingleListColumn(container: HTMLElement)
+
+            const milestoneFilterBtn = document.createElement('button');
+            milestoneFilterBtn.className = 'b3-button b3-button--outline milestone-filter-btn b3-button--small';
+            milestoneFilterBtn.title = i18n('filterMilestone') || '筛选里程碑';
+            milestoneFilterBtn.innerHTML = '🚩';
+            milestoneFilterBtn.dataset.groupId = 'ungrouped';
+            milestoneFilterBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // 单列表模式下，我们视为 'ungrouped' 分组或者全局 'ungrouped' 上下文
+                this.showMilestoneFilterMenu(e, 'ungrouped');
+            });
+            if (this.selectedFilterMilestones.has('ungrouped')) {
+                milestoneFilterBtn.classList.add('b3-button--primary');
+                milestoneFilterBtn.classList.remove('b3-button--outline');
+            }
+            headerRight.appendChild(milestoneFilterBtn);
 
             // Add Task Button
             const addBtn = document.createElement('button');
@@ -5021,6 +5934,22 @@ export class ProjectKanbanView {
                 headerRight.style.cssText = 'display:flex; align-items:center; gap:8px;';
                 headerRight.appendChild(count);
 
+                // 里程碑筛选按钮
+                const milestoneFilterBtn = document.createElement('button');
+                milestoneFilterBtn.className = 'b3-button b3-button--outline milestone-filter-btn b3-button--small';
+                milestoneFilterBtn.title = i18n('filterMilestone') || '筛选里程碑';
+                milestoneFilterBtn.innerHTML = '🚩';
+                milestoneFilterBtn.dataset.groupId = status;
+                milestoneFilterBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.showMilestoneFilterMenu(e, status);
+                });
+                if (this.selectedFilterMilestones.has(status)) {
+                    milestoneFilterBtn.classList.add('b3-button--primary');
+                    milestoneFilterBtn.classList.remove('b3-button--outline');
+                }
+                headerRight.appendChild(milestoneFilterBtn);
+
                 // 不在已完成列显示新建按钮
                 if (status !== 'completed') {
                     const addGroupTaskBtn = document.createElement('button');
@@ -5243,6 +6172,27 @@ export class ProjectKanbanView {
         headerRight.className = 'custom-header-right';
         headerRight.style.cssText = 'display:flex; align-items:center; gap:8px;';
         headerRight.appendChild(countEl);
+
+        // 里程碑筛选按钮 - 仅当分组有未归档里程碑时显示
+        const activeMilestones = (group.milestones || []).filter((m: any) => !m.archived);
+        if (activeMilestones.length > 0) {
+            const milestoneFilterBtn = document.createElement('button');
+            milestoneFilterBtn.className = 'b3-button b3-button--outline milestone-filter-btn';
+            milestoneFilterBtn.style.cssText = 'margin-left:8px;';
+            milestoneFilterBtn.title = i18n('filterMilestone') || '筛选里程碑';
+            milestoneFilterBtn.innerHTML = '🚩';
+            milestoneFilterBtn.dataset.groupId = group.id;
+            milestoneFilterBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.showMilestoneFilterMenu(e, group.id);
+            });
+            if (this.selectedFilterMilestones.has(group.id)) {
+                milestoneFilterBtn.classList.add('b3-button--primary');
+                milestoneFilterBtn.classList.remove('b3-button--outline');
+            }
+            headerRight.appendChild(milestoneFilterBtn);
+        }
+
         headerRight.appendChild(addGroupTaskBtn);
         headerRight.appendChild(pasteGroupTaskBtn);
 
@@ -5578,33 +6528,6 @@ export class ProjectKanbanView {
         return groupContainer;
     }
 
-    private async renderStatusColumnWithGroups(status: string, tasks: any[]) {
-        const column = this.container.querySelector(`.kanban-column-${status}`) as HTMLElement;
-        if (!column) return;
-
-        const content = column.querySelector('.kanban-column-content') as HTMLElement;
-        const count = column.querySelector('.kanban-column-count') as HTMLElement;
-
-        content.innerHTML = '';
-
-        // 获取项目自定义分组
-        const { ProjectManager } = await import('../utils/projectManager');
-        const projectManager = ProjectManager.getInstance(this.plugin);
-        const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
-
-        if (projectGroups.length === 0) {
-            // 如果没有自定义分组，直接渲染任务
-            this.renderTasksInColumn(content, tasks);
-        } else {
-            // 按自定义分组渲染任务组
-            this.renderTasksGroupedByCustomGroup(content, tasks, projectGroups);
-        }
-
-        // 更新列顶部计数
-        if (count) {
-            count.textContent = tasks.length.toString();
-        }
-    }
 
     private renderTasksInColumn(content: HTMLElement, tasks: any[]) {
         const taskMap = new Map(tasks.map(t => [t.id, t]));
@@ -6265,6 +7188,31 @@ export class ProjectKanbanView {
             infoEl.appendChild(priorityEl);
         }
 
+        // 里程碑
+        if (task.milestoneId) {
+            const milestone = this.milestoneMap.get(task.milestoneId);
+            if (milestone) {
+                const milestoneEl = document.createElement('div');
+                milestoneEl.className = 'kanban-task-milestone';
+                milestoneEl.style.cssText = `
+                    font-size: 11px;
+                    color: var(--b3-theme-on-surface);
+                    opacity: 0.8;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    margin-top: 4px;
+                    background: var(--b3-theme-surface-lighter);
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    width: fit-content;
+                    border: 1px solid var(--b3-theme-border);
+                `;
+                milestoneEl.innerHTML = `<span>${milestone.icon || '🚩'}</span><span style="font-weight: 500;">${milestone.name}</span>`;
+                infoEl.appendChild(milestoneEl);
+            }
+        }
+
         // 分类（支持多分类）
         if (task.categoryId) {
             const categoryContainer = document.createElement('div');
@@ -6358,7 +7306,6 @@ export class ProjectKanbanView {
 
                     // 如果有无效标签，自动清理
                     if (validTagIds.length !== task.tagIds.length) {
-                        const invalidCount = task.tagIds.length - validTagIds.length;
 
                         // 异步清理无效标签
                         (async () => {
@@ -6598,6 +7545,42 @@ export class ProjectKanbanView {
         });
 
         taskEl.addEventListener('drop', (e) => {
+            // Check for batch data first
+            const multiData = e.dataTransfer?.getData('application/vnd.siyuan.kanban-tasks');
+            if (multiData) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                try {
+                    const taskIds = JSON.parse(multiData);
+                    if (Array.isArray(taskIds) && taskIds.length > 0) {
+                        const targetTask = this.getTaskFromElement(taskEl);
+                        if (!targetTask || taskIds.includes(targetTask.id)) {
+                            this.updateIndicator('none', null, null);
+                            return;
+                        }
+
+                        const rect = taskEl.getBoundingClientRect();
+                        const mouseY = e.clientY;
+                        const taskTop = rect.top;
+                        const taskBottom = rect.bottom;
+                        const taskHeight = rect.height;
+                        const sortZoneHeight = taskHeight * 0.2;
+
+                        const isInTopSortZone = mouseY <= taskTop + sortZoneHeight;
+                        const isInBottomSortZone = mouseY >= taskBottom - sortZoneHeight;
+
+                        if (isInTopSortZone || isInBottomSortZone) {
+                            const insertBefore = isInTopSortZone;
+                            this.handleBatchSortDrop(taskIds, targetTask, insertBefore, e);
+                        }
+                    }
+                } catch (err) { console.error(err); }
+
+                this.updateIndicator('none', null, null);
+                return;
+            }
+
             if (this.isDragging && this.draggedElement && this.draggedElement !== taskEl) {
                 e.preventDefault();
                 e.stopPropagation(); // 阻止事件冒泡到列的 drop 区域
@@ -6680,7 +7663,7 @@ export class ProjectKanbanView {
         const currentYear = new Date().getFullYear();
 
         // 辅助函数：格式化日期显示
-        const formatDateWithYear = (dateStr: string, date: Date): string => {
+        const formatDateWithYear = (date: Date): string => {
             const year = date.getFullYear();
             return year !== currentYear
                 ? date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' })
@@ -6705,12 +7688,11 @@ export class ProjectKanbanView {
         // 如果只有截止时间，显示截止时间（基于逻辑结束日判断过期/今天/明天）
         if (!task.date && task.endDate) {
             const endDate = new Date(task.endDate);
-            const endYear = endDate.getFullYear();
 
             // 检查是否过期（使用逻辑结束日期）
             if (compareDateStrings(logicalEnd, today) < 0) {
                 const daysDiff = getExpiredDays(task.endDate);
-                const dateStr = formatDateWithYear(task.endDate, endDate);
+                const dateStr = formatDateWithYear(endDate);
                 return `${dateStr} ${createExpiredBadge(daysDiff, !!task.completed)}`;
             }
 
@@ -6719,7 +7701,7 @@ export class ProjectKanbanView {
             } else if (logicalEnd === tomorrowStr) {
                 return i18n('tomorrowDeadline');
             } else {
-                const dateStr = formatDateWithYear(task.endDate, endDate);
+                const dateStr = formatDateWithYear(endDate);
                 return `${dateStr} ${i18n('countdownEnd')}`;
             }
         }
@@ -6732,11 +7714,10 @@ export class ProjectKanbanView {
             dateStr = i18n('tomorrow');
         } else {
             const taskDate = new Date(task.date);
-            const taskYear = taskDate.getFullYear();
 
             // 检查是否过期（使用逻辑起始日期）
             if (compareDateStrings(logicalStart, today) < 0) {
-                const formattedDate = formatDateWithYear(task.date, taskDate);
+                const formattedDate = formatDateWithYear(taskDate);
                 // 如果任务有结束日期且和开始日期不同，避免在开始日期处显示过期徽章（只在结束日期处显示一次）
                 if (task.endDate && task.endDate !== task.date) {
                     dateStr = formattedDate;
@@ -6746,7 +7727,7 @@ export class ProjectKanbanView {
                 }
             } else {
                 // 如果不在今年，显示年份
-                dateStr = formatDateWithYear(task.date, taskDate);
+                dateStr = formatDateWithYear(taskDate);
             }
         }
 
@@ -6765,16 +7746,15 @@ export class ProjectKanbanView {
         let endDateStr = '';
         if (task.endDate && task.endDate !== task.date) {
             const taskEndDate = new Date(task.endDate);
-            const endYear = taskEndDate.getFullYear();
 
             // 检查结束日期是否过期（使用逻辑结束日期）
             if (compareDateStrings(logicalEnd, today) < 0) {
                 const daysDiff = getExpiredDays(task.endDate);
-                const formattedEndDate = formatDateWithYear(task.endDate, taskEndDate);
+                const formattedEndDate = formatDateWithYear(taskEndDate);
                 endDateStr = `${formattedEndDate} ${createExpiredBadge(daysDiff, !!task.completed)} `;
             } else {
                 // 如果结束日期不在今年，显示年份
-                endDateStr = formatDateWithYear(task.endDate, taskEndDate);
+                endDateStr = formatDateWithYear(taskEndDate);
             }
         }
 
@@ -7198,12 +8178,9 @@ export class ProjectKanbanView {
         } catch (error) {
             console.error('加载分组信息失败:', error);
         }
-
         // 设置标签子菜单（仅在项目有标签时显示）
         try {
-            const { ProjectManager } = await import('../utils/projectManager');
-            const projectManager = ProjectManager.getInstance(this.plugin);
-            const projectTags = await projectManager.getProjectTags(this.projectId);
+            const projectTags = await this.projectManager.getProjectTags(this.projectId);
 
             if (projectTags.length > 0) {
                 const tagMenuItems = [];
@@ -7253,6 +8230,54 @@ export class ProjectKanbanView {
             }
         } catch (error) {
             console.error('加载项目标签失败:', error);
+        }
+
+        // 设置里程碑子菜单
+        try {
+            const projectManager = this.projectManager;
+            const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
+            const projectData = await this.plugin.loadProjectData() || {};
+            const project = projectData[this.projectId];
+
+            const currentMilestoneId = task.milestoneId;
+            const taskGroupId = task.customGroupId;
+
+            let availableMilestones = [];
+            if (!taskGroupId || taskGroupId === 'ungrouped') {
+                availableMilestones = (project?.milestones || []).filter((m: any) => !m.archived);
+            } else {
+                const group = projectGroups.find((g: any) => g.id === taskGroupId);
+                availableMilestones = (group?.milestones || []).filter((m: any) => !m.archived);
+            }
+
+            if (availableMilestones.length > 0) {
+                const milestoneMenuItems = [];
+
+                // 添加“移除里程碑”选项
+                milestoneMenuItems.push({
+                    iconHTML: "❌",
+                    label: i18n('noMilestone') || '无里程碑',
+                    current: !currentMilestoneId,
+                    click: () => this.setTaskMilestone(task, null)
+                });
+
+                availableMilestones.forEach(ms => {
+                    milestoneMenuItems.push({
+                        iconHTML: ms.icon || "🚩",
+                        label: ms.name,
+                        current: currentMilestoneId === ms.id,
+                        click: () => this.setTaskMilestone(task, ms.id)
+                    });
+                });
+
+                menu.addItem({
+                    iconHTML: "🚩",
+                    label: i18n('setMilestone') || "设置里程碑",
+                    submenu: milestoneMenuItems
+                });
+            }
+        } catch (error) {
+            console.error('加载项目里程碑失败:', error);
         }
 
 
@@ -11440,6 +12465,149 @@ export class ProjectKanbanView {
         }
     }
 
+    private async handleBatchSortDrop(taskIds: string[], targetTask: any, insertBefore: boolean, event: DragEvent) {
+        try {
+            // Optimistic DOM update
+            this.batchReorderTasksDOM(taskIds, targetTask.id, insertBefore);
+
+            await this.batchReorderTasks(taskIds, targetTask, insertBefore);
+        } catch (error) {
+            console.error('批量排序失败:', error);
+            showMessage(i18n("sortUpdateFailed") || "排序更新失败");
+            await this.queueLoadTasks(); // Revert on failure
+        }
+    }
+
+    private batchReorderTasksDOM(taskIds: string[], targetTaskId: string, insertBefore: boolean): boolean {
+        try {
+            const targetEl = this.container.querySelector(`[data-task-id="${targetTaskId}"]`) as HTMLElement;
+            if (!targetEl) return false;
+            const parentContainer = targetEl.parentElement;
+            if (!parentContainer) return false;
+
+            let referenceNode = insertBefore ? targetEl : targetEl.nextSibling;
+
+            for (const taskId of taskIds) {
+                const el = this.container.querySelector(`[data-task-id="${taskId}"]`) as HTMLElement;
+                if (el) {
+                    parentContainer.insertBefore(el, referenceNode);
+                    // For inserts, we just keep inserting before the reference. 
+                    // This creates correct order [A, B, C] + Ref
+                }
+            }
+            return true;
+        } catch (e) {
+            console.error(e);
+            return false;
+        }
+    }
+
+    private async batchReorderTasks(taskIds: string[], targetTask: any, insertBefore: boolean) {
+        try {
+            const reminderData = await this.getReminders();
+            const targetId = targetTask.id;
+            const targetTaskInDb = reminderData[targetId];
+            if (!targetTaskInDb) throw new Error("Target task not found");
+
+            const newStatus = this.getTaskStatus(targetTaskInDb);
+            const targetGroup = targetTaskInDb.customGroupId === undefined ? null : targetTaskInDb.customGroupId;
+            const targetPriority = targetTaskInDb.priority || 'none';
+
+            // Filter out tasks that are not found
+            const validTaskIds = taskIds.filter(id => reminderData[id]);
+
+            // Current Target List (based on target context)
+            const targetList = Object.values(reminderData)
+                .filter((r: any) => r && r.projectId === this.projectId && !r.parentId)
+                .filter((r: any) => {
+                    const rGroup = (r.customGroupId === undefined) ? null : r.customGroupId;
+                    const rStatus = this.getTaskStatus(r);
+                    const tPriority = r.priority || 'none';
+                    return rGroup === targetGroup && rStatus === newStatus && tPriority === targetPriority;
+                })
+                .filter(r => !validTaskIds.includes(r.id)) // Exclude dragged tasks
+                .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+            // Find insertion index
+            let insertIndex = targetList.findIndex((t: any) => t.id === targetId);
+            if (insertIndex === -1 && targetList.length > 0) {
+                // Fallback if target logic fails
+                insertIndex = targetList.length;
+            } else {
+                if (!insertBefore) insertIndex += 1;
+            }
+
+            // Update dragged tasks attributes
+            const draggedTasks = validTaskIds.map(id => reminderData[id]);
+
+            draggedTasks.forEach(task => {
+                // Update Status
+                const oldStatus = this.getTaskStatus(task);
+                if (oldStatus !== newStatus) {
+                    if (newStatus === 'completed') {
+                        task.completed = true;
+                        task.completedTime = getLocalDateTimeString(new Date());
+                        task.kanbanStatus = 'completed';
+                    } else {
+                        task.completed = false;
+                        delete task.completedTime;
+                        if (newStatus === 'long_term' || newStatus === 'short_term' || newStatus === 'doing') {
+                            task.kanbanStatus = newStatus;
+                        }
+                    }
+                }
+
+                // Update Group
+                const oldGroup = task.customGroupId === undefined ? null : task.customGroupId;
+                if (oldGroup !== targetGroup) {
+                    if (targetGroup === null) delete task.customGroupId;
+                    else task.customGroupId = targetGroup;
+                }
+
+                // Update Priority
+                const oldPrio = task.priority || 'none';
+                if (oldPrio !== targetPriority) {
+                    task.priority = targetPriority;
+                }
+            });
+
+            // Insert
+            targetList.splice(insertIndex, 0, ...draggedTasks);
+
+            // Re-sort entire list
+            targetList.forEach((task: any, index: number) => {
+                reminderData[task.id].sort = index * 10;
+            });
+
+            await saveReminders(this.plugin, reminderData);
+
+            // Update local cache
+            validTaskIds.forEach(id => {
+                const task = reminderData[id];
+                const local = this.tasks.find(t => t.id === id);
+                if (local) {
+                    local.sort = task.sort;
+                    local.priority = task.priority;
+                    local.kanbanStatus = task.kanbanStatus;
+                    local.customGroupId = task.customGroupId;
+                    local.completed = task.completed;
+                    local.completedTime = task.completedTime;
+                }
+            });
+            targetList.forEach(task => {
+                const local = this.tasks.find(t => t.id === task.id);
+                if (local) local.sort = task.sort;
+            });
+
+            this.dispatchReminderUpdate(true);
+            validTaskIds.forEach(id => this.refreshTaskElement(id));
+
+        } catch (e) {
+            console.error(e);
+            throw e;
+        }
+    }
+
     // ==================== 批量多选功能 ====================
 
 
@@ -11575,6 +12743,44 @@ export class ProjectKanbanView {
                 }
             });
         }
+
+        // 更新里程碑按钮可见性
+        const milestoneBtn = this.batchToolbar?.querySelector('#batchSetMilestoneBtn') as HTMLElement;
+        if (milestoneBtn) {
+            let showMilestoneBtn = false;
+            if (selectedCount > 0) {
+                const firstId = this.selectedTaskIds.values().next().value;
+                const firstTask = this.tasks.find(t => t.id === firstId);
+                if (firstTask) {
+                    const targetGroupId = firstTask.customGroupId;
+                    // Verify if all selected tasks are in the same group
+                    const allSameGroup = Array.from(this.selectedTaskIds).every(id => {
+                        const t = this.tasks.find(task => task.id === id);
+                        return t && t.customGroupId === targetGroupId;
+                    });
+
+                    if (allSameGroup) {
+                        // Check for milestones availability in the target group (or project)
+                        if (targetGroupId) {
+                            const group = this.project?.customGroups?.find((g: any) => g.id === targetGroupId);
+                            if (group && group.milestones && group.milestones.length > 0) {
+                                if (group.milestones.some((m: any) => !m.archived)) {
+                                    showMilestoneBtn = true;
+                                }
+                            }
+                        } else {
+                            // Ungrouped - check project milestones
+                            if (this.project?.milestones && this.project.milestones.length > 0) {
+                                if (this.project.milestones.some((m: any) => !m.archived)) {
+                                    showMilestoneBtn = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            milestoneBtn.style.display = showMilestoneBtn ? 'inline-flex' : 'none';
+        }
     }
 
     /**
@@ -11627,11 +12833,19 @@ export class ProjectKanbanView {
             gap: 8px;
             flex-wrap: wrap;
         `;
-
+        // 设置已完成按钮
+        const setCompletedBtn = document.createElement('button');
+        setCompletedBtn.className = 'b3-button b3-button--outline b3-button--small';
+        setCompletedBtn.innerHTML = `✅ ${i18n('setCompleted') || '设置已完成'}`;
+        setCompletedBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.batchSetCompleted();
+        });
+        buttonsGroup.appendChild(setCompletedBtn);
         // 设置日期按钮
         const setDateBtn = document.createElement('button');
         setDateBtn.className = 'b3-button b3-button--outline b3-button--small';
-        setDateBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconCalendar"></use></svg> ${i18n('setDate') || '设置日期'}`;
+        setDateBtn.innerHTML = `🗓 ${i18n('setDate') || '设置日期'}`;
         setDateBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.batchSetDate();
@@ -11641,18 +12855,19 @@ export class ProjectKanbanView {
         // 设置状态按钮
         const setStatusBtn = document.createElement('button');
         setStatusBtn.className = 'b3-button b3-button--outline b3-button--small';
-        setStatusBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconRefresh"></use></svg> ${i18n('setStatus') || '设置状态'}`;
+        setStatusBtn.innerHTML = `🔀 ${i18n('setStatus') || '设置状态'}`;
         setStatusBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.batchSetStatus();
         });
         buttonsGroup.appendChild(setStatusBtn);
 
+
         // 设置分组按钮
         if (this.project?.customGroups && this.project.customGroups.length > 0) {
             const setGroupBtn = document.createElement('button');
             setGroupBtn.className = 'b3-button b3-button--outline b3-button--small';
-            setGroupBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconFolder"></use></svg> ${i18n('setGroup') || '设置分组'}`;
+            setGroupBtn.innerHTML = `📂 ${i18n('setGroup') || '设置分组'}`;
             setGroupBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.batchSetGroup();
@@ -11660,11 +12875,23 @@ export class ProjectKanbanView {
             buttonsGroup.appendChild(setGroupBtn);
         }
 
+        // 设置里程碑按钮 (默认隐藏，由 updateBatchToolbar 控制显示)
+        const setMilestoneBtn = document.createElement('button');
+        setMilestoneBtn.id = 'batchSetMilestoneBtn';
+        setMilestoneBtn.className = 'b3-button b3-button--outline b3-button--small';
+        setMilestoneBtn.style.display = 'none';
+        setMilestoneBtn.innerHTML = `🚩 ${i18n('setMilestone') || '设置里程碑'}`;
+        setMilestoneBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.batchSetMilestone();
+        });
+        buttonsGroup.appendChild(setMilestoneBtn);
+
         // 设置标签按钮
         if (this.project?.tags && this.project.tags.length > 0) {
             const setTagsBtn = document.createElement('button');
             setTagsBtn.className = 'b3-button b3-button--outline b3-button--small';
-            setTagsBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconTags"></use></svg> ${i18n('setTags') || '设置标签'}`;
+            setTagsBtn.innerHTML = `🏷️ ${i18n('setTags') || '设置标签'}`;
             setTagsBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.batchSetTags();
@@ -11675,7 +12902,7 @@ export class ProjectKanbanView {
         // 设置优先级按钮
         const setPriorityBtn = document.createElement('button');
         setPriorityBtn.className = 'b3-button b3-button--outline b3-button--small';
-        setPriorityBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#iconOrderedList"></use></svg> ${i18n('setPriority') || '设置优先级'}`;
+        setPriorityBtn.innerHTML = `🎯 ${i18n('setPriority') || '设置优先级'}`;
         setPriorityBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.batchSetPriority();
@@ -11701,7 +12928,7 @@ export class ProjectKanbanView {
         rightGroup.style.cssText = `
             display: flex;
             gap: 8px;
-            margin-left: auto;
+            flex-wrap: wrap;
         `;
 
         // 全选按钮
@@ -11959,6 +13186,67 @@ export class ProjectKanbanView {
         });
     }
 
+    /**
+     * 批量设置已完成
+     */
+    private async batchSetCompleted(): Promise<void> {
+        const selectedIds = Array.from(this.selectedTaskIds);
+        if (selectedIds.length === 0) return;
+
+        try {
+            let successCount = 0;
+            const tasksToUpdate = [];
+            const blocksToUpdate = [];
+
+            for (const taskId of selectedIds) {
+                const task = this.tasks.find(t => t.id === taskId);
+                if (task) {
+                    const wasCompleted = task.completed;
+
+                    // 设置为完成状态
+                    task.kanbanStatus = 'completed';
+                    task.completed = true;
+                    // 如果已经有完成时间，保持原样？或者更新？
+                    // 通常批量设置为完成意味着"现在完成"，所以更新时间比较合理，或者如果已经完成就不动?
+                    // 但用户显式点击"设置已完成"，意味着强制设为完成。
+                    if (!wasCompleted) {
+                        task.completedTime = getLocalDateTimeString(new Date());
+                    } else if (!task.completedTime) {
+                        task.completedTime = getLocalDateTimeString(new Date());
+                    }
+
+                    tasksToUpdate.push(task);
+
+                    // 记录需要更新的绑定块
+                    if (task.blockId || task.docId) {
+                        blocksToUpdate.push(task.blockId || task.docId);
+                    }
+
+                    successCount++;
+                }
+            }
+
+            if (tasksToUpdate.length === 0) {
+                return;
+            }
+
+            // 批量保存任务
+            await this.saveTasks(tasksToUpdate);
+
+            // 更新任务
+            this.queueLoadTasks();
+            showMessage(i18n('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
+
+            // 批量更新绑定块属性
+            for (const blockId of blocksToUpdate) {
+                await updateBindBlockAtrrs(blockId, this.plugin);
+            }
+        } catch (error) {
+            console.error('批量设置已完成失败:', error);
+            showMessage(i18n('batchUpdateFailed') || '批量更新失败');
+        }
+    }
+
 
 
     /**
@@ -12190,6 +13478,117 @@ export class ProjectKanbanView {
             console.error('获取分组列表失败:', error);
             showMessage(i18n('loadGroupsFailed') || '加载分组失败');
         }
+    }
+
+
+    /**
+     * 批量设置里程碑
+     */
+    private async batchSetMilestone(): Promise<void> {
+        const selectedIds = Array.from(this.selectedTaskIds);
+        if (selectedIds.length === 0) return;
+
+        // 再次校验分组一致性
+        const firstId = selectedIds[0];
+        const firstTask = this.tasks.find(t => t.id === firstId);
+        if (!firstTask) return;
+
+        const targetGroupId = firstTask.customGroupId;
+        const allSameGroup = selectedIds.every(id => {
+            const t = this.tasks.find(task => task.id === id);
+            return t && t.customGroupId === targetGroupId;
+        });
+
+        if (!allSameGroup) {
+            showMessage(i18n('batchMilestoneMixedGroups') || '批量设置里程碑仅支持同一分组内的任务');
+            return;
+        }
+
+        // 获取可用里程碑
+        let milestones: any[] = [];
+        try {
+            if (targetGroupId) {
+                const groups = await this.projectManager.getProjectCustomGroups(this.projectId);
+                const group = groups.find((g: any) => g.id === targetGroupId);
+                if (group && group.milestones) {
+                    milestones = group.milestones.filter((m: any) => !m.archived);
+                }
+            } else {
+                const projectData = await this.plugin.loadProjectData() || {};
+                const project = projectData[this.projectId];
+                if (project && project.milestones) {
+                    milestones = project.milestones.filter((m: any) => !m.archived);
+                }
+            }
+        } catch (e) {
+            console.error('获取里程碑失败', e);
+        }
+
+        if (milestones.length === 0) {
+            showMessage(i18n('noMilestonesInGroup') || '该分组无可用里程碑');
+            return;
+        }
+
+        const milestoneOptions = [
+            `<option value="">${i18n('noMilestone') || '无里程碑'}</option>`,
+            ...milestones.map(m => `<option value="${m.id}">${m.icon || '🚩'} ${m.name}</option>`)
+        ].join('');
+
+        const dialog = new Dialog({
+            title: i18n('batchSetMilestone') || '批量设置里程碑',
+            content: `
+                <div class="b3-dialog__content">
+                    <div class="b3-form__group">
+                        <label class="b3-form__label">${i18n('selectMilestone') || '选择里程碑'}</label>
+                        <select id="batchMilestoneSelect" class="b3-select" style="width: 100%;">
+                            ${milestoneOptions}
+                        </select>
+                    </div>
+                </div>
+                <div class="b3-dialog__action">
+                    <button class="b3-button b3-button--cancel" id="batchMilestoneCancel">${i18n('cancel')}</button>
+                    <button class="b3-button b3-button--primary" id="batchMilestoneConfirm">${i18n('confirm')}</button>
+                </div>
+            `,
+            width: '320px'
+        });
+
+        const milestoneSelect = dialog.element.querySelector('#batchMilestoneSelect') as HTMLSelectElement;
+        const cancelBtn = dialog.element.querySelector('#batchMilestoneCancel') as HTMLButtonElement;
+        const confirmBtn = dialog.element.querySelector('#batchMilestoneConfirm') as HTMLButtonElement;
+
+        cancelBtn.addEventListener('click', () => dialog.destroy());
+
+        confirmBtn.addEventListener('click', async () => {
+            const milestoneId = milestoneSelect.value || null;
+            dialog.destroy();
+
+            try {
+                let successCount = 0;
+                const tasksToUpdate = [];
+
+                for (const taskId of selectedIds) {
+                    const task = this.tasks.find(t => t.id === taskId);
+                    if (task) {
+                        if (milestoneId) {
+                            task.milestoneId = milestoneId;
+                        } else {
+                            (task as any).milestoneId = null;
+                        }
+                        tasksToUpdate.push(task);
+                        successCount++;
+                    }
+                }
+
+                // 批量保存任务
+                await this.saveTasks(tasksToUpdate);
+                showMessage(i18n('batchUpdateSuccess', { count: String(successCount) }) || `成功更新 ${successCount} 个任务`);
+                this.queueLoadTasks();
+            } catch (error) {
+                console.error('批量设置里程碑失败:', error);
+                showMessage(i18n('batchUpdateFailed') || '批量更新失败');
+            }
+        });
     }
 
     /**

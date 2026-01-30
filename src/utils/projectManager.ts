@@ -1,16 +1,36 @@
 import { getFile, putFile, removeFile } from '../api';
 import { StatusManager } from './statusManager';
 
+export interface Milestone {
+    id: string;
+    name: string;
+    icon?: string;
+    archived: boolean;
+    blockId?: string;
+    sort: number;
+}
+
+export interface ProjectGroup {
+    id: string;
+    name: string;
+    color: string;
+    icon?: string;
+    sort: number;
+    blockId?: string;
+    milestones?: Milestone[];
+}
+
 export interface Project {
     id: string;
     name: string;
     status: string;
     color?: string;
     kanbanMode?: 'status' | 'custom' | 'list';
-    customGroups?: any[];
+    customGroups?: ProjectGroup[];
     blockId?: string;
     sortRule?: string;
     sortOrder?: 'asc' | 'desc';
+    milestones?: Milestone[];
 }
 
 /**
@@ -213,7 +233,7 @@ export class ProjectManager {
     /**
      * 获取项目的自定义分组
      */
-    public async getProjectCustomGroups(projectId: string): Promise<any[]> {
+    public async getProjectCustomGroups(projectId: string): Promise<ProjectGroup[]> {
         try {
             const projectData = await this.plugin.loadProjectData() || {};
             const project = projectData[projectId];
@@ -227,7 +247,7 @@ export class ProjectManager {
     /**
      * 设置项目的自定义分组
      */
-    public async setProjectCustomGroups(projectId: string, groups: any[]): Promise<void> {
+    public async setProjectCustomGroups(projectId: string, groups: ProjectGroup[]): Promise<void> {
         try {
             const projectData = await this.plugin.loadProjectData() || {};
             if (projectData[projectId]) {
@@ -238,6 +258,74 @@ export class ProjectManager {
             console.error('设置项目自定义分组失败:', error);
             throw error;
         }
+    }
+
+    /**
+     * 获取项目的默认里程碑（未分组任务使用）
+     */
+    public async getProjectMilestones(projectId: string): Promise<Milestone[]> {
+        try {
+            const projectData = await this.plugin.loadProjectData() || {};
+            const project = projectData[projectId];
+            return project?.milestones || [];
+        } catch (error) {
+            console.error('获取项目里程碑失败:', error);
+            return [];
+        }
+    }
+
+    /**
+     * 设置项目的默认里程碑
+     */
+    public async setProjectMilestones(projectId: string, milestones: Milestone[]): Promise<void> {
+        try {
+            const projectData = await this.plugin.loadProjectData() || {};
+            if (projectData[projectId]) {
+                projectData[projectId].milestones = milestones;
+                await this.plugin.saveProjectData(projectData);
+            }
+        } catch (error) {
+            console.error('设置项目里程碑失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 获取分组的里程碑
+     */
+    public async getGroupMilestones(projectId: string, groupId: string): Promise<Milestone[]> {
+        try {
+            const groups = await this.getProjectCustomGroups(projectId);
+            const group = groups.find(g => g.id === groupId);
+            return group?.milestones || [];
+        } catch (error) {
+            console.error('获取分组里程碑失败:', error);
+            return [];
+        }
+    }
+
+    /**
+     * 设置分组的里程碑
+     */
+    public async setGroupMilestones(projectId: string, groupId: string, milestones: Milestone[]): Promise<void> {
+        try {
+            const groups = await this.getProjectCustomGroups(projectId);
+            const groupIndex = groups.findIndex(g => g.id === groupId);
+            if (groupIndex !== -1) {
+                groups[groupIndex].milestones = milestones;
+                await this.setProjectCustomGroups(projectId, groups);
+            }
+        } catch (error) {
+            console.error('设置分组里程碑失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 生成里程碑ID
+     */
+    public generateMilestoneId(): string {
+        return `ms_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     }
 
     /**

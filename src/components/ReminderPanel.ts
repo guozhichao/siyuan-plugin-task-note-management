@@ -41,6 +41,7 @@ export class ReminderPanel {
     private collapsedTasks: Set<string> = new Set(); // 管理任务的折叠状态
     // 记录用户手动展开的任务（优先于默认折叠）
     private userExpandedTasks: Set<string> = new Set();
+    private milestoneMap: Map<string, { name: string, icon?: string, projectId?: string, projectName?: string }> = new Map();
 
     // 是否在“今日任务”视图下显示已完成的子任务（由 header 中的开关控制）
     private showCompletedSubtasks: boolean = false;
@@ -866,6 +867,38 @@ export class ReminderPanel {
 
 
 
+    private async buildMilestoneMap() {
+        this.milestoneMap.clear();
+        try {
+            const { ProjectManager } = await import('../utils/projectManager');
+            const projectManager = ProjectManager.getInstance(this.plugin);
+            const projectData = await this.plugin.loadProjectData() || {};
+
+            for (const projectId in projectData) {
+                const project = projectData[projectId];
+                const projectName = project.name || projectId;
+
+                // 1. 默认里程碑
+                (project.milestones || []).forEach((ms: any) => {
+                    this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon, projectId, projectName });
+                });
+
+                // 2. 分组里程碑
+                const projectGroups = await projectManager.getProjectCustomGroups(projectId);
+                projectGroups.forEach((group: any) => {
+                    (group.milestones || []).forEach((ms: any) => {
+                        this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon, projectId, projectName: `${projectName} - ${group.name}` });
+                    });
+                });
+            }
+        } catch (error) {
+            console.error('ReminderPanel 构造里程碑映射失败:', error);
+        }
+    }
+
+
+
+
     private applyCategoryFilter(reminders: any[]): any[] {
         if (this.selectedCategories.length === 0 || this.selectedCategories.includes('all')) {
             return reminders;
@@ -1392,6 +1425,9 @@ export class ReminderPanel {
         const scrollLeft = this.remindersContainer.scrollLeft;
 
         try {
+            // 构造里程碑映射
+            await this.buildMilestoneMap();
+
             const reminderData = await getAllReminders(this.plugin, undefined, force);
             if (!reminderData || typeof reminderData !== 'object') {
                 this.updateReminderCounts(0, 0, 0, 0, 0, 0);
@@ -2232,6 +2268,8 @@ export class ReminderPanel {
             infoEl.appendChild(noteEl);
         }
 
+
+
         // 添加项目信息显示（使用预处理的缓存数据）
         if (cachedData && cachedData.project) {
             // 兼容 title 和 name 字段（项目数据使用 title，但接口定义使用 name）
@@ -2296,7 +2334,31 @@ export class ReminderPanel {
                 infoEl.appendChild(projectInfo);
             }
         }
-
+        // 里程碑显示
+        if (reminder.milestoneId) {
+            const milestone = this.milestoneMap.get(reminder.milestoneId);
+            if (milestone) {
+                const milestoneTag = document.createElement('div');
+                milestoneTag.className = 'reminder-item__milestone';
+                milestoneTag.style.cssText = `
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    font-size: 11px;
+                    background: var(--b3-theme-surface-lighter);
+                    color: var(--b3-theme-on-surface);
+                    border: 1px solid var(--b3-theme-border);
+                    border-radius: 4px;
+                    padding: 2px 8px;
+                    margin-top: 4px;
+                    font-weight: 500;
+                    opacity: 0.8;
+                `;
+                milestoneTag.innerHTML = `<span>${milestone.icon || '🚩'}</span><span>${milestone.name}</span>`;
+                milestoneTag.title = `${i18n('milestone') || '里程碑'}: ${milestone.name}`;
+                infoEl.appendChild(milestoneTag);
+            }
+        }
         // 添加分类标签显示
         // 添加分类标签显示（支持多分类）
         if (reminder.categoryId) {
