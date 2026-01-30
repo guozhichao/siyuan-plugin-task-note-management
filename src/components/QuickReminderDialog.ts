@@ -2323,8 +2323,10 @@ export class QuickReminderDialog {
                 const { ProjectManager } = await import('../utils/projectManager');
                 const projectManager = ProjectManager.getInstance(this.plugin);
                 const projectGroups = await projectManager.getProjectCustomGroups(projectId);
+                // 过滤掉已归档的分组
+                const activeGroups = projectGroups.filter((g: any) => !g.archived);
 
-                if (projectGroups.length > 0) {
+                if (activeGroups.length > 0) {
                     // 显示分组选择器并渲染分组选项
                     customGroupContainer.style.display = 'block';
                     await this.renderCustomGroupSelector(projectId);
@@ -2371,6 +2373,8 @@ export class QuickReminderDialog {
             const { ProjectManager } = await import('../utils/projectManager');
             const projectManager = ProjectManager.getInstance(this.plugin);
             const projectGroups = await projectManager.getProjectCustomGroups(projectId);
+            // 过滤掉已归档的分组
+            const activeGroups = projectGroups.filter((g: any) => !g.archived);
 
             // 清空并重新构建分组选择器
             groupSelector.innerHTML = '';
@@ -2381,8 +2385,8 @@ export class QuickReminderDialog {
             noGroupOption.textContent = i18n('noGroup') || '无分组';
             groupSelector.appendChild(noGroupOption);
 
-            // 添加所有分组选项
-            projectGroups.forEach((group: any) => {
+            // 添加所有未归档分组选项
+            activeGroups.forEach((group: any) => {
                 const option = document.createElement('option');
                 option.value = group.id;
                 option.textContent = `${group.icon || '📋'} ${group.name}`.trim();

@@ -1438,15 +1438,18 @@ export class ReminderPanel {
             const today = getLogicalDateString();
             const allRemindersWithInstances = this.generateAllRemindersWithInstances(reminderData, today);
 
+            // 过滤已归档分组的未完成任务
+            const filteredReminders = await this.filterArchivedGroupTasks(allRemindersWithInstances);
+
             // 构造 map 便于查找父子关系
             const reminderMap = new Map<string, any>();
-            allRemindersWithInstances.forEach(r => reminderMap.set(r.id, r));
+            filteredReminders.forEach(r => reminderMap.set(r.id, r));
 
             // 将所有任务保存到 allRemindersMap 中，用于后续计算进度
             this.allRemindersMap = new Map(reminderMap);
 
             // 1. 应用分类过滤
-            const categoryFilteredReminders = this.applyCategoryFilter(allRemindersWithInstances);
+            const categoryFilteredReminders = this.applyCategoryFilter(filteredReminders);
 
             // 2. 根据当前Tab（日期/状态）进行筛选，得到直接匹配的提醒
             const directlyMatchingReminders = this.filterRemindersByTab(categoryFilteredReminders, today);
@@ -2632,6 +2635,47 @@ export class ReminderPanel {
         } catch (e) {
             console.error("取消忽略每日可做任务失败", e);
             showMessage("操作失败", 3000, "error");
+        }
+    }
+
+    private async filterArchivedGroupTasks(reminders: any[]): Promise<any[]> {
+        try {
+            // 收集所有涉及的项目ID
+            const projectIds = new Set<string>();
+            reminders.forEach(r => {
+                if (r.projectId) {
+                    projectIds.add(r.projectId);
+                }
+            });
+
+            // 获取所有项目的分组信息，构建已归档分组的ID集合
+            const archivedGroupIds = new Set<string>();
+            const { ProjectManager } = await import('../utils/projectManager');
+            const projectManager = ProjectManager.getInstance(this.plugin);
+
+            for (const projectId of projectIds) {
+                try {
+                    const groups = await projectManager.getProjectCustomGroups(projectId);
+                    groups.forEach((g: any) => {
+                        if (g.archived) {
+                            archivedGroupIds.add(g.id);
+                        }
+                    });
+                } catch (e) {
+                    console.warn(`获取项目 ${projectId} 的分组信息失败`, e);
+                }
+            }
+
+            // 过滤：如果任务属于已归档分组且未完成，则过滤掉
+            return reminders.filter(r => {
+                if (r.customGroupId && archivedGroupIds.has(r.customGroupId) && !r.completed) {
+                    return false;
+                }
+                return true;
+            });
+        } catch (error) {
+            console.error('过滤已归档分组任务失败', error);
+            return reminders;
         }
     }
 

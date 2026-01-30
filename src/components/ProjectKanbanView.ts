@@ -332,7 +332,7 @@ export class ProjectKanbanView {
                                     <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg> ${i18n('newGroup')}
                                 </button>
                             </div>
-                            <div id="groupsContainer" class="groups-container" style="max-height: 300px; overflow-y: auto;">
+                            <div id="groupsContainer" class="groups-container" style="overflow-y: auto;">
                                 <!-- 分组列表将在这里动态生成 -->
                             </div>
                         </div>
@@ -1882,8 +1882,17 @@ export class ProjectKanbanView {
                 return;
             }
 
-            // 按sort字段排序分组
-            const sortedGroups = projectGroups.sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+            // 排序分组：先按归档状态（未归档在前），再按sort字段
+            const sortedGroups = projectGroups.sort((a: any, b: any) => {
+                // 首先按归档状态排序：未归档的在前，已归档的在后
+                const archivedA = a.archived ? 1 : 0;
+                const archivedB = b.archived ? 1 : 0;
+                if (archivedA !== archivedB) {
+                    return archivedA - archivedB;
+                }
+                // 然后按sort字段排序
+                return (a.sort || 0) - (b.sort || 0);
+            });
 
             // 添加拖拽排序样式
             container.style.cssText += `
@@ -1981,8 +1990,25 @@ export class ProjectKanbanView {
                     text-overflow: ellipsis;
                     white-space: nowrap;
                     flex: 1;
+                    ${group.archived ? 'text-decoration: line-through; opacity: 0.6;' : ''}
                 `;
                 groupName.title = group.name;
+
+                // 归档标签
+                if (group.archived) {
+                    const archivedTag = document.createElement('span');
+                    archivedTag.textContent = i18n('archived') || '已归档';
+                    archivedTag.style.cssText = `
+                        font-size: 11px;
+                        padding: 1px 6px;
+                        background: var(--b3-theme-surface);
+                        border-radius: 4px;
+                        opacity: 0.7;
+                        flex-shrink: 0;
+                        margin-right: 8px;
+                    `;
+                    groupInfo.appendChild(archivedTag);
+                }
 
                 const groupColor = document.createElement('div');
                 groupColor.style.cssText = `
@@ -2006,6 +2032,43 @@ export class ProjectKanbanView {
                     gap: 8px;
                     align-items: center;
                 `;
+
+                // 归档/取消归档按钮
+                const archiveBtn = document.createElement('button');
+                archiveBtn.className = 'b3-button b3-button--small b3-button--outline';
+                archiveBtn.innerHTML = group.archived
+                    ? '<svg class="b3-button__icon"><use xlink:href="#iconUndo"></use></svg>'
+                    : '<svg class="b3-button__icon"><use xlink:href="#iconLock"></use></svg>';
+                archiveBtn.title = group.archived
+                    ? (i18n('unarchiveGroup') || '取消归档')
+                    : (i18n('archiveGroup') || '归档分组');
+                archiveBtn.style.cssText = `
+                    display: inline-flex;
+                    align-items: center;
+                    padding: 4px 8px;
+                    font-size: 12px;
+                `;
+                archiveBtn.addEventListener('click', async () => {
+                    try {
+                        const projectManager = this.projectManager;
+                        const currentGroups = await projectManager.getProjectCustomGroups(this.projectId);
+                        const groupIndex = currentGroups.findIndex((g: any) => g.id === group.id);
+                        if (groupIndex !== -1) {
+                            currentGroups[groupIndex].archived = !group.archived;
+                            await projectManager.setProjectCustomGroups(this.projectId, currentGroups);
+                            await this.loadAndDisplayGroups(container);
+                            this.queueLoadTasks();
+                            showMessage(group.archived
+                                ? (i18n('groupUnarchived') || '分组已取消归档')
+                                : (i18n('groupArchived') || '分组已归档'));
+                            // reminderUpdate更新其他组件
+                            this.dispatchReminderUpdate();
+                        }
+                    } catch (error) {
+                        console.error('归档/取消归档分组失败:', error);
+                        showMessage(i18n('archiveGroupFailed') || '归档分组失败');
+                    }
+                });
 
                 const editBtn = document.createElement('button');
                 editBtn.className = 'b3-button b3-button--small b3-button--outline';
@@ -2035,6 +2098,7 @@ export class ProjectKanbanView {
                     this.deleteGroup(group.id, groupItem, container);
                 });
 
+                groupActions.appendChild(archiveBtn);
                 groupActions.appendChild(editBtn);
                 groupActions.appendChild(deleteBtn);
 
@@ -2224,6 +2288,10 @@ export class ProjectKanbanView {
                         <label class="b3-form__label">${i18n('iconOptional')}</label>
                         <input type="text" id="editGroupIcon" class="b3-text-field" value="${group.icon || ''}" placeholder="${i18n('emojiIconExample')}" style="width: 100%;">
                     </div>
+                    <div class="b3-form__group" style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="editGroupArchived" class="b3-switch" ${group.archived ? 'checked' : ''}>
+                        <label class="b3-form__label" style="margin: 0;">${i18n('archived')}</label>
+                    </div>
                 </div>
                 <div class="b3-dialog__action">
                     <button class="b3-button b3-button--cancel" id="editCancelBtn">${i18n('cancel')}</button>
@@ -2237,6 +2305,7 @@ export class ProjectKanbanView {
         const editGroupBlockId = dialog.element.querySelector('#editGroupBlockId') as HTMLInputElement;
         const editGroupColor = dialog.element.querySelector('#editGroupColor') as HTMLInputElement;
         const editGroupIcon = dialog.element.querySelector('#editGroupIcon') as HTMLInputElement;
+        const editGroupArchived = dialog.element.querySelector('#editGroupArchived') as HTMLInputElement;
         const editCancelBtn = dialog.element.querySelector('#editCancelBtn') as HTMLButtonElement;
         const editSaveBtn = dialog.element.querySelector('#editSaveBtn') as HTMLButtonElement;
 
@@ -2247,6 +2316,7 @@ export class ProjectKanbanView {
             const blockId = editGroupBlockId.value.trim();
             const color = editGroupColor.value;
             const icon = editGroupIcon.value.trim();
+            const archived = editGroupArchived.checked;
 
             if (!name) {
                 showMessage('请输入分组名称');
@@ -2261,80 +2331,87 @@ export class ProjectKanbanView {
                 // 更新分组信息
                 const groupIndex = currentGroups.findIndex((g: any) => g.id === group.id);
                 if (groupIndex !== -1) {
-                    currentGroups[groupIndex] = { ...currentGroups[groupIndex], name, color, icon, blockId: blockId || undefined };
+                    currentGroups[groupIndex] = { ...currentGroups[groupIndex], name, color, icon, blockId: blockId || undefined, archived };
                     await projectManager.setProjectCustomGroups(this.projectId, currentGroups);
                 }
 
                 // 刷新分组列表（更新对话框中的列表）
                 await this.loadAndDisplayGroups(container);
 
-                // 直接更新 Kanban DOM，避免重绘
-                const columnId = `custom-group-${group.id}`;
-                // kanban-column-{columnId} 是在 createCustomGroupColumn 中生成的
-                const column = this.container.querySelector(`.kanban-column.kanban-column-${columnId}`) as HTMLElement;
+                // 如果分组被归档，需要刷新看板以隐藏该分组
+                if (archived !== group.archived) {
+                    await this.loadProject();
+                    this.queueLoadTasks();
+                    this.dispatchReminderUpdate();
+                } else {
+                    // 直接更新 Kanban DOM，避免重绘
+                    const columnId = `custom-group-${group.id}`;
+                    // kanban-column-{columnId} 是在 createCustomGroupColumn 中生成的
+                    const column = this.container.querySelector(`.kanban-column.kanban-column-${columnId}`) as HTMLElement;
 
-                if (column) {
-                    // 1. 更新列头背景
-                    const header = column.querySelector('.kanban-column-header') as HTMLElement;
-                    if (header) {
-                        header.style.background = `${color}15`;
-                    }
-
-                    // 2. 更新列头标题区域（包含图标和标题）
-                    // 这里的结构参考 createCustomGroupColumn 中的 titleContainer
-                    // 需要找到 titleContainer，通常它是 header 的第一个子元素（包含 icon 和 h3）
-                    const titleContainer = header.querySelector('div') as HTMLElement; // titleContainer 是 header 的第一个 div 子元素
-                    if (titleContainer) {
-                        titleContainer.innerHTML = '';
-
-                        // 重建图标
-                        const groupIconEl = document.createElement('span');
-                        groupIconEl.className = 'custom-group-header-icon';
-                        groupIconEl.style.cssText = `margin-right:6px;`;
-                        groupIconEl.textContent = icon || '📋';
-                        titleContainer.appendChild(groupIconEl);
-
-                        // 重建标题
-                        const titleEl = document.createElement('h3');
-                        titleEl.textContent = name;
-                        titleEl.style.cssText = `
-                            margin: 0;
-                            font-size: 16px;
-                            font-weight: 600;
-                            color: ${color};
-                        `;
-
-                        // 处理 Block ID 绑定
-                        const newBlockId = blockId || undefined;
-                        if (newBlockId) {
-                            titleEl.dataset.type = 'a';
-                            titleEl.dataset.href = `siyuan://blocks/${newBlockId}`;
-                            titleEl.style.cursor = 'pointer';
-                            titleEl.style.textDecoration = 'underline dotted';
-                            titleEl.style.paddingBottom = '2px';
-                            titleEl.title = i18n('clickToJumpToBlock');
-                            titleEl.addEventListener('click', (e) => {
-                                e.stopPropagation();
-                                openBlock(newBlockId);
-                            });
+                    if (column) {
+                        // 1. 更新列头背景
+                        const header = column.querySelector('.kanban-column-header') as HTMLElement;
+                        if (header) {
+                            header.style.background = `${color}15`;
                         }
 
-                        titleContainer.appendChild(titleEl);
-                    }
+                        // 2. 更新列头标题区域（包含图标和标题）
+                        // 这里的结构参考 createCustomGroupColumn 中的 titleContainer
+                        // 需要找到 titleContainer，通常它是 header 的第一个子元素（包含 icon 和 h3）
+                        const titleContainer = header.querySelector('div') as HTMLElement; // titleContainer 是 header 的第一个 div 子元素
+                        if (titleContainer) {
+                            titleContainer.innerHTML = '';
 
-                    // 3. 更新计数的背景色
-                    const countEl = column.querySelector('.kanban-column-count') as HTMLElement;
-                    if (countEl) {
-                        countEl.style.background = color;
-                    }
+                            // 重建图标
+                            const groupIconEl = document.createElement('span');
+                            groupIconEl.className = 'custom-group-header-icon';
+                            groupIconEl.style.cssText = `margin-right:6px;`;
+                            groupIconEl.textContent = icon || '📋';
+                            titleContainer.appendChild(groupIconEl);
 
-                    // 4. 更新子分组（进行中、短期、长期等）的样式
-                    // 这些是在 renderCustomGroupColumnWithStatuses 中创建的
-                    const subGroupHeaders = column.querySelectorAll('.custom-status-group-header') as NodeListOf<HTMLElement>;
-                    subGroupHeaders.forEach(sh => {
-                        sh.style.background = `${color}15`;
-                        sh.style.border = `1px solid ${color}30`;
-                    });
+                            // 重建标题
+                            const titleEl = document.createElement('h3');
+                            titleEl.textContent = name;
+                            titleEl.style.cssText = `
+                                margin: 0;
+                                font-size: 16px;
+                                font-weight: 600;
+                                color: ${color};
+                            `;
+
+                            // 处理 Block ID 绑定
+                            const newBlockId = blockId || undefined;
+                            if (newBlockId) {
+                                titleEl.dataset.type = 'a';
+                                titleEl.dataset.href = `siyuan://blocks/${newBlockId}`;
+                                titleEl.style.cursor = 'pointer';
+                                titleEl.style.textDecoration = 'underline dotted';
+                                titleEl.style.paddingBottom = '2px';
+                                titleEl.title = i18n('clickToJumpToBlock');
+                                titleEl.addEventListener('click', (e) => {
+                                    e.stopPropagation();
+                                    openBlock(newBlockId);
+                                });
+                            }
+
+                            titleContainer.appendChild(titleEl);
+                        }
+
+                        // 3. 更新计数的背景色
+                        const countEl = column.querySelector('.kanban-column-count') as HTMLElement;
+                        if (countEl) {
+                            countEl.style.background = color;
+                        }
+
+                        // 4. 更新子分组（进行中、短期、长期等）的样式
+                        // 这些是在 renderCustomGroupColumnWithStatuses 中创建的
+                        const subGroupHeaders = column.querySelectorAll('.custom-status-group-header') as NodeListOf<HTMLElement>;
+                        subGroupHeaders.forEach(sh => {
+                            sh.style.background = `${color}15`;
+                            sh.style.border = `1px solid ${color}30`;
+                        });
+                    }
                 }
 
                 showMessage(i18n('groupUpdated'));
@@ -2951,18 +3028,20 @@ export class ProjectKanbanView {
                     }
                 }
 
-                // 分组里程碑
-                projectGroups.forEach((g: any) => {
-                    if (!allowedGroups.has(g.id)) return;
-                    const ms = (g.milestones || []).filter((m: any) => !m.archived && usedMilestoneIds.has(m.id));
-                    if (ms.length > 0) {
-                        milestonesToShow.push({
-                            title: g.name,
-                            milestones: ms,
-                            groupId: targetGroupId
-                        });
-                    }
-                });
+                // 分组里程碑（只显示未归档分组的里程碑）
+                projectGroups
+                    .filter((g: any) => !g.archived)
+                    .forEach((g: any) => {
+                        if (!allowedGroups.has(g.id)) return;
+                        const ms = (g.milestones || []).filter((m: any) => !m.archived && usedMilestoneIds.has(m.id));
+                        if (ms.length > 0) {
+                            milestonesToShow.push({
+                                title: g.name,
+                                milestones: ms,
+                                groupId: targetGroupId
+                            });
+                        }
+                    });
             }
 
             // 添加 "无里程碑" 选项
@@ -4963,10 +5042,12 @@ export class ProjectKanbanView {
         const projectManager = this.projectManager;
         const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
-        // Sort groups by 'sort' field to ensure correct display order
-        projectGroups.sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+        // 过滤掉已归档的分组，并按 sort 字段排序
+        const activeGroups = projectGroups
+            .filter((g: any) => !g.archived)
+            .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
 
-        if (projectGroups.length === 0) {
+        if (activeGroups.length === 0) {
             // 如果没有自定义分组，显示提示
             this.renderEmptyCustomGroupKanban();
             return;
@@ -5000,7 +5081,7 @@ export class ProjectKanbanView {
         });
 
         // 为每个自定义分组创建状态子列（使用 kanbanStatuses 中定义的所有状态）
-        projectGroups.forEach((group: any) => {
+        activeGroups.forEach((group: any) => {
             const groupStatusTasks: { [status: string]: any[] } = {};
             this.kanbanStatuses.forEach(status => {
                 groupStatusTasks[status.id] = statusTasks[status.id].filter(task => task.customGroupId === group.id);
@@ -5018,7 +5099,7 @@ export class ProjectKanbanView {
         });
 
         // 处理未分组任务：仅在存在未分组任务时显示未分组列
-        const validGroupIds = new Set(projectGroups.map((g: any) => g.id));
+        const validGroupIds = new Set(activeGroups.map((g: any) => g.id));
         const ungroupedStatusTasks: { [status: string]: any[] } = {};
         let hasUngrouped = false;
         this.kanbanStatuses.forEach(status => {
@@ -5483,7 +5564,8 @@ export class ProjectKanbanView {
             const { ProjectManager } = await import('../utils/projectManager');
             const projectManager = ProjectManager.getInstance(this.plugin);
             const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
-            return projectGroups.length > 0;
+            // 只计算未归档的分组
+            return projectGroups.some((g: any) => !g.archived);
         } catch (error) {
             console.error('检查项目分组失败:', error);
             return false;
@@ -5535,8 +5617,10 @@ export class ProjectKanbanView {
         // 获取项目自定义分组
         const projectManager = this.projectManager;
         const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
-        // Sort groups by 'sort' field
-        projectGroups.sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+        // 过滤掉已归档的分组，并按 sort 字段排序
+        const activeGroups = projectGroups
+            .filter((g: any) => !g.archived)
+            .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
 
         // 获取对应的状态分组容器
         const groupContainer = groupsContainer.querySelector(`.status-stable-group[data-status="${status}"]`) as HTMLElement;
@@ -5552,7 +5636,7 @@ export class ProjectKanbanView {
 
         groupTasksContainer.innerHTML = '';
 
-        if (projectGroups.length === 0) {
+        if (activeGroups.length === 0) {
             // 如果没有自定义分组，直接渲染任务
             this.renderTasksInColumn(groupTasksContainer, tasks);
         } else {
@@ -5567,9 +5651,9 @@ export class ProjectKanbanView {
 
             // 为每个自定义分组创建子容器
             const isCollapsedDefault = status === 'completed';
-            const validGroupIds = new Set(projectGroups.map((g: any) => g.id));
+            const validGroupIds = new Set(activeGroups.map((g: any) => g.id));
 
-            projectGroups.forEach((group: any) => {
+            activeGroups.forEach((group: any) => {
                 const groupTasks = tasks.filter(task => task.customGroupId === group.id);
                 if (groupTasks.length > 0) {
                     const groupSubContainer = this.createCustomGroupInStatusColumn(group, groupTasks, isCollapsedDefault, status);
@@ -5641,13 +5725,15 @@ export class ProjectKanbanView {
 
         const projectManager = this.projectManager;
         const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
+        // 过滤掉已归档的分组
+        const activeGroups = projectGroups.filter((g: any) => !g.archived);
 
-        if (projectGroups.length === 0) {
+        if (activeGroups.length === 0) {
             // No custom grouping -> Single column
             await this.renderSingleListColumn(kanbanContainer);
         } else {
             // With custom grouping -> Columns per group
-            await this.renderGroupedListColumns(kanbanContainer, projectGroups);
+            await this.renderGroupedListColumns(kanbanContainer, activeGroups);
         }
     }
 
@@ -8392,7 +8478,10 @@ export class ProjectKanbanView {
             const projectManager = ProjectManager.getInstance(this.plugin);
             const projectGroups = await projectManager.getProjectCustomGroups(this.projectId);
 
-            if (projectGroups.length > 0) {
+            // 过滤掉已归档的分组
+            const activeGroups = projectGroups.filter((g: any) => !g.archived);
+
+            if (activeGroups.length > 0) {
                 const groupMenuItems = [];
                 const currentGroupId = task.customGroupId;
 
@@ -8405,8 +8494,8 @@ export class ProjectKanbanView {
                     click: () => this.setTaskCustomGroup(task, null)
                 });
 
-                // 添加所有分组选项
-                projectGroups.forEach((group: any) => {
+                // 添加所有未归档分组选项
+                activeGroups.forEach((group: any) => {
                     groupMenuItems.push({
                         iconHTML: group.icon || "📋",
                         label: group.name,
@@ -13617,8 +13706,9 @@ export class ProjectKanbanView {
         buttonsGroup.appendChild(setStatusBtn);
 
 
-        // 设置分组按钮
-        if (this.project?.customGroups && this.project.customGroups.length > 0) {
+        // 设置分组按钮（只显示有未归档分组时）
+        const hasActiveGroups = this.project?.customGroups?.some((g: any) => !g.archived);
+        if (hasActiveGroups) {
             const setGroupBtn = document.createElement('button');
             setGroupBtn.className = 'b3-button b3-button--outline b3-button--small';
             setGroupBtn.innerHTML = `📂 ${i18n('setGroup') || '设置分组'}`;
@@ -14276,9 +14366,12 @@ export class ProjectKanbanView {
             const projectManager = ProjectManager.getInstance(this.plugin);
             const groups = await projectManager.getProjectCustomGroups(this.projectId);
 
+            // 过滤掉已归档的分组
+            const activeGroups = groups.filter((g: any) => !g.archived);
+
             const groupOptions = [
                 `<option value="">${i18n('noGroup') || '无分组'}</option>`,
-                ...groups.map(g => `<option value="${g.id}">${g.icon || '📋'} ${g.name}</option>`)
+                ...activeGroups.map(g => `<option value="${g.id}">${g.icon || '📋'} ${g.name}</option>`)
             ].join('');
 
             const dialog = new Dialog({

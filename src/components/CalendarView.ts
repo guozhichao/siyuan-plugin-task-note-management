@@ -4890,13 +4890,16 @@ export class CalendarView {
 
             // 转换为数组并过滤
             const allReminders = Object.values(reminderData) as any[];
-            const filteredReminders = allReminders.filter(reminder => {
+            let filteredReminders = allReminders.filter(reminder => {
                 if (!reminder || typeof reminder !== 'object') return false;
                 if (!this.passesCategoryFilter(reminder, projectData)) return false;
                 if (!this.passesProjectFilter(reminder)) return false;
                 if (!this.passesCompletionFilter(reminder)) return false;
                 return true;
             });
+
+            // 过滤已归档分组的未完成任务
+            filteredReminders = await this.filterArchivedGroupTasks(filteredReminders);
 
             // 批量预加载所有需要的文档标题
             await this.batchLoadDocTitles(filteredReminders);
@@ -5239,6 +5242,48 @@ export class CalendarView {
         }
 
         return true;
+    }
+
+    /**
+     * 过滤已归档分组的未完成任务
+     */
+    private async filterArchivedGroupTasks(reminders: any[]): Promise<any[]> {
+        try {
+            // 收集所有涉及的项目ID
+            const projectIds = new Set<string>();
+            reminders.forEach(r => {
+                if (r.projectId) {
+                    projectIds.add(r.projectId);
+                }
+            });
+
+            // 获取所有项目的分组信息，构建已归档分组的ID集合
+            const archivedGroupIds = new Set<string>();
+
+            for (const projectId of projectIds) {
+                try {
+                    const groups = await this.projectManager.getProjectCustomGroups(projectId);
+                    groups.forEach((g: any) => {
+                        if (g.archived) {
+                            archivedGroupIds.add(g.id);
+                        }
+                    });
+                } catch (e) {
+                    console.warn(`获取项目 ${projectId} 的分组信息失败`, e);
+                }
+            }
+
+            // 过滤：如果任务属于已归档分组且未完成，则过滤掉
+            return reminders.filter(r => {
+                if (r.customGroupId && archivedGroupIds.has(r.customGroupId) && !r.completed) {
+                    return false;
+                }
+                return true;
+            });
+        } catch (error) {
+            console.error('过滤已归档分组任务失败', error);
+            return reminders;
+        }
     }
 
     private addEventToList(events: any[], reminder: any, eventId: string, isRepeated: boolean, originalId?: string) {

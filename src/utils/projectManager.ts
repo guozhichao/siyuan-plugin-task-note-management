@@ -18,6 +18,7 @@ export interface ProjectGroup {
     sort: number;
     blockId?: string;
     milestones?: Milestone[];
+    archived?: boolean;
 }
 
 export interface Project {
