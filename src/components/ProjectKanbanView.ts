@@ -11533,6 +11533,7 @@ export class ProjectKanbanView {
 
             const oldStatus = this.getTaskStatus(draggedTaskInDb);
             const newStatus = this.getTaskStatus(targetTaskInDb);
+            
 
             // 如果当前为自定义分组看板模式，且目标任务所在分组与被拖拽任务不同，
             // 则将被拖拽任务移动到目标任务的分组（上下放置时也应修改分组）并在该分组内重新排序
@@ -11625,6 +11626,43 @@ export class ProjectKanbanView {
                     .filter((r: any) => r.id !== draggedId)
                     .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
 
+
+                // 在保存前，将相同的状态/分组更新级联到所有后代任务
+                try {
+                    const descendantIds = this.getAllDescendantIds(draggedId, reminderData);
+                    for (const did of descendantIds) {
+                        const desc = reminderData[did];
+                        if (!desc) continue;
+                        // 同步分组
+                        if (actualTargetGroup === null) {
+                            if (desc.customGroupId !== undefined) {
+                                delete desc.customGroupId;
+                            }
+                        } else {
+                            if (desc.customGroupId !== actualTargetGroup) {
+                                desc.customGroupId = actualTargetGroup;
+                            }
+                        }
+                        // 同步状态
+                        if (newStatus === 'completed') {
+                            if (!desc.completed) {
+                                desc.completed = true;
+                                desc.completedTime = getLocalDateTimeString(new Date());
+                                desc.kanbanStatus = 'completed';
+                            }
+                        } else {
+                            if (desc.completed || desc.kanbanStatus !== newStatus) {
+                                desc.completed = false;
+                                delete desc.completedTime;
+                                desc.kanbanStatus = newStatus === 'doing' ? 'doing' : newStatus;
+                            }
+                        }
+                        
+                    }
+                } catch (err) {
+                    console.warn('Cascade update for descendants failed', err);
+                }
+
                 const targetIndex = targetList.findIndex((t: any) => t.id === targetId);
                 const insertIndex = insertBefore ? targetIndex : (targetIndex === -1 ? targetList.length : targetIndex + 1);
 
@@ -11649,6 +11687,26 @@ export class ProjectKanbanView {
                     }
                 });
 
+                // Also update local cache for descendants so UI updates immediately
+                try {
+                    const descendantIdsForDragged = this.getAllDescendantIds(draggedId, reminderData);
+                    for (const did of descendantIdsForDragged) {
+                        const rd = reminderData[did];
+                        if (!rd) continue;
+                        const localDesc = this.tasks.find(t => t.id === did);
+                        if (localDesc) {
+                            localDesc.customGroupId = rd.customGroupId === undefined ? undefined : rd.customGroupId;
+                            localDesc.kanbanStatus = rd.kanbanStatus;
+                            localDesc.completed = !!rd.completed;
+                            localDesc.completedTime = rd.completedTime;
+                            localDesc.milestoneId = rd.milestoneId;
+                            localDesc.projectId = rd.projectId;
+                            // update DOM element for the descendant
+                            this.updateTaskElementDOM(did, { completed: localDesc.completed, kanbanStatus: localDesc.kanbanStatus, customGroupId: localDesc.customGroupId });
+                        }
+                    }
+                } catch (err) { console.warn('Update local descendants failed', err); }
+
                 // Optimistic DOM update
                 const domUpdated = this.reorderTasksDOM(draggedId, targetId, insertBefore);
 
@@ -11660,6 +11718,9 @@ export class ProjectKanbanView {
                 }
 
                 this.dispatchReminderUpdate(true);
+
+                
+
                 return;
             }
 
@@ -11734,6 +11795,42 @@ export class ProjectKanbanView {
             }
 
             let sourceList: any[] = [];
+
+            // 将状态/分组的变更级联到后代
+            try {
+                const descendantIds = this.getAllDescendantIds(draggedId, reminderData);
+                for (const did of descendantIds) {
+                    const desc = reminderData[did];
+                    if (!desc) continue;
+                    // 分组
+                    if (targetGroup === null) {
+                        if (desc.customGroupId !== undefined) {
+                            delete desc.customGroupId;
+                        }
+                    } else {
+                        if (desc.customGroupId !== targetGroup) {
+                            desc.customGroupId = targetGroup;
+                        }
+                    }
+                    // 状态
+                    if (oldStatus !== newStatus) {
+                        if (newStatus === 'completed') {
+                            if (!desc.completed) {
+                                desc.completed = true;
+                                desc.completedTime = getLocalDateTimeString(new Date());
+                                desc.kanbanStatus = 'completed';
+                            }
+                        } else {
+                            if (desc.completed || desc.kanbanStatus !== newStatus) {
+                                desc.completed = false;
+                                delete desc.completedTime;
+                                desc.kanbanStatus = newStatus === 'doing' ? 'doing' : newStatus;
+                            }
+                        }
+                    }
+                    
+                }
+            } catch (err) { console.warn('Cascade fallback failed', err); }
             // --- Reorder source list ---
             if (oldStatus !== newStatus || oldPriority !== newPriority) {
                 sourceList = Object.values(reminderData)
@@ -11777,6 +11874,25 @@ export class ProjectKanbanView {
                 }
             });
 
+            // Also update local cache for descendants so UI updates immediately (fallback branch)
+            try {
+                const descendantIdsForDragged = this.getAllDescendantIds(draggedId, reminderData);
+                for (const did of descendantIdsForDragged) {
+                    const rd = reminderData[did];
+                    if (!rd) continue;
+                    const localDesc = this.tasks.find(t => t.id === did);
+                    if (localDesc) {
+                        localDesc.customGroupId = rd.customGroupId === undefined ? undefined : rd.customGroupId;
+                        localDesc.kanbanStatus = rd.kanbanStatus;
+                        localDesc.completed = !!rd.completed;
+                        localDesc.completedTime = rd.completedTime;
+                        localDesc.milestoneId = rd.milestoneId;
+                        localDesc.projectId = rd.projectId;
+                        this.updateTaskElementDOM(did, { completed: localDesc.completed, kanbanStatus: localDesc.kanbanStatus, customGroupId: localDesc.customGroupId });
+                    }
+                }
+            } catch (err) { console.warn('Update local descendants (fallback) failed', err); }
+
             // 尝试直接更新DOM,失败时才重新加载
             const domUpdated = this.reorderTasksDOM(draggedId, targetId, insertBefore);
             if (domUpdated) {
@@ -11787,6 +11903,8 @@ export class ProjectKanbanView {
             }
 
             this.dispatchReminderUpdate(true);
+
+            
 
         } catch (error) {
             console.error('重新排序任务失败:', error);
@@ -13329,7 +13447,7 @@ export class ProjectKanbanView {
     /**
      * 批量更新任务属性 (用于拖拽)
      */
-    private async batchUpdateTasks(taskIds: string[], updates: { kanbanStatus?: string, customGroupId?: string | null, tagIds?: string[] }) {
+    private async batchUpdateTasks(taskIds: string[], updates: { kanbanStatus?: string, customGroupId?: string | null, tagIds?: string[], milestoneId?: string | null, projectId?: string | null }) {
         try {
             const reminderData = await this.getReminders();
             const blocksToUpdate = new Set<string>();
@@ -13345,121 +13463,107 @@ export class ProjectKanbanView {
                 const taskInDb = reminderData[dbId];
                 if (!taskInDb) continue;
 
-                let taskChanged = false;
+                // 计算要更新的任务：包括当前任务及其所有后代（基于 reminderData）
+                const toUpdateIds = [dbId, ...this.getAllDescendantIds(dbId, reminderData)];
 
-                // 1. Status Update
-                if (updates.kanbanStatus) {
-                    const newStatus = updates.kanbanStatus;
+                // 对于实例性操作（拖动实例），保留原先的逻辑只对原始任务做更改；但一般拖动应作用于原始与其后代
+                for (const uid of toUpdateIds) {
+                    const item = reminderData[uid];
+                    if (!item) continue;
 
-                    if (uiTask.isRepeatInstance) {
-                        const date = uiTask.date;
+                    let itemChanged = false;
+
+                    // Status Update (只对非实例任务的定义进行修改)
+                    if (updates.kanbanStatus) {
+                        const newStatus = updates.kanbanStatus;
                         if (newStatus === 'completed') {
-                            if (!taskInDb.repeat) taskInDb.repeat = {};
-                            if (!taskInDb.repeat.completedInstances) taskInDb.repeat.completedInstances = [];
-                            if (!taskInDb.repeat.completedInstances.includes(date)) {
-                                taskInDb.repeat.completedInstances.push(date);
-                                taskChanged = true;
+                            if (!item.completed) {
+                                item.completed = true;
+                                item.completedTime = getLocalDateTimeString(new Date());
+                                item.kanbanStatus = 'completed';
+                                itemChanged = true;
                             }
                         } else {
-                            if (taskInDb.repeat?.completedInstances) {
-                                const idx = taskInDb.repeat.completedInstances.indexOf(date);
-                                if (idx > -1) {
-                                    taskInDb.repeat.completedInstances.splice(idx, 1);
-                                    taskChanged = true;
-                                }
-                            }
-                            // 如果不是 completed，更新主任务状态
-                            if (taskInDb.kanbanStatus !== newStatus) {
-                                taskInDb.kanbanStatus = newStatus === 'doing' ? 'doing' : newStatus;
-                                taskChanged = true;
+                            if (item.completed || item.kanbanStatus !== newStatus) {
+                                item.completed = false;
+                                delete item.completedTime;
+                                item.kanbanStatus = newStatus === 'doing' ? 'doing' : newStatus;
+                                itemChanged = true;
                             }
                         }
-                    } else {
-                        // Standard Task
-                        if (newStatus === 'completed') {
-                            if (!taskInDb.completed) {
-                                taskInDb.completed = true;
-                                taskInDb.completedTime = getLocalDateTimeString(new Date());
-                                taskInDb.kanbanStatus = 'completed';
-                                taskChanged = true;
+                    }
+
+                    // Group Update
+                    if (updates.customGroupId !== undefined) {
+                        const newGroup = updates.customGroupId;
+                        if (newGroup === null) {
+                            if (item.customGroupId !== undefined) {
+                                delete item.customGroupId;
+                                itemChanged = true;
                             }
                         } else {
-                            if (taskInDb.completed || taskInDb.kanbanStatus !== newStatus) {
-                                taskInDb.completed = false;
-                                delete taskInDb.completedTime;
-                                taskInDb.kanbanStatus = newStatus === 'doing' ? 'doing' : newStatus;
-                                taskChanged = true;
+                            if (item.customGroupId !== newGroup) {
+                                item.customGroupId = newGroup;
+                                itemChanged = true;
                             }
                         }
                     }
-                }
 
-                // 2. Group Update
-                if (updates.customGroupId !== undefined) {
-                    const newGroup = updates.customGroupId;
-
-                    if (uiTask.isRepeatInstance) {
-                        const date = uiTask.date;
-                        if (!taskInDb.repeat) taskInDb.repeat = {};
-                        if (!taskInDb.repeat.instanceModifications) taskInDb.repeat.instanceModifications = {};
-                        if (!taskInDb.repeat.instanceModifications[date]) taskInDb.repeat.instanceModifications[date] = {};
-
-                        const instMod = taskInDb.repeat.instanceModifications[date];
-                        if (instMod.customGroupId !== newGroup) {
-                            if (newGroup === null) delete instMod.customGroupId;
-                            else instMod.customGroupId = newGroup;
-                            taskChanged = true;
-                        }
-                    } else {
-                        if (taskInDb.customGroupId !== newGroup) {
-                            if (newGroup === null) delete taskInDb.customGroupId;
-                            else taskInDb.customGroupId = newGroup;
-                            taskChanged = true;
+                    // Tag Update
+                    if (updates.tagIds !== undefined) {
+                        const newTags = updates.tagIds || [];
+                        const currentTags = item.tagIds || [];
+                        const hasDifference = currentTags.length !== newTags.length || !newTags.every((t: string) => currentTags.includes(t));
+                        if (hasDifference) {
+                            item.tagIds = [...newTags];
+                            itemChanged = true;
                         }
                     }
-                }
 
-                // 3. Tag Update
-                if (updates.tagIds !== undefined) {
-                    const newTags = updates.tagIds;
-
-                    if (uiTask.isRepeatInstance) {
-                        const date = uiTask.date;
-                        if (!taskInDb.repeat) taskInDb.repeat = {};
-                        if (!taskInDb.repeat.instanceModifications) taskInDb.repeat.instanceModifications = {};
-                        if (!taskInDb.repeat.instanceModifications[date]) taskInDb.repeat.instanceModifications[date] = {};
-
-                        const instMod = taskInDb.repeat.instanceModifications[date];
-                        const currentTags = instMod.tagIds || taskInDb.tagIds || [];
-
-                        const hasDifference = currentTags.length !== newTags.length || !newTags.every((t: string) => currentTags.includes(t));
-
-                        if (hasDifference) {
-                            instMod.tagIds = [...newTags];
-                            taskChanged = true;
-                        }
-                    } else {
-                        const currentTags = taskInDb.tagIds || [];
-                        const hasDifference = currentTags.length !== newTags.length || !newTags.every((t: string) => currentTags.includes(t));
-
-                        if (hasDifference) {
-                            taskInDb.tagIds = [...newTags];
-                            taskChanged = true;
+                    // Milestone Update
+                    if (updates.milestoneId !== undefined) {
+                        const newMilestone = updates.milestoneId;
+                        if (newMilestone === null) {
+                            if (item.milestoneId !== undefined) {
+                                delete item.milestoneId;
+                                itemChanged = true;
+                            }
+                        } else {
+                            if (item.milestoneId !== newMilestone) {
+                                item.milestoneId = newMilestone;
+                                itemChanged = true;
+                            }
                         }
                     }
-                }
 
-                // 4. Parent Detachment (如果移动了状态或分组，且有父任务，则解除父子关系)
-                if ((updates.kanbanStatus || updates.customGroupId !== undefined) && taskInDb.parentId) {
-                    delete taskInDb.parentId;
-                    taskChanged = true;
-                }
+                    // Project Update
+                    if (updates.projectId !== undefined) {
+                        const newProject = updates.projectId;
+                        if (newProject === null) {
+                            if (item.projectId !== undefined) {
+                                delete item.projectId;
+                                itemChanged = true;
+                            }
+                        } else {
+                            if (item.projectId !== newProject) {
+                                item.projectId = newProject;
+                                itemChanged = true;
+                            }
+                        }
+                    }
 
-                if (taskChanged) {
-                    hasChanges = true;
-                    updatedCount++;
-                    if (taskInDb.blockId || taskInDb.docId) {
-                        blocksToUpdate.add(taskInDb.blockId || taskInDb.docId);
+                    // Parent detachment: 仅对被直接拖动的任务执行（保持对子任务的父子关系）
+                    if (uid === dbId && (updates.kanbanStatus || updates.customGroupId !== undefined) && item.parentId) {
+                        delete item.parentId;
+                        itemChanged = true;
+                    }
+
+                    if (itemChanged) {
+                        hasChanges = true;
+                        updatedCount++;
+                        if (item.blockId || item.docId) {
+                            blocksToUpdate.add(item.blockId || item.docId);
+                        }
                     }
                 }
             }
