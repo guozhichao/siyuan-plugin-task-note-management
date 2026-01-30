@@ -111,6 +111,7 @@ export class ProjectKanbanView {
     private selectedFilterMilestones: Map<string, Set<string>> = new Map();
     private milestoneFilterButton: HTMLButtonElement;
     private isFilterActive: boolean = false;
+    private selectedDateFilters: Set<string> = new Set();
     private filterButton: HTMLButtonElement;
     // 上一次点击的任务ID（用于Shift多选范围）
     private lastClickedTaskId: string | null = null;
@@ -4114,6 +4115,81 @@ export class ProjectKanbanView {
 
                     this.tasks = this.tasks.filter(t => matchingIds.has(t.id));
                 }
+            }
+
+            // [NEW] 日期过滤逻辑
+            if (this.selectedDateFilters.size > 0 && !this.selectedDateFilters.has('all')) {
+                const today = getLocalDateTimeString(new Date()).split(' ')[0];
+                const startOfToday = new Date(today).getTime();
+                // Get tomorrow date string
+                const tomorrowDate = new Date();
+                tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+                const tomorrow = getLocalDateTimeString(tomorrowDate).split(' ')[0];
+
+                const matchesDate = (t: any) => {
+                    // Check Completed Today
+                    if (this.selectedDateFilters.has('completed_today')) {
+                        if (t.completed && t.completedTime) {
+                            if (t.completedTime.startsWith(today)) return true;
+                        }
+                    }
+
+                    // For date-based filters, we look at active tasks or tasks with due dates
+                    // (Unless user wants 'Today' to also include completed today? Usually 'Today' filter in Kanban implies Due Today)
+
+                    // If task is completed, it usually doesn't show in "Today" unless it's "Completed Today" special filter.
+                    // But if I have "Today" selected, and a task was done today, should it show?
+                    // "Today" usually means "Due Today".
+                    // "Today Completed" means "Done Today".
+
+                    // Let's implement strict logic:
+                    // 'today': logical date is today.
+                    // 'tomorrow': logical date is tomorrow.
+
+                    const logicalDate = this.getTaskLogicalDate(t.date, t.time);
+
+                    if (this.selectedDateFilters.has('today')) {
+                        if (t.date && compareDateStrings(logicalDate, today) === 0) return true;
+                    }
+
+                    if (this.selectedDateFilters.has('tomorrow')) {
+                        if (t.date && compareDateStrings(logicalDate, tomorrow) === 0) return true;
+                    }
+
+
+
+
+                    if (this.selectedDateFilters.has('other_date')) {
+                        // Check if task has date, and it is NOT today and NOT tomorrow
+                        if (t.date && compareDateStrings(logicalDate, today) !== 0 && compareDateStrings(logicalDate, tomorrow) !== 0) return true;
+                    }
+
+                    if (this.selectedDateFilters.has('no_date')) {
+                        // Check if task has NO date property set
+                        if (!t.date && !t.startDate && !t.createdTime) { // createdTime almost always exists, maybe too strict?
+                            // Usually "No Date" means no 'date' or 'startDate' field.
+                            return !t.date;
+                        }
+                        if (!t.date) return true;
+                    }
+
+                    return false;
+                };
+
+                const matchingIds = new Set<string>();
+                const taskMap = new Map(this.tasks.map(t => [t.id, t]));
+
+                this.tasks.forEach(t => {
+                    if (matchesDate(t)) {
+                        let current = t;
+                        while (current) {
+                            matchingIds.add(current.id);
+                            current = current.parentId ? taskMap.get(current.parentId) : null;
+                        }
+                    }
+                });
+
+                this.tasks = this.tasks.filter(t => matchingIds.has(t.id));
             }
 
             this.sortTasks();
@@ -9002,11 +9078,11 @@ export class ProjectKanbanView {
         const allTagIds = tags.map(t => t.id);
         allTagIds.push('__no_tag__');
 
-        // 如果未激活筛选，则激活并默认全选
+        // 如果未激活筛选，则激活并默认全选（仅针对标签，日期默认为空即全选）
         if (!this.isFilterActive) {
             this.isFilterActive = true;
             allTagIds.forEach(id => this.selectedFilterTags.add(id));
-            this.queueLoadTasks();
+            this.queueLoadTasks(); // This might be redundant if we just opened the menu, but keeps state consistent
         }
 
         // 创建弹窗容器
@@ -9021,9 +9097,9 @@ export class ProjectKanbanView {
             border-radius: 4px; 
             box-shadow: rgba(0, 0, 0, 0.15) 0px 2px 8px; 
             min-width: 200px; 
-            max-height: 400px; 
+            max-height: 500px; 
             overflow-y: auto; 
-            padding: 8px;
+            padding: 12px;
         `;
 
         // 计算定位
@@ -9031,88 +9107,55 @@ export class ProjectKanbanView {
         menu.style.top = `${rect.bottom + 4}px`;
         menu.style.left = `${rect.left}px`;
 
-        // 操作按钮容器
-        const btnsContainer = document.createElement('div');
-        btnsContainer.style.cssText = 'display: flex; gap: 8px; margin-bottom: 8px;';
 
-        // 全选按钮
-        const selectAllBtn = document.createElement('button');
-        selectAllBtn.className = 'b3-button b3-button--text';
-        selectAllBtn.style.cssText = 'flex: 1; justify-content: center;';
-        selectAllBtn.textContent = i18n('selectAll') || '全选';
-        selectAllBtn.addEventListener('click', () => {
-            allTagIds.forEach(id => this.selectedFilterTags.add(id));
 
-            // Update UI
-            const checkboxes = menu.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
-            checkboxes.forEach(cb => cb.checked = true);
+        // --- Helper to render section title ---
+        const renderSectionTitle = (title: string) => {
+            const div = document.createElement('div');
+            div.style.cssText = `
+                font-size: 12px;
+                font-weight: 600;
+                color: var(--b3-theme-on-surface-light);
+                margin: 8px 0 4px 0;
+                padding-left: 4px;
+            `;
+            div.textContent = title;
+            menu.appendChild(div);
+        };
 
-            this.queueLoadTasks();
-            this.filterButton.classList.remove('b3-button--primary');
-            this.filterButton.classList.add('b3-button--outline');
-        });
-        btnsContainer.appendChild(selectAllBtn);
-
-        // 取消全选按钮
-        const clearBtn = document.createElement('button');
-        clearBtn.className = 'b3-button b3-button--text';
-        clearBtn.style.cssText = 'flex: 1; justify-content: center;';
-        clearBtn.textContent = i18n('clearSelection') || '取消全选';
-        clearBtn.addEventListener('click', () => {
-            this.selectedFilterTags.clear();
-
-            // 更新 UI：所有 checkbox 取消选中
-            const checkboxes = menu.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
-            checkboxes.forEach(cb => cb.checked = false);
-
-            this.queueLoadTasks();
-
-            // Update button style
-            this.filterButton.classList.add('b3-button--primary');
-            this.filterButton.classList.remove('b3-button--outline');
-        });
-        btnsContainer.appendChild(clearBtn);
-
-        menu.appendChild(btnsContainer);
-
-        const divider = document.createElement('div');
-        divider.style.cssText = 'border-top: 1px solid var(--b3-border-color); margin: 8px 0px;';
-        menu.appendChild(divider);
-
-        // "无标签" 选项
-        const renderItem = (id: string, name: string, color?: string, icon?: string) => {
+        // --- Helper to render checkbox item ---
+        const renderItem = (id: string, name: string, type: 'tag' | 'date', color?: string, icon?: string, checked?: boolean, onChange?: (isChecked: boolean) => void) => {
             const label = document.createElement('label');
-            label.style.cssText = 'display: flex; align-items: center; padding: 4px 8px; cursor: pointer; user-select: none; border-radius: 4px;';
-            label.addEventListener('mouseenter', () => label.style.backgroundColor = 'var(--b3-theme-on-surface-light)'); // rudimentary hover
+            label.style.cssText = 'display: flex; align-items: center; padding: 6px 8px; cursor: pointer; user-select: none; border-radius: 4px; transition: background 0.1s;';
+            label.addEventListener('mouseenter', () => label.style.backgroundColor = 'var(--b3-theme-on-surface-light)');
             label.addEventListener('mouseleave', () => label.style.backgroundColor = '');
 
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
+            checkbox.className = 'b3-switch'; // Or standard checkbox
             checkbox.style.cssText = 'margin-right: 8px;';
-            checkbox.checked = this.selectedFilterTags.has(id);
+            checkbox.dataset.type = type;
+            if (id) checkbox.dataset.val = id;
+
+            checkbox.checked = checked !== undefined ? checked : (type === 'tag' ? this.selectedFilterTags.has(id) : this.selectedDateFilters.has(id));
 
             checkbox.addEventListener('change', () => {
-                if (checkbox.checked) {
-                    this.selectedFilterTags.add(id);
+                if (onChange) {
+                    onChange(checkbox.checked);
                 } else {
-                    this.selectedFilterTags.delete(id);
+                    if (type === 'tag') {
+                        if (checkbox.checked) this.selectedFilterTags.add(id);
+                        else this.selectedFilterTags.delete(id);
+                    } else {
+                        if (checkbox.checked) this.selectedDateFilters.add(id);
+                        else this.selectedDateFilters.delete(id);
+                    }
+                    this.queueLoadTasks();
+                    this.updateFilterButtonState(allTagIds.length);
                 }
-
-                // Update button style real-time
-                const isAllSelected = this.selectedFilterTags.size === allTagIds.length;
-                if (!isAllSelected) {
-                    this.filterButton.classList.add('b3-button--primary');
-                    this.filterButton.classList.remove('b3-button--outline');
-                } else {
-                    this.filterButton.classList.remove('b3-button--primary');
-                    this.filterButton.classList.add('b3-button--outline');
-                }
-
-                // 实时刷新
-                this.queueLoadTasks();
             });
 
-            // 标签颜色圆点
+            // Color/Icon
             let iconHtml = '';
             if (icon) {
                 iconHtml = `<span style="margin-right: 6px;">${icon}</span>`;
@@ -9122,17 +9165,159 @@ export class ProjectKanbanView {
 
             const span = document.createElement('span');
             span.innerHTML = `${iconHtml}${name}`;
-            span.style.cssText = 'display: flex; align-items: center;';
+            span.style.cssText = 'display: flex; align-items: center; flex: 1;';
 
             label.appendChild(checkbox);
             label.appendChild(span);
             menu.appendChild(label);
         };
 
-        renderItem('__no_tag__', i18n('noTag') || '无标签', undefined, '🚫');
+        // --- Date Section ---
+        renderSectionTitle(i18n('date') || '日期');
 
+        // Date Action Buttons
+        const dateActions = document.createElement('div');
+        dateActions.style.cssText = 'display: flex; gap: 8px; margin: 4px 8px 8px 8px;';
+
+        const selectAllDatesBtn = document.createElement('button');
+        selectAllDatesBtn.className = 'b3-button b3-button--text';
+        selectAllDatesBtn.style.cssText = 'flex: 1; justify-content: center; font-size: 12px; height: 24px; line-height: 24px; padding: 0;';
+        selectAllDatesBtn.textContent = i18n('selectAll') || '全选';
+        selectAllDatesBtn.addEventListener('click', () => {
+            // Select all specific date filters
+            ['today', 'tomorrow', 'other_date', 'no_date', 'completed_today'].forEach(id => this.selectedDateFilters.add(id));
+            this.selectedDateFilters.delete('all'); // Explicitly not "All Dates"
+
+            const checkboxes = menu.querySelectorAll('input[data-type="date"]') as NodeListOf<HTMLInputElement>;
+            checkboxes.forEach(cb => {
+                const val = cb.dataset.val;
+                if (val !== 'all') cb.checked = true;
+                else cb.checked = false;
+            });
+            this.queueLoadTasks();
+            this.updateFilterButtonState(allTagIds.length);
+        });
+
+        const clearDatesBtn = document.createElement('button');
+        clearDatesBtn.className = 'b3-button b3-button--text';
+        clearDatesBtn.style.cssText = 'flex: 1; justify-content: center; font-size: 12px; height: 24px; line-height: 24px; padding: 0;';
+        clearDatesBtn.textContent = i18n('clearSelection') || '清除';
+        clearDatesBtn.addEventListener('click', () => {
+            this.selectedDateFilters.clear();
+            // Clearing date filters means none selected -> effectively "All Dates" logic in loadTasks IF empty set means no filter?
+            // Actually, my loadTasks logic: if (size > 0 && !has('all')) filter.
+            // So empty set = All Dates.
+
+            const checkboxes = menu.querySelectorAll('input[data-type="date"]') as NodeListOf<HTMLInputElement>;
+            checkboxes.forEach(cb => {
+                if (cb.dataset.val !== 'all') cb.checked = false;
+                else cb.checked = true; // "All Dates" is active
+            });
+            this.queueLoadTasks();
+            this.updateFilterButtonState(allTagIds.length);
+        });
+
+        dateActions.appendChild(selectAllDatesBtn);
+        dateActions.appendChild(clearDatesBtn);
+        menu.appendChild(dateActions);
+
+        // All Dates
+        renderItem('all', i18n('allDates') || '全部日期', 'date', undefined, '📅', this.selectedDateFilters.size === 0 || this.selectedDateFilters.has('all'), (checked) => {
+            if (checked) {
+                this.selectedDateFilters.clear(); // Clear all specific date filters
+                // Uncheck others
+                const checkboxes = menu.querySelectorAll('input[data-type="date"]') as NodeListOf<HTMLInputElement>;
+                checkboxes.forEach(cb => {
+                    if (cb.dataset.val !== 'all') cb.checked = false;
+                });
+            } else {
+                // Unchecking "All Dates" doesn't strictly mean anything unless we select something else.
+                // But logically, if I uncheck "All Dates", I might expect to show nothing?
+                // Or it just removes the "explicit" state. 
+                // Let's say if we uncheck All, we essentially are in "Custom" mode but with nothing selected yet => Show Nothing (if strict).
+                // However, my loadTasks logic says: if selectedDateFilters.size > 0 && !has('all') -> filter.
+                // If size == 0, show all.
+                // So unchecking 'all' (clearing the set) actually Shows All.
+                // To make it intuitive: "All Dates" is a radio-like behavior.
+                // If I select "Today", "All Dates" should be unchecked.
+            }
+            this.queueLoadTasks();
+            this.updateFilterButtonState(allTagIds.length);
+        });
+
+        const dateFilters = [
+
+            { id: 'today', name: i18n('today') || '今日', icon: '📅' },
+            { id: 'tomorrow', name: i18n('tomorrow') || '明日', icon: '🗓️' },
+            { id: 'other_date', name: i18n('otherDate') || '其他日期', icon: '📆' },
+
+            { id: 'no_date', name: i18n('noDateReminders') || '无日期', icon: '🚫' },
+            { id: 'completed_today', name: i18n('todayCompletedReminders') || '今日完成', icon: '✅' }
+        ];
+
+        dateFilters.forEach(f => {
+            renderItem(f.id, f.name, 'date', undefined, f.icon, this.selectedDateFilters.has(f.id), (checked) => {
+                if (checked) {
+                    this.selectedDateFilters.add(f.id);
+                    this.selectedDateFilters.delete('all');
+                    // Uncheck "All Dates"
+                    const allDatesCb = menu.querySelector('input[data-val="all"]') as HTMLInputElement;
+                    if (allDatesCb) allDatesCb.checked = false;
+                } else {
+                    this.selectedDateFilters.delete(f.id);
+                    // If no dates selected, check "All Dates" ?
+                    if (this.selectedDateFilters.size === 0) {
+                        const allDatesCb = menu.querySelector('input[data-val="all"]') as HTMLInputElement;
+                        if (allDatesCb) allDatesCb.checked = true;
+                    }
+                }
+                this.queueLoadTasks();
+                this.updateFilterButtonState(allTagIds.length);
+            });
+        });
+
+        const divider = document.createElement('div');
+        divider.style.cssText = 'border-top: 1px solid var(--b3-border-color); margin: 8px 0px;';
+        menu.appendChild(divider);
+
+        // --- Tags Section ---
+        renderSectionTitle(i18n('tags') || '标签');
+
+        // Tags Action Buttons
+        const tagsActions = document.createElement('div');
+        tagsActions.style.cssText = 'display: flex; gap: 8px; margin: 4px 8px 8px 8px;';
+
+        const selectAllTagsBtn = document.createElement('button');
+        selectAllTagsBtn.className = 'b3-button b3-button--text';
+        selectAllTagsBtn.style.cssText = 'flex: 1; justify-content: center; font-size: 12px; height: 24px; line-height: 24px; padding: 0;';
+        selectAllTagsBtn.textContent = i18n('selectAll') || '全选';
+        selectAllTagsBtn.addEventListener('click', () => {
+            allTagIds.forEach(id => this.selectedFilterTags.add(id));
+            const checkboxes = menu.querySelectorAll('input[data-type="tag"]') as NodeListOf<HTMLInputElement>;
+            checkboxes.forEach(cb => cb.checked = true);
+            this.queueLoadTasks();
+            this.updateFilterButtonState(allTagIds.length);
+        });
+
+        const clearTagsBtn = document.createElement('button');
+        clearTagsBtn.className = 'b3-button b3-button--text';
+        clearTagsBtn.style.cssText = 'flex: 1; justify-content: center; font-size: 12px; height: 24px; line-height: 24px; padding: 0;';
+        clearTagsBtn.textContent = i18n('clearSelection') || '清除';
+        clearTagsBtn.addEventListener('click', () => {
+            this.selectedFilterTags.clear();
+            const checkboxes = menu.querySelectorAll('input[data-type="tag"]') as NodeListOf<HTMLInputElement>;
+            checkboxes.forEach(cb => cb.checked = false);
+            this.queueLoadTasks();
+            this.updateFilterButtonState(allTagIds.length);
+        });
+
+        tagsActions.appendChild(selectAllTagsBtn);
+        tagsActions.appendChild(clearTagsBtn);
+        menu.appendChild(tagsActions);
+
+        renderItem('__no_tag__', i18n('noTag') || '无标签', 'tag', undefined, '🚫');
         tags.forEach(tag => {
-            renderItem(tag.id, tag.name, tag.color);
+            renderItem(tag.id, tag.name, 'tag', tag.color);
         });
 
         document.body.appendChild(menu);
@@ -9145,6 +9330,22 @@ export class ProjectKanbanView {
             }
         };
         setTimeout(() => document.addEventListener('click', closeHandler), 0);
+    }
+
+    private updateFilterButtonState(totalTagCount: number) {
+        // Tag filter active if not all tags selected (assuming default is all selected)
+        // Actually, logic is: user customized filter.
+        // My logic: if selectedFilterTags.size != totalTagCount (including no_tag) OR selectedDateFilters.size > 0
+        const isTagFiltered = this.selectedFilterTags.size !== totalTagCount;
+        const isDateFiltered = this.selectedDateFilters.size > 0 && !this.selectedDateFilters.has('all');
+
+        if (isTagFiltered || isDateFiltered) {
+            this.filterButton.classList.add('b3-button--primary');
+            this.filterButton.classList.remove('b3-button--outline');
+        } else {
+            this.filterButton.classList.remove('b3-button--primary');
+            this.filterButton.classList.add('b3-button--outline');
+        }
     }
 
     private showSortMenu(event: MouseEvent) {
@@ -9348,7 +9549,7 @@ export class ProjectKanbanView {
                 }
             },
             undefined, // 无时间段选项
-                {
+            {
                 defaultProjectId: this.projectId, // 默认项目ID
                 defaultParentId: parentTask?.id, // 传递父任务ID
                 defaultCategoryId: parentTask?.categoryId || this.project.categoryId, // 如果是子任务，继承父任务分类；否则使用项目分类
@@ -11780,7 +11981,7 @@ export class ProjectKanbanView {
             } catch (err) {
                 // 忽略日期解析错误，继续执行
             }
-            
+
 
             // 如果当前为自定义分组看板模式，且目标任务所在分组与被拖拽任务不同，
             // 则将被拖拽任务移动到目标任务的分组（上下放置时也应修改分组）并在该分组内重新排序
@@ -11904,7 +12105,7 @@ export class ProjectKanbanView {
                                 desc.kanbanStatus = newStatus === 'doing' ? 'doing' : newStatus;
                             }
                         }
-                        
+
                     }
                 } catch (err) {
                     console.warn('Cascade update for descendants failed', err);
@@ -12072,7 +12273,7 @@ export class ProjectKanbanView {
                             }
                         }
                     }
-                    
+
                 }
             } catch (err) { console.warn('Cascade fallback failed', err); }
             // --- Reorder source list ---
@@ -12979,7 +13180,7 @@ export class ProjectKanbanView {
                         content: `
                             <div class="b3-dialog__content">
                                 <p>所选任务中包含以下日期为今天或已过的未完成任务，系统会将它们自动显示在“进行中”列：</p>
-                                <div style="max-height:180px;overflow:auto;margin:8px 0;padding:6px;border:1px solid var(--b3-border);">${listHtml}${offending.length>6?'<div>...</div>':''}</div>
+                                <div style="max-height:180px;overflow:auto;margin:8px 0;padding:6px;border:1px solid var(--b3-border);">${listHtml}${offending.length > 6 ? '<div>...</div>' : ''}</div>
                                 <p>要将这些任务移出“进行中”，需要修改任务的日期或时间。</p>
                             </div>
                             <div class="b3-dialog__action">
@@ -13470,6 +13671,16 @@ export class ProjectKanbanView {
         });
         rightGroup.appendChild(clearBtn);
 
+        // 退出多选按钮
+        const exitMultiSelectBtn = document.createElement('button');
+        exitMultiSelectBtn.className = 'b3-button b3-button--text b3-button--small';
+        exitMultiSelectBtn.textContent = i18n('exitBatchSelect') || '退出多选';
+        exitMultiSelectBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleMultiSelectMode();
+        });
+        rightGroup.appendChild(exitMultiSelectBtn);
+
         this.batchToolbar.appendChild(rightGroup);
 
         // 添加到容器
@@ -13785,8 +13996,8 @@ export class ProjectKanbanView {
 
                 if (offendingTasks.length > 0) {
                     // 弹窗提示：告知哪些任务为今天或已过。用户可选择：取消、继续移动其余任务（跳过这些任务）、编辑首个任务时间。
-                    const listHtml = offendingTasks.slice(0, 6).map(t => `<li style="margin-bottom:4px;">${(t.title||'（无标题）')}</li>`).join('');
-                    const moreNote = offendingTasks.length > 6 ? `<div style="margin-top:6px; color:var(--b3-theme-on-surface-light);">... 还有 ${offendingTasks.length-6} 个任务</div>` : '';
+                    const listHtml = offendingTasks.slice(0, 6).map(t => `<li style="margin-bottom:4px;">${(t.title || '（无标题）')}</li>`).join('');
+                    const moreNote = offendingTasks.length > 6 ? `<div style="margin-top:6px; color:var(--b3-theme-on-surface-light);">... 还有 ${offendingTasks.length - 6} 个任务</div>` : '';
                     const dialog = new Dialog({
                         title: '警告：包含今日/已过任务',
                         content: `
