@@ -115,6 +115,8 @@ export class ProjectKanbanView {
     // 上一次点击的任务ID（用于Shift多选范围）
     private lastClickedTaskId: string | null = null;
     private milestoneMap: Map<string, { name: string, icon?: string }> = new Map();
+    // 里程碑分组折叠状态
+    private collapsedMilestoneGroups: Set<string> = new Set();
 
     constructor(container: HTMLElement, plugin: any, projectId: string) {
         this.container = container;
@@ -1325,12 +1327,16 @@ export class ProjectKanbanView {
             container.innerHTML = '';
 
             // 1. 默认里程碑（未分组）
-            const defaultSection = this.createMilestoneSection(i18n('defaultMilestones'), null, defaultMilestones, container);
+            const defaultGroupKey = 'global';
+            const defaultIsCollapsed = this.collapsedMilestoneGroups.has(defaultGroupKey);
+            const defaultSection = this.createMilestoneSection(i18n('defaultMilestones'), null, defaultMilestones, container, defaultIsCollapsed);
             container.appendChild(defaultSection);
 
             // 2. 分组里程碑
             for (const group of projectGroups) {
-                const groupSection = this.createMilestoneSection(group.name, group.id, group.milestones || [], container);
+                const groupKey = group.id;
+                const isCollapsed = this.collapsedMilestoneGroups.has(groupKey);
+                const groupSection = this.createMilestoneSection(group.name, group.id, group.milestones || [], container, isCollapsed);
                 container.appendChild(groupSection);
             }
         } catch (error) {
@@ -1339,14 +1345,14 @@ export class ProjectKanbanView {
         }
     }
 
-    private createMilestoneSection(title: string, groupId: string | null, milestones: any[], parentContainer: HTMLElement): HTMLElement {
+    private createMilestoneSection(title: string, groupId: string | null, milestones: any[], parentContainer: HTMLElement, isCollapsed: boolean): HTMLElement {
+        const groupKey = groupId || 'global';
         const section = document.createElement('div');
         section.className = 'milestone-section';
         section.style.cssText = `
             margin-bottom: 24px;
             border: 1px solid var(--b3-theme-border);
             border-radius: 8px;
-            overflow: hidden;
         `;
 
         const header = document.createElement('div');
@@ -1357,12 +1363,32 @@ export class ProjectKanbanView {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
         `;
 
         const titleEl = document.createElement('h4');
         titleEl.textContent = title;
         titleEl.style.margin = '0';
         header.appendChild(titleEl);
+
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'b3-button b3-button--small';
+        toggleBtn.innerHTML = isCollapsed ? '▶' : '▼';
+        toggleBtn.style.marginRight = '8px';
+        toggleBtn.addEventListener('click', () => {
+            if (this.collapsedMilestoneGroups.has(groupKey)) {
+                this.collapsedMilestoneGroups.delete(groupKey);
+                list.style.display = 'block';
+                toggleBtn.innerHTML = '▼';
+            } else {
+                this.collapsedMilestoneGroups.add(groupKey);
+                list.style.display = 'none';
+                toggleBtn.innerHTML = '▶';
+            }
+        });
+        header.insertBefore(toggleBtn, titleEl);
 
         const addBtn = document.createElement('button');
         addBtn.className = 'b3-button b3-button--small b3-button--primary';
@@ -1377,6 +1403,7 @@ export class ProjectKanbanView {
         const list = document.createElement('div');
         list.style.padding = '8px 16px';
         list.className = 'milestone-list';
+        list.style.display = isCollapsed ? 'none' : 'block';
 
         // 拖拽占位符
         const placeholder = document.createElement('div');
@@ -1422,8 +1449,19 @@ export class ProjectKanbanView {
                 const name = document.createElement('span');
                 name.textContent = ms.name;
                 name.style.cssText = `overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500;`;
+                if (ms.blockId) {
+                    name.style.textDecoration = 'underline dotted';
+                    name.style.color = 'var(--b3-theme-primary)';
+                    name.style.cursor = 'pointer';
+                    name.setAttribute('data-type', 'a');
+                    name.setAttribute('data-href', `siyuan://blocks/${ms.blockId}`);
+                    name.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        openBlock(ms.blockId);
+                    });
+                }
                 if (ms.archived) {
-                    name.style.textDecoration = 'line-through';
+                    name.style.textDecoration = (name.style.textDecoration ? name.style.textDecoration + ' ' : '') + 'line-through';
                     name.style.opacity = '0.6';
                 }
                 info.appendChild(name);
