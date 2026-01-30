@@ -1782,16 +1782,14 @@ export class ReminderPanel {
                                 const separator = document.createElement('div');
                                 separator.id = separatorId;
                                 separator.className = 'reminder-separator daily-dessert-separator';
-                                separator.innerHTML = `<span style="padding:0 8px; color:var(--b3-theme-on-surface-light);">🍰 每日可做 / 今日忽略 </span>`;
+                                const separatorText = this.currentTab === 'todayCompleted' ? '⭕ 今日已忽略' : '🍰 每日可做 ';
+                                separator.innerHTML = `<span style="padding:0 8px;">${separatorText}</span>`;
                                 separator.style.cssText = `
                                      display: flex; 
                                      align-items: center; 
                                      justify-content: center; 
                                      margin: 16px 0 8px 0; 
                                      font-size: 12px; 
-                                     color: var(--b3-theme-on-surface-light);
-                                     line-height: 0.1em;
-                                     opacity: 0.8;
                                  `;
                                 fragment.appendChild(separator);
                             }
