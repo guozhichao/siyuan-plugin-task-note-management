@@ -2043,16 +2043,25 @@ export class ProjectKanbanView {
 
                 const groupName = document.createElement('span');
                 groupName.textContent = group.name;
+                // 如果分组绑定了块，添加链接属性和样式
+                const hasBlockId = !!group.blockId;
                 groupName.style.cssText = `
                     font-weight: 500;
-                    color: var(--b3-theme-on-surface);
+                    color: ${hasBlockId ? 'var(--b3-theme-primary)' : 'var(--b3-theme-on-surface)'};
                     overflow: hidden;
                     text-overflow: ellipsis;
                     white-space: nowrap;
                     flex: 1;
+                    ${hasBlockId ? 'cursor: pointer; text-decoration: underline dotted;' : ''}
                     ${group.archived ? 'text-decoration: line-through; opacity: 0.6;' : ''}
                 `;
-                groupName.title = group.name;
+                if (hasBlockId) {
+                    groupName.dataset.type = 'a';
+                    groupName.dataset.href = `siyuan://blocks/${group.blockId}`;
+                    groupName.title = `${group.name} (点击打开绑定块)`;
+                } else {
+                    groupName.title = group.name;
+                }
 
                 // 归档标签
                 if (group.archived) {
@@ -2337,7 +2346,12 @@ export class ProjectKanbanView {
                     </div>
                     <div class="b3-form__group">
                         <label class="b3-form__label">${i18n('bindBlockId')} (${i18n('optional')})</label>
-                        <input type="text" id="editGroupBlockId" class="b3-text-field" value="${group.blockId || ''}" placeholder="${i18n('pleaseEnterBlockId')}" style="width: 100%;">
+                        <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
+                            <input type="text" id="editGroupBlockId" class="b3-text-field" value="${group.blockId || ''}" placeholder="${i18n('pleaseEnterBlockId')}" style="flex: 1;">
+                            <button class="b3-button b3-button--outline" id="editGroupBindBlockBtn" title="绑定块">
+                                <svg class="b3-button__icon" style="width: 16px; height: 16px;"><use xlink:href="#iconAdd"></use></svg>
+                            </button>
+                        </div>
                         <div class="b3-label__text" style="margin-top: 4px; color: var(--b3-theme-on-surface-light);">${i18n('bindBlockIdHint')}</div>
                     </div>
                     <div class="b3-form__group">
@@ -2368,6 +2382,23 @@ export class ProjectKanbanView {
         const editGroupArchived = dialog.element.querySelector('#editGroupArchived') as HTMLInputElement;
         const editCancelBtn = dialog.element.querySelector('#editCancelBtn') as HTMLButtonElement;
         const editSaveBtn = dialog.element.querySelector('#editSaveBtn') as HTMLButtonElement;
+        const editGroupBindBlockBtn = dialog.element.querySelector('#editGroupBindBlockBtn') as HTMLButtonElement;
+
+        // 绑定块按钮点击事件
+        editGroupBindBlockBtn?.addEventListener('click', () => {
+            const blockBindingDialog = new BlockBindingDialog(this.plugin, (blockId: string) => {
+                editGroupBlockId.value = blockId;
+            }, {
+                title: '绑定分组块',
+                defaultTab: 'heading',
+                defaultParentId: editGroupBlockId.value,
+                defaultProjectId: this.projectId,
+                defaultCustomGroupId: group.id,
+                defaultTitle: editGroupName.value,
+                forGroup: true,
+            });
+            blockBindingDialog.show();
+        });
 
         editCancelBtn.addEventListener('click', () => dialog.destroy());
 

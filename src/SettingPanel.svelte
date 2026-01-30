@@ -283,11 +283,12 @@
                     description: i18n('newDocPathDesc'),
                 },
                 {
-                    key: 'defaultHeadingLevel',
-                    value: settings.defaultHeadingLevel,
+                    key: 'groupDefaultHeadingLevel',
+                    value: settings.groupDefaultHeadingLevel,
                     type: 'select',
-                    title: i18n('defaultHeadingLevel'),
-                    description: i18n('defaultHeadingLevelDesc'),
+                    title: i18n('groupDefaultHeadingLevel') || '绑定块新建标题默认层级（项目分组）',
+                    description:
+                        i18n('groupDefaultHeadingLevelDesc') || '设置添加分组绑定块的默认层级',
                     options: {
                         1: '1',
                         2: '2',
@@ -301,9 +302,24 @@
                     key: 'milestoneDefaultHeadingLevel',
                     value: settings.milestoneDefaultHeadingLevel,
                     type: 'select',
-                    title: i18n('milestoneDefaultHeadingLevel') || '新建标题默认层级（里程碑）',
+                    title: i18n('milestoneDefaultHeadingLevel') || '绑定块新建标题默认层级（项目里程碑）',
                     description:
                         i18n('milestoneDefaultHeadingLevelDesc') || '设置添加标题里程碑的默认层级',
+                    options: {
+                        1: '1',
+                        2: '2',
+                        3: '3',
+                        4: '4',
+                        5: '5',
+                        6: '6',
+                    },
+                },
+                {
+                    key: 'defaultHeadingLevel',
+                    value: settings.defaultHeadingLevel,
+                    type: 'select',
+                    title: i18n('defaultHeadingLevel'),
+                    description: i18n('defaultHeadingLevelDesc'),
                     options: {
                         1: '1',
                         2: '2',
