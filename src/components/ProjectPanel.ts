@@ -1486,11 +1486,11 @@ export class ProjectPanel {
             // 没有结束日期，但有开始日期时，显示已开始天数
             // 注意：这里需要从调用处传入 startDate
             countdownEl.style.cssText = `
-                color:var(--b3-font-color11);
+                color: var(--b3-card-success-color);
                 font-size: 12px;
                 font-weight: 500;
-                background: var(--b3-font-background11);
-                border: 1px solid rgba(55, 66, 250, 0.3);
+                background: var(--b3-card-success-background);
+                border: 1px solid var(--b3-card-success-color);
                 border-radius: 4px;
                 padding: 2px 6px;
             `;
@@ -1571,11 +1571,11 @@ export class ProjectPanel {
         } else {
             // 已经开始
             startedEl.style.cssText = `
-                color: var(--b3-font-color11);
+                color: var(--b3-card-success-color);
                 font-size: 12px;
                 font-weight: 500;
-                background: var(--b3-font-background11);
-                border: 1px solid var(--b3-font-color11);
+                background: var(--b3-card-success-background);
+                border: 1px solid var(--b3-card-success-color);
                 border-radius: 4px;
                 padding: 2px 6px;
             `;
