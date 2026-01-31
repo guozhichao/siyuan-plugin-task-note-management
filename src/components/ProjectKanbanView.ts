@@ -9811,7 +9811,7 @@ export class ProjectKanbanView {
             // Use valid <span> tags (no stray spaces in tag names), and keep layout compact
             button.innerHTML = `
                     <span style="font-size: 16px; margin-right: 8px;">${option.icon}</span>
-                    <span>${option.label} (${order === 'asc' ? i18n('ascendingOrder') + '↑' : i18n('descendingOrder') + '↓'})</span>
+                    <span>${option.label} (${order === 'asc' ? i18n('ascendingOrder') : i18n('descendingOrder')})</span>
                 `;
             button.addEventListener('click', async () => {
                 this.currentSort = option.key;
