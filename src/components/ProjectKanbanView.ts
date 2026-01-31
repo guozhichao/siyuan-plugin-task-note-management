@@ -3662,6 +3662,13 @@ export class ProjectKanbanView {
                     name.style.textOverflow = 'ellipsis';
                     name.style.whiteSpace = 'nowrap';
 
+                    // 已归档的里程碑显示为暗色
+                    if (ms.archived) {
+                        name.style.textDecoration = 'line-through';
+                        name.style.opacity = '0.6';
+                        name.style.color = 'var(--b3-theme-on-surface-light)';
+                    }
+
                     label.appendChild(checkbox);
                     label.appendChild(icon);
                     label.appendChild(name);
