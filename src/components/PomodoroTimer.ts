@@ -104,6 +104,7 @@ export class PomodoroTimer {
     private isMiniMode: boolean = false; // BrowserWindow 迷你模式状态
     private isDocked: boolean = false; // BrowserWindow 吸附模式状态
     private normalWindowBounds: { x: number; y: number; width: number; height: number } | null = null; // 保存正常窗口位置和大小
+    private inheritedWindowBounds: { x: number; y: number; width: number; height: number } | null = null; // 继承的窗口位置信息
 
     constructor(reminder: any, settings: any, isCountUp: boolean = false, inheritState?: any, plugin?: any, container?: HTMLElement, orphanedWindow?: any) {
         this.reminder = reminder;
@@ -242,6 +243,28 @@ export class PomodoroTimer {
         // 继承运行状态，但新番茄钟开始时不暂停
         this.isRunning = inheritState.isRunning && !inheritState.isPaused;
         this.isPaused = false;
+
+        // 保存继承的窗口位置信息（稍后在窗口创建后应用）
+        if (inheritState.windowBounds) {
+            this.inheritedWindowBounds = inheritState.windowBounds;
+            console.log('[PomodoroTimer] 已保存继承的窗口位置:', this.inheritedWindowBounds);
+        }
+
+        // 继承窗口模式状态（吸附模式和迷你模式）
+        if (inheritState.isDocked !== undefined) {
+            this.isDocked = inheritState.isDocked;
+            console.log('[PomodoroTimer] 继承吸附模式状态:', this.isDocked);
+        }
+        if (inheritState.isMiniMode !== undefined) {
+            this.isMiniMode = inheritState.isMiniMode;
+            console.log('[PomodoroTimer] 继承迷你模式状态:', this.isMiniMode);
+        }
+
+        // 继承保存的正常窗口位置（用于从吸附模式恢复）
+        if (inheritState.normalWindowBounds) {
+            this.normalWindowBounds = inheritState.normalWindowBounds;
+            console.log('[PomodoroTimer] 继承保存的正常窗口位置:', this.normalWindowBounds);
+        }
     }
 
     /**
@@ -275,6 +298,16 @@ export class PomodoroTimer {
             }
         }
 
+        // 获取BrowserWindow窗口位置信息（如果存在）
+        let windowBounds: { x: number; y: number; width: number; height: number } | undefined;
+        try {
+            if (PomodoroTimer.browserWindowInstance && !PomodoroTimer.browserWindowInstance.isDestroyed()) {
+                windowBounds = PomodoroTimer.browserWindowInstance.getBounds();
+            }
+        } catch (e) {
+            console.warn('[PomodoroTimer] 无法获取窗口位置信息:', e);
+        }
+
         return {
             isRunning: this.isRunning,
             isPaused: this.isPaused,
@@ -293,7 +326,11 @@ export class PomodoroTimer {
             randomNotificationCount: this.randomNotificationCount,
             randomNotificationEnabled: this.randomNotificationEnabled,
             todayFocusMinutes: this.recordManager.getTodayFocusTime(),
-            weekFocusMinutes: this.recordManager.getWeekFocusTime()
+            weekFocusMinutes: this.recordManager.getWeekFocusTime(),
+            windowBounds: windowBounds, // 窗口位置信息
+            isDocked: this.isDocked, // 新增：吸附模式状态
+            isMiniMode: this.isMiniMode, // 新增：迷你模式状态
+            normalWindowBounds: this.normalWindowBounds // 新增：保存的正常窗口位置
         };
     }
 
@@ -5961,10 +5998,19 @@ export class PomodoroTimer {
                 const oldTimer = PomodoroTimer.browserWindowTimer;
                 if (oldTimer && oldTimer !== this) {
                     try {
-                        // 复制吸附/迷你与窗口 bounds 状态，保证新实例反映实际窗口行为
-                        this.isDocked = !!oldTimer.isDocked;
-                        this.isMiniMode = !!oldTimer.isMiniMode;
-                        this.normalWindowBounds = oldTimer.normalWindowBounds ? { ...oldTimer.normalWindowBounds } : null;
+                        // 只有在没有继承状态时，才从旧实例复制模式状态
+                        // 如果有继承状态（通过applyInheritedState设置），则保持继承的状态
+                        // 检查是否已经通过继承设置了状态（通过检查是否与默认值不同）
+                        const hasInheritedState = this.isDocked !== false || this.isMiniMode !== false;
+
+                        if (!hasInheritedState) {
+                            // 复制吸附/迷你与窗口 bounds 状态，保证新实例反映实际窗口行为
+                            this.isDocked = !!oldTimer.isDocked;
+                            this.isMiniMode = !!oldTimer.isMiniMode;
+                            this.normalWindowBounds = oldTimer.normalWindowBounds ? { ...oldTimer.normalWindowBounds } : null;
+                        } else {
+                            console.log('[PomodoroTimer] 保持继承的窗口模式状态，不从旧实例覆盖');
+                        }
                     } catch (err) {
                         console.warn('[PomodoroTimer] 同步旧实例窗口模式失败:', err);
                     }
@@ -6023,14 +6069,38 @@ export class PomodoroTimer {
                 y = 0;
                 transparent = true;
                 backgroundColor = '#00000000';
+            } else if (this.isMiniMode) {
+                // 迷你模式：设置为小圆形窗口
+                const size = 120;
+                winWidth = size;
+                winHeight = size;
+                // 如果有继承的窗口位置，使用它；否则使用默认位置
+                if (this.inheritedWindowBounds) {
+                    x = this.inheritedWindowBounds.x;
+                    y = this.inheritedWindowBounds.y;
+                    console.log('[PomodoroTimer] 迷你模式使用继承的窗口位置:', this.inheritedWindowBounds);
+                }
             } else {
+                // 非吸附模式：优先使用 normalWindowBounds（从吸附模式恢复时的正常位置）
+                // 然后才使用 inheritedWindowBounds（任务切换时的继承位置）
                 if (this.normalWindowBounds) {
+                    // 优先使用保存的正常窗口位置（从吸附/迷你模式恢复时）
                     x = this.normalWindowBounds.x;
                     y = this.normalWindowBounds.y;
                     if (this.normalWindowBounds.width && this.normalWindowBounds.height) {
                         winWidth = this.normalWindowBounds.width;
                         winHeight = this.normalWindowBounds.height;
                     }
+                    console.log('[PomodoroTimer] 使用保存的正常窗口位置:', this.normalWindowBounds);
+                } else if (this.inheritedWindowBounds) {
+                    // 如果没有保存的正常位置，使用继承的窗口位置（任务切换时）
+                    x = this.inheritedWindowBounds.x;
+                    y = this.inheritedWindowBounds.y;
+                    if (this.inheritedWindowBounds.width && this.inheritedWindowBounds.height) {
+                        winWidth = this.inheritedWindowBounds.width;
+                        winHeight = this.inheritedWindowBounds.height;
+                    }
+                    console.log('[PomodoroTimer] 使用继承的窗口位置:', this.inheritedWindowBounds);
                 }
             }
 
@@ -6044,7 +6114,7 @@ export class PomodoroTimer {
                 movable: true,
                 skipTaskbar: false,
                 hasShadow: !this.isDocked,
-                resizable: !this.isDocked,
+                resizable: !this.isDocked && !this.isMiniMode,
                 transparent: transparent,
                 webPreferences: {
                     nodeIntegration: true,
@@ -6159,6 +6229,24 @@ export class PomodoroTimer {
 
             pomodoroWindow.once('ready-to-show', () => {
                 pomodoroWindow.show();
+
+                // 如果继承了迷你模式状态，应用迷你模式设置
+                if (this.isMiniMode) {
+                    console.log('[PomodoroTimer] 应用继承的迷你模式设置');
+                    const size = 120;
+                    pomodoroWindow.setSize(size, size);
+                    pomodoroWindow.setResizable(false);
+
+                    // 添加迷你模式样式
+                    setTimeout(() => {
+                        if (pomodoroWindow && !pomodoroWindow.isDestroyed()) {
+                            pomodoroWindow.webContents.executeJavaScript(`
+document.body.classList.add('mini-mode');
+document.body.classList.remove('docked-mode');
+`).catch((e: any) => console.error('[PomodoroTimer] 应用迷你模式样式失败:', e));
+                        }
+                    }, 100);
+                }
 
                 // 渲染完毕后推送当前状态
                 const self = this;
@@ -6831,7 +6919,7 @@ export class PomodoroTimer {
     </style>
 </head>
 </head>
-<body class="${this.isDocked ? 'docked-mode' : ''}">
+<body class="${this.isDocked ? 'docked-mode' : ''} ${this.isMiniMode ? 'mini-mode' : ''}">
     <div class="custom-titlebar">
         <div class="titlebar-left">
             <button class="titlebar-btn" id="miniModeBtn" onclick="toggleMiniMode()" title="${miniModeTitle}">
