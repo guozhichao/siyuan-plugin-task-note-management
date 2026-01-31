@@ -126,6 +126,8 @@ export class ProjectKanbanView {
     private _availableMilestonesInView: Set<string> = new Set();
     // 记录在经过搜索/标签/日期等过滤后，每个状态列下有哪些分组（用于里程碑筛选菜单的分组显示）
     private _statusGroupsInView: Map<string, Set<string>> = new Map();
+    // 记录在经过搜索/标签/日期等过滤后，每个状态列下有哪些里程碑被实际使用（用于里程碑筛选菜单）
+    private _statusMilestonesInView: Map<string, Set<string>> = new Map();
 
     constructor(container: HTMLElement, plugin: any, projectId: string) {
         this.container = container;
@@ -3028,8 +3030,9 @@ export class ProjectKanbanView {
 
         const milestoneFilterSet = this.selectedFilterMilestones.get(groupId);
         const hasActiveMilestoneFilter = milestoneFilterSet && milestoneFilterSet.size > 0;
-        // 统计发现的任务里有里程碑，或者当前正处于过滤状态，则显示按钮
-        const hasMilestonesInThisGroup = this._statusHasMilestoneTasks.has(groupId) || !!hasActiveMilestoneFilter;
+        // 检查当前状态列/分组是否实际有里程碑任务（基于当前过滤后的任务）
+        const statusMilestones = this._statusMilestonesInView.get(groupId);
+        const hasMilestonesInThisGroup = (statusMilestones && statusMilestones.size > 0) || !!hasActiveMilestoneFilter;
 
         if (hasMilestonesInThisGroup) {
             let milestoneFilterBtn = rightContainer.querySelector('.milestone-filter-btn') as HTMLButtonElement;
@@ -3120,10 +3123,13 @@ export class ProjectKanbanView {
                     });
                 }
             } else {
-                // Status 视图逻辑：根据任务所属分组进行组织，且只显示被使用的里程碑
-                // 默认里程碑
+                // Status 视图逻辑：只显示当前状态列中任务实际使用的里程碑
+                // 获取当前 status 列中实际使用的里程碑 ID
+                const statusMilestoneIds = this._statusMilestonesInView.get(targetGroupId) || new Set<string>();
+
+                // 默认里程碑 - 只显示当前 status 列中实际使用的
                 if (defaultMilestones.length > 0 && allowedGroups.has('ungrouped')) {
-                    const ms = defaultMilestones.filter(m => usedMilestoneIds.has(m.id));
+                    const ms = defaultMilestones.filter(m => statusMilestoneIds.has(m.id));
                     if (ms.length > 0) {
                         milestonesToShow.push({
                             title: i18n('defaultMilestones') || '默认里程碑',
@@ -3133,12 +3139,12 @@ export class ProjectKanbanView {
                     }
                 }
 
-                // 分组里程碑（包含所有里程碑，包括已归档的，以便筛选历史任务）
+                // 分组里程碑 - 只显示当前 status 列中实际使用的（包含已归档的，以便筛选历史任务）
                 projectGroups
                     .filter((g: any) => !g.archived)
                     .forEach((g: any) => {
                         if (!allowedGroups.has(g.id)) return;
-                        const ms = (g.milestones || []).filter((m: any) => usedMilestoneIds.has(m.id));
+                        const ms = (g.milestones || []).filter((m: any) => statusMilestoneIds.has(m.id));
                         if (ms.length > 0) {
                             milestonesToShow.push({
                                 title: g.name,
@@ -4499,6 +4505,7 @@ export class ProjectKanbanView {
             this._statusHasMilestoneTasks.clear();
             this._availableMilestonesInView.clear();
             this._statusGroupsInView.clear();
+            this._statusMilestonesInView.clear();
             // 创建任务映射以便查找父任务
             const taskMapForStats = new Map(this.tasks.map(t => [t.id, t]));
 
@@ -4526,6 +4533,16 @@ export class ProjectKanbanView {
                     this._statusHasMilestoneTasks.add(status);
                     this._statusHasMilestoneTasks.add(customGroup);
                     this._availableMilestonesInView.add(effectiveMilestoneId);
+                    // 统计每个状态列下使用的里程碑
+                    if (!this._statusMilestonesInView.has(status)) {
+                        this._statusMilestonesInView.set(status, new Set());
+                    }
+                    this._statusMilestonesInView.get(status)!.add(effectiveMilestoneId);
+                    // 同时统计自定义分组下的里程碑（用于自定义分组视图）
+                    if (!this._statusMilestonesInView.has(customGroup)) {
+                        this._statusMilestonesInView.set(customGroup, new Set());
+                    }
+                    this._statusMilestonesInView.get(customGroup)!.add(effectiveMilestoneId);
                 }
             });
 
