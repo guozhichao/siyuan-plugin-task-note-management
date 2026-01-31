@@ -1539,7 +1539,6 @@ export class ProjectKanbanView {
                             this.renderMilestonesInDialog(parentContainer, isGlobalMode ? undefined : groupId);
                         },
                         () => {
-                            console.log("用户取消了删除");
                         }
                     );
                 });
@@ -1605,8 +1604,6 @@ export class ProjectKanbanView {
                 const id = ev.dataTransfer?.getData('text/plain');
                 if (!id) return;
 
-                const placeholderIndex = Array.from(list.children).indexOf(placeholder);
-
                 // 找到被拖拽的里程碑对象
                 const movedMs = milestones.find(m => m.id === id);
                 if (!movedMs) return;
@@ -1614,11 +1611,22 @@ export class ProjectKanbanView {
                 // 移除原有的，重新按照 DOM 顺序排列
                 const otherMs = milestones.filter(m => m.id !== id);
 
-                // 计算插入点
-                let insertPoint = 0;
-                for (let i = 0; i < placeholderIndex; i++) {
-                    if (list.children[i].classList.contains('milestone-item')) {
-                        insertPoint++;
+                // 计算插入点：找到 placeholder 后面的那个 milestone-item，在它前面插入
+                let insertPoint = otherMs.length; // 默认放到最后
+                const children = Array.from(list.children);
+                const placeholderIndex = children.indexOf(placeholder);
+
+                // 从 placeholder 后面开始找，找到第一个 milestone-item
+                for (let i = placeholderIndex + 1; i < children.length; i++) {
+                    const el = children[i] as HTMLElement;
+                    if (el.classList.contains('milestone-item')) {
+                        // 找到了 placeholder 后面的 milestone，获取它在 otherMs 中的索引
+                        const nextId = el.dataset.msId;
+                        const nextIndex = otherMs.findIndex(m => m.id === nextId);
+                        if (nextIndex !== -1) {
+                            insertPoint = nextIndex;
+                        }
+                        break;
                     }
                 }
 
@@ -1960,8 +1968,10 @@ export class ProjectKanbanView {
                 if (archivedA !== archivedB) {
                     return archivedA - archivedB;
                 }
-                // 然后按sort字段排序
-                return (a.sort || 0) - (b.sort || 0);
+                // 然后按sort字段排序（确保按数值排序，防止字符串比较）
+                const sortA = typeof a.sort === 'number' ? a.sort : parseInt(a.sort, 10) || 0;
+                const sortB = typeof b.sort === 'number' ? b.sort : parseInt(b.sort, 10) || 0;
+                return sortA - sortB;
             });
 
             // 添加拖拽排序样式
@@ -2200,145 +2210,6 @@ export class ProjectKanbanView {
                 // 添加拖拽排序功能
                 this.addGroupDragAndDrop(groupItem, group, container);
             });
-
-            // 容器级别的拖放支持：允许将分组拖到列表任意位置（包括末尾）
-            // 只注册一次，避免重复绑定事件
-            if (!container.dataset.hasDropHandlers) {
-                container.dataset.hasDropHandlers = '1';
-
-                container.addEventListener('dragover', (e) => {
-                    try {
-                        // 支持从 dataTransfer 或类字段回退获取被拖拽的分组 id
-                        const dt = (e as DragEvent).dataTransfer;
-                        if (!dt && !this.draggedGroupId) return;
-                        let draggedId = '';
-                        try {
-                            if (dt) draggedId = dt.getData('text/plain') || '';
-                        } catch (err) {
-                            // dataTransfer 在某些环境可能受限，忽略错误并使用回退值
-                            draggedId = '';
-                        }
-                        if (!draggedId) draggedId = this.draggedGroupId || '';
-                        if (!draggedId) return;
-
-                        e.preventDefault();
-                        dt.dropEffect = 'move';
-
-                        // 清除旧的临时指示器（但保留对 _groupDropIndicator 的管理，下面会重建）
-                        container.querySelectorAll('.group-drop-indicator').forEach(el => el.remove());
-
-                        // 获取子项并忽略当前被拖拽的项，防止自己影响插入位置计算
-                        let children = Array.from(container.querySelectorAll('.group-item')) as HTMLElement[];
-                        children = children.filter(c => (c.dataset.groupId || '') !== draggedId);
-
-                        // 创建静态位置指示器并插入到合适位置
-                        const createIndicator = (beforeEl: HTMLElement | null) => {
-                            // 移除已有引用的指示器
-                            if (this._groupDropIndicator && this._groupDropIndicator.parentNode) {
-                                this._groupDropIndicator.parentNode.removeChild(this._groupDropIndicator);
-                                this._groupDropIndicator = null;
-                            }
-
-                            const indicator = document.createElement('div');
-                            indicator.className = 'group-drop-indicator';
-                            indicator.style.cssText = `
-                                height: 2px;
-                                background-color: var(--b3-theme-primary);
-                                margin: 4px 0;
-                                border-radius: 2px;
-                                box-shadow: 0 0 4px var(--b3-theme-primary);
-                            `;
-                            if (beforeEl) container.insertBefore(indicator, beforeEl);
-                            else container.appendChild(indicator);
-
-                            // 保存引用，方便 dragleave/drop 等处清理或重用
-                            this._groupDropIndicator = indicator;
-                        };
-
-                        if (children.length === 0) {
-                            createIndicator(null);
-                            return;
-                        }
-
-                        // 根据 mouse Y 判断插入点（忽略被拖拽项）
-                        const clientY = (e as DragEvent).clientY;
-                        let inserted = false;
-                        for (const child of children) {
-                            const rect = child.getBoundingClientRect();
-                            const midpoint = rect.top + rect.height / 2;
-                            if (clientY < midpoint) {
-                                createIndicator(child);
-                                inserted = true;
-                                break;
-                            }
-                        }
-
-                        if (!inserted) {
-                            // 放到末尾
-                            createIndicator(null);
-                        }
-                    } catch (err) {
-                        // ignore
-                    }
-                });
-
-                container.addEventListener('dragleave', (e) => {
-                    // 当真正离开容器时清除指示器
-                    const related = (e as any).relatedTarget as Node;
-                    if (!related || !container.contains(related)) {
-                        container.querySelectorAll('.group-drop-indicator').forEach(el => el.remove());
-                        if (this._groupDropIndicator && this._groupDropIndicator.parentNode) {
-                            this._groupDropIndicator.parentNode.removeChild(this._groupDropIndicator);
-                        }
-                        this._groupDropIndicator = null;
-                    }
-                });
-
-                container.addEventListener('drop', async (e) => {
-                    e.preventDefault();
-                    container.querySelectorAll('.group-drop-indicator').forEach(el => el.remove());
-
-                    let draggedGroupId = (e as DragEvent).dataTransfer?.getData('text/plain');
-                    // 某些环境（如受限的 webview/iframe）可能无法通过 dataTransfer 传递数据，使用类字段作为回退
-                    if (!draggedGroupId) draggedGroupId = this.draggedGroupId || '';
-                    if (!draggedGroupId) return;
-
-                    try {
-                        const projectManager = this.projectManager;
-                        const currentGroups = await projectManager.getProjectCustomGroups(this.projectId);
-
-                        const draggedIndex = currentGroups.findIndex((g: any) => g.id === draggedGroupId);
-                        if (draggedIndex === -1) return;
-
-                        // 计算插入索引（基于鼠标位置与当前子项中点比较）
-                        const children = Array.from(container.querySelectorAll('.group-item')) as HTMLElement[];
-                        const clientY = (e as DragEvent).clientY;
-                        let insertIndex = children.length; // 默认末尾
-                        for (let i = 0; i < children.length; i++) {
-                            const rect = children[i].getBoundingClientRect();
-                            const midpoint = rect.top + rect.height / 2;
-                            if (clientY < midpoint) { insertIndex = i; break; }
-                        }
-
-                        // 从原数组移除并插入到目标位置
-                        const draggedGroup = currentGroups.splice(draggedIndex, 1)[0];
-                        const actualIndex = insertIndex;
-                        currentGroups.splice(actualIndex, 0, draggedGroup);
-
-                        // 重新分配排序值并保存
-                        currentGroups.forEach((g: any, index: number) => { g.sort = index * 10; });
-                        await projectManager.setProjectCustomGroups(this.projectId, currentGroups);
-
-                        // 刷新界面（使用防抖队列以合并频繁变更）
-                        await this.loadAndDisplayGroups(container);
-                        this.queueLoadTasks();
-                        showMessage('分组顺序已更新');
-                    } catch (error) {
-                        console.error('更新分组顺序失败:', error);
-                        showMessage('更新分组顺序失败');
-                    }
-                });
-            }
         } catch (error) {
             console.error('加载分组列表失败:', error);
             container.innerHTML = '<div style="text-align: center; color: var(--b3-theme-error); padding: 20px;">加载分组失败</div>';
@@ -2918,7 +2789,7 @@ export class ProjectKanbanView {
 
         const listOption = document.createElement('option');
         listOption.value = 'list';
-        listOption.textContent = i18n('taskList') + '视图';
+        listOption.textContent = i18n('taskList');
         if (this.kanbanMode === 'list') {
             listOption.selected = true;
         }
@@ -13120,7 +12991,6 @@ export class ProjectKanbanView {
             e.preventDefault();
             groupItem.classList.remove('drag-over-top', 'drag-over-bottom');
 
-            // 支持 dataTransfer 或 class 字段回退
             let draggedId = (e as DragEvent).dataTransfer?.getData('text/plain') || this.draggedGroupId;
             if (!draggedId || draggedId === group.id) return;
 
@@ -13131,27 +13001,50 @@ export class ProjectKanbanView {
 
                 const draggedIndex = currentGroups.findIndex((g: any) => g.id === draggedId);
                 const targetIndex = currentGroups.findIndex((g: any) => g.id === group.id);
-                if (draggedIndex === -1 || targetIndex === -1) return;
+                if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) return;
 
+                // 判断插入位置
                 const rect = groupItem.getBoundingClientRect();
                 const midPoint = rect.top + rect.height / 2;
                 const insertBefore = (e as DragEvent).clientY < midPoint;
 
-                const draggedGroup = currentGroups.splice(draggedIndex, 1)[0];
-                const actualTargetIndex = insertBefore ? targetIndex : targetIndex + 1;
-                currentGroups.splice(actualTargetIndex, 0, draggedGroup);
+                // 计算目标插入位置（在 splice 之前）
+                let targetInsertIndex: number;
+                if (insertBefore) {
+                    targetInsertIndex = targetIndex;
+                } else {
+                    targetInsertIndex = targetIndex + 1;
+                }
 
-                // 重新分配 sort 并保存
-                currentGroups.forEach((g: any, index: number) => { g.sort = index * 10; });
+                // 如果是向下拖动，需要调整插入索引
+                if (draggedIndex < targetInsertIndex) {
+                    targetInsertIndex -= 1;
+                }
+
+
+                // 移除被拖拽的元素
+                const [draggedGroup] = currentGroups.splice(draggedIndex, 1);
+
+
+                // 插入到新位置
+                currentGroups.splice(targetInsertIndex, 0, draggedGroup);
+
+
+                // 重新分配 sort 值
+                currentGroups.forEach((g: any, index: number) => {
+                    g.sort = (index + 1) * 10;
+                });
+
+
                 await projectManager.setProjectCustomGroups(this.projectId, currentGroups);
 
-                // 清理绝对定位的插入指示器（如存在）
+                // 清理指示器
                 if (this._groupDropIndicator && this._groupDropIndicator.parentNode) {
                     this._groupDropIndicator.parentNode.removeChild(this._groupDropIndicator);
                 }
                 this._groupDropIndicator = null;
 
-                // 刷新 UI（使用防抖队列）
+                // 刷新 UI
                 await this.loadAndDisplayGroups(container);
                 this.queueLoadTasks();
                 showMessage('分组顺序已更新');
@@ -13160,6 +13053,9 @@ export class ProjectKanbanView {
                 showMessage('更新分组顺序失败');
             }
         });
+
+
+
     }
 
     /**
