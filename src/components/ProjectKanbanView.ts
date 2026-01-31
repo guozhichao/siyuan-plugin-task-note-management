@@ -3046,14 +3046,11 @@ export class ProjectKanbanView {
             // 存储该分组的所有可用里程碑ID
             this.allAvailableMilestones.set(targetGroupId, allAvailableMilestoneIds);
 
-            // 如果之前没有选择过，默认全选（但不视为筛选状态）
-            const hasExistingFilter = this.selectedFilterMilestones.has(targetGroupId);
-            if (!hasExistingFilter) {
-                // 默认全选，将所有里程碑加入筛选
-                const defaultSet = new Set<string>();
-                allAvailableMilestoneIds.forEach(id => defaultSet.add(id));
-                this.selectedFilterMilestones.set(targetGroupId, defaultSet);
-            }
+            // 如果之前没有选择过，默认全选（不设置 Set 即代表全选/无论是否有新里程碑加入都显示）
+            // const hasExistingFilter = this.selectedFilterMilestones.has(targetGroupId);
+            // if (!hasExistingFilter) {
+            //     // 移除此处自动填充逻辑，保持 selectedFilterMilestones 中无 key 状态
+            // }
 
             // 创建弹窗容器
             const menu = document.createElement('div');
@@ -3168,19 +3165,38 @@ export class ProjectKanbanView {
                     checkbox.type = 'checkbox';
                     checkbox.className = 'b3-checkbox';
                     checkbox.style.marginRight = '8px';
-                    // 使用 key: targetGroupId (如果是自定义分组，section.groupId 就是 targetGroupId；如果是 Status，section.groupId 这里也被我们设置为了 targetGroupId)
-                    checkbox.checked = this.selectedFilterMilestones.get(section.groupId)?.has(ms.id) || false;
+                    // 使用 key: targetGroupId
+                    const currentFilterSet = this.selectedFilterMilestones.get(section.groupId);
+                    // 如果 Set 不存在，说明是“全选/不筛选”状态，应该显示为选中
+                    checkbox.checked = !currentFilterSet || currentFilterSet.has(ms.id);
 
                     checkbox.addEventListener('change', () => {
-                        let set = this.selectedFilterMilestones.get(section.groupId);
-                        if (!set) {
-                            set = new Set();
-                            this.selectedFilterMilestones.set(section.groupId, set);
-                        }
-                        if (checkbox.checked) set.add(ms.id);
-                        else set.delete(ms.id);
+                        const groupId = section.groupId;
+                        let set = this.selectedFilterMilestones.get(groupId);
 
-                        // 不再删除空 Set，保留空 Set 表示清除状态（不显示任何任务）
+                        if (!set) {
+                            // 当前是“全选”状态，用户取消勾选了一个
+                            if (!checkbox.checked) {
+                                // 初始化 Set 为“除了被取消勾选的这个之外的所有项”
+                                const allAvailable = this.allAvailableMilestones.get(groupId);
+                                set = new Set(allAvailable);
+                                set.delete(ms.id);
+                                this.selectedFilterMilestones.set(groupId, set);
+                            }
+                        } else {
+                            // 当前是“筛选”状态
+                            if (checkbox.checked) {
+                                set.add(ms.id);
+
+                                // 检查是否已全选：如果是，则恢复为“不筛选”状态
+                                const allAvailable = this.allAvailableMilestones.get(groupId);
+                                if (allAvailable && set.size === allAvailable.size) {
+                                    this.selectedFilterMilestones.delete(groupId);
+                                }
+                            } else {
+                                set.delete(ms.id);
+                            }
+                        }
 
                         this.queueLoadTasks();
                         this.updateMilestoneFilterButtonsState();
