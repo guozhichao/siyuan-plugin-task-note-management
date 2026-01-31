@@ -3197,8 +3197,6 @@ export class ProjectKanbanView {
 
             const target = event.currentTarget as HTMLElement;
             const rect = target.getBoundingClientRect();
-            menu.style.top = `${rect.bottom + 4}px`;
-            menu.style.left = `${rect.left}px`;
 
             // 操作按钮容器
             const btnsContainer = document.createElement('div');
@@ -3339,7 +3337,28 @@ export class ProjectKanbanView {
                 menu.appendChild(emptyTip);
             }
 
+            // 添加到 body 并计算自适应位置
             document.body.appendChild(menu);
+
+            // 计算自适应位置，防止超出屏幕
+            const menuWidth = menu.offsetWidth;
+            const menuHeight = menu.offsetHeight;
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+
+            // 检查右侧是否超出屏幕，如果是则向左偏移
+            if (rect.left + menuWidth > windowWidth) {
+                menu.style.left = `${Math.max(8, rect.right - menuWidth)}px`;
+            } else {
+                menu.style.left = `${rect.left}px`;
+            }
+
+            // 检查底部是否超出屏幕，如果是则向上显示
+            if (rect.bottom + 4 + menuHeight > windowHeight) {
+                menu.style.top = `${Math.max(8, rect.top - menuHeight - 4)}px`;
+            } else {
+                menu.style.top = `${rect.bottom + 4}px`;
+            }
 
             // 点击外部关闭
             const closeHandler = (e: MouseEvent) => {
@@ -9470,10 +9489,6 @@ export class ProjectKanbanView {
 
         // 计算定位
         const rect = (event.target as HTMLElement).getBoundingClientRect();
-        menu.style.top = `${rect.bottom + 4}px`;
-        menu.style.left = `${rect.left}px`;
-
-
 
         // --- Helper to render section title ---
         const renderSectionTitle = (title: string) => {
@@ -9686,7 +9701,28 @@ export class ProjectKanbanView {
             renderItem(tag.id, tag.name, 'tag', tag.color);
         });
 
+        // 添加到 body 并计算自适应位置
         document.body.appendChild(menu);
+
+        // 计算自适应位置，防止超出屏幕
+        const menuWidth = menu.offsetWidth;
+        const menuHeight = menu.offsetHeight;
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+
+        // 检查右侧是否超出屏幕，如果是则向左偏移
+        if (rect.left + menuWidth > windowWidth) {
+            menu.style.left = `${Math.max(8, rect.right - menuWidth)}px`;
+        } else {
+            menu.style.left = `${rect.left}px`;
+        }
+
+        // 检查底部是否超出屏幕，如果是则向上显示
+        if (rect.bottom + 4 + menuHeight > windowHeight) {
+            menu.style.top = `${Math.max(8, rect.top - menuHeight - 4)}px`;
+        } else {
+            menu.style.top = `${rect.bottom + 4}px`;
+        }
 
         // 点击外部关闭
         const closeHandler = (e: MouseEvent) => {
