@@ -3778,6 +3778,25 @@ export class PomodoroTimer {
                     color = todayTime >= goalMinutes ? 'rgb(76, 175, 80)' : warnColor;
                 }
 
+                // 计算吸附模式下的当前番茄钟进度（仅基于当前番茄钟会话）
+                let dockProgress = 0;
+                try {
+                    if (this.isWorkPhase && this.currentPhaseOriginalDuration > 0 && this.isRunning) {
+                        const totalSeconds = this.currentPhaseOriginalDuration * 60;
+                        if (this.isCountUp) {
+                            dockProgress = Math.min((this.timeElapsed / totalSeconds) * 100, 100);
+                        } else {
+                            const elapsed = Math.max(0, totalSeconds - this.timeLeft);
+                            dockProgress = Math.min((elapsed / totalSeconds) * 100, 100);
+                        }
+                    } else {
+                        // 未开始或非工作阶段时，吸附进度应为 0
+                        dockProgress = 0;
+                    }
+                } catch (e) {
+                    dockProgress = 0;
+                }
+
                 await (this.container as any).webContents.executeJavaScript(`
                     try {
                         if (document.getElementById('todayFocusTime')) {
@@ -3789,9 +3808,9 @@ export class PomodoroTimer {
                         const stats=document.querySelector('.pomodoro-stats');
                         if(stats) stats.style.background = 'linear-gradient(to right, ${successColor} ${progress}%, ${surfaceColor} ${progress}%)';
                         const todayEl=document.getElementById('todayFocusTime'); if(todayEl) todayEl.style.color='${color}';
-                        // 如果处于吸附模式，更新进度条高度
+                        // 如果处于吸附模式，更新进度条高度（显示当前番茄钟进度，未开始为 0）
                         const dockFill = document.getElementById('dockedProgressBar');
-                        if(dockFill) dockFill.style.height = (Math.max(0, Math.min(100, ${progress})) + '%');
+                        if(dockFill) dockFill.style.height = (Math.max(0, Math.min(100, ${dockProgress})) + '%');
                     } catch(e) { console.error('[PomodoroTimer] updateStatsDisplay script error:', e); }
                 `);
                 return;
