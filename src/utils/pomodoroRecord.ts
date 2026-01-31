@@ -170,6 +170,13 @@ export class PomodoroRecordManager {
 
         const calculated = Math.round(workMinutes / Math.max(1, plannedDuration));
 
+        // 将工作时长取整为分钟，避免保存小数分钟（例如 3.4833）
+        let roundedWorkMinutes = Math.round(workMinutes);
+        if (roundedWorkMinutes === 0 && workMinutes > 0) {
+            // 对于小于1分钟但大于0的时长，向上取整为1分钟以保留最小颗粒度
+            roundedWorkMinutes = 1;
+        }
+
         if (isCountUp) {
             // 正计时模式：都认为是完整番茄，按时长计算数量，至少为1
             count = Math.max(1, calculated);
@@ -189,9 +196,9 @@ export class PomodoroRecordManager {
             type: 'work',
             eventId,
             eventTitle,
-            startTime: new Date(Date.now() - workMinutes * 60000).toISOString(),
+            startTime: new Date(Date.now() - roundedWorkMinutes * 60000).toISOString(),
             endTime: new Date().toISOString(),
-            duration: workMinutes,
+            duration: roundedWorkMinutes,
             plannedDuration,
             completed,
             isCountUp: isCountUp || false,
@@ -204,10 +211,10 @@ export class PomodoroRecordManager {
         // 更新统计数据
         this.records[today].workSessions += count;
 
-        this.records[today].totalWorkTime += workMinutes;
+        this.records[today].totalWorkTime += roundedWorkMinutes;
 
-        // 更新索引
-        this.updateStatsIndex(eventId, count, workMinutes);
+        // 更新索引，使用取整后的分钟数
+        this.updateStatsIndex(eventId, count, roundedWorkMinutes);
 
         // console.log('记录工作会话后:', JSON.stringify(this.records[today]));
 
@@ -226,14 +233,20 @@ export class PomodoroRecordManager {
         // console.log('记录休息会话前:', JSON.stringify(this.records[today]));
 
         // 创建详细的会话记录
+        // 将休息时长取整为分钟，避免保存小数分钟
+        let roundedBreakMinutes = Math.round(breakMinutes);
+        if (roundedBreakMinutes === 0 && breakMinutes > 0) {
+            roundedBreakMinutes = 1;
+        }
+
         const session: PomodoroSession = {
             id: this.generateSessionId(),
             type: isLongBreak ? 'longBreak' : 'shortBreak',
             eventId,
             eventTitle: isLongBreak ? '长时休息' : '短时休息',
-            startTime: new Date(Date.now() - breakMinutes * 60000).toISOString(),
+            startTime: new Date(Date.now() - roundedBreakMinutes * 60000).toISOString(),
             endTime: new Date().toISOString(),
-            duration: breakMinutes,
+            duration: roundedBreakMinutes,
             plannedDuration,
             completed
         };
@@ -242,7 +255,7 @@ export class PomodoroRecordManager {
         this.records[today].sessions.push(session);
 
         // 更新统计数据
-        this.records[today].totalBreakTime += breakMinutes;
+        this.records[today].totalBreakTime += roundedBreakMinutes;
 
         // console.log('记录休息会话后:', JSON.stringify(this.records[today]));
 
