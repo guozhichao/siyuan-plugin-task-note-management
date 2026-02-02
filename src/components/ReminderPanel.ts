@@ -80,7 +80,6 @@ export class ReminderPanel {
             // 如果事件来自自己或显式要求跳过面板刷新，则忽略
             if (event && event.detail) {
                 if (event.detail.source === this.panelId) return;
-                if (event.detail.skipPanelRefresh) return;
             }
 
             // 防抖处理，避免短时间内的多次更新
@@ -2553,7 +2552,7 @@ export class ReminderPanel {
                 await saveReminders(this.plugin, reminderData);
                 window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
                 // 刷新界面显示
-                this.loadReminders(true);
+                this.loadReminders();
             }
         } catch (e) {
             console.error("完成每日可做任务失败", e);
@@ -2581,7 +2580,7 @@ export class ReminderPanel {
                     await saveReminders(this.plugin, reminderData);
                     window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
                     // 刷新界面显示
-                    this.loadReminders(true);
+                    this.loadReminders();
                     showMessage("已取消今日完成标记");
                 }
             }
@@ -2612,7 +2611,7 @@ export class ReminderPanel {
                 await saveReminders(this.plugin, reminderData);
                 window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
                 // 刷新界面显示
-                this.loadReminders(true);
+                this.loadReminders();
                 showMessage("今日已忽略该任务");
             }
         } catch (e) {
@@ -2636,7 +2635,7 @@ export class ReminderPanel {
                     await saveReminders(this.plugin, reminderData);
                     window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
                     // 刷新界面显示
-                    this.loadReminders(true);
+                    this.loadReminders();
                     showMessage("已取消今日忽略");
                 }
             }
@@ -3462,7 +3461,7 @@ export class ReminderPanel {
 
                 // 触发UI刷新
                 window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
-
+                this.loadReminders();
                 return;
             }
 
@@ -3509,12 +3508,13 @@ export class ReminderPanel {
 
             // 触发UI刷新
             window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
-
+            this.loadReminders();
         } catch (error) {
             console.error('切换提醒状态失败:', error);
             showMessage(i18n("operationFailed"));
             // 即使出错也要触发UI刷新，确保界面状态同步
             window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
+            this.loadReminders();
         }
     }
     /**
@@ -4104,11 +4104,9 @@ export class ReminderPanel {
                             await saveReminders(this.plugin, reminderData);
 
                             // 刷新界面
-                            await this.loadReminders(true);
-
                             // 通知其他组件
                             window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
-
+                            await this.loadReminders();
                             showMessage(i18n("reminderUpdated") || "任务已更新");
                         }
                     } else {
@@ -4175,6 +4173,7 @@ export class ReminderPanel {
 
             // 触发刷新以重新渲染整个列表（因为层级结构变化需要重新渲染）
             window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
+            await this.loadReminders();
 
         } catch (error) {
             console.error('移除父子关系失败:', error);
@@ -4600,6 +4599,7 @@ export class ReminderPanel {
 
             // 触发刷新以重新渲染整个列表（因为层级结构变化需要重新渲染）
             window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
+            await this.loadReminders();
 
         } catch (error) {
             console.error('设置父子关系失败:', error);
@@ -4702,10 +4702,8 @@ export class ReminderPanel {
 
                 await saveReminders(this.plugin, reminderData);
 
-                // 触发全局刷新以更新UI（包括优先级颜色和位置）
-                // 不使用 skipPanelRefresh，因为优先级改变需要重新渲染样式
                 window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
-                // showMessage(t("priorityUpdated") || "优先级已更新");
+                await this.loadReminders();
 
             } else {
                 // 同优先级排序（原有逻辑）
@@ -4733,8 +4731,9 @@ export class ReminderPanel {
                 await saveReminders(this.plugin, reminderData);
                 // 注意：同优先级排序不触发强制刷新，因为 manually updateDOMOrder 会处理
                 window.dispatchEvent(new CustomEvent('reminderUpdated', {
-                    detail: { skipPanelRefresh: true, source: this.panelId }
+                    detail: {  source: this.panelId }
                 }));
+                await this.loadReminders();
             }
 
         } catch (error) {
@@ -6109,7 +6108,7 @@ export class ReminderPanel {
                 }
 
                 // 全量刷新面板，保证父任务进度、分页和异步数据都能够正确更新
-                await this.loadReminders(true);
+                await this.loadReminders();
                 showMessage(i18n("reminderDeleted"));
 
                 // 触发其他组件更新
@@ -6266,13 +6265,11 @@ export class ReminderPanel {
                     }
 
                     // 如果当前按优先级排序，需要触发刷新以重新排序
-                    if (this.currentSort === 'priority') {
-                        window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
-                    } else {
-                        window.dispatchEvent(new CustomEvent('reminderUpdated', {
-                            detail: { skipPanelRefresh: true, source: this.panelId }
-                        }));
-                    }
+                    window.dispatchEvent(new CustomEvent('reminderUpdated', {
+                        detail: { source: this.panelId }
+                    }));
+                    await this.loadReminders();
+
                 }
             } else {
                 showMessage(i18n("reminderNotExist"));
@@ -6371,15 +6368,10 @@ export class ReminderPanel {
                         }
                     }
 
-                    // 如果当前有分类过滤（不是"全部分类"），需要触发刷新以更新列表
-                    // 因为修改分类后，任务可能不再匹配当前的过滤条件
-                    if (this.currentCategoryFilter !== 'all') {
-                        window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
-                    } else {
-                        window.dispatchEvent(new CustomEvent('reminderUpdated', {
-                            detail: { skipPanelRefresh: true, source: this.panelId }
-                        }));
-                    }
+                    window.dispatchEvent(new CustomEvent('reminderUpdated', {
+                        detail: { source: this.panelId }
+                    }));
+                    await this.loadReminders();
                 }
             } else {
                 showMessage(i18n("reminderNotExist"));
@@ -6597,7 +6589,7 @@ export class ReminderPanel {
             // 5. 更新界面
             this.loadReminders();
             window.dispatchEvent(new CustomEvent('reminderUpdated', {
-                detail: { skipPanelRefresh: true }
+                detail: { source: this.panelId }
             }));
             showMessage(i18n("seriesSplitSuccess"));
 
@@ -6668,7 +6660,7 @@ export class ReminderPanel {
                         } else {
                             await this.loadReminders();
                         }
-                        window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { skipPanelRefresh: true, source: this.panelId } }));
+                        window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: {  source: this.panelId } }));
                     } catch (e) {
                         console.error('实例编辑乐观更新失败，回退刷新', e);
                         this.loadReminders();
@@ -6737,7 +6729,7 @@ export class ReminderPanel {
                 async () => {
                     this.loadReminders();
                     window.dispatchEvent(new CustomEvent('reminderUpdated', {
-                        detail: { skipPanelRefresh: true }
+                        detail: { source: this.panelId }
                     }));
                 },
                 undefined,
@@ -6770,7 +6762,7 @@ export class ReminderPanel {
                     showMessage(i18n("instanceDeleted"));
                     this.loadReminders();
                     window.dispatchEvent(new CustomEvent('reminderUpdated', {
-                        detail: { skipPanelRefresh: true }
+                        detail: { source: this.panelId }
                     }));
                 } catch (error) {
                     console.error('删除重复实例失败:', error);
@@ -6915,7 +6907,7 @@ export class ReminderPanel {
                     showMessage(i18n("firstOccurrenceSkipped"));
                     this.loadReminders();
                     window.dispatchEvent(new CustomEvent('reminderUpdated', {
-                        detail: { skipPanelRefresh: true }
+                        detail: { source: this.panelId }
                     }));
                 } catch (error) {
                     console.error('跳过首次发生失败:', error);
@@ -7031,7 +7023,7 @@ export class ReminderPanel {
             parentTask: parentReminder,
             onSuccess: (totalCount) => {
                 showMessage(`${totalCount} 个子任务已创建`);
-                this.loadReminders(true);
+                this.loadReminders();
                 window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
             }
         });
@@ -7369,7 +7361,7 @@ export class ReminderPanel {
 
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated', {
-                    detail: { skipPanelRefresh: true }
+                    detail: { source: this.panelId }
                 }));
             } else {
                 throw new Error('提醒不存在');
