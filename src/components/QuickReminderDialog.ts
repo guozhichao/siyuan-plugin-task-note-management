@@ -1095,7 +1095,7 @@ export class QuickReminderDialog {
                             <label class="b3-checkbox">
                                 <input type="checkbox" id="quickIsAvailableToday">
                                 <span class="b3-checkbox__graphic"></span>
-                                <span class="b3-checkbox__label">🍰 每日可做</span>
+                                <span class="b3-checkbox__label">🍰 每日可做（将每天都显示在任务管理侧栏，适合长期任务）</span>
                             </label>
                         </div>
                         <div class="b3-form__group" id="quickAvailableDateGroup" style="display: none; margin-left: 28px;">
