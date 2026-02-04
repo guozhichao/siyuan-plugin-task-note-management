@@ -199,7 +199,7 @@ export class ProjectKanbanView {
 
         // 确定有效日期
         const effectiveDate = datePart || taskDate || getLogicalDateString();
-        
+
         // 返回逻辑日期（考虑时间因素）
         return this.getTaskLogicalDate(effectiveDate, timePart || undefined);
     }
