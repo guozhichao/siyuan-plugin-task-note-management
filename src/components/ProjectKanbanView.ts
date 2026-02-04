@@ -159,6 +159,98 @@ export class ProjectKanbanView {
         return (this.constructor as typeof ProjectKanbanView).getTaskLogicalDate(date, time);
     }
 
+    /**
+     * 解析提醒时间字符串，返回对应的日期
+     * @param reminderTimeStr 提醒时间字符串（可能是时间、日期时间或完整的datetime-local格式）
+     * @param taskDate 任务日期（用作默认日期）
+     * @returns 日期字符串 YYYY-MM-DD
+     */
+    private parseReminderDate(reminderTimeStr: string, taskDate?: string): string | null {
+        if (!reminderTimeStr) return null;
+
+        const s = String(reminderTimeStr).trim();
+        let datePart: string | null = null;
+        let timePart: string | null = null;
+
+        // 解析不同格式
+        if (s.includes('T')) {
+            // ISO格式: YYYY-MM-DDTHH:MM
+            const parts = s.split('T');
+            datePart = parts[0];
+            timePart = parts[1] || null;
+        } else if (s.includes(' ')) {
+            // 空格分隔: YYYY-MM-DD HH:MM 或 HH:MM extra
+            const parts = s.split(' ');
+            if (/^\d{4}-\d{2}-\d{2}$/.test(parts[0])) {
+                datePart = parts[0];
+                timePart = parts.slice(1).join(' ') || null;
+            } else {
+                timePart = parts[0];
+            }
+        } else if (/^\d{2}:\d{2}/.test(s)) {
+            // 仅时间: HH:MM
+            timePart = s;
+        } else if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+            // 仅日期: YYYY-MM-DD
+            datePart = s;
+        } else {
+            timePart = s;
+        }
+
+        // 确定有效日期
+        const effectiveDate = datePart || taskDate || getLogicalDateString();
+        
+        // 返回逻辑日期（考虑时间因素）
+        return this.getTaskLogicalDate(effectiveDate, timePart || undefined);
+    }
+
+    /**
+     * 格式化提醒时间显示
+     * @param reminderTimeStr 提醒时间字符串
+     * @param taskDate 任务日期
+     * @param today 今天的日期
+     * @returns 格式化后的显示文本
+     */
+    private formatReminderTimeDisplay(reminderTimeStr: string, taskDate: string | undefined, today: string): string {
+        const s = String(reminderTimeStr).trim();
+        let datePart: string | null = null;
+        let timePart: string | null = null;
+
+        // 解析格式（同上）
+        if (s.includes('T')) {
+            const parts = s.split('T');
+            datePart = parts[0];
+            timePart = parts[1] || null;
+        } else if (s.includes(' ')) {
+            const parts = s.split(' ');
+            if (/^\d{4}-\d{2}-\d{2}$/.test(parts[0])) {
+                datePart = parts[0];
+                timePart = parts.slice(1).join(' ') || null;
+            } else {
+                timePart = parts[0];
+            }
+        } else if (/^\d{2}:\d{2}/.test(s)) {
+            timePart = s;
+        } else if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+            datePart = s;
+        } else {
+            timePart = s;
+        }
+
+        const effectiveDate = datePart || taskDate || today;
+        const logicalDate = this.getTaskLogicalDate(effectiveDate, timePart || undefined);
+
+        // 根据日期关系决定显示内容
+        if (compareDateStrings(logicalDate, today) === 0) {
+            // 今天：仅显示时间
+            return timePart ? timePart.substring(0, 5) : effectiveDate;
+        } else {
+            // 未来：显示日期+时间
+            const showTime = timePart ? ` ${timePart.substring(0, 5)}` : '';
+            return `${effectiveDate}${showTime}`;
+        }
+    }
+
     private async createGroupDialog(container: HTMLElement) {
         const dialog = new Dialog({
             title: i18n('newGroup'),
@@ -2058,6 +2150,50 @@ export class ProjectKanbanView {
                         gap: 4px;
                     `;
                     infoEl.appendChild(completedTimeEl);
+                }
+
+                // 显示未来的提醒时间
+                if (!task.completed) {
+                    const today = getLogicalDateString();
+                    const futureReminderTimes: string[] = [];
+
+                    // 处理 reminderTimes 数组（新格式）
+                    if (task.reminderTimes && Array.isArray(task.reminderTimes)) {
+                        task.reminderTimes.forEach((item: any) => {
+                            const timeStr = typeof item === 'string' ? item : item?.time;
+                            if (timeStr) {
+                                const reminderDate = this.parseReminderDate(timeStr, task.date);
+                                if (reminderDate && compareDateStrings(reminderDate, today) >= 0) {
+                                    futureReminderTimes.push(timeStr);
+                                }
+                            }
+                        });
+                    }
+                    // 处理 customReminderTime（旧格式向后兼容）
+                    else if (task.customReminderTime) {
+                        const reminderDate = this.parseReminderDate(task.customReminderTime, task.date);
+                        if (reminderDate && compareDateStrings(reminderDate, today) >= 0) {
+                            futureReminderTimes.push(task.customReminderTime);
+                        }
+                    }
+
+                    // 显示未来提醒时间
+                    if (futureReminderTimes.length > 0) {
+                        const reminderEl = document.createElement('div');
+                        reminderEl.className = 'kanban-task-reminder-times';
+                        reminderEl.style.cssText = `
+                            font-size: 12px;
+                            color: var(--b3-theme-on-surface);
+                            opacity: 0.7;
+                            display: flex;
+                            align-items: center;
+                            gap: 4px;
+                            flex-wrap: wrap;
+                        `;
+                        const timesText = futureReminderTimes.map(t => this.formatReminderTimeDisplay(t, task.date, today)).join(', ');
+                        reminderEl.innerHTML = `<span>⏰${timesText}</span>`;
+                        infoEl.appendChild(reminderEl);
+                    }
                 }
 
                 if (infoEl.children.length > 0) {
@@ -8100,67 +8236,52 @@ export class ProjectKanbanView {
                 }
             }
 
-            // 如果存在自定义提醒时间，按规则显示：
-            // - 如果 custom 包含日期部分，则以该日期为准；否则以 task.date（或今天）为准
-            // - 如果目标日期 < 今天（过去），则不显示 customReminderTime
-            // - 如果目标日期 > 今天（未来），则显示日期+时间
-            // - 如果目标日期 == 今天，则仅显示时间
-            try {
-                const customRaw = task.customReminderTime;
-                if (customRaw) {
-                    let s = String(customRaw).trim();
-                    let datePart: string | null = null;
-                    let timePart: string | null = null;
-
-                    if (s.includes('T')) {
-                        const parts = s.split('T');
-                        datePart = parts[0];
-                        timePart = parts[1] || null;
-                    } else if (s.includes(' ')) {
-                        const parts = s.split(' ');
-                        // 支持两种： "YYYY-MM-DD HH:MM" 或 "HH:MM extra"
-                        if (/^\d{4}-\d{2}-\d{2}$/.test(parts[0])) {
-                            datePart = parts[0];
-                            timePart = parts.slice(1).join(' ') || null;
-                        } else {
-                            timePart = parts.slice(-1)[0] || null;
-                        }
-                    } else if (/^\d{2}:\d{2}$/.test(s)) {
-                        timePart = s;
-                    } else if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-                        datePart = s;
-                    } else {
-                        // 兜底把整个字符串当时间处理
-                        timePart = s;
-                    }
-
-                    const today = getLogicalDateString();
-                    const effectiveDate = datePart || task.date || today;
-                    const logicalEffective = this.getTaskLogicalDate(effectiveDate, timePart || undefined);
-
-                    // 比较逻辑日期
-                    if (effectiveDate) {
-                        if (compareDateStrings(logicalEffective, today) < 0) {
-                            // 过去：不显示 custom 时间
-                        } else if (compareDateStrings(logicalEffective, today) === 0) {
-                            if (timePart) {
-                                const showTime = timePart.substring(0, 5);
-                                dateHtml += `<span> ⏰${showTime}</span>`;
-                            }
-                        } else {
-                            // 未来：显示日期 + 时间（如果有）
-                            const showDate = effectiveDate;
-                            const showTime = timePart ? ` ${timePart.substring(0, 5)}` : '';
-                            dateHtml += `<span> ⏰${showDate}${showTime}</span>`;
-                        }
-                    }
-                }
-            } catch (e) {
-                console.warn('格式化 customReminderTime 失败', e);
-            }
-
             dateEl.innerHTML += dateHtml;
             infoEl.appendChild(dateEl);
+        }
+
+        // 显示未来的提醒时间（独立显示，不与任务日期混在一起）
+        if (!task.completed) {
+            const today = getLogicalDateString();
+            const futureReminderTimes: string[] = [];
+
+            // 处理 reminderTimes 数组（新格式）
+            if (task.reminderTimes && Array.isArray(task.reminderTimes)) {
+                task.reminderTimes.forEach((item: any) => {
+                    const timeStr = typeof item === 'string' ? item : item?.time;
+                    if (timeStr) {
+                        const reminderDate = this.parseReminderDate(timeStr, task.date);
+                        if (reminderDate && compareDateStrings(reminderDate, today) >= 0) {
+                            futureReminderTimes.push(timeStr);
+                        }
+                    }
+                });
+            }
+            // 处理 customReminderTime（旧格式向后兼容）
+            else if (task.customReminderTime) {
+                const reminderDate = this.parseReminderDate(task.customReminderTime, task.date);
+                if (reminderDate && compareDateStrings(reminderDate, today) >= 0) {
+                    futureReminderTimes.push(task.customReminderTime);
+                }
+            }
+
+            // 显示未来提醒时间
+            if (futureReminderTimes.length > 0) {
+                const reminderEl = document.createElement('div');
+                reminderEl.className = 'kanban-task-reminder-times';
+                reminderEl.style.cssText = `
+                    font-size: 12px;
+                    color: var(--b3-theme-on-surface);
+                    opacity: 0.7;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    flex-wrap: wrap;
+                `;
+                const timesText = futureReminderTimes.map(t => this.formatReminderTimeDisplay(t, task.date, today)).join(', ');
+                reminderEl.innerHTML = `<span>⏰${timesText}</span>`;
+                infoEl.appendChild(reminderEl);
+            }
         }
 
         // 优先级
