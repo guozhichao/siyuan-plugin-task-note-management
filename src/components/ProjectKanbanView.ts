@@ -7899,7 +7899,7 @@ export class ProjectKanbanView {
             if (parentTask) {
                 const taskStatus = this.getTaskStatus(task);
                 const parentStatus = this.getTaskStatus(parentTask);
-                
+
                 if (taskStatus !== parentStatus) {
                     const parentNameEl = document.createElement('div');
                     parentNameEl.className = 'kanban-task-parent-name';
@@ -7912,11 +7912,11 @@ export class ProjectKanbanView {
                         align-items: center;
                         gap: 4px;
                     `;
-                    
+
                     const parentIcon = document.createElement('span');
                     parentIcon.textContent = '父任务：';
                     parentIcon.style.cssText = 'font-size: 12px;';
-                    
+
                     const parentTitle = document.createElement('span');
                     parentTitle.textContent = parentTask.title || i18n('noContentHint');
                     parentTitle.style.cssText = `
@@ -7925,7 +7925,7 @@ export class ProjectKanbanView {
                         white-space: nowrap;
                     `;
                     parentTitle.title = i18n('parentTask') + ': ' + (parentTask.title || i18n('noContentHint'));
-                    
+
                     // 如果父任务有绑定块，可以点击跳转
                     if (parentTask.blockId || parentTask.docId) {
                         const targetId = parentTask.blockId || parentTask.docId;
@@ -7943,7 +7943,7 @@ export class ProjectKanbanView {
                             parentTitle.style.opacity = '0.6';
                         });
                     }
-                    
+
                     parentNameEl.appendChild(parentIcon);
                     parentNameEl.appendChild(parentTitle);
                     taskContentContainer.appendChild(parentNameEl);
