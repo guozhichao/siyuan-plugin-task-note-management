@@ -5950,7 +5950,13 @@ export class ProjectKanbanView {
         // 按任务状态分组 - 使用kanbanStatuses中定义的所有状态
         const statusTasks: { [status: string]: any[] } = {};
         this.kanbanStatuses.forEach(status => {
-            statusTasks[status.id] = this.tasks.filter(task => (task.status || this.getTaskStatus(task)) === status.id);
+            if (status.id === 'completed') {
+                // 已完成任务单独处理
+                statusTasks[status.id] = this.tasks.filter(task => task.completed);
+            } else {
+                // 未完成任务按状态分组，使用 getTaskStatus 确保正确获取 kanbanStatus
+                statusTasks[status.id] = this.tasks.filter(task => !task.completed && this.getTaskStatus(task) === status.id);
+            }
         });
 
         // 渲染带分组的任务（在稳定的子分组容器内）
@@ -7885,6 +7891,65 @@ export class ProjectKanbanView {
         taskContentContainer.className = 'kanban-task-content';
         taskContentContainer.style.flex = '1';
         taskContentContainer.style.overflow = 'auto';
+
+        // 如果是子任务且状态与父任务不同，且不是作为嵌套子任务显示（level=0表示顶层任务），则显示父任务名称
+        // level > 0 表示该任务是作为父任务的子任务嵌套显示的，此时不需要显示父任务名
+        if (task.parentId && level === 0) {
+            const parentTask = this.tasks.find(t => t.id === task.parentId);
+            if (parentTask) {
+                const taskStatus = this.getTaskStatus(task);
+                const parentStatus = this.getTaskStatus(parentTask);
+                
+                if (taskStatus !== parentStatus) {
+                    const parentNameEl = document.createElement('div');
+                    parentNameEl.className = 'kanban-task-parent-name';
+                    parentNameEl.style.cssText = `
+                        font-size: 11px;
+                        color: var(--b3-theme-on-surface);
+                        opacity: 0.6;
+                        margin-bottom: 4px;
+                        display: flex;
+                        align-items: center;
+                        gap: 4px;
+                    `;
+                    
+                    const parentIcon = document.createElement('span');
+                    parentIcon.textContent = '父任务：';
+                    parentIcon.style.cssText = 'font-size: 12px;';
+                    
+                    const parentTitle = document.createElement('span');
+                    parentTitle.textContent = parentTask.title || i18n('noContentHint');
+                    parentTitle.style.cssText = `
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    `;
+                    parentTitle.title = i18n('parentTask') + ': ' + (parentTask.title || i18n('noContentHint'));
+                    
+                    // 如果父任务有绑定块，可以点击跳转
+                    if (parentTask.blockId || parentTask.docId) {
+                        const targetId = parentTask.blockId || parentTask.docId;
+                        parentTitle.style.cursor = 'pointer';
+                        parentTitle.style.textDecoration = 'underline dotted';
+                        parentTitle.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            this.openBlockTab(targetId);
+                        });
+                        parentTitle.addEventListener('mouseenter', () => {
+                            parentTitle.style.opacity = '0.8';
+                        });
+                        parentTitle.addEventListener('mouseleave', () => {
+                            parentTitle.style.opacity = '0.6';
+                        });
+                    }
+                    
+                    parentNameEl.appendChild(parentIcon);
+                    parentNameEl.appendChild(parentTitle);
+                    taskContentContainer.appendChild(parentNameEl);
+                }
+            }
+        }
 
         // 任务标题
         const titleEl = document.createElement('div');
