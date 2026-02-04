@@ -8,7 +8,7 @@ version=v$(grep -oP '(?<="version": ")[^"]+' plugin.json)
 # Commit changes
 git add .
 git commit -m "🔖 $version" 
-git push private HEAD
+git push private HEAD:main
 
 echo "Creating release for version: $version"
 
