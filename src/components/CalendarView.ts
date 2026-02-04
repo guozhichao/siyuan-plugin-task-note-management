@@ -4183,7 +4183,12 @@ export class CalendarView {
             .fc-today-custom,
             .fc-list-day-today-custom,
             .fc-col-header-cell.fc-today-custom {
-                background-color: #a5bdc721 !important;
+                background-color: transparent!important;
+            }
+            .fc-today-custom  .fc-daygrid-day-frame,
+            .fc-today-custom .fc-scrollgrid-sync-inner,
+            .fc-today-custom .fc-timegrid-col-frame{
+                border: 2px solid var(--b3-theme-primary) !important;
             }
             .fc-today-custom:hover {
                 background-color: var(--b3-theme-primary-lightest) !important;

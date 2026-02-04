@@ -1,9 +1,10 @@
-import { showMessage, confirm, Menu, Dialog } from "siyuan";
+import { showMessage, confirm, Menu, Dialog, getAllModels } from "siyuan";
 import { PomodoroStatsView, getLastStatsMode } from "./PomodoroStatsView";
 import { TaskStatsView } from "./TaskStatsView";
 
 // 添加四象限面板常量
 import { getBlockByID, openBlock } from "../api";
+import { PROJECT_KANBAN_TAB_TYPE } from "../index";
 import { ProjectManager } from "../utils/projectManager";
 import { compareDateStrings, getLogicalDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
@@ -2137,6 +2138,9 @@ export class ProjectPanel {
                 showMessage(i18n("projectDeleted") || "项目删除成功");
             }
 
+            // 关闭该项目的看板标签页
+            this.closeProjectKanbanTab(projectId);
+
             // 重新加载项目列表
             this.loadProjects();
         } catch (error) {
@@ -2170,6 +2174,8 @@ export class ProjectPanel {
             if (projectData[blockId]) {
                 delete projectData[blockId];
                 await this.plugin.saveProjectData(projectData);
+                // 关闭该项目的看板标签页
+                this.closeProjectKanbanTab(blockId);
                 window.dispatchEvent(new CustomEvent('projectUpdated'));
                 showMessage(i18n("deletedRelatedReminders") || "相关项目记录已删除");
                 this.loadProjects();
@@ -2179,6 +2185,23 @@ export class ProjectPanel {
         } catch (error) {
             console.error('删除项目记录失败:', error);
             showMessage(i18n("deleteProjectFailed") || "删除项目记录失败");
+        }
+    }
+
+    /**
+     * 关闭指定项目的看板标签页
+     * @param projectId 项目ID
+     */
+    private closeProjectKanbanTab(projectId: string) {
+        try {
+            getAllModels().custom.forEach((custom: any) => {
+                // 检查标签页类型是否为项目看板类型，并且data.projectId匹配
+                if (custom.type === this.plugin.name + PROJECT_KANBAN_TAB_TYPE && custom.data?.projectId === projectId) {
+                    custom.tab?.close();
+                }
+            });
+        } catch (error) {
+            console.error('关闭项目看板标签页失败:', error);
         }
     }
 
