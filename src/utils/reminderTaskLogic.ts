@@ -229,7 +229,12 @@ export class ReminderTaskLogic {
 
     private static getReminderLogicalDate(dateStr?: string, timeStr?: string): string {
         if (!dateStr) return '';
-        return getLogicalDateString(new Date(dateStr + (timeStr ? 'T' + timeStr : 'T00:00:00')));
+        // 如果没有时间，直接返回日期字符串，避免逻辑日期转换导致日期偏移
+        // For tasks without time, return date string directly to avoid logical date offset
+        if (!timeStr) {
+            return dateStr;
+        }
+        return getLogicalDateString(new Date(dateStr + 'T' + timeStr));
     }
 
     private static isSpanningEventTodayCompleted(reminder: any, reminderMap: Map<string, any>, today: string): boolean {
