@@ -10569,11 +10569,10 @@ export class ProjectKanbanView {
                 taskToEdit = originalReminder;
             }
 
-            // 优化：只通过 reminderUpdated 事件触发刷新，避免重复更新
-            // 事件监听器会调用 queueLoadTasks() 进行防抖刷新
+            // 优化：乐观更新 + 立即渲染 + 后台数据刷新
             const callback = (savedTask?: any) => {
                 if (savedTask) {
-                    // 1. 乐观更新 UI (Optimistic UI Update)
+                    // 1. 乐观更新内存中的任务数据
                     const taskIndex = this.tasks.findIndex(t => t.id === savedTask.id);
                     // 兼容性处理：如果返回的任务只有 createdAt，补齐 createdTime
                     if (savedTask.createdAt && !savedTask.createdTime) {
@@ -10581,17 +10580,32 @@ export class ProjectKanbanView {
                     }
 
                     if (taskIndex >= 0) {
-                        this.tasks[taskIndex] = savedTask;
+                        // 保留原有的 status、pomodoroCount、focusTime 等衍生字段
+                        const oldTask = this.tasks[taskIndex];
+                        this.tasks[taskIndex] = {
+                            ...savedTask,
+                            status: oldTask.status || this.getTaskStatus(savedTask),
+                            pomodoroCount: oldTask.pomodoroCount || 0,
+                            focusTime: oldTask.focusTime || 0,
+                            totalRepeatingPomodoroCount: oldTask.totalRepeatingPomodoroCount || 0,
+                            totalRepeatingFocusTime: oldTask.totalRepeatingFocusTime || 0
+                        };
                     } else {
                         // 理论上编辑任务不应该走到这里，但以防万一
-                        this.tasks.push(savedTask);
+                        this.tasks.push({
+                            ...savedTask,
+                            status: this.getTaskStatus(savedTask),
+                            pomodoroCount: 0,
+                            focusTime: 0
+                        });
                     }
 
-                    // 立即重新排序（可能修改了优先级或时间）
+                    // 2. 立即重新排序和渲染（无延迟）
                     this.sortTasks();
+                    this.renderKanban();
 
-                    // 2. 统一使用防抖加载刷新以保证最终一致性
-                    // 局部渲染容易导致旧 DOM 残留（特别是跨列/分组移动），使用 queueLoadTasks 可简化逻辑并保证一致性
+                    // 3. 清除缓存，触发后台防抖刷新以确保数据一致性
+                    this.reminderData = null;
                     this.queueLoadTasks();
                 }
 
