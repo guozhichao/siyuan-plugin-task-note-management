@@ -1232,7 +1232,11 @@ export class QuickReminderDialog {
                 this.crepe.editor.action((ctx) => {
                     const view = ctx.get(editorViewCtx);
                     if (view) {
-                        view.focus();
+                        // Only auto-focus the editor when in 'note' mode (editing note only).
+                        // For other modes (quick, block, edit), keep focus on the title input.
+                        if (this.mode === 'note') {
+                            view.focus();
+                        }
                     }
                 });
 
