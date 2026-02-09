@@ -117,7 +117,7 @@ export class ProjectKanbanView {
     private filterButton: HTMLButtonElement;
     // 上一次点击的任务ID（用于Shift多选范围）
     private lastClickedTaskId: string | null = null;
-    private milestoneMap: Map<string, { name: string, icon?: string, blockId?: string }> = new Map();
+    private milestoneMap: Map<string, any> = new Map();
     // 里程碑分组折叠状态
     private collapsedMilestoneGroups: Set<string> = new Set();
     // 记录在经过搜索/标签/日期等过滤后，哪些状态/分组还有带里程碑的任务（用于显示筛选按钮）
@@ -1605,6 +1605,16 @@ export class ProjectKanbanView {
                 }
                 info.appendChild(name);
 
+                // 显示起止时间
+                if (ms.startTime || ms.endTime) {
+                    const timeRange = document.createElement('span');
+                    timeRange.style.cssText = `font-size: 11px; color: var(--b3-theme-on-surface); opacity: 0.6; margin-left: 8px; flex-shrink: 0;`;
+                    const startDisp = ms.startTime || '?';
+                    const endDisp = ms.endTime || '?';
+                    timeRange.textContent = `${startDisp} ~ ${endDisp}`;
+                    info.appendChild(timeRange);
+                }
+
                 if (ms.archived) {
                     const archivedTag = document.createElement('span');
                     archivedTag.textContent = i18n('milestoneArchived');
@@ -1782,7 +1792,7 @@ export class ProjectKanbanView {
      */
     private async showMilestoneTasksDialog(milestone: any, groupId: string | null) {
         const dialog = new Dialog({
-            title: `${milestone.name} - ${i18n('tasks') || '任务列表'}`,
+            title: `${milestone.name}${milestone.startTime || milestone.endTime ? ` (${milestone.startTime || '?'} ~ ${milestone.endTime || '?'})` : ''} - ${i18n('tasks') || '任务列表'}`,
             content: `<div class="b3-dialog__content" style="padding: 0; display: flex; flex-direction: column; height: 100%;"></div>`,
             width: "600px",
             height: "70vh"
@@ -2275,6 +2285,14 @@ export class ProjectKanbanView {
                         <input type="text" id="msIcon" class="b3-text-field" value="${milestone?.icon || '🚩'}" style="width: 100%;">
                     </div>
                     <div class="b3-form__group">
+                        <label class="b3-form__label">${i18n('milestoneTimeRange') || '起止时间'}</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="date" id="msStartTime" class="b3-text-field" value="${milestone?.startTime || ''}" style="flex: 1;">
+                            <span style="opacity: 0.6;">~</span>
+                            <input type="date" id="msEndTime" class="b3-text-field" value="${milestone?.endTime || ''}" style="flex: 1;">
+                        </div>
+                    </div>
+                    <div class="b3-form__group">
                         <label class="b3-form__label">${i18n('milestoneBlockId')}</label>
                         <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
                             <input type="text" id="msBlockId" class="b3-text-field" value="${milestone?.blockId || ''}" placeholder="." style="flex: 1;">
@@ -2302,6 +2320,8 @@ export class ProjectKanbanView {
 
         const nameInput = dialog.element.querySelector('#msName') as HTMLInputElement;
         const iconInput = dialog.element.querySelector('#msIcon') as HTMLInputElement;
+        const startTimeInput = dialog.element.querySelector('#msStartTime') as HTMLInputElement;
+        const endTimeInput = dialog.element.querySelector('#msEndTime') as HTMLInputElement;
         const blockIdInput = dialog.element.querySelector('#msBlockId') as HTMLInputElement;
         const archivedInput = dialog.element.querySelector('#msArchived') as HTMLInputElement;
         const noteInput = dialog.element.querySelector('#msNote') as HTMLTextAreaElement;
@@ -2358,6 +2378,8 @@ export class ProjectKanbanView {
                 id: milestone?.id || `ms_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                 name,
                 icon: iconInput.value.trim(),
+                startTime: startTimeInput.value || undefined,
+                endTime: endTimeInput.value || undefined,
                 blockId: blockIdInput.value.trim(),
                 archived: archivedInput.checked,
                 note: noteInput.value.trim(),
@@ -2530,13 +2552,13 @@ export class ProjectKanbanView {
 
             // 1. 默认里程碑
             (project?.milestones || []).forEach((ms: any) => {
-                this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon, blockId: ms.blockId });
+                this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon, blockId: ms.blockId, startTime: ms.startTime, endTime: ms.endTime });
             });
 
             // 2. 分组里程碑
             projectGroups.forEach((group: any) => {
                 (group.milestones || []).forEach((ms: any) => {
-                    this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon, blockId: ms.blockId });
+                    this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon, blockId: ms.blockId, startTime: ms.startTime, endTime: ms.endTime });
                 });
             });
         } catch (error) {
@@ -3750,7 +3772,7 @@ export class ProjectKanbanView {
                         font-size: 11px;
                         font-weight: bold;
                         color: var(--b3-theme-on-surface);
-                        opacity: 0.5;
+                        opacity: 0.8;
                         text-transform: uppercase;
                         letter-spacing: 0.5px;
                         border-top: 1px solid var(--b3-theme-border);

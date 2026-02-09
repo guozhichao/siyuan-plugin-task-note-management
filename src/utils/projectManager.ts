@@ -7,6 +7,8 @@ export interface Milestone {
     icon?: string;
     archived: boolean;
     blockId?: string;
+    startTime?: string;
+    endTime?: string;
     sort: number;
     note?: string;
 }
