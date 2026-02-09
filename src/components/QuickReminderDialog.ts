@@ -11,9 +11,12 @@ import { BlockBindingDialog } from "./BlockBindingDialog";
 import { SubtasksDialog } from "./SubtasksDialog";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
 import { PomodoroSessionsDialog } from "./PomodoroSessionsDialog";
+import Vditor from "vditor";
+import "vditor/dist/index.css";
 
 export class QuickReminderDialog {
     private dialog: Dialog;
+    private vditor?: Vditor;
     private blockId?: string;
     private reminder?: any;
     private onSaved?: (modifiedReminder?: any) => void;
@@ -400,7 +403,6 @@ export class QuickReminderDialog {
         const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
         const timeInput = this.dialog.element.querySelector('#quickReminderTime') as HTMLInputElement;
         const endTimeInput = this.dialog.element.querySelector('#quickReminderEndTime') as HTMLInputElement;
-        const noteInput = this.dialog.element.querySelector('#quickReminderNote') as HTMLTextAreaElement;
         const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
 
         // 填充每日可做
@@ -435,9 +437,10 @@ export class QuickReminderDialog {
         }
 
         // 填充备注
-        if (noteInput && this.reminder.note) {
-            noteInput.value = this.reminder.note;
-        }
+        // noteInput is now a div for Vditor, handled in Vditor initialization
+        // if (noteInput && this.reminder.note) {
+        //     noteInput.value = this.reminder.note;
+        // }
 
         // 填充自定义提醒时间（兼容旧格式：仅时间 和 新格式：datetime-local）
         // 优先使用 reminderTimes
@@ -980,10 +983,10 @@ export class QuickReminderDialog {
                             <label class="b3-form__label">${i18n("bindUrl")}</label>
                             <input type="url" id="quickUrlInput" class="b3-text-field" placeholder="${i18n("enterUrl")}" style="width: 100%;">
                         </div>
-                        <!-- 备注 -->
+                        <!-- 备注 (Vditor) -->
                         <div class="b3-form__group">
                             <label class="b3-form__label">${i18n("reminderNoteOptional")}</label>
-                            <textarea id="quickReminderNote" class="b3-text-field" placeholder="${i18n("enterReminderNote")}" rows="2" style="width: 100%;resize: vertical; min-height: 60px;"></textarea>
+                            <div id="quickReminderNote" style="width: 100%;"></div>
                         </div>
                         <div class="b3-form__group" id="quickParentTaskGroup" style="display: none;">
                             <label class="b3-form__label">${i18n("parentTask") || "父任务"}</label>
@@ -1184,6 +1187,51 @@ export class QuickReminderDialog {
             height: "81vh"
         });
 
+        // Initialize Vditor
+        setTimeout(() => {
+            let initialNote = '';
+            if ((this.mode === 'edit' || this.mode === 'batch_edit') && this.reminder && this.reminder.note) {
+                initialNote = this.reminder.note;
+            } else if (this.defaultNote) {
+                initialNote = this.defaultNote;
+            }
+
+            this.vditor = new Vditor('quickReminderNote', {
+                height: 200,
+                mode: 'wysiwyg', // Typora-like instant rendering
+                // toolbarConfig: {
+                //     pin: true,
+                // },
+                cache: {
+                    enable: false,
+                },
+                // Add this callback to prevent error in wysiwyg mode
+                customWysiwygToolbar: () => { },
+                value: initialNote,
+                toolbar: ['bold', 'italic', 'strike', 'link', 'list', 'ordered-list', 'check', 'outdent', 'indent', 'quote', 'line', 'code', 'inline-code'],
+                after: () => {
+                    // Vditor initialized
+                    const editor = this.dialog.element.querySelector('.vditor-reset') as HTMLElement;
+                    if (editor) {
+                        editor.style.padding = '10px 10px';
+                        editor.style.minHeight = '100px';
+
+                        // Support Ctrl+A to select all content
+                        editor.addEventListener('keydown', (e: KeyboardEvent) => {
+                            if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+                                e.preventDefault();
+                                document.execCommand('selectAll', false, undefined);
+                            }
+                        });
+                    }
+                    const toolbar = this.dialog.element.querySelector('.vditor-toolbar') as HTMLElement;
+                    if (toolbar) {
+                        toolbar.style.display = 'none';
+                    }
+                },
+            });
+        }, 100);
+
         this.bindEvents();
         await this.renderCategorySelector();
         await this.renderProjectSelector();
@@ -1258,10 +1306,7 @@ export class QuickReminderDialog {
             }
 
             if (this.defaultNote) {
-                const noteInput = this.dialog.element.querySelector('#quickReminderNote') as HTMLTextAreaElement;
-                if (noteInput) {
-                    noteInput.value = this.defaultNote;
-                }
+                // Vditor checks this.defaultNote
             }
 
             // 如果是编辑模式或批量编辑模式，填充现有提醒数据
@@ -1769,11 +1814,11 @@ export class QuickReminderDialog {
 
                 // 如果有多行，后面的行放到备注
                 if (lines.length > 1) {
-                    const noteInput = this.dialog.element.querySelector('#quickReminderNote') as HTMLTextAreaElement;
-                    if (noteInput) {
-                        const existingNote = noteInput.value.trim();
+                    // Using Vditor for note
+                    if (this.vditor) {
+                        const existingNote = this.vditor.getValue();
                         const newNote = lines.slice(1).join('\n');
-                        noteInput.value = existingNote ? existingNote + '\n' + newNote : newNote;
+                        this.vditor.setValue(existingNote ? existingNote + '\n' + newNote : newNote);
                     }
                 }
 
@@ -1925,7 +1970,7 @@ export class QuickReminderDialog {
 
         // 取消按钮
         cancelBtn?.addEventListener('click', () => {
-            this.dialog.destroy();
+            this.destroyDialog();
         });
 
         // 确定按钮
@@ -2508,6 +2553,16 @@ export class QuickReminderDialog {
         blockBindingDialog.show();
     }
 
+    private destroyDialog() {
+        if (this.vditor) {
+            this.vditor.destroy();
+            this.vditor = undefined;
+        }
+        if (this.dialog) {
+            this.dialog.destroy();
+        }
+    }
+
     private async saveReminder() {
         const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
         const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
@@ -2516,7 +2571,6 @@ export class QuickReminderDialog {
         const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
         const timeInput = this.dialog.element.querySelector('#quickReminderTime') as HTMLInputElement;
         const endTimeInput = this.dialog.element.querySelector('#quickReminderEndTime') as HTMLInputElement;
-        const noteInput = this.dialog.element.querySelector('#quickReminderNote') as HTMLTextAreaElement;
         const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
         const selectedPriority = this.dialog.element.querySelector('#quickPrioritySelector .priority-option.selected') as HTMLElement;
         // const selectedCategory = this.dialog.element.querySelector('#quickCategorySelector .category-option.selected') as HTMLElement;
@@ -2527,7 +2581,8 @@ export class QuickReminderDialog {
         const rawBlockVal = blockInput?.value?.trim() || undefined;
         const inputId = rawBlockVal ? (this.extractBlockId(rawBlockVal) || rawBlockVal) : undefined;
         const url = urlInput?.value?.trim() || undefined;
-        const note = noteInput.value.trim() || undefined;
+        // const note = noteInput.value.trim() || undefined;
+        const note = this.vditor ? this.vditor.getValue() : undefined;
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
 
         // 获取多分类ID
@@ -2639,7 +2694,7 @@ export class QuickReminderDialog {
                 this.onSaved(reminderData);
             }
 
-            this.dialog.destroy();
+            this.destroyDialog();
             return;
         }
 
@@ -2736,7 +2791,7 @@ export class QuickReminderDialog {
 
         // 显示“已保存”反馈（乐观），不再等待
 
-        this.dialog.destroy();
+        this.destroyDialog();
 
         // ---------------------------------------------------------
         // 后台持久化数据 (Background Persistence)
