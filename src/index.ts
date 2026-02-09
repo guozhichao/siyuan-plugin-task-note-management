@@ -28,7 +28,7 @@ import { ProjectKanbanView } from "./components/ProjectKanbanView";
 import { PomodoroManager } from "./utils/pomodoroManager";
 import SettingPanelComponent from "./SettingPanel.svelte";
 import { exportIcsFile, uploadIcsToCloud } from "./utils/icsUtils";
-import { getFileStat, getFile } from "./api";
+import { getFileStat, getFile, hasNotifiedToday, markNotifiedToday } from "./api";
 
 export const SETTINGS_FILE = "reminder-settings.json";
 export const PROJECT_DATA_FILE = "project.json";
@@ -2153,8 +2153,18 @@ export default class ReminderPlugin extends Plugin {
                 return;
             }
 
-            // 检查今天是否已经提醒过全天事件（使用内存标记）
+            // 检查今天是否已经提醒过全天事件（先检查持久化记录，防止重启后重复通知）
             const dailyNotifyKey = `daily_${today}`;
+            try {
+                const alreadyNotified = await hasNotifiedToday(today);
+                if (alreadyNotified) {
+                    return;
+                }
+            } catch (err) {
+                console.warn('检查持久化通知记录失败:', err);
+            }
+
+            // 再检查内存标记以避免重复触发
             if (this.notifiedReminders.has(dailyNotifyKey)) {
                 return;
             }
@@ -2380,9 +2390,14 @@ export default class ReminderPlugin extends Plugin {
                     this.showReminderSystemNotification(title, message);
                 }
 
-                // 标记今天已提醒（使用内存标记）
+                // 标记今天已提醒（使用内存标记，并写入持久化记录以防止重启后重复通知）
                 if (remindersToShow.length > 0) {
                     this.notifiedReminders.set(dailyNotifyKey, true);
+                    try {
+                        await markNotifiedToday(today);
+                    } catch (err) {
+                        console.warn('写入持久化通知记录失败:', err);
+                    }
                 }
             }
 
