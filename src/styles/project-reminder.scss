@@ -191,7 +191,7 @@
     color: var(--b3-card-info-color) !important;
     background-color: rgba(from var(--b3-card-info-background) r g b / .5) !important;
     border: 2px solid var(--b3-card-info-color) !important;
-    
+
 }
 
 .project-priority-none .project-item__note {
@@ -214,17 +214,17 @@
 
 .project-priority-label.high {
     background-color: rgba(231, 76, 60, 0.1);
-        color: #e74c3c;
+    color: #e74c3c;
 }
 
 .project-priority-label.medium {
     background-color: rgba(243, 156, 18, 0.1);
-        color: #f39c12;
+    color: #f39c12;
 }
 
 .project-priority-label.low {
     background-color: rgba(52, 152, 219, 0.1);
-        color: #3498db;
+    color: #3498db;
 }
 
 .project-overdue-label,
