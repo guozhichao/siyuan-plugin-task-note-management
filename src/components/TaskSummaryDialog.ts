@@ -1541,10 +1541,14 @@ export class TaskSummaryDialog {
             const indentStyle = task.depth > 0 ? `padding-left: ${task.depth * 20}px;` : '';
 
             html += `
-                  <li class="task-item ${completedClass} ${priorityClass}" style="${indentStyle}">
+                  <li class="task-item ${completedClass} ${priorityClass}" style="${indentStyle}" data-depth="${task.depth}">
                     <span class="task-checkbox">${task.completed ? '✅' : '⬜'}</span>
-                    <span class="task-title">${task.title}${task.repeatLabel ? ` <span style="color:#888; font-size:12px;">(${task.repeatLabel})</span>` : ''}${timeStr}${estStr}${pomodoroStr}${completedTimeStr}</span>
-                    ${task.note ? `<div class="task-note">${task.note}</div>` : ''}
+                    <div class="task-body" style="flex:1; display:flex; flex-direction:column;">
+                      <div class="task-line">
+                        <span class="task-title">${task.title}${task.repeatLabel ? ` <span style="color:#888; font-size:12px;">(${task.repeatLabel})</span>` : ''}${timeStr}${estStr}${pomodoroStr}${completedTimeStr}</span>
+                      </div>
+                      ${task.note ? `<div class="task-note">${task.note}</div>` : ''}
+                    </div>
                   </li>
                 `;
           });
@@ -1610,8 +1614,13 @@ export class TaskSummaryDialog {
                 .task-note {
                     font-size: 12px;
                     color: var(--b3-theme-on-surface-light);
-                    margin-top: 2px;
-                    margin-left: 24px;
+                    margin-top: 6px;
+                    margin-left: 0;
+                    white-space: pre-wrap; /* 保留换行 */
+                }
+                .task-body {
+                    display: flex;
+                    flex-direction: column;
                 }
                 .priority-high .task-title {
                     color: #e74c3c;
@@ -1794,6 +1803,23 @@ export class TaskSummaryDialog {
           const checkbox = task.classList.contains('completed') ? '[x]' : '[ ]';
           const title = task.querySelector('.task-title')?.textContent?.trim() || '';
           markdown += `${indent}- ${checkbox} ${title}\n`;
+          const noteElem = task.querySelector('.task-note');
+          if (noteElem) {
+            const noteText = noteElem.textContent || '';
+            const lines = noteText.split(/\r?\n/);
+            if (lines.length > 0) {
+              // 在标题与备注之间插入一个空行以符合 Markdown 规范
+              markdown += `${indent}  \n`;
+              lines.forEach(line => {
+                if (line === '') {
+                  // 保留空行
+                  markdown += `${indent}  \n`;
+                } else {
+                  markdown += `${indent}  ${line.trim()}\n`;
+                }
+              });
+            }
+          }
         });
         markdown += '\n';
       });
@@ -1876,6 +1902,24 @@ export class TaskSummaryDialog {
           const titleText = taskTitle?.textContent?.trim() || '';
 
           text += `${indent}${checkbox} ${titleText}\n`;
+
+          const noteElem = task.querySelector('.task-note');
+          if (noteElem) {
+            const noteText = noteElem.textContent || '';
+            const lines = noteText.split(/\r?\n/);
+            if (lines.length > 0) {
+              // 在标题与备注之间插入一个空行
+              text += `${indent}  \n`;
+              lines.forEach(line => {
+                const l = line.trim();
+                if (l.length === 0) {
+                  text += `${indent}  \n`;
+                } else {
+                  text += `${indent}  ${l}\n`;
+                }
+              });
+            }
+          }
         });
         text += '\n';
       });
