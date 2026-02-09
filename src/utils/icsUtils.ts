@@ -822,11 +822,25 @@ export async function uploadIcsToCloud(plugin: any, settings: any, silent: boole
     try {
         const syncMethod = settings.icsSyncMethod || 'siyuan';
 
-        // 获取ICS文件名，若未设置则提示用户先在设置中填写
+        // 获取ICS文件名，若未设置则自动生成并持久化到设置
         let icsFileName = settings.icsFileName;
         if (!icsFileName || icsFileName.trim() === '') {
-            await pushErrMsg('请先在设置中填写 ICS 文件名 (icsFileName)');
-            return;
+            const genId = (window.Lute && typeof window.Lute.NewNodeID === 'function')
+                ? window.Lute.NewNodeID()
+                : Date.now().toString(36);
+            icsFileName = `reminder-${genId}`;
+            settings.icsFileName = icsFileName;
+            try {
+                await plugin.saveData('reminder-settings.json', settings);
+                try {
+                    window.dispatchEvent(new CustomEvent('reminderSettingsUpdated'));
+                } catch (e) {
+                    /* ignore */
+                }
+            } catch (e) {
+                console.warn('保存自动生成的 ICS 文件名失败:', e);
+            }
+            await pushMsg(`未设置 ICS 文件名，已自动生成: ${icsFileName}.ics`);
         }
 
         // 确保文件名不包含.ics后缀
@@ -1032,11 +1046,23 @@ async function uploadToS3(settings: any, icsContent: string, fileName: string, p
  */
 async function uploadToSiyuan(settings: any, icsContent: string, plugin: any, silent: boolean = false) {
     try {
-        // 检查是否配置了文件名，否则提示用户先在设置中填写
+        // 检查是否配置了文件名，若未配置则自动生成并持久化
         let icsFileName = settings.icsFileName;
         if (!icsFileName || icsFileName.trim() === '') {
-            await pushErrMsg('请先在设置中填写 ICS 文件名 (icsFileName)');
-            return;
+            const genId = (window.Lute && typeof window.Lute.NewNodeID === 'function')
+                ? window.Lute.NewNodeID()
+                : Date.now().toString(36);
+            icsFileName = `reminder-${genId}`;
+            settings.icsFileName = icsFileName;
+            try {
+                await plugin.saveData('reminder-settings.json', settings);
+                try {
+                    window.dispatchEvent(new CustomEvent('reminderSettingsUpdated'));
+                } catch (e) { }
+            } catch (e) {
+                console.warn('保存自动生成的 ICS 文件名失败:', e);
+            }
+            await pushMsg(`未设置 ICS 文件名，已自动生成: ${icsFileName}.ics`);
         }
 
         // 确保不包含 .ics 后缀
