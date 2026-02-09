@@ -95,11 +95,17 @@
     text-decoration: none;
     display: block;
     margin-bottom: 4px;
-    cursor: pointer;
     transition: color 0.2s ease;
 }
 
-.project-item__title:hover {
+/* Only show pointer/underline for titles that are actual links (have data-href or data-type="a") */
+.project-item__title[data-href],
+.project-item__title[data-type="a"] {
+    cursor: pointer;
+}
+
+.project-item__title[data-href]:hover,
+.project-item__title[data-type="a"]:hover {
     color: var(--b3-theme-primary);
     text-decoration: underline;
 }

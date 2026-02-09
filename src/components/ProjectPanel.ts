@@ -808,6 +808,7 @@ export class ProjectPanel {
             `;
             titleEl.addEventListener('click', (e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 this.openProject(project.blockId);
             });
         } else {
