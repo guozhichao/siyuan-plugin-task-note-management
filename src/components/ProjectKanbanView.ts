@@ -129,6 +129,8 @@ export class ProjectKanbanView {
     // 记录在经过搜索/标签/日期等过滤后，每个状态列下有哪些里程碑被实际使用（用于里程碑筛选菜单）
     private _statusMilestonesInView: Map<string, Set<string>> = new Map();
 
+    private lute: any;
+
     constructor(container: HTMLElement, plugin: any, projectId: string) {
         this.container = container;
         this.plugin = plugin;
@@ -136,6 +138,15 @@ export class ProjectKanbanView {
         this.projectId = projectId;
         this.categoryManager = CategoryManager.getInstance(this.plugin);
         this.projectManager = ProjectManager.getInstance(this.plugin);
+
+        try {
+            if ((window as any).Lute) {
+                this.lute = (window as any).Lute.New();
+            }
+        } catch (e) {
+            console.error('初始化 Lute 失败:', e);
+        }
+
         this.initializeAsync();
     }
 
@@ -8402,17 +8413,87 @@ export class ProjectKanbanView {
         if (task.note) {
             const noteEl = document.createElement('div');
             noteEl.className = 'kanban-task-note';
-            noteEl.textContent = task.note;
+
+            // 渲染 HTML
+            if (this.lute) {
+                noteEl.innerHTML = this.lute.Md2HTML(task.note);
+                // 移除 p 标签的外边距以保持紧凑
+                const pTags = noteEl.querySelectorAll('p');
+                pTags.forEach(p => {
+                    p.style.margin = '0';
+                    p.style.lineHeight = 'inherit';
+                });
+                // 处理列表样式，防止内联显示
+                const listTags = noteEl.querySelectorAll('ul, ol');
+                listTags.forEach(list => {
+                    (list as HTMLElement).style.margin = '0';
+                    (list as HTMLElement).style.paddingLeft = '20px';
+                });
+                const liTags = noteEl.querySelectorAll('li');
+                liTags.forEach(li => {
+                    (li as HTMLElement).style.margin = '0';
+                });
+                // 处理引用样式
+                const quoteTags = noteEl.querySelectorAll('blockquote');
+                quoteTags.forEach(quote => {
+                    (quote as HTMLElement).style.margin = '0';
+                    (quote as HTMLElement).style.paddingLeft = '10px';
+                    (quote as HTMLElement).style.borderLeft = '2px solid var(--b3-theme-on-surface-light)';
+                    (quote as HTMLElement).style.opacity = '0.8';
+                });
+            } else {
+                noteEl.textContent = task.note;
+            }
+
             noteEl.style.cssText = `
                 font-size: 12px;
-                color: var(--b3-theme-on-surface);
                 opacity: 0.8;
                 margin-top: 4px;
-                line-height: 1.3;
-                max-height: 40px;
+                line-height: 1.5;
+                max-height: 3em;
                 overflow: hidden;
-                text-overflow: ellipsis;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                word-break: break-all;
+                cursor: pointer;
+                border-radius: 4px;
+                padding: 0 4px;
             `;
+
+            // 点击编辑备注
+            noteEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+
+                // 使用 Dialog 编辑
+                new QuickReminderDialog(
+                    undefined, undefined, undefined, undefined,
+                    {
+                        plugin: this.plugin,
+                        mode: 'note',
+                        reminder: task,
+                        onSaved: async (updatedReminder) => {
+                            // 乐观更新 UI
+                            task.note = updatedReminder.note;
+                            noteEl.innerHTML = this.lute ? this.lute.Md2HTML(task.note) : task.note;
+
+                            // 触发全局更新事件（这会通知其他视图，比如 ReminderPanel）
+                            window.dispatchEvent(new CustomEvent('reminderUpdated', {
+                                detail: {
+                                    reminderId: updatedReminder?.id || task.id,
+                                    source: this.kanbanInstanceId
+                                }
+                            }));
+
+                            // 刷新当前看板视图
+                            // 使用 queueLoadTasks 以防抖方式刷新
+                            this.queueLoadTasks();
+                        }
+                    }
+                ).show();
+            });
+
             infoEl.appendChild(noteEl);
         }
 
@@ -11279,29 +11360,31 @@ export class ProjectKanbanView {
                 overflow: hidden;
                 text-overflow: ellipsis;
                 padding: 4px 8px;
-                background: var(--b3-theme-surface-lighter);
                 border-radius: 4px;
                 border: 1px solid var(--b3-border-color);
                 transition: all 0.2s ease;
             }
-
+            .kanban-task-note:hover {
+                background-color: var(--b3-theme-surface-lighter) !important;
+                color: var(--b3-theme-primary) !important;
+            }
             /* 优先级任务的备注样式 */
             .kanban-task-priority-high .kanban-task-note {
-                background-color: rgba(231, 76, 60, 0.08) !important;
-                border-color: rgba(231, 76, 60, 0.2) !important;
-                color: var(--b3-card-error-color) !important;
+                background-color: rgba(231, 76, 60, 0.08);
+                border-color: rgba(231, 76, 60, 0.2);
+                color: var(--b3-card-error-color);
             }
 
             .kanban-task-priority-medium .kanban-task-note {
-                background-color: rgba(243, 156, 18, 0.08) !important;
-                border-color: rgba(243, 156, 18, 0.2) !important;
-                color: var(--b3-card-warning-color) !important;
+                background-color: rgba(243, 156, 18, 0.08);
+                border-color: rgba(243, 156, 18, 0.2);
+                color: var(--b3-card-warning-color);
             }
 
             .kanban-task-priority-low .kanban-task-note {
-                background-color: rgba(52, 152, 219, 0.08) !important;
-                border-color: rgba(52, 152, 219, 0.2) !important;
-                color: var(--b3-card-info-color) !important;
+                background-color: rgba(52, 152, 219, 0.08);
+                border-color: rgba(52, 152, 219, 0.2);
+                color: var(--b3-card-info-color);
             }
 
             .kanban-drop-zone-active {
@@ -12055,7 +12138,7 @@ export class ProjectKanbanView {
                 showMessage(i18n("bindToBlockFailed"));
             }
         }, {
-            defaultTab: 'bind',
+            defaultTab: 'heading',
             defaultParentId: reminder.parentId,
             defaultProjectId: this.projectId, // 使用当前项目ID
             defaultCustomGroupId: reminder.customGroupId,

@@ -66,6 +66,7 @@ export class ReminderPanel {
     private lastTruncatedTotal: number = 0;
     // 文档标题缓存：按 tab -> (docId -> title)
     private docTitleCache: Map<string, Map<string, string>> = new Map();
+    private lute: any;
 
     constructor(container: HTMLElement, plugin?: any, closeCallback?: () => void) {
         this.container = container;
@@ -74,6 +75,14 @@ export class ReminderPanel {
         this.panelId = `ReminderPanel_${Date.now()}_${Math.random().toString(36).slice(2)}`;
         this.categoryManager = CategoryManager.getInstance(this.plugin); // 初始化分类管理器
         this.pomodoroRecordManager = PomodoroRecordManager.getInstance(this.plugin); // Initialization
+
+        try {
+            if ((window as any).Lute) {
+                this.lute = (window as any).Lute.New();
+            }
+        } catch (e) {
+            console.error('初始化 Lute 失败:', e);
+        }
 
         // 创建事件处理器（忽略由本 panel 发出的事件）
         this.reminderUpdatedHandler = (event?: CustomEvent) => {
@@ -2404,7 +2413,80 @@ export class ReminderPanel {
         if (reminder.note) {
             const noteEl = document.createElement('div');
             noteEl.className = 'reminder-item__note';
-            noteEl.textContent = reminder.note;
+
+            // 渲染 HTML
+            if (this.lute) {
+                noteEl.innerHTML = this.lute.Md2HTML(reminder.note);
+                // 移除 p 标签的外边距以保持紧凑
+                const pTags = noteEl.querySelectorAll('p');
+                pTags.forEach(p => {
+                    p.style.margin = '0';
+                    p.style.lineHeight = 'inherit';
+                });
+                // 处理列表样式，防止内联显示
+                const listTags = noteEl.querySelectorAll('ul, ol');
+                listTags.forEach(list => {
+                    (list as HTMLElement).style.margin = '0';
+                    (list as HTMLElement).style.paddingLeft = '20px';
+                });
+                const liTags = noteEl.querySelectorAll('li');
+                liTags.forEach(li => {
+                    (li as HTMLElement).style.margin = '0';
+                });
+                // 处理引用样式
+                const quoteTags = noteEl.querySelectorAll('blockquote');
+                quoteTags.forEach(quote => {
+                    (quote as HTMLElement).style.margin = '0';
+                    (quote as HTMLElement).style.paddingLeft = '10px';
+                    (quote as HTMLElement).style.borderLeft = '2px solid var(--b3-theme-on-surface-light)';
+                    (quote as HTMLElement).style.opacity = '0.8';
+                });
+            } else {
+                noteEl.textContent = reminder.note;
+            }
+
+            // 样式：1.5行截断
+            noteEl.style.cssText = `
+                font-size: 12px;
+                margin-top: 4px;
+                line-height: 1.5;
+                max-height: 3em; /* 限制高度为约 2 行，实现 1.5 行+截断效果 */
+                overflow: hidden;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                word-break: break-all;
+                cursor: pointer;
+                border-radius: 4px;
+                padding: 0 4px; 
+                margin-left: -4px;
+                transition: background-color 0.2s, color 0.2s;
+                position: relative;
+            `;
+
+
+
+            // 点击编辑
+            noteEl.addEventListener('click', (e) => {
+                e.stopPropagation(); // 防止触发整行点击
+                e.preventDefault();
+
+                new QuickReminderDialog(
+                    undefined, undefined, undefined, undefined,
+                    {
+                        plugin: this.plugin,
+                        mode: 'note', // 使用仅备注模式
+                        reminder: reminder,
+                        onSaved: async (_) => {
+                            // 备注更新后直接刷新
+                            await this.loadReminders();
+                            // 同时也触发事件通知其他组件
+                            window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
+                        }
+                    }
+                ).show();
+            });
+
             infoEl.appendChild(noteEl);
         }
 
@@ -7347,7 +7429,7 @@ export class ReminderPanel {
                 showMessage(i18n("bindToBlockFailed"));
             }
         }, {
-            defaultTab: 'bind',
+            defaultTab: 'heading',
             defaultParentId: reminder.parentId,
             defaultProjectId: reminder.projectId,
             defaultCustomGroupId: reminder.customGroupId,

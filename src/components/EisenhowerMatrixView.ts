@@ -71,6 +71,7 @@ export class EisenhowerMatrixView {
 
     // 全局番茄钟管理器
     private pomodoroManager = PomodoroManager.getInstance();
+    private lute: any;
 
     constructor(container: HTMLElement, plugin: any) {
         this.container = container;
@@ -78,6 +79,13 @@ export class EisenhowerMatrixView {
         this.projectManager = ProjectManager.getInstance(plugin);
         this.categoryManager = CategoryManager.getInstance(plugin);
         this.reminderUpdatedHandler = () => this.refresh(false);
+        try {
+            if ((window as any).Lute) {
+                this.lute = (window as any).Lute.New();
+            }
+        } catch (e) {
+            console.error('EisenhowerMatrixView: Lute init failed', e);
+        }
         this.initQuadrants();
 
     }
@@ -1209,30 +1217,85 @@ export class EisenhowerMatrixView {
             taskMeta.appendChild(pomodoroSpan);
         }
 
-        // 备注
+        // 组装元素
+        taskInfo.appendChild(taskTitle);
+        // 备注 (调整位置到标题后)
         if (task.note) {
             const noteDiv = document.createElement('div');
             noteDiv.className = 'task-note';
-            noteDiv.textContent = task.note;
+
+            // 渲染 HTML
+            if (this.lute) {
+                noteDiv.innerHTML = this.lute.Md2HTML(task.note);
+                // 移除 p 标签的外边距以保持紧凑
+                const pTags = noteDiv.querySelectorAll('p');
+                pTags.forEach(p => {
+                    p.style.margin = '0';
+                    p.style.lineHeight = 'inherit';
+                });
+                // 处理列表样式
+                const listTags = noteDiv.querySelectorAll('ul, ol');
+                listTags.forEach(list => {
+                    (list as HTMLElement).style.margin = '0';
+                    (list as HTMLElement).style.paddingLeft = '20px';
+                });
+
+                const quoteTags = noteDiv.querySelectorAll('blockquote');
+                quoteTags.forEach(quote => {
+                    (quote as HTMLElement).style.margin = '0';
+                    (quote as HTMLElement).style.paddingLeft = '10px';
+                    (quote as HTMLElement).style.borderLeft = '2px solid var(--b3-theme-on-surface-light)';
+                    (quote as HTMLElement).style.opacity = '0.8';
+                });
+            } else {
+                noteDiv.textContent = task.note;
+            }
+
             noteDiv.style.cssText = `
                 font-size: 12px;
                 color: var(--b3-theme-on-surface);
                 opacity: 0.8;
                 margin-top: 4px;
-                line-height: 1.3;
-                max-height: 40px;
+                line-height: 1.5;
+                max-height: 3em;
                 overflow: hidden;
-                text-overflow: ellipsis;
-                padding: 4px 8px;
-                background: var(--b3-theme-surface-lighter);
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                word-break: break-all;
+                cursor: pointer;
                 border-radius: 4px;
-                border: 1px solid var(--b3-border-color);
+                padding: 0 4px;
+                transition: background-color 0.2s;
             `;
+
+
+
+            // 点击编辑
+            noteDiv.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                new QuickReminderDialog(
+                    undefined, undefined, undefined, undefined,
+                    {
+                        plugin: this.plugin,
+                        mode: 'note',
+                        reminder: task,
+                        onSaved: async (_) => {
+                            // 刷新
+                            // EisenhowerMatrixView 似乎没有直接的 loadReminders，而是 loadTasks
+                            // 并且有 reminderUpdatedHandler
+                            window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'eisenhower-matrix' } }));
+                            await this.loadTasks(); // 重新加载任务
+                            this.renderMatrix(); // 重新渲染
+                        }
+                    }
+                ).show();
+            });
+
             taskInfo.appendChild(noteDiv);
         }
-
-        // 组装元素
-        taskInfo.appendChild(taskTitle);
         taskInfo.appendChild(taskMeta);
 
         // 使用flex布局包含控制按钮、复选框和任务信息
@@ -3216,25 +3279,6 @@ export class EisenhowerMatrixView {
         try {
             const settings = await this.plugin.loadSettings();
 
-            // 检查是否存在旧的 project-sort.json 文件，如果存在则导入并删除
-            try {
-                const oldSortContent = await getFile('data/storage/petal/siyuan-plugin-task-note-management/project-sort.json');
-                if (oldSortContent && oldSortContent.code !== 404) {
-                    const oldSort = typeof oldSortContent === 'string' ? JSON.parse(oldSortContent) : oldSortContent;
-                    if (oldSort && typeof oldSort === 'object') {
-                        // 合并旧的项目排序配置到新的 settings
-                        if (oldSort.projectSortOrder) settings.projectSortOrder = oldSort.projectSortOrder;
-                        if (oldSort.currentProjectSortMode) settings.projectSortMode = oldSort.currentProjectSortMode;
-                        await this.plugin.saveSettings(settings);
-                        // 删除旧文件
-                        await removeFile('data/storage/petal/siyuan-plugin-task-note-management/project-sort.json');
-                        console.log('成功导入并删除旧的 project-sort.json 文件');
-                    }
-                }
-            } catch (error) {
-                // 如果文件不存在或其他错误，忽略
-                console.log('旧的 project-sort.json 文件不存在或已处理');
-            }
 
             this.projectSortOrder = settings.projectSortOrder || [];
             this.currentProjectSortMode = settings.projectSortMode || 'custom'; // 默认改为custom
@@ -3247,26 +3291,6 @@ export class EisenhowerMatrixView {
     private async loadCriteriaSettings() {
         try {
             const settings = await this.plugin.loadSettings();
-
-            // 检查是否存在旧的 four-quadrant-settings.json 文件，如果存在则导入并删除
-            try {
-                const oldQuadrantContent = await getFile('data/storage/petal/siyuan-plugin-task-note-management/four-quadrant-settings.json');
-                if (oldQuadrantContent && oldQuadrantContent.code !== 404) {
-                    const oldQuadrant = typeof oldQuadrantContent === 'string' ? JSON.parse(oldQuadrantContent) : oldQuadrantContent;
-                    if (oldQuadrant && typeof oldQuadrant === 'object') {
-                        // 合并旧的四象限设置到新的 settings
-                        if (oldQuadrant.importanceThreshold) settings.eisenhowerImportanceThreshold = oldQuadrant.importanceThreshold;
-                        if (oldQuadrant.urgencyDays) settings.eisenhowerUrgencyDays = oldQuadrant.urgencyDays;
-                        await this.plugin.saveSettings(settings);
-                        // 删除旧文件
-                        await removeFile('data/storage/petal/siyuan-plugin-task-note-management/four-quadrant-settings.json');
-                        console.log('成功导入并删除旧的 four-quadrant-settings.json 文件');
-                    }
-                }
-            } catch (error) {
-                // 如果文件不存在或其他错误，忽略
-                console.log('旧的 four-quadrant-settings.json 文件不存在或已处理');
-            }
 
             this.criteriaSettings = {
                 importanceThreshold: settings.eisenhowerImportanceThreshold || 'medium',

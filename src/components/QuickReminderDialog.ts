@@ -20,7 +20,7 @@ export class QuickReminderDialog {
     private blockId?: string;
     private reminder?: any;
     private onSaved?: (modifiedReminder?: any) => void;
-    private mode: 'quick' | 'block' | 'edit' | 'batch_edit' = 'quick'; // 模式：快速创建、块绑定创建、编辑、批量编辑
+    private mode: 'quick' | 'block' | 'edit' | 'batch_edit' | 'note' = 'quick'; // 模式：快速创建、块绑定创建、编辑、批量编辑、仅备注
     private blockContent: string = '';
     private reminderUpdatedHandler: () => void;
     private sortConfigUpdatedHandler: (event: CustomEvent) => void;
@@ -69,7 +69,7 @@ export class QuickReminderDialog {
             blockId?: string;
             reminder?: any;
             onSaved?: (modifiedReminder?: any) => void;
-            mode?: 'quick' | 'block' | 'edit' | 'batch_edit';
+            mode?: 'quick' | 'block' | 'edit' | 'batch_edit' | 'note';
             autoDetectDateTime?: boolean;
             defaultProjectId?: string;
             showKanbanStatus?: 'todo' | 'term' | 'none';
@@ -941,8 +941,21 @@ export class QuickReminderDialog {
         }
 
         this.dialog = new Dialog({
-            title: this.mode === 'edit' ? i18n("editReminder") : i18n("createQuickReminder"),
-            content: `
+            title: this.mode === 'edit' ? i18n("editReminder") : (this.mode === 'note' ? (i18n("editNote") || "编辑备注") : i18n("createQuickReminder")),
+            content: this.mode === 'note' ? `
+                <div class="quick-reminder-dialog">
+                    <div class="b3-dialog__content">
+                        <!-- 备注 (Vditor) -->
+                        <div class="b3-form__group" style="margin-top: 0;">
+                            <div id="quickReminderNote" style="width: 100%;"></div>
+                        </div>
+                    </div>
+                    <div class="b3-dialog__action">
+                        <button class="b3-button b3-button--cancel" id="quickCancelBtn">${i18n("cancel")}</button>
+                        <button class="b3-button b3-button--primary" id="quickConfirmBtn">${i18n("save")}</button>
+                    </div>
+                </div>
+            ` : `
                 <div class="quick-reminder-dialog">
                     <div class="b3-dialog__content">
                         <div class="b3-form__group">
@@ -1184,20 +1197,20 @@ export class QuickReminderDialog {
                 </div>
             `,
             width: "500px",
-            height: "81vh"
+            height: this.mode === 'note' ? "auto" : "81vh"
         });
 
         // Initialize Vditor
         setTimeout(() => {
             let initialNote = '';
-            if ((this.mode === 'edit' || this.mode === 'batch_edit') && this.reminder && this.reminder.note) {
+            if ((this.mode === 'edit' || this.mode === 'batch_edit' || this.mode === 'note') && this.reminder && this.reminder.note) {
                 initialNote = this.reminder.note;
             } else if (this.defaultNote) {
                 initialNote = this.defaultNote;
             }
 
             this.vditor = new Vditor('quickReminderNote', {
-                height: 200,
+                height: 150,
                 mode: 'wysiwyg', // Typora-like instant rendering
                 // toolbarConfig: {
                 //     pin: true,
@@ -2563,7 +2576,43 @@ export class QuickReminderDialog {
         }
     }
 
+    // 仅保存备注
+    private async saveNoteOnly() {
+        if (!this.reminder) return;
+
+        const note = this.vditor ? this.vditor.getValue() : this.reminder.note;
+
+        // 乐观更新
+        const optimisticReminder = { ...this.reminder };
+        optimisticReminder.note = note;
+
+        // 立即回调
+        if (this.onSaved) {
+            this.onSaved(optimisticReminder);
+        }
+
+        this.destroyDialog();
+
+        // 后台持久化
+        try {
+            const reminderData = await this.plugin.loadReminderData();
+            if (reminderData[this.reminder.id]) {
+                reminderData[this.reminder.id].note = note;
+                await this.plugin.saveReminderData(reminderData);
+                console.debug('备注已更新 (后台)');
+            }
+        } catch (error) {
+            console.error('保存备注失败:', error);
+            showMessage(i18n("saveFailed") || "保存失败", 3000, 'error');
+        }
+    }
+
     private async saveReminder() {
+        if (this.mode === 'note') {
+            await this.saveNoteOnly();
+            return;
+        }
+
         const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
         const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
         const urlInput = this.dialog.element.querySelector('#quickUrlInput') as HTMLInputElement;
