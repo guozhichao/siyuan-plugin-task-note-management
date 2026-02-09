@@ -3432,6 +3432,23 @@ export class ProjectKanbanView {
                 click: () => this.showManageMilestonesDialog()
             });
 
+            // 插件设置
+            menu.addItem({
+                icon: 'iconSettings',
+                label: i18n('pluginSettings') || '插件设置',
+                click: () => {
+                    try {
+                        if (this.plugin && typeof this.plugin.openSetting === 'function') {
+                            this.plugin.openSetting();
+                        } else {
+                            console.warn('plugin.openSetting is not available');
+                        }
+                    } catch (err) {
+                        console.error('打开插件设置失败:', err);
+                    }
+                }
+            });
+
             // 显示菜单
             if (e.target instanceof HTMLElement) {
                 const rect = e.target.getBoundingClientRect();

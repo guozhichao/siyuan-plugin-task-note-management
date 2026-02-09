@@ -1370,6 +1370,7 @@
     display: flex;
     gap: 4px;
     margin-left: auto; // 确保按钮容器靠右
+    flex-wrap: wrap;
 }
 
 .reminder-panel__content {

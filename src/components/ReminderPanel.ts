@@ -4731,7 +4731,7 @@ export class ReminderPanel {
                 await saveReminders(this.plugin, reminderData);
                 // 注意：同优先级排序不触发强制刷新，因为 manually updateDOMOrder 会处理
                 window.dispatchEvent(new CustomEvent('reminderUpdated', {
-                    detail: {  source: this.panelId }
+                    detail: { source: this.panelId }
                 }));
                 await this.loadReminders();
             }
@@ -6660,7 +6660,7 @@ export class ReminderPanel {
                         } else {
                             await this.loadReminders();
                         }
-                        window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: {  source: this.panelId } }));
+                        window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
                     } catch (e) {
                         console.error('实例编辑乐观更新失败，回退刷新', e);
                         this.loadReminders();
@@ -7647,6 +7647,23 @@ export class ReminderPanel {
                 icon: 'iconTags',
                 label: i18n("manageCategories") || "管理分类",
                 click: () => this.showCategoryManageDialog()
+            });
+
+            // 添加插件设置
+            menu.addItem({
+                icon: 'iconSettings',
+                label: i18n("pluginSettings") || "插件设置",
+                click: () => {
+                    try {
+                        if (this.plugin && typeof this.plugin.openSetting === 'function') {
+                            this.plugin.openSetting();
+                        } else {
+                            console.warn('plugin.openSetting is not available');
+                        }
+                    } catch (err) {
+                        console.error('打开插件设置失败:', err);
+                    }
+                }
             });
 
             // 显示菜单

@@ -647,6 +647,8 @@ export class CalendarView {
 
         filterGroup.appendChild(categoryFilterContainer);
 
+
+
         // 渲染项目和分类筛选器
         await this.renderProjectFilterCheckboxes(projectDropdown, projectFilterButton);
         await this.renderCategoryFilterCheckboxes(categoryDropdown, categoryFilterButton);
@@ -894,27 +896,7 @@ export class CalendarView {
         });
         filterGroup.appendChild(refreshBtn);
 
-        // 分类管理按钮
-        const categoryManageBtn = document.createElement('button');
-        categoryManageBtn.className = 'b3-button b3-button--outline';
-        categoryManageBtn.style.padding = '6px';
-        categoryManageBtn.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconTags"></use></svg>';
-        categoryManageBtn.title = i18n("manageCategories");
-        categoryManageBtn.addEventListener('click', () => {
-            this.showCategoryManageDialog();
-        });
-        filterGroup.appendChild(categoryManageBtn);
 
-        // 项目颜色管理按钮
-        const projectColorManageBtn = document.createElement('button');
-        projectColorManageBtn.className = 'b3-button b3-button--outline';
-        projectColorManageBtn.style.padding = '6px';
-        projectColorManageBtn.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconProject"></use></svg>';
-        projectColorManageBtn.title = i18n("manageProjectColors");
-        projectColorManageBtn.addEventListener('click', () => {
-            this.showProjectColorDialog();
-        });
-        filterGroup.appendChild(projectColorManageBtn);
 
         // 摘要按钮
         const summaryBtn = document.createElement('button');
@@ -926,7 +908,53 @@ export class CalendarView {
             this.taskSummaryDialog.showTaskSummaryDialog();
         });
         filterGroup.appendChild(summaryBtn);
+        // 更多按钮（包含管理分类、项目颜色、插件设置）
+        const moreBtn = document.createElement('button');
+        moreBtn.className = 'b3-button b3-button--outline';
+        moreBtn.title = i18n('more') || '更多';
+        moreBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconMore"></use></svg>';
+        moreBtn.addEventListener('click', (e) => {
+            try {
+                e.stopPropagation();
+                e.preventDefault();
+                const menu = new Menu('calendar-more-menu');
 
+                menu.addItem({
+                    icon: 'iconTags',
+                    label: i18n('manageCategories') || '管理分类',
+                    click: () => this.showCategoryManageDialog()
+                });
+
+                menu.addItem({
+                    icon: 'iconProject',
+                    label: i18n('projectColor') || '项目颜色',
+                    click: () => this.showProjectColorDialog()
+                });
+
+                menu.addItem({
+                    icon: 'iconSettings',
+                    label: i18n('pluginSettings') || '插件设置',
+                    click: () => {
+                        try {
+                            if (this.plugin && typeof this.plugin.openSetting === 'function') {
+                                this.plugin.openSetting();
+                            } else {
+                                console.warn('plugin.openSetting is not available');
+                            }
+                        } catch (err) {
+                            console.error('打开插件设置失败:', err);
+                        }
+                    }
+                });
+
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                menu.open({ x: rect.right, y: rect.bottom + 4 });
+            } catch (err) {
+                console.error('打开更多菜单失败:', err);
+            }
+        });
+
+        filterGroup.appendChild(moreBtn);
         // 创建日历容器
         const calendarEl = document.createElement('div');
         calendarEl.className = 'reminder-calendar-container';

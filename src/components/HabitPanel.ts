@@ -153,7 +153,7 @@ export class HabitPanel {
         // 按钮容器
         const actionContainer = document.createElement('div');
         actionContainer.className = 'habit-panel__actions';
-        actionContainer.style.cssText = 'display:flex; justify-content:flex-start; gap:8px; margin-bottom:8px;';
+        actionContainer.style.cssText = 'display:flex; justify-content:flex-start; gap:8px; margin-bottom:8px; flex-warp: wrap;';
 
         // 新建习惯按钮
         const newHabitBtn = document.createElement('button');
@@ -208,6 +208,18 @@ export class HabitPanel {
             this.loadHabits();
         });
         actionContainer.appendChild(refreshBtn);
+
+        // 更多按钮（显示插件设置）
+        const moreBtn = document.createElement('button');
+        moreBtn.className = 'b3-button b3-button--outline';
+        moreBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconMore"></use></svg>';
+        moreBtn.title = i18n("more") || "更多";
+        moreBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.showMoreMenu(e);
+        });
+        actionContainer.appendChild(moreBtn);
 
         header.appendChild(titleContainer);
         header.appendChild(actionContainer);
@@ -332,6 +344,40 @@ export class HabitPanel {
             }
         } catch (error) {
             console.error('显示排序菜单失败:', error);
+        }
+    }
+
+    // 显示更多菜单（包含插件设置）
+    private showMoreMenu(event: MouseEvent) {
+        try {
+            const menu = new Menu("habitMoreMenu");
+
+            // 插件设置
+            menu.addItem({
+                icon: 'iconSettings',
+                label: i18n("pluginSettings") || "插件设置",
+                click: () => {
+                    try {
+                        if (this.plugin && typeof this.plugin.openSetting === 'function') {
+                            this.plugin.openSetting();
+                        } else {
+                            console.warn('plugin.openSetting is not available');
+                        }
+                    } catch (err) {
+                        console.error('打开插件设置失败:', err);
+                    }
+                }
+            });
+
+            // 使用按钮的位置定位菜单（回退到事件坐标）
+            if (event.target instanceof HTMLElement) {
+                const rect = event.target.getBoundingClientRect();
+                menu.open({ x: rect.left, y: rect.bottom + 4 });
+            } else {
+                menu.open({ x: event.clientX, y: event.clientY });
+            }
+        } catch (error) {
+            console.error('显示更多菜单失败:', error);
         }
     }
 

@@ -218,7 +218,7 @@ export class ProjectPanel {
         const actionRow = document.createElement('div');
         actionRow.className = 'project-header__actions-row';
         // 使用 flex 布局使按钮靠右
-        actionRow.style.cssText = `display:flex; justify-content:flex-start; margin-bottom:8px; gap:8px;`;
+        actionRow.style.cssText = `display:flex; justify-content:flex-start; margin-bottom:8px; gap:8px;flex-wrap: wrap;`;
         // 将 actionContainer 中的按钮移动到 actionRow
         while (actionContainer.firstChild) {
             // 由于 actionContainer 可能包含样式 marginLeft:auto，我们直接把子节点移动
@@ -2304,6 +2304,23 @@ export class ProjectPanel {
                 label: i18n("manageStatuses") || "管理状态",
                 click: () => {
                     this.showStatusManageDialog();
+                }
+            });
+
+            // 添加插件设置（在更多菜单中）
+            menu.addItem({
+                icon: 'iconSettings',
+                label: i18n("pluginSettings") || "插件设置",
+                click: () => {
+                    try {
+                        if (this.plugin && typeof this.plugin.openSetting === 'function') {
+                            this.plugin.openSetting();
+                        } else {
+                            console.warn('plugin.openSetting is not available');
+                        }
+                    } catch (err) {
+                        console.error('打开插件设置失败:', err);
+                    }
                 }
             });
 
