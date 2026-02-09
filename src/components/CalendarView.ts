@@ -5235,6 +5235,32 @@ export class CalendarView {
                         // Ensure session has necessary data
                         if (!session.startTime || !session.endTime) continue;
 
+                        // 筛选项目和分类
+                        let reminder = session.eventId ? reminderData[session.eventId] : null;
+
+                        // 如果关联了任务但没在 reminderData 中找到，尝试作为重复任务实例处理
+                        if (!reminder && session.eventId) {
+                            if (session.eventId.includes('_instance_')) {
+                                reminder = reminderData[session.eventId.split('_instance_')[0]];
+                            } else if (session.eventId.includes('_')) {
+                                const parts = session.eventId.split('_');
+                                if (/^\d{4}-\d{2}-\d{2}$/.test(parts[parts.length - 1])) {
+                                    reminder = reminderData[parts.slice(0, -1).join('_')];
+                                }
+                            }
+                        }
+
+                        // 执行过滤逻辑
+                        if (reminder) {
+                            if (!this.passesProjectFilter(reminder)) continue;
+                            if (!this.passesCategoryFilter(reminder, projectData)) continue;
+                        } else {
+                            // 如果是休息记录或关联的任务已彻底删除且无法找回，则视为“无项目”和“无分类”进行过滤
+                            const virtualReminder = { projectId: null, categoryId: null };
+                            if (!this.passesProjectFilter(virtualReminder)) continue;
+                            if (!this.passesCategoryFilter(virtualReminder, projectData)) continue;
+                        }
+
                         // Construct title: "<TomatoIcon> TaskName"
                         const title = `🍅 ${session.eventTitle || i18n('unnamedTask')}`;
 
