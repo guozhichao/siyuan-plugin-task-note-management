@@ -12,6 +12,7 @@ export class TaskSummaryDialog {
   private projectManager: ProjectManager;
   private calendar: any;
   private plugin: any;
+  private lute: any;
 
   private currentDialog: Dialog;
   private currentFilter: string = 'current'; // 'current', 'today', 'tomorrow', 'yesterday', 'thisWeek', 'nextWeek', 'lastWeek', 'thisMonth', 'lastMonth'
@@ -22,6 +23,15 @@ export class TaskSummaryDialog {
     this.projectManager = ProjectManager.getInstance(plugin);
     this.calendar = calendar;
     this.plugin = plugin;
+
+    // 初始化 Lute
+    try {
+      if ((window as any).Lute) {
+        this.lute = (window as any).Lute.New();
+      }
+    } catch (e) {
+      console.error('初始化 Lute 失败:', e);
+    }
   }
 
   private formatDuration(minutes: number): string {
@@ -1547,7 +1557,7 @@ export class TaskSummaryDialog {
                       <div class="task-line">
                         <span class="task-title">${task.title}${task.repeatLabel ? ` <span style="color:#888; font-size:12px;">(${task.repeatLabel})</span>` : ''}${timeStr}${estStr}${pomodoroStr}${completedTimeStr}</span>
                       </div>
-                      ${task.note ? `<div class="task-note">${task.note}</div>` : ''}
+                      ${task.note ? `<div class="task-note">${this.lute ? this.lute.Md2HTML(task.note) : task.note}</div>` : ''}
                     </div>
                   </li>
                 `;

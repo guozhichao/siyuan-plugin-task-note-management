@@ -2036,6 +2036,7 @@ export class ProjectKanbanView {
                 checkbox.addEventListener('click', (e) => {
                     e.stopPropagation();
                 });
+
                 checkbox.addEventListener('change', async (e) => {
                     e.stopPropagation();
                     const isChecked = checkbox.checked;
@@ -2257,6 +2258,27 @@ export class ProjectKanbanView {
                     taskContentContainer.appendChild(infoEl);
                 }
 
+                // 任务备注
+                if (task.note) {
+                    const noteEl = document.createElement('div');
+                    noteEl.className = 'kanban-task-note';
+                    noteEl.style.cssText = `
+                        font-size: 12px;
+                        color: var(--b3-theme-on-surface);
+                        opacity: 0.8;
+                        margin-top: 8px;
+                        padding: 6px 8px;
+                        background: var(--b3-theme-background);
+                        border-radius: 4px;
+                        border-left: 2px solid var(--b3-theme-primary-lighter);
+                        line-height: 1.5;
+                        max-height: 200px;
+                        overflow-y: auto;
+                    `;
+                    noteEl.innerHTML = this.lute ? this.lute.Md2HTML(task.note) : task.note;
+                    taskContentContainer.appendChild(noteEl);
+                }
+
                 taskMainContainer.appendChild(taskContentContainer);
 
                 // 编辑按钮
@@ -2278,8 +2300,7 @@ export class ProjectKanbanView {
                 taskMainContainer.appendChild(editBtn);
 
                 taskEl.appendChild(taskMainContainer);
-                parentEl.appendChild(taskEl);
-
+                // 优化完成任务的样式 - 定义在这里以便在checkbox事件中使用
                 const updateItemStyle = (completed: boolean) => {
                     if (completed) {
                         titleEl.style.textDecoration = task.blockId ? 'line-through underline dotted ' : 'line-through';
@@ -2289,7 +2310,11 @@ export class ProjectKanbanView {
                         titleEl.style.color = task.blockId ? 'var(--b3-theme-primary)' : 'var(--b3-theme-on-surface)';
                     }
                 };
+
+                // 应用完成任务的样式
                 updateItemStyle(task.completed);
+
+                parentEl.appendChild(taskEl);
 
                 // 递归渲染子任务
                 if (children && children.length > 0) {

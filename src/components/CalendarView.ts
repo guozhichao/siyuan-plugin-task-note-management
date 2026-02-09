@@ -92,6 +92,7 @@ export class CalendarView {
     // 使用全局番茄钟管理器
     private pomodoroManager: PomodoroManager = PomodoroManager.getInstance();
     private pomodoroRecordManager: PomodoroRecordManager;
+    private lute: any; // Markdown 渲染器
 
     private async updateSettings() {
         const settings = await this.plugin.loadSettings();
@@ -164,6 +165,16 @@ export class CalendarView {
         if (data?.projectFilter) {
             this.initialProjectFilter = data.projectFilter;
         }
+
+        // 初始化 Lute
+        try {
+            if ((window as any).Lute) {
+                this.lute = (window as any).Lute.New();
+            }
+        } catch (e) {
+            console.error('初始化 Lute 失败:', e);
+        }
+
         this.initUI();
     }
 
@@ -3067,7 +3078,7 @@ export class CalendarView {
         if (props.note) {
             const noteEl = document.createElement('div');
             noteEl.className = 'reminder-event-note';
-            noteEl.textContent = props.note;
+            noteEl.innerHTML = this.lute ? this.lute.Md2HTML(props.note) : props.note;
             mainFrame.appendChild(noteEl);
         }
 
@@ -4420,11 +4431,37 @@ export class CalendarView {
             .reminder-event-note {
                 font-size: 10px;
                 opacity: 0.7;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
                 line-height: 1.2;
                 flex-shrink: 0;
+                display: -webkit-box;
+                -webkit-box-orient: vertical;
+                -webkit-line-clamp: 2;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                word-break: break-word;
+            }
+
+            /* Markdown content styling in notes */
+            .reminder-event-note p,
+            .reminder-event-note ul,
+            .reminder-event-note ol {
+                margin: 0px 2px;
+                padding: 0;
+            }
+
+            .reminder-event-note li {
+                margin-left: 1em;
+            }
+
+            .reminder-event-note strong {
+                font-weight: 600;
+            }
+
+            .reminder-event-note code {
+                font-size: 0.9em;
+                padding: 0 2px;
+                background: var(--b3-theme-background);
+                border-radius: 2px;
             }
 
             .fc-event-time {
@@ -4467,12 +4504,15 @@ export class CalendarView {
             .reminder-event-note {
                 font-size: 10px;
                 opacity: 0.7;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
                 line-height: 1.2;
                 flex-shrink: 999; /* 文档名和备注优先收缩 */
-                max-height: 1.2em;
+                display: -webkit-box;
+                -webkit-box-orient: vertical;
+                -webkit-line-clamp: 2;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                word-break: break-word;
+                max-height: 2.4em; /* 2 lines * 1.2 line-height */
             }
 
             .reminder-event-label {
@@ -5694,6 +5734,7 @@ export class CalendarView {
                     padding: 12px;
                     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
                     z-index: 9999;
+                    min-width: 100px;
                     max-width: 300px;
                     font-size: 13px;
                     line-height: 1.4;
@@ -5971,7 +6012,7 @@ export class CalendarView {
                 htmlParts.push(
                     `<div style="color: var(--b3-theme-on-surface-light); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--b3-theme-border); font-size: 12px;">`,
                     `<div style="margin-bottom: 4px; opacity: 0.7;">${i18n("note")}:</div>`,
-                    `<div>${this.escapeHtml(reminder.note)}</div>`,
+                    `<div>${this.lute ? this.lute.Md2HTML(reminder.note) : this.escapeHtml(reminder.note)}</div>`,
                     `</div>`
                 );
             }
