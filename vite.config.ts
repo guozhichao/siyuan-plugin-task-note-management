@@ -64,7 +64,12 @@ export default defineConfig({
 
     define: {
         "process.env.DEV_MODE": JSON.stringify(isDev),
-        "process.env.NODE_ENV": JSON.stringify(env.NODE_ENV)
+        "process.env.NODE_ENV": JSON.stringify(env.NODE_ENV),
+        // Vue feature flags to avoid runtime warnings from ESM build (e.g., Milkdown)
+        // Set __VUE_OPTIONS_API__ to true for compatibility; production devtools & hydration details disabled
+        __VUE_OPTIONS_API__: true,
+        __VUE_PROD_DEVTOOLS__: false,
+        __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: false,
     },
 
     build: {
