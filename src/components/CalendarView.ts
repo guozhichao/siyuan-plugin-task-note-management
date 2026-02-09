@@ -3608,9 +3608,11 @@ export class CalendarView {
 
         // 如果是重复事件实例
         if (originalReminder.isRepeated) {
-            // 检查该实例是否已经被修改过
             const originalId = originalReminder.originalId;
-            const instanceDate = info.event.startStr.split('T')[0];
+            // 修正：从 ID 中提取原始实例日期键（格式为 <id>_instance_<date>）
+            const instanceDate = (info.event.id && info.event.id.includes('_instance_')) ?
+                info.event.id.split('_instance_').pop()! :
+                originalReminder.date;
 
             const reminderData = await getAllReminders(this.plugin);
             const originalEvent = reminderData[originalId];
@@ -3654,9 +3656,11 @@ export class CalendarView {
 
         // 如果是重复事件实例
         if (originalReminder.isRepeated) {
-            // 检查该实例是否已经被修改过
             const originalId = originalReminder.originalId;
-            const instanceDate = info.event.startStr.split('T')[0];
+            // 修正：从 ID 中提取原始实例日期键（格式为 <id>_instance_<date>）
+            const instanceDate = (info.event.id && info.event.id.includes('_instance_')) ?
+                info.event.id.split('_instance_').pop()! :
+                originalReminder.date;
 
             const reminderData = await getAllReminders(this.plugin);
             const originalEvent = reminderData[originalId];
@@ -3889,8 +3893,7 @@ export class CalendarView {
             delete newReminder.repeat.instanceModifications;
             delete newReminder.repeat.completedInstances;
 
-            // 使用原始事件的blockId生成新的提醒ID
-            const blockId = originalReminder.blockId || originalReminder.id;
+            // 使用生成新的提醒ID
             const newId = `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             newReminder.id = newId;
 
