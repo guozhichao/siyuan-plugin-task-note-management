@@ -2291,7 +2291,7 @@ export class ProjectKanbanView {
                         titleEl.style.textDecoration = (task.blockId || task.docId ? 'underline dotted ' : '') + 'line-through';
                         titleEl.style.opacity = '0.6';
                         titleEl.style.color = 'var(--b3-theme-on-surface-light)';
-                        taskEl.style.opacity = '0.5';
+                        taskEl.style.opacity = '0.8';
                     } else {
                         titleEl.style.textDecoration = (task.blockId || task.docId) ? 'underline dotted' : 'none';
                         titleEl.style.opacity = '1';
