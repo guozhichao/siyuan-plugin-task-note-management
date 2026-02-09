@@ -133,6 +133,7 @@ export class ReminderPanel {
 
         this.initUI();
         await this.loadSortConfig();
+        await this.loadCustomFilters(); // 加载自定义过滤器配置
         this.loadReminders();
 
         // 确保对话框样式已加载
@@ -478,6 +479,9 @@ export class ReminderPanel {
 
         // 初始化排序按钮标题
         this.updateSortButtonTitle();
+
+        // 初始化自定义过滤器
+        this.updateFilterSelect();
     }
     // 修改排序方法以支持手动排序
     private sortReminders(reminders: any[]) {
@@ -652,6 +656,141 @@ export class ReminderPanel {
             this.updateCategoryFilterButtonText();
         });
         categoryDialog.show();
+    }
+
+    private showFilterManagement() {
+        const dialog = new Dialog({
+            title: i18n("filterManagement") || "过滤器管理",
+            // use full-height content wrapper and prevent the wrapper itself from scrolling
+            content: `<div id="filterManagementContent" style="height: 100%; display:flex; overflow:hidden;"></div>`,
+            width: "900px",
+            height: "700px"
+        });
+
+        // mark the dialog so we can override dialog-level scrolling for this instance
+        dialog.element.classList.add('filter-management-dialog');
+
+        // 动态导入 Svelte 组件
+        import('./FilterManagement.svelte').then((module) => {
+            const FilterManagement = module.default;
+            new FilterManagement({
+                target: dialog.element.querySelector('#filterManagementContent'),
+                props: {
+                    plugin: this.plugin,
+                    onClose: () => {
+                        // 关闭时更新filterSelect
+                        this.updateFilterSelect();
+                        dialog.destroy();
+                    },
+                    onFilterApplied: async (filter: any) => {
+                        // 应用过滤器逻辑
+                        console.log('应用过滤器:', filter);
+                        showMessage(i18n("filterApplied") || "过滤器已应用");
+                        // 更新filterSelect（包含重新加载配置缓存）
+                        await this.updateFilterSelect();
+                        // 重新加载任务以显示修改后的过滤结果
+                        this.loadReminders();
+                    }
+                }
+            });
+        }).catch((error) => {
+            console.error('加载过滤器管理组件失败:', error);
+            showMessage('加载过滤器管理组件失败');
+            dialog.destroy();
+        });
+    }
+
+    // 动态更新filterSelect选项
+    private async updateFilterSelect() {
+        if (!this.filterSelect) return;
+
+        const settings = await this.plugin.loadData('settings.json');
+        const customFilters = settings?.customFilters || [];
+        const filterOrder = settings?.filterOrder || [];
+
+        // 重新加载自定义过滤器缓存
+        await this.loadCustomFilters();
+
+        // 保存当前选中的值
+        const currentValue = this.filterSelect.value;
+
+        // 内置过滤器定义
+        const builtInFilters = [
+            { id: 'builtin_today', value: 'today', label: i18n("todayReminders") },
+            { id: 'builtin_tomorrow', value: 'tomorrow', label: i18n("tomorrowReminders") },
+            { id: 'builtin_future7', value: 'future7', label: i18n("future7Reminders") },
+            { id: 'builtin_thisWeek', value: 'thisWeek', label: i18n("thisWeekReminders") || "本周任务" },
+            { id: 'builtin_futureAll', value: 'futureAll', label: i18n("futureReminders") },
+            { id: 'builtin_overdue', value: 'overdue', label: i18n("overdueReminders") },
+            { id: 'builtin_all', value: 'all', label: i18n("past7Reminders") },
+            { id: 'builtin_allUncompleted', value: 'allUncompleted', label: i18n("allUncompletedReminders") },
+            { id: 'builtin_noDate', value: 'noDate', label: i18n("noDateReminders") },
+            { id: 'builtin_todayCompleted', value: 'todayCompleted', label: i18n("todayCompletedReminders") },
+            { id: 'builtin_yesterdayCompleted', value: 'yesterdayCompleted', label: i18n("yesterdayCompletedReminders") },
+            { id: 'builtin_completed', value: 'completed', label: i18n("completedReminders") },
+        ];
+
+        // 统一所有过滤器对象
+        // 自定义过滤器的 id 格式已经是 custom_...，value 也是 custom_custom_... (保持现有逻辑一致)
+        // 或者是 custom_123 ? 现有代码是 optionsHTML += `<option value="custom_${filter.id}">`
+        // 如果 filter.id 已经是 custom_123，那 value 就是 custom_custom_123
+        // 我们这里暂且构造一个统一的列表
+        let allFilters = [
+            ...builtInFilters.map(f => ({ ...f, isAppended: false })),
+            ...customFilters.map((f: any) => ({
+                id: f.id,
+                value: `custom_${f.id}`,
+                label: f.name,
+                isAppended: false
+            }))
+        ];
+
+        let sortedFilters: any[] = [];
+
+        // 如果有排序设置，按照排序设置重组列表
+        if (filterOrder && filterOrder.length > 0) {
+            const filterMap = new Map(allFilters.map(f => [f.id, f]));
+
+            // 按顺序添加
+            for (const id of filterOrder) {
+                if (filterMap.has(id)) {
+                    sortedFilters.push(filterMap.get(id));
+                    filterMap.get(id).isAppended = true;
+                }
+            }
+
+            // 添加未在排序列表中的过滤器（可能是新增的内置或自定义过滤器）
+            for (const filter of allFilters) {
+                if (!filter.isAppended) {
+                    sortedFilters.push(filter);
+                }
+            }
+        } else {
+            // 没有排序设置，使用默认顺序：内置 -> 自定义
+            sortedFilters = allFilters;
+        }
+
+        // 生成 HTML
+        let optionsHTML = '';
+        sortedFilters.forEach(filter => {
+            optionsHTML += `<option value="${filter.value}">${filter.label}</option>`;
+        });
+
+        this.filterSelect.innerHTML = optionsHTML;
+
+        // 恢复之前选中的值（如果还存在）
+        if (currentValue && Array.from(this.filterSelect.options).some(opt => opt.value === currentValue)) {
+            this.filterSelect.value = currentValue;
+        } else {
+            // 当前选中的过滤器已被删除（或不可用），切换到第一个
+            if (this.filterSelect.options.length > 0) {
+                this.filterSelect.selectedIndex = 0;
+                // 如果被删除的过滤器正是当前激活的 Tab，则更新 currentTab
+                if (this.currentTab === currentValue) {
+                    this.currentTab = this.filterSelect.value;
+                }
+            }
+        }
     }
 
 
@@ -3114,8 +3253,222 @@ export class ReminderPanel {
                     return compareDateStrings(startLogical, weekEndStr) <= 0 && compareDateStrings(endLogical, weekStartStr) >= 0;
                 });
             default:
+                // 处理自定义过滤器
+                if (targetTab.startsWith('custom_')) {
+                    return this.applyCustomFilter(reminders, targetTab, today, isEffectivelyCompleted);
+                }
                 return [];
         }
+    }
+
+    /**
+     * 应用自定义过滤器
+     * @param reminders 所有提醒
+     * @param filterTab 过滤器tab值（custom_xxx）
+     * @param today 今天的日期
+     * @param isEffectivelyCompleted 判断任务是否完成的函数
+     * @returns 过滤后的提醒列表
+     */
+    private applyCustomFilter(reminders: any[], filterTab: string, today: string, isEffectivelyCompleted: (reminder: any) => boolean): any[] {
+        // 从filterTab中提取过滤器ID
+        const filterId = filterTab.replace('custom_', '');
+
+        // 同步加载过滤器配置（注意：这里需要改为同步方式或缓存）
+        // 为了避免异步问题，我们需要在类中缓存过滤器配置
+        const filterConfig = this.getCustomFilterConfig(filterId);
+        if (!filterConfig) {
+            console.warn(`Custom filter not found: ${filterId}`);
+            return reminders;
+        }
+
+        let filtered = [...reminders];
+
+        // 1. 应用日期过滤
+        if (filterConfig.dateFilters && filterConfig.dateFilters.length > 0) {
+            filtered = this.applyDateFilters(filtered, filterConfig.dateFilters, today, isEffectivelyCompleted);
+        }
+
+        // 2. 应用状态过滤
+        if (filterConfig.statusFilter && filterConfig.statusFilter !== 'all') {
+            filtered = this.applyStatusFilter(filtered, filterConfig.statusFilter, isEffectivelyCompleted);
+        }
+
+        // 3. 应用项目过滤
+        if (filterConfig.projectFilters && filterConfig.projectFilters.length > 0 && !filterConfig.projectFilters.includes('all')) {
+            filtered = this.applyProjectFilter(filtered, filterConfig.projectFilters);
+        }
+
+        // 4. 应用分类过滤（已在loadReminders中通过applyCategoryFilter处理）
+        // 但自定义过滤器可能有自己的分类设置，这里需要额外处理
+        if (filterConfig.categoryFilters && filterConfig.categoryFilters.length > 0 && !filterConfig.categoryFilters.includes('all')) {
+            filtered = this.applyCustomCategoryFilter(filtered, filterConfig.categoryFilters);
+        }
+
+        // 5. 应用优先级过滤
+        if (filterConfig.priorityFilters && filterConfig.priorityFilters.length > 0 && !filterConfig.priorityFilters.includes('all')) {
+            filtered = this.applyPriorityFilter(filtered, filterConfig.priorityFilters);
+        }
+
+        return filtered;
+    }
+
+    /**
+     * 获取自定义过滤器配置（同步方式，需要提前缓存）
+     */
+    private customFilterCache: Map<string, any> = new Map();
+
+    private getCustomFilterConfig(filterId: string): any {
+        return this.customFilterCache.get(filterId);
+    }
+
+    /**
+     * 加载并缓存自定义过滤器配置
+     */
+    private async loadCustomFilters() {
+        try {
+            const settings = await this.plugin.loadData('settings.json');
+            const customFilters = settings?.customFilters || [];
+            this.customFilterCache.clear();
+            customFilters.forEach((filter: any) => {
+                this.customFilterCache.set(filter.id, filter);
+            });
+        } catch (error) {
+            console.error('Failed to load custom filters:', error);
+        }
+    }
+
+    /**
+     * 应用日期过滤器
+     */
+    private applyDateFilters(reminders: any[], dateFilters: any[], today: string, isEffectivelyCompleted: (reminder: any) => boolean): any[] {
+        if (dateFilters.some(df => df.type === 'all')) {
+            return reminders; // 全部日期，不过滤
+        }
+
+        const tomorrow = getRelativeDateString(1);
+        const future7Days = getRelativeDateString(7);
+        const sevenDaysAgo = getRelativeDateString(-7);
+        const todayDate = new Date(today + 'T00:00:00');
+        const yesterdayDate = new Date(todayDate);
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        const yesterdayStr = getLocalDateString(yesterdayDate);
+
+        return reminders.filter(r => {
+            return dateFilters.some(df => {
+                switch (df.type) {
+                    case 'none':
+                        return !r.date;
+                    case 'yesterday':
+                        if (!r.date) return false;
+                        const startLogical = this.getReminderLogicalDate(r.date, r.time);
+                        const endLogical = this.getReminderLogicalDate(r.endDate || r.date, r.endTime || r.time);
+                        return compareDateStrings(startLogical, yesterdayStr) <= 0 && compareDateStrings(yesterdayStr, endLogical) <= 0;
+                    case 'today':
+                        if (!r.date) return false;
+                        const todayStart = this.getReminderLogicalDate(r.date, r.time);
+                        const todayEnd = this.getReminderLogicalDate(r.endDate || r.date, r.endTime || r.time);
+                        return compareDateStrings(todayStart, today) <= 0 && compareDateStrings(today, todayEnd) <= 0;
+                    case 'tomorrow':
+                        if (!r.date) return false;
+                        const tomorrowStart = this.getReminderLogicalDate(r.date, r.time);
+                        const tomorrowEnd = this.getReminderLogicalDate(r.endDate || r.date, r.endTime || r.time);
+                        return compareDateStrings(tomorrowStart, tomorrow) <= 0 && compareDateStrings(tomorrow, tomorrowEnd) <= 0;
+                    case 'this_week':
+                        if (!r.date) return false;
+                        const weekStartLogical = this.getReminderLogicalDate(r.date, r.time);
+                        const weekEndLogical = this.getReminderLogicalDate(r.endDate || r.date, r.endTime || r.time);
+                        const todayDateObj = new Date(today + 'T00:00:00');
+                        const day = todayDateObj.getDay();
+                        const offsetToMonday = (day + 6) % 7;
+                        const weekStartDate = new Date(todayDateObj);
+                        weekStartDate.setDate(weekStartDate.getDate() - offsetToMonday);
+                        const weekEndDate = new Date(weekStartDate);
+                        weekEndDate.setDate(weekEndDate.getDate() + 6);
+                        const weekStartStr = getLocalDateString(weekStartDate);
+                        const weekEndStr = getLocalDateString(weekEndDate);
+                        return compareDateStrings(weekStartLogical, weekEndStr) <= 0 && compareDateStrings(weekEndLogical, weekStartStr) >= 0;
+                    case 'next_7_days':
+                        if (!r.date) return false;
+                        const next7Start = this.getReminderLogicalDate(r.date, r.time);
+                        return compareDateStrings(next7Start, today) >= 0 && compareDateStrings(next7Start, future7Days) <= 0;
+                    case 'future':
+                        if (!r.date) return false;
+                        const futureStart = this.getReminderLogicalDate(r.date, r.time);
+                        return compareDateStrings(futureStart, today) > 0;
+                    case 'past_7_days':
+                        if (!r.date) return false;
+                        const past7End = this.getReminderLogicalDate(r.endDate || r.date, r.endTime || r.time);
+                        return compareDateStrings(past7End, sevenDaysAgo) >= 0 && compareDateStrings(past7End, today) <= 0;
+                    case 'custom_range':
+                        if (!r.date || !df.startDate || !df.endDate) return false;
+                        const rangeStart = this.getReminderLogicalDate(r.date, r.time);
+                        const rangeEnd = this.getReminderLogicalDate(r.endDate || r.date, r.endTime || r.time);
+                        return compareDateStrings(rangeStart, df.endDate) <= 0 && compareDateStrings(rangeEnd, df.startDate) >= 0;
+                    default:
+                        return false;
+                }
+            });
+        });
+    }
+
+    /**
+     * 应用状态过滤器
+     */
+    private applyStatusFilter(reminders: any[], statusFilter: string, isEffectivelyCompleted: (reminder: any) => boolean): any[] {
+        switch (statusFilter) {
+            case 'completed':
+                return reminders.filter(r => isEffectivelyCompleted(r));
+            case 'uncompleted':
+                return reminders.filter(r => !isEffectivelyCompleted(r));
+            default:
+                return reminders;
+        }
+    }
+
+    /**
+     * 应用项目过滤器
+     */
+    private applyProjectFilter(reminders: any[], projectFilters: string[]): any[] {
+        return reminders.filter(r => {
+            if (projectFilters.includes('none')) {
+                if (!r.projectId) return true;
+            }
+            if (r.projectId && projectFilters.includes(r.projectId)) {
+                return true;
+            }
+            return false;
+        });
+    }
+
+    /**
+     * 应用自定义分类过滤器
+     */
+    private applyCustomCategoryFilter(reminders: any[], categoryFilters: string[]): any[] {
+        return reminders.filter(r => {
+            if (categoryFilters.includes('all')) {
+                return true;
+            }
+            if (categoryFilters.includes('none')) {
+                if (!r.categoryId) return true;
+            }
+            if (r.categoryId && categoryFilters.includes(r.categoryId)) {
+                return true;
+            }
+            return false;
+        });
+    }
+
+    /**
+     * 应用优先级过滤器
+     */
+    private applyPriorityFilter(reminders: any[], priorityFilters: string[]): any[] {
+        return reminders.filter(r => {
+            const priority = r.priority || 'none';
+            if (priorityFilters.includes('none') && !r.priority) {
+                return true;
+            }
+            return priorityFilters.includes(priority);
+        });
     }
 
     /**
@@ -7671,6 +8024,13 @@ export class ReminderPanel {
                 icon: 'iconTags',
                 label: i18n("manageCategories") || "管理分类",
                 click: () => this.showCategoryManageDialog()
+            });
+
+            // 添加过滤器管理
+            menu.addItem({
+                icon: 'iconFilter',
+                label: i18n("manageFilters") || "管理过滤器",
+                click: () => this.showFilterManagement()
             });
 
             // 添加插件设置
