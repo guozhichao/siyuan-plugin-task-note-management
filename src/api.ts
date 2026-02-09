@@ -986,6 +986,46 @@ export async function updateBindBlockAtrrs(blockId: string, plugin: any): Promis
     }
 }
 
+/**
+ * 更新块的里程碑绑定属性
+ * @param blockId 块ID
+ * @param projectId 项目ID
+ * @param milestoneIds 里程碑ID数组
+ */
+export async function updateMilestoneBindBlockAttrs(blockId: string, projectId: string, milestoneIds: string[]): Promise<void> {
+    if (!blockId) return;
+    try {
+        // 获取现有属性，避免覆盖已存在的 custom-task-projectid（可能来自任务绑定）
+        const existingAttrs = await getBlockAttrs(blockId);
+        const existingProjectIds = existingAttrs['custom-task-projectid'] || '';
+
+        const attrs: { [key: string]: string } = {};
+
+        // 只设置 custom-bind-milestones 属性
+        attrs['custom-bind-milestones'] = milestoneIds && milestoneIds.length > 0 ? milestoneIds.join(',') : '';
+
+        // 如果块上还没有 custom-task-projectid，并且有里程碑绑定，则设置项目ID
+        // 如果已经有 custom-task-projectid（来自任务），则保留不变
+        if (!existingProjectIds && milestoneIds && milestoneIds.length > 0) {
+            attrs['custom-task-projectid'] = projectId;
+        }
+        // 如果里程碑被清空，但块上有 custom-task-projectid，检查是否还有任务绑定
+        else if ((!milestoneIds || milestoneIds.length === 0) && existingProjectIds) {
+            // 检查是否还有任务绑定（custom-bind-reminders）
+            const hasTaskBinding = existingAttrs['custom-bind-reminders'];
+            if (!hasTaskBinding) {
+                // 如果既没有里程碑也没有任务绑定，清空项目ID
+                attrs['custom-task-projectid'] = '';
+            }
+            // 如果还有任务绑定，保留项目ID不变（不设置attrs，保持原值）
+        }
+
+        await setBlockAttrs(blockId, attrs);
+    } catch (error) {
+        console.error('更新里程碑块属性失败:', error);
+    }
+}
+
 
 
 

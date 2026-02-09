@@ -3251,16 +3251,22 @@ export default class ReminderPlugin extends Plugin {
         // 在块元素上检查属性
         const rawAttr = blockEl.getAttribute('custom-task-projectid');
         const hasBind = blockEl.hasAttribute('custom-bind-reminders');
+        const rawMilestones = blockEl.getAttribute('custom-bind-milestones');
+        const milestoneProjectId = blockEl.getAttribute('custom-task-projectid');
 
         const projectIds = rawAttr ? rawAttr.split(',').map(s => s.trim()).filter(s => s) : [];
+        const milestoneIds = rawMilestones ? rawMilestones.split(',').map(s => s.trim()).filter(s => s) : [];
+
         const info = {
             projectIds,
             hasBind,
+            milestoneIds,
+            milestoneProjectId: milestoneProjectId || undefined,
             element: blockEl // 传递块元素本身作为 sourceElement
         };
 
-        // 如果既没有项目引用也没有绑定，且存在旧按钮，则需要移除
-        if (!rawAttr && !hasBind) {
+        // 如果既没有项目引用也没有绑定也没有里程碑，且存在旧按钮，则需要移除
+        if (!rawAttr && !hasBind && !rawMilestones) {
             const btns = protyle.element.querySelectorAll(`[data-block-id="${blockId}"][data-plugin-added="reminder-plugin"]`);
             if (btns.length > 0) {
                 btns.forEach((b: Element) => b.remove());
@@ -3284,14 +3290,14 @@ export default class ReminderPlugin extends Plugin {
      * 优化版本：使用延迟执行和更高效的DOM操作，有属性即显示按钮
      */
     /**
-     * 扫描 Protyle 内容并更新项目/绑定按钮
+     * 扫描 Protyle 内容并更新项目/绑定/里程碑按钮
      */
     private _scanProtyleForButtons(protyle: any) {
         try {
             if (!protyle || !protyle.element) return;
 
-            // 仅扫描具有自定义项目属性或绑定属性的节点
-            const selector = 'div[data-node-id][custom-task-projectid], .protyle-wysiwyg[custom-task-projectid], div[data-node-id][custom-bind-reminders], .protyle-wysiwyg[custom-bind-reminders]';
+            // 仅扫描具有自定义项目属性或绑定属性或里程碑属性的节点
+            const selector = 'div[data-node-id][custom-task-projectid], .protyle-wysiwyg[custom-task-projectid], div[data-node-id][custom-bind-reminders], .protyle-wysiwyg[custom-bind-reminders], div[data-node-id][custom-bind-milestones], .protyle-wysiwyg[custom-bind-milestones]';
             const allBlocks = Array.from(protyle.element.querySelectorAll(selector)) as Element[];
 
             if (allBlocks.length === 0) {
@@ -3300,7 +3306,7 @@ export default class ReminderPlugin extends Plugin {
             }
 
             // 预处理：收集所有需要处理的块信息
-            const blocksToProcess = new Map<string, { projectIds: string[], hasBind: boolean, element: Element }>();
+            const blocksToProcess = new Map<string, { projectIds: string[], hasBind: boolean, milestoneIds: string[], milestoneProjectId?: string, element: Element }>();
 
             for (const node of allBlocks) {
                 const blockId = node.getAttribute('data-node-id') || this._getBlockIdFromElement(node);
@@ -3309,10 +3315,15 @@ export default class ReminderPlugin extends Plugin {
                 const rawAttr = node.getAttribute('custom-task-projectid');
                 const projectIds = rawAttr ? rawAttr.split(',').map(s => s.trim()).filter(s => s) : [];
                 const hasBind = node.hasAttribute('custom-bind-reminders');
+                const rawMilestones = node.getAttribute('custom-bind-milestones');
+                const milestoneIds = rawMilestones ? rawMilestones.split(',').map(s => s.trim()).filter(s => s) : [];
+                const milestoneProjectId = node.getAttribute('custom-task-projectid') || undefined;
 
                 blocksToProcess.set(blockId, {
                     projectIds,
                     hasBind,
+                    milestoneIds,
+                    milestoneProjectId,
                     element: node
                 });
             }
@@ -3398,7 +3409,7 @@ export default class ReminderPlugin extends Plugin {
                 subtree: true,
                 attributes: true,
                 // 监听更多属性以应对思源对 DOM 的重构
-                attributeFilter: ['custom-task-projectid', 'custom-bind-reminders', 'updated', 'bookmark']
+                attributeFilter: ['custom-task-projectid', 'custom-bind-reminders', 'custom-bind-milestones', 'updated', 'bookmark']
             });
 
             // 额外监听属性栏本身的变化，有些时候思源会重写 protyle-attr
@@ -3490,10 +3501,26 @@ export default class ReminderPlugin extends Plugin {
             }
             seenBind.add(blockId);
         }
+
+        // 清理并去重里程碑按钮：对于同一 blockId 只保留一个
+        const milestoneButtons = Array.from(protyle.element.querySelectorAll('.block-milestone-btn')) as HTMLElement[];
+        const seenMilestone = new Set<string>();
+        for (const btn of milestoneButtons) {
+            const blockId = btn.dataset.blockId || btn.closest('[data-node-id]')?.getAttribute('data-node-id');
+            if (!blockId || !activeBlockIds.has(blockId)) {
+                btn.remove();
+                continue;
+            }
+            if (seenMilestone.has(blockId)) {
+                btn.remove();
+                continue;
+            }
+            seenMilestone.add(blockId);
+        }
     }
 
     // 处理单个块的按钮
-    private _processBlockButtons(protyle: any, blockId: string, info: { projectIds: string[], hasBind: boolean, element: Element }) {
+    private _processBlockButtons(protyle: any, blockId: string, info: { projectIds: string[], hasBind: boolean, milestoneIds?: string[], milestoneProjectId?: string, element: Element }) {
         // 使用已知的 blockEl 或者在容器内查找
         const blockEl = (info.element && info.element.getAttribute('data-node-id') === blockId) ?
             info.element as HTMLElement :
@@ -3543,6 +3570,24 @@ export default class ReminderPlugin extends Plugin {
             }
         } else if (existingBindBtn) {
             existingBindBtn.remove();
+        }
+
+        // 处理里程碑按钮
+        const existingMilestoneBtn = container.querySelector(`.block-milestone-btn[data-block-id="${blockId}"]`) as HTMLElement;
+        if (info.milestoneIds && info.milestoneIds.length > 0 && info.milestoneProjectId) {
+            if (!existingMilestoneBtn) {
+                const milestoneBtn = this._createMilestoneButton(blockId, info.milestoneProjectId, info.milestoneIds);
+                container.appendChild(milestoneBtn);
+            } else {
+                // 更新现有按钮的数据
+                existingMilestoneBtn.dataset.milestoneIds = info.milestoneIds.join(',');
+                existingMilestoneBtn.dataset.projectId = info.milestoneProjectId;
+                if (existingMilestoneBtn.parentElement !== container) {
+                    container.appendChild(existingMilestoneBtn);
+                }
+            }
+        } else if (existingMilestoneBtn) {
+            existingMilestoneBtn.remove();
         }
     }
 
@@ -3660,6 +3705,98 @@ export default class ReminderPlugin extends Plugin {
         return btn;
     }
 
+    // 创建里程碑按钮
+    private _createMilestoneButton(blockId: string, projectId: string, milestoneIds: string[]): HTMLElement {
+        const btn = document.createElement('button');
+        btn.className = 'block-milestone-btn block__icon fn__flex-center ariaLabel';
+        btn.setAttribute('aria-label', '查看里程碑任务');
+        btn.style.cssText = `
+            margin-left: 6px;
+            padding: 2px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            border-radius: 3px;
+            color: var(--b3-theme-on-background);
+            opacity: 0.85;
+            transition: all 0.12s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+        `;
+        btn.innerHTML = `<span style="font-size:14px;line-height:1">🚩</span>`;
+        btn.dataset.blockId = blockId;
+        btn.dataset.projectId = projectId;
+        btn.dataset.milestoneIds = milestoneIds.join(',');
+        btn.setAttribute('data-plugin-added', 'reminder-plugin');
+        btn.title = '查看里程碑任务';
+
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            try {
+                // 获取第一个里程碑ID来显示对话框
+                const firstMilestoneId = milestoneIds[0];
+                if (!firstMilestoneId) return;
+
+                // 加载项目数据获取里程碑信息
+                const projectData = await this.loadProjectData();
+                const project = projectData[projectId];
+
+                // 查找里程碑
+                let milestone: any = null;
+                let groupId: string | null = null;
+
+                // 先从项目里程碑中查找
+                if (project?.milestones) {
+                    milestone = project.milestones.find((m: any) => m.id === firstMilestoneId);
+                }
+
+                // 如果没找到，从分组里程碑中查找
+                if (!milestone) {
+                    const { ProjectManager } = await import('./utils/projectManager');
+                    const projectManager = ProjectManager.getInstance(this);
+                    const groups = await projectManager.getProjectCustomGroups(projectId);
+
+                    for (const group of groups) {
+                        if (group.milestones) {
+                            milestone = group.milestones.find((m: any) => m.id === firstMilestoneId);
+                            if (milestone) {
+                                groupId = group.id;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!milestone) {
+                    console.warn('Milestone not found:', firstMilestoneId);
+                    return;
+                }
+
+                // 获取或创建项目看板视图实例
+                const tabId = this.name + PROJECT_KANBAN_TAB_TYPE + projectId;
+                let kanbanView = this.tabViews.get(tabId);
+
+                if (kanbanView && typeof kanbanView.showMilestoneTasksDialog === 'function') {
+                    // 如果看板视图已存在，直接调用
+                    await kanbanView.showMilestoneTasksDialog(milestone, groupId);
+                } else {
+                    // 否则动态导入并创建临时实例
+                    const { ProjectKanbanView } = await import('./components/ProjectKanbanView');
+                    const tempContainer = document.createElement('div');
+                    const tempView = new ProjectKanbanView(tempContainer, this, projectId);
+                    await tempView.showMilestoneTasksDialog(milestone, groupId);
+                }
+            } catch (err) {
+                console.error('打开里程碑任务对话框失败:', err);
+            }
+        });
+
+        return btn;
+    }
 
     /**
      * 注册快捷键命令

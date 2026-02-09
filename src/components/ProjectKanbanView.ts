@@ -1790,7 +1790,7 @@ export class ProjectKanbanView {
     /**
      * 显示里程碑关联的任务列表对话框
      */
-    private async showMilestoneTasksDialog(milestone: any, groupId: string | null) {
+    public async showMilestoneTasksDialog(milestone: any, groupId: string | null) {
         const dialog = new Dialog({
             title: `${milestone.name}${milestone.startTime || milestone.endTime ? ` (${milestone.startTime || '?'} ~ ${milestone.endTime || '?'})` : ''} - ${i18n('tasks') || '任务列表'}`,
             content: `<div class="b3-dialog__content" style="padding: 0; display: flex; flex-direction: column; height: 100%;"></div>`,
@@ -1809,17 +1809,23 @@ export class ProjectKanbanView {
         container.innerHTML = '';
 
         // 获取最新的任务数据
-        await this.getReminders();
+        const reminderData = await this.getReminders();
 
-        const taskMap = new Map(this.tasks.map(t => [t.id, t]));
+        // 筛选当前项目的任务
+        const projectTasks = Object.values(reminderData).filter((reminder: any) =>
+            reminder && reminder.projectId === this.projectId
+        );
+
+        const taskMap = new Map(projectTasks.map((t: any) => [t.id, t]));
 
         // 筛选属于该里程碑的任务
-        const relevantTasks = this.tasks.filter(t => {
+        const relevantTasks = projectTasks.filter((t: any) => {
             // 检查分组归属
-            if (groupId) {
+            if (groupId && groupId !== 'ungrouped') {
                 const taskGroupId = t.customGroupId || 'ungrouped';
-                if (groupId !== taskGroupId && groupId !== 'ungrouped') {
+                if (groupId !== taskGroupId) {
                     // 如果任务明确属于其他分组，则排除
+                    return false;
                 }
             }
 
@@ -1859,12 +1865,20 @@ export class ProjectKanbanView {
             }
         });
 
+        // 创建按钮容器
+        const buttonContainer = document.createElement('div');
+        buttonContainer.style.cssText = `
+            display: flex;
+            gap: 8px;
+            margin: 8px 16px;
+            align-items: center;
+        `;
+
         // 添加复制为 Markdown 按钮
         const copyBtn = document.createElement('button');
         copyBtn.className = 'b3-button b3-button--text';
         copyBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconCopy"></use></svg> 复制为 Markdown';
         copyBtn.style.cssText = `
-            margin: 8px 16px;
             padding: 4px 12px;
             font-size: 12px;
             color: var(--b3-theme-on-surface);
@@ -1915,7 +1929,34 @@ export class ProjectKanbanView {
                 showMessage('复制失败，请手动复制');
             }
         });
-        list.appendChild(copyBtn);
+
+        // 添加编辑里程碑按钮
+        const editBtn = document.createElement('button');
+        editBtn.className = 'b3-button b3-button--text';
+        editBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconEdit"></use></svg> 编辑里程碑';
+        editBtn.style.cssText = `
+            padding: 4px 12px;
+            font-size: 12px;
+            color: var(--b3-theme-on-surface);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        `;
+        editBtn.addEventListener('click', async () => {
+            // 关闭当前对话框
+            dialog.destroy();
+
+            // 打开编辑里程碑对话框
+            await this.showMilestoneEditDialog(milestone, groupId, async () => {
+                // 保存后刷新看板
+                await this.loadTasks();
+                this.render();
+            });
+        });
+
+        buttonContainer.appendChild(copyBtn);
+        buttonContainer.appendChild(editBtn);
+        list.appendChild(buttonContainer);
 
         // 递归渲染函数
         const renderTaskTree = (tasks: any[], parentEl: HTMLElement, level: number) => {
@@ -1964,6 +2005,7 @@ export class ProjectKanbanView {
                     margin-left: ${level * 20}px;
                     border-radius: 4px;
                     padding: 8px;
+                    margin: 1px 5px;
                 `;
 
                 taskEl.addEventListener('mouseenter', () => {
@@ -2386,7 +2428,17 @@ export class ProjectKanbanView {
                 sort: sortValue
             };
 
+            const oldBlockId = milestone?.blockId;
             await this.saveMilestone(data, groupId);
+
+            // 更新块属性
+            if (oldBlockId && oldBlockId !== data.blockId) {
+                await this.updateMilestoneBlockAttrs(oldBlockId);
+            }
+            if (data.blockId) {
+                await this.updateMilestoneBlockAttrs(data.blockId);
+            }
+
             onSave();
             dialog.destroy();
             showMessage(i18n('milestoneSaved'));
@@ -2423,11 +2475,17 @@ export class ProjectKanbanView {
 
     private async deleteMilestone(milestoneId: string, groupId: string | null) {
         const projectManager = this.projectManager;
+
+        // 记录被删除里程碑的 blockId，以便后续更新块属性
+        let deletedBlockId: string | undefined;
+
         // 1. 从项目配置或分组配置中移除里程碑定义
         if (groupId === null) {
             const projectData = await this.plugin.loadProjectData() || {};
             const project = projectData[this.projectId];
             if (project && project.milestones) {
+                const milestone = project.milestones.find((m: any) => m.id === milestoneId);
+                deletedBlockId = milestone?.blockId;
                 project.milestones = project.milestones.filter((m: any) => m.id !== milestoneId);
                 await this.plugin.saveProjectData(projectData);
             }
@@ -2435,6 +2493,8 @@ export class ProjectKanbanView {
             const groups = await projectManager.getProjectCustomGroups(this.projectId);
             const group = groups.find((g: any) => g.id === groupId);
             if (group && group.milestones) {
+                const milestone = group.milestones.find((m: any) => m.id === milestoneId);
+                deletedBlockId = milestone?.blockId;
                 group.milestones = group.milestones.filter((m: any) => m.id !== milestoneId);
                 await projectManager.setProjectCustomGroups(this.projectId, groups);
             }
@@ -2482,8 +2542,39 @@ export class ProjectKanbanView {
             console.error('Failed to cleanup tasks for deleted milestone:', err);
         }
 
+        // 3. 更新被删除里程碑绑定的块属性
+        if (deletedBlockId) {
+            await this.updateMilestoneBlockAttrs(deletedBlockId);
+        }
+
         window.dispatchEvent(new CustomEvent('reminderUpdated'));
         showMessage(i18n('milestoneDeleted'));
+    }
+
+    private async updateMilestoneBlockAttrs(blockId: string) {
+        if (!blockId) return;
+
+        // 查找本项目中所有绑定到此 blockId 的里程碑
+        const projectData = await this.plugin.loadProjectData() || {};
+        const project = projectData[this.projectId];
+        const groups = await this.projectManager.getProjectCustomGroups(this.projectId);
+
+        const milestoneIds: string[] = [];
+
+        // 来自项目里程碑
+        (project?.milestones || []).forEach((m: any) => {
+            if (m.blockId === blockId) milestoneIds.push(m.id);
+        });
+
+        // 来自分组里程碑
+        groups.forEach((g: any) => {
+            (g.milestones || []).forEach((m: any) => {
+                if (m.blockId === blockId) milestoneIds.push(m.id);
+            });
+        });
+
+        const { updateMilestoneBindBlockAttrs } = await import('../api');
+        await updateMilestoneBindBlockAttrs(blockId, this.projectId, milestoneIds);
     }
 
     private async setTaskMilestone(task: any, milestoneId: string | null) {
