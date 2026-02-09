@@ -2097,12 +2097,6 @@ export class ProjectKanbanView {
                         e.stopPropagation();
                         openBlock(targetId);
                     });
-                    titleEl.addEventListener('mouseenter', () => {
-                        titleEl.style.color = 'var(--b3-theme-primary-light)';
-                    });
-                    titleEl.addEventListener('mouseleave', () => {
-                        titleEl.style.color = 'var(--b3-theme-primary)';
-                    });
                 } else {
                     titleEl.style.cssText = `
                         font-weight: 500;
@@ -2288,15 +2282,11 @@ export class ProjectKanbanView {
 
                 const updateItemStyle = (completed: boolean) => {
                     if (completed) {
-                        titleEl.style.textDecoration = (task.blockId || task.docId ? 'underline dotted ' : '') + 'line-through';
-                        titleEl.style.opacity = '0.6';
-                        titleEl.style.color = 'var(--b3-theme-on-surface-light)';
-                        taskEl.style.opacity = '0.8';
+                        titleEl.style.textDecoration = task.blockId ? 'line-through underline dotted ' : 'line-through';
+                        titleEl.style.color = task.blockId ? 'var(--b3-theme-primary)' : 'var(--b3-theme-on-surface-light)';
                     } else {
-                        titleEl.style.textDecoration = (task.blockId || task.docId) ? 'underline dotted' : 'none';
-                        titleEl.style.opacity = '1';
-                        titleEl.style.color = (task.blockId || task.docId) ? 'var(--b3-theme-primary)' : 'var(--b3-theme-on-surface)';
-                        taskEl.style.opacity = '1';
+                        titleEl.style.textDecoration = task.blockId ? 'underline dotted' : 'none';
+                        titleEl.style.color = task.blockId ? 'var(--b3-theme-primary)' : 'var(--b3-theme-on-surface)';
                     }
                 };
                 updateItemStyle(task.completed);
@@ -3294,13 +3284,6 @@ export class ProjectKanbanView {
                 this.openProjectNote(this.project.blockId);
             });
 
-            titleEl.addEventListener('mouseenter', () => {
-                titleEl.style.color = 'var(--b3-theme-primary)';
-            });
-
-            titleEl.addEventListener('mouseleave', () => {
-                titleEl.style.color = 'var(--b3-theme-on-background)';
-            });
         }
 
         titleContainer.appendChild(titleEl);
@@ -8279,13 +8262,6 @@ export class ProjectKanbanView {
                 this.openBlockTab(targetId);
             });
 
-            // 鼠标悬停效果
-            titleEl.addEventListener('mouseenter', () => {
-                titleEl.style.color = 'var(--b3-theme-primary-light)';
-            });
-            titleEl.addEventListener('mouseleave', () => {
-                titleEl.style.color = 'var(--b3-theme-primary)';
-            });
         } else {
             // 没有绑定块，普通标题样式
             titleEl.style.cssText = `
