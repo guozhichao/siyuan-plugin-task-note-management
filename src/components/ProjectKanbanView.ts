@@ -8,7 +8,7 @@ import { ProjectManager } from "../utils/projectManager";
 import { PomodoroTimer } from "./PomodoroTimer";
 import { PomodoroManager } from "../utils/pomodoroManager";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord"; // Add import
-import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
+import { generateRepeatInstances, getRepeatDescription, getDaysDifference, addDaysToDate } from "../utils/repeatUtils";
 import { getSolarDateLunarString } from "../utils/lunarUtils";
 import { QuickReminderDialog } from "./QuickReminderDialog";
 import { BlockBindingDialog } from "./BlockBindingDialog";
@@ -9306,10 +9306,104 @@ export class ProjectKanbanView {
                 click: () => this.unsetParentChildRelation(task)
             });
         }
-
-
-
         menu.addSeparator();
+        // Helper: quick date submenu items (快速调整日期)
+        const createQuickDateMenuItems = (targetTask: any, onlyThisInstance: boolean = false) => {
+            const items: any[] = [];
+            const todayStr = getLogicalDateString();
+            const tomorrowStr = getRelativeDateString(1);
+            const dayAfterStr = getRelativeDateString(2);
+            const nextWeekStr = getRelativeDateString(7);
+
+            const apply = async (newDate: string | null) => {
+                try {
+                    if (targetTask.isRepeatInstance && onlyThisInstance) {
+                        // 使用原始实例日期作为键（如果实例曾被移动，task.date 可能已改变）
+                        const originalInstanceDate = (targetTask.id && targetTask.id.includes('_')) ? targetTask.id.split('_').pop()! : targetTask.date;
+                        const reminderData = await getAllReminders(this.plugin);
+                        const originalReminder = reminderData[targetTask.originalId];
+                        if (!originalReminder) {
+                            showMessage(i18n("reminderNotExist"));
+                            return;
+                        }
+
+                        if (!originalReminder.repeat) originalReminder.repeat = {};
+                        if (!originalReminder.repeat.instanceModifications) originalReminder.repeat.instanceModifications = {};
+                        if (!originalReminder.repeat.instanceModifications[originalInstanceDate]) originalReminder.repeat.instanceModifications[originalInstanceDate] = {};
+
+                        if (newDate === null) {
+                            // 标记为移除该实例（generateRepeatInstances 会跳过 date 为 null 的修改）
+                            originalReminder.repeat.instanceModifications[originalInstanceDate].date = null;
+                            delete originalReminder.repeat.instanceModifications[originalInstanceDate].endDate;
+                        } else {
+                            originalReminder.repeat.instanceModifications[originalInstanceDate].date = newDate;
+
+                            // 如果原始为跨天，保持跨度
+                            if (originalReminder.endDate && originalReminder.date) {
+                                const span = getDaysDifference(originalReminder.date, originalReminder.endDate);
+                                originalReminder.repeat.instanceModifications[originalInstanceDate].endDate = addDaysToDate(newDate, span);
+                            }
+                        }
+
+                        await saveReminders(this.plugin, reminderData);
+
+                        this.dispatchReminderUpdate(true);
+                        this.queueLoadTasks();
+                        showMessage(i18n("instanceTimeUpdated") || "实例时间已更新");
+                    } else {
+                        const targetId = targetTask.isRepeatInstance ? targetTask.originalId : targetTask.id;
+                        const reminderData = await getAllReminders(this.plugin);
+                        const reminder = reminderData[targetId];
+                        if (!reminder) {
+                            showMessage(i18n("reminderNotExist"));
+                            return;
+                        }
+
+                        const oldDate: string | undefined = reminder.date;
+                        const oldEndDate: string | undefined = reminder.endDate;
+
+                        if (newDate === null) {
+                            // 清除日期和相关结束日期/时间
+                            delete reminder.date;
+                            delete reminder.time;
+                            delete reminder.endDate;
+                            delete reminder.endTime;
+                        } else {
+                            reminder.date = newDate;
+                            if (oldEndDate && oldDate) {
+                                const span = getDaysDifference(oldDate, oldEndDate);
+                                reminder.endDate = addDaysToDate(newDate, span);
+                            }
+                        }
+
+                        await saveReminders(this.plugin, reminderData);
+
+                        this.dispatchReminderUpdate(true);
+                        this.queueLoadTasks();
+                        showMessage(i18n("operationSuccessful") || "操作成功");
+                    }
+                } catch (err) {
+                    console.error('快速调整日期失败:', err);
+                    showMessage(i18n("operationFailed"));
+                }
+            };
+
+            items.push({ iconHTML: "📅", label: i18n("moveToToday") || "移至今天", click: () => apply(todayStr) });
+            items.push({ iconHTML: "📅", label: i18n("moveToTomorrow") || "移至明天", click: () => apply(tomorrowStr) });
+            items.push({ iconHTML: "📅", label: i18n("moveToDayAfterTomorrow") || "移至后天", click: () => apply(dayAfterStr) });
+            items.push({ iconHTML: "📅", label: i18n("moveToNextWeek") || "移至下周", click: () => apply(nextWeekStr) });
+            items.push({ iconHTML: "❌", label: i18n('clearDate') || '清除日期', click: () => apply(null) });
+            return items;
+        };
+
+        // 快速调整日期
+        menu.addItem({
+            iconHTML: "📆",
+            label: i18n('quickReschedule') || '快速调整日期',
+            submenu: createQuickDateMenuItems(task, !!task.isRepeatInstance)
+        });
+
+
 
         // 设置优先级子菜单
         const priorityMenuItems = [];

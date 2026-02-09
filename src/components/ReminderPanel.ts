@@ -5509,7 +5509,7 @@ export class ReminderPanel {
             const dayAfterStr = getRelativeDateString(2);
             const nextWeekStr = getRelativeDateString(7);
 
-            const apply = async (newDate: string) => {
+            const apply = async (newDate: string | null) => {
                 try {
                     if (targetReminder.isRepeatInstance && onlyThisInstance) {
                         // 使用原始实例日期作为键（如果实例曾被移动，reminder.date 可能已改变，应该使用 id 中的原始生成日期）
@@ -5529,6 +5529,7 @@ export class ReminderPanel {
             items.push({ iconHTML: "📅", label: i18n("moveToTomorrow") || "移至明天", click: () => apply(tomorrowStr) });
             items.push({ iconHTML: "📅", label: i18n("moveToDayAfterTomorrow") || "移至后天", click: () => apply(dayAfterStr) });
             items.push({ iconHTML: "📅", label: i18n("moveToNextWeek") || "移至下周", click: () => apply(nextWeekStr) });
+            items.push({ iconHTML: "❌", label: i18n("clearDate") || "清除日期", click: () => apply(null) });
             return items;
         };
 
@@ -5812,7 +5813,7 @@ export class ReminderPanel {
      * 将非实例任务或系列原始任务的基准日期设置为 newDate。
      * 保持跨天跨度（若存在 endDate）。
      */
-    private async setReminderBaseDate(reminderId: string, newDate: string) {
+    private async setReminderBaseDate(reminderId: string, newDate: string | null) {
         const reminderData = await getAllReminders(this.plugin);
         const reminder = reminderData[reminderId];
         if (!reminder) {
@@ -5824,10 +5825,18 @@ export class ReminderPanel {
             const oldDate: string | undefined = reminder.date;
             const oldEndDate: string | undefined = reminder.endDate;
 
-            reminder.date = newDate;
-            if (oldEndDate && oldDate) {
-                const span = getDaysDifference(oldDate, oldEndDate);
-                reminder.endDate = addDaysToDate(newDate, span);
+            if (newDate === null) {
+                // 清除日期及相关结束日期/时间
+                delete reminder.date;
+                delete reminder.time;
+                delete reminder.endDate;
+                delete reminder.endTime;
+            } else {
+                reminder.date = newDate;
+                if (oldEndDate && oldDate) {
+                    const span = getDaysDifference(oldDate, oldEndDate);
+                    reminder.endDate = addDaysToDate(newDate, span);
+                }
             }
 
             await saveReminders(this.plugin, reminderData);
@@ -5849,7 +5858,7 @@ export class ReminderPanel {
      * 设置重复事件的某个实例日期（通过 instanceModifications）。
      * 同时根据原始事件的跨度设置实例的 endDate 修改。
      */
-    private async setInstanceDate(originalId: string, instanceDate: string, newDate: string) {
+    private async setInstanceDate(originalId: string, instanceDate: string, newDate: string | null) {
         const reminderData = await getAllReminders(this.plugin);
         const originalReminder = reminderData[originalId];
         if (!originalReminder || !originalReminder.repeat?.enabled) {
@@ -5865,13 +5874,20 @@ export class ReminderPanel {
                 originalReminder.repeat.instanceModifications[instanceDate] = {};
             }
 
-            // 设置新的日期
-            originalReminder.repeat.instanceModifications[instanceDate].date = newDate;
+            // 设置新的日期（如果为 null，表示用户选择清除该实例）
+            if (newDate === null) {
+                // 将 date 显式设为 null 表示该实例被移除/清空（generateRepeatInstances 会对此做特殊处理）
+                originalReminder.repeat.instanceModifications[instanceDate].date = null;
+                // 同时移除 endDate 修改
+                delete originalReminder.repeat.instanceModifications[instanceDate].endDate;
+            } else {
+                originalReminder.repeat.instanceModifications[instanceDate].date = newDate;
 
-            // 若原始为跨天，保持跨度
-            if (originalReminder.endDate && originalReminder.date) {
-                const span = getDaysDifference(originalReminder.date, originalReminder.endDate);
-                originalReminder.repeat.instanceModifications[instanceDate].endDate = addDaysToDate(newDate, span);
+                // 若原始为跨天，保持跨度
+                if (originalReminder.endDate && originalReminder.date) {
+                    const span = getDaysDifference(originalReminder.date, originalReminder.endDate);
+                    originalReminder.repeat.instanceModifications[instanceDate].endDate = addDaysToDate(newDate, span);
+                }
             }
 
             await saveReminders(this.plugin, reminderData);

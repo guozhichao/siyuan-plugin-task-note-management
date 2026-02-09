@@ -95,26 +95,31 @@ export function generateRepeatInstances(
                 // 检查是否有针对此实例的修改
                 const modification = instanceModifications[currentDateStr];
 
-                // 检查此实例是否已完成
-                const isInstanceCompleted = completedInstances.includes(currentDateStr);
+                // 如果修改中明确将 date 设为 null，表示用户选择“清除日期/移除此实例”，因此跳过生成该实例
+                if (modification && Object.prototype.hasOwnProperty.call(modification, 'date') && modification.date === null) {
+                    // 跳过该实例
+                } else {
+                    // 检查此实例是否已完成
+                    const isInstanceCompleted = completedInstances.includes(currentDateStr);
 
-                const instance: RepeatInstance = {
-                    date: modification?.date || currentDateStr,
-                    time: modification?.time || reminder.time,
-                    endDate: modification?.endDate || (reminder.endDate && reminder.date ? addDaysToDate(modification?.date || currentDateStr, getDaysDifference(reminder.date, reminder.endDate)) : undefined),
-                    endTime: modification?.endTime || reminder.endTime,
-                    customReminderTime: modification?.customReminderTime || reminder.customReminderTime,
-                    reminderTimes: modification?.reminderTimes !== undefined ? modification.reminderTimes : reminder.reminderTimes,
-                    customReminderPreset: modification?.customReminderPreset !== undefined ? modification.customReminderPreset : reminder.customReminderPreset,
-                    instanceId: `${reminder.id}_${currentDateStr}`,
-                    originalId: reminder.id,
-                    isRepeatedInstance: true,
-                    completed: isInstanceCompleted, // 设置实例级别的完成状态
-                    completedTime: isInstanceCompleted ? instanceCompletedTimes[currentDateStr] : undefined
-                };
+                    const instance: RepeatInstance = {
+                        date: modification?.date || currentDateStr,
+                        time: modification?.time || reminder.time,
+                        endDate: modification?.endDate || (reminder.endDate && reminder.date ? addDaysToDate(modification?.date || currentDateStr, getDaysDifference(reminder.date, reminder.endDate)) : undefined),
+                        endTime: modification?.endTime || reminder.endTime,
+                        customReminderTime: modification?.customReminderTime || reminder.customReminderTime,
+                        reminderTimes: modification?.reminderTimes !== undefined ? modification.reminderTimes : reminder.reminderTimes,
+                        customReminderPreset: modification?.customReminderPreset !== undefined ? modification.customReminderPreset : reminder.customReminderPreset,
+                        instanceId: `${reminder.id}_${currentDateStr}`,
+                        originalId: reminder.id,
+                        isRepeatedInstance: true,
+                        completed: isInstanceCompleted, // 设置实例级别的完成状态
+                        completedTime: isInstanceCompleted ? instanceCompletedTimes[currentDateStr] : undefined
+                    };
 
-                instances.push(instance);
-                instanceCount++;
+                    instances.push(instance);
+                    instanceCount++;
+                }
             }
         }
 
