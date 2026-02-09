@@ -2104,15 +2104,35 @@ export class CalendarView {
                 label: i18n("viewPomodoroTask") || "查看所属任务",
                 click: async () => {
                     try {
-                        const eventId = calendarEvent.extendedProps.eventId;
+                        let eventId = calendarEvent.extendedProps.eventId;
                         if (!eventId) return;
 
                         const reminderData = await getAllReminders(this.plugin);
-                        const reminder = reminderData[eventId];
+                        let reminder = reminderData[eventId];
+                        let instanceDate: string | undefined = undefined;
+
+                        // 如果是重复任务实例ID，提取原任务ID和实例日期 (支持 {id}_instance_{date} 或 {id}_{date})
+                        if (!reminder) {
+                            if (eventId.includes('_instance_')) {
+                                const parts = eventId.split('_instance_');
+                                const originalId = parts[0];
+                                instanceDate = parts[1];
+                                reminder = reminderData[originalId];
+                            } else if (eventId.includes('_')) {
+                                // 尝试匹配末尾日期格式
+                                const parts = eventId.split('_');
+                                const lastPart = parts[parts.length - 1];
+                                if (/^\d{4}-\d{2}-\d{2}$/.test(lastPart)) {
+                                    instanceDate = lastPart;
+                                    const originalId = parts.slice(0, -1).join('_');
+                                    reminder = reminderData[originalId];
+                                }
+                            }
+                        }
 
                         if (reminder) {
                             const dialog = new QuickReminderDialog(
-                                reminder.date,
+                                instanceDate || reminder.date,
                                 reminder.time,
                                 undefined,
                                 undefined,
@@ -2120,6 +2140,8 @@ export class CalendarView {
                                     reminder: reminder,
                                     mode: 'edit', // Allow edit as user might want to adjust the task
                                     plugin: this.plugin,
+                                    isInstanceEdit: !!instanceDate,
+                                    instanceDate: instanceDate,
                                     onSaved: () => {
                                         this.refreshEvents();
                                         window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
