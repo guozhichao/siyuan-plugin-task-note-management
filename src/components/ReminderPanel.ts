@@ -5423,8 +5423,9 @@ export class ReminderPanel {
                     current: currentPriority === priority.key,
                     click: () => {
                         if (reminder.isRepeatInstance && onlyThisInstance) {
-                            // 只修改此实例
-                            this.setInstancePriority(reminder.originalId, reminder.date, priority.key);
+                            // 只修改此实例，使用原始实例日期作为键
+                            const originalInstanceDate = (reminder.id && reminder.id.includes('_')) ? reminder.id.split('_').pop()! : reminder.date;
+                            this.setInstancePriority(reminder.originalId, originalInstanceDate, priority.key);
                         } else {
                             // 修改原始事件（影响所有实例）
                             const targetId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
@@ -5450,8 +5451,9 @@ export class ReminderPanel {
                 current: !currentCategoryId,
                 click: () => {
                     if (reminder.isRepeatInstance && onlyThisInstance) {
-                        // 只修改此实例
-                        this.setInstanceCategory(reminder.originalId, reminder.date, null);
+                        // 只修改此实例；使用原始实例日期作为键
+                        const originalInstanceDate = (reminder.id && reminder.id.includes('_')) ? reminder.id.split('_').pop()! : reminder.date;
+                        this.setInstanceCategory(reminder.originalId, originalInstanceDate, null);
                     } else {
                         // 修改原始事件（影响所有实例）
                         const targetId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
@@ -5468,8 +5470,9 @@ export class ReminderPanel {
                     current: currentCategoryId === category.id,
                     click: () => {
                         if (reminder.isRepeatInstance && onlyThisInstance) {
-                            // 只修改此实例
-                            this.setInstanceCategory(reminder.originalId, reminder.date, category.id);
+                            // 只修改此实例；使用原始实例日期作为键
+                            const originalInstanceDate = (reminder.id && reminder.id.includes('_')) ? reminder.id.split('_').pop()! : reminder.date;
+                            this.setInstanceCategory(reminder.originalId, originalInstanceDate, category.id);
                         } else {
                             // 修改原始事件（影响所有实例）
                             const targetId = reminder.isRepeatInstance ? reminder.originalId : reminder.id;
@@ -5509,7 +5512,9 @@ export class ReminderPanel {
             const apply = async (newDate: string) => {
                 try {
                     if (targetReminder.isRepeatInstance && onlyThisInstance) {
-                        await this.setInstanceDate(targetReminder.originalId, targetReminder.date, newDate);
+                        // 使用原始实例日期作为键（如果实例曾被移动，reminder.date 可能已改变，应该使用 id 中的原始生成日期）
+                        const originalInstanceDate = (targetReminder.id && targetReminder.id.includes('_')) ? targetReminder.id.split('_').pop()! : targetReminder.date;
+                        await this.setInstanceDate(targetReminder.originalId, originalInstanceDate, newDate);
                     } else {
                         const targetId = targetReminder.isRepeatInstance ? targetReminder.originalId : targetReminder.id;
                         await this.setReminderBaseDate(targetId, newDate);
