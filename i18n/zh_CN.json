@@ -1107,5 +1107,14 @@
     "filterSaved": "过滤器已保存",
     "filterDeleted": "过滤器已删除",
     "confirmDeleteFilter": "确定要删除过滤器\"${name}\"吗？",
-    "filterApplied": "过滤器已应用"
+    "filterApplied": "过滤器已应用",
+    "displaySettings": "显示设置",
+    "showCrossDayTasks": "显示跨天任务",
+    "crossDayThreshold": "天及以下显示",
+    "showSubtasks": "显示子任务",
+    "showRepeatTasks": "显示重复任务",
+    "showPomodoroRecords": "显示番茄专注",
+    "show": "显示",
+    "instances": "个未完成实例",
+    "noLimit": "表示不限制"
 }

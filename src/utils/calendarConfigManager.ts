@@ -10,6 +10,11 @@ export interface CalendarConfig {
     showLunar: boolean;
     showPomodoro: boolean;
     completionFilter: 'all' | 'completed' | 'incomplete';
+    showCrossDayTasks: boolean;
+    crossDayThreshold: number;
+    showSubtasks: boolean;
+    showRepeatTasks: boolean;
+    repeatInstanceLimit: number;
 }
 
 export class CalendarConfigManager {
@@ -24,7 +29,13 @@ export class CalendarConfigManager {
             viewMode: 'timeGridWeek', // 默认周视图
             viewType: 'timeline', // 默认视图类型
             showLunar: true, // 默认显示农历
-            showPomodoro: true // 默认显示番茄专注时间
+            showPomodoro: true, // 默认显示番茄专注时间
+            completionFilter: 'all', // 默认显示全部状态
+            showCrossDayTasks: true, // 默认显示跨天任务
+            crossDayThreshold: -1, // 默认显示全部天数 (-1表示不限制)
+            showSubtasks: true, // 默认显示子任务
+            showRepeatTasks: true, // 默认显示重复任务
+            repeatInstanceLimit: -1 // 默认显示全部实例 (-1表示不限制)
         };
     }
 
@@ -48,6 +59,11 @@ export class CalendarConfigManager {
             settings.calendarShowLunar = this.config.showLunar;
             settings.calendarShowPomodoro = this.config.showPomodoro;
             settings.calendarCompletionFilter = this.config.completionFilter;
+            settings.calendarShowCrossDayTasks = this.config.showCrossDayTasks;
+            settings.calendarCrossDayThreshold = this.config.crossDayThreshold;
+            settings.calendarShowSubtasks = this.config.showSubtasks;
+            settings.calendarShowRepeatTasks = this.config.showRepeatTasks;
+            settings.calendarRepeatInstanceLimit = this.config.repeatInstanceLimit;
             await (this.plugin as any).saveSettings(settings);
         } catch (error) {
             console.error('Failed to save calendar config:', error);
@@ -85,7 +101,12 @@ export class CalendarConfigManager {
                 viewType: settings.calendarViewType || 'timeline',
                 showLunar: settings.calendarShowLunar !== false, // 默认为 true
                 showPomodoro: settings.calendarShowPomodoro !== false, // 默认为 true
-                completionFilter: (settings.calendarCompletionFilter as any) || 'all'
+                completionFilter: (settings.calendarCompletionFilter as any) || 'all',
+                showCrossDayTasks: settings.calendarShowCrossDayTasks !== false, // 默认为 true
+                crossDayThreshold: settings.calendarCrossDayThreshold !== undefined ? settings.calendarCrossDayThreshold : -1, // 默认为 -1
+                showSubtasks: settings.calendarShowSubtasks !== false, // 默认为 true
+                showRepeatTasks: settings.calendarShowRepeatTasks !== false, // 默认为 true
+                repeatInstanceLimit: settings.calendarRepeatInstanceLimit !== undefined ? settings.calendarRepeatInstanceLimit : -1 // 默认为 -1
             };
         } catch (error) {
             console.warn('Failed to load calendar config, using defaults:', error);
@@ -95,7 +116,12 @@ export class CalendarConfigManager {
                 viewType: 'timeline',
                 showLunar: true,
                 showPomodoro: true,
-                completionFilter: 'all'
+                completionFilter: 'all',
+                showCrossDayTasks: true,
+                crossDayThreshold: -1,
+                showSubtasks: true,
+                showRepeatTasks: true,
+                repeatInstanceLimit: -1
             };
             try {
                 await this.saveConfig();
@@ -157,6 +183,51 @@ export class CalendarConfigManager {
 
     public getShowPomodoro(): boolean {
         return this.config.showPomodoro;
+    }
+
+    public async setShowCrossDayTasks(show: boolean) {
+        this.config.showCrossDayTasks = show;
+        await this.saveConfig();
+    }
+
+    public getShowCrossDayTasks(): boolean {
+        return this.config.showCrossDayTasks;
+    }
+
+    public async setCrossDayThreshold(threshold: number) {
+        this.config.crossDayThreshold = threshold;
+        await this.saveConfig();
+    }
+
+    public getCrossDayThreshold(): number {
+        return this.config.crossDayThreshold !== undefined ? this.config.crossDayThreshold : -1;
+    }
+
+    public async setShowSubtasks(show: boolean) {
+        this.config.showSubtasks = show;
+        await this.saveConfig();
+    }
+
+    public getShowSubtasks(): boolean {
+        return this.config.showSubtasks;
+    }
+
+    public async setShowRepeatTasks(show: boolean) {
+        this.config.showRepeatTasks = show;
+        await this.saveConfig();
+    }
+
+    public getShowRepeatTasks(): boolean {
+        return this.config.showRepeatTasks;
+    }
+
+    public async setRepeatInstanceLimit(limit: number) {
+        this.config.repeatInstanceLimit = limit;
+        await this.saveConfig();
+    }
+
+    public getRepeatInstanceLimit(): number {
+        return this.config.repeatInstanceLimit !== undefined ? this.config.repeatInstanceLimit : -1;
     }
 
     public getConfig(): CalendarConfig {

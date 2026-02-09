@@ -1038,5 +1038,14 @@
     "filterSaved": "Filter saved",
     "filterDeleted": "Filter deleted",
     "confirmDeleteFilter": "Are you sure you want to delete filter \"${name}\"?",
-    "filterApplied": "Filter applied"
+    "filterApplied": "Filter applied",
+    "displaySettings": "Display Settings",
+    "showCrossDayTasks": "Show Cross-day Tasks",
+    "crossDayThreshold": "Show if days <=",
+    "showSubtasks": "Show Subtasks",
+    "showRepeatTasks": "Show Repeat Tasks",
+    "showPomodoroRecords": "Show Pomodoro Records",
+    "show": "Show",
+    "instances": "incomplete instances",
+    "noLimit": "means no limit"
 }

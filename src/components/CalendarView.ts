@@ -42,6 +42,11 @@ export class CalendarView {
     private showLunar: boolean = true; // 是否显示农历
     private showHoliday: boolean = true; // 是否显示节假日
     private showPomodoro: boolean = true; // 是否显示番茄专注时间
+    private showCrossDayTasks: boolean = true; // 是否显示跨天任务
+    private crossDayThreshold: number = -1; // 跨度多少天以下才显示
+    private showSubtasks: boolean = true; // 是否显示子任务
+    private showRepeatTasks: boolean = true; // 是否显示重复任务
+    private repeatInstanceLimit: number = -1; // 重复任务显示实例数量限制
     private pomodoroToggleBtn: HTMLElement | null = null; // Pomodoro toggle button
     private holidays: { [date: string]: { title: string, type: 'holiday' | 'workday' } } = {}; // 节假日数据
     private colorBy: 'category' | 'priority' | 'project' = 'priority'; // 按分类或优先级上色
@@ -94,11 +99,17 @@ export class CalendarView {
         this.showLunar = settings.calendarShowLunar !== false;
         this.showHoliday = settings.calendarShowHoliday !== false;
         this.showPomodoro = settings.calendarShowPomodoro;
-        this.holidays = await loadHolidays(this.plugin);
 
         if (this.calendarConfigManager) {
             await this.calendarConfigManager.initialize();
             this.colorBy = this.calendarConfigManager.getColorBy();
+            this.showCrossDayTasks = this.calendarConfigManager.getShowCrossDayTasks();
+            this.crossDayThreshold = this.calendarConfigManager.getCrossDayThreshold();
+            this.showSubtasks = this.calendarConfigManager.getShowSubtasks();
+            this.showRepeatTasks = this.calendarConfigManager.getShowRepeatTasks();
+            this.repeatInstanceLimit = this.calendarConfigManager.getRepeatInstanceLimit();
+            this.showPomodoro = this.calendarConfigManager.getShowPomodoro();
+
             try {
                 this.currentCompletionFilter = this.calendarConfigManager.getCompletionFilter();
             } catch (e) {
@@ -254,8 +265,12 @@ export class CalendarView {
         this.showCategoryAndProject = settings.calendarShowCategoryAndProject !== false;
         this.showLunar = this.calendarConfigManager.getShowLunar();
         this.showHoliday = settings.calendarShowHoliday !== false;
-        this.showHoliday = settings.calendarShowHoliday !== false;
         this.showPomodoro = this.calendarConfigManager.getShowPomodoro(); // Use config manager for pomodoro state
+        this.showCrossDayTasks = this.calendarConfigManager.getShowCrossDayTasks();
+        this.crossDayThreshold = this.calendarConfigManager.getCrossDayThreshold();
+        this.showSubtasks = this.calendarConfigManager.getShowSubtasks();
+        this.showRepeatTasks = this.calendarConfigManager.getShowRepeatTasks();
+        this.repeatInstanceLimit = this.calendarConfigManager.getRepeatInstanceLimit();
         this.holidays = await loadHolidays(this.plugin);
 
         // 获取周开始日设置
@@ -657,183 +672,225 @@ export class CalendarView {
             this.updateProjectFilterButtonText(projectFilterButton);
         }
 
-        // 添加完成状态筛选（按钮样式）
-        const completionFilterContainer = document.createElement('div');
-        completionFilterContainer.className = 'filter-dropdown-container';
-        completionFilterContainer.style.position = 'relative';
-        completionFilterContainer.style.display = 'inline-block';
 
-        const completionFilterButton = document.createElement('button');
-        completionFilterButton.className = 'b3-button b3-button--outline';
-        completionFilterButton.style.width = '100px';
-        completionFilterButton.style.display = 'flex';
-        completionFilterButton.style.justifyContent = 'space-between';
-        completionFilterButton.style.alignItems = 'center';
-        completionFilterButton.style.textAlign = 'left';
-        completionFilterButton.innerHTML = `<span class="filter-button-text" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${i18n("allStatuses") || "全部状态"}</span> <span style="margin-left: 4px; flex-shrink: 0;">▼</span>`;
-        completionFilterContainer.appendChild(completionFilterButton);
+        // 添加显示设置按钮
+        const displaySettingsContainer = document.createElement('div');
+        displaySettingsContainer.className = 'filter-dropdown-container';
+        displaySettingsContainer.style.position = 'relative';
+        displaySettingsContainer.style.display = 'inline-block';
 
-        const completionDropdown = document.createElement('div');
-        completionDropdown.className = 'filter-dropdown-menu';
-        completionDropdown.style.display = 'none';
-        completionDropdown.style.position = 'absolute';
-        completionDropdown.style.top = '100%';
-        completionDropdown.style.left = '0';
-        completionDropdown.style.zIndex = '1000';
-        completionDropdown.style.backgroundColor = 'var(--b3-theme-background)';
-        completionDropdown.style.border = '1px solid var(--b3-border-color)';
-        completionDropdown.style.borderRadius = '4px';
-        completionDropdown.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-        completionDropdown.style.minWidth = '150px';
-        completionDropdown.style.padding = '8px';
+        const displaySettingsButton = document.createElement('button');
+        displaySettingsButton.className = 'b3-button b3-button--outline';
+        displaySettingsButton.style.padding = '6px';
+        displaySettingsButton.innerHTML = '<svg class="b3-button__icon" style="margin-right: 0;"><use xlink:href="#iconEye"></use></svg>';
+        displaySettingsButton.title = i18n("displaySettings") || "显示设置";
+        displaySettingsContainer.appendChild(displaySettingsButton);
 
-        // 添加完成状态选项
-        const completionOptions = [
-            { value: 'all', text: i18n("allStatuses") || "全部状态" },
-            { value: 'incomplete', text: i18n("incomplete") || "未完成" },
-            { value: 'completed', text: i18n("completed") || "已完成" }
-        ];
+        const displaySettingsDropdown = document.createElement('div');
+        displaySettingsDropdown.className = 'filter-dropdown-menu';
+        displaySettingsDropdown.style.display = 'none';
+        displaySettingsDropdown.style.position = 'absolute';
+        displaySettingsDropdown.style.top = '100%';
+        displaySettingsDropdown.style.right = '0';
+        displaySettingsDropdown.style.zIndex = '1000';
+        displaySettingsDropdown.style.backgroundColor = 'var(--b3-theme-background)';
+        displaySettingsDropdown.style.border = '1px solid var(--b3-border-color)';
+        displaySettingsDropdown.style.borderRadius = '4px';
+        displaySettingsDropdown.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+        displaySettingsDropdown.style.minWidth = '220px';
+        displaySettingsDropdown.style.padding = '8px';
 
-        // 从配置中读取初始完成状态过滤器并更新按钮文案
-        try {
-            const savedFilter = this.calendarConfigManager?.getCompletionFilter?.() || 'all';
-            this.currentCompletionFilter = savedFilter;
-            const savedText = completionOptions.find(o => o.value === savedFilter)?.text || completionOptions[0].text;
-            const textSpanInit = completionFilterButton.querySelector('.filter-button-text');
-            if (textSpanInit) textSpanInit.textContent = savedText;
-        } catch (e) {
-            // ignore
-        }
+        const createSwitchItem = (label: string, value: boolean, onChange: (checked: boolean) => void) => {
+            const item = document.createElement('div');
+            item.className = 'fn__flex fn__flex-center';
+            item.style.padding = '6px 12px';
+            item.style.gap = '8px';
+            item.innerHTML = `
+                <div class="fn__flex-1">${label}</div>
+                <input class="b3-switch" type="checkbox" ${value ? 'checked' : ''}>
+            `;
+            const checkbox = item.querySelector('input') as HTMLInputElement;
+            checkbox.addEventListener('change', () => onChange(checkbox.checked));
+            return item;
+        };
 
-        completionOptions.forEach(option => {
-            const optionItem = document.createElement('div');
-            optionItem.style.padding = '6px 12px';
-            optionItem.style.cursor = 'pointer';
-            optionItem.style.borderRadius = '4px';
-            optionItem.textContent = option.text;
+        // 跨天任务设置
+        displaySettingsDropdown.appendChild(createSwitchItem(i18n("showCrossDayTasks") || "显示跨天任务", this.showCrossDayTasks, async (checked) => {
+            this.showCrossDayTasks = checked;
+            await this.calendarConfigManager.setShowCrossDayTasks(checked);
+            await this.refreshEvents();
+        }));
 
-            optionItem.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                this.currentCompletionFilter = option.value;
-                const textSpan = completionFilterButton.querySelector('.filter-button-text');
-                if (textSpan) {
-                    textSpan.textContent = option.text;
-                }
-                // 持久化选择
-                try {
-                    await this.calendarConfigManager?.setCompletionFilter?.(option.value as any);
-                } catch (err) {
-                    console.warn('Failed to save completion filter', err);
-                }
-                completionDropdown.style.display = 'none';
+        const thresholdItem = document.createElement('div');
+        thresholdItem.className = 'fn__flex-column';
+        thresholdItem.style.padding = '6px 12px';
+        thresholdItem.style.marginLeft = '20px';
+        thresholdItem.innerHTML = `
+            <div class="fn__flex fn__flex-center" style="gap: 8px;">
+                <input class="b3-text-field fn__flex-1" type="number" value="${this.crossDayThreshold}" min="-1" style="width: 50px;">
+                <div>${i18n("crossDayThreshold") || "天及以下显示"}</div>
+            </div>
+            <div style="font-size: 0.8em; color: var(--b3-theme-on-surface-light); margin-top: 4px;">(-1${i18n("noLimit") || "表示不限制"})</div>
+        `;
+        const thresholdInput = thresholdItem.querySelector('input') as HTMLInputElement;
+        thresholdInput.addEventListener('change', async () => {
+            this.crossDayThreshold = parseInt(thresholdInput.value);
+            if (isNaN(this.crossDayThreshold)) this.crossDayThreshold = -1;
+            await this.calendarConfigManager.setCrossDayThreshold(this.crossDayThreshold);
+            await this.refreshEvents();
+        });
+        displaySettingsDropdown.appendChild(thresholdItem);
+
+        // 子任务设置
+        displaySettingsDropdown.appendChild(createSwitchItem(i18n("showSubtasks") || "显示子任务", this.showSubtasks, async (checked) => {
+            this.showSubtasks = checked;
+            await this.calendarConfigManager.setShowSubtasks(checked);
+            await this.refreshEvents();
+        }));
+
+        // 重复任务设置
+        displaySettingsDropdown.appendChild(createSwitchItem(i18n("showRepeatTasks") || "显示重复任务", this.showRepeatTasks, async (checked) => {
+            this.showRepeatTasks = checked;
+            await this.calendarConfigManager.setShowRepeatTasks(checked);
+            await this.refreshEvents();
+        }));
+
+        const repeatLimitItem = document.createElement('div');
+        repeatLimitItem.className = 'fn__flex-column';
+        repeatLimitItem.style.padding = '6px 12px';
+        repeatLimitItem.style.marginLeft = '20px';
+        repeatLimitItem.innerHTML = `
+            <div class="fn__flex fn__flex-center" style="gap: 8px;">
+                <div>${i18n("show") || "显示"}</div>
+                <input class="b3-text-field fn__flex-1" type="number" value="${this.repeatInstanceLimit}" min="-1" style="width: 50px;">
+                <div>${i18n("instances") || "个实例"}</div>
+            </div>
+            <div style="font-size: 0.8em; color: var(--b3-theme-on-surface-light); margin-top: 4px;">(-1${i18n("noLimit") || "表示不限制"})</div>
+        `;
+        const repeatLimitInput = repeatLimitItem.querySelector('input') as HTMLInputElement;
+        repeatLimitInput.addEventListener('change', async () => {
+            this.repeatInstanceLimit = parseInt(repeatLimitInput.value);
+            if (isNaN(this.repeatInstanceLimit)) this.repeatInstanceLimit = -1;
+            await this.calendarConfigManager.setRepeatInstanceLimit(this.repeatInstanceLimit);
+            await this.refreshEvents();
+        });
+        displaySettingsDropdown.appendChild(repeatLimitItem);
+
+        // 番茄专注设置
+        displaySettingsDropdown.appendChild(createSwitchItem(i18n("showPomodoroRecords") || "显示番茄专注", this.showPomodoro, async (checked) => {
+            this.showPomodoro = checked;
+            await this.calendarConfigManager.setShowPomodoro(checked);
+            this.updatePomodoroButtonState();
+            await this.refreshEvents();
+        }));
+
+        // 上色方案设置
+        const colorDivider = document.createElement('div');
+        colorDivider.style.height = '1px';
+        colorDivider.style.backgroundColor = 'var(--b3-border-color)';
+        colorDivider.style.margin = '8px 0';
+        displaySettingsDropdown.appendChild(colorDivider);
+
+        const colorLabel = document.createElement('div');
+        colorLabel.style.padding = '4px 12px';
+        colorLabel.style.fontSize = '0.9em';
+        colorLabel.style.color = 'var(--b3-theme-on-surface-light)';
+        colorLabel.innerText = i18n("colorScheme") || "任务上色方案";
+        displaySettingsDropdown.appendChild(colorLabel);
+
+        const colorGroup = document.createElement('div');
+        colorGroup.className = 'fn__flex fn__flex-center';
+        colorGroup.style.padding = '4px 8px';
+        colorGroup.style.gap = '4px';
+
+        const createColorBtn = (label: string, value: 'category' | 'priority' | 'project') => {
+            const btn = document.createElement('button');
+            btn.className = `b3-button b3-button--small ${this.colorBy === value ? '' : 'b3-button--outline'}`;
+            btn.style.flex = '1';
+            btn.innerText = label;
+            btn.addEventListener('click', async () => {
+                this.colorBy = value;
+                await this.calendarConfigManager.setColorBy(this.colorBy);
+                // 更新下拉菜单中的按钮状态
+                Array.from(colorGroup.querySelectorAll('button')).forEach(b => b.classList.add('b3-button--outline'));
+                btn.classList.remove('b3-button--outline');
+                // 清除颜色缓存并刷新
+                this.colorCache.clear();
                 await this.refreshEvents();
             });
+            return btn;
+        };
 
-            completionDropdown.appendChild(optionItem);
-        });
+        colorGroup.appendChild(createColorBtn(i18n("colorByPriority") || "优先级", 'priority'));
+        colorGroup.appendChild(createColorBtn(i18n("colorByCategory") || "分类", 'category'));
+        colorGroup.appendChild(createColorBtn(i18n("colorByProject") || "项目", 'project'));
+        displaySettingsDropdown.appendChild(colorGroup);
 
-        completionFilterContainer.appendChild(completionDropdown);
-        filterGroup.appendChild(completionFilterContainer);
+        // 任务状态设置
+        const statusDivider = document.createElement('div');
+        statusDivider.style.height = '1px';
+        statusDivider.style.backgroundColor = 'var(--b3-border-color)';
+        statusDivider.style.margin = '8px 0';
+        displaySettingsDropdown.appendChild(statusDivider);
 
-        // 添加按分类/优先级/项目上色切换（按钮样式）
-        const colorByContainer = document.createElement('div');
-        colorByContainer.className = 'filter-dropdown-container';
-        colorByContainer.style.position = 'relative';
-        colorByContainer.style.display = 'inline-block';
+        const statusLabel = document.createElement('div');
+        statusLabel.style.padding = '4px 12px';
+        statusLabel.style.fontSize = '0.9em';
+        statusLabel.style.color = 'var(--b3-theme-on-surface-light)';
+        statusLabel.innerText =  "任务状态过滤";
+        displaySettingsDropdown.appendChild(statusLabel);
 
-        // 定义上色选项
-        const colorByOptions = [
-            { value: 'project', text: i18n("colorByProject") },
-            { value: 'category', text: i18n("colorByCategory") },
-            { value: 'priority', text: i18n("colorByPriority") }
-        ];
+        const statusGroup = document.createElement('div');
+        statusGroup.className = 'fn__flex fn__flex-center';
+        statusGroup.style.padding = '4px 8px';
+        statusGroup.style.gap = '4px';
 
-        // 根据当前colorBy设置按钮文本
-        const currentColorByText = colorByOptions.find(opt => opt.value === this.colorBy)?.text || i18n("colorByPriority");
-
-        const colorByButton = document.createElement('button');
-        colorByButton.className = 'b3-button b3-button--outline';
-        colorByButton.style.width = '100px';
-        colorByButton.style.display = 'flex';
-        colorByButton.style.justifyContent = 'space-between';
-        colorByButton.style.alignItems = 'center';
-        colorByButton.style.textAlign = 'left';
-        colorByButton.innerHTML = `<span class="filter-button-text" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${currentColorByText}</span> <span style="margin-left: 4px; flex-shrink: 0;">▼</span>`;
-        colorByContainer.appendChild(colorByButton);
-
-        const colorByDropdown = document.createElement('div');
-        colorByDropdown.className = 'filter-dropdown-menu';
-        colorByDropdown.style.display = 'none';
-        colorByDropdown.style.position = 'absolute';
-        colorByDropdown.style.top = '100%';
-        colorByDropdown.style.left = '0';
-        colorByDropdown.style.zIndex = '1000';
-        colorByDropdown.style.backgroundColor = 'var(--b3-theme-background)';
-        colorByDropdown.style.border = '1px solid var(--b3-border-color)';
-        colorByDropdown.style.borderRadius = '4px';
-        colorByDropdown.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-        colorByDropdown.style.minWidth = '150px';
-        colorByDropdown.style.padding = '8px';
-
-        colorByOptions.forEach(option => {
-            const optionItem = document.createElement('div');
-            optionItem.style.padding = '6px 12px';
-            optionItem.style.cursor = 'pointer';
-            optionItem.style.borderRadius = '4px';
-            optionItem.textContent = option.text;
-
-
-            optionItem.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                this.colorBy = option.value as 'category' | 'priority' | 'project';
-                await this.calendarConfigManager.setColorBy(this.colorBy);
-                const textSpan = colorByButton.querySelector('.filter-button-text');
-                if (textSpan) {
-                    textSpan.textContent = option.text;
-                }
-                colorByDropdown.style.display = 'none';
-                // 清除颜色缓存
-                this.colorCache.clear();
-                this.refreshEvents();
+        const createStatusBtn = (label: string, value: 'all' | 'completed' | 'incomplete') => {
+            const btn = document.createElement('button');
+            btn.className = `b3-button b3-button--small ${this.currentCompletionFilter === value ? '' : 'b3-button--outline'}`;
+            btn.style.flex = '1';
+            btn.innerText = label;
+            btn.addEventListener('click', async () => {
+                this.currentCompletionFilter = value;
+                await this.calendarConfigManager.setCompletionFilter(value);
+                // 更新下拉菜单中的按钮状态
+                Array.from(statusGroup.querySelectorAll('button')).forEach(b => b.classList.add('b3-button--outline'));
+                btn.classList.remove('b3-button--outline');
+                await this.refreshEvents();
             });
+            return btn;
+        };
 
-            colorByDropdown.appendChild(optionItem);
-        });
+        statusGroup.appendChild(createStatusBtn(i18n("all") || "全部", 'all'));
+        statusGroup.appendChild(createStatusBtn(i18n("completed") || "已完成", 'completed'));
+        statusGroup.appendChild(createStatusBtn(i18n("uncompleted") || "未完成", 'incomplete'));
+        displaySettingsDropdown.appendChild(statusGroup);
 
-        colorByContainer.appendChild(colorByDropdown);
-        filterGroup.appendChild(colorByContainer);
+        displaySettingsContainer.appendChild(displaySettingsDropdown);
+        filterGroup.appendChild(displaySettingsContainer);
 
-        // 切换下拉菜单显示/隐藏
-        completionFilterButton.addEventListener('click', (e) => {
+        displaySettingsButton.addEventListener('click', (e) => {
             e.stopPropagation();
-            const isVisible = completionDropdown.style.display === 'block';
-            completionDropdown.style.display = isVisible ? 'none' : 'block';
-            projectDropdown.style.display = 'none';
-            categoryDropdown.style.display = 'none';
-            colorByDropdown.style.display = 'none';
-            viewTypeDropdown.style.display = 'none';
-        });
-
-        colorByButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isVisible = colorByDropdown.style.display === 'block';
-            colorByDropdown.style.display = isVisible ? 'none' : 'block';
-            projectDropdown.style.display = 'none';
-            categoryDropdown.style.display = 'none';
-            completionDropdown.style.display = 'none';
-            viewTypeDropdown.style.display = 'none';
+            const isVisible = displaySettingsDropdown.style.display === 'block';
+            displaySettingsDropdown.style.display = isVisible ? 'none' : 'block';
+            projectDropdown.style.display = isVisible ? 'none' : 'none'; // Ensure others hide
+            if (!isVisible) {
+                projectDropdown.style.display = 'none';
+                categoryDropdown.style.display = 'none';
+                viewTypeDropdown.style.display = 'none';
+            }
         });
 
         // 更新原有的下拉菜单关闭逻辑
+        // 更新项目的点击事件
         projectFilterButton.onclick = null;
         projectFilterButton.addEventListener('click', (e) => {
             e.stopPropagation();
             const isVisible = projectDropdown.style.display === 'block';
             projectDropdown.style.display = isVisible ? 'none' : 'block';
             categoryDropdown.style.display = 'none';
-            completionDropdown.style.display = 'none';
-            colorByDropdown.style.display = 'none';
             viewTypeDropdown.style.display = 'none';
+            displaySettingsDropdown.style.display = 'none';
         });
 
         categoryFilterButton.onclick = null;
@@ -842,9 +899,8 @@ export class CalendarView {
             const isVisible = categoryDropdown.style.display === 'block';
             categoryDropdown.style.display = isVisible ? 'none' : 'block';
             projectDropdown.style.display = 'none';
-            completionDropdown.style.display = 'none';
-            colorByDropdown.style.display = 'none';
             viewTypeDropdown.style.display = 'none';
+            displaySettingsDropdown.style.display = 'none';
         });
 
         // 更新视图类型按钮的点击事件
@@ -855,25 +911,22 @@ export class CalendarView {
             viewTypeDropdown.style.display = isVisible ? 'none' : 'block';
             projectDropdown.style.display = 'none';
             categoryDropdown.style.display = 'none';
-            completionDropdown.style.display = 'none';
-            colorByDropdown.style.display = 'none';
+            displaySettingsDropdown.style.display = 'none';
         });
 
         // 点击外部关闭所有下拉菜单
         document.addEventListener('click', () => {
             projectDropdown.style.display = 'none';
             categoryDropdown.style.display = 'none';
-            completionDropdown.style.display = 'none';
-            colorByDropdown.style.display = 'none';
             viewTypeDropdown.style.display = 'none';
+            displaySettingsDropdown.style.display = 'none';
         });
 
         // 防止下拉菜单内部点击触发全局关闭
         projectDropdown.addEventListener('click', (e) => e.stopPropagation());
         categoryDropdown.addEventListener('click', (e) => e.stopPropagation());
-        completionDropdown.addEventListener('click', (e) => e.stopPropagation());
-        colorByDropdown.addEventListener('click', (e) => e.stopPropagation());
         viewTypeDropdown.addEventListener('click', (e) => e.stopPropagation());
+        displaySettingsDropdown.addEventListener('click', (e) => e.stopPropagation());
 
 
         // 刷新按钮
@@ -2980,9 +3033,9 @@ export class CalendarView {
 
                     const completedInstances = reminderData[originalId].repeat.completedInstances;
                     const completedTimes = reminderData[originalId].repeat.completedTimes;
-                    const isCompleted = completedInstances.includes(instanceDate);
+                    const isInstanceCompleted = completedInstances.includes(instanceDate);
 
-                    if (isCompleted) {
+                    if (isInstanceCompleted) {
                         // 从已完成列表中移除并删除完成时间
                         const index = completedInstances.indexOf(instanceDate);
                         if (index > -1) {
@@ -3002,7 +3055,7 @@ export class CalendarView {
                     if (blockId) {
                         await updateBindBlockAtrrs(blockId, this.plugin);
                         // 完成时自动处理任务列表
-                        if (!isCompleted) {
+                        if (!isInstanceCompleted) {
                             await this.handleTaskListCompletion(blockId);
                         } else {
                             await this.handleTaskListCompletionCancel(blockId);
@@ -4925,9 +4978,28 @@ export class CalendarView {
             const allReminders = Object.values(reminderData) as any[];
             let filteredReminders = allReminders.filter(reminder => {
                 if (!reminder || typeof reminder !== 'object') return false;
+
+                // 子任务过滤
+                if (!this.showSubtasks && reminder.parentId) return false;
+
+                // 重复任务过滤
+                if (!this.showRepeatTasks && reminder.repeat?.enabled) return false;
+
+                // 跨天任务过滤
+                const durationDays = getDaysDifference(reminder.date, reminder.endDate || reminder.date);
+                if (durationDays > 0) {
+                    if (!this.showCrossDayTasks) return false;
+                    if (this.crossDayThreshold === 0) return false;
+                    if (this.crossDayThreshold > 0 && (durationDays + 1) > this.crossDayThreshold) return false;
+                    // crossDayThreshold === -1 means no limit
+                }
+
                 if (!this.passesCategoryFilter(reminder, projectData)) return false;
                 if (!this.passesProjectFilter(reminder)) return false;
-                if (!this.passesCompletionFilter(reminder)) return false;
+
+                // For repeat tasks, we allow them to pass the initial filter because their instances have different completion statuses.
+                // Actual filtering will be performed when generating instances.
+                if (!reminder.repeat?.enabled && !this.passesCompletionFilter(reminder)) return false;
                 return true;
             });
 
@@ -4960,17 +5032,19 @@ export class CalendarView {
                     reminder.parentTitle = parentInfo.title;
                 }
 
-                // 如果有重复设置，则不显示原始事件（只显示实例）；否则显示原始事件
+                // If repeat settings exist, do not display the original event (only display instances); otherwise, display the original event
                 if (!reminder.repeat?.enabled) {
                     this.addEventToList(events, reminder, reminder.id, false);
-                } else {
-                    // 生成重复事件实例
-                    const repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
+                } else if (this.showRepeatTasks) {
+                    // Generate repeat event instances
+                    let repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
+
                     const completedInstances = reminder.repeat?.completedInstances || [];
                     const instanceModifications = reminder.repeat?.instanceModifications || {};
 
-                    // 用于跟踪已处理的实例（使用原始日期键）
+                    // Used to track processed instances (using original date key)
                     const processedInstances = new Set<string>();
+                    let incompleteCount = 0;
 
                     // 批量处理实例，减少重复计算
                     for (const instance of repeatInstances) {
@@ -4984,6 +5058,15 @@ export class CalendarView {
 
                         // completedInstances 和 instanceModifications 都以原始实例日期键为索引
                         const isInstanceCompleted = completedInstances.includes(originalKey);
+
+                        // Apply instance quantity limit to incomplete instances
+                        if (!isInstanceCompleted) {
+                            if (this.repeatInstanceLimit !== -1 && incompleteCount >= this.repeatInstanceLimit) {
+                                continue;
+                            }
+                            incompleteCount++;
+                        }
+
                         const instanceMod = instanceModifications[originalKey];
 
                         const instanceReminder = {
@@ -4995,6 +5078,11 @@ export class CalendarView {
                             completed: isInstanceCompleted,
                             note: instanceMod?.note || ''
                         };
+
+                        // Apply completion filter to instances
+                        if (!this.passesCompletionFilter(instanceReminder)) {
+                            continue;
+                        }
 
                         // 事件 id 应使用原始实例键，以便后续的拖拽/保存逻辑能够基于原始实例键进行修改，避免产生重复的 instanceModifications 条目
                         const uniqueInstanceId = `${reminder.id}_instance_${originalKey}`;
@@ -5026,6 +5114,14 @@ export class CalendarView {
                             // 检查此实例是否已完成
                             const isInstanceCompleted = completedInstances.includes(originalDateKey);
 
+                            // Apply instance quantity limit to incomplete instances
+                            if (!isInstanceCompleted) {
+                                if (this.repeatInstanceLimit !== -1 && incompleteCount >= this.repeatInstanceLimit) {
+                                    continue;
+                                }
+                                incompleteCount++;
+                            }
+
                             // 计算结束日期（如果有）
                             let modifiedEndDate = mod.endDate;
                             if (!modifiedEndDate && reminder.endDate && reminder.date) {
@@ -5042,6 +5138,11 @@ export class CalendarView {
                                 completed: isInstanceCompleted,
                                 note: mod.note || ''
                             };
+
+                            // Apply completion filter to modified instances
+                            if (!this.passesCompletionFilter(instanceReminder)) {
+                                continue;
+                            }
 
                             const uniqueInstanceId = `${reminder.id}_instance_${originalDateKey}`;
                             this.addEventToList(events, instanceReminder, uniqueInstanceId, true, reminder.id);

@@ -1461,6 +1461,7 @@
 .reminder-panel {
     .reminder-item__note {
         border: 1px solid var(--b3-border-color);
+        color: var(--b3-theme-on-surface);
     }
 
     .reminder-item__note:hover {
