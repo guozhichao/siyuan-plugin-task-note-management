@@ -1178,6 +1178,12 @@ export class ReminderPanel {
      * 如果都没有，则使用默认行为：父任务默认折叠（如果有子任务）
      */
     private isTaskCollapsed(taskId: string, hasChildren: boolean = false): boolean {
+        // 优先检查持久化的 fold 属性
+        const reminder = this.allRemindersMap ? this.allRemindersMap.get(taskId) : null;
+        if (reminder && reminder.fold !== undefined) {
+            return reminder.fold;
+        }
+
         if (this.userExpandedTasks.has(taskId)) {
             return false; // 用户手动展开的任务不折叠
         } else if (this.collapsedTasks.has(taskId)) {
@@ -2133,11 +2139,19 @@ export class ReminderPanel {
                 // 使用统一方法判断当前状态
                 const currentCollapsed = this.isTaskCollapsed(reminder.id, hasChildren);
 
+                // 加载最新数据以便持久化 fold 属性
+                const reminderData = await getAllReminders(this.plugin);
+                const targetId = reminder.isRepeatInstance ? (reminder.originalId || reminder.id) : reminder.id;
+                const targetReminder = reminderData[targetId];
+
                 if (currentCollapsed) {
                     // 当前是折叠 -> 展开
+                    if (targetReminder) targetReminder.fold = false;
                     // 移除折叠状态，添加到用户展开集合
                     this.collapsedTasks.delete(reminder.id);
                     this.userExpandedTasks.add(reminder.id);
+                    // 同步内存对象
+                    reminder.fold = false;
                     // 递归显示子任务
                     await this.showChildrenRecursively(reminder.id);
                     // 更新按钮图标与标题
@@ -2145,14 +2159,26 @@ export class ReminderPanel {
                     collapseBtn.title = i18n("collapse");
                 } else {
                     // 当前是展开 -> 折叠
+                    if (targetReminder) targetReminder.fold = true;
                     // 移除用户展开状态，添加到折叠集合
                     this.userExpandedTasks.delete(reminder.id);
                     this.collapsedTasks.add(reminder.id);
+                    // 同步内存对象
+                    reminder.fold = true;
                     // 隐藏后代
                     this.hideAllDescendants(reminder.id);
                     // 更新按钮图标与标题
                     collapseBtn.innerHTML = '<svg><use xlink:href="#iconRight"></use></svg>';
                     collapseBtn.title = i18n("expand");
+                }
+
+                // 持久化保存
+                if (targetReminder) {
+                    await saveReminders(this.plugin, reminderData);
+                    // 更新 allRemindersMap 以保持一致
+                    if (this.allRemindersMap && this.allRemindersMap.has(reminder.id)) {
+                        this.allRemindersMap.get(reminder.id).fold = reminder.fold;
+                    }
                 }
             });
             leftControls.appendChild(collapseBtn);

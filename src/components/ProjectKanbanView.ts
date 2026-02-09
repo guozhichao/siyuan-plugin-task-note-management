@@ -5168,10 +5168,18 @@ export class ProjectKanbanView {
                         if (!parentMap.has(t.parentId)) parentMap.set(t.parentId, []);
                         parentMap.get(t.parentId)!.push(t);
                     }
+                    // 初始化折叠状态：如果任务有明确的 fold 属性，则根据该属性设置
+                    if (t.fold === true) {
+                        this.collapsedTasks.add(t.id);
+                    } else if (t.fold === false) {
+                        this.collapsedTasks.delete(t.id);
+                    }
                 });
 
-                // 仅在首次加载且用户没有任何折叠偏好（collapsedTasks 为空）时，应用默认折叠策略
-                if (!this._defaultCollapseApplied && this.collapsedTasks.size === 0) {
+                // 仅在首次加载且用户既没有明确的折叠/展开偏号（tasks 中都没有 fold 属性）
+                // 且当前 collapsedTasks 为空时，才应用默认折叠策略
+                const hasExplicitFold = this.tasks.some(t => t.fold !== undefined);
+                if (!this._defaultCollapseApplied && !hasExplicitFold && this.collapsedTasks.size === 0) {
                     parentMap.forEach((_children, parentId) => {
                         const parent = this.tasks.find(p => p.id === parentId);
                         if (!parent) return;
@@ -8017,13 +8025,29 @@ export class ProjectKanbanView {
             collapseBtn.className = 'b3-button b3-button--text kanban-task-collapse-btn';
             collapseBtn.innerHTML = `<svg class="b3-button__icon"><use xlink:href="#icon${isCollapsed ? 'Right' : 'Down'}"></use></svg>`;
             collapseBtn.title = isCollapsed ? i18n('expandSubtasks') : i18n('collapseSubtasks');
-            collapseBtn.addEventListener('click', (e) => {
+            collapseBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
+
+                // 加载最新数据以便持久化 fold 属性
+                const reminderData = await getAllReminders(this.plugin);
+                const targetId = task.isRepeatInstance ? (task.originalId || task.id) : task.id;
+                const targetReminder = reminderData[targetId];
+
                 if (isCollapsed) {
                     this.collapsedTasks.delete(task.id);
+                    task.fold = false;
+                    if (targetReminder) targetReminder.fold = false;
                 } else {
                     this.collapsedTasks.add(task.id);
+                    task.fold = true;
+                    if (targetReminder) targetReminder.fold = true;
                 }
+
+                // 持久化保存
+                if (targetReminder) {
+                    await saveReminders(this.plugin, reminderData);
+                }
+
                 this.renderKanban();
             });
             taskIndentContainer.appendChild(collapseBtn);
