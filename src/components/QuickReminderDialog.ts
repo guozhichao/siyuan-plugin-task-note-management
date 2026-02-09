@@ -11,12 +11,15 @@ import { BlockBindingDialog } from "./BlockBindingDialog";
 import { SubtasksDialog } from "./SubtasksDialog";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
 import { PomodoroSessionsDialog } from "./PomodoroSessionsDialog";
-import Vditor from "vditor";
-import "vditor/dist/index.css";
+import { Crepe } from "@milkdown/crepe";
+import "@milkdown/crepe/theme/common/style.css";
+import "@milkdown/crepe/theme/nord.css";
+import { replaceAll } from "@milkdown/utils";
+import { editorViewCtx } from "@milkdown/kit/core";
 
 export class QuickReminderDialog {
     private dialog: Dialog;
-    private vditor?: Vditor;
+    private crepe?: Crepe;
     private blockId?: string;
     private reminder?: any;
     private onSaved?: (modifiedReminder?: any) => void;
@@ -999,7 +1002,7 @@ export class QuickReminderDialog {
                         <!-- 备注 (Vditor) -->
                         <div class="b3-form__group">
                             <label class="b3-form__label">${i18n("reminderNoteOptional")}</label>
-                            <div id="quickReminderNote" style="width: 100%;"></div>
+                            <div id="quickReminderNote" style="width: 100%; min-height: 100px; border: 1px solid var(--b3-theme-surface-lighter); border-radius: 4px; position: relative;"></div>
                         </div>
                         <div class="b3-form__group" id="quickParentTaskGroup" style="display: none;">
                             <label class="b3-form__label">${i18n("parentTask") || "父任务"}</label>
@@ -1209,39 +1212,40 @@ export class QuickReminderDialog {
                 initialNote = this.defaultNote;
             }
 
-            this.vditor = new Vditor('quickReminderNote', {
-                height: 150,
-                mode: 'wysiwyg', // Typora-like instant rendering
-                // toolbarConfig: {
-                //     pin: true,
-                // },
-                cache: {
-                    enable: false,
-                },
-                // Add this callback to prevent error in wysiwyg mode
-                customWysiwygToolbar: () => { },
-                value: initialNote,
-                toolbar: ['bold', 'italic', 'strike', 'link', 'list', 'ordered-list', 'check', 'outdent', 'indent', 'quote', 'line', 'code', 'inline-code'],
-                after: () => {
-                    // Vditor initialized
-                    const editor = this.dialog.element.querySelector('.vditor-reset') as HTMLElement;
-                    if (editor) {
-                        editor.style.padding = '10px 10px';
-                        editor.style.minHeight = '100px';
+            const noteContainer = this.dialog.element.querySelector('#quickReminderNote') as HTMLElement;
+            if (!noteContainer) return;
 
-                        // Support Ctrl+A to select all content
-                        editor.addEventListener('keydown', (e: KeyboardEvent) => {
-                            if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
-                                e.preventDefault();
-                                document.execCommand('selectAll', false, undefined);
-                            }
-                        });
+            this.crepe = new Crepe({
+                root: noteContainer,
+                defaultValue: initialNote,
+                featureConfigs: {
+                    [Crepe.Feature.Placeholder]: {
+                        text: ""
                     }
-                    const toolbar = this.dialog.element.querySelector('.vditor-toolbar') as HTMLElement;
-                    if (toolbar) {
-                        toolbar.style.display = 'none';
+                }
+            });
+            this.crepe.create().then(() => {
+                // Crepe initialized
+                this.crepe.setReadonly(false);
+
+                // Ensure focus and proper height
+                this.crepe.editor.action((ctx) => {
+                    const view = ctx.get(editorViewCtx);
+                    if (view) {
+                        view.focus();
                     }
-                },
+                });
+
+                const editor = this.dialog.element.querySelector('.milkdown') as HTMLElement;
+                if (editor) {
+                    editor.style.height = '100%';
+                    editor.style.minHeight = '100px';
+                    editor.style.margin  = '0px';
+                    const prosemirror = editor.querySelector('.ProseMirror') as HTMLElement;
+                    if (prosemirror) {
+                        prosemirror.style.minHeight = '100px';
+                    }
+                }
             });
         }, 100);
 
@@ -1828,10 +1832,10 @@ export class QuickReminderDialog {
                 // 如果有多行，后面的行放到备注
                 if (lines.length > 1) {
                     // Using Vditor for note
-                    if (this.vditor) {
-                        const existingNote = this.vditor.getValue();
+                    if (this.crepe) {
+                        const existingNote = this.crepe.getMarkdown();
                         const newNote = lines.slice(1).join('\n');
-                        this.vditor.setValue(existingNote ? existingNote + '\n' + newNote : newNote);
+                        this.crepe.editor.action(replaceAll(existingNote ? existingNote + '\n' + newNote : newNote));
                     }
                 }
 
@@ -2567,9 +2571,9 @@ export class QuickReminderDialog {
     }
 
     private destroyDialog() {
-        if (this.vditor) {
-            this.vditor.destroy();
-            this.vditor = undefined;
+        if (this.crepe) {
+            this.crepe.destroy();
+            this.crepe = undefined;
         }
         if (this.dialog) {
             this.dialog.destroy();
@@ -2580,7 +2584,7 @@ export class QuickReminderDialog {
     private async saveNoteOnly() {
         if (!this.reminder) return;
 
-        const note = this.vditor ? this.vditor.getValue() : this.reminder.note;
+        const note = this.crepe ? this.crepe.getMarkdown() : this.reminder.note;
 
         // 乐观更新
         const optimisticReminder = { ...this.reminder };
@@ -2631,7 +2635,7 @@ export class QuickReminderDialog {
         const inputId = rawBlockVal ? (this.extractBlockId(rawBlockVal) || rawBlockVal) : undefined;
         const url = urlInput?.value?.trim() || undefined;
         // const note = noteInput.value.trim() || undefined;
-        const note = this.vditor ? this.vditor.getValue() : undefined;
+        const note = this.crepe ? this.crepe.getMarkdown() : undefined;
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
 
         // 获取多分类ID

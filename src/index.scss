@@ -1459,32 +1459,33 @@
 }
 
 .reminder-panel {
-        .reminder-item__note {
-            border: 1px solid var(--b3-border-color);
-        }
-        .reminder-item__note:hover {
-            background-color: var(--b3-theme-surface-lighter) !important;
-            color: var(--b3-theme-primary) !important;
-        }
-    
-        /* 优先级任务的备注样式 */
-        .reminder-priority-high .reminder-item__note {
-            background-color: rgba(231, 76, 60, 0.08);
-            border-color: rgba(231, 76, 60, 0.2);
-            color: var(--b3-card-error-color);
-        }
-    
-        .reminder-priority-medium .reminder-item__note {
-            background-color: rgba(243, 156, 18, 0.08);
-            border-color: rgba(243, 156, 18, 0.2);
-            color: var(--b3-card-warning-color);
-        }
-    
-        .reminder-priority-low .reminder-item__note {
-            background-color: rgba(52, 152, 219, 0.08);
-            border-color: rgba(52, 152, 219, 0.2);
-            color: var(--b3-card-info-color);
-        }
+    .reminder-item__note {
+        border: 1px solid var(--b3-border-color);
+    }
+
+    .reminder-item__note:hover {
+        background-color: var(--b3-theme-surface-lighter) !important;
+        color: var(--b3-theme-primary) !important;
+    }
+
+    /* 优先级任务的备注样式 */
+    .reminder-priority-high .reminder-item__note {
+        background-color: rgba(231, 76, 60, 0.08);
+        border-color: rgba(231, 76, 60, 0.2);
+        color: var(--b3-card-error-color);
+    }
+
+    .reminder-priority-medium .reminder-item__note {
+        background-color: rgba(243, 156, 18, 0.08);
+        border-color: rgba(243, 156, 18, 0.2);
+        color: var(--b3-card-warning-color);
+    }
+
+    .reminder-priority-low .reminder-item__note {
+        background-color: rgba(52, 152, 219, 0.08);
+        border-color: rgba(52, 152, 219, 0.2);
+        color: var(--b3-card-info-color);
+    }
 }
 
 
@@ -2270,4 +2271,77 @@
 .fc .fc-button-primary:focus,
 .fc .fc-button:focus {
     box-shadow: none !important;
+}
+
+/* Milkdown Editor Integration */
+.milkdown {
+    background-color: var(--b3-theme-background) !important;
+    color: var(--b3-theme-on-background) !important;
+    border: 1px solid var(--b3-theme-surface-lighter) !important;
+    border-radius: 4px;
+    margin-top: 0px;
+    overflow-x: hidden !important;
+    /* 防止水平滚动条 */
+    max-height: 400px;
+    /* 限制最大高度 */
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    .milkdown-menu-wrapper,
+    .slash-menu {
+        display: none !important;
+    }
+    .ProseMirror {
+        outline: none !important;
+        padding: 8px 8px 8px 24px !important;
+        /* 给左侧块标留出空间，减少冗余间距 */
+        font-family: var(--b3-font-family) !important;
+        font-size: 14px !important;
+        line-height: 1.5 !important;
+        min-height: 100px;
+        max-height: 360px;
+        /* 编辑区域最大高度 */
+        overflow-y: auto !important;
+        /* 内部滚动 */
+        box-sizing: border-box;
+
+        blockquote {
+            border-left: 4px solid var(--b3-theme-primary-lightest) !important;
+            padding-left: 12px !important;
+            margin: 4px 0 !important;
+            color: var(--b3-theme-on-surface-light) !important;
+        }
+
+        code {
+            background-color: var(--b3-theme-surface-lighter) !important;
+            padding: 2px 4px !important;
+            border-radius: 3px !important;
+            font-family: var(--b3-font-family-code) !important;
+        }
+
+        p {
+            margin: 0 0 4px 0 !important;
+        }
+
+        ul,
+        ol {
+            padding-left: 16px !important;
+            margin-bottom: 4px !important;
+        }
+    }
+
+    /* Crepe specific overrides to match Siyuan */
+    .crepe-toolbar {
+        background-color: var(--b3-theme-surface) !important;
+        border-bottom: 1px solid var(--b3-theme-surface-lighter) !important;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .crepe-block-handle {
+        color: var(--b3-theme-primary) !important;
+        z-index: 10;
+        /* 减少左侧边距 */
+        left: 2px !important;
+    }
 }

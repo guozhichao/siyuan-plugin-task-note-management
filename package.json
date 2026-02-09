@@ -43,6 +43,10 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.956.0",
+    "@milkdown/crepe": "^7.18.0",
+    "@milkdown/kit": "^7.18.0",
+    "@milkdown/prose": "^7.18.0",
+    "@milkdown/utils": "^7.18.0",
     "@types/node-notifier": "^8.0.5",
     "chrono-node": "2.8.2",
     "echarts": "^5.6.0",
@@ -50,7 +54,6 @@
     "ical.js": "^2.2.1",
     "ics": "^3.8.1",
     "lunar-typescript": "^1.8.2",
-    "node-ical": "^0.22.1",
-    "vditor": "^3.11.2"
+    "node-ical": "^0.22.1"
   }
 }
