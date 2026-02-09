@@ -3914,7 +3914,7 @@ export class CalendarView {
                     </div>
                 `,
                 width: "400px",
-                height: "200px"
+                height: "auto"
             });
 
             // 等待对话框渲染完成后添加事件监听器
