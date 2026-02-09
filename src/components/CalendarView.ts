@@ -837,7 +837,7 @@ export class CalendarView {
         statusLabel.style.padding = '4px 12px';
         statusLabel.style.fontSize = '0.9em';
         statusLabel.style.color = 'var(--b3-theme-on-surface-light)';
-        statusLabel.innerText =  "任务状态过滤";
+        statusLabel.innerText = "任务状态过滤";
         displaySettingsDropdown.appendChild(statusLabel);
 
         const statusGroup = document.createElement('div');
@@ -2694,11 +2694,17 @@ export class CalendarView {
 
     private async setPriority(calendarEvent: any, priority: string) {
         try {
-            // 获取正确的提醒ID - 对于重复事件实例，使用原始ID
-            const reminderId = calendarEvent.extendedProps.isRepeated ?
-                calendarEvent.extendedProps.originalId :
-                calendarEvent.id;
+            // 对于重复事件实例，优先修改单个实例的优先级
+            if (calendarEvent.extendedProps.isRepeated) {
+                // 从 ID 中提取原始实例日期键（格式为 <id>_instance_<date>）
+                const originalInstanceDate = (calendarEvent.id && calendarEvent.id.includes('_instance_')) ?
+                    calendarEvent.id.split('_instance_').pop()! :
+                    calendarEvent.extendedProps.date;
+                await this.setInstancePriority(calendarEvent.extendedProps.originalId, originalInstanceDate, priority);
+                return;
+            }
 
+            const reminderId = calendarEvent.id;
             const reminderData = await getAllReminders(this.plugin);
 
             if (reminderData[reminderId]) {
@@ -2722,6 +2728,46 @@ export class CalendarView {
         } catch (error) {
             console.error('设置优先级失败:', error);
             showMessage(i18n("setPriorityFailed"));
+        }
+    }
+
+    /**
+     * 设置重复实例的优先级
+     */
+    private async setInstancePriority(originalId: string, instanceDate: string, priority: string) {
+        try {
+            const reminderData = await getAllReminders(this.plugin);
+            const originalReminder = reminderData[originalId];
+
+            if (!originalReminder) {
+                showMessage(i18n("reminderNotExist"));
+                return;
+            }
+
+            // 初始化实例修改结构
+            if (!originalReminder.repeat) {
+                originalReminder.repeat = {};
+            }
+            if (!originalReminder.repeat.instanceModifications) {
+                originalReminder.repeat.instanceModifications = {};
+            }
+            if (!originalReminder.repeat.instanceModifications[instanceDate]) {
+                originalReminder.repeat.instanceModifications[instanceDate] = {};
+            }
+
+            // 设置实例的优先级
+            originalReminder.repeat.instanceModifications[instanceDate].priority = priority;
+
+            await saveReminders(this.plugin, reminderData);
+
+            // 刷新界面显示并通知其他面板
+            await this.refreshEvents();
+            window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
+
+            showMessage(i18n("instanceModified") || "实例已修改");
+        } catch (error) {
+            console.error('设置实例优先级失败:', error);
+            showMessage(i18n("operationFailed"));
         }
     }
 
@@ -5076,7 +5122,8 @@ export class CalendarView {
                             time: instance.time,
                             endTime: instance.endTime,
                             completed: isInstanceCompleted,
-                            note: instanceMod?.note || ''
+                            note: instanceMod?.note || '',
+                            priority: instanceMod?.priority || reminder.priority
                         };
 
                         // Apply completion filter to instances
@@ -5136,7 +5183,8 @@ export class CalendarView {
                                 time: mod.time || reminder.time,
                                 endTime: mod.endTime || reminder.endTime,
                                 completed: isInstanceCompleted,
-                                note: mod.note || ''
+                                note: mod.note || '',
+                                priority: mod.priority || reminder.priority
                             };
 
                             // Apply completion filter to modified instances
