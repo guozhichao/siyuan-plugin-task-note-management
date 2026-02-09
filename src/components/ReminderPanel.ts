@@ -337,6 +337,7 @@ export class ReminderPanel {
             <option value="today" selected>${i18n("todayReminders")}</option>
             <option value="tomorrow">${i18n("tomorrowReminders")}</option>
             <option value="future7">${i18n("future7Reminders")}</option>
+            <option value="thisWeek">${i18n("thisWeekReminders") || "本周任务"}</option>
             <option value="futureAll">${i18n("futureReminders")}</option>
             <option value="overdue">${i18n("overdueReminders")}</option>
             <option value="all">${i18n("past7Reminders")}</option>
@@ -3090,6 +3091,28 @@ export class ReminderPanel {
                     // 3. 属于无日期顶级父任务的所有子任务（无论子任务本身是否有日期）
                     return !topLevelParent.date;
                 });
+            case 'thisWeek':
+                return reminders.filter(r => {
+                    if (isEffectivelyCompleted(r) || !r.date) return false;
+
+                    const startLogical = this.getReminderLogicalDate(r.date, r.time);
+                    const endLogical = this.getReminderLogicalDate(r.endDate || r.date, r.endTime || r.time);
+
+                    // 计算本周的起止（周一为一周起点）
+                    const todayDate = new Date(today + 'T00:00:00');
+                    const day = todayDate.getDay(); // 0 (Sun) - 6 (Sat)
+                    const offsetToMonday = (day + 6) % 7; // 将 Sunday(0) 转为 offset 6
+                    const weekStartDate = new Date(todayDate);
+                    weekStartDate.setDate(weekStartDate.getDate() - offsetToMonday);
+                    const weekEndDate = new Date(weekStartDate);
+                    weekEndDate.setDate(weekEndDate.getDate() + 6);
+
+                    const weekStartStr = getLocalDateString(weekStartDate);
+                    const weekEndStr = getLocalDateString(weekEndDate);
+
+                    // 只要任务的时间范围与本周有交集就列出
+                    return compareDateStrings(startLogical, weekEndStr) <= 0 && compareDateStrings(endLogical, weekStartStr) >= 0;
+                });
             default:
                 return [];
         }
@@ -3180,6 +3203,7 @@ export class ReminderPanel {
                 'tomorrow': i18n("noTomorrowReminders"),
                 'future7': i18n("noFuture7Reminders"),
                 'overdue': i18n("noOverdueReminders"),
+                'thisWeek': i18n("noThisWeekReminders") || "本周暂无任务",
                 'completed': i18n("noCompletedReminders"),
                 'todayCompleted': "今日暂无已完成任务",
                 'yesterdayCompleted': "昨日暂无已完成任务",
