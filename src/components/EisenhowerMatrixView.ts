@@ -2078,11 +2078,6 @@ export class EisenhowerMatrixView {
         style.id = 'eisenhower-matrix-styles';
         style.textContent = `
             .eisenhower-matrix-view {
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
                 display: flex;
                 flex-direction: column;
                 background: var(--b3-theme-background);
@@ -2092,12 +2087,13 @@ export class EisenhowerMatrixView {
 
             .matrix-header {
                 display: flex;
+                flex-direction: column;
                 justify-content: space-between;
-                align-items: center;
                 padding: 16px;
                 border-bottom: 1px solid var(--b3-theme-border);
                 background: var(--b3-theme-background);
                 flex-shrink: 0;
+                align-items: center;
             }
 
             .matrix-header h2 {
@@ -2110,6 +2106,8 @@ export class EisenhowerMatrixView {
                 display: flex;
                 gap: 8px;
                 align-items: center;
+                flex-wrap: wrap;
+                margin-left: auto;
             }
 
             .new-task-btn {
