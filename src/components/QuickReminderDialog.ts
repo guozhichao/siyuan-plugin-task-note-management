@@ -395,6 +395,32 @@ export class QuickReminderDialog {
         }
     }
 
+    // 辅助：在 YYYY-MM-DD 字符串上加天数（返回 YYYY-MM-DD）
+    private addDaysToDate(dateStr: string, days: number): string {
+        if (!dateStr) return dateStr;
+        const parts = dateStr.split('-').map(n => parseInt(n, 10));
+        if (parts.length !== 3 || isNaN(parts[0])) return dateStr;
+        const base = new Date(parts[0], parts[1] - 1, parts[2]);
+        base.setDate(base.getDate() + days);
+        const year = base.getFullYear();
+        const month = String(base.getMonth() + 1).padStart(2, '0');
+        const day = String(base.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    // 辅助：计算包含首尾的持续天数（如果 end < start 返回 0）
+    private getDurationInclusive(start: string, end: string): number {
+        if (!start || !end) return 0;
+        const sp = start.split('-').map(n => parseInt(n, 10));
+        const ep = end.split('-').map(n => parseInt(n, 10));
+        if (sp.length !== 3 || ep.length !== 3) return 0;
+        const s = new Date(sp[0], sp[1] - 1, sp[2]);
+        const e = new Date(ep[0], ep[1] - 1, ep[2]);
+        const diffDays = Math.round((e.getTime() - s.getTime()) / (24 * 3600 * 1000));
+        if (diffDays < 0) return 0;
+        return diffDays + 1;
+    }
+
     // 填充编辑表单数据
     private async populateEditForm() {
         if (!this.reminder) return;
@@ -501,6 +527,17 @@ export class QuickReminderDialog {
             // 填充结束时间
             if (this.reminder.endTime && endTimeInput) {
                 endTimeInput.value = this.reminder.endTime;
+            }
+
+            // 填充持续天数（如果有起止日期则计算）
+            const durationInput = this.dialog.element.querySelector('#quickDurationDays') as HTMLInputElement;
+            if (durationInput) {
+                if (dateInput.value && endDateInput.value) {
+                    const dur = this.getDurationInclusive(dateInput.value, endDateInput.value);
+                    durationInput.value = String(dur > 0 ? dur : 1);
+                } else {
+                    durationInput.value = '1';
+                }
             }
         }
 
@@ -1133,6 +1170,12 @@ export class QuickReminderDialog {
                                         <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconTrashcan"></use></svg>
                                     </button>
                                 </div>
+                                <!-- 持续天数行 -->
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 13px; color: var(--b3-theme-on-surface); white-space: nowrap; min-width: 45px;">持续：</span>
+                                    <input type="number" id="quickDurationDays" min="1" step="1" class="b3-text-field" value="1" style="width: 100px;">
+                                    <span style="font-size: 13px; color: var(--b3-theme-on-surface-light);">天</span>
+                                </div>
                                 <!-- 结束行 -->
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <span style="font-size: 13px; color: var(--b3-theme-on-surface); white-space: nowrap; min-width: 45px;">结束：</span>
@@ -1285,6 +1328,16 @@ export class QuickReminderDialog {
             // 设置结束时间
             if (this.initialEndTime && endTimeInput) {
                 endTimeInput.value = this.initialEndTime;
+            }
+
+            // 如果传入了初始起止日期，计算并填充持续天数
+            const durationInputInit = this.dialog.element.querySelector('#quickDurationDays') as HTMLInputElement;
+            if (durationInputInit) {
+                if (dateInput.value && endDateInput && endDateInput.value) {
+                    durationInputInit.value = String(this.getDurationInclusive(dateInput.value, endDateInput.value) || 1);
+                } else {
+                    durationInputInit.value = '1';
+                }
             }
 
             // 设置默认值：优先使用 this.blockContent，其次使用 this.defaultTitle
@@ -1785,6 +1838,81 @@ export class QuickReminderDialog {
         const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
         const viewSubtasksBtn = this.dialog.element.querySelector('#quickViewSubtasksBtn') as HTMLButtonElement;
         const viewPomodorosBtn = this.dialog.element.querySelector('#quickViewPomodorosBtn') as HTMLButtonElement;
+        const durationInput = this.dialog.element.querySelector('#quickDurationDays') as HTMLInputElement;
+
+        // 持续天数与日期的联动逻辑
+        // 初始约束：结束日期不能早于开始日期
+        if (startDateInput && startDateInput.value && endDateInput) {
+            endDateInput.min = startDateInput.value;
+        }
+
+        // 如果设置了开始但未设置结束，使用持续天数来自动填充结束日期（默认 1 天）
+        if (startDateInput && startDateInput.value && endDateInput && !endDateInput.value && durationInput) {
+            const days = parseInt(durationInput.value || '1') || 1;
+            endDateInput.value = this.addDaysToDate(startDateInput.value, days - 1);
+        }
+
+        // 当开始日期变化，更新结束日期的最小值与自动计算
+        startDateInput?.addEventListener('change', () => {
+            if (!startDateInput || !startDateInput.value) return;
+            if (endDateInput) endDateInput.min = startDateInput.value;
+
+            if (endDateInput && !endDateInput.value && durationInput) {
+                const days = parseInt(durationInput.value || '1') || 1;
+                endDateInput.value = this.addDaysToDate(startDateInput.value, days - 1);
+                endDateInput.dispatchEvent(new Event('change'));
+            } else if (endDateInput && endDateInput.value && durationInput) {
+                // 如果结束日期已存在，重新计算持续天数
+                const dur = this.getDurationInclusive(startDateInput.value, endDateInput.value);
+                durationInput.value = String(dur > 0 ? dur : 1);
+            }
+        });
+
+        // 当持续天数变化，基于开始日期计算结束日期
+        const normalizeDuration = () => {
+            if (!durationInput) return;
+            let val = parseInt(durationInput.value || '1', 10) || 1;
+            if (val < 1) val = 1;
+            durationInput.value = String(val);
+            if (startDateInput && startDateInput.value && endDateInput) {
+                // 始终覆盖结束日期以保证与持续天数一致（当改为1时会设置为开始日期）
+                endDateInput.value = this.addDaysToDate(startDateInput.value, val - 1);
+                endDateInput.dispatchEvent(new Event('change'));
+            }
+        };
+
+        durationInput?.addEventListener('input', normalizeDuration);
+        durationInput?.addEventListener('change', normalizeDuration);
+        durationInput?.addEventListener('blur', normalizeDuration);
+        // 鼠标点击步进按钮 / 触摸 / 滚轮等可能不会触发 input 事件或值更新延迟，增加相关监听并在微任务中执行 normalize
+        durationInput?.addEventListener('click', () => setTimeout(normalizeDuration, 0));
+        durationInput?.addEventListener('pointerup', () => setTimeout(normalizeDuration, 0));
+        durationInput?.addEventListener('mouseup', () => setTimeout(normalizeDuration, 0));
+        durationInput?.addEventListener('wheel', () => setTimeout(normalizeDuration, 0));
+        // 有些浏览器的步进按钮触发 keydown(ArrowUp/Down)，延迟执行以读取最新值
+        durationInput?.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') setTimeout(normalizeDuration, 0);
+        });
+
+        // 当结束日期变化，基于开始日期计算持续天数
+        endDateInput?.addEventListener('change', () => {
+            if (!endDateInput) return;
+            if (!startDateInput || !startDateInput.value) return;
+            if (!endDateInput.value) {
+                if (durationInput) durationInput.value = '1';
+                return;
+            }
+            // 如果结束日期早于开始日期，修正为开始日期
+            if (compareDateStrings(endDateInput.value, startDateInput.value) < 0) {
+                endDateInput.value = startDateInput.value;
+                if (durationInput) durationInput.value = '1';
+            } else {
+                if (durationInput) {
+                    const dur = this.getDurationInclusive(startDateInput.value, endDateInput.value);
+                    durationInput.value = String(dur > 0 ? dur : 1);
+                }
+            }
+        });
 
         // 查看子任务
         viewSubtasksBtn?.addEventListener('click', () => {
