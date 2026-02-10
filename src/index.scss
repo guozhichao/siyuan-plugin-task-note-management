@@ -2306,7 +2306,7 @@
         overflow-y: auto !important;
         /* 内部滚动 */
         box-sizing: border-box;
-
+        white-space: pre-wrap;
         blockquote {
             border-left: 4px solid var(--b3-theme-primary-lightest) !important;
             padding-left: 12px !important;
