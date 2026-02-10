@@ -2348,3 +2348,19 @@
         left: 2px !important;
     }
 }
+.reminder-panel, .reminder-calendar-view,.eisenhower-matrix-view,.project-kanban-view{
+    .vditor-task {
+            list-style: none !important;
+            word-break: break-word;
+            position: relative;
+            line-height: 1;
+        }
+
+    .vditor-task input {
+        left: -1.4em;
+        position: absolute;
+        top: 0.15em;
+        width: 0.8em;
+        height: 0.8em;
+    }
+}
