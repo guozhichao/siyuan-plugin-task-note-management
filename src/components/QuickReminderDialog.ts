@@ -649,6 +649,7 @@ export class QuickReminderDialog {
         if (this.mode === 'edit' && this.reminder) {
             this.updateSubtasksDisplay();
             this.updatePomodorosDisplay();
+            this.updateEditAllInstancesDisplay();
         }
     }
 
@@ -1093,7 +1094,16 @@ export class QuickReminderDialog {
                                 父任务 ID: <span id="quickParentTaskId" style="font-family: monospace;">-</span>
                             </div>
                         </div>
-                        <div class="b3-form__group" id="quickSubtasksGroup" style="display: none;">
+                        <div class="b3-form__group" id="quickEditAllInstancesGroup" style="display: none;">
+                            <label class="b3-form__label">${i18n("recurringTask") || "重复任务"}</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <button type="button" id="quickEditAllInstancesBtn" class="b3-button b3-button--outline" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconEdit"></use></svg>
+                                    <span>${i18n("editAllInstances") || "编辑所有实例"}</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="b3-form__group" id="quickSubtasksGroup" style="display: none; margin-top: 8px;">
                             <label class="b3-form__label">${i18n("subtasks") || "子任务"}</label>
                             <div style="display: flex; gap: 8px; align-items: center;">
                                 <button type="button" id="quickViewSubtasksBtn" class="b3-button b3-button--outline" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
@@ -1959,6 +1969,7 @@ export class QuickReminderDialog {
         const pasteBlockRefBtn = this.dialog.element.querySelector('#quickPasteBlockRefBtn') as HTMLButtonElement;
         const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
         const viewSubtasksBtn = this.dialog.element.querySelector('#quickViewSubtasksBtn') as HTMLButtonElement;
+        const editAllInstancesBtn = this.dialog.element.querySelector('#quickEditAllInstancesBtn') as HTMLButtonElement;
         const viewPomodorosBtn = this.dialog.element.querySelector('#quickViewPomodorosBtn') as HTMLButtonElement;
         const durationInput = this.dialog.element.querySelector('#quickDurationDays') as HTMLInputElement;
 
@@ -2043,6 +2054,11 @@ export class QuickReminderDialog {
                 });
                 subtasksDialog.show();
             }
+        });
+
+        // 编辑所有实例
+        editAllInstancesBtn?.addEventListener('click', () => {
+            this.editAllInstances();
         });
 
         // 查看番茄钟
@@ -3745,8 +3761,68 @@ export class QuickReminderDialog {
     }
 
     /**
-     * 查看父任务
+     * 编辑所有实例
      */
+    private async editAllInstances() {
+        if (!this.reminder || !this.reminder.originalId) {
+            return;
+        }
+
+        try {
+            // 读取原始任务数据
+            const reminderData = await this.plugin.loadReminderData();
+            const originalTask = reminderData[this.reminder.originalId];
+
+            if (!originalTask) {
+                showMessage(i18n("originalTaskNotExist") || "原始任务不存在");
+                return;
+            }
+
+            // 创建新的QuickReminderDialog来编辑原始任务（非实例编辑模式）
+            const allInstancesDialog = new QuickReminderDialog(
+                originalTask.date,
+                originalTask.time,
+                undefined,
+                originalTask.endDate ? {
+                    isTimeRange: true,
+                    endDate: originalTask.endDate,
+                    endTime: originalTask.endTime
+                } : undefined,
+                {
+                    reminder: originalTask,
+                    mode: 'edit',
+                    plugin: this.plugin,
+                    isInstanceEdit: false, // 明确设置为非实例编辑模式，即修改所有实例
+                    onSaved: async () => {
+                        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    }
+                }
+            );
+
+            // 关掉当前实例弹窗
+            this.destroyDialog();
+
+            allInstancesDialog.show();
+        } catch (error) {
+            console.error('编辑所有实例失败:', error);
+            showMessage(i18n("operationFailed") || "操作失败");
+        }
+    }
+
+    /**
+     * 更新“编辑所有实例”按钮显示
+     */
+    private updateEditAllInstancesDisplay() {
+        const group = this.dialog.element.querySelector('#quickEditAllInstancesGroup') as HTMLElement;
+        if (!group) return;
+
+        // 仅在实例编辑模式且有原始ID时显示
+        if (this.isInstanceEdit && this.reminder && this.reminder.originalId) {
+            group.style.display = 'block';
+        } else {
+            group.style.display = 'none';
+        }
+    }
     private async viewParentTask() {
         const parentId = this.reminder?.parentId || this.defaultParentId;
 
