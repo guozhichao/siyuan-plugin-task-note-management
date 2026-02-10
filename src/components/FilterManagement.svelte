@@ -69,15 +69,40 @@
         // 获取所有分类
         categories = categoryManager.getCategories();
 
-        // 获取所有未归档的项目
+        // 获取所有未归档的项目，按状态分组顺序展示（与 QuickReminderDialog 保持一致）
         const groupedProjects = projectManager.getProjectsGroupedByStatus();
         projects = [];
+        // 按照 getProjectsGroupedByStatus 返回的顺序遍历，保持与 QuickReminderDialog 一致的展示顺序
         Object.keys(groupedProjects).forEach(statusKey => {
             const statusProjects = groupedProjects[statusKey] || [];
             const nonArchivedProjects = statusProjects.filter(project => {
                 const projectStatus = projectManager.getProjectById(project.id)?.status || 'doing';
                 return projectStatus !== 'archived';
             });
+
+            // 在每个状态组内排序：先按优先级，再按sort字段，再按时间
+            nonArchivedProjects.sort((a, b) => {
+                // 1. 按优先级排序
+                const priorityOrder = { high: 3, medium: 2, low: 1, none: 0 };
+                const priorityA = priorityOrder[a.priority || 'none'] || 0;
+                const priorityB = priorityOrder[b.priority || 'none'] || 0;
+                if (priorityA !== priorityB) {
+                    return priorityB - priorityA; // 高优先级在前
+                }
+
+                // 2. 同优先级内按手动排序字段
+                const sortA = a.sort || 0;
+                const sortB = b.sort || 0;
+                if (sortA !== sortB) {
+                    return sortA - sortB; // sort值小的在前
+                }
+
+                // 3. 如果sort也相同，按时间排序
+                const dateA = a.startDate || a.createdTime || '';
+                const dateB = b.startDate || b.createdTime || '';
+                return dateA.localeCompare(dateB);
+            });
+
             projects = [...projects, ...nonArchivedProjects];
         });
 

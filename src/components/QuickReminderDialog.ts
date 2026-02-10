@@ -1244,7 +1244,7 @@ export class QuickReminderDialog {
                 if (editor) {
                     editor.style.height = '100%';
                     editor.style.minHeight = '100px';
-                    editor.style.margin  = '0px';
+                    editor.style.margin = '0px';
                     const prosemirror = editor.querySelector('.ProseMirror') as HTMLElement;
                     if (prosemirror) {
                         prosemirror.style.minHeight = '100px';
@@ -2351,6 +2351,29 @@ export class QuickReminderDialog {
                 });
 
                 if (nonArchivedProjects.length > 0) {
+                    // 在每个状态组内排序：先按优先级，再按sort字段，再按时间
+                    nonArchivedProjects.sort((a, b) => {
+                        // 1. 按优先级排序
+                        const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
+                        const priorityA = priorityOrder[(a as any).priority || 'none'] || 0;
+                        const priorityB = priorityOrder[(b as any).priority || 'none'] || 0;
+                        if (priorityA !== priorityB) {
+                            return priorityB - priorityA; // 高优先级在前
+                        }
+
+                        // 2. 同优先级内按手动排序字段
+                        const sortA = (a as any).sort || 0;
+                        const sortB = (b as any).sort || 0;
+                        if (sortA !== sortB) {
+                            return sortA - sortB; // sort值小的在前
+                        }
+
+                        // 3. 如果sort也相同，按时间排序
+                        const dateA = (a as any).startDate || (a as any).createdTime || '';
+                        const dateB = (b as any).startDate || (b as any).createdTime || '';
+                        return dateA.localeCompare(dateB);
+                    });
+
                     // 添加状态分组
                     const statusName = this.getStatusDisplayName(statusKey);
                     const optgroup = document.createElement('optgroup');

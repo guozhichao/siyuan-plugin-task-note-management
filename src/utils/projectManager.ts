@@ -35,6 +35,10 @@ export interface Project {
     sortRule?: string;
     sortOrder?: 'asc' | 'desc';
     milestones?: Milestone[];
+    priority?: 'high' | 'medium' | 'low' | 'none';
+    sort?: number;
+    startDate?: string;
+    createdTime?: string;
 }
 
 /**
@@ -125,7 +129,11 @@ export class ProjectManager {
                         name: project.title || '未命名项目',
                         status: project.status || 'doing',
                         color: project.color,
-                        blockId: project.blockId
+                        blockId: project.blockId,
+                        priority: project.priority || 'none',
+                        sort: project.sort || 0,
+                        startDate: project.startDate,
+                        createdTime: project.createdTime
                     }));
 
                 // 从项目中提取颜色到 projectColors
