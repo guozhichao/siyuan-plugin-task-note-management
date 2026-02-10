@@ -682,10 +682,10 @@ export class QuickReminderDialog {
 
         // 确定目标ID：如果是实例，获取原始ID；否则使用当前ID
         const originalId = this.reminder.originalId || this.reminder.id;
-        
+
         // 判断是否为"修改全部实例"模式
         const isModifyAllInstances = !this.isInstanceEdit && this.reminder.repeat?.enabled;
-        
+
         // 判断是否为实例编辑模式（有 originalId 且是实例）
         const isInstanceEditMode = this.isInstanceEdit && this.reminder.originalId;
 
@@ -695,14 +695,14 @@ export class QuickReminderDialog {
                 // 获取当前实例的番茄钟数量
                 const instanceCount = this.pomodoroRecordManager.getRepeatingEventTotalPomodoroCount(this.reminder.id);
                 const instanceMinutes = this.pomodoroRecordManager.getRepeatingEventTotalFocusTime(this.reminder.id);
-                
+
                 // 获取系列总番茄钟数量（原始任务+所有实例）
                 const seriesCount = this.pomodoroRecordManager.getRepeatingEventTotalPomodoroCount(originalId);
                 const seriesMinutes = this.pomodoroRecordManager.getRepeatingEventTotalFocusTime(originalId);
-                
+
                 const instanceTimeStr = instanceMinutes > 0 ? `(${Math.floor(instanceMinutes / 60)}h${instanceMinutes % 60}m)` : '';
                 const seriesTimeStr = seriesMinutes > 0 ? `(${Math.floor(seriesMinutes / 60)}h${seriesMinutes % 60}m)` : '';
-                
+
                 if (instanceCount > 0 || seriesCount > 0) {
                     pomodorosCountText.textContent = `${i18n("viewPomodoros") || "查看番茄钟"} ${instanceCount}🍅${instanceTimeStr} / 系列: ${seriesCount}🍅${seriesTimeStr}`;
                 } else {
@@ -713,7 +713,7 @@ export class QuickReminderDialog {
                 const seriesCount = this.pomodoroRecordManager.getRepeatingEventTotalPomodoroCount(originalId);
                 const seriesMinutes = this.pomodoroRecordManager.getRepeatingEventTotalFocusTime(originalId);
                 const seriesTimeStr = seriesMinutes > 0 ? ` (${Math.floor(seriesMinutes / 60)}h${seriesMinutes % 60}m)` : '';
-                
+
                 if (seriesCount > 0 || seriesMinutes > 0) {
                     pomodorosCountText.textContent = `${i18n("viewPomodoros") || "查看番茄钟"} ${seriesCount}🍅${seriesTimeStr}`;
                 } else {
@@ -724,7 +724,7 @@ export class QuickReminderDialog {
                 const count = this.pomodoroRecordManager.getRepeatingEventTotalPomodoroCount(this.reminder.id);
                 const totalMinutes = this.pomodoroRecordManager.getRepeatingEventTotalFocusTime(this.reminder.id);
                 const timeStr = totalMinutes > 0 ? ` (${Math.floor(totalMinutes / 60)}h${totalMinutes % 60}m)` : '';
-                
+
                 if (count > 0 || totalMinutes > 0) {
                     pomodorosCountText.textContent = `${i18n("viewPomodoros") || "查看番茄钟"} ${count}🍅${timeStr}`;
                 } else {
@@ -1927,7 +1927,6 @@ export class QuickReminderDialog {
         durationInput?.addEventListener('click', () => setTimeout(normalizeDuration, 0));
         durationInput?.addEventListener('pointerup', () => setTimeout(normalizeDuration, 0));
         durationInput?.addEventListener('mouseup', () => setTimeout(normalizeDuration, 0));
-        durationInput?.addEventListener('wheel', () => setTimeout(normalizeDuration, 0));
         // 有些浏览器的步进按钮触发 keydown(ArrowUp/Down)，延迟执行以读取最新值
         durationInput?.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowUp' || e.key === 'ArrowDown') setTimeout(normalizeDuration, 0);
@@ -1970,10 +1969,10 @@ export class QuickReminderDialog {
                 // 如果是修改全部实例（非实例编辑模式且是重复任务），显示原始任务及所有实例的番茄钟
                 // 如果是实例编辑模式，只显示本实例的番茄钟
                 const isModifyAllInstances = !this.isInstanceEdit && this.reminder.repeat?.enabled;
-                
+
                 // 判断是否为实例编辑模式
                 const isInstanceEditMode = this.isInstanceEdit && this.reminder.originalId;
-                
+
                 // 确定目标ID：
                 // - 实例编辑模式：使用实例ID（补录番茄钟关联到实例）
                 // - 修改全部实例模式：使用原始ID（补录番茄钟关联到原始任务）
@@ -2008,7 +2007,6 @@ export class QuickReminderDialog {
 
                 // 如果有多行，后面的行放到备注
                 if (lines.length > 1) {
-                    // Using Vditor for note
                     if (this.crepe) {
                         const existingNote = this.crepe.getMarkdown();
                         const newNote = lines.slice(1).join('\n');
