@@ -142,14 +142,22 @@ function shouldGenerateInstance(currentDate: Date, originalDate: string, repeatC
             return daysDiff >= 0 && daysDiff % (repeatConfig.interval || 1) === 0;
 
         case 'weekly':
-            // 如果设置了weekDays，检查当前日期的星期是否在指定的星期列表中
-            if (repeatConfig.weekDays && repeatConfig.weekDays.length > 0) {
-                return repeatConfig.weekDays.includes(currentDate.getDay()) && currentDate >= originalDateObj;
+            // 支持“每隔 X 周”的逻辑：无论是否指定多个星期几，都以原始日期为基准按周数间隔判断
+            if (currentDate < originalDateObj) {
+                return false;
             }
-            // 否则按原有逻辑：检查与原始日期的星期是否相同
             const weeksDiff = Math.floor((currentDate.getTime() - originalDateObj.getTime()) / (7 * 24 * 60 * 60 * 1000));
+            const interval = repeatConfig.interval || 1;
+
+            // 当指定了 weekDays 时，检查当前日期是否为指定的星期且与原始周数间隔匹配
+            if (repeatConfig.weekDays && repeatConfig.weekDays.length > 0) {
+                const isWeekdayMatched = repeatConfig.weekDays.includes(currentDate.getDay());
+                return isWeekdayMatched && (weeksDiff % interval === 0);
+            }
+
+            // 否则按原有逻辑：检查与原始日期的星期是否相同并满足间隔
             const sameWeekday = currentDate.getDay() === originalDateObj.getDay();
-            return weeksDiff >= 0 && weeksDiff % (repeatConfig.interval || 1) === 0 && sameWeekday;
+            return weeksDiff >= 0 && weeksDiff % interval === 0 && sameWeekday;
 
         case 'monthly':
             // 如果设置了monthDays，检查当前日期是否在指定的日期列表中
