@@ -1165,6 +1165,7 @@
 .reminder-calendar-view-group {
     display: flex;
     gap: 4px;
+    flex-wrap: wrap;
 }
 
 .reminder-calendar-container {
