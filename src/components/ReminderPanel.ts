@@ -5392,39 +5392,31 @@ export class ReminderPanel {
         }
 
         // --- 创建子任务 ---
-        if (!isRecurring) {
+        menu.addItem({
+            iconHTML: "➕",
+            label: i18n("createSubtask"),
+            click: () => this.showCreateSubtaskDialog(reminder)
+        });
+        // 粘贴新建子任务（参考 ProjectKanbanView 的实现）
+        menu.addItem({
+            iconHTML: "📋",
+            label: i18n("pasteCreateSubtask"),
+            click: () => this.showPasteTaskDialog(reminder)
+        });
+        // 解除父子任务关系（仅当任务有父任务时显示）
+        if (reminder.parentId) {
             menu.addItem({
-                iconHTML: "➕",
-                label: i18n("createSubtask"),
-                click: () => this.showCreateSubtaskDialog(reminder)
-            });
-            // 粘贴新建子任务（参考 ProjectKanbanView 的实现）
-            menu.addItem({
-                iconHTML: "📋",
-                label: i18n("pasteCreateSubtask"),
-                click: () => this.showPasteTaskDialog(reminder)
-            });
-            // 解除父子任务关系（仅当任务有父任务时显示）
-            if (reminder.parentId) {
-                menu.addItem({
-                    iconHTML: "🔓",
-                    label: i18n("unsetParentRelation"),
-                    click: async () => {
-                        try {
-                            await this.removeParentRelation(reminder);
-                            showMessage(i18n("taskUnlinkedFromParent").replace("${childTitle}", reminder.title || "任务").replace("${parentTitle}", "父任务"));
-                        } catch (error) {
-                            console.error('解除父子关系失败:', error);
-                            showMessage(i18n("unlinkParentChildFailed") || "解除父子关系失败");
-                        }
+                iconHTML: "🔓",
+                label: i18n("unsetParentRelation"),
+                click: async () => {
+                    try {
+                        await this.removeParentRelation(reminder);
+                        showMessage(i18n("taskUnlinkedFromParent").replace("${childTitle}", reminder.title || "任务").replace("${parentTitle}", "父任务"));
+                    } catch (error) {
+                        console.error('解除父子关系失败:', error);
+                        showMessage(i18n("unlinkParentChildFailed") || "解除父子关系失败");
                     }
-                });
-            }
-        } else {
-            menu.addItem({
-                iconHTML: "➕",
-                label: "创建子任务 (循环任务禁用)",
-                disabled: true,
+                }
             });
         }
         menu.addSeparator();
