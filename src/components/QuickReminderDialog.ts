@@ -11,15 +11,20 @@ import { BlockBindingDialog } from "./BlockBindingDialog";
 import { SubtasksDialog } from "./SubtasksDialog";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
 import { PomodoroSessionsDialog } from "./PomodoroSessionsDialog";
-import { Crepe } from "@milkdown/crepe";
-import "@milkdown/crepe/theme/common/style.css";
-import "@milkdown/crepe/theme/nord.css";
-import { replaceAll } from "@milkdown/utils";
-import { editorViewCtx } from "@milkdown/kit/core";
+import { Editor, rootCtx, defaultValueCtx, editorViewCtx } from "@milkdown/kit/core";
+import { commonmark } from "@milkdown/kit/preset/commonmark";
+import { gfm } from "@milkdown/kit/preset/gfm";
+import { history } from "@milkdown/kit/plugin/history";
+import { cursor } from "@milkdown/kit/plugin/cursor";
+import { clipboard } from "@milkdown/kit/plugin/clipboard";
+import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
+import { replaceAll, $view } from "@milkdown/utils";
+import { listItemSchema } from "@milkdown/kit/preset/commonmark";
 
 export class QuickReminderDialog {
     private dialog: Dialog;
-    private crepe?: Crepe;
+    private editor?: Editor;
+    private currentNote: string = '';
     private blockId?: string;
     private reminder?: any;
     private onSaved?: (modifiedReminder?: any) => void;
@@ -1297,42 +1302,120 @@ export class QuickReminderDialog {
             const noteContainer = this.dialog.element.querySelector('#quickReminderNote') as HTMLElement;
             if (!noteContainer) return;
 
-            this.crepe = new Crepe({
-                root: noteContainer,
-                defaultValue: initialNote,
-                featureConfigs: {
-                    [Crepe.Feature.Placeholder]: {
-                        text: ""
-                    }
-                }
-            });
-            this.crepe.create().then(() => {
-                // Crepe initialized
-                this.crepe.setReadonly(false);
+            this.currentNote = initialNote;
 
-                // Ensure focus and proper height
-                this.crepe.editor.action((ctx) => {
-                    const view = ctx.get(editorViewCtx);
-                    if (view) {
-                        // Only auto-focus the editor when in 'note' mode (editing note only).
-                        // For other modes (quick, block, edit), keep focus on the title input.
-                        if (this.mode === 'note') {
-                            view.focus();
+
+
+            Editor.make()
+                .config((ctx) => {
+                    ctx.set(rootCtx, noteContainer);
+                    ctx.set(defaultValueCtx, initialNote);
+                    ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {
+                        this.currentNote = markdown;
+                    });
+                })
+                .use(commonmark)
+                .use(gfm)
+                .use(history)
+                .use(clipboard)
+                .use(cursor)
+                .use(listener)
+                .use($view(listItemSchema.node, () => (node, view, getPos) => {
+                    const dom = document.createElement("li");
+                    const contentDOM = document.createElement("div");
+
+                    if (node.attrs.checked != null) {
+                        dom.classList.add("task-list-item");
+
+                        // Use absolute positioning for the checkbox to align with native list markers
+                        dom.classList.add("task-list-item");
+                        dom.style.listStyleType = "none";
+                        dom.style.position = "relative";
+
+                        const checkbox = document.createElement("input");
+                        checkbox.type = "checkbox";
+                        checkbox.checked = node.attrs.checked;
+
+                        // Position checkbox to the left, similar to a list marker
+                        checkbox.style.position = "absolute";
+                        checkbox.style.left = "-1.4em";
+                        checkbox.style.top = "0.3em";
+                        checkbox.style.margin = "0";
+
+                        // Handle click
+                        checkbox.onclick = (e) => {
+                            if (typeof getPos === "function") {
+                                const { tr } = view.state;
+                                tr.setNodeMarkup(getPos(), undefined, {
+                                    ...node.attrs,
+                                    checked: checkbox.checked
+                                });
+                                view.dispatch(tr);
+                            }
+                            e.stopPropagation();
+                        };
+
+                        dom.appendChild(checkbox);
+
+                        contentDOM.style.minWidth = "0"; // Flex fix for overflow
+                        dom.appendChild(contentDOM);
+
+                        return {
+                            dom,
+                            contentDOM,
+                            ignoreMutation: (mutation) => {
+                                // Ignore checkbox mutations done by user (we handle validation via onclick)
+                                return mutation.type === 'attributes' && mutation.target === checkbox;
+                            },
+                            update: (updatedNode) => {
+                                if (updatedNode.type.name !== "list_item") return false;
+                                // Force re-render if switching between task and normal list
+                                const isTask = node.attrs.checked != null;
+                                const newIsTask = updatedNode.attrs.checked != null;
+                                if (isTask !== newIsTask) return false;
+
+                                if (newIsTask) {
+                                    checkbox.checked = updatedNode.attrs.checked;
+                                }
+                                return true;
+                            }
+                        };
+                    } else {
+                        // Regular list item: just 'li'
+                        return {
+                            dom,
+                            contentDOM: dom
+                        };
+                    }
+                }))
+                .create()
+                .then((editor) => {
+                    this.editor = editor;
+
+                    // Only auto-focus the editor when in 'note' mode (editing note only).
+                    if (this.mode === 'note') {
+                        editor.action((ctx) => {
+                            const view = ctx.get(editorViewCtx);
+                            if (view) {
+                                view.focus();
+                            }
+                        });
+                    }
+
+                    const editorEl = this.dialog.element.querySelector('.milkdown') as HTMLElement;
+                    if (editorEl) {
+                        editorEl.style.height = '100%';
+                        editorEl.style.minHeight = '100px';
+                        editorEl.style.margin = '0px';
+                        const prosemirror = editorEl.querySelector('.ProseMirror') as HTMLElement;
+                        if (prosemirror) {
+                            prosemirror.style.minHeight = '100px';
+                            // Basic styling to mimic previous look roughly
+                            prosemirror.style.padding = '8px';
+                            prosemirror.style.outline = 'none';
                         }
                     }
                 });
-
-                const editor = this.dialog.element.querySelector('.milkdown') as HTMLElement;
-                if (editor) {
-                    editor.style.height = '100%';
-                    editor.style.minHeight = '100px';
-                    editor.style.margin = '0px';
-                    const prosemirror = editor.querySelector('.ProseMirror') as HTMLElement;
-                    if (prosemirror) {
-                        prosemirror.style.minHeight = '100px';
-                    }
-                }
-            });
         }, 100);
 
         this.bindEvents();
@@ -2007,10 +2090,10 @@ export class QuickReminderDialog {
 
                 // 如果有多行，后面的行放到备注
                 if (lines.length > 1) {
-                    if (this.crepe) {
-                        const existingNote = this.crepe.getMarkdown();
+                    if (this.editor) {
+                        const existingNote = this.currentNote;
                         const newNote = lines.slice(1).join('\n');
-                        this.crepe.editor.action(replaceAll(existingNote ? existingNote + '\n' + newNote : newNote));
+                        this.editor.action(replaceAll(existingNote ? existingNote + '\n' + newNote : newNote));
                     }
                 }
 
@@ -2769,9 +2852,9 @@ export class QuickReminderDialog {
     }
 
     private destroyDialog() {
-        if (this.crepe) {
-            this.crepe.destroy();
-            this.crepe = undefined;
+        if (this.editor) {
+            this.editor.destroy();
+            this.editor = undefined;
         }
         if (this.dialog) {
             this.dialog.destroy();
@@ -2782,7 +2865,7 @@ export class QuickReminderDialog {
     private async saveNoteOnly() {
         if (!this.reminder) return;
 
-        const note = this.crepe ? this.crepe.getMarkdown() : this.reminder.note;
+        const note = this.editor ? this.currentNote : this.reminder.note;
 
         // 乐观更新
         const optimisticReminder = { ...this.reminder };
@@ -2833,7 +2916,7 @@ export class QuickReminderDialog {
         const inputId = rawBlockVal ? (this.extractBlockId(rawBlockVal) || rawBlockVal) : undefined;
         const url = urlInput?.value?.trim() || undefined;
         // const note = noteInput.value.trim() || undefined;
-        const note = this.crepe ? this.crepe.getMarkdown() : undefined;
+        const note = this.editor ? this.currentNote : undefined;
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
 
         // 获取多分类ID
