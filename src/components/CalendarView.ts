@@ -2121,22 +2121,28 @@ export class CalendarView {
                         const reminderData = await getAllReminders(this.plugin);
                         let reminder = reminderData[eventId];
                         let instanceDate: string | undefined = undefined;
+                        let isInstance = false;
 
-                        // 如果是重复任务实例ID，提取原任务ID和实例日期 (支持 {id}_instance_{date} 或 {id}_{date})
+                        // 如果是重复任务实例ID，提取原任务ID和实例日期 (格式为 {id}_{date})
                         if (!reminder) {
-                            if (eventId.includes('_instance_')) {
-                                const parts = eventId.split('_instance_');
-                                const originalId = parts[0];
-                                instanceDate = parts[1];
-                                reminder = reminderData[originalId];
-                            } else if (eventId.includes('_')) {
-                                // 尝试匹配末尾日期格式
-                                const parts = eventId.split('_');
-                                const lastPart = parts[parts.length - 1];
-                                if (/^\d{4}-\d{2}-\d{2}$/.test(lastPart)) {
-                                    instanceDate = lastPart;
-                                    const originalId = parts.slice(0, -1).join('_');
-                                    reminder = reminderData[originalId];
+                            const idx = eventId.lastIndexOf('_');
+                            if (idx !== -1) {
+                                const possibleDate = eventId.slice(idx + 1);
+                                if (/^\d{4}-\d{2}-\d{2}$/.test(possibleDate)) {
+                                    instanceDate = possibleDate;
+                                    const originalId = eventId.slice(0, idx);
+                                    const originalReminder = reminderData[originalId];
+                                    if (originalReminder) {
+                                        // 构造实例对象，保持原始任务的属性，但使用实例ID和日期
+                                        reminder = {
+                                            ...originalReminder,
+                                            id: eventId, // 使用实例ID
+                                            originalId: originalId,
+                                            date: instanceDate,
+                                            isInstance: true
+                                        };
+                                        isInstance = true;
+                                    }
                                 }
                             }
                         }
@@ -2151,7 +2157,7 @@ export class CalendarView {
                                     reminder: reminder,
                                     mode: 'edit', // Allow edit as user might want to adjust the task
                                     plugin: this.plugin,
-                                    isInstanceEdit: !!instanceDate,
+                                    isInstanceEdit: isInstance || !!instanceDate,
                                     instanceDate: instanceDate,
                                     onSaved: () => {
                                         this.refreshEvents();
@@ -2457,10 +2463,11 @@ export class CalendarView {
     private async showInstanceEditDialog(calendarEvent: any) {
         // 为重复事件实例显示编辑对话框
         const originalId = calendarEvent.extendedProps.originalId;
-        // 事件 id 使用格式: <reminder.id>_instance_<originalKey>
+        // 事件 id 使用格式: <reminder.id>_<originalKey>
         // 以 id 的最后一段作为实例的原始键，用于查找 instanceModifications
         const instanceIdStr = calendarEvent.id || '';
-        const instanceDate = instanceIdStr.split('_').pop() || calendarEvent.extendedProps.date;
+        const idx = instanceIdStr.lastIndexOf('_');
+        const instanceDate = idx !== -1 ? instanceIdStr.slice(idx + 1) : calendarEvent.extendedProps.date;
 
         try {
             const reminderData = await getAllReminders(this.plugin);
@@ -2729,9 +2736,9 @@ export class CalendarView {
         try {
             // 对于重复事件实例，优先修改单个实例的优先级
             if (calendarEvent.extendedProps.isRepeated) {
-                // 从 ID 中提取原始实例日期键（格式为 <id>_instance_<date>）
-                const originalInstanceDate = (calendarEvent.id && calendarEvent.id.includes('_instance_')) ?
-                    calendarEvent.id.split('_instance_').pop()! :
+                // 从 ID 中提取原始实例日期键（格式为 <id>_<date>）
+                const originalInstanceDate = (calendarEvent.id) ?
+                    (calendarEvent.id.slice(calendarEvent.id.lastIndexOf('_') + 1) || calendarEvent.extendedProps.date) :
                     calendarEvent.extendedProps.date;
                 await this.setInstancePriority(calendarEvent.extendedProps.originalId, originalInstanceDate, priority);
                 return;
@@ -3472,9 +3479,11 @@ export class CalendarView {
     private async handleAllDayReorder(state: any) {
         try {
             const reminderData = await getAllReminders(this.plugin);
-            const draggedId = state.draggedEvent.id.includes('_instance_')
-                ? state.draggedEvent.id.split('_instance_')[0]
-                : state.draggedEvent.id;
+            const draggedId = (() => {
+                const d = state.draggedEvent.id || '';
+                const idx = d.lastIndexOf('_');
+                return idx !== -1 ? d.slice(0, idx) : d;
+            })();
 
             const targetDate = state.date;
 
@@ -3525,9 +3534,11 @@ export class CalendarView {
 
             let newList: any[] = [];
             if (state.targetEvent) {
-                const targetId = state.targetEvent.id.includes('_instance_')
-                    ? state.targetEvent.id.split('_instance_')[0]
-                    : state.targetEvent.id;
+                const targetId = (() => {
+                    const t = state.targetEvent.id || '';
+                    const idx = t.lastIndexOf('_');
+                    return idx !== -1 ? t.slice(0, idx) : t;
+                })();
 
                 const targetIndex = filteredEvents.findIndex(r => r.id === targetId);
                 if (targetIndex !== -1) {
@@ -3642,9 +3653,9 @@ export class CalendarView {
         // 如果是重复事件实例
         if (originalReminder.isRepeated) {
             const originalId = originalReminder.originalId;
-            // 修正：从 ID 中提取原始实例日期键（格式为 <id>_instance_<date>）
-            const instanceDate = (info.event.id && info.event.id.includes('_instance_')) ?
-                info.event.id.split('_instance_').pop()! :
+            // 修正：从 ID 中提取原始实例日期键（格式为 <id>_<date>）
+            const instanceDate = (info.event.id) ?
+                (info.event.id.slice(info.event.id.lastIndexOf('_') + 1) || originalReminder.date) :
                 originalReminder.date;
 
             const reminderData = await getAllReminders(this.plugin);
@@ -3690,9 +3701,9 @@ export class CalendarView {
         // 如果是重复事件实例
         if (originalReminder.isRepeated) {
             const originalId = originalReminder.originalId;
-            // 修正：从 ID 中提取原始实例日期键（格式为 <id>_instance_<date>）
-            const instanceDate = (info.event.id && info.event.id.includes('_instance_')) ?
-                info.event.id.split('_instance_').pop()! :
+            // 修正：从 ID 中提取原始实例日期键（格式为 <id>_<date>）
+            const instanceDate = (info.event.id) ?
+                (info.event.id.slice(info.event.id.lastIndexOf('_') + 1) || originalReminder.date) :
                 originalReminder.date;
 
             const reminderData = await getAllReminders(this.plugin);
@@ -5197,7 +5208,7 @@ export class CalendarView {
                         }
 
                         // 事件 id 应使用原始实例键，以便后续的拖拽/保存逻辑能够基于原始实例键进行修改，避免产生重复的 instanceModifications 条目
-                        const uniqueInstanceId = `${reminder.id}_instance_${originalKey}`;
+                        const uniqueInstanceId = `${reminder.id}_${originalKey}`;
                         this.addEventToList(events, instanceReminder, uniqueInstanceId, true, instance.originalId);
                     }
 
@@ -5257,7 +5268,7 @@ export class CalendarView {
                                 continue;
                             }
 
-                            const uniqueInstanceId = `${reminder.id}_instance_${originalDateKey}`;
+                            const uniqueInstanceId = `${reminder.id}_${originalDateKey}`;
                             this.addEventToList(events, instanceReminder, uniqueInstanceId, true, reminder.id);
                         }
                     }
@@ -5280,12 +5291,12 @@ export class CalendarView {
 
                         // 如果关联了任务但没在 reminderData 中找到，尝试作为重复任务实例处理
                         if (!reminder && session.eventId) {
-                            if (session.eventId.includes('_instance_')) {
-                                reminder = reminderData[session.eventId.split('_instance_')[0]];
-                            } else if (session.eventId.includes('_')) {
-                                const parts = session.eventId.split('_');
-                                if (/^\d{4}-\d{2}-\d{2}$/.test(parts[parts.length - 1])) {
-                                    reminder = reminderData[parts.slice(0, -1).join('_')];
+                            const sid = session.eventId;
+                            const idx = sid.lastIndexOf('_');
+                            if (idx !== -1) {
+                                const possibleDate = sid.slice(idx + 1);
+                                if (/^\d{4}-\d{2}-\d{2}$/.test(possibleDate)) {
+                                    reminder = reminderData[sid.slice(0, idx)];
                                 }
                             }
                         }

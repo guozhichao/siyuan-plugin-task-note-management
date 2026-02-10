@@ -279,7 +279,7 @@ export class TaskSummaryDialog {
                 docTitle: reminder.docTitle
               };
 
-              const uniqueInstanceId = `${reminder.id}_instance_${originalKey}`;
+              const uniqueInstanceId = `${reminder.id}_${originalKey}`;
               this.addEventToList(events, instanceReminder, uniqueInstanceId, true, reminder.id);
             }
           });
@@ -770,7 +770,7 @@ export class TaskSummaryDialog {
               };
 
               // 确保实例ID的唯一性，避免重复 — 使用原始实例键作为 id 的后缀
-              const uniqueInstanceId = `${reminder.id}_instance_${originalKey}`;
+              const uniqueInstanceId = `${reminder.id}_${originalKey}`;
               this.addEventToList(events, instanceReminder, uniqueInstanceId, true, instance.originalId);
             }
           });
@@ -1208,11 +1208,6 @@ export class TaskSummaryDialog {
       const eventMap = new Map<string, any>();
       allEvents.forEach(e => {
         // 优先使用 reminder.id (即 startEvent 里的 ID)
-        // 注意：addEventToList生成的 id 可能是 "xxxx" 或 "xxxx_instance_yyyy"
-        // 我们这里主要想通过原始ID查找到任何一个与其关联的事件对象即可，
-        // 最好是原始对象，或者该日期对应的对象
-
-        // 简单起见，我们存储原始ID对应的事件对象。
         // 如果有多个实例，我们优先取原始对象（isRepeated=false），或者随便取一个
         const oid = e.extendedProps.originalId || e.id;
         if (!eventMap.has(oid)) {
