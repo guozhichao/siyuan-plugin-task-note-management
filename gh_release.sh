@@ -56,7 +56,7 @@ if git rev-parse "$version" &>/dev/null 2>&1; then
 fi
 
 # Build the package
-# pnpm run build
+pnpm run build
 
 # Create GitHub release with extracted notes
 gh release create "$version" package.zip \
