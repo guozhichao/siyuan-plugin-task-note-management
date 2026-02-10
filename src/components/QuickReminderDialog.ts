@@ -3694,12 +3694,40 @@ export class QuickReminderDialog {
         try {
             // 读取父任务数据
             const reminderData = await this.plugin.loadReminderData();
-            const parentTask = reminderData[parentId];
+            let parentTask = reminderData[parentId];
+            let instanceDate: string | undefined;
+
+            // 特殊处理：如果父任务ID是重复实例（形式为 reminder_originalId_date）
+            if (!parentTask && parentId.startsWith('reminder_')) {
+                const lastUnderscoreIndex = parentId.lastIndexOf('_');
+                if (lastUnderscoreIndex !== -1) {
+                    const potentialDate = parentId.substring(lastUnderscoreIndex + 1);
+                    // 检查最后一部分是否为 YYYY-MM-DD 格式
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(potentialDate)) {
+                        const originalId = parentId.substring(0, lastUnderscoreIndex);
+                        const originalTask = reminderData[originalId];
+                        if (originalTask) {
+                            instanceDate = potentialDate;
+                            // 构造虚拟的实例对象用于显示
+                            const instanceMod = originalTask.repeat?.instanceModifications?.[instanceDate] || {};
+                            parentTask = {
+                                ...originalTask,
+                                ...instanceMod,
+                                title: instanceMod.title || originalTask.title || '(无标题)',
+                                isInstance: true,
+                                instanceDate: instanceDate,
+                                originalId: originalId
+                            };
+                        }
+                    }
+                }
+            }
 
             if (parentTask) {
                 // 显示父任务标题
-                parentTaskDisplay.value = parentTask.title || '(无标题)';
-                parentTaskDisplay.title = `父任务: ${parentTask.title || '(无标题)'}`;
+                const displayTitle = instanceDate ? `${parentTask.title} (${instanceDate})` : (parentTask.title || '(无标题)');
+                parentTaskDisplay.value = displayTitle;
+                parentTaskDisplay.title = instanceDate ? `父任务实例: ${displayTitle}` : `父任务: ${displayTitle}`;
 
                 // 显示查看按钮
                 viewParentBtn.style.display = '';
@@ -3730,7 +3758,36 @@ export class QuickReminderDialog {
         try {
             // 读取父任务数据
             const reminderData = await this.plugin.loadReminderData();
-            const parentTask = reminderData[parentId];
+            let parentTask = reminderData[parentId];
+            let isInstanceEdit = false;
+            let instanceDate = "";
+
+            // 特殊处理：如果父任务ID是重复实例（形式为 reminder_originalId_date）
+            if (!parentTask && parentId.startsWith('reminder_')) {
+                const lastUnderscoreIndex = parentId.lastIndexOf('_');
+                if (lastUnderscoreIndex !== -1) {
+                    const potentialDate = parentId.substring(lastUnderscoreIndex + 1);
+                    // 检查最后一部分是否为 YYYY-MM-DD 格式
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(potentialDate)) {
+                        const originalId = parentId.substring(0, lastUnderscoreIndex);
+                        const originalTask = reminderData[originalId];
+                        if (originalTask) {
+                            isInstanceEdit = true;
+                            instanceDate = potentialDate;
+                            // 构造虚拟的实例对象
+                            const instanceMod = originalTask.repeat?.instanceModifications?.[instanceDate] || {};
+                            parentTask = {
+                                ...originalTask,
+                                ...instanceMod,
+                                id: parentId,
+                                isInstance: true,
+                                instanceDate: instanceDate,
+                                originalId: originalId
+                            };
+                        }
+                    }
+                }
+            }
 
             if (!parentTask) {
                 showMessage(i18n("parentTaskNotExist") || "父任务不存在");
@@ -3739,7 +3796,7 @@ export class QuickReminderDialog {
 
             // 创建新的QuickReminderDialog来编辑父任务
             const parentDialog = new QuickReminderDialog(
-                parentTask.date,
+                isInstanceEdit ? instanceDate : parentTask.date,
                 parentTask.time,
                 undefined,
                 parentTask.endDate ? {
@@ -3751,6 +3808,8 @@ export class QuickReminderDialog {
                     reminder: parentTask,
                     mode: 'edit',
                     plugin: this.plugin,
+                    isInstanceEdit: isInstanceEdit,
+                    instanceDate: isInstanceEdit ? instanceDate : undefined,
                     onSaved: async () => {
                         // 父任务保存后，刷新当前对话框的父任务显示
                         await this.updateParentTaskDisplay();
