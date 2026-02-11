@@ -123,25 +123,31 @@ export class SubtasksDialog {
         let ghostChildren: any[] = [];
         if (instanceDate && targetParentId !== this.parentId) {
             const templateChildren = (Object.values(reminderData) as any[]).filter((r: any) => r.parentId === targetParentId);
-            ghostChildren = templateChildren.map(child => {
-                const ghostId = `${child.id}_${instanceDate}`;
-                // 检查此实例是否已完成
-                const isCompleted = child.repeat?.completedInstances?.includes(instanceDate) || false;
+            ghostChildren = templateChildren
+                .filter(child => {
+                    // 过滤掉在当前日期隐藏的 ghost 子任务
+                    const isHidden = child.repeat?.excludeDates?.includes(instanceDate);
+                    return !isHidden;
+                })
+                .map(child => {
+                    const ghostId = `${child.id}_${instanceDate}`;
+                    // 检查此实例是否已完成
+                    const isCompleted = child.repeat?.completedInstances?.includes(instanceDate) || false;
 
-                // 查找针对此子任务实例的修改（如果存在）
-                const instanceMod = child.repeat?.instanceModifications?.[instanceDate] || {};
+                    // 查找针对此子任务实例的修改（如果存在）
+                    const instanceMod = child.repeat?.instanceModifications?.[instanceDate] || {};
 
-                return {
-                    ...child,
-                    ...instanceMod,
-                    id: ghostId,
-                    parentId: this.parentId, // 链接到当前实例父任务
-                    isRepeatInstance: true,
-                    originalId: child.id,
-                    completed: isCompleted,
-                    title: instanceMod.title || child.title || '(无标题)',
-                };
-            });
+                    return {
+                        ...child,
+                        ...instanceMod,
+                        id: ghostId,
+                        parentId: this.parentId, // 链接到当前实例父任务
+                        isRepeatInstance: true,
+                        originalId: child.id,
+                        completed: isCompleted,
+                        title: instanceMod.title || child.title || '(无标题)',
+                    };
+                });
         }
 
         // 合并数据，避免重复（如果已存在真实的实例子任务，则以真实子任务优先）
@@ -782,16 +788,50 @@ export class SubtasksDialog {
         };
 
         if (date) {
-            // 如果是删除 ghost 实例，询问用户是删除整个模板还是仅在此日期隐藏？
-            // 这里为了简化流程，默认删除整个模板任务。
-            const ghostConfirmMsg = `确定要删除此子任务的原始模板吗？\n删除后所有日期的该子任务都将消失。\n\n任务标题: ${task.title}`;
-            confirm(
-                i18n("confirmDelete") || "确认删除",
-                ghostConfirmMsg,
-                async () => {
-                    await doDelete();
-                }
-            );
+            // 判断是否为编辑单个实例模式（非编辑所有实例）
+            const isEditingSingleInstance = this.isInstanceEdit && !this.isModifyAllInstances;
+            
+            if (isEditingSingleInstance) {
+                // 编辑单个实例：将此 ghost 子任务在当前日期标记为隐藏
+                // 而不是删除整个模板
+                confirm(
+                    i18n("confirmDelete") || "确认删除",
+                    `确定要在此日期隐藏子任务 "${task.title}" 吗？\n此操作仅影响当前日期的实例，不会影响其他日期的该子任务。`,
+                    async () => {
+                        // 将 ghost 子任务标记为在当前日期隐藏
+                        if (!task.repeat) task.repeat = {};
+                        if (!task.repeat.excludeDates) task.repeat.excludeDates = [];
+                        if (!task.repeat.excludeDates.includes(date)) {
+                            task.repeat.excludeDates.push(date);
+                        }
+                        await this.plugin.saveReminderData(reminderData);
+                        await this.loadSubtasks();
+                        this.renderSubtasks();
+                        
+                        // 触发更新事件
+                        if (taskProjectId) {
+                            window.dispatchEvent(new CustomEvent('reminderUpdated', {
+                                detail: { projectId: taskProjectId }
+                            }));
+                        }
+                        if (this.onUpdate) {
+                            this.onUpdate();
+                        }
+                        
+                        showMessage(i18n("hideSuccess") || "已隐藏");
+                    }
+                );
+            } else {
+                // 编辑所有实例：删除整个模板任务
+                const ghostConfirmMsg = `确定要删除此子任务的原始模板吗？\n删除后所有日期的该子任务都将消失。\n\n任务标题: ${task.title}`;
+                confirm(
+                    i18n("confirmDelete") || "确认删除",
+                    ghostConfirmMsg,
+                    async () => {
+                        await doDelete();
+                    }
+                );
+            }
             return;
         }
 

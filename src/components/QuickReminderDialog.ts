@@ -702,6 +702,7 @@ export class QuickReminderDialog {
         subtasksGroup.style.display = 'block';
 
         let count = 0;
+        let completedCount = 0;
         if (this.mode === 'edit' && this.reminder) {
             // 编辑模式：从数据库获取子任务（包括 ghost 子任务）
             const reminderData = await this.plugin.loadReminderData();
@@ -726,16 +727,25 @@ export class QuickReminderDialog {
             let ghostChildren: any[] = [];
             if (instanceDate && targetParentId !== this.reminder.id) {
                 const templateChildren = (Object.values(reminderData) as any[]).filter((r: any) => r.parentId === targetParentId);
-                ghostChildren = templateChildren.map(child => {
-                    const ghostId = `${child.id}_${instanceDate}`;
-                    return {
-                        ...child,
-                        id: ghostId,
-                        parentId: this.reminder.id,
-                        isRepeatInstance: true,
-                        originalId: child.id,
-                    };
-                });
+                ghostChildren = templateChildren
+                    .filter(child => {
+                        // 过滤掉在当前日期隐藏的 ghost 子任务
+                        const isHidden = child.repeat?.excludeDates?.includes(instanceDate);
+                        return !isHidden;
+                    })
+                    .map(child => {
+                        const ghostId = `${child.id}_${instanceDate}`;
+                        // 检查此 ghost 子任务在当前日期是否已完成
+                        const isCompleted = child.repeat?.completedInstances?.includes(instanceDate) || false;
+                        return {
+                            ...child,
+                            id: ghostId,
+                            parentId: this.reminder.id,
+                            isRepeatInstance: true,
+                            originalId: child.id,
+                            completed: isCompleted,
+                        };
+                    });
             }
             
             // 合并数据，避免重复（如果已存在真实的实例子任务，则以真实子任务优先）
@@ -747,16 +757,27 @@ export class QuickReminderDialog {
             });
             
             count = combined.length;
+            completedCount = combined.filter(r => r.completed).length;
         } else {
             // 新建模式：使用临时子任务列表
             count = this.tempSubtasks.length;
+            completedCount = this.tempSubtasks.filter(r => r.completed).length;
         }
 
         if (subtasksCountText) {
             const label = this.mode === 'edit'
                 ? (i18n("viewSubtasks") || "查看子任务")
                 : (i18n("newSubtasks") || "新建子任务");
-            subtasksCountText.textContent = `${label}${count > 0 ? ` (${count})` : ''}`;
+            // 显示格式：查看子任务 (已完成数/总数) 或 查看子任务 (总数)
+            if (count > 0) {
+                if (completedCount > 0) {
+                    subtasksCountText.textContent = `${label} (${completedCount}/${count})`;
+                } else {
+                    subtasksCountText.textContent = `${label} (${count})`;
+                }
+            } else {
+                subtasksCountText.textContent = label;
+            }
         }
     }
 

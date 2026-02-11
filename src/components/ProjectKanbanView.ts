@@ -14323,6 +14323,7 @@ export class ProjectKanbanView {
                     const originalId = task.originalId;
                     const instanceDate = task.date;
 
+                    // 将当前日期添加到 excludeDates（适用于普通重复实例和 ghost 子任务）
                     await this.addExcludedDate(originalId, instanceDate);
 
                     // 如果该实例绑定了块或文档，更新块属性（忽略错误）
@@ -14347,7 +14348,7 @@ export class ProjectKanbanView {
     }
 
     /**
-     * 为原始周期事件添加排除日期
+     * 为原始周期事件添加排除日期（适用于普通重复实例和 ghost 子任务）
      */
     private async addExcludedDate(originalId: string, excludeDate: string) {
         try {

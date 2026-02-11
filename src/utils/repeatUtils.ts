@@ -448,6 +448,13 @@ export function generateSubtreeInstances(
             }
         }
 
+        // Check if this child is excluded for the current instance date
+        const excludeDates = child.repeat?.excludeDates || [];
+        if (excludeDates.includes(instanceDate)) {
+            // Skip this child and its descendants for this instance date
+            return;
+        }
+
         const instanceId = `${child.id}_${instanceDate}`;
         const completedInstances = child.repeat?.completedInstances || [];
         const isInstanceCompleted = completedInstances.includes(instanceDate);
