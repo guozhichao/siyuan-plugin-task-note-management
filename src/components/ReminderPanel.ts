@@ -5418,12 +5418,12 @@ export class ReminderPanel {
             menu.addItem({
                 iconHTML: "📝",
                 label: i18n("modifyThisInstance"),
-                click: () => this.showTimeEditDialog(reminder)
+                click: () => this.showTimeEditDialog(reminder, false)
             });
             menu.addItem({
                 iconHTML: "🔄",
                 label: i18n("modifyAllInstances"),
-                click: () => this.showTimeEditDialog(reminder)
+                click: () => this.showTimeEditDialog(reminder, true)
             });
         } else {
             menu.addItem({
