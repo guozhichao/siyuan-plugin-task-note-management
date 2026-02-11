@@ -465,6 +465,11 @@ export class QuickReminderDialog {
             availableStartDateInput.value = getLogicalDateString();
         }
 
+        // 填充不在日历视图显示
+        const hideInCalendarCheckbox = this.dialog.element.querySelector('#quickHideInCalendar') as HTMLInputElement;
+        if (hideInCalendarCheckbox && this.reminder.hideInCalendar) {
+            hideInCalendarCheckbox.checked = true;
+        }
 
         // 填充标题
         if (titleInput && this.reminder.title) {
@@ -1065,7 +1070,7 @@ export class QuickReminderDialog {
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-checkbox">
-                                <input type="checkbox" id="quickPasteAutoDetect" ${this.autoDetectDateTime ? 'checked' : ''}>
+                                <input type="checkbox" class="b3-switch" id="quickPasteAutoDetect" ${this.autoDetectDateTime ? 'checked' : ''}>
                                 <span class="b3-checkbox__graphic"></span>
                                 <span class="b3-checkbox__label">${i18n("pasteAutoDetectDate") || "粘贴自动识别日期"}</span>
                             </label>
@@ -1214,7 +1219,7 @@ export class QuickReminderDialog {
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-checkbox">
-                                <input type="checkbox" id="quickIsAvailableToday">
+                                <input type="checkbox" class="b3-switch" id="quickIsAvailableToday">
                                 <span class="b3-checkbox__graphic"></span>
                                 <span class="b3-checkbox__label">🍰 每日可做（在任务管理侧栏的「今日任务」每天显示，适合用于推进长期任务）</span>
                             </label>
@@ -1222,6 +1227,13 @@ export class QuickReminderDialog {
                         <div class="b3-form__group" id="quickAvailableDateGroup" style="display: none; margin-left: 28px;">
                             <label class="b3-form__label" style="font-size: 12px;">起始日期</label>
                             <input type="date" id="quickAvailableStartDate" class="b3-text-field" style="width: 100%;">
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-checkbox">
+                                <input type="checkbox" class="b3-switch" id="quickHideInCalendar">
+                                <span class="b3-checkbox__graphic"></span>
+                                <span class="b3-checkbox__label">📅 不在日历视图显示</span>
+                            </label>
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">${i18n("reminderDate") || "日期时间"} (可选)</label>
@@ -3034,6 +3046,9 @@ export class QuickReminderDialog {
         const isAvailableToday = (this.dialog.element.querySelector('#quickIsAvailableToday') as HTMLInputElement)?.checked || false;
         const availableStartDate = (this.dialog.element.querySelector('#quickAvailableStartDate') as HTMLInputElement)?.value || undefined;
 
+        // 不在日历视图显示
+        const hideInCalendar = (this.dialog.element.querySelector('#quickHideInCalendar') as HTMLInputElement)?.checked || false;
+
 
         // 获取选中的标签ID（使用 selectedTagIds 属性）
         const tagIds = this.selectedTagIds;
@@ -3104,7 +3119,8 @@ export class QuickReminderDialog {
                 quadrant: this.defaultQuadrant,
                 estimatedPomodoroDuration: estimatedPomodoroDuration,
                 isAvailableToday: isAvailableToday,
-                availableStartDate: availableStartDate
+                availableStartDate: availableStartDate,
+                hideInCalendar: hideInCalendar
             };
 
             // 如果有绑定块，尝试获取并设置 docId
@@ -3170,6 +3186,7 @@ export class QuickReminderDialog {
             optimisticReminder.kanbanStatus = kanbanStatus;
             optimisticReminder.isAvailableToday = isAvailableToday;
             optimisticReminder.availableStartDate = availableStartDate;
+            optimisticReminder.hideInCalendar = hideInCalendar;
 
             // 同步 docId 用于 UI 显示
             optimisticReminder.docId = optimisticDocId !== null ? optimisticDocId : (this.reminder?.docId || undefined);
@@ -3305,6 +3322,7 @@ export class QuickReminderDialog {
                         reminder.estimatedPomodoroDuration = estimatedPomodoroDuration;
                         reminder.isAvailableToday = isAvailableToday;
                         reminder.availableStartDate = availableStartDate;
+                        reminder.hideInCalendar = hideInCalendar;
 
                         // 设置或删除 documentId
                         if (inputId) {
@@ -3519,6 +3537,7 @@ export class QuickReminderDialog {
                         kanbanStatus: kanbanStatus, // 添加任务状态（短期/长期）
                         isAvailableToday: isAvailableToday,
                         availableStartDate: availableStartDate,
+                        hideInCalendar: hideInCalendar,
                         // 旧字段 `customReminderTime` 不再写入，新提醒统一保存到 `reminderTimes`
                         reminderTimes: this.customTimes.length > 0 ? [...this.customTimes] : undefined,
                         estimatedPomodoroDuration: estimatedPomodoroDuration

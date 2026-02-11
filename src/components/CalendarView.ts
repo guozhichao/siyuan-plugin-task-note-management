@@ -47,6 +47,7 @@ export class CalendarView {
     private showSubtasks: boolean = true; // 是否显示子任务
     private showRepeatTasks: boolean = true; // 是否显示重复任务
     private repeatInstanceLimit: number = -1; // 重复任务显示实例数量限制
+    private showHiddenTasks: boolean = false; // 是否显示不在日历视图显示的任务
     private pomodoroToggleBtn: HTMLElement | null = null; // Pomodoro toggle button
     private holidays: { [date: string]: { title: string, type: 'holiday' | 'workday' } } = {}; // 节假日数据
     private colorBy: 'category' | 'priority' | 'project' = 'priority'; // 按分类或优先级上色
@@ -109,6 +110,7 @@ export class CalendarView {
             this.showSubtasks = this.calendarConfigManager.getShowSubtasks();
             this.showRepeatTasks = this.calendarConfigManager.getShowRepeatTasks();
             this.repeatInstanceLimit = this.calendarConfigManager.getRepeatInstanceLimit();
+            this.showHiddenTasks = this.calendarConfigManager.getShowHiddenTasks();
             this.showPomodoro = this.calendarConfigManager.getShowPomodoro();
 
             try {
@@ -282,6 +284,7 @@ export class CalendarView {
         this.showSubtasks = this.calendarConfigManager.getShowSubtasks();
         this.showRepeatTasks = this.calendarConfigManager.getShowRepeatTasks();
         this.repeatInstanceLimit = this.calendarConfigManager.getRepeatInstanceLimit();
+        this.showHiddenTasks = this.calendarConfigManager.getShowHiddenTasks();
         this.holidays = await loadHolidays(this.plugin);
 
         // 获取周开始日设置
@@ -791,6 +794,13 @@ export class CalendarView {
             this.showPomodoro = checked;
             await this.calendarConfigManager.setShowPomodoro(checked);
             this.updatePomodoroButtonState();
+            await this.refreshEvents();
+        }));
+
+        // 隐藏任务设置（强制显示标记为不在日历显示的任务）
+        displaySettingsDropdown.appendChild(createSwitchItem(i18n("showHiddenTasks") || "显示不在日历视图显示的任务", this.showHiddenTasks, async (checked) => {
+            this.showHiddenTasks = checked;
+            await this.calendarConfigManager.setShowHiddenTasks(checked);
             await this.refreshEvents();
         }));
 
@@ -5115,6 +5125,15 @@ export class CalendarView {
             const allReminders = Object.values(reminderData) as any[];
             let filteredReminders = allReminders.filter(reminder => {
                 if (!reminder || typeof reminder !== 'object') return false;
+
+                // 不在日历视图显示的任务过滤
+                // 如果任务或父任务被标记为隐藏，且未开启强制显示，则过滤掉
+                if (!this.showHiddenTasks) {
+                    // 检查任务本身是否被标记为隐藏
+                    if (reminder.hideInCalendar) return false;
+                    // 检查父任务是否被标记为隐藏（子任务继承父任务的隐藏设置）
+                    if (reminder.parentId && reminderData[reminder.parentId]?.hideInCalendar) return false;
+                }
 
                 // 子任务过滤
                 if (!this.showSubtasks && reminder.parentId) return false;

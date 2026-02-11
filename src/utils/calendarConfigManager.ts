@@ -15,6 +15,7 @@ export interface CalendarConfig {
     showSubtasks: boolean;
     showRepeatTasks: boolean;
     repeatInstanceLimit: number;
+    showHiddenTasks: boolean; // 显示不在日历视图显示的任务
 }
 
 export class CalendarConfigManager {
@@ -35,7 +36,8 @@ export class CalendarConfigManager {
             crossDayThreshold: -1, // 默认显示全部天数 (-1表示不限制)
             showSubtasks: true, // 默认显示子任务
             showRepeatTasks: true, // 默认显示重复任务
-            repeatInstanceLimit: -1 // 默认显示全部实例 (-1表示不限制)
+            repeatInstanceLimit: -1, // 默认显示全部实例 (-1表示不限制)
+            showHiddenTasks: false // 默认不显示隐藏任务
         };
     }
 
@@ -64,6 +66,7 @@ export class CalendarConfigManager {
             settings.calendarShowSubtasks = this.config.showSubtasks;
             settings.calendarShowRepeatTasks = this.config.showRepeatTasks;
             settings.calendarRepeatInstanceLimit = this.config.repeatInstanceLimit;
+            settings.calendarShowHiddenTasks = this.config.showHiddenTasks;
             await (this.plugin as any).saveSettings(settings);
         } catch (error) {
             console.error('Failed to save calendar config:', error);
@@ -106,7 +109,8 @@ export class CalendarConfigManager {
                 crossDayThreshold: settings.calendarCrossDayThreshold !== undefined ? settings.calendarCrossDayThreshold : -1, // 默认为 -1
                 showSubtasks: settings.calendarShowSubtasks !== false, // 默认为 true
                 showRepeatTasks: settings.calendarShowRepeatTasks !== false, // 默认为 true
-                repeatInstanceLimit: settings.calendarRepeatInstanceLimit !== undefined ? settings.calendarRepeatInstanceLimit : -1 // 默认为 -1
+                repeatInstanceLimit: settings.calendarRepeatInstanceLimit !== undefined ? settings.calendarRepeatInstanceLimit : -1, // 默认为 -1
+                showHiddenTasks: settings.calendarShowHiddenTasks === true // 默认为 false
             };
         } catch (error) {
             console.warn('Failed to load calendar config, using defaults:', error);
@@ -121,7 +125,8 @@ export class CalendarConfigManager {
                 crossDayThreshold: -1,
                 showSubtasks: true,
                 showRepeatTasks: true,
-                repeatInstanceLimit: -1
+                repeatInstanceLimit: -1,
+                showHiddenTasks: false
             };
             try {
                 await this.saveConfig();
@@ -228,6 +233,15 @@ export class CalendarConfigManager {
 
     public getRepeatInstanceLimit(): number {
         return this.config.repeatInstanceLimit !== undefined ? this.config.repeatInstanceLimit : -1;
+    }
+
+    public async setShowHiddenTasks(show: boolean) {
+        this.config.showHiddenTasks = show;
+        await this.saveConfig();
+    }
+
+    public getShowHiddenTasks(): boolean {
+        return this.config.showHiddenTasks !== undefined ? this.config.showHiddenTasks : false;
     }
 
     public getConfig(): CalendarConfig {
