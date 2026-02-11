@@ -787,7 +787,7 @@
                             class:selected={selectedPriorities.includes('low')}
                             on:click={() => togglePriority('low')}
                         >
-                            🟢 {i18n('lowPriority') || '低优先级'}
+                            🔵 {i18n('lowPriority') || '低优先级'}
                         </div>
                         <div
                             class="filter-option"

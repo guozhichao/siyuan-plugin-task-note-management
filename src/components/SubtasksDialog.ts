@@ -10,6 +10,8 @@ export class SubtasksDialog {
     private subtasks: any[] = [];
     private onUpdate?: () => void;
     private draggingId: string | null = null;
+    private currentSort: 'priority' | 'time' | 'createdAt' | 'title' = 'priority';
+    private currentSortOrder: 'asc' | 'desc' = 'desc';
 
     constructor(parentId: string, plugin: any, onUpdate?: () => void) {
         this.parentId = parentId;
@@ -21,9 +23,15 @@ export class SubtasksDialog {
         await this.loadSubtasks();
 
         this.dialog = new Dialog({
-            title: i18n("subtasks") || "子任务",
+            title: this.renderDialogTitle(),
             content: `
                 <div class="subtasks-dialog" style="padding: 16px; display: flex; flex-direction: column; gap: 16px; max-height: 80vh;">
+                    <div class="subtasks-header" style="display: flex; gap: 8px; justify-content: flex-end; padding-bottom: 8px; border-bottom: 1px solid var(--b3-border-color);">
+                        <button id="sortBtn" class="b3-button b3-button--outline">
+                            <svg class="b3-button__icon"><use xlink:href="#iconSort"></use></svg>
+                            ${i18n("sort") || "排序"}
+                        </button>
+                    </div>
                     <div id="subtasksList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 100px;">
                         <!-- 子任务列表 -->
                     </div>
@@ -43,6 +51,18 @@ export class SubtasksDialog {
 
         this.renderSubtasks();
         this.bindEvents();
+    }
+
+    private renderDialogTitle(): string {
+        const baseTitle = i18n("subtasks") || "子任务";
+        const sortNames = {
+            'priority': i18n('sortByPriority') || '按优先级',
+            'time': i18n('sortByTime') || '按时间',
+            'createdAt': i18n('sortByCreated') || '按创建时间',
+            'title': i18n('sortByTitle') || '按标题'
+        };
+        const orderText = this.currentSortOrder === 'asc' ? '↑' : '↓';
+        return `${baseTitle} (${sortNames[this.currentSort]}${orderText})`;
     }
 
     private async loadSubtasks() {
@@ -105,6 +125,9 @@ export class SubtasksDialog {
         const listEl = this.dialog.element.querySelector("#subtasksList") as HTMLElement;
         if (!listEl) return;
 
+        // 先排序
+        this.sortSubtasks();
+
         // 添加拖拽指示器样式（添加到 dialog 的容器中，避免被 innerHTML 覆盖）
         const dialogContent = this.dialog.element.querySelector(".subtasks-dialog") || this.dialog.element;
         if (!dialogContent.querySelector("#subtask-drag-styles")) {
@@ -141,6 +164,13 @@ export class SubtasksDialog {
                 .subtask-item.dragging {
                     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
                 }
+                .subtask-item.drag-disabled {
+                    cursor: default;
+                }
+                .subtask-item.drag-disabled .subtask-drag-handle {
+                    opacity: 0.2;
+                    cursor: default;
+                }
             `;
             dialogContent.appendChild(styleEl);
         }
@@ -150,11 +180,15 @@ export class SubtasksDialog {
             return;
         }
 
+        // 只在优先级排序时启用拖拽
+        const isDragEnabled = this.currentSort === 'priority';
+
         listEl.innerHTML = this.subtasks.map(task => {
             const priorityIcon = this.getPriorityIcon(task.priority);
+            const dragHandle = isDragEnabled ? `<div class="subtask-drag-handle" style="cursor: move; opacity: 0.5;">⋮⋮</div>` : `<div class="subtask-drag-handle" style="cursor: default; opacity: 0.2;">⋮⋮</div>`;
             return `
-            <div class="subtask-item" data-id="${task.id}" draggable="true" style="display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--b3-theme-surface); border: 1px solid var(--b3-theme-border); border-radius: 4px; cursor: move; transition: all 0.2s;">
-                <div class="subtask-drag-handle" style="cursor: move; opacity: 0.5;">⋮⋮</div>
+            <div class="subtask-item ${isDragEnabled ? '' : 'drag-disabled'}" data-id="${task.id}" draggable="${isDragEnabled}" style="display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--b3-theme-surface); border: 1px solid var(--b3-theme-border); border-radius: 4px; cursor: ${isDragEnabled ? 'move' : 'default'}; transition: all 0.2s;">
+                ${dragHandle}
                 <input type="checkbox" ${task.completed ? 'checked' : ''} class="subtask-checkbox" style="margin: 0;">
                 <div class="subtask-title" style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; ${task.completed ? 'text-decoration: line-through; opacity: 0.6;' : ''}">
                     ${priorityIcon} ${task.title}
@@ -200,7 +234,10 @@ export class SubtasksDialog {
                 (item as HTMLElement).style.borderColor = "var(--b3-theme-border)";
             });
 
-            this.addDragAndDrop(item as HTMLElement);
+            // 只在优先级排序时绑定拖拽事件
+            if (isDragEnabled) {
+                this.addDragAndDrop(item as HTMLElement);
+            }
         });
     }
 
@@ -208,7 +245,7 @@ export class SubtasksDialog {
         switch (priority) {
             case 'high': return '🔴';
             case 'medium': return '🟡';
-            case 'low': return '🟢';
+            case 'low': return '🔵';
             default: return '⚪';
         }
     }
@@ -217,6 +254,192 @@ export class SubtasksDialog {
         this.dialog.element.querySelector("#addSubtaskBtn")?.addEventListener("click", () => {
             this.addSubtask();
         });
+
+        this.dialog.element.querySelector("#sortBtn")?.addEventListener("click", (e) => {
+            this.showSortMenu(e as MouseEvent);
+        });
+    }
+
+    private showSortMenu(event: MouseEvent) {
+        if (document.querySelector('.subtasks-sort-menu')) {
+            return;
+        }
+
+        const menuEl = document.createElement('div');
+        menuEl.className = 'subtasks-sort-menu';
+        menuEl.style.cssText = `
+            position: fixed;
+            background: var(--b3-theme-surface);
+            border: 1px solid var(--b3-theme-border);
+            border-radius: 6px;
+            padding: 8px;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 180px;
+        `;
+
+        const sortOptions = [
+            { key: 'priority', label: i18n('sortByPriority') || '按优先级', icon: '🎯' },
+            { key: 'time', label: i18n('sortByTime') || '按设定时间', icon: '🕐' },
+            { key: 'createdAt', label: i18n('sortByCreated') || '按创建时间', icon: '📅' },
+            { key: 'title', label: i18n('sortByTitle') || '按标题', icon: '📝' },
+        ];
+
+        sortOptions.forEach((option, index) => {
+            // 创建排序方式行容器
+            const rowEl = document.createElement('div');
+            rowEl.style.cssText = `
+                display: flex;
+                gap: 4px;
+                align-items: center;
+            `;
+
+            // 标签
+            const labelEl = document.createElement('span');
+            labelEl.style.cssText = `
+                flex: 1;
+                font-size: 13px;
+                color: var(--b3-theme-on-surface);
+                padding: 0 4px;
+            `;
+            labelEl.textContent = `${option.icon} ${option.label}`;
+            rowEl.appendChild(labelEl);
+
+            // 降序按钮
+            const descBtn = document.createElement('button');
+            const isDescActive = this.currentSort === option.key && this.currentSortOrder === 'desc';
+            descBtn.className = 'b3-button b3-button--small';
+            descBtn.style.cssText = `
+                padding: 4px 8px;
+                font-size: 12px;
+                min-width: 32px;
+                ${isDescActive ? 'background: var(--b3-theme-primary); color: white;' : ''}
+            `;
+            descBtn.textContent = '↓';
+            descBtn.title = i18n('descendingOrder') || '降序';
+            descBtn.addEventListener('click', () => {
+                this.currentSort = option.key;
+                this.currentSortOrder = 'desc';
+                this.sortSubtasks();
+                this.renderSubtasks();
+                // 更新标题
+                const titleEl = this.dialog.element.querySelector('.b3-dialog__header');
+                if (titleEl) {
+                    titleEl.textContent = this.renderDialogTitle();
+                }
+                closeMenu();
+            });
+            rowEl.appendChild(descBtn);
+
+            // 升序按钮
+            const ascBtn = document.createElement('button');
+            const isAscActive = this.currentSort === option.key && this.currentSortOrder === 'asc';
+            ascBtn.className = 'b3-button b3-button--small';
+            ascBtn.style.cssText = `
+                padding: 4px 8px;
+                font-size: 12px;
+                min-width: 32px;
+                ${isAscActive ? 'background: var(--b3-theme-primary); color: white;' : ''}
+            `;
+            ascBtn.textContent = '↑';
+            ascBtn.title = i18n('ascendingOrder') || '升序';
+            ascBtn.addEventListener('click', () => {
+                this.currentSort = option.key;
+                this.currentSortOrder = 'asc';
+                this.sortSubtasks();
+                this.renderSubtasks();
+                // 更新标题
+                const titleEl = this.dialog.element.querySelector('.b3-dialog__header');
+                if (titleEl) {
+                    titleEl.textContent = this.renderDialogTitle();
+                }
+                closeMenu();
+            });
+            rowEl.appendChild(ascBtn);
+
+            menuEl.appendChild(rowEl);
+
+            // 添加分隔线（除了最后一个）
+            if (index < sortOptions.length - 1) {
+                const hr = document.createElement('hr');
+                hr.style.cssText = `
+                    margin: 4px 0;
+                    border: none;
+                    border-top: 1px solid var(--b3-theme-border);
+                `;
+                menuEl.appendChild(hr);
+            }
+        });
+
+        document.body.appendChild(menuEl);
+
+        // 定位菜单
+        const rect = (event.target as HTMLElement).getBoundingClientRect();
+        menuEl.style.left = `${rect.left}px`;
+        menuEl.style.top = `${rect.bottom + 4}px`;
+
+        // 点击外部关闭
+        const closeMenu = () => {
+            if (menuEl.parentNode) {
+                menuEl.parentNode.removeChild(menuEl);
+            }
+            document.removeEventListener('click', handleClickOutside);
+        };
+
+        const handleClickOutside = (e: MouseEvent) => {
+            if (!menuEl.contains(e.target as Node)) {
+                closeMenu();
+            }
+        };
+
+        setTimeout(() => document.addEventListener('click', handleClickOutside), 0);
+    }
+
+    private sortSubtasks() {
+        switch (this.currentSort) {
+            case 'priority':
+                this.subtasks.sort((a, b) => {
+                    const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
+                    const pa = priorityOrder[a.priority] || 0;
+                    const pb = priorityOrder[b.priority] || 0;
+                    let result = pb - pa; // 高优先级在前
+                    if (result === 0) {
+                        result = (a.sort || 0) - (b.sort || 0);
+                    }
+                    return this.currentSortOrder === 'asc' ? -result : result;
+                });
+                break;
+            case 'time':
+                this.subtasks.sort((a, b) => {
+                    const dateA = a.date || '9999-12-31';
+                    const dateB = b.date || '9999-12-31';
+                    const timeA = a.time || '00:00';
+                    const timeB = b.time || '00:00';
+                    const dtA = `${dateA}T${timeA}`;
+                    const dtB = `${dateB}T${timeB}`;
+                    let result = dtA.localeCompare(dtB);
+                    if (result === 0) {
+                        result = (a.sort || 0) - (b.sort || 0);
+                    }
+                    return this.currentSortOrder === 'asc' ? -result : result;
+                });
+                break;
+            case 'createdAt':
+                this.subtasks.sort((a, b) => {
+                    const result = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+                    return this.currentSortOrder === 'asc' ? result : -result;
+                });
+                break;
+            case 'title':
+                this.subtasks.sort((a, b) => {
+                    const result = (a.title || '').localeCompare(b.title || '');
+                    return this.currentSortOrder === 'asc' ? result : -result;
+                });
+                break;
+        }
     }
 
     private async addSubtask() {
@@ -250,9 +473,20 @@ export class SubtasksDialog {
     }
 
     private async editSubtask(task: any) {
-        const dialog = new QuickReminderDialog(undefined, undefined, async () => {
-            await this.loadSubtasks();
-            this.renderSubtasks();
+        const dialog = new QuickReminderDialog(undefined, undefined, async (modifiedReminder) => {
+            // 乐观更新：直接更新本地数组中的任务
+            if (modifiedReminder) {
+                const index = this.subtasks.findIndex(t => t.id === modifiedReminder.id);
+                if (index !== -1) {
+                    this.subtasks[index] = { ...this.subtasks[index], ...modifiedReminder };
+                    this.renderSubtasks();
+                }
+            }
+            // 延迟重新加载以确保数据已保存到存储
+            setTimeout(async () => {
+                await this.loadSubtasks();
+                this.renderSubtasks();
+            }, 100);
         }, undefined, {
             mode: 'edit',
             reminder: task,
@@ -383,15 +617,15 @@ export class SubtasksDialog {
         item.addEventListener("dragover", (e) => {
             e.preventDefault();
             if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-            
+
             const targetId = item.getAttribute("data-id");
-            
+
             if (this.draggingId && targetId && this.draggingId !== targetId) {
                 // 根据鼠标位置判断是显示上方还是下方指示器
                 const rect = item.getBoundingClientRect();
                 const offsetY = e.clientY - rect.top;
                 const isUpperHalf = offsetY < rect.height / 2;
-                
+
                 this.showDragIndicator(item, isUpperHalf ? 'top' : 'bottom');
             }
         });
@@ -408,19 +642,19 @@ export class SubtasksDialog {
 
         item.addEventListener("drop", async (e) => {
             e.preventDefault();
-            
+
             const draggingId = e.dataTransfer?.getData("text/plain");
             const targetId = item.getAttribute("data-id");
-            
+
             if (draggingId && targetId && draggingId !== targetId) {
                 // 根据鼠标位置决定插入到目标上方还是下方
                 const rect = item.getBoundingClientRect();
                 const offsetY = e.clientY - rect.top;
                 const insertBefore = offsetY < rect.height / 2;
-                
+
                 await this.reorderSubtasks(draggingId, targetId, insertBefore);
             }
-            
+
             this.clearAllDragIndicators();
         });
     }
@@ -428,7 +662,7 @@ export class SubtasksDialog {
     private showDragIndicator(item: HTMLElement, position: 'top' | 'bottom') {
         // 先清除所有指示器
         this.clearAllDragIndicators();
-        
+
         // 添加对应的指示器类
         if (position === 'top') {
             item.classList.add("drag-indicator-top");
@@ -475,6 +709,12 @@ export class SubtasksDialog {
         const [movedTask] = this.subtasks.splice(draggingIndex, 1);
         this.subtasks.splice(targetIndex, 0, movedTask);
 
+        // 自动调整优先级：获取目标位置的优先级，如果被拖拽任务优先级不同则修改
+        const targetTask = this.subtasks.find(t => t.id === targetId);
+        if (targetTask && movedTask.priority !== targetTask.priority) {
+            movedTask.priority = targetTask.priority;
+        }
+
         const reminderData = await this.plugin.loadReminderData() || {};
         // Update sort values in reminderData
         this.subtasks.forEach((task: any, index: number) => {
@@ -485,9 +725,14 @@ export class SubtasksDialog {
             }
         });
 
+        // 同步优先级修改到存储
+        if (reminderData[draggingId]) {
+            reminderData[draggingId].priority = movedTask.priority;
+        }
+
         await this.plugin.saveReminderData(reminderData);
         this.renderSubtasks();
-        
+
         // 触发更新事件通知其他组件
         if (movedTask?.projectId) {
             window.dispatchEvent(new CustomEvent('reminderUpdated', {
@@ -496,7 +741,7 @@ export class SubtasksDialog {
                 }
             }));
         }
-        
+
         showMessage(i18n("sortUpdated") || "排序已更新");
     }
 }

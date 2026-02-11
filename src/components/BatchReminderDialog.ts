@@ -486,7 +486,7 @@ class SmartBatchDialog {
         const priorityMap = {
             'high': `<span class="priority-badge high">🔴 ${i18n("highPriority")}</span>`,
             'medium': `<span class="priority-badge medium">🟡 ${i18n("mediumPriority")}</span>`,
-            'low': `<span class="priority-badge low">🟢 ${i18n("lowPriority")}</span>`,
+            'low': `<span class="priority-badge low">🔵 ${i18n("lowPriority")}</span>`,
             'none': `<span class="priority-badge none">⚪ ${i18n("noPriority")}</span>`
         };
 

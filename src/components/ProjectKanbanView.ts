@@ -5758,14 +5758,26 @@ export class ProjectKanbanView {
 
     private sortTasks() {
         this.tasks.sort((a, b) => {
+            // 特殊处理时间排序：无日期任务总是排在最后
+            if (this.currentSort === 'time') {
+                const hasDateA = !!a.date;
+                const hasDateB = !!b.date;
+
+                if (hasDateA && !hasDateB) return -1;
+                if (!hasDateA && hasDateB) return 1;
+                if (!hasDateA && !hasDateB) {
+                    return this.compareByCreatedAt(b, a);
+                }
+
+                const result = this.compareByTime(a, b);
+                return this.currentSortOrder === 'desc' ? -result : result;
+            }
+
             let result = 0;
 
             switch (this.currentSort) {
                 case 'priority':
                     result = this.compareByPriority(a, b);
-                    break;
-                case 'time':
-                    result = this.compareByTime(a, b);
                     break;
                 case 'title':
                     result = this.compareByTitle(a, b);
@@ -5857,6 +5869,21 @@ export class ProjectKanbanView {
     private sortDoneTasks(tasks: any[]): any[] {
         const sortedTasks = [...tasks];
         sortedTasks.sort((a, b) => {
+            // 特殊处理时间排序
+            if (this.doneSort === 'time') {
+                const hasDateA = !!a.date;
+                const hasDateB = !!b.date;
+
+                if (hasDateA && !hasDateB) return -1;
+                if (!hasDateA && hasDateB) return 1;
+                if (!hasDateA && !hasDateB) {
+                    return this.compareByCreatedAt(b, a);
+                }
+
+                const result = this.compareByTime(a, b);
+                return this.doneSortOrder === 'desc' ? -result : result;
+            }
+
             let result = 0;
             switch (this.doneSort) {
                 case 'completedTime':
@@ -10743,8 +10770,8 @@ export class ProjectKanbanView {
         const menuEl = document.createElement('div');
         menuEl.className = 'kanban-sort-menu';
         menuEl.style.cssText = `
-                position: absolute;
-            background: var(--b3-theme-surface);
+            position: absolute;
+            background: var(--b3-theme-background);
             border: 1px solid var(--b3-theme-border);
             border-radius: 6px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);

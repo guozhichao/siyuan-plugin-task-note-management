@@ -395,7 +395,7 @@ export class QuickReminderDialog {
         switch (priority) {
             case 'high': return '🔴';
             case 'medium': return '🟡';
-            case 'low': return '🟢';
+            case 'low': return '🔵';
             default: return '⚪';
         }
     }
