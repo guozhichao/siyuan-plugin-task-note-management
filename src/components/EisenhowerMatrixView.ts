@@ -56,8 +56,10 @@ export class EisenhowerMatrixView {
     private allTasks: QuadrantTask[] = [];
     private filteredTasks: QuadrantTask[] = [];
     private statusFilter: Set<string> = new Set();
-    private reminderUpdatedHandler: () => void;
+    private reminderUpdatedHandler: (event?: CustomEvent) => void;
     private projectFilter: Set<string> = new Set();
+    // 唯一标识，用于区分事件来源，避免响应自己触发的事件
+    private viewId: string;
     private projectSortOrder: string[] = [];
     private currentProjectSortMode: 'name' | 'custom' = 'name';
     private kanbanStatusFilter: 'all' | 'doing' | 'todo' = 'doing'; // 任务状态筛选
@@ -77,9 +79,16 @@ export class EisenhowerMatrixView {
     constructor(container: HTMLElement, plugin: any) {
         this.container = container;
         this.plugin = plugin;
+        this.viewId = `eisenhower-matrix_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
         this.projectManager = ProjectManager.getInstance(plugin);
         this.categoryManager = CategoryManager.getInstance(plugin);
-        this.reminderUpdatedHandler = () => this.refresh(false);
+        // 监听事件时，如果是自己触发的事件则跳过
+        this.reminderUpdatedHandler = (event?: CustomEvent) => {
+            if (event && event.detail && event.detail.source === this.viewId) {
+                return; // 跳过自己触发的事件
+            }
+            this.refresh(false);
+        };
         try {
             if ((window as any).Lute) {
                 this.lute = (window as any).Lute.New();
@@ -456,6 +465,17 @@ export class EisenhowerMatrixView {
                     projectName = project ? project.name : '';
                 }
 
+                // 获取正确的排序值（支持重复实例）
+                // 使用原始日期（从 ID 中提取）作为键，因为 date 可能已被修改
+                let taskSort = reminder?.sort || 0;
+                if (reminder?.isRepeatInstance && reminder?.originalId && reminder?.id && reminder?.id.includes('_')) {
+                    const originalInstanceDate = reminder.id.split('_').pop();
+                    const originalReminder = reminderData[reminder.originalId];
+                    if (originalReminder?.repeat?.instanceModifications?.[originalInstanceDate]) {
+                        taskSort = originalReminder.repeat.instanceModifications[originalInstanceDate].sort ?? reminder.sort ?? 0;
+                    }
+                }
+
                 const task: QuadrantTask = {
                     id: reminder.id,
                     title: reminder?.title || i18n('unnamedNote'),
@@ -474,7 +494,7 @@ export class EisenhowerMatrixView {
                     parentId: reminder?.parentId,
                     pomodoroCount: await this.getReminderPomodoroCount(reminder.id, reminder, reminderData),
                     focusTime: await this.getReminderFocusTime(reminder.id, reminder, reminderData),
-                    sort: reminder?.sort || 0,
+                    sort: taskSort,
                     createdTime: reminder?.createdTime,
                     endDate: reminder?.endDate,
                     categoryId: reminder?.categoryId,
@@ -793,14 +813,15 @@ export class EisenhowerMatrixView {
                 }
 
                 // 同优先级内，按手动排序值排序（升序）
-                const sortA = a.extendedProps?.sort || 0;
-                const sortB = b.extendedProps?.sort || 0;
+                // 使用 task.sort，它已经在创建时从 instanceModifications 中读取了正确的值
+                const sortA = a.sort || 0;
+                const sortB = b.sort || 0;
                 if (sortA !== sortB) {
                     return sortA - sortB;
                 }
 
                 // 如果排序值相同，按创建时间排序
-                return new Date(b.extendedProps?.createdTime || 0).getTime() - new Date(a.extendedProps?.createdTime || 0).getTime();
+                return new Date(b.createdTime || 0).getTime() - new Date(a.createdTime || 0).getTime();
             });
         });
 
@@ -1364,7 +1385,7 @@ export class EisenhowerMatrixView {
                             // 刷新
                             // EisenhowerMatrixView 似乎没有直接的 loadReminders，而是 loadTasks
                             // 并且有 reminderUpdatedHandler
-                            window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'eisenhower-matrix' } }));
+                            window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
                             await this.loadTasks(); // 重新加载任务
                             this.renderMatrix(); // 重新渲染
                         }
@@ -1735,7 +1756,7 @@ export class EisenhowerMatrixView {
                 }
 
                 // 广播更新事件以便其他组件和自身刷新视图（例如在“进行中任务”筛选下，已完成的任务会被移除）
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
             }
         } catch (error) {
             console.error('更新任务状态失败:', error);
@@ -1808,7 +1829,7 @@ export class EisenhowerMatrixView {
             }
 
             // 广播更新事件
-            window.dispatchEvent(new CustomEvent('reminderUpdated'));
+            window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
         } catch (error) {
             console.error('切换重复实例完成状态失败:', error);
             showMessage('操作失败，请重试');
@@ -2024,7 +2045,7 @@ export class EisenhowerMatrixView {
 
             if (taskFound) {
                 await saveReminders(this.plugin, reminderData);
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
                 showMessage('相关任务记录已删除');
                 await this.refresh();
             } else {
@@ -2110,7 +2131,7 @@ export class EisenhowerMatrixView {
             undefined,
             async () => {
                 await this.refresh();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
             },
             undefined,
             {
@@ -3203,7 +3224,7 @@ export class EisenhowerMatrixView {
                 await saveReminders(this.plugin, reminderData);
 
                 await this.refresh();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
             }
         } catch (error) {
             console.error('更新任务项目失败:', error);
@@ -3222,7 +3243,7 @@ export class EisenhowerMatrixView {
                 await saveReminders(this.plugin, reminderData);
 
                 await this.refresh();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
                 showMessage(i18n("priorityUpdated") || "优先级更新成功");
             } else {
                 showMessage(i18n("taskNotExist") || "任务不存在");
@@ -3244,7 +3265,7 @@ export class EisenhowerMatrixView {
                 await saveReminders(this.plugin, reminderData);
 
                 await this.refresh();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
                 showMessage(i18n("statusUpdated") || "状态更新成功");
             } else {
                 showMessage(i18n("taskNotExist") || "任务不存在");
@@ -3339,7 +3360,7 @@ export class EisenhowerMatrixView {
                     if (deletedCount > 0) {
                         await saveReminders(this.plugin, reminderData);
                         await this.refresh();
-                        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                        window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
 
                         if (deletedCount > 1) {
                             showMessage(`已删除 ${deletedCount} 个任务（包括子任务）`);
@@ -3493,8 +3514,16 @@ export class EisenhowerMatrixView {
         isTargetInstance: boolean,
         event: DragEvent
     ) {
-        const priority = draggedTask.priority || 'none';
-        const projectId = draggedTask.projectId || 'no-project';
+        // 获取被拖拽项的优先级和项目ID（如果是实例，从 instanceModifications 中读取）
+        const draggedDate = isDraggedInstance ? draggedTaskId.split('_').pop() : null;
+        let priority = draggedTask.priority || 'none';
+        let projectId = draggedTask.projectId || 'no-project';
+        
+        if (isDraggedInstance && draggedDate && draggedTask.repeat?.instanceModifications?.[draggedDate]) {
+            const instMod = draggedTask.repeat.instanceModifications[draggedDate];
+            if (instMod.priority !== undefined) priority = instMod.priority;
+            if (instMod.projectId !== undefined) projectId = instMod.projectId;
+        }
 
         // 如果是重复实例排序，需要使用特殊的排序逻辑
         if (isDraggedInstance || isTargetInstance) {
@@ -3563,6 +3592,7 @@ export class EisenhowerMatrixView {
         });
 
         await saveReminders(this.plugin, reminderData);
+        window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
         await this.refresh();
     }
 
@@ -3621,10 +3651,13 @@ export class EisenhowerMatrixView {
         Object.values(reminderData).forEach((task: any) => {
             if (!task.repeat?.enabled) return;
 
-            // 从 instanceModifications 收集
+            // 获取该重复任务在当前项目/优先级下的所有实例
+            // 从 instanceModifications 收集已经有修改记录的实例
+            const processedDates = new Set<string>();
             if (task.repeat.instanceModifications) {
                 Object.entries(task.repeat.instanceModifications).forEach(([date, mod]: [string, any]) => {
                     if (!mod) return;
+                    processedDates.add(date);
                     const instProjectId = mod.projectId || task.projectId || 'no-project';
                     const instPriority = mod.priority || task.priority || 'none';
                     if (instProjectId === projectId && instPriority === priority) {
@@ -3637,6 +3670,31 @@ export class EisenhowerMatrixView {
                         });
                     }
                 });
+            }
+            
+            // 如果被拖拽或目标的实例还没有被处理，确保它们被包含
+            // 这处理那些还没有 instanceModifications 的新实例
+            if (isDraggedInstance && draggedDate && task.id === draggedOriginalId && !processedDates.has(draggedDate)) {
+                if ((task.projectId || 'no-project') === projectId && (task.priority || 'none') === priority) {
+                    allInstances.push({
+                        id: draggedTaskId,
+                        originalId: draggedOriginalId,
+                        date: draggedDate,
+                        sort: task.sort || 0,
+                        isInstance: true
+                    });
+                }
+            }
+            if (isTargetInstance && targetDate && task.id === targetOriginalId && !processedDates.has(targetDate)) {
+                if ((task.projectId || 'no-project') === projectId && (task.priority || 'none') === priority) {
+                    allInstances.push({
+                        id: targetTaskId,
+                        originalId: targetOriginalId,
+                        date: targetDate,
+                        sort: task.sort || 0,
+                        isInstance: true
+                    });
+                }
             }
         });
 
@@ -3738,6 +3796,7 @@ export class EisenhowerMatrixView {
         });
 
         await saveReminders(this.plugin, reminderData);
+        window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
         await this.refresh();
     }
 
@@ -3754,9 +3813,25 @@ export class EisenhowerMatrixView {
         isTargetInstance: boolean,
         event: DragEvent
     ) {
-        const oldPriority = draggedTask.priority || 'none';
-        const newPriority = targetTask.priority || 'none';
-        const projectId = draggedTask.projectId || 'no-project';
+        // 获取被拖拽项和目标项的实例日期
+        const draggedInstanceDate = isDraggedInstance ? draggedTaskId.split('_').pop() : null;
+        const targetInstanceDate = isTargetInstance ? targetTaskId.split('_').pop() : null;
+        
+        // 获取优先级（如果是实例，从 instanceModifications 中读取）
+        let oldPriority = draggedTask.priority || 'none';
+        let newPriority = targetTask.priority || 'none';
+        let projectId = draggedTask.projectId || 'no-project';
+        
+        if (isDraggedInstance && draggedInstanceDate && draggedTask.repeat?.instanceModifications?.[draggedInstanceDate]) {
+            const instMod = draggedTask.repeat.instanceModifications[draggedInstanceDate];
+            if (instMod.priority !== undefined) oldPriority = instMod.priority;
+            if (instMod.projectId !== undefined) projectId = instMod.projectId;
+        }
+        
+        if (isTargetInstance && targetInstanceDate && targetTask.repeat?.instanceModifications?.[targetInstanceDate]) {
+            const instMod = targetTask.repeat.instanceModifications[targetInstanceDate];
+            if (instMod.priority !== undefined) newPriority = instMod.priority;
+        }
 
         // 如果是重复实例，需要特殊处理
         if (isDraggedInstance) {
@@ -3825,6 +3900,7 @@ export class EisenhowerMatrixView {
         });
 
         await saveReminders(this.plugin, reminderData);
+        window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
         showMessage(`优先级已自动调整为: ${this.getPriorityLabel(newPriority)}`);
         await this.refresh();
     }
@@ -3910,6 +3986,7 @@ export class EisenhowerMatrixView {
         });
 
         await saveReminders(this.plugin, reminderData);
+        window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
         showMessage(`优先级已自动调整为: ${this.getPriorityLabel(newPriority)}`);
         await this.refresh();
     }
@@ -3937,7 +4014,10 @@ export class EisenhowerMatrixView {
 
         // 收集重复实例
         Object.values(reminderData).forEach((task: any) => {
-            if (task.repeat?.enabled && task.repeat?.instanceModifications) {
+            if (!task.repeat?.enabled) return;
+            
+            // 从 instanceModifications 收集
+            if (task.repeat?.instanceModifications) {
                 const mods = task.repeat.instanceModifications;
                 Object.entries(mods).forEach(([date, mod]: [string, any]) => {
                     const instanceId = `${task.id}_${date}`;
@@ -4571,7 +4651,7 @@ export class EisenhowerMatrixView {
             async () => {
                 // 任务创建成功后的回调
                 await this.refresh();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
             },
             undefined, // timeRangeOptions
             {
@@ -4602,7 +4682,7 @@ export class EisenhowerMatrixView {
             async () => {
                 // 任务创建成功后的回调
                 await this.refresh();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
             },
             undefined, // timeRangeOptions
             {
@@ -4889,7 +4969,7 @@ export class EisenhowerMatrixView {
                 await updateBindBlockAtrrs(blockId, this.plugin);
 
                 await this.refresh();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
             }
         } catch (error) {
             console.error('绑定任务到块失败:', error);
@@ -4917,7 +4997,7 @@ export class EisenhowerMatrixView {
             if (taskFound) {
                 await saveReminders(this.plugin, reminderData);
                 await this.refresh();
-                window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
                 showMessage('已解除绑定');
             }
         } catch (error) {
@@ -4967,7 +5047,7 @@ export class EisenhowerMatrixView {
                 undefined,
                 async () => {
                     await this.loadTasks();
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
                 },
                 undefined,
                 {
@@ -5000,7 +5080,7 @@ export class EisenhowerMatrixView {
 
                     showMessage("实例已删除");
                     await this.loadTasks();
-                    window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.viewId } }));
                 } catch (error) {
                     console.error('删除周期实例失败:', error);
                     showMessage("删除实例失败");

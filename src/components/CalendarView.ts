@@ -3483,6 +3483,9 @@ export class CalendarView {
                 const idx = d.lastIndexOf('_');
                 return idx !== -1 ? d.slice(0, idx) : d;
             })();
+            // 判断是否为重复实例，并提取原始实例日期
+            const isDraggedInstance = state.draggedEvent.extendedProps?.isRepeated;
+            const draggedInstanceDate = isDraggedInstance ? state.draggedEvent.id.split('_').pop() : null;
 
             const targetDate = state.date;
 
@@ -3519,12 +3522,15 @@ export class CalendarView {
             if (!currentEvent) return;
 
             // 如果日期改变了，更新模板日期（处理跨天拖拽重排序）
-            const oldDate = currentEvent.date || '';
-            if (oldDate !== targetDate) {
-                currentEvent.date = targetDate;
-                if (currentEvent.endDate) {
-                    const diff = getDaysDifference(oldDate, targetDate);
-                    currentEvent.endDate = addDaysToDate(currentEvent.endDate, diff);
+            // 对于重复实例，不修改原始任务的日期
+            if (!isDraggedInstance) {
+                const oldDate = currentEvent.date || '';
+                if (oldDate !== targetDate) {
+                    currentEvent.date = targetDate;
+                    if (currentEvent.endDate) {
+                        const diff = getDaysDifference(oldDate, targetDate);
+                        currentEvent.endDate = addDaysToDate(currentEvent.endDate, diff);
+                    }
                 }
             }
 
@@ -3577,7 +3583,17 @@ export class CalendarView {
                         currentPriority = p;
                         prioritySort = 0;
                     }
-                    r.sort = prioritySort++;
+                    // 对于重复实例，将 sort 存储到 instanceModifications 中
+                    if (isDraggedInstance && r.id === draggedId && draggedInstanceDate) {
+                        if (!r.repeat) r.repeat = {};
+                        if (!r.repeat.instanceModifications) r.repeat.instanceModifications = {};
+                        if (!r.repeat.instanceModifications[draggedInstanceDate]) {
+                            r.repeat.instanceModifications[draggedInstanceDate] = {};
+                        }
+                        r.repeat.instanceModifications[draggedInstanceDate].sort = prioritySort++;
+                    } else {
+                        r.sort = prioritySort++;
+                    }
                 }
             });
 

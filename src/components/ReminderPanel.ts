@@ -611,7 +611,7 @@ export class ReminderPanel {
 
         // console.log('排序完成，排序方式:', sortType, sortOrder);
     }
-    // 新增：优先级排序与手动排序结合
+    // 新增：优先级排序与手动排序结合（支持重复实例）
     private compareByPriorityWithManualSort(a: any, b: any): number {
         const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
         const priorityA = priorityOrder[a.priority || 'none'] || 0;
@@ -623,9 +623,9 @@ export class ReminderPanel {
             return priorityDiff;
         }
 
-        // 同优先级内按手动排序
-        const sortA = a.sort || 0;
-        const sortB = b.sort || 0;
+        // 同优先级内按手动排序（支持重复实例从 instanceModifications 读取）
+        const sortA = this.getReminderSortValue(a);
+        const sortB = this.getReminderSortValue(b);
 
         if (sortA !== sortB) {
             return sortA - sortB; // 手动排序值小的在前
@@ -641,6 +641,26 @@ export class ReminderPanel {
         const timeA = a.createdTime ? new Date(a.createdTime).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
         const timeB = b.createdTime ? new Date(b.createdTime).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
         return timeB - timeA; // 最新创建的在前
+    }
+
+    /**
+     * 获取任务的排序值（支持重复实例）
+     */
+    private getReminderSortValue(reminder: any): number {
+        if (!reminder) return 0;
+
+        // 如果是重复实例，从 instanceModifications 中读取
+        // 使用原始日期（从 ID 中提取）作为键，因为 date 可能已被修改
+        if (reminder.isRepeatInstance && reminder.originalId && reminder.id && reminder.id.includes('_')) {
+            const originalInstanceDate = reminder.id.split('_').pop();
+            const originalReminder = this.originalRemindersCache?.[reminder.originalId];
+            if (originalReminder?.repeat?.instanceModifications?.[originalInstanceDate]) {
+                return originalReminder.repeat.instanceModifications[originalInstanceDate].sort ?? reminder.sort ?? 0;
+            }
+        }
+
+        // 普通任务或没有 instanceModifications 的实例
+        return reminder.sort || 0;
     }
 
     private updateCategoryFilterButtonText() {
@@ -4996,53 +5016,53 @@ export class ReminderPanel {
         }
     }
 
-    // 新增：重新排序提醒
+    // 新增：重新排序提醒（支持重复实例）
     private async reorderReminders(draggedReminder: any, targetReminder: any, insertBefore: boolean) {
         try {
             const reminderData = await getAllReminders(this.plugin);
+
+            // 判断是否为重复实例
+            const isDraggedInstance = draggedReminder.isRepeatInstance || draggedReminder.id.includes('_');
+            const isTargetInstance = targetReminder.isRepeatInstance || targetReminder.id.includes('_');
+
+            // 获取原始ID
+            const draggedOriginalId = isDraggedInstance ? (draggedReminder.originalId || draggedReminder.id.split('_')[0]) : draggedReminder.id;
+            const targetOriginalId = isTargetInstance ? (targetReminder.originalId || targetReminder.id.split('_')[0]) : targetReminder.id;
+
+            // 获取原始实例日期（从 ID 中提取，因为 date 可能已被修改）
+            const draggedOriginalInstanceDate = isDraggedInstance ? draggedReminder.id.split('_').pop() : undefined;
+            const targetOriginalInstanceDate = isTargetInstance ? targetReminder.id.split('_').pop() : undefined;
 
             const oldPriority = draggedReminder.priority || 'none';
             const newPriority = targetReminder.priority || 'none';
 
             // 检查是否跨优先级拖拽
             if (oldPriority !== newPriority) {
-                // 1. 更新优先级
-                if (reminderData[draggedReminder.id]) {
-                    reminderData[draggedReminder.id].priority = newPriority;
-                    // 更新传入对象以反映最新状态
-                    draggedReminder.priority = newPriority;
+                // 跨优先级：更新被拖拽任务的优先级
+                if (isDraggedInstance) {
+                    // 重复实例：在 instanceModifications 中存储优先级
+                    const originalTask = reminderData[draggedOriginalId];
+                    if (originalTask) {
+                        const instanceDate = draggedOriginalInstanceDate;
+                        if (!originalTask.repeat) originalTask.repeat = {};
+                        if (!originalTask.repeat.instanceModifications) originalTask.repeat.instanceModifications = {};
+                        if (!originalTask.repeat.instanceModifications[instanceDate]) {
+                            originalTask.repeat.instanceModifications[instanceDate] = {};
+                        }
+                        originalTask.repeat.instanceModifications[instanceDate].priority = newPriority;
+                        draggedReminder.priority = newPriority;
+                    }
+                } else {
+                    // 普通任务
+                    if (reminderData[draggedReminder.id]) {
+                        reminderData[draggedReminder.id].priority = newPriority;
+                        draggedReminder.priority = newPriority;
+                    }
                 }
 
-                // 2. 处理旧优先级分组：移除被拖拽项并重新排序
-                const oldGroup = Object.values(reminderData)
-                    .filter((r: any) => (r.priority || 'none') === oldPriority && r.id !== draggedReminder.id)
-                    .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
-
-                oldGroup.forEach((r: any, index: number) => {
-                    if (reminderData[r.id]) reminderData[r.id].sort = index * 10;
-                });
-
-                // 3. 处理新优先级分组：插入并重新排序
-                // 排除 draggedReminder (虽然它现在的 priority 可能是 newPriority，但我们需要将其插入到特定位置)
-                const newGroup = Object.values(reminderData)
-                    .filter((r: any) => (r.priority || 'none') === newPriority && r.id !== draggedReminder.id)
-                    .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
-
-                // 找到目标位置
-                let targetIndex = newGroup.findIndex((r: any) => r.id === targetReminder.id);
-                // 如果找不到目标（极端情况），追加到末尾
-                if (targetIndex === -1) targetIndex = newGroup.length;
-
-                const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
-
-                // 插入被拖拽的提醒
-                const updatedDraggedReminder = reminderData[draggedReminder.id] || draggedReminder;
-                newGroup.splice(insertIndex, 0, updatedDraggedReminder);
-
-                // 更新新分组的排序值
-                newGroup.forEach((r: any, index: number) => {
-                    if (reminderData[r.id]) reminderData[r.id].sort = index * 10;
-                });
+                // 重新排序两个优先级分组
+                await this.reorderPriorityGroup(reminderData, oldPriority, draggedOriginalId, isDraggedInstance, draggedOriginalInstanceDate);
+                await this.reorderPriorityGroup(reminderData, newPriority, draggedOriginalId, isDraggedInstance, draggedOriginalInstanceDate, targetOriginalId, targetOriginalInstanceDate, insertBefore);
 
                 await saveReminders(this.plugin, reminderData);
 
@@ -5050,30 +5070,10 @@ export class ReminderPanel {
                 await this.loadReminders();
 
             } else {
-                // 同优先级排序（原有逻辑）
-                const samePriorityReminders = Object.values(reminderData)
-                    .filter((r: any) => (r.priority || 'none') === oldPriority)
-                    .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
-
-                // 移除被拖拽的提醒
-                const filteredReminders = samePriorityReminders.filter((r: any) => r.id !== draggedReminder.id);
-
-                // 找到目标位置
-                const targetIndex = filteredReminders.findIndex((r: any) => r.id === targetReminder.id);
-                const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
-
-                // 插入被拖拽的提醒
-                filteredReminders.splice(insertIndex, 0, draggedReminder);
-
-                // 重新分配排序值
-                filteredReminders.forEach((reminder: any, index: number) => {
-                    if (reminderData[reminder.id]) {
-                        reminderData[reminder.id].sort = index * 10; // 使用10的倍数便于后续插入
-                    }
-                });
+                // 同优先级排序
+                await this.reorderPriorityGroup(reminderData, oldPriority, draggedOriginalId, isDraggedInstance, draggedOriginalInstanceDate, targetOriginalId, targetOriginalInstanceDate, insertBefore, draggedReminder, targetReminder);
 
                 await saveReminders(this.plugin, reminderData);
-                // 注意：同优先级排序不触发强制刷新，因为 manually updateDOMOrder 会处理
                 window.dispatchEvent(new CustomEvent('reminderUpdated', {
                     detail: { source: this.panelId }
                 }));
@@ -5083,6 +5083,171 @@ export class ReminderPanel {
         } catch (error) {
             console.error('重新排序提醒失败:', error);
             throw error;
+        }
+    }
+
+    /**
+     * 对指定优先级分组进行排序（支持重复实例）
+     */
+    private async reorderPriorityGroup(
+        reminderData: any,
+        priority: string,
+        draggedOriginalId: string,
+        isDraggedInstance: boolean,
+        draggedInstanceDate?: string,
+        targetOriginalId?: string,
+        targetInstanceDate?: string,
+        insertBefore?: boolean,
+        draggedReminder?: any,
+        targetReminder?: any
+    ) {
+        // 收集该优先级下的所有任务和实例
+        const items: Array<{
+            id: string;
+            originalId: string;
+            date?: string;
+            sort: number;
+            isInstance: boolean;
+        }> = [];
+
+        // 收集普通任务
+        Object.values(reminderData).forEach((task: any) => {
+            if ((task.priority || 'none') === priority && !task.repeat?.enabled) {
+                items.push({
+                    id: task.id,
+                    originalId: task.id,
+                    sort: task.sort || 0,
+                    isInstance: false
+                });
+            }
+        });
+
+        // 收集重复实例（从 instanceModifications 中）
+        Object.values(reminderData).forEach((task: any) => {
+            if (task.repeat?.enabled && task.repeat?.instanceModifications) {
+                Object.entries(task.repeat.instanceModifications).forEach(([date, mod]: [string, any]) => {
+                    if (!mod) return;
+                    const instancePriority = mod.priority || task.priority || 'none';
+                    if (instancePriority === priority) {
+                        items.push({
+                            id: `${task.id}_${date}`,
+                            originalId: task.id,
+                            date: date,
+                            sort: mod.sort !== undefined ? mod.sort : (task.sort || 0),
+                            isInstance: true
+                        });
+                    }
+                });
+            }
+        });
+
+        // 如果没有拖拽操作（仅重新排序），直接按当前 sort 排序
+        if (!targetOriginalId) {
+            items.sort((a, b) => a.sort - b.sort);
+            items.forEach((item, index) => {
+                this.updateItemSort(reminderData, item, index * 10);
+            });
+            return;
+        }
+
+        // 确保拖拽项在列表中
+        const draggedFullId = isDraggedInstance ? `${draggedOriginalId}_${draggedInstanceDate}` : draggedOriginalId;
+        const draggedExists = items.some(item => item.id === draggedFullId);
+        if (!draggedExists && draggedReminder) {
+            let sort = 0;
+            if (isDraggedInstance) {
+                const originalTask = reminderData[draggedOriginalId];
+                sort = originalTask?.repeat?.instanceModifications?.[draggedInstanceDate!]?.sort ?? originalTask?.sort ?? 0;
+            } else {
+                sort = reminderData[draggedOriginalId]?.sort || 0;
+            }
+            items.push({
+                id: draggedFullId,
+                originalId: draggedOriginalId,
+                date: draggedInstanceDate,
+                sort: sort,
+                isInstance: isDraggedInstance
+            });
+        }
+
+        // 确保目标项在列表中
+        const isTargetInstance = targetReminder?.isRepeatInstance || (targetOriginalId !== targetReminder?.id);
+        const targetFullId = isTargetInstance ? `${targetOriginalId}_${targetInstanceDate}` : targetOriginalId;
+        const targetExists = items.some(item => item.id === targetFullId);
+        if (!targetExists && targetReminder) {
+            let sort = 0;
+            if (isTargetInstance) {
+                const originalTask = reminderData[targetOriginalId];
+                sort = originalTask?.repeat?.instanceModifications?.[targetInstanceDate!]?.sort ?? originalTask?.sort ?? 0;
+            } else {
+                sort = reminderData[targetOriginalId]?.sort || 0;
+            }
+            items.push({
+                id: targetFullId,
+                originalId: targetOriginalId,
+                date: targetInstanceDate,
+                sort: sort,
+                isInstance: isTargetInstance
+            });
+        }
+
+        // 按 sort 排序
+        items.sort((a, b) => a.sort - b.sort);
+
+        // 找到目标索引和拖拽索引
+        const targetIndex = items.findIndex(item => item.id === targetFullId);
+        const draggedIndex = items.findIndex(item => item.id === draggedFullId);
+
+        if (targetIndex === -1 || draggedIndex === -1) {
+            console.error('找不到拖拽或目标任务', { draggedFullId, targetFullId, items: items.map(i => i.id) });
+            return;
+        }
+
+        // 计算插入位置
+        let insertIndex = targetIndex;
+        if (insertBefore !== undefined) {
+            insertIndex = insertBefore ? targetIndex : targetIndex + 1;
+        }
+
+        // 重新排序
+        const draggedItem = items[draggedIndex];
+        items.splice(draggedIndex, 1);
+
+        // 调整插入索引
+        if (draggedIndex < insertIndex) {
+            insertIndex--;
+        }
+
+        const validInsertIndex = Math.max(0, Math.min(insertIndex, items.length));
+        items.splice(validInsertIndex, 0, draggedItem);
+
+        // 更新排序值
+        items.forEach((item, index) => {
+            this.updateItemSort(reminderData, item, index * 10);
+        });
+    }
+
+    /**
+     * 更新任务或实例的 sort 值
+     */
+    private updateItemSort(reminderData: any, item: { id: string; originalId: string; date?: string; isInstance: boolean }, sort: number) {
+        if (item.isInstance) {
+            // 更新 instanceModifications 中的 sort
+            const originalTask = reminderData[item.originalId];
+            if (originalTask && originalTask.repeat) {
+                if (!originalTask.repeat.instanceModifications) {
+                    originalTask.repeat.instanceModifications = {};
+                }
+                if (!originalTask.repeat.instanceModifications[item.date!]) {
+                    originalTask.repeat.instanceModifications[item.date!] = {};
+                }
+                originalTask.repeat.instanceModifications[item.date!].sort = sort;
+            }
+        } else {
+            // 更新普通任务的 sort
+            if (reminderData[item.id]) {
+                reminderData[item.id].sort = sort;
+            }
         }
     }
 
