@@ -11,7 +11,8 @@ import { BlockBindingDialog } from "./BlockBindingDialog";
 import { SubtasksDialog } from "./SubtasksDialog";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
 import { PomodoroSessionsDialog } from "./PomodoroSessionsDialog";
-import { Editor, rootCtx, defaultValueCtx, editorViewCtx } from "@milkdown/kit/core";
+import { Editor, rootCtx, defaultValueCtx, editorViewCtx, prosePluginsCtx, parserCtx } from "@milkdown/kit/core";
+import { Plugin } from "@milkdown/prose/state";
 import { commonmark } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
 import { history } from "@milkdown/kit/plugin/history";
@@ -29,6 +30,123 @@ export class QuickReminderDialog {
     private reminder?: any;
     private onSaved?: (modifiedReminder?: any) => void;
     private mode: 'quick' | 'block' | 'edit' | 'batch_edit' | 'note' = 'quick'; // 模式：快速创建、块绑定创建、编辑、批量编辑、仅备注
+
+    private findMarkRange(doc: any, pos: number, type: any) {
+        let $pos = doc.resolve(pos);
+        let from = pos;
+        let to = pos;
+
+        // 向前找
+        while (from > $pos.start() && type.isInSet(doc.nodeAt(from - 1)?.marks || [])) {
+            from--;
+        }
+        // 向后找
+        while (to < $pos.end() && type.isInSet(doc.nodeAt(to)?.marks || [])) {
+            to++;
+        }
+        return { from, to };
+    }
+
+    private showLinkOptions(view: any, pos: number, mark: any) {
+        const dialog = new Dialog({
+            title: i18n('linkOptions') || '链接选项',
+            content: `
+                <div class="b3-dialog__content" style="display: flex; flex-direction: column; gap: 12px; padding: 16px;">
+                    <div style="font-weight: bold; overflow: hidden; text-overflow: ellipsis; color: var(--b3-theme-primary);">
+                        ${mark.attrs.href}
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="b3-button b3-button--outline" id="jumpBtn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            <svg style="width: 14px; height: 14px;"><use xlink:href="#iconLink"></use></svg>
+                            ${i18n('jump') || '打开链接'}
+                        </button>
+                        <button class="b3-button b3-button--outline" id="editLinkBtn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            <svg style="width: 14px; height: 14px;"><use xlink:href="#iconEdit"></use></svg>
+                            ${i18n('edit') || '编辑'}
+                        </button>
+                        <button class="b3-button b3-button--cancel" id="removeLinkBtn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            <svg style="width: 14px; height: 14px;"><use xlink:href="#iconTrashcan"></use></svg>
+                            ${i18n('remove') || '取消链接'}
+                        </button>
+                    </div>
+                </div>
+            `,
+            width: "400px"
+        });
+
+        const jumpBtn = dialog.element.querySelector('#jumpBtn') as HTMLButtonElement;
+        const editLinkBtn = dialog.element.querySelector('#editLinkBtn') as HTMLButtonElement;
+        const removeLinkBtn = dialog.element.querySelector('#removeLinkBtn') as HTMLButtonElement;
+
+        jumpBtn.onclick = () => {
+            window.open(mark.attrs.href, '_blank');
+            dialog.destroy();
+        };
+
+        editLinkBtn.onclick = () => {
+            dialog.destroy();
+            this.showLinkEditor(view, pos, mark);
+        };
+
+        removeLinkBtn.onclick = () => {
+            const { tr } = view.state;
+            const range = this.findMarkRange(view.state.doc, pos, view.state.schema.marks.link);
+            if (range) {
+                view.dispatch(tr.removeMark(range.from, range.to, view.state.schema.marks.link));
+            }
+            dialog.destroy();
+        };
+    }
+
+    private showLinkEditor(view: any, pos: number, mark: any) {
+        const range = this.findMarkRange(view.state.doc, pos, view.state.schema.marks.link);
+        const currentText = range ? view.state.doc.textBetween(range.from, range.to) : '';
+
+        const dialog = new Dialog({
+            title: i18n('editLink') || '编辑链接',
+            content: `
+                <div class="b3-dialog__content" style="padding: 16px;">
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: block; margin-bottom: 4px; font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8;">${i18n('linkUrl') || '链接地址'}:</label>
+                        <textarea id="linkUrl" class="b3-text-field" style="width: 100%; resize: vertical;" rows="2" placeholder="https://...">${mark.attrs.href}</textarea>
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: block; margin-bottom: 4px; font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8;">${i18n('linkTitle') || '显示文本'}:</label>
+                        <textarea id="linkTitle" class="b3-text-field" style="width: 100%; resize: vertical;" rows="2" placeholder="${i18n('linkTitlePlaceholder') || '输入链接文本'}">${currentText}</textarea>
+                    </div>
+                </div>
+                <div class="b3-dialog__action">
+                    <button class="b3-button b3-button--cancel" id="cancelLinkBtn">${i18n('cancel') || '取消'}</button>
+                    <button class="b3-button b3-button--primary" id="saveLinkBtn">${i18n('save') || '确定'}</button>
+                </div>
+            `,
+            width: "400px"
+        });
+
+        const urlInput = dialog.element.querySelector('#linkUrl') as HTMLInputElement;
+        const titleInput = dialog.element.querySelector('#linkTitle') as HTMLInputElement;
+        const cancelBtn = dialog.element.querySelector('#cancelLinkBtn') as HTMLButtonElement;
+        const saveBtn = dialog.element.querySelector('#saveLinkBtn') as HTMLButtonElement;
+
+        urlInput.focus();
+
+        cancelBtn.onclick = () => dialog.destroy();
+        saveBtn.onclick = () => {
+            const newHref = urlInput.value.trim();
+            const newTitle = titleInput.value.trim();
+            if (newHref && range) {
+                const { tr, schema } = view.state;
+                const linkMark = schema.marks.link.create({ href: newHref });
+
+                // Replace text and apply mark
+                view.dispatch(
+                    tr.replaceWith(range.from, range.to, schema.text(newTitle || newHref))
+                        .addMark(range.from, range.from + (newTitle || newHref).length, linkMark)
+                );
+            }
+            dialog.destroy();
+        };
+    }
     private blockContent: string = '';
     private reminderUpdatedHandler: () => void;
     private sortConfigUpdatedHandler: (event: CustomEvent) => void;
@@ -706,11 +824,11 @@ export class QuickReminderDialog {
         if (this.mode === 'edit' && this.reminder) {
             // 编辑模式：从数据库获取子任务（包括 ghost 子任务）
             const reminderData = await this.plugin.loadReminderData();
-            
+
             // 解析可能存在的实例信息 (id_YYYY-MM-DD)
             let targetParentId = this.reminder.id;
             let instanceDate: string | undefined;
-            
+
             const lastUnderscoreIndex = this.reminder.id.lastIndexOf('_');
             if (lastUnderscoreIndex !== -1) {
                 const potentialDate = this.reminder.id.substring(lastUnderscoreIndex + 1);
@@ -719,10 +837,10 @@ export class QuickReminderDialog {
                     instanceDate = potentialDate;
                 }
             }
-            
+
             // 1. 获取直接以当前 reminder.id 为父任务的任务（可能是真正的实例子任务或普通子任务）
             const directChildren = (Object.values(reminderData) as any[]).filter((r: any) => r.parentId === this.reminder.id);
-            
+
             // 2. 如果是实例视图，则尝试从模板中获取 ghost 子任务
             let ghostChildren: any[] = [];
             if (instanceDate && targetParentId !== this.reminder.id) {
@@ -747,7 +865,7 @@ export class QuickReminderDialog {
                         };
                     });
             }
-            
+
             // 合并数据，避免重复（如果已存在真实的实例子任务，则以真实子任务优先）
             const combined = [...directChildren];
             ghostChildren.forEach(ghost => {
@@ -755,7 +873,7 @@ export class QuickReminderDialog {
                     combined.push(ghost);
                 }
             });
-            
+
             count = combined.length;
             completedCount = combined.filter(r => r.completed).length;
         } else {
@@ -1449,6 +1567,78 @@ export class QuickReminderDialog {
                     ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {
                         this.currentNote = markdown;
                     });
+
+                    // 优先获取纯文本 (Markdown)，并优化粘贴逻辑
+                    ctx.update(prosePluginsCtx, (prev) => [
+                        ...prev,
+                        new Plugin({
+                            props: {
+                                handlePaste: (view, event) => {
+                                    let text = event.clipboardData?.getData('text/plain');
+                                    if (text) {
+                                        // 移除首尾多余的换行符（兼容 Windows/Unix），保留空格以维持缩进层级
+                                        text = text.replace(/^[\r\n]+|[\r\n]+$/g, '');
+                                        if (!text) return false;
+
+                                        const parser = ctx.get(parserCtx);
+                                        const node = parser(text);
+                                        if (node) {
+                                            const { tr, doc } = view.state;
+                                            // 如果文档当前几乎为空（只有一个空的段落），则替换整个文档内容
+                                            const isEmpty = doc.childCount === 1 &&
+                                                doc.firstChild?.type.name === 'paragraph' &&
+                                                doc.firstChild.content.size === 0;
+
+                                            // 获取节点内容 fragment
+                                            const content = node.type.name === 'doc' ? node.content : node;
+
+                                            if (isEmpty) {
+                                                // 彻底替换初始的空段落
+                                                view.dispatch(tr.replaceWith(0, doc.content.size, content).scrollIntoView());
+                                            } else {
+                                                view.dispatch(tr.replaceSelectionWith(node).scrollIntoView());
+                                            }
+                                            return true;
+                                        }
+                                    }
+                                    return false;
+                                },
+                                handleTextInput: (view, from, to, text) => {
+                                    const { state } = view;
+                                    const linkMark = state.schema.marks.link;
+                                    if (!linkMark) return false;
+
+                                    const $pos = state.doc.resolve(from);
+                                    if (linkMark.isInSet($pos.marks())) {
+                                        const range = this.findMarkRange(state.doc, from, linkMark);
+                                        // 如果在链接末尾打字，不应继续表现为链接文本
+                                        if (range && range.to === from) {
+                                            const marks = $pos.marks().filter(m => m.type !== linkMark);
+                                            const tr = state.tr.replaceWith(from, to, state.schema.text(text, marks));
+                                            tr.removeStoredMark(linkMark);
+                                            view.dispatch(tr);
+                                            return true;
+                                        }
+                                    }
+                                    return false;
+                                },
+                                handleClick: (view, pos) => {
+                                    const { state } = view;
+                                    const linkMark = state.schema.marks.link;
+                                    if (!linkMark) return false;
+
+                                    const node = state.doc.nodeAt(pos);
+                                    const mark = node ? linkMark.isInSet(node.marks) : null;
+
+                                    if (mark) {
+                                        this.showLinkOptions(view, pos, mark);
+                                        return true;
+                                    }
+                                    return false;
+                                }
+                            }
+                        })
+                    ]);
                 })
                 .use(commonmark)
                 .use(gfm)
@@ -2198,8 +2388,8 @@ export class QuickReminderDialog {
                 // 判断是否编辑所有实例：非实例编辑模式且是重复任务
                 const isModifyAllInstances = !this.isInstanceEdit && this.reminder.repeat?.enabled;
                 const subtasksDialog = new SubtasksDialog(
-                    this.reminder.id, 
-                    this.plugin, 
+                    this.reminder.id,
+                    this.plugin,
                     () => {
                         this.updateSubtasksDisplay();
                     },
