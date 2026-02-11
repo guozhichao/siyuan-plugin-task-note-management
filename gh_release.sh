@@ -25,7 +25,27 @@ echo "Committing changes in private-branch..."
 git add .
 git commit -m "🔖 $version" || echo "No changes to commit in private-branch"
 git push private HEAD:main
+# Switch to main branch
+echo "Switching to main branch..."
+git checkout main
+git pull origin main
 
+# Copy CHANGELOG.md from private-branch
+echo "Copying CHANGELOG.md from private-branch..."
+git checkout private-branch -- CHANGELOG.md
+
+# Commit the changelog update in main branch
+echo "Committing CHANGELOG.md in main branch..."
+git add CHANGELOG.md
+git commit -m "📝 Update CHANGELOG for $version" || echo "No changes to CHANGELOG.md"
+
+# Push main branch
+echo "Pushing main branch..."
+git push origin main
+
+# Switch back to private-branch
+echo "Switching back to private-branch..."
+git checkout private-branch
 
 
 echo "Creating release for version: $version"
@@ -78,27 +98,7 @@ gh release create "$version" package.zip \
 echo "Release $version created successfully!"
 
 
-# Switch to main branch
-echo "Switching to main branch..."
-git checkout main
-git pull origin main
 
-# Copy CHANGELOG.md from private-branch
-echo "Copying CHANGELOG.md from private-branch..."
-git checkout private-branch -- CHANGELOG.md
-
-# Commit the changelog update in main branch
-echo "Committing CHANGELOG.md in main branch..."
-git add CHANGELOG.md
-git commit -m "📝 Update CHANGELOG for $version" || echo "No changes to CHANGELOG.md"
-
-# Push main branch
-echo "Pushing main branch..."
-git push origin main
-
-# Switch back to private-branch
-echo "Switching back to private-branch..."
-git checkout private-branch
 
 
 
