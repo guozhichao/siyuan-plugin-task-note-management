@@ -9540,6 +9540,36 @@ export class ProjectKanbanView {
                 click: () => this.unsetParentChildRelation(task)
             });
         }
+        // 复制子任务为多级 Markdown 列表
+        if (childTasks.length > 0) {
+            menu.addItem({
+                iconHTML: "📋",
+                label: i18n('copySubtasksAsList'),
+                click: () => {
+                    const childLines = this.buildMarkdownListFromChildren(task.id);
+                    if (childLines && childLines.length > 0) {
+                        const text = childLines.join('\n');
+                        // 复制到剪贴板
+                        try {
+                            navigator.clipboard.writeText(text);
+                            showMessage(i18n('copiedSubtasksList'));
+                        } catch (err) {
+                            // 备用：使用临时 textarea
+                            const ta = document.createElement('textarea');
+                            ta.value = text;
+                            document.body.appendChild(ta);
+                            ta.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(ta);
+                            showMessage(i18n('copiedSubtasksList'));
+                        }
+                    } else {
+                        showMessage(i18n('noSubtasksToCopy'));
+                    }
+                }
+            });
+        }
+
         menu.addSeparator();
         // Helper: quick date submenu items (快速调整日期)
         const createQuickDateMenuItems = (targetTask: any, onlyThisInstance: boolean = false) => {
@@ -9870,36 +9900,6 @@ export class ProjectKanbanView {
                 iconHTML: "🗑️",
                 label: i18n('deleteTask'),
                 click: () => this.deleteTask(task)
-            });
-        }
-
-        // 复制子任务为多级 Markdown 列表
-        if (childTasks.length > 0) {
-            menu.addItem({
-                iconHTML: "📋",
-                label: i18n('copySubtasksAsList'),
-                click: () => {
-                    const childLines = this.buildMarkdownListFromChildren(task.id);
-                    if (childLines && childLines.length > 0) {
-                        const text = childLines.join('\n');
-                        // 复制到剪贴板
-                        try {
-                            navigator.clipboard.writeText(text);
-                            showMessage(i18n('copiedSubtasksList'));
-                        } catch (err) {
-                            // 备用：使用临时 textarea
-                            const ta = document.createElement('textarea');
-                            ta.value = text;
-                            document.body.appendChild(ta);
-                            ta.select();
-                            document.execCommand('copy');
-                            document.body.removeChild(ta);
-                            showMessage(i18n('copiedSubtasksList'));
-                        }
-                    } else {
-                        showMessage(i18n('noSubtasksToCopy'));
-                    }
-                }
             });
         }
 
