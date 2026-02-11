@@ -13268,7 +13268,6 @@ export class ProjectKanbanView {
 
             this.dispatchReminderUpdate(true);
 
-            showMessage(`"${childTask.title}" 已从 "${parentTitle}" 中独立出来`);
 
             // 解除父子关系会影响任务层级显示,需要重新加载
             // 使用防抖避免频繁重载
