@@ -1,4 +1,4 @@
-import { Dialog, showMessage } from "siyuan";
+import { Dialog, showMessage, confirm } from "siyuan";
 import { } from "../api";
 import { i18n } from "../pluginInstance";
 import { QuickReminderDialog } from "./QuickReminderDialog";
@@ -517,9 +517,20 @@ export class SubtasksDialog {
 
         if (!this.isTempMode) {
             const reminderData = await this.plugin.loadReminderData() || {};
-            parentTask = reminderData[this.parentId];
+            
+            // 解析可能存在的实例信息 (id_YYYY-MM-DD)
+            let targetParentId = this.parentId;
+            const lastUnderscoreIndex = this.parentId.lastIndexOf('_');
+            if (lastUnderscoreIndex !== -1) {
+                const potentialDate = this.parentId.substring(lastUnderscoreIndex + 1);
+                if (/^\d{4}-\d{2}-\d{2}$/.test(potentialDate)) {
+                    targetParentId = this.parentId.substring(0, lastUnderscoreIndex);
+                }
+            }
+            
+            // 获取原始父任务（支持重复实例）
+            parentTask = reminderData[targetParentId];
         }
-
 
         // 计算所有子任务的最大 sort 值
         const maxSort = this.subtasks.reduce((max, t) => Math.max(max, t.sort || 0), 0);
@@ -560,8 +571,13 @@ export class SubtasksDialog {
         }, undefined, {
             mode: 'quick',
             defaultParentId: this.isTempMode ? '__TEMP_PARENT__' : this.parentId,
+            // 继承父任务的项目、分组、状态等属性
             defaultProjectId: parentTask?.projectId,
+            defaultCustomGroupId: parentTask?.customGroupId,
+            defaultStatus: parentTask?.kanbanStatus,
+            defaultMilestoneId: parentTask?.milestoneId,
             defaultCategoryId: parentTask?.categoryId,
+            defaultPriority: parentTask?.priority,
             defaultSort: newSort, // 传入预计算的 sort 值，确保保存时一致
             plugin: this.plugin,
             skipSave: this.isTempMode // 临时模式下跳过保存，通过回调返回数据
@@ -637,6 +653,9 @@ export class SubtasksDialog {
         const task = reminderData[targetId];
         if (!task) return;
 
+        // 保存任务信息用于后续事件触发
+        const taskProjectId = task.projectId;
+
         if (date) {
             // 重复实例逻辑：将完成状态记录在 repeat 对象中
             if (!task.repeat) task.repeat = {};
@@ -668,6 +687,20 @@ export class SubtasksDialog {
         await this.plugin.saveReminderData(reminderData);
         await this.loadSubtasks();
         this.renderSubtasks();
+        
+        // 触发更新事件通知其他组件
+        if (taskProjectId) {
+            window.dispatchEvent(new CustomEvent('reminderUpdated', {
+                detail: {
+                    projectId: taskProjectId
+                }
+            }));
+        }
+        
+        // 通知父组件更新
+        if (this.onUpdate) {
+            this.onUpdate();
+        }
     }
 
     private async deleteSubtask(id: string) {
@@ -676,13 +709,17 @@ export class SubtasksDialog {
             const index = this.subtasks.findIndex(t => t.id === id);
             if (index !== -1) {
                 const taskTitle = this.subtasks[index].title || '无标题';
-                if (confirm(`确定要删除临时子任务 "${taskTitle}" 吗？`)) {
-                    this.subtasks.splice(index, 1);
-                    this.renderSubtasks();
-                    if (this.onTempSubtasksUpdate) {
-                        this.onTempSubtasksUpdate([...this.subtasks]);
+                confirm(
+                    i18n("confirmDelete") || "确认删除",
+                    `确定要删除临时子任务 "${taskTitle}" 吗？`,
+                    async () => {
+                        this.subtasks.splice(index, 1);
+                        this.renderSubtasks();
+                        if (this.onTempSubtasksUpdate) {
+                            this.onTempSubtasksUpdate([...this.subtasks]);
+                        }
                     }
-                }
+                );
             }
             return;
         }
@@ -704,22 +741,11 @@ export class SubtasksDialog {
         const task = reminderData[targetId];
         if (!task) return;
 
-        if (date) {
-            // 如果是删除 ghost 实例，询问用户是删除整个模板还是仅在此日期隐藏？
-            // 这里为了简化流程，默认删除整个模板任务。
-            const confirmMsg = `确定要删除此子任务的原始模板吗？\n删除后所有日期的该子任务都将消失。\n\n任务标题: ${task.title}`;
-            if (!confirm(confirmMsg)) return;
-        }
+        // 保存任务信息用于后续事件触发
+        const taskProjectId = task.projectId;
 
-        // Count subtasks of this task
-        const childrenCount = (Object.values(reminderData) as any[]).filter((r: any) => r.parentId === targetId).length;
-        let confirmMsg = i18n("confirmDeleteTask", { title: task.title }) || `确定要删除任务 "${task.title}" 吗？此操作不可撤销。`;
-        if (childrenCount > 0) {
-            confirmMsg += `\n${i18n("includesNSubtasks", { count: childrenCount.toString() }) || `此任务包含 ${childrenCount} 个子任务，它们也将被一并删除。`}`;
-        }
-
-        // Use native confirm or siyuan confirm if available
-        if (confirm(confirmMsg)) {
+        // 定义执行删除的函数
+        const doDelete = async () => {
             // Recursive delete
             const deleteRecursive = (idToDelete: string) => {
                 const children = (Object.values(reminderData) as any[]).filter((r: any) => r.parentId === idToDelete);
@@ -731,8 +757,53 @@ export class SubtasksDialog {
             await this.plugin.saveReminderData(reminderData);
             await this.loadSubtasks();
             this.renderSubtasks();
+            
+            // 触发更新事件通知其他组件
+            if (taskProjectId) {
+                window.dispatchEvent(new CustomEvent('reminderUpdated', {
+                    detail: {
+                        projectId: taskProjectId
+                    }
+                }));
+            }
+            
+            // 通知父组件更新
+            if (this.onUpdate) {
+                this.onUpdate();
+            }
+            
             showMessage(i18n("deleteSuccess"));
+        };
+
+        if (date) {
+            // 如果是删除 ghost 实例，询问用户是删除整个模板还是仅在此日期隐藏？
+            // 这里为了简化流程，默认删除整个模板任务。
+            const ghostConfirmMsg = `确定要删除此子任务的原始模板吗？\n删除后所有日期的该子任务都将消失。\n\n任务标题: ${task.title}`;
+            confirm(
+                i18n("confirmDelete") || "确认删除",
+                ghostConfirmMsg,
+                async () => {
+                    await doDelete();
+                }
+            );
+            return;
         }
+
+        // Count subtasks of this task
+        const childrenCount = (Object.values(reminderData) as any[]).filter((r: any) => r.parentId === targetId).length;
+        let confirmMsg = i18n("confirmDeleteTask", { title: task.title }) || `确定要删除任务 "${task.title}" 吗？此操作不可撤销。`;
+        if (childrenCount > 0) {
+            confirmMsg += `\n${i18n("includesNSubtasks", { count: childrenCount.toString() }) || `此任务包含 ${childrenCount} 个子任务，它们也将被一并删除。`}`;
+        }
+
+        // Use siyuan confirm
+        confirm(
+            i18n("confirmDelete") || "确认删除",
+            confirmMsg,
+            async () => {
+                await doDelete();
+            }
+        );
     }
 
     private addDragAndDrop(item: HTMLElement) {
@@ -906,7 +977,19 @@ export class SubtasksDialog {
         
         if (!this.isTempMode) {
             const reminderData = await this.plugin.loadReminderData() || {};
-            parentTask = reminderData[this.parentId];
+            
+            // 解析可能存在的实例信息 (id_YYYY-MM-DD)
+            let targetParentId = this.parentId;
+            const lastUnderscoreIndex = this.parentId.lastIndexOf('_');
+            if (lastUnderscoreIndex !== -1) {
+                const potentialDate = this.parentId.substring(lastUnderscoreIndex + 1);
+                if (/^\d{4}-\d{2}-\d{2}$/.test(potentialDate)) {
+                    targetParentId = this.parentId.substring(0, lastUnderscoreIndex);
+                }
+            }
+            
+            // 获取原始父任务（支持重复实例）
+            parentTask = reminderData[targetParentId];
         }
 
         const pasteDialog = new PasteTaskDialog({
@@ -914,7 +997,7 @@ export class SubtasksDialog {
             parentTask: parentTask,
             projectId: parentTask?.projectId,
             customGroupId: parentTask?.customGroupId,
-            defaultStatus: 'todo',
+            defaultStatus: parentTask?.kanbanStatus || 'todo',
             isTempMode: this.isTempMode,
             onTasksCreated: (createdTasks) => {
                 // 临时模式：将创建的任务添加到本地数组
