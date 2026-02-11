@@ -2,6 +2,7 @@ import { Dialog, showMessage } from "siyuan";
 import { } from "../api";
 import { i18n } from "../pluginInstance";
 import { QuickReminderDialog } from "./QuickReminderDialog";
+import { PasteTaskDialog } from "./PasteTaskDialog";
 
 export class SubtasksDialog {
     private dialog: Dialog;
@@ -12,38 +13,64 @@ export class SubtasksDialog {
     private draggingId: string | null = null;
     private currentSort: 'priority' | 'time' | 'createdAt' | 'title' = 'priority';
     private currentSortOrder: 'asc' | 'desc' = 'desc';
+    private isTempMode: boolean = false; // 是否为临时模式（新建任务的子任务）
+    private tempSubtasks: any[] = []; // 临时子任务列表
+    private onTempSubtasksUpdate?: (subtasks: any[]) => void; // 临时子任务更新回调
 
-    constructor(parentId: string, plugin: any, onUpdate?: () => void) {
+    constructor(
+        parentId: string,
+        plugin: any,
+        onUpdate?: () => void,
+        tempSubtasks: any[] = [],
+        onTempSubtasksUpdate?: (subtasks: any[]) => void
+    ) {
         this.parentId = parentId;
         this.plugin = plugin;
         this.onUpdate = onUpdate;
+        // 如果 parentId 为空，说明是新建任务的临时子任务模式
+        this.isTempMode = !parentId;
+        this.tempSubtasks = tempSubtasks || [];
+        this.onTempSubtasksUpdate = onTempSubtasksUpdate;
     }
 
     public async show() {
-        await this.loadSubtasks();
+        if (this.isTempMode) {
+            // 临时模式：使用传入的临时子任务列表
+            this.subtasks = [...this.tempSubtasks];
+        } else {
+            await this.loadSubtasks();
+        }
 
         this.dialog = new Dialog({
             title: this.renderDialogTitle(),
             content: `
                 <div class="subtasks-dialog" style="padding: 16px; display: flex; flex-direction: column; gap: 16px; max-height: 80vh;">
-                    <div class="subtasks-header" style="display: flex; gap: 8px; justify-content: flex-end; padding-bottom: 8px; border-bottom: 1px solid var(--b3-border-color);">
+                    <div class="subtasks-header" style="display: flex; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--b3-border-color);">
                         <button id="sortBtn" class="b3-button b3-button--outline">
                             <svg class="b3-button__icon"><use xlink:href="#iconSort"></use></svg>
                             ${i18n("sort") || "排序"}
                         </button>
                     </div>
-                    <div id="subtasksList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 100px;">
+                    <div id="subtasksList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 100px;max-height: 500px;">
                         <!-- 子任务列表 -->
                     </div>
                     <div class="subtasks-actions" style="display: flex; gap: 8px; justify-content: flex-end; padding-top: 8px; border-top: 1px solid var(--b3-border-color);">
+                        <button id="pasteSubtaskBtn" class="b3-button b3-button--outline">
+                            <svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg>
+                            ${i18n("pasteSubtasks") || "粘贴新建"}
+                        </button>
                         <button id="addSubtaskBtn" class="b3-button b3-button--primary">
                             <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
                             ${i18n("createSubtask") || "创建子任务"}
                         </button>
+                        <button id="closeSubtasksBtn" class="b3-button b3-button--outline">
+                            <svg class="b3-button__icon"><use xlink:href="#iconClose"></use></svg>
+                            ${i18n("close") || "关闭"}
+                        </button>
                     </div>
                 </div>
             `,
-            width: "500px",
+            width: "420px",
             destroyCallback: () => {
                 if (this.onUpdate) this.onUpdate();
             }
@@ -54,7 +81,9 @@ export class SubtasksDialog {
     }
 
     private renderDialogTitle(): string {
-        const baseTitle = i18n("subtasks") || "子任务";
+        const baseTitle = this.isTempMode
+            ? (i18n("newSubtasks") || "新建子任务")
+            : (i18n("subtasks") || "子任务");
         const sortNames = {
             'priority': i18n('sortByPriority') || '按优先级',
             'time': i18n('sortByTime') || '按时间',
@@ -255,6 +284,14 @@ export class SubtasksDialog {
             this.addSubtask();
         });
 
+        this.dialog.element.querySelector("#pasteSubtaskBtn")?.addEventListener("click", () => {
+            this.showPasteSubtaskDialog();
+        });
+
+        this.dialog.element.querySelector("#closeSubtasksBtn")?.addEventListener("click", () => {
+            this.dialog.destroy();
+        });
+
         this.dialog.element.querySelector("#sortBtn")?.addEventListener("click", (e) => {
             this.showSortMenu(e as MouseEvent);
         });
@@ -281,7 +318,7 @@ export class SubtasksDialog {
             min-width: 180px;
         `;
 
-        const sortOptions = [
+        const sortOptions: { key: 'priority' | 'time' | 'createdAt' | 'title', label: string, icon: string }[] = [
             { key: 'priority', label: i18n('sortByPriority') || '按优先级', icon: '🎯' },
             { key: 'time', label: i18n('sortByTime') || '按设定时间', icon: '🕐' },
             { key: 'createdAt', label: i18n('sortByCreated') || '按创建时间', icon: '📅' },
@@ -403,28 +440,61 @@ export class SubtasksDialog {
             case 'priority':
                 this.subtasks.sort((a, b) => {
                     const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
-                    const pa = priorityOrder[a.priority] || 0;
-                    const pb = priorityOrder[b.priority] || 0;
-                    let result = pb - pa; // 高优先级在前
-                    if (result === 0) {
-                        result = (a.sort || 0) - (b.sort || 0);
+                    const priorityA = priorityOrder[a.priority || 'none'] || 0;
+                    const priorityB = priorityOrder[b.priority || 'none'] || 0;
+
+                    // 首先按优先级排序（高优先级在前）
+                    const priorityDiff = priorityB - priorityA;
+                    if (priorityDiff !== 0) {
+                        // 升序时低优先级在前，降序时高优先级在前
+                        return this.currentSortOrder === 'asc' ? -priorityDiff : priorityDiff;
                     }
-                    return this.currentSortOrder === 'asc' ? -result : result;
+
+                    // 同优先级内按手动排序（sort 值小的在前）
+                    const sortDiff = (a.sort || 0) - (b.sort || 0);
+                    if (sortDiff !== 0) {
+                        return sortDiff;
+                    }
+
+                    // 最后按创建时间排序（最新创建的在前）
+                    const timeA = a.createdTime ? new Date(a.createdTime).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+                    const timeB = b.createdTime ? new Date(b.createdTime).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+                    return timeB - timeA;
                 });
                 break;
             case 'time':
                 this.subtasks.sort((a, b) => {
+                    // 无日期的任务始终排在有日期任务之后（不受升降序影响）
+                    const hasDateA = !!a.date;
+                    const hasDateB = !!b.date;
+
+                    if (!hasDateA && !hasDateB) {
+                        // 都没有日期，按优先级排序
+                        const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
+                        const priorityDiff = (priorityOrder[b.priority || 'none'] || 0) - (priorityOrder[a.priority || 'none'] || 0);
+                        if (priorityDiff !== 0) return priorityDiff;
+                        // 优先级相同按 sort
+                        return (a.sort || 0) - (b.sort || 0);
+                    }
+                    if (!hasDateA) return 1;
+                    if (!hasDateB) return -1;
+
+                    // 都有日期，按时间排序
                     const dateA = a.date || '9999-12-31';
                     const dateB = b.date || '9999-12-31';
                     const timeA = a.time || '00:00';
                     const timeB = b.time || '00:00';
                     const dtA = `${dateA}T${timeA}`;
                     const dtB = `${dateB}T${timeB}`;
-                    let result = dtA.localeCompare(dtB);
-                    if (result === 0) {
-                        result = (a.sort || 0) - (b.sort || 0);
+
+                    let timeResult = dtA.localeCompare(dtB);
+                    if (timeResult !== 0) {
+                        // 升序：时间早的在前；降序：时间晚的在前
+                        return this.currentSortOrder === 'asc' ? timeResult : -timeResult;
                     }
-                    return this.currentSortOrder === 'asc' ? -result : result;
+
+                    // 时间相同时，按 sort 值排序
+                    return (a.sort || 0) - (b.sort || 0);
                 });
                 break;
             case 'createdAt':
@@ -443,59 +513,119 @@ export class SubtasksDialog {
     }
 
     private async addSubtask() {
-        const reminderData = await this.plugin.loadReminderData() || {};
-        const parentTask = reminderData[this.parentId];
+        let parentTask: any = null;
+
+        if (!this.isTempMode) {
+            const reminderData = await this.plugin.loadReminderData() || {};
+            parentTask = reminderData[this.parentId];
+        }
+
+        // 计算新子任务的 sort 值：放到当前优先级的最后
+        const calculateNewSort = (priority: string) => {
+            const samePrioritySubtasks = this.subtasks.filter(t => (t.priority || 'none') === (priority || 'none'));
+            const maxSort = samePrioritySubtasks.reduce((max, t) => Math.max(max, t.sort || 0), 0);
+            return maxSort + 10;
+        };
+
+        // 计算所有子任务的最大 sort 值
+        const maxSort = this.subtasks.reduce((max, t) => Math.max(max, t.sort || 0), 0);
+        const newSort = maxSort + 1000;
 
         const dialog = new QuickReminderDialog(undefined, undefined, async (newReminder) => {
-            // 如果有新创建的任务数据，直接添加到本地数组（乐观更新）
-            if (newReminder && newReminder.parentId === this.parentId) {
+            if (!newReminder) return;
+
+            // 设置 sort 值为最大值+1000，确保放在最后
+            newReminder.sort = newSort;
+
+            if (this.isTempMode) {
+                // 临时模式：将新子任务添加到临时列表
+                newReminder.parentId = '__TEMP_PARENT__';
+                newReminder.isTempSubtask = true;
+
                 // 检查是否已存在（避免重复添加）
                 const exists = this.subtasks.some(t => t.id === newReminder.id);
                 if (!exists) {
                     this.subtasks.push(newReminder);
-                    this.subtasks.sort((a, b) => (a.sort || 0) - (b.sort || 0));
                     this.renderSubtasks();
                 }
+            } else {
+                // 正常模式：检查是否是当前父任务的子任务
+                if (newReminder.parentId === this.parentId) {
+                    const exists = this.subtasks.some(t => t.id === newReminder.id);
+                    if (!exists) {
+                        this.subtasks.push(newReminder);
+                        this.renderSubtasks();
+                    }
+                }
+                // 延迟重新加载以确保数据已保存到存储
+                setTimeout(async () => {
+                    await this.loadSubtasks();
+                    this.renderSubtasks();
+                }, 100);
             }
-            // 延迟重新加载以确保数据已保存到存储
-            setTimeout(async () => {
-                await this.loadSubtasks();
-                this.renderSubtasks();
-            }, 100);
         }, undefined, {
             mode: 'quick',
-            defaultParentId: this.parentId,
+            defaultParentId: this.isTempMode ? '__TEMP_PARENT__' : this.parentId,
             defaultProjectId: parentTask?.projectId,
             defaultCategoryId: parentTask?.categoryId,
-            plugin: this.plugin
+            defaultSort: newSort, // 传入预计算的 sort 值，确保保存时一致
+            plugin: this.plugin,
+            skipSave: this.isTempMode // 临时模式下跳过保存，通过回调返回数据
         });
         dialog.show();
     }
 
     private async editSubtask(task: any) {
         const dialog = new QuickReminderDialog(undefined, undefined, async (modifiedReminder) => {
+            if (!modifiedReminder) return;
+
             // 乐观更新：直接更新本地数组中的任务
-            if (modifiedReminder) {
-                const index = this.subtasks.findIndex(t => t.id === modifiedReminder.id);
-                if (index !== -1) {
-                    this.subtasks[index] = { ...this.subtasks[index], ...modifiedReminder };
-                    this.renderSubtasks();
+            const index = this.subtasks.findIndex(t => t.id === modifiedReminder.id);
+            if (index !== -1) {
+                this.subtasks[index] = { ...this.subtasks[index], ...modifiedReminder };
+                this.renderSubtasks();
+
+                // 临时模式：通知外部更新
+                if (this.isTempMode && this.onTempSubtasksUpdate) {
+                    this.onTempSubtasksUpdate([...this.subtasks]);
                 }
             }
-            // 延迟重新加载以确保数据已保存到存储
-            setTimeout(async () => {
-                await this.loadSubtasks();
-                this.renderSubtasks();
-            }, 100);
+
+            if (!this.isTempMode) {
+                // 正常模式：延迟重新加载以确保数据已保存到存储
+                setTimeout(async () => {
+                    await this.loadSubtasks();
+                    this.renderSubtasks();
+                }, 100);
+            }
         }, undefined, {
             mode: 'edit',
             reminder: task,
-            plugin: this.plugin
+            plugin: this.plugin,
+            skipSave: this.isTempMode // 临时模式下跳过保存，通过回调更新
         });
         dialog.show();
     }
 
     private async toggleSubtask(id: string, completed: boolean) {
+        // 临时模式：只更新本地状态
+        if (this.isTempMode) {
+            const index = this.subtasks.findIndex(t => t.id === id);
+            if (index !== -1) {
+                this.subtasks[index].completed = completed;
+                if (completed) {
+                    this.subtasks[index].completedTime = new Date().toISOString();
+                } else {
+                    delete this.subtasks[index].completedTime;
+                }
+                this.renderSubtasks();
+                if (this.onTempSubtasksUpdate) {
+                    this.onTempSubtasksUpdate([...this.subtasks]);
+                }
+            }
+            return;
+        }
+
         const reminderData = await this.plugin.loadReminderData() || {};
 
         // 解析 ID，判断是否为实例
@@ -547,6 +677,22 @@ export class SubtasksDialog {
     }
 
     private async deleteSubtask(id: string) {
+        // 临时模式：仅从本地列表删除
+        if (this.isTempMode) {
+            const index = this.subtasks.findIndex(t => t.id === id);
+            if (index !== -1) {
+                const taskTitle = this.subtasks[index].title || '无标题';
+                if (confirm(`确定要删除临时子任务 "${taskTitle}" 吗？`)) {
+                    this.subtasks.splice(index, 1);
+                    this.renderSubtasks();
+                    if (this.onTempSubtasksUpdate) {
+                        this.onTempSubtasksUpdate([...this.subtasks]);
+                    }
+                }
+            }
+            return;
+        }
+
         const reminderData = await this.plugin.loadReminderData() || {};
 
         // 解析 ID
@@ -715,11 +861,26 @@ export class SubtasksDialog {
             movedTask.priority = targetTask.priority;
         }
 
+        // 更新 sort 值
+        this.subtasks.forEach((task: any, index: number) => {
+            task.sort = index * 10;
+        });
+
+        if (this.isTempMode) {
+            // 临时模式：只更新本地状态
+            if (this.onTempSubtasksUpdate) {
+                this.onTempSubtasksUpdate([...this.subtasks]);
+            }
+            this.renderSubtasks();
+            showMessage(i18n("sortUpdated") || "排序已更新");
+            return;
+        }
+
+        // 正常模式：保存到数据库
         const reminderData = await this.plugin.loadReminderData() || {};
         // Update sort values in reminderData
         this.subtasks.forEach((task: any, index: number) => {
             const sortVal = index * 10;
-            task.sort = sortVal;
             if (reminderData[task.id]) {
                 reminderData[task.id].sort = sortVal;
             }
@@ -743,5 +904,60 @@ export class SubtasksDialog {
         }
 
         showMessage(i18n("sortUpdated") || "排序已更新");
+    }
+
+    // 显示粘贴新建子任务对话框
+    private async showPasteSubtaskDialog() {
+        let parentTask: any = null;
+        
+        if (!this.isTempMode) {
+            const reminderData = await this.plugin.loadReminderData() || {};
+            parentTask = reminderData[this.parentId];
+        }
+
+        const pasteDialog = new PasteTaskDialog({
+            plugin: this.plugin,
+            parentTask: parentTask,
+            projectId: parentTask?.projectId,
+            customGroupId: parentTask?.customGroupId,
+            defaultStatus: 'todo',
+            isTempMode: this.isTempMode,
+            onTasksCreated: (createdTasks) => {
+                // 临时模式：将创建的任务添加到本地数组
+                for (const task of createdTasks) {
+                    const exists = this.subtasks.some(t => t.id === task.id);
+                    if (!exists) {
+                        this.subtasks.push(task);
+                    }
+                }
+                this.subtasks.sort((a, b) => (a.sort || 0) - (b.sort || 0));
+                this.renderSubtasks();
+                if (this.onTempSubtasksUpdate) {
+                    this.onTempSubtasksUpdate([...this.subtasks]);
+                }
+            },
+            onSuccess: async (totalCount) => {
+                if (!this.isTempMode) {
+                    showMessage(`${totalCount} ${i18n("subtasksCreated") || "个子任务已创建"}`);
+                    // 重新加载子任务列表
+                    await this.loadSubtasks();
+                    this.renderSubtasks();
+                    // 触发更新事件通知其他组件
+                    const projectId = parentTask?.projectId;
+                    window.dispatchEvent(new CustomEvent('reminderUpdated', {
+                        detail: { projectId }
+                    }));
+                }
+                if (this.onUpdate) {
+                    this.onUpdate();
+                }
+            },
+            onError: (error) => {
+                console.error('批量创建子任务失败:', error);
+                showMessage(i18n("batchCreateFailed") || "批量创建任务失败");
+            }
+        });
+
+        await pasteDialog.show();
     }
 }

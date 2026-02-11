@@ -67,6 +67,8 @@ export class QuickReminderDialog {
     private selectedCategoryIds: string[] = [];
     private currentKanbanStatuses: import('../utils/projectManager').KanbanStatus[] = []; // 当前项目的kanbanStatuses
     private durationManuallyChanged: boolean = false; // 标记用户是否手动修改了持续天数
+    private tempSubtasks: any[] = []; // 新建模式下的临时子任务列表
+    private skipSave: boolean = false; // 是否跳过保存到数据库（用于临时子任务创建）
 
 
     constructor(
@@ -98,6 +100,7 @@ export class QuickReminderDialog {
             isInstanceEdit?: boolean;
             instanceDate?: string;
             defaultSort?: number;
+            skipSave?: boolean; // 是否跳过保存到数据库
         }
     ) {
         this.initialDate = date;
@@ -132,6 +135,7 @@ export class QuickReminderDialog {
             this.isInstanceEdit = options.isInstanceEdit || false;
             this.instanceDate = options.instanceDate;
             this.defaultSort = options.defaultSort;
+            this.skipSave = options.skipSave || false;
         }
 
         // 如果是编辑模式，确保有reminder
@@ -680,16 +684,39 @@ export class QuickReminderDialog {
         const subtasksGroup = this.dialog.element.querySelector('#quickSubtasksGroup') as HTMLElement;
         const subtasksCountText = this.dialog.element.querySelector('#quickSubtasksCountText') as HTMLElement;
 
-        if (!subtasksGroup || !this.reminder) return;
+        if (!subtasksGroup) return;
+
+        // 如果当前任务是子任务（有 parentId），则不显示子任务按钮
+        if (this.defaultParentId) {
+            subtasksGroup.style.display = 'none';
+            return;
+        }
+
+        // 编辑模式：需要有 reminder.id
+        // 新建模式：使用临时子任务列表
+        if (this.mode === 'edit' && !this.reminder) {
+            subtasksGroup.style.display = 'none';
+            return;
+        }
 
         subtasksGroup.style.display = 'block';
 
-        const reminderData = await this.plugin.loadReminderData();
-        const subtasks = Object.values(reminderData).filter((r: any) => r.parentId === this.reminder.id);
-        const count = subtasks.length;
+        let count = 0;
+        if (this.mode === 'edit' && this.reminder) {
+            // 编辑模式：从数据库获取子任务
+            const reminderData = await this.plugin.loadReminderData();
+            const subtasks = Object.values(reminderData).filter((r: any) => r.parentId === this.reminder.id);
+            count = subtasks.length;
+        } else {
+            // 新建模式：使用临时子任务列表
+            count = this.tempSubtasks.length;
+        }
 
         if (subtasksCountText) {
-            subtasksCountText.textContent = `${i18n("viewSubtasks") || "查看子任务"}${count > 0 ? ` (${count})` : ''}`;
+            const label = this.mode === 'edit'
+                ? (i18n("viewSubtasks") || "查看子任务")
+                : (i18n("newSubtasks") || "新建子任务");
+            subtasksCountText.textContent = `${label}${count > 0 ? ` (${count})` : ''}`;
         }
     }
 
@@ -1334,7 +1361,7 @@ export class QuickReminderDialog {
                 </div>
             `,
             width: "min(500px, 90%)",
-            height: this.mode === 'note' ? "auto" : "81vh",
+            height: this.mode === 'note' ? "auto" : "81vh"
         });
 
         // Initialize Vditor
@@ -1568,6 +1595,9 @@ export class QuickReminderDialog {
             if ((this.mode === 'edit' || this.mode === 'batch_edit') && this.reminder) {
                 await this.populateEditForm();
             }
+
+            // 初始化子任务按钮显示（新建模式也显示）
+            await this.updateSubtasksDisplay();
 
             // 自动聚焦标题输入框
             titleInput?.focus();
@@ -2099,10 +2129,20 @@ export class QuickReminderDialog {
             }
         });
 
-        // 查看子任务
+        // 查看/新建子任务
         viewSubtasksBtn?.addEventListener('click', () => {
-            if (this.reminder && this.reminder.id) {
+            if (this.mode === 'edit' && this.reminder && this.reminder.id) {
+                // 编辑模式：使用正常的子任务对话框
                 const subtasksDialog = new SubtasksDialog(this.reminder.id, this.plugin, () => {
+                    this.updateSubtasksDisplay();
+                });
+                subtasksDialog.show();
+            } else if (this.mode !== 'edit') {
+                // 新建模式：使用临时子任务模式
+                const subtasksDialog = new SubtasksDialog('', this.plugin, () => {
+                    this.updateSubtasksDisplay();
+                }, this.tempSubtasks, (updatedSubtasks) => {
+                    this.tempSubtasks = updatedSubtasks;
                     this.updateSubtasksDisplay();
                 });
                 subtasksDialog.show();
@@ -3233,6 +3273,12 @@ export class QuickReminderDialog {
             this.onSaved(optimisticReminder);
         }
 
+        // 如果需要跳过保存（临时子任务模式），直接返回，不执行后续保存逻辑
+        if (this.skipSave) {
+            this.destroyDialog();
+            return;
+        }
+
         // 显示“已保存”反馈（乐观），不再等待
 
         this.destroyDialog();
@@ -3692,6 +3738,10 @@ export class QuickReminderDialog {
                     detail: eventDetail
                 }));
 
+                // 如果是新建模式且有临时子任务，保存子任务
+                if (this.mode !== 'edit' && this.tempSubtasks.length > 0) {
+                    await this.saveTempSubtasks(reminderId);
+                }
 
                 // if (this.onSaved) this.onSaved(reminder);
                 // this.dialog.destroy();
@@ -3822,6 +3872,95 @@ export class QuickReminderDialog {
         }
         findChildren(parentId);
         return result;
+    }
+
+    /**
+     * 保存临时子任务
+     * 在新建父任务时一起保存子任务
+     */
+    private async saveTempSubtasks(parentId: string) {
+        if (this.tempSubtasks.length === 0) return;
+
+        try {
+            const reminderData = await this.plugin.loadReminderData();
+            const nowStr = new Date().toISOString();
+
+            for (const tempSubtask of this.tempSubtasks) {
+                // 生成新的子任务 ID
+                const subtaskId = `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+                // 创建子任务对象
+                const subtask: any = {
+                    id: subtaskId,
+                    parentId: parentId,
+                    blockId: tempSubtask.blockId || null,
+                    docId: tempSubtask.docId || null,
+                    title: tempSubtask.title || '未命名任务',
+                    url: tempSubtask.url || undefined,
+                    date: tempSubtask.date || undefined,
+                    time: tempSubtask.time || undefined,
+                    endDate: tempSubtask.endDate || undefined,
+                    endTime: tempSubtask.endTime || undefined,
+                    completed: tempSubtask.completed || false,
+                    priority: tempSubtask.priority || 'none',
+                    categoryId: tempSubtask.categoryId || undefined,
+                    projectId: tempSubtask.projectId || undefined,
+                    customGroupId: tempSubtask.customGroupId || undefined,
+                    milestoneId: tempSubtask.milestoneId || undefined,
+                    tagIds: tempSubtask.tagIds || undefined,
+                    createdAt: nowStr,
+                    createdTime: nowStr,
+                    kanbanStatus: tempSubtask.kanbanStatus || 'todo',
+                    sort: tempSubtask.sort || 0,
+                    note: tempSubtask.note || undefined,
+                    reminderTimes: tempSubtask.reminderTimes || undefined,
+                    estimatedPomodoroDuration: tempSubtask.estimatedPomodoroDuration || undefined,
+                    notifiedTime: false,
+                    notifiedCustomTime: false
+                };
+
+                // 如果子任务有完成时间，保留它
+                if (tempSubtask.completed && tempSubtask.completedTime) {
+                    subtask.completedTime = tempSubtask.completedTime;
+                }
+
+                // 复制重复设置（如果有）
+                if (tempSubtask.repeat?.enabled) {
+                    subtask.repeat = { ...tempSubtask.repeat };
+                }
+
+                // 如果有绑定块，获取 docId
+                if (subtask.blockId && !subtask.docId) {
+                    try {
+                        const block = await getBlockByID(subtask.blockId);
+                        subtask.docId = block?.root_id || (block?.type === 'd' ? block?.id : null);
+                    } catch (err) {
+                        console.warn('获取子任务绑定块信息失败:', err);
+                    }
+                }
+
+                reminderData[subtaskId] = subtask;
+
+                // 如果绑定了块，添加项目 ID 属性
+                if (subtask.blockId && subtask.projectId) {
+                    try {
+                        const { addBlockProjectId } = await import('../api');
+                        await addBlockProjectId(subtask.blockId, subtask.projectId);
+                    } catch (error) {
+                        console.warn('设置子任务块属性失败:', error);
+                    }
+                }
+            }
+
+            await this.plugin.saveReminderData(reminderData);
+            console.log(`已保存 ${this.tempSubtasks.length} 个子任务`);
+            showMessage(i18n("subtasksSaved") || `已保存 ${this.tempSubtasks.length} 个子任务`);
+
+            // 保存成功后清空临时子任务数组
+            this.tempSubtasks = [];
+        } catch (error) {
+            console.error('保存临时子任务失败:', error);
+        }
     }
 
     private extractBlockId(raw: string): string | null {

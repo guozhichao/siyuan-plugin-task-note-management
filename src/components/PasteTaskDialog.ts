@@ -36,6 +36,10 @@ export interface PasteTaskDialogConfig {
     projectMilestones?: any[];
     // 看板状态配置
     kanbanStatuses?: any[];
+    // 临时模式：不保存到数据库，通过 onTasksCreated 回调返回任务数组
+    isTempMode?: boolean;
+    // 临时模式回调，参数为创建的任务数组
+    onTasksCreated?: (tasks: any[]) => void;
 }
 
 export class PasteTaskDialog {
@@ -217,12 +221,18 @@ export class PasteTaskDialog {
 
             if (hierarchicalTasks.length > 0) {
                 try {
-                    await this.batchCreateTasksWithHierarchy(hierarchicalTasks, selectedStatus, selectedGroupId, selectedMilestoneId);
+                    const createdTasks = await this.batchCreateTasksWithHierarchy(hierarchicalTasks, selectedStatus, selectedGroupId, selectedMilestoneId);
                     dialog.destroy();
                     const totalTasks = this.countTotalTasks(hierarchicalTasks);
+                    
+                    // 临时模式：通过回调返回创建的任务
+                    if (this.config.isTempMode && this.config.onTasksCreated) {
+                        this.config.onTasksCreated(createdTasks);
+                    }
+                    
                     if (this.config.onSuccess) {
                         this.config.onSuccess(totalTasks);
-                    } else {
+                    } else if (!this.config.isTempMode) {
                         showMessage(`${totalTasks} ${i18n("tasksCreated") || "个任务已创建"}`);
                     }
                 } catch (error) {
@@ -411,19 +421,21 @@ export class PasteTaskDialog {
         return { title: title.trim() || i18n('noContentHint') || '未命名任务', priority, startDate, time, endDate, endTime, blockId, completed };
     }
 
-    private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[], selectedStatus?: string, selectedGroupId?: string | null, selectedMilestoneId?: string) {
-        const reminderData = await getAllReminders(this.config.plugin, undefined, true);
+    private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[], selectedStatus?: string, selectedGroupId?: string | null, selectedMilestoneId?: string): Promise<any[]> {
         const parentTask = this.config.parentTask;
         const projectId = this.config.projectId || (parentTask ? parentTask.projectId : undefined);
         const categoryId = parentTask ? parentTask.categoryId : undefined;
 
+        // 临时模式下不需要从数据库读取
+        const reminderData = this.config.isTempMode ? {} : await getAllReminders(this.config.plugin, undefined, true);
+
         // 获取当前项目中所有任务的最大排序值
-        const maxSort = Object.values(reminderData)
+        const maxSort = this.config.isTempMode ? 0 : Object.values(reminderData)
             .filter((r: any) => r && r.projectId === projectId && typeof r.sort === 'number')
             .reduce((max: number, task: any) => Math.max(max, task.sort || 0), 0) as number;
 
         let sortCounter = maxSort;
-
+        const createdTasks: any[] = [];
         const boundBlockIds = new Set<string>();
 
         const createTaskRecursively = async (
@@ -477,11 +489,16 @@ export class PasteTaskDialog {
 
             if (inheritedGroupId) {
                 newTask.customGroupId = inheritedGroupId;
-            } else if (parentId) {
+            } else if (parentId && !this.config.isTempMode) {
                 const parent = reminderData[parentId];
                 if (parent && parent.customGroupId) {
                     newTask.customGroupId = parent.customGroupId;
                 }
+            }
+
+            // 临时模式标记
+            if (this.config.isTempMode) {
+                newTask.isTempSubtask = true;
             }
 
             if (task.blockId) {
@@ -495,7 +512,7 @@ export class PasteTaskDialog {
                             newTask.title = block.content || block.fcontent || i18n('noContentHint') || '未命名任务';
                         }
 
-                        if (projectId) {
+                        if (projectId && !this.config.isTempMode) {
                             await addBlockProjectId(task.blockId, projectId);
                         }
 
@@ -507,6 +524,7 @@ export class PasteTaskDialog {
             }
 
             reminderData[taskId] = newTask;
+            createdTasks.push(newTask);
 
             if (task.children && task.children.length > 0) {
                 for (const child of task.children) {
@@ -526,16 +544,21 @@ export class PasteTaskDialog {
             await createTaskRecursively(task, topParentId, parentPriority, groupToUse);
         }
 
-        await saveReminders(this.config.plugin, reminderData);
+        // 临时模式下不保存到数据库，通过回调返回
+        if (!this.config.isTempMode) {
+            await saveReminders(this.config.plugin, reminderData);
 
-        // 更新块属性
-        for (const blockId of boundBlockIds) {
-            try {
-                await updateBindBlockAtrrs(blockId, this.config.plugin);
-            } catch (error) {
-                console.error(`更新块 ${blockId} 属性失败:`, error);
+            // 更新块属性
+            for (const blockId of boundBlockIds) {
+                try {
+                    await updateBindBlockAtrrs(blockId, this.config.plugin);
+                } catch (error) {
+                    console.error(`更新块 ${blockId} 属性失败:`, error);
+                }
             }
         }
+
+        return createdTasks;
     }
 
     private countTotalTasks(tasks: HierarchicalTask[]): number {
