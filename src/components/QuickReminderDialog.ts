@@ -1214,8 +1214,13 @@ export class QuickReminderDialog {
                                 <!-- 开始行: responsive, keep date flexible but ensure time + clear button never wrap -->
                                 <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                                     <span style="font-size: 13px; color: var(--b3-theme-on-surface); white-space: nowrap; flex: 0 0 auto;">开始：</span>
-                                    <input type="date" id="quickReminderDate" class="b3-text-field" value="${this.initialDate || ''}" max="9999-12-31" style="flex: 1 1 140px; min-width: 120px;">
-                                    <div style="display: flex; align-items: center; gap: 8px; flex: 0 0 auto; white-space: nowrap; min-width: 110px; margin-left: auto;">
+                                    <div style="display: flex; align-items: center; gap: 8px; flex: 1 1 140px; min-width: 120px;">
+                                        <input type="date" id="quickReminderDate" class="b3-text-field" value="${this.initialDate || ''}" max="9999-12-31" style="flex: 1; min-width: 0;">
+                                        <button type="button" id="quickClearStartDateBtn" class="b3-button b3-button--outline" title="${i18n("clearDate") || "清除日期"}" style="padding: 4px 8px; font-size: 12px; flex: 0 0 auto;">
+                                            <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconTrashcan"></use></svg>
+                                        </button>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 8px; flex: 0 0 auto; white-space: nowrap; min-width: 110px;margin-left: auto;">
                                         <input type="time" id="quickReminderTime" class="b3-text-field" value="${this.initialTime || ''}" style="flex: 0 0 auto; min-width: 100px;">
                                         <button type="button" id="quickClearStartTimeBtn" class="b3-button b3-button--outline" title="${i18n("clearTime") || "清除时间"}" style="padding: 4px 8px; font-size: 12px;">
                                             <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconTrashcan"></use></svg>
@@ -1231,8 +1236,13 @@ export class QuickReminderDialog {
                                 <!-- 结束行: responsive, keep end time + clear button together -->
                                 <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                                     <span style="font-size: 13px; color: var(--b3-theme-on-surface); white-space: nowrap; flex: 0 0 auto;">结束：</span>
-                                    <input type="date" id="quickReminderEndDate" class="b3-text-field" placeholder="${i18n("endDateOptional")}" title="${i18n("spanningEventDesc")}" max="9999-12-31" style="flex: 1 1 140px; min-width: 120px;">
-                                    <div style="display: flex; align-items: center; gap: 8px; flex: 0 0 auto; white-space: nowrap; min-width: 110px; margin-left: auto;">
+                                    <div style="display: flex; align-items: center; gap: 8px; flex: 1 1 140px; min-width: 120px;">
+                                        <input type="date" id="quickReminderEndDate" class="b3-text-field" placeholder="${i18n("endDateOptional")}" title="${i18n("spanningEventDesc")}" max="9999-12-31" style="flex: 1; min-width: 0;">
+                                        <button type="button" id="quickClearEndDateBtn" class="b3-button b3-button--outline" title="${i18n("clearDate") || "清除日期"}" style="padding: 4px 8px; font-size: 12px; flex: 0 0 auto;">
+                                            <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconTrashcan"></use></svg>
+                                        </button>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 8px; flex: 0 0 auto; white-space: nowrap; min-width: 110px;margin-left: auto;">
                                         <input type="time" id="quickReminderEndTime" class="b3-text-field" placeholder="${i18n("endTimeOptional") || "结束时间"}" style="flex: 0 0 auto; min-width: 100px;">
                                         <button type="button" id="quickClearEndTimeBtn" class="b3-button b3-button--outline" title="${i18n("clearTime") || "清除时间"}" style="padding: 4px 8px; font-size: 12px;">
                                             <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconTrashcan"></use></svg>
@@ -2292,6 +2302,17 @@ export class QuickReminderDialog {
             // 结束时间不影响预设计算，只基于开始时间
         });
 
+        // 清除开始日期按钮
+        const clearStartDateBtn = this.dialog.element.querySelector('#quickClearStartDateBtn') as HTMLButtonElement;
+        clearStartDateBtn?.addEventListener('click', () => {
+            const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
+            if (dateInput) {
+                dateInput.value = '';
+                // 更新预设下拉状态
+                this.updatePresetSelectState();
+            }
+        });
+
         // 清除开始时间按钮
         const clearStartTimeBtn = this.dialog.element.querySelector('#quickClearStartTimeBtn') as HTMLButtonElement;
         clearStartTimeBtn?.addEventListener('click', () => {
@@ -2300,6 +2321,15 @@ export class QuickReminderDialog {
                 timeInput.value = '';
                 // 更新预设下拉状态
                 this.updatePresetSelectState();
+            }
+        });
+
+        // 清除结束日期按钮
+        const clearEndDateBtn = this.dialog.element.querySelector('#quickClearEndDateBtn') as HTMLButtonElement;
+        clearEndDateBtn?.addEventListener('click', () => {
+            const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
+            if (endDateInput) {
+                endDateInput.value = '';
             }
         });
 
