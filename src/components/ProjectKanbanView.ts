@@ -7618,6 +7618,16 @@ export class ProjectKanbanView {
         const statusConfig = this.kanbanStatuses.find(s => s.id === status);
         const statusColor = statusConfig?.color || group.color;
 
+        // 分组标题 wrapper（吸顶+背景色，避免滚动时文字看不清）
+        const groupHeaderWrapper = document.createElement('div');
+        groupHeaderWrapper.className = 'custom-status-group-header-wrapper';
+        groupHeaderWrapper.style.cssText = `
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: var(--b3-theme-background);
+        `;
+
         // 分组标题（参考状态分组下的自定义分组样式）
         const groupHeader = document.createElement('div');
         groupHeader.className = 'custom-status-group-header';
@@ -7630,9 +7640,6 @@ export class ProjectKanbanView {
             border: 1px solid ${statusColor}30;
             border-radius: 6px;
             cursor: pointer;
-            position: sticky;
-            top: 0;
-            z-index: 10;
         `;
 
         const groupTitle = document.createElement('div');
@@ -7713,6 +7720,7 @@ export class ProjectKanbanView {
         }
 
         groupHeader.appendChild(headerRight);
+        groupHeaderWrapper.appendChild(groupHeader);
 
         // 分组任务容器
         const groupTasksContainer = document.createElement('div');
@@ -7773,7 +7781,7 @@ export class ProjectKanbanView {
 
         groupTitle.insertBefore(collapseBtn, groupIcon);
 
-        groupContainer.appendChild(groupHeader);
+        groupContainer.appendChild(groupHeaderWrapper);
 
         // 渲染任务
         const pageKey = `custom-mode-${groupKey}`;
@@ -7882,6 +7890,16 @@ export class ProjectKanbanView {
         groupContainer.className = 'custom-group-in-status';
         groupContainer.dataset.groupId = group.id;
 
+        // 分组标题 wrapper（吸顶+背景色，避免滚动时文字看不清）
+        const groupHeaderWrapper = document.createElement('div');
+        groupHeaderWrapper.className = 'custom-group-header-wrapper';
+        groupHeaderWrapper.style.cssText = `
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: var(--b3-theme-background);
+        `;
+
         // 分组标题
         const groupHeader = document.createElement('div');
         groupHeader.className = 'custom-group-header';
@@ -7894,9 +7912,6 @@ export class ProjectKanbanView {
             border: 1px solid ${group.color}30;
             border-radius: 6px;
             cursor: pointer;
-            position: sticky;
-            top: 0;
-            z-index: 10;
         `;
 
         const groupTitle = document.createElement('div');
@@ -7973,6 +7988,7 @@ export class ProjectKanbanView {
         }
 
         groupHeader.appendChild(headerRight);
+        groupHeaderWrapper.appendChild(groupHeader);
 
         // 分组任务容器
         const groupTasksContainer = document.createElement('div');
@@ -8029,7 +8045,7 @@ export class ProjectKanbanView {
 
         groupTitle.insertBefore(collapseBtn, groupIcon);
 
-        groupContainer.appendChild(groupHeader);
+        groupContainer.appendChild(groupHeaderWrapper);
 
         // 渲染任务（使用扩展后的任务列表）
         const pageKey = `status-mode-${groupKey}`;
