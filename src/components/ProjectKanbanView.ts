@@ -4925,8 +4925,22 @@ export class ProjectKanbanView {
                         }
 
                         targetSubList.push(instanceTask);
+                        // Calculate cutoff time for subtask generation (prevent new subtasks in completed instances)
+                        let cutoffTime: number | undefined;
+                        // Use the exact completion time if available
+                        const realCompletedTimeStr = instance.completedTime || reminder.repeat?.instanceCompletedTimes?.[originalKey] || reminder.repeat?.completedTimes?.[originalKey];
+
+                        // If explicit time exists, use it
+                        if (realCompletedTimeStr) {
+                            cutoffTime = new Date(realCompletedTimeStr).getTime();
+                        } else if (isInstanceCompleted) {
+                            // If implicitly completed (e.g. past) or no time recorded, default to end of the instance date
+                            // ensuring tasks created ON that day are included, but future tasks are excluded.
+                            cutoffTime = new Date(`${instance.date}T23:59:59`).getTime();
+                        }
+
                         // [NEW] 递归处理子任务的 ghost 实例
-                        generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, targetSubList, reminderData);
+                        generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, targetSubList, reminderData, cutoffTime);
                     });
 
                     // 在合并前按 sort 排序，确保实例层的 sort 被应用
@@ -12188,7 +12202,7 @@ export class ProjectKanbanView {
 
             /* 看板模式选择下拉框样式 */
             .kanban-mode-select {
-                background: var(--b3-theme-surface) !important;
+                background: var(--b3-theme-background) !important;
                 border: 1px solid var(--b3-theme-border) !important;
                 border-radius: 4px !important;
                 padding: 6px 8px !important;
@@ -12211,7 +12225,7 @@ export class ProjectKanbanView {
             }
 
             .kanban-mode-select option {
-                background: var(--b3-theme-surface) !important;
+                background: var(--b3-theme-background) !important;
                 color: var(--b3-theme-on-surface) !important;
                 padding: 4px 8px !important;
             }

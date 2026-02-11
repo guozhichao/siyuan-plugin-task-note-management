@@ -284,6 +284,19 @@ export class EisenhowerMatrixView {
                         const isInstanceCompleted = completedInstances.includes(originalKey);
                         const instanceMod = instanceModifications[originalKey];
 
+                        // Calculate cutoff time for subtask generation filtering
+                        let cutoffTime: number | undefined;
+                        const instanceCompletedTimes = reminder.repeat?.instanceCompletedTimes || {};
+                        const completedTimesLegacy = reminder.repeat?.completedTimes || {};
+
+                        const realCompletedTimeStr = instance.completedTime || instanceCompletedTimes[originalKey] || completedTimesLegacy[originalKey];
+
+                        if (realCompletedTimeStr) {
+                            cutoffTime = new Date(realCompletedTimeStr).getTime();
+                        } else if (isInstanceCompleted) {
+                            cutoffTime = new Date(`${instance.date}T23:59:59`).getTime();
+                        }
+
                         const instanceTask = {
                             ...reminder,
                             id: instance.instanceId,
@@ -297,7 +310,7 @@ export class EisenhowerMatrixView {
                             note: instanceMod?.note || reminder.note,
                             priority: instanceMod?.priority || reminder.priority,
                             // 为已完成的实例添加完成时间（用于排序）
-                            completedTime: isInstanceCompleted ? getLocalDateTimeString(new Date(instance.date)) : undefined
+                            completedTime: isInstanceCompleted ? (realCompletedTimeStr || getLocalDateTimeString(new Date(instance.date))) : undefined
                         };
 
                         // 按日期和完成状态分类
@@ -307,28 +320,28 @@ export class EisenhowerMatrixView {
                             // 过去的日期
                             if (isInstanceCompleted) {
                                 pastCompletedList.push(instanceTask);
-                                generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, pastCompletedList, reminderData);
+                                generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, pastCompletedList, reminderData, cutoffTime);
                             } else {
                                 pastIncompleteList.push(instanceTask);
-                                generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, pastIncompleteList, reminderData);
+                                generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, pastIncompleteList, reminderData, cutoffTime);
                             }
                         } else if (dateComparison === 0) {
                             // 今天的日期（只收集未完成的）
                             if (!isInstanceCompleted) {
                                 todayIncompleteList.push(instanceTask);
-                                generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, todayIncompleteList, reminderData);
+                                generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, todayIncompleteList, reminderData, cutoffTime);
                             } else {
                                 pastCompletedList.push(instanceTask); // 今天已完成算作过去
-                                generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, pastCompletedList, reminderData);
+                                generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, pastCompletedList, reminderData, cutoffTime);
                             }
                         } else {
                             // 未来的日期
                             if (isInstanceCompleted) {
                                 futureCompletedList.push(instanceTask);
-                                generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, futureCompletedList, reminderData);
+                                generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, futureCompletedList, reminderData, cutoffTime);
                             } else {
                                 futureIncompleteList.push(instanceTask);
-                                generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, futureIncompleteList, reminderData);
+                                generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, futureIncompleteList, reminderData, cutoffTime);
                             }
                         }
                     });

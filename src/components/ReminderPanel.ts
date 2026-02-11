@@ -2953,7 +2953,21 @@ export class ReminderPanel {
 
                         allReminders.push(instanceTask);
                         // 为该可见实例生成所有子任务树（确保子任务紧跟父任务）
-                        generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, allReminders, reminderData);
+                        // Calculate cutoff time for subtask generation (prevent new subtasks in completed instances)
+                        let cutoffTime: number | undefined;
+                        // Use the exact completion time if available
+                        const realCompletedTimeStr = instance.completedTime || reminder.repeat?.completedTimes?.[originalInstanceDate];
+
+                        // If explicit time exists, use it
+                        if (realCompletedTimeStr) {
+                            cutoffTime = new Date(realCompletedTimeStr).getTime();
+                        } else if (isInstanceCompleted) {
+                            // If implicitly completed (e.g. past) or no time recorded, default to end of the instance date
+                            // ensuring tasks created ON that day are included, but future tasks are excluded.
+                            cutoffTime = new Date(`${instance.date}T23:59:59`).getTime();
+                        }
+
+                        generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, allReminders, reminderData, cutoffTime);
                     }
                 });
 

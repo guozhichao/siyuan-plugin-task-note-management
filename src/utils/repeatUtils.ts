@@ -407,12 +407,25 @@ export function generateSubtreeInstances(
     instanceParentId: string,
     instanceDate: string,
     targetList: any[],
-    reminderData: any
+    reminderData: any,
+    parentCompletionTime?: number
 ) {
     // Find all tasks with this original parent ID
     const directChildren = (Object.values(reminderData) as any[]).filter((r: any) => r.parentId === originalParentId);
 
     directChildren.forEach((child: any) => {
+        // If parent instance is completed, skip children created after completion
+        if (parentCompletionTime) {
+            const childCreated = child.created || child.createdTime || child.createdAt;
+            if (childCreated) {
+                const childCreatedTime = new Date(childCreated).getTime();
+                // Add 1 minute buffer to avoid race conditions during batch operations
+                if (childCreatedTime > parentCompletionTime + 60000) {
+                    return;
+                }
+            }
+        }
+
         const instanceId = `${child.id}_${instanceDate}`;
         const completedInstances = child.repeat?.completedInstances || [];
         const isInstanceCompleted = completedInstances.includes(instanceDate);
@@ -449,6 +462,7 @@ export function generateSubtreeInstances(
         targetList.push(instanceTask);
 
         // Recurse to children's children
-        generateSubtreeInstances(child.id, instanceId, instanceDate, targetList, reminderData);
+        // Use the same parentCompletionTime for the entire subtree to maintain the snapshot at completion
+        generateSubtreeInstances(child.id, instanceId, instanceDate, targetList, reminderData, parentCompletionTime);
     });
 }
