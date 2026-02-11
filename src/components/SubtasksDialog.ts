@@ -520,12 +520,6 @@ export class SubtasksDialog {
             parentTask = reminderData[this.parentId];
         }
 
-        // 计算新子任务的 sort 值：放到当前优先级的最后
-        const calculateNewSort = (priority: string) => {
-            const samePrioritySubtasks = this.subtasks.filter(t => (t.priority || 'none') === (priority || 'none'));
-            const maxSort = samePrioritySubtasks.reduce((max, t) => Math.max(max, t.sort || 0), 0);
-            return maxSort + 10;
-        };
 
         // 计算所有子任务的最大 sort 值
         const maxSort = this.subtasks.reduce((max, t) => Math.max(max, t.sort || 0), 0);
