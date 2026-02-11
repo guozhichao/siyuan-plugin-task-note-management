@@ -1,5 +1,5 @@
 import { RepeatConfig } from '../components/RepeatSettingsDialog';
-import { compareDateStrings } from './dateUtils';
+import { compareDateStrings, getLocalDateTimeString } from './dateUtils';
 import { i18n } from '../pluginInstance';
 import { solarToLunar } from './lunarUtils';
 
@@ -397,4 +397,58 @@ export function isRepeatEnded(reminder: any, currentDate: string): boolean {
 
     // 对于次数限制，需要在使用时检查
     return false;
+}
+
+/**
+ * Recursive generation of template subtask ghost instances
+ */
+export function generateSubtreeInstances(
+    originalParentId: string,
+    instanceParentId: string,
+    instanceDate: string,
+    targetList: any[],
+    reminderData: any
+) {
+    // Find all tasks with this original parent ID
+    const directChildren = (Object.values(reminderData) as any[]).filter((r: any) => r.parentId === originalParentId);
+
+    directChildren.forEach((child: any) => {
+        const instanceId = `${child.id}_${instanceDate}`;
+        const completedInstances = child.repeat?.completedInstances || [];
+        const isInstanceCompleted = completedInstances.includes(instanceDate);
+        const instanceModifications = child.repeat?.instanceModifications || {};
+        const instanceMod = instanceModifications[instanceDate];
+
+        const instanceTask = {
+            ...child,
+            id: instanceId,
+            parentId: instanceParentId,
+            date: instanceDate,
+            // If subtask has end date, calculate based on original span
+            endDate: instanceMod?.endDate || (child.endDate && child.date ? addDaysToDate(instanceDate, getDaysDifference(child.date, child.endDate)) : undefined),
+            time: instanceMod?.time || child.time,
+            endTime: instanceMod?.endTime || child.endTime,
+            isRepeatInstance: true,
+            originalId: child.id,
+            completed: isInstanceCompleted,
+            // Inherit/override properties
+            note: instanceMod?.note !== undefined ? instanceMod.note : child.note,
+            priority: instanceMod?.priority !== undefined ? instanceMod.priority : child.priority,
+            categoryId: instanceMod?.categoryId !== undefined ? instanceMod.categoryId : child.categoryId,
+            projectId: instanceMod?.projectId !== undefined ? instanceMod.projectId : child.projectId,
+            customGroupId: instanceMod?.customGroupId !== undefined ? instanceMod.customGroupId : child.customGroupId,
+            kanbanStatus: instanceMod?.kanbanStatus !== undefined ? instanceMod.kanbanStatus : child.kanbanStatus,
+            milestoneId: instanceMod?.milestoneId !== undefined ? instanceMod.milestoneId : child.milestoneId,
+            tagIds: instanceMod?.tagIds !== undefined ? instanceMod.tagIds : child.tagIds,
+            reminderTimes: instanceMod?.reminderTimes !== undefined ? instanceMod.reminderTimes : child.reminderTimes,
+            customReminderPreset: instanceMod?.customReminderPreset !== undefined ? instanceMod.customReminderPreset : child.customReminderPreset,
+            completedTime: isInstanceCompleted ? (instanceMod?.completedTime || child.repeat?.completedTimes?.[instanceDate] || getLocalDateTimeString(new Date(instanceDate))) : undefined,
+            sort: (instanceMod && typeof instanceMod.sort === 'number') ? instanceMod.sort : (child.sort || 0)
+        };
+
+        targetList.push(instanceTask);
+
+        // Recurse to children's children
+        generateSubtreeInstances(child.id, instanceId, instanceDate, targetList, reminderData);
+    });
 }

@@ -2069,8 +2069,7 @@ export class QuickReminderDialog {
                 // 如果是实例编辑模式，只显示本实例的番茄钟
                 const isModifyAllInstances = !this.isInstanceEdit && this.reminder.repeat?.enabled;
 
-                // 判断是否为实例编辑模式
-                const isInstanceEditMode = this.isInstanceEdit && this.reminder.originalId;
+
 
                 // 确定目标ID：
                 // - 实例编辑模式：使用实例ID（补录番茄钟关联到实例）
@@ -2949,7 +2948,7 @@ export class QuickReminderDialog {
         const customGroupId = customGroupSelector?.value || undefined;
         const milestoneSelector = this.dialog.element.querySelector('#quickMilestoneSelector') as HTMLSelectElement;
         const milestoneId = milestoneSelector?.value || undefined;
-        const customReminderTime = (this.dialog.element.querySelector('#quickCustomReminderTime') as HTMLInputElement).value.trim() || undefined;
+
         const customReminderPreset = (this.dialog.element.querySelector('#quickCustomReminderPreset') as HTMLSelectElement)?.value || undefined;
         const estimatedPomodoroDuration = (this.dialog.element.querySelector('#quickEstimatedPomodoroDuration') as HTMLInputElement)?.value.trim() || undefined;
 
@@ -3170,6 +3169,10 @@ export class QuickReminderDialog {
                             note: note,
                             priority: priority,
                             notified: false, // 重置通知状态
+                            projectId: projectId,
+                            customGroupId: customGroupId,
+                            milestoneId: milestoneId,
+                            kanbanStatus: kanbanStatus,
                             // 提醒时间相关字段
                             reminderTimes: this.customTimes.length > 0 ? [...this.customTimes] : undefined,
                             customReminderPreset: customReminderPreset,
@@ -3625,23 +3628,31 @@ export class QuickReminderDialog {
             const modifications = reminderData[originalId].repeat.instanceModifications;
 
             // 如果修改了日期，需要清理可能存在的中间修改记录
-            // 例如：原始日期 12-01 改为 12-03，再改为 12-06
-            // 应该只保留 12-01 的修改记录，删除 12-03 的记录
             if (instanceData.date !== instanceDate) {
-                // 查找所有可能的中间修改记录
                 const keysToDelete: string[] = [];
                 for (const key in modifications) {
-                    // 如果某个修改记录的日期指向当前实例的新日期，且该键不是原始实例日期
-                    // 说明这是之前修改产生的中间记录，需要删除
                     if (key !== instanceDate && modifications[key]?.date === instanceData.date) {
                         keysToDelete.push(key);
                     }
                 }
-                // 删除中间修改记录
                 keysToDelete.forEach(key => delete modifications[key]);
             }
 
-            // 保存此实例的修改数据（始终使用原始实例日期作为键）
+            // 获取旧值以检测变更
+            const oldMod = modifications[instanceDate] || {};
+            const originalTask = reminderData[originalId];
+
+            // 确定是否需要级联更新
+            const oldStatus = oldMod.kanbanStatus !== undefined ? oldMod.kanbanStatus : originalTask.kanbanStatus;
+            const newStatus = instanceData.kanbanStatus;
+
+            const oldGroup = oldMod.customGroupId !== undefined ? oldMod.customGroupId : originalTask.customGroupId;
+            const newGroup = instanceData.customGroupId;
+
+            const oldProject = oldMod.projectId !== undefined ? oldMod.projectId : originalTask.projectId;
+            const newProject = instanceData.projectId;
+
+            // 保存此实例的修改数据
             modifications[instanceDate] = {
                 title: instanceData.title,
                 date: instanceData.date,
@@ -3651,11 +3662,48 @@ export class QuickReminderDialog {
                 note: instanceData.note,
                 priority: instanceData.priority,
                 notified: instanceData.notified,
-                // 提醒时间相关字段
+                projectId: instanceData.projectId,
+                customGroupId: instanceData.customGroupId,
+                milestoneId: instanceData.milestoneId,
+                kanbanStatus: instanceData.kanbanStatus,
                 reminderTimes: instanceData.reminderTimes,
                 customReminderPreset: instanceData.customReminderPreset,
+                estimatedPomodoroDuration: instanceData.estimatedPomodoroDuration,
                 modifiedAt: new Date().toISOString().split('T')[0]
             };
+
+            // 如果状态、分组或项目发生了变更，递归更新所有子任务（ghost tasks）
+            if (oldStatus !== newStatus || oldGroup !== newGroup || oldProject !== newProject) {
+                const descendants = this.getAllDescendants(reminderData, originalId);
+
+                descendants.forEach(desc => {
+                    // 确保 repeat 结构存在
+                    if (!desc.repeat) {
+                        desc.repeat = { enabled: false };
+                    }
+                    if (!desc.repeat.instanceModifications) {
+                        desc.repeat.instanceModifications = {};
+                    }
+
+                    const descMod = desc.repeat.instanceModifications[instanceDate] || {};
+
+                    // 强制子任务跟随父任务的变更
+                    if (newStatus !== undefined) {
+                        descMod.kanbanStatus = newStatus;
+                    }
+
+                    if (newGroup !== undefined) {
+                        descMod.customGroupId = newGroup;
+                    }
+
+                    if (newProject !== undefined) {
+                        descMod.projectId = newProject;
+                    }
+
+                    descMod.modifiedAt = new Date().toISOString().split('T')[0];
+                    desc.repeat.instanceModifications[instanceDate] = descMod;
+                });
+            }
 
             await this.plugin.saveReminderData(reminderData);
 
@@ -3663,6 +3711,20 @@ export class QuickReminderDialog {
             console.error('保存实例修改失败:', error);
             throw error;
         }
+    }
+
+    private getAllDescendants(reminderData: any, parentId: string): any[] {
+        const result: any[] = [];
+        const findChildren = (pid: string) => {
+            for (const key in reminderData) {
+                if (reminderData[key].parentId === pid) {
+                    result.push(reminderData[key]);
+                    findChildren(reminderData[key].id);
+                }
+            }
+        }
+        findChildren(parentId);
+        return result;
     }
 
     private extractBlockId(raw: string): string | null {

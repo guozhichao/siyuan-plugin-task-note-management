@@ -10,7 +10,7 @@ import { showMessage, confirm, Menu, Dialog } from "siyuan";
 import { i18n } from "../pluginInstance";
 import { getLocalDateTimeString, getLocalDateString, compareDateStrings, getLogicalDateString } from "../utils/dateUtils";
 import { getSolarDateLunarString } from "../utils/lunarUtils";
-import { generateRepeatInstances, getRepeatDescription } from "../utils/repeatUtils";
+import { generateRepeatInstances, getRepeatDescription, generateSubtreeInstances } from "../utils/repeatUtils";
 interface QuadrantTask {
     id: string;
     title: string;
@@ -307,39 +307,59 @@ export class EisenhowerMatrixView {
                             // 过去的日期
                             if (isInstanceCompleted) {
                                 pastCompletedList.push(instanceTask);
+                                generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, pastCompletedList, reminderData);
                             } else {
                                 pastIncompleteList.push(instanceTask);
+                                generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, pastIncompleteList, reminderData);
                             }
                         } else if (dateComparison === 0) {
                             // 今天的日期（只收集未完成的）
                             if (!isInstanceCompleted) {
                                 todayIncompleteList.push(instanceTask);
+                                generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, todayIncompleteList, reminderData);
                             } else {
                                 pastCompletedList.push(instanceTask); // 今天已完成算作过去
+                                generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, pastCompletedList, reminderData);
                             }
                         } else {
                             // 未来的日期
                             if (isInstanceCompleted) {
                                 futureCompletedList.push(instanceTask);
+                                generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, futureCompletedList, reminderData);
                             } else {
                                 futureIncompleteList.push(instanceTask);
+                                generateSubtreeInstances(reminder.id, instanceTask.id, instance.date, futureIncompleteList, reminderData);
                             }
                         }
                     });
 
-                    // 添加过去的未完成实例
+                    // 添加过去的未完成实例（含子任务 ghost）
                     allRemindersWithInstances.push(...pastIncompleteList);
 
-                    // 添加今天的未完成实例
+                    // 添加今天的未完成实例（含子任务 ghost）
                     allRemindersWithInstances.push(...todayIncompleteList);
 
-                    // 添加未来的第一个未完成实例（如果存在）
-                    // 这样即使有多个已完成的未来实例，也能显示下一个未完成的实例
+                    // 添加未来的第一个未完成实例及其完整的子任务树
                     if (futureIncompleteList.length > 0) {
-                        // 对于所有重复事件，如果今天没有未完成实例，就添加未来第一个未完成的
                         const hasTodayIncomplete = todayIncompleteList.length > 0;
                         if (!hasTodayIncomplete) {
-                            allRemindersWithInstances.push(futureIncompleteList[0]);
+                            // 注意：需要添加第一个未完成主任务及其对应的所有 ghost 子任务
+                            // 由于 futureIncompleteList 已经包含了 generateSubtreeInstances 生成的所有子任务
+                            // 我们需要找到第一个主任务及其随后的所有子任务（直到下一个主任务）
+                            const firstMainTask = futureIncompleteList[0];
+                            allRemindersWithInstances.push(firstMainTask);
+
+                            // 查找紧随其后的所有子任务（它们会有相同的 isRepeatInstance 和 date，且 parentId 会链式指向主任务或其子任务）
+                            for (let i = 1; i < futureIncompleteList.length; i++) {
+                                const nextTask = futureIncompleteList[i];
+                                if (nextTask.date === firstMainTask.date && nextTask.originalId !== undefined) {
+                                    // 它是 ghost 子任务
+                                    allRemindersWithInstances.push(nextTask);
+                                } else {
+                                    // 遇到了下一个未来实例的主任务
+                                    break;
+                                }
+                            }
                         }
                     }
 
@@ -1677,6 +1697,9 @@ export class EisenhowerMatrixView {
                     originalReminder.repeat.instanceCompletedTimes = {};
                 }
                 originalReminder.repeat.instanceCompletedTimes[instanceDate] = getLocalDateTimeString(new Date());
+
+                // [NEW] 递归完成该实例下的所有子任务实例
+                await this.completeAllChildInstances(task.originalId!, instanceDate, reminderData);
             } else {
                 // 从完成列表中移除
                 const index = completedInstances.indexOf(instanceDate);
@@ -1754,6 +1777,46 @@ export class EisenhowerMatrixView {
         } catch (error) {
             return completedTime;
         }
+    }
+
+    /**
+     * 递归完成子任务的特定日期实例
+     * @param parentId 父任务ID (原始 ID)
+     * @param date 实例日期
+     * @param reminderData 任务数据
+     */
+    private async completeAllChildInstances(parentId: string, date: string, reminderData: any): Promise<void> {
+        // 1. 处理 Ghost 子任务 (基于 originalId 的后代)
+        const ghostChildren = (Object.values(reminderData) as any[]).filter((r: any) => r.parentId === parentId);
+
+        for (const child of ghostChildren) {
+            // [FIX] 无论子任务是否自身开启了重复，只要它是重复父任务的后代，
+            // 我们就应该在 completedInstances 中记录该日期的完成状态
+            if (!child.repeat) {
+                child.repeat = {};
+            }
+            if (!child.repeat.completedInstances) {
+                child.repeat.completedInstances = [];
+            }
+
+            if (!child.repeat.completedInstances.includes(date)) {
+                child.repeat.completedInstances.push(date);
+
+                // 记录完成时间
+                if (!child.repeat.instanceCompletedTimes) {
+                    child.repeat.instanceCompletedTimes = {};
+                }
+                child.repeat.instanceCompletedTimes[date] = getLocalDateTimeString(new Date());
+            }
+
+            // 递归处理孙子实例
+            await this.completeAllChildInstances(child.id, date, reminderData);
+        }
+
+        // 2. 处理普通子任务 (直接绑定到 instanceId 的后代)
+        // 这些是该特定实例下创建的非重复子任务，它们的 parentId 是 parentId_date
+        const instanceId = `${parentId}_${date}`;
+        await this.completeAllChildTasks(instanceId, reminderData);
     }
 
     /**
@@ -2083,6 +2146,10 @@ export class EisenhowerMatrixView {
                 background: var(--b3-theme-background);
                 color: var(--b3-theme-on-background);
                 overflow: hidden;
+                width: 100%;
+                /* 启用容器查询 */
+                container-type: inline-size;
+                container-name: matrix-view;
             }
 
             .matrix-header {
@@ -2130,13 +2197,21 @@ export class EisenhowerMatrixView {
 
             .matrix-grid {
                 display: grid;
-                grid-template-columns: 1fr 1fr;
-                grid-template-rows: 1fr 1fr;
-                gap: 2px;
+                grid-template-columns: 1fr;
+                grid-auto-rows: minmax(400px, auto);
+                gap: 8px;
                 flex: 1;
                 padding: 8px;
-                overflow: hidden;
+                overflow-y: auto;
                 min-height: 0;
+            }
+
+            /* 容器查询：当容器宽度 >= 768px 时，使用 2x2 布局 */
+            @container matrix-view (min-width: 768px) {
+                .matrix-grid {
+                    grid-template-columns: 1fr 1fr;
+                    grid-auto-rows: minmax(250px, auto);
+                }
             }
 
             .quadrant {
@@ -2147,6 +2222,14 @@ export class EisenhowerMatrixView {
                 display: flex;
                 flex-direction: column;
                 position: relative;
+                min-height: 200px;
+            }
+
+            /* 容器查询：宽容器时增加最小高度 */
+            @container matrix-view (min-width: 768px) {
+                .quadrant {
+                    min-height: 250px;
+                }
             }
 
             .quadrant-important-urgent {
@@ -2198,6 +2281,14 @@ export class EisenhowerMatrixView {
                 padding: 8px;
                 overflow-y: auto;
                 min-height: 0;
+                max-height: 400px;
+            }
+
+            /* 宽容器时增加内容区域最大高度 */
+            @container matrix-view (min-width: 768px) {
+                .quadrant-content {
+                    max-height: none;
+                }
             }
 
             .quadrant-content[data-drop-zone="true"] {
@@ -2296,12 +2387,8 @@ export class EisenhowerMatrixView {
                 gap: 2px;
             }
 
-            @media (max-width: 768px) {
-                .matrix-grid {
-                    grid-template-columns: 1fr;
-                    grid-template-rows: repeat(4, 1fr);
-                }
-
+            /* 容器查询：窄容器时的紧凑样式 */
+            @container matrix-view (max-width: 767px) {
                 .quadrant-header {
                     padding: 6px 10px;
                 }
@@ -2606,7 +2693,27 @@ export class EisenhowerMatrixView {
             menu.open({ x: event.clientX, y: event.clientY });
             return;
         }
-
+        // 编辑任务 - 针对周期任务显示不同选项
+        if (task.isRepeatInstance || task.repeat?.enabled) {
+            // 周期事件（包括实例和原始事件） - 显示修改此实例和修改所有实例
+            menu.addItem({
+                iconHTML: "📝",
+                label: "修改此实例",
+                click: () => this.editInstanceReminder(task)
+            });
+            menu.addItem({
+                iconHTML: "🔄",
+                label: "修改所有实例",
+                click: () => this.showTaskEditDialog(task)
+            });
+        } else {
+            // 普通任务
+            menu.addItem({
+                label: i18n('edit'),
+                icon: 'iconEdit',
+                click: () => this.showTaskEditDialog(task)
+            });
+        }
         // 创建子任务选项
         menu.addItem({
             iconHTML: "➕",
@@ -2642,7 +2749,6 @@ export class EisenhowerMatrixView {
             });
         }
         menu.addSeparator();
-
 
 
         // 设置优先级子菜单
@@ -2727,27 +2833,6 @@ export class EisenhowerMatrixView {
 
         menu.addSeparator();
 
-        // 编辑任务 - 针对周期任务显示不同选项
-        if (task.isRepeatInstance || task.repeat?.enabled) {
-            // 周期事件（包括实例和原始事件） - 显示修改此实例和修改所有实例
-            menu.addItem({
-                iconHTML: "📝",
-                label: "修改此实例",
-                click: () => this.editInstanceReminder(task)
-            });
-            menu.addItem({
-                iconHTML: "🔄",
-                label: "修改所有实例",
-                click: () => this.showTaskEditDialog(task)
-            });
-        } else {
-            // 普通任务
-            menu.addItem({
-                label: i18n('edit'),
-                icon: 'iconEdit',
-                click: () => this.showTaskEditDialog(task)
-            });
-        }
 
         // 删除任务 - 针对周期任务显示不同选项
         if (task.isRepeatInstance || task.repeat?.enabled) {

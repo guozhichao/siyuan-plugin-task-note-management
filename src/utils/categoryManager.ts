@@ -59,7 +59,7 @@ export class CategoryManager {
             const categoriesData = content;
 
             // 验证加载的数据是否为有效的分类数组
-            if (Array.isArray(categoriesData) && categoriesData.length > 0) {
+            if (Array.isArray(categoriesData)) {
                 this.categories = categoriesData;
             } else {
                 console.log('分类数据无效，使用默认分类');
