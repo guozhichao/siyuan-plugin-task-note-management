@@ -1086,7 +1086,7 @@ export class QuickReminderDialog {
                         <!-- 备注 (Vditor) -->
                         <div class="b3-form__group">
                             <label class="b3-form__label">${i18n("reminderNoteOptional")}</label>
-                            <div id="quickReminderNote" style="width: 100%; min-height: 100px; border: 1px solid var(--b3-theme-surface-lighter); border-radius: 4px; position: relative;"></div>
+                            <div id="quickReminderNote" style="width: 100%; min-height: 50px; border: 1px solid var(--b3-theme-surface-lighter); border-radius: 4px; position: relative;"></div>
                         </div>
                         <div class="b3-form__group" id="quickParentTaskGroup" style="display: none;">
                             <label class="b3-form__label">${i18n("parentTask") || "父任务"}</label>
@@ -1431,11 +1431,11 @@ export class QuickReminderDialog {
                     const editorEl = this.dialog.element.querySelector('.milkdown') as HTMLElement;
                     if (editorEl) {
                         editorEl.style.height = '100%';
-                        editorEl.style.minHeight = '100px';
+                        editorEl.style.minHeight = '50px';
                         editorEl.style.margin = '0px';
                         const prosemirror = editorEl.querySelector('.ProseMirror') as HTMLElement;
                         if (prosemirror) {
-                            prosemirror.style.minHeight = '100px';
+                            prosemirror.style.minHeight = '50px';
                             // Basic styling to mimic previous look roughly
                             prosemirror.style.padding = '8px';
                             prosemirror.style.outline = 'none';
