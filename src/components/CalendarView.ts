@@ -591,7 +591,6 @@ export class CalendarView {
         const filterGroup = document.createElement('div');
         filterGroup.className = 'reminder-calendar-filter-group';
         filterGroup.style.display = 'flex';
-        filterGroup.style.justifyContent = 'flex-end';
         filterGroup.style.alignItems = 'center';
         filterGroup.style.flexWrap = 'wrap';
         filterGroup.style.gap = '8px';

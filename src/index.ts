@@ -3046,8 +3046,8 @@ export default class ReminderPlugin extends Plugin {
             const dialog = new Dialog({
                 title: i18n("calendarView"),
                 content: '<div id="mobileCalendarContainer" style="height: 100%; width: 100%;"></div>',
-                width: "95vw",
-                height: "90vh",
+                width: "99%",
+                height: "100%",
                 destroyCallback: () => {
                     // 清理日历视图实例
                     const calendarContainer = dialog.element.querySelector('#mobileCalendarContainer') as HTMLElement;
@@ -3091,8 +3091,8 @@ export default class ReminderPlugin extends Plugin {
             const dialog = new Dialog({
                 title: projectTitle,
                 content: '<div id="mobileProjectKanbanContainer" style="height: 100%; width: 100%;"></div>',
-                width: "95vw",
-                height: "90vh",
+                width: "99%",
+                height: "100%",
                 destroyCallback: () => {
                     // 清理项目看板实例
                     const kanbanContainer = dialog.element.querySelector('#mobileProjectKanbanContainer') as HTMLElement;
@@ -3138,8 +3138,8 @@ export default class ReminderPlugin extends Plugin {
             const dialog = new Dialog({
                 title: i18n("eisenhowerMatrix"),
                 content: '<div id="mobileEisenhowerContainer" style="height: 100%; width: 100%;"></div>',
-                width: "95vw",
-                height: "90vh",
+                width: "99%",
+                height: "100%",
                 destroyCallback: () => {
                     // 清理四象限矩阵实例
                     const eisenhowerContainer = dialog.element.querySelector('#mobileEisenhowerContainer') as HTMLElement;
