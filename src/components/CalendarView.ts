@@ -2417,6 +2417,37 @@ export class CalendarView {
 
         menu.addSeparator();
 
+        // 添加项目管理选项（仅当任务有projectId时显示）
+        if (calendarEvent.extendedProps.projectId) {
+            menu.addItem({
+                iconHTML: "📂",
+                label: i18n("openProjectKanban"),
+                click: () => {
+                    this.openProjectKanban(calendarEvent.extendedProps.projectId);
+                }
+            });
+            menu.addSeparator();
+        }
+
+        // 添加番茄钟选项
+        menu.addItem({
+            iconHTML: "🍅",
+            label: i18n("startPomodoro"),
+            click: () => {
+                this.startPomodoro(calendarEvent);
+            }
+        });
+
+        menu.addItem({
+            iconHTML: "⏱️",
+            label: i18n("startCountUp"),
+            click: () => {
+                this.startPomodoroCountUp(calendarEvent);
+            }
+        });
+
+        menu.addSeparator();
+
         if (calendarEvent.extendedProps.isRepeated) {
             menu.addItem({
                 iconHTML: "🗑️",
@@ -2459,37 +2490,6 @@ export class CalendarView {
                 }
             });
         }
-
-        menu.addSeparator();
-
-        // 添加项目管理选项（仅当任务有projectId时显示）
-        if (calendarEvent.extendedProps.projectId) {
-            menu.addItem({
-                iconHTML: "📂",
-                label: i18n("openProjectKanban"),
-                click: () => {
-                    this.openProjectKanban(calendarEvent.extendedProps.projectId);
-                }
-            });
-            menu.addSeparator();
-        }
-
-        // 添加番茄钟选项
-        menu.addItem({
-            iconHTML: "🍅",
-            label: i18n("startPomodoro"),
-            click: () => {
-                this.startPomodoro(calendarEvent);
-            }
-        });
-
-        menu.addItem({
-            iconHTML: "⏱️",
-            label: i18n("startCountUp"),
-            click: () => {
-                this.startPomodoroCountUp(calendarEvent);
-            }
-        });
 
         menu.open({
             x: event.clientX,
