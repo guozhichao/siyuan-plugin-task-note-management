@@ -510,7 +510,7 @@ export async function openBlock(blockId: string) {
                 id: blockId,
                 action: ["cb-get-focus", "cb-get-scroll"]
             },
-            keepCursor: false,
+            keepCursor: true,
             removeCurrentTab: false
         });
     } else {
@@ -520,7 +520,7 @@ export async function openBlock(blockId: string) {
                 id: blockId,
                 action: ["cb-get-focus", "cb-get-context", "cb-get-hl"]
             },
-            keepCursor: false,
+            keepCursor: true,
             removeCurrentTab: false
         });
 
