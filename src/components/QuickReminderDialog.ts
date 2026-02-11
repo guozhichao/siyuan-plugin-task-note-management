@@ -703,10 +703,50 @@ export class QuickReminderDialog {
 
         let count = 0;
         if (this.mode === 'edit' && this.reminder) {
-            // 编辑模式：从数据库获取子任务
+            // 编辑模式：从数据库获取子任务（包括 ghost 子任务）
             const reminderData = await this.plugin.loadReminderData();
-            const subtasks = Object.values(reminderData).filter((r: any) => r.parentId === this.reminder.id);
-            count = subtasks.length;
+            
+            // 解析可能存在的实例信息 (id_YYYY-MM-DD)
+            let targetParentId = this.reminder.id;
+            let instanceDate: string | undefined;
+            
+            const lastUnderscoreIndex = this.reminder.id.lastIndexOf('_');
+            if (lastUnderscoreIndex !== -1) {
+                const potentialDate = this.reminder.id.substring(lastUnderscoreIndex + 1);
+                if (/^\d{4}-\d{2}-\d{2}$/.test(potentialDate)) {
+                    targetParentId = this.reminder.id.substring(0, lastUnderscoreIndex);
+                    instanceDate = potentialDate;
+                }
+            }
+            
+            // 1. 获取直接以当前 reminder.id 为父任务的任务（可能是真正的实例子任务或普通子任务）
+            const directChildren = (Object.values(reminderData) as any[]).filter((r: any) => r.parentId === this.reminder.id);
+            
+            // 2. 如果是实例视图，则尝试从模板中获取 ghost 子任务
+            let ghostChildren: any[] = [];
+            if (instanceDate && targetParentId !== this.reminder.id) {
+                const templateChildren = (Object.values(reminderData) as any[]).filter((r: any) => r.parentId === targetParentId);
+                ghostChildren = templateChildren.map(child => {
+                    const ghostId = `${child.id}_${instanceDate}`;
+                    return {
+                        ...child,
+                        id: ghostId,
+                        parentId: this.reminder.id,
+                        isRepeatInstance: true,
+                        originalId: child.id,
+                    };
+                });
+            }
+            
+            // 合并数据，避免重复（如果已存在真实的实例子任务，则以真实子任务优先）
+            const combined = [...directChildren];
+            ghostChildren.forEach(ghost => {
+                if (!combined.some(r => r.id === ghost.id)) {
+                    combined.push(ghost);
+                }
+            });
+            
+            count = combined.length;
         } else {
             // 新建模式：使用临时子任务列表
             count = this.tempSubtasks.length;
@@ -2133,9 +2173,19 @@ export class QuickReminderDialog {
         viewSubtasksBtn?.addEventListener('click', () => {
             if (this.mode === 'edit' && this.reminder && this.reminder.id) {
                 // 编辑模式：使用正常的子任务对话框
-                const subtasksDialog = new SubtasksDialog(this.reminder.id, this.plugin, () => {
-                    this.updateSubtasksDisplay();
-                });
+                // 判断是否编辑所有实例：非实例编辑模式且是重复任务
+                const isModifyAllInstances = !this.isInstanceEdit && this.reminder.repeat?.enabled;
+                const subtasksDialog = new SubtasksDialog(
+                    this.reminder.id, 
+                    this.plugin, 
+                    () => {
+                        this.updateSubtasksDisplay();
+                    },
+                    [],
+                    undefined,
+                    this.isInstanceEdit,
+                    isModifyAllInstances
+                );
                 subtasksDialog.show();
             } else if (this.mode !== 'edit') {
                 // 新建模式：使用临时子任务模式
