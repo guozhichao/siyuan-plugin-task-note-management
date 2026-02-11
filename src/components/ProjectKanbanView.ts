@@ -5748,14 +5748,12 @@ export class ProjectKanbanView {
     }
 
     /**
-     * 获取任务的看板状态
+     * 计算任务的看板状态
      * 优先使用kanbanStatus
      */
     private getTaskStatus(task: any): string {
         // 如果任务已完成，直接返回
         if (task.completed) return 'completed';
-
-
 
         // 如果有 kanbanStatus 且是有效的状态ID，使用之
         if (task.kanbanStatus) {
@@ -5765,6 +5763,34 @@ export class ProjectKanbanView {
 
         // 默认返回进行中
         return 'doing';
+    }
+
+    /**
+     * 计算任务的嵌套层级
+     * @param taskId 任务ID
+     * @returns 层级（0为顶层）
+     */
+    private calculateTaskLevel(taskId: string): number {
+        let level = 0;
+        let currentId = taskId;
+        const taskMap = new Map();
+        this.tasks.forEach(t => taskMap.set(t.id, t));
+
+        const visited = new Set();
+        while (currentId && !visited.has(currentId)) {
+            visited.add(currentId);
+            const task = taskMap.get(currentId);
+            if (!task || !task.parentId) break;
+
+            // 检查父任务是否存在于当前任务列表中
+            const parentTask = taskMap.get(task.parentId);
+            if (!parentTask) break;
+
+            level++;
+            currentId = task.parentId;
+            if (level > 10) break; // 限制最大深度
+        }
+        return level;
     }
 
     private updateSortButtonTitle() {
@@ -8226,6 +8252,7 @@ export class ProjectKanbanView {
             taskEl.style.cursor = 'default';
         }
         taskEl.dataset.taskId = task.id;
+        taskEl.dataset.level = level.toString();
 
         const priority = task.priority || 'none';
 
@@ -14068,6 +14095,11 @@ export class ProjectKanbanView {
                 draggedTaskInDb.projectId = this.projectId;
             }
 
+            // --- Clear parentId if moving to top level ---
+            if (draggedTaskInDb.parentId) {
+                delete draggedTaskInDb.parentId;
+            }
+
             // --- Update status of dragged task (Enhanced) ---
             if (oldStatus !== newStatus) {
                 if (newStatus === 'completed') {
@@ -14121,13 +14153,9 @@ export class ProjectKanbanView {
                         }
                     }
                     // 同步项目 (新增)
-                    if (updates.projectId !== undefined) {
-                        const newProject = updates.projectId;
-                        if (newProject === null) {
-                            delete desc.projectId;
-                        } else {
-                            desc.projectId = newProject;
-                        }
+                    // 同步项目 (新增)
+                    if (desc.projectId !== this.projectId) {
+                        desc.projectId = this.projectId;
                     }
 
                     // 同步优先级
@@ -14929,7 +14957,8 @@ export class ProjectKanbanView {
             const task = this.tasks.find(t => t.id === taskId);
             if (!task) return;
 
-            const level = parseInt(oldEl.dataset.level || '0', 10);
+            // 优先根据最新的任务数据计算嵌套层级，以保证缩进样式正确
+            const level = this.calculateTaskLevel(taskId);
             const newEl = this.createTaskElement(task, level);
 
             oldEl.replaceWith(newEl);
