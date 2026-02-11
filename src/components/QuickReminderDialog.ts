@@ -414,6 +414,16 @@ export class QuickReminderDialog {
         return `${year}-${month}-${day}`;
     }
 
+    // 自动调整textarea高度以适应内容
+    private autoResizeTextarea(textarea: HTMLTextAreaElement) {
+        // 先重置高度以获取准确的scrollHeight
+        textarea.style.height = 'auto';
+        // 计算新高度：取内容高度和最大高度之间的较小值
+        const maxHeight = 200; // 与CSS中的max-height保持一致
+        const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+        textarea.style.height = newHeight + 'px';
+    }
+
     // 辅助：计算包含首尾的持续天数（如果 end < start 返回 0）
     private getDurationInclusive(start: string, end: string): number {
         if (!start || !end) return 0;
@@ -459,6 +469,10 @@ export class QuickReminderDialog {
         // 填充标题
         if (titleInput && this.reminder.title) {
             titleInput.value = this.reminder.title;
+            // 将光标移到开头，显示开头的字
+            titleInput.setSelectionRange(0, 0);
+            // 自动调整高度
+            this.autoResizeTextarea(titleInput);
         }
 
         // 填充块ID
@@ -1486,6 +1500,10 @@ export class QuickReminderDialog {
             // 设置默认值：优先使用 this.blockContent，其次使用 this.defaultTitle
             if (this.blockContent && titleInput) {
                 titleInput.value = this.blockContent;
+                // 将光标移到开头，显示开头的字
+                titleInput.setSelectionRange(0, 0);
+                // 自动调整高度
+                this.autoResizeTextarea(titleInput);
 
                 // 如果启用了自动识别，从标题中提取日期/时间并填充到输入框
                 if (this.autoDetectDateTime) {
@@ -1509,6 +1527,10 @@ export class QuickReminderDialog {
                             this.plugin.getRemoveDateAfterDetectionEnabled().then((removeEnabled: boolean) => {
                                 if (removeEnabled && detected.cleanTitle !== undefined) {
                                     titleInput.value = detected.cleanTitle || titleInput.value;
+                                    // 将光标移到开头，显示开头的字
+                                    titleInput.setSelectionRange(0, 0);
+                                    // 自动调整高度
+                                    this.autoResizeTextarea(titleInput);
                                 }
                             });
                         }
@@ -1520,6 +1542,10 @@ export class QuickReminderDialog {
 
             else if (this.defaultTitle && titleInput) {
                 titleInput.value = this.defaultTitle;
+                // 将光标移到开头，显示开头的字
+                titleInput.setSelectionRange(0, 0);
+                // 自动调整高度
+                this.autoResizeTextarea(titleInput);
             }
 
             if (this.defaultNote) {
@@ -2147,6 +2173,13 @@ export class QuickReminderDialog {
                         });
                     }
                 }
+            }
+        });
+
+        // 标题输入时自动调整高度
+        titleInput?.addEventListener('input', () => {
+            if (titleInput) {
+                this.autoResizeTextarea(titleInput);
             }
         });
 
