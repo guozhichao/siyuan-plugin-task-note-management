@@ -1301,7 +1301,12 @@ export class QuickReminderDialog {
                         <!-- 网页链接输入 -->
                         <div class="b3-form__group">
                             <label class="b3-form__label">${i18n("bindUrl")}</label>
-                            <input type="url" id="quickUrlInput" class="b3-text-field" placeholder="${i18n("enterUrl")}" style="width: 100%;">
+                            <div style="display: flex; gap: 8px;">
+                                <input type="url" id="quickUrlInput" class="b3-text-field" placeholder="${i18n("enterUrl")}" style="flex: 1;">
+                                <button type="button" id="quickOpenUrlBtn" class="b3-button b3-button--outline" title="${i18n("openUrl") || '在浏览器中打开'}">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconLink"></use></svg>
+                                </button>
+                            </div>
                         </div>
                         <!-- 备注 (Vditor) -->
                         <div class="b3-form__group">
@@ -2931,6 +2936,22 @@ export class QuickReminderDialog {
         clearCompletedBtn?.addEventListener('click', () => {
             if (completedTimeInput) {
                 completedTimeInput.value = '';
+            }
+        });
+
+        // 网页链接打开按钮
+        const openUrlBtn = this.dialog.element.querySelector('#quickOpenUrlBtn') as HTMLButtonElement;
+        const urlInput = this.dialog.element.querySelector('#quickUrlInput') as HTMLInputElement;
+        openUrlBtn?.addEventListener('click', () => {
+            const url = urlInput?.value?.trim();
+            if (url) {
+                if (!/^https?:\/\//i.test(url)) {
+                    window.open('http://' + url, '_blank');
+                } else {
+                    window.open(url, '_blank');
+                }
+            } else {
+                showMessage(i18n("pleaseEnterUrl") || "请输入链接地址");
             }
         });
     }
