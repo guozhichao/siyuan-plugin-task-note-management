@@ -103,5 +103,3 @@ echo "Release $version created successfully!"
 
 
 
-
-echo "Done! You are now back on the private-branch."
