@@ -544,9 +544,15 @@ export class QuickReminderDialog {
                     durationInput.value = '1';
                 }
             }
+
+            // 如果有开始日期但没有结束日期，根据持续天数自动填充结束日期
+            if (dateInput.value && !endDateInput.value) {
+                const days = parseInt(durationInput?.value || '1', 10) || 1;
+                endDateInput.value = this.addDaysToDate(dateInput.value, days - 1);
+            }
         }
 
-        // 填充项目
+        // 填充项目 
         if (projectSelector && this.reminder.projectId) {
             projectSelector.value = this.reminder.projectId;
             // 触发项目选择事件以加载自定义分组
