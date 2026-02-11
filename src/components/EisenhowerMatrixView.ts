@@ -1652,9 +1652,13 @@ export class EisenhowerMatrixView {
         try {
             const reminderData = await getAllReminders(this.plugin);
 
-            if (reminderData[taskId]) {
+            // 处理重复任务实例的情况
+            const isInstance = taskId.includes('_') && !reminderData[taskId];
+            const originalId = isInstance ? taskId.substring(0, taskId.lastIndexOf('_')) : taskId;
+
+            if (reminderData[originalId]) {
                 // 更新当前任务的象限
-                reminderData[taskId].quadrant = newQuadrant;
+                reminderData[originalId].quadrant = newQuadrant;
 
                 // 递归更新所有子任务的象限
                 const updateChildrenQuadrant = (parentId: string) => {
@@ -1667,7 +1671,7 @@ export class EisenhowerMatrixView {
                     });
                 };
 
-                updateChildrenQuadrant(taskId);
+                updateChildrenQuadrant(originalId);
                 await saveReminders(this.plugin, reminderData);
 
                 await this.refresh();
@@ -3167,9 +3171,11 @@ export class EisenhowerMatrixView {
     private async updateTaskProject(taskId: string, projectId: string | null) {
         try {
             const reminderData = await getAllReminders(this.plugin);
+            const isInstance = taskId.includes('_') && !reminderData[taskId];
+            const originalId = isInstance ? taskId.substring(0, taskId.lastIndexOf('_')) : taskId;
 
-            if (reminderData[taskId]) {
-                reminderData[taskId].projectId = projectId;
+            if (reminderData[originalId]) {
+                reminderData[originalId].projectId = projectId;
                 await saveReminders(this.plugin, reminderData);
 
                 await this.refresh();
@@ -3184,8 +3190,11 @@ export class EisenhowerMatrixView {
     private async setTaskPriority(taskId: string, priority: string) {
         try {
             const reminderData = await getAllReminders(this.plugin);
-            if (reminderData[taskId]) {
-                reminderData[taskId].priority = priority;
+            const isInstance = taskId.includes('_') && !reminderData[taskId];
+            const originalId = isInstance ? taskId.substring(0, taskId.lastIndexOf('_')) : taskId;
+
+            if (reminderData[originalId]) {
+                reminderData[originalId].priority = priority;
                 await saveReminders(this.plugin, reminderData);
 
                 await this.refresh();
@@ -3203,19 +3212,22 @@ export class EisenhowerMatrixView {
     private async setTaskStatusAndTerm(taskId: string, kanbanStatus: string) {
         try {
             const reminderData = await getAllReminders(this.plugin);
-            if (reminderData[taskId]) {
-                reminderData[taskId].kanbanStatus = kanbanStatus;
+            const isInstance = taskId.includes('_') && !reminderData[taskId];
+            const originalId = isInstance ? taskId.substring(0, taskId.lastIndexOf('_')) : taskId;
+
+            if (reminderData[originalId]) {
+                reminderData[originalId].kanbanStatus = kanbanStatus;
                 await saveReminders(this.plugin, reminderData);
 
                 await this.refresh();
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
-                showMessage("任务状态更新成功");
+                showMessage(i18n("statusUpdated") || "状态更新成功");
             } else {
                 showMessage(i18n("taskNotExist") || "任务不存在");
             }
         } catch (error) {
-            console.error('设置任务状态失败:', error);
-            showMessage("操作失败");
+            console.error('设置任务看板状态失败:', error);
+            showMessage(i18n("setStatusFailed") || "操作失败");
         }
     }
 
@@ -3289,7 +3301,7 @@ export class EisenhowerMatrixView {
                         });
                     };
 
-                    collectChildTasks(task.id);
+                    collectChildTasks(taskToDelete.id);
 
                     // 删除所有相关任务
                     let deletedCount = 0;
@@ -3371,14 +3383,33 @@ export class EisenhowerMatrixView {
             const isTargetInstance = targetTaskId.includes('_') && !reminderData[targetTaskId];
 
             // 获取原始任务ID（如果是实例）
-            const draggedOriginalId = isDraggedInstance ? draggedTaskId.split('_')[0] : draggedTaskId;
-            const targetOriginalId = isTargetInstance ? targetTaskId.split('_')[0] : targetTaskId;
+            const draggedReminderId = isDraggedInstance ? draggedTaskId.substring(0, draggedTaskId.lastIndexOf('_')) : draggedTaskId;
+            const targetReminderId = isTargetInstance ? targetTaskId.substring(0, targetTaskId.lastIndexOf('_')) : targetTaskId;
 
-            const draggedTask = reminderData[draggedOriginalId];
-            const targetTask = reminderData[targetOriginalId];
+            let draggedTask = reminderData[draggedReminderId];
+            let targetTask = reminderData[targetReminderId];
 
-            if (!draggedTask || !targetTask) {
-                console.error('任务不存在');
+            // 如果找不到原始任务，可能是数据同步问题，尝试从 filteredTasks 中查找
+            if (!draggedTask) {
+                const draggedTaskInfo = this.filteredTasks.find(t => t.id === draggedTaskId || t.id === draggedReminderId);
+                if (draggedTaskInfo && draggedTaskInfo.originalId) {
+                    draggedTask = reminderData[draggedTaskInfo.originalId];
+                }
+            }
+
+            if (!targetTask) {
+                const targetTaskInfo = this.filteredTasks.find(t => t.id === targetTaskId || t.id === targetReminderId);
+                if (targetTaskInfo && targetTaskInfo.originalId) {
+                    targetTask = reminderData[targetTaskInfo.originalId];
+                }
+            }
+
+            if (!draggedTask) {
+                console.error('拖拽任务不存在:', draggedTaskId, draggedReminderId);
+                return;
+            }
+            if (!targetTask) {
+                console.error('目标任务不存在:', targetTaskId, targetReminderId);
                 return;
             }
 
@@ -3400,8 +3431,8 @@ export class EisenhowerMatrixView {
                     reminderData,
                     draggedTask,
                     targetTask,
-                    draggedOriginalId,
-                    targetOriginalId,
+                    draggedTaskId, // Pass the full instance ID
+                    targetTaskId, // Pass the full instance ID
                     isDraggedInstance,
                     isTargetInstance,
                     event
@@ -3412,8 +3443,8 @@ export class EisenhowerMatrixView {
                     reminderData,
                     draggedTask,
                     targetTask,
-                    draggedOriginalId,
-                    targetOriginalId,
+                    draggedTaskId, // Pass the full instance ID
+                    targetTaskId, // Pass the full instance ID
                     isDraggedInstance,
                     isTargetInstance,
                     event
@@ -3432,8 +3463,8 @@ export class EisenhowerMatrixView {
         reminderData: any,
         draggedTask: any,
         _targetTask: any,
-        draggedOriginalId: string,
-        targetOriginalId: string,
+        draggedTaskId: string,
+        targetTaskId: string,
         isDraggedInstance: boolean,
         isTargetInstance: boolean,
         event: DragEvent
@@ -3446,8 +3477,8 @@ export class EisenhowerMatrixView {
             await this.handleInstanceReorder(
                 reminderData,
                 draggedTask,
-                draggedOriginalId,
-                targetOriginalId,
+                draggedTaskId,
+                targetTaskId,
                 isDraggedInstance,
                 isTargetInstance,
                 event,
@@ -3456,6 +3487,9 @@ export class EisenhowerMatrixView {
             );
             return;
         }
+
+        const draggedReminderId = draggedTaskId;
+        const targetReminderId = targetTaskId;
 
         // 获取所有相关任务（同一项目和优先级）
         const relatedTasks = Object.values(reminderData)
@@ -3466,8 +3500,8 @@ export class EisenhowerMatrixView {
             .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
 
         // 找到目标任务的索引
-        const targetIndex = relatedTasks.findIndex((task: any) => task.id === targetOriginalId);
-        const draggedIndex = relatedTasks.findIndex((task: any) => task.id === draggedOriginalId);
+        const targetIndex = relatedTasks.findIndex((task: any) => task.id === targetReminderId);
+        const draggedIndex = relatedTasks.findIndex((task: any) => task.id === draggedReminderId);
 
         if (targetIndex === -1 || draggedIndex === -1) {
             console.error('找不到拖拽或目标任务');
@@ -3515,39 +3549,61 @@ export class EisenhowerMatrixView {
     private async handleInstanceReorder(
         reminderData: any,
         draggedTask: any,
-        draggedOriginalId: string,
-        targetOriginalId: string,
+        draggedTaskId: string,
+        targetTaskId: string,
         isDraggedInstance: boolean,
         isTargetInstance: boolean,
         event: DragEvent,
         priority: string,
         projectId: string
     ) {
+        // 解析拖拽和目标的实例日期
+        const draggedDate = isDraggedInstance ? draggedTaskId.split('_').pop() : null;
+        const targetDate = isTargetInstance ? targetTaskId.split('_').pop() : null;
+        const draggedOriginalId = isDraggedInstance ? draggedTaskId.substring(0, draggedTaskId.lastIndexOf('_')) : draggedTaskId;
+        const targetOriginalId = isTargetInstance ? targetTaskId.substring(0, targetTaskId.lastIndexOf('_')) : targetTaskId;
+
+        if (!draggedDate && isDraggedInstance) {
+            console.error('无法解析拖拽实例日期:', draggedTaskId);
+            return;
+        }
+
         // 获取所有重复实例（包括当前项目的所有重复任务实例）
         const allInstances: Array<{ id: string; originalId: string; date: string; sort: number; isInstance: boolean }> = [];
 
-        // 收集所有普通任务
+        // 收集所有普通任务（不排除带下划线的 ID，因为许多任务 ID 本身就带下划线）
         Object.values(reminderData).forEach((task: any) => {
             if ((task.projectId || 'no-project') === projectId &&
-                (task.priority || 'none') === priority &&
-                !task.id.includes('_')) {
-                allInstances.push({
-                    id: task.id,
-                    originalId: task.id,
-                    date: task.date,
-                    sort: task.sort || 0,
-                    isInstance: false
-                });
+                (task.priority || 'none') === priority) {
+
+                // 如果是重复任务的模板，我们在下面的循环中处理其实例
+                // 这里只收集非重复任务，或者虽然是重复任务但我们要把模板也作为一个可排选项（通常不建议）
+                // 为了与之前的逻辑保持最大兼容并修复 bug，我们收集所有匹配的项目
+                // 但要排除已经是实例 ID 的情况（虽然 reminderData 中不该有实例 ID）
+                const isTemplate = task.repeat?.enabled;
+                if (!isTemplate) {
+                    allInstances.push({
+                        id: task.id,
+                        originalId: task.id,
+                        date: task.date,
+                        sort: task.sort || 0,
+                        isInstance: false
+                    });
+                }
             }
         });
 
-        // 收集所有重复实例
+        // 收集所有重复实例（从 repeatInstances 或 instanceModifications 中）
         Object.values(reminderData).forEach((task: any) => {
-            if (task.repeat?.enabled && task.repeat?.instanceModifications) {
-                const mods = task.repeat.instanceModifications;
-                Object.entries(mods).forEach(([date, mod]: [string, any]) => {
-                    if (mod && (mod.projectId || task.projectId || 'no-project') === projectId &&
-                        (mod.priority || task.priority || 'none') === priority) {
+            if (!task.repeat?.enabled) return;
+
+            // 从 instanceModifications 收集
+            if (task.repeat.instanceModifications) {
+                Object.entries(task.repeat.instanceModifications).forEach(([date, mod]: [string, any]) => {
+                    if (!mod) return;
+                    const instProjectId = mod.projectId || task.projectId || 'no-project';
+                    const instPriority = mod.priority || task.priority || 'none';
+                    if (instProjectId === projectId && instPriority === priority) {
                         allInstances.push({
                             id: `${task.id}_${date}`,
                             originalId: task.id,
@@ -3560,15 +3616,57 @@ export class EisenhowerMatrixView {
             }
         });
 
+        // 确保当前拖拽的实例被包含（如果没有的话）
+        const draggedExists = allInstances.some(inst => inst.id === draggedTaskId);
+        if (!draggedExists) {
+            let sort = 0;
+            if (draggedTask) {
+                sort = draggedTask.repeat?.instanceModifications?.[draggedDate!]?.sort ?? draggedTask.sort ?? 0;
+            } else {
+                // 如果找不到原始任务，尝试从 filteredTasks 获取
+                const draggedTaskInfo = this.filteredTasks.find(t => t.id === draggedTaskId);
+                sort = draggedTaskInfo?.sort || 0;
+            }
+
+            allInstances.push({
+                id: draggedTaskId,
+                originalId: draggedOriginalId,
+                date: draggedDate || '',
+                sort: sort,
+                isInstance: !!draggedDate
+            });
+        }
+
+        // 确保目标实例被包含（如果没有的话）
+        const targetExists = allInstances.some(inst => inst.id === targetTaskId);
+        if (!targetExists) {
+            const targetTask = reminderData[targetOriginalId];
+            let sort = 0;
+            if (targetTask) {
+                sort = targetTask.repeat?.instanceModifications?.[targetDate!]?.sort ?? targetTask.sort ?? 0;
+            } else {
+                const targetTaskInfo = this.filteredTasks.find(t => t.id === targetTaskId);
+                sort = targetTaskInfo?.sort || 0;
+            }
+
+            allInstances.push({
+                id: targetTaskId,
+                originalId: targetOriginalId,
+                date: targetDate || '',
+                sort: sort,
+                isInstance: !!targetDate
+            });
+        }
+
         // 按 sort 排序
         allInstances.sort((a, b) => a.sort - b.sort);
 
         // 找到目标索引
-        const targetIndex = allInstances.findIndex((inst) => inst.id === targetOriginalId);
-        const draggedIndex = allInstances.findIndex((inst) => inst.id === draggedOriginalId);
+        const targetIndex = allInstances.findIndex((inst) => inst.id === targetTaskId);
+        const draggedIndex = allInstances.findIndex((inst) => inst.id === draggedTaskId);
 
         if (targetIndex === -1 || draggedIndex === -1) {
-            console.error('找不到拖拽或目标任务');
+            console.error('找不到拖拽或目标任务', { draggedTaskId, targetTaskId, allInstances: allInstances.map(i => i.id) });
             return;
         }
 
@@ -3626,8 +3724,8 @@ export class EisenhowerMatrixView {
         reminderData: any,
         draggedTask: any,
         targetTask: any,
-        draggedOriginalId: string,
-        targetOriginalId: string,
+        draggedTaskId: string,
+        targetTaskId: string,
         isDraggedInstance: boolean,
         isTargetInstance: boolean,
         event: DragEvent
@@ -3642,8 +3740,8 @@ export class EisenhowerMatrixView {
                 reminderData,
                 draggedTask,
                 targetTask,
-                draggedOriginalId,
-                targetOriginalId,
+                draggedTaskId,
+                targetTaskId,
                 isDraggedInstance,
                 isTargetInstance,
                 event,
@@ -3654,6 +3752,9 @@ export class EisenhowerMatrixView {
             return;
         }
 
+        const draggedReminderId = isDraggedInstance ? draggedTaskId.substring(0, draggedTaskId.lastIndexOf('_')) : draggedTaskId;
+        const targetReminderId = isTargetInstance ? targetTaskId.substring(0, targetTaskId.lastIndexOf('_')) : targetTaskId;
+
         // 1. 更新被拖拽任务的优先级
         draggedTask.priority = newPriority;
 
@@ -3662,7 +3763,7 @@ export class EisenhowerMatrixView {
             .filter((task: any) =>
                 (task.projectId || 'no-project') === projectId &&
                 (task.priority || 'none') === oldPriority &&
-                task.id !== draggedOriginalId
+                task.id !== draggedReminderId
             )
             .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
 
@@ -3675,12 +3776,12 @@ export class EisenhowerMatrixView {
             .filter((task: any) =>
                 (task.projectId || 'no-project') === projectId &&
                 (task.priority || 'none') === newPriority &&
-                task.id !== draggedOriginalId
+                task.id !== draggedReminderId
             )
             .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
 
         // 找到目标位置
-        let targetIndex = newGroup.findIndex((task: any) => task.id === targetOriginalId);
+        let targetIndex = newGroup.findIndex((task: any) => task.id === targetReminderId);
         if (targetIndex === -1) targetIndex = newGroup.length;
 
         // 计算插入位置（根据鼠标位置决定是在目标之前还是之后）
@@ -3711,8 +3812,8 @@ export class EisenhowerMatrixView {
         reminderData: any,
         draggedTask: any,
         targetTask: any,
-        draggedOriginalId: string,
-        targetOriginalId: string,
+        draggedTaskId: string,
+        targetTaskId: string,
         isDraggedInstance: boolean,
         isTargetInstance: boolean,
         event: DragEvent,
@@ -3721,8 +3822,8 @@ export class EisenhowerMatrixView {
         projectId: string
     ) {
         // 提取实例日期
-        const draggedInstanceDate = draggedOriginalId.split('_')[1];
-        const targetInstanceDate = isTargetInstance ? targetOriginalId.split('_')[1] : null;
+        const draggedInstanceDate = isDraggedInstance ? draggedTaskId.split('_').pop() : null;
+        const targetInstanceDate = isTargetInstance ? targetTaskId.split('_').pop() : null;
 
         if (!draggedInstanceDate) {
             console.error('无法获取实例日期');
@@ -3738,24 +3839,24 @@ export class EisenhowerMatrixView {
         }
         draggedTask.repeat.instanceModifications[draggedInstanceDate].priority = newPriority;
 
-        // 2. 处理旧优先级分组：收集所有实例和普通任务，移除被拖拽项并重新排序
-        const oldGroup = this.collectTasksAndInstances(reminderData, projectId, oldPriority, draggedOriginalId);
+        // 2. 处理旧优先级分组：收集所有实例 and 普通任务，移除被拖拽项并重新排序
+        const oldGroup = this.collectTasksAndInstances(reminderData, projectId, oldPriority, draggedTaskId);
 
         oldGroup.forEach((item: any, index: number) => {
             this.updateItemSort(reminderData, item, index * 10);
         });
 
         // 3. 处理新优先级分组：插入并重新排序
-        const newGroup = this.collectTasksAndInstances(reminderData, projectId, newPriority, draggedOriginalId);
+        const newGroup = this.collectTasksAndInstances(reminderData, projectId, newPriority, draggedTaskId);
 
         // 找到目标位置
         let targetIndex = -1;
         if (isTargetInstance && targetInstanceDate) {
             targetIndex = newGroup.findIndex((item: any) =>
-                item.id === targetOriginalId || (item.originalId === targetOriginalId.split('_')[0] && item.date === targetInstanceDate)
+                item.id === targetTaskId || (item.originalId === targetTaskId.substring(0, targetTaskId.lastIndexOf('_')) && item.date === targetInstanceDate)
             );
         } else {
-            targetIndex = newGroup.findIndex((item: any) => item.id === targetOriginalId);
+            targetIndex = newGroup.findIndex((item: any) => item.id === targetTaskId);
         }
         if (targetIndex === -1) targetIndex = newGroup.length;
 
@@ -3769,10 +3870,10 @@ export class EisenhowerMatrixView {
 
         // 构建被拖拽的实例项
         const draggedItem = {
-            id: draggedOriginalId,
+            id: draggedTaskId,
             originalId: draggedTask.id,
             date: draggedInstanceDate,
-            sort: draggedTask.repeat.instanceModifications[draggedInstanceDate]?.sort || draggedTask.sort || 0,
+            sort: draggedTask.repeat.instanceModifications[draggedInstanceDate!]?.sort || draggedTask.sort || 0,
             isInstance: true
         };
 
