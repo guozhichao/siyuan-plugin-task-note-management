@@ -2193,7 +2193,8 @@ export class CalendarView {
                         // session id format in prompt: pomodoro-ID
                         const sessionId = calendarEvent.id.replace('pomodoro-', '');
                         await pomodoroManager.deleteSession(sessionId);
-                        this.refreshEvents();
+                        await this.refreshEvents();
+                        window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: 'calendar' } }));
                     });
                 }
             });
