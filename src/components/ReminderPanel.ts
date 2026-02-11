@@ -2135,11 +2135,8 @@ export class ReminderPanel {
             if (!reminder.isSubscribed) {
                 timeEl.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    if (reminder.isRepeatInstance) {
-                        this.editOriginalReminder(reminder.originalId);
-                    } else {
-                        this.showTimeEditDialog(reminder);
-                    }
+                    // 默认编辑此实例
+                    this.showTimeEditDialog(reminder);
                 });
             } else {
                 timeEl.title = i18n("subscribedTaskReadOnly") || "订阅任务（只读）";
@@ -2374,15 +2371,32 @@ export class ReminderPanel {
                 e.stopPropagation(); // 防止触发整行点击
                 e.preventDefault();
 
+                const isRepeatInstance = reminder.isRepeatInstance;
+                const originalId = reminder.originalId;
+                const isInstanceEdit = isRepeatInstance && !!originalId;
+
+                // 获取实例日期
+                const originalInstanceDate = (isRepeatInstance && reminder.id && reminder.id.includes('_')) ? reminder.id.split('_').pop() : reminder.date;
+
                 new QuickReminderDialog(
                     undefined, undefined, undefined, undefined,
                     {
                         plugin: this.plugin,
                         mode: 'note', // 使用仅备注模式
-                        reminder: reminder,
-                        onSaved: async (_) => {
-                            // 备注更新后直接刷新
-                            await this.loadReminders();
+                        reminder: isInstanceEdit ? {
+                            ...reminder,
+                            isInstance: true,
+                            originalId: originalId,
+                            instanceDate: originalInstanceDate
+                        } : reminder,
+                        isInstanceEdit: isInstanceEdit,
+                        onSaved: async (savedReminder) => {
+                            // 乐观更新：如果返回了修改后的数据，尝试在缓存中更新并重绘
+                            if (savedReminder && savedReminder.id) {
+                                await this.handleOptimisticSavedReminder(savedReminder);
+                            } else {
+                                await this.loadReminders();
+                            }
                             // 同时也触发事件通知其他组件
                             window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
                         }
@@ -2869,7 +2883,6 @@ export class ReminderPanel {
                     reminder.repeat.completedInstances = [];
                 }
                 const completedInstances = reminder.repeat.completedInstances;
-                const instanceModifications = reminder.repeat?.instanceModifications || {};
 
                 // 预先判断该系列在今天是否有未完成实例，用于决定是否显示未来的首个 uncompleted 实例
                 const hasTodayIncomplete = repeatInstances.some(instance => {
@@ -2929,25 +2942,12 @@ export class ReminderPanel {
                     }
 
                     if (shouldShow) {
-                        const instanceMod = instanceModifications[originalInstanceDate];
                         const instanceTask = {
                             ...reminder,
+                            ...instance,
                             id: instance.instanceId,
-                            date: instance.date,
-                            endDate: instance.endDate,
-                            time: instance.time,
-                            endTime: instance.endTime,
                             isRepeatInstance: true,
-                            originalId: instance.originalId,
                             completed: isInstanceCompleted,
-                            note: instanceMod?.note !== undefined ? instanceMod.note : reminder.note,
-                            priority: instanceMod?.priority !== undefined ? instanceMod.priority : reminder.priority,
-                            categoryId: instanceMod?.categoryId !== undefined ? instanceMod.categoryId : reminder.categoryId,
-                            projectId: instanceMod?.projectId !== undefined ? instanceMod.projectId : reminder.projectId,
-                            customGroupId: instanceMod?.customGroupId !== undefined ? instanceMod.customGroupId : reminder.customGroupId,
-                            kanbanStatus: instanceMod?.kanbanStatus !== undefined ? instanceMod.kanbanStatus : reminder.kanbanStatus,
-                            reminderTimes: instanceMod?.reminderTimes !== undefined ? instanceMod.reminderTimes : reminder.reminderTimes,
-                            customReminderPreset: instanceMod?.customReminderPreset !== undefined ? instanceMod.customReminderPreset : reminder.customReminderPreset,
                             completedTime: isInstanceCompleted ? (instance.completedTime || reminder.repeat?.completedTimes?.[originalInstanceDate] || getLocalDateTimeString(new Date(instance.date))) : undefined
                         };
 
@@ -3550,21 +3550,7 @@ export class ReminderPanel {
     private originalRemindersCache: { [id: string]: any } = {};
     // 缓存异步加载数据（番茄数、专注时长、项目等）以减少重复请求
     private asyncDataCache: Map<string, any> = new Map();
-    private async editOriginalReminder(originalId: string) {
-        try {
-            const reminderData = await getAllReminders(this.plugin);
-            const originalReminder = reminderData[originalId];
 
-            if (originalReminder) {
-                this.showTimeEditDialog(originalReminder);
-            } else {
-                showMessage(i18n("reminderDataNotExist"));
-            }
-        } catch (error) {
-            console.error('获取原始提醒失败:', error);
-            showMessage(i18n("openModifyDialogFailed"));
-        }
-    }
     /**
      * 获取原始提醒数据（用于重复事件实例）
      */
@@ -5267,10 +5253,10 @@ export class ReminderPanel {
             menu.addItem({
                 iconHTML: "📝",
                 label: i18n("modifyThisInstance"),
-                click: () => this.splitRecurringReminder(reminder)
+                click: () => this.showTimeEditDialog(reminder)
             });
             menu.addItem({
-                iconHTML: "📝",
+                iconHTML: "🔄",
                 label: i18n("modifyAllInstances"),
                 click: () => this.showTimeEditDialog(reminder)
             });
@@ -6752,7 +6738,9 @@ export class ReminderPanel {
     private async splitRecurringReminder(reminder: any) {
         try {
             const reminderData = await getAllReminders(this.plugin);
-            const originalReminder = reminderData[reminder.id];
+            // Handle instance ID: if it's an instance, use originalId
+            const targetId = (reminder.isRepeatInstance && reminder.originalId) ? reminder.originalId : reminder.id;
+            const originalReminder = reminderData[targetId];
             if (!originalReminder || !originalReminder.repeat?.enabled) {
                 showMessage(i18n("operationFailed"));
                 return;
@@ -7079,7 +7067,62 @@ export class ReminderPanel {
         }
     }
 
-    private async showTimeEditDialog(reminder: any) {
+    private async showTimeEditDialog(reminder: any, isSeriesEdit: boolean = false) {
+        let reminderToEdit = reminder;
+        let isInstanceEdit = false;
+
+        // 如果是重复实例
+        if (reminder.isRepeatInstance && reminder.originalId) {
+            try {
+                // 如果是编辑整个系列，或者没有提供实例日期
+                if (isSeriesEdit) {
+                    // 优先使用缓存的原始提醒
+                    if (this.originalRemindersCache[reminder.originalId]) {
+                        reminderToEdit = this.originalRemindersCache[reminder.originalId];
+                    } else {
+                        const reminderData = await getAllReminders(this.plugin);
+                        if (reminderData && reminderData[reminder.originalId]) {
+                            reminderToEdit = reminderData[reminder.originalId];
+                        }
+                    }
+                } else {
+                    // 编辑单个实例（Instance modification）
+                    const reminderData = await getAllReminders(this.plugin);
+                    const originalReminder = reminderData[reminder.originalId];
+                    if (!originalReminder) {
+                        showMessage("原始周期事件不存在");
+                        return;
+                    }
+
+                    // 从 ID 中提取原始生成日期
+                    const originalInstanceDate = reminder.id && reminder.id.includes('_') ? reminder.id.split('_').pop()! : reminder.date;
+
+                    // 检查实例级别的修改
+                    const instanceModifications = originalReminder.repeat?.instanceModifications || {};
+                    const instanceMod = instanceModifications[originalInstanceDate];
+
+                    // 创建实例数据
+                    reminderToEdit = {
+                        ...originalReminder,
+                        id: reminder.id,
+                        title: instanceMod?.title !== undefined ? instanceMod.title : (originalReminder.title || ''),
+                        date: reminder.date,
+                        endDate: reminder.endDate,
+                        time: reminder.time,
+                        endTime: reminder.endTime,
+                        note: instanceMod?.note !== undefined ? instanceMod.note : (originalReminder.note || ''),
+                        priority: instanceMod?.priority !== undefined ? instanceMod.priority : (originalReminder.priority || 'none'),
+                        isInstance: true,
+                        originalId: reminder.originalId,
+                        instanceDate: originalInstanceDate
+                    };
+                    isInstanceEdit = true;
+                }
+            } catch (e) {
+                console.warn('获取原始提醒或处理实例失败:', e);
+            }
+        }
+
         const editDialog = new QuickReminderDialog(
             undefined,
             undefined,
@@ -7098,8 +7141,9 @@ export class ReminderPanel {
             undefined,
             {
                 mode: 'edit',
-                reminder: reminder,
-                plugin: this.plugin
+                reminder: reminderToEdit,
+                plugin: this.plugin,
+                isInstanceEdit: isInstanceEdit
             }
         );
         editDialog.show();

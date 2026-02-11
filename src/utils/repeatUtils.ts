@@ -4,6 +4,7 @@ import { i18n } from '../pluginInstance';
 import { solarToLunar } from './lunarUtils';
 
 export interface RepeatInstance {
+    title?: string; // 实例标题（可选，覆盖原始标题）
     date: string;
     time?: string;
     endDate?: string;
@@ -16,6 +17,16 @@ export interface RepeatInstance {
     isRepeatedInstance: boolean;
     completed?: boolean; // 添加实例级别的完成状态
     completedTime?: string; // 实例完成时间
+    // 实例级别覆盖字段
+    note?: string;
+    priority?: string;
+    categoryId?: string;
+    projectId?: string;
+    customGroupId?: string;
+    kanbanStatus?: string;
+    tagIds?: string[];
+    milestoneId?: string;
+    sort?: number;
 }
 
 /**
@@ -103,6 +114,7 @@ export function generateRepeatInstances(
                     const isInstanceCompleted = completedInstances.includes(currentDateStr);
 
                     const instance: RepeatInstance = {
+                        title: modification?.title !== undefined ? modification.title : reminder.title,
                         date: modification?.date || currentDateStr,
                         time: modification?.time || reminder.time,
                         endDate: modification?.endDate || (reminder.endDate && reminder.date ? addDaysToDate(modification?.date || currentDateStr, getDaysDifference(reminder.date, reminder.endDate)) : undefined),
@@ -114,7 +126,17 @@ export function generateRepeatInstances(
                         originalId: reminder.id,
                         isRepeatedInstance: true,
                         completed: isInstanceCompleted, // 设置实例级别的完成状态
-                        completedTime: isInstanceCompleted ? instanceCompletedTimes[currentDateStr] : undefined
+                        completedTime: isInstanceCompleted ? instanceCompletedTimes[currentDateStr] : undefined,
+                        // 合并覆盖字段
+                        note: modification?.note !== undefined ? modification.note : (reminder.note || ''),
+                        priority: modification?.priority !== undefined ? modification.priority : (reminder.priority || 'none'),
+                        categoryId: modification?.categoryId !== undefined ? modification.categoryId : reminder.categoryId,
+                        projectId: modification?.projectId !== undefined ? modification.projectId : reminder.projectId,
+                        customGroupId: modification?.customGroupId !== undefined ? modification.customGroupId : reminder.customGroupId,
+                        kanbanStatus: modification?.kanbanStatus !== undefined ? modification.kanbanStatus : reminder.kanbanStatus,
+                        tagIds: modification?.tagIds !== undefined ? modification.tagIds : reminder.tagIds,
+                        milestoneId: modification?.milestoneId !== undefined ? modification.milestoneId : reminder.milestoneId,
+                        sort: (modification && typeof modification.sort === 'number') ? modification.sort : (reminder.sort || 0)
                     };
 
                     instances.push(instance);

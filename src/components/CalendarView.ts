@@ -5188,17 +5188,10 @@ export class CalendarView {
                             incompleteCount++;
                         }
 
-                        const instanceMod = instanceModifications[originalKey];
-
                         const instanceReminder = {
                             ...reminder,
-                            date: instance.date,
-                            endDate: instance.endDate,
-                            time: instance.time,
-                            endTime: instance.endTime,
-                            completed: isInstanceCompleted,
-                            note: instanceMod?.note || '',
-                            priority: instanceMod?.priority || reminder.priority
+                            ...instance,
+                            completed: isInstanceCompleted
                         };
 
                         // Apply completion filter to instances
@@ -5258,8 +5251,16 @@ export class CalendarView {
                                 time: mod.time || reminder.time,
                                 endTime: mod.endTime || reminder.endTime,
                                 completed: isInstanceCompleted,
-                                note: mod.note || '',
-                                priority: mod.priority || reminder.priority
+                                title: mod.title !== undefined ? mod.title : reminder.title,
+                                note: mod.note !== undefined ? mod.note : (reminder.note || ''),
+                                priority: mod.priority !== undefined ? mod.priority : (reminder.priority || 'none'),
+                                categoryId: mod.categoryId !== undefined ? mod.categoryId : reminder.categoryId,
+                                projectId: mod.projectId !== undefined ? mod.projectId : reminder.projectId,
+                                customGroupId: mod.customGroupId !== undefined ? mod.customGroupId : reminder.customGroupId,
+                                kanbanStatus: mod.kanbanStatus !== undefined ? mod.kanbanStatus : reminder.kanbanStatus,
+                                tagIds: mod.tagIds !== undefined ? mod.tagIds : reminder.tagIds,
+                                milestoneId: mod.milestoneId !== undefined ? mod.milestoneId : reminder.milestoneId,
+                                sort: (mod && typeof mod.sort === 'number') ? mod.sort : (reminder.sort || 0)
                             };
 
                             // Apply completion filter to modified instances

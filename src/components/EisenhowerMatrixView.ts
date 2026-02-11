@@ -68,6 +68,7 @@ export class EisenhowerMatrixView {
     private isDragging: boolean = false;
     private draggedTaskId: string | null = null;
     private collapsedTasks: Set<string> = new Set();
+    private collapsedProjects: Map<string, Set<string>> = new Map(); // 每个象限中折叠的项目
 
     // 全局番茄钟管理器
     private pomodoroManager = PomodoroManager.getInstance();
@@ -267,7 +268,6 @@ export class EisenhowerMatrixView {
 
                     // 过滤实例：保留过去未完成、今天的、未来第一个未完成，以及所有已完成的实例
                     const completedInstances = reminder.repeat?.completedInstances || [];
-                    const instanceModifications = reminder.repeat?.instanceModifications || {};
 
                     // 将实例分类为：过去未完成、今天未完成、未来未完成、未来已完成、过去已完成
                     let pastIncompleteList: any[] = [];
@@ -282,7 +282,6 @@ export class EisenhowerMatrixView {
 
                         // 对于所有重复事件，只添加实例，不添加原始任务
                         const isInstanceCompleted = completedInstances.includes(originalKey);
-                        const instanceMod = instanceModifications[originalKey];
 
                         // Calculate cutoff time for subtask generation filtering
                         let cutoffTime: number | undefined;
@@ -299,16 +298,10 @@ export class EisenhowerMatrixView {
 
                         const instanceTask = {
                             ...reminder,
+                            ...instance,
                             id: instance.instanceId,
-                            date: instance.date,
-                            endDate: instance.endDate,
-                            time: instance.time,
-                            endTime: instance.endTime,
                             isRepeatInstance: true,
-                            originalId: instance.originalId,
                             completed: isInstanceCompleted,
-                            note: instanceMod?.note || reminder.note,
-                            priority: instanceMod?.priority || reminder.priority,
                             // 为已完成的实例添加完成时间（用于排序）
                             completedTime: isInstanceCompleted ? (realCompletedTimeStr || getLocalDateTimeString(new Date(instance.date))) : undefined
                         };
@@ -891,20 +884,74 @@ export class EisenhowerMatrixView {
 
                 const projectHeader = document.createElement('div');
                 projectHeader.className = 'project-header';
+
+                // 获取项目颜色（如果有）
+                let projectColor = '';
                 if (projectKey !== 'no-project') {
-                    projectHeader.textContent = tasks[0].projectName || i18n('noProject');
-                    projectHeader.setAttribute('data-project-id', projectKey);
-                    projectHeader.style.cursor = 'pointer';
-                    projectHeader.title = i18n('openProjectKanban');
+                    const project = this.projectManager.getProjectById(projectKey);
+                    projectColor = project?.color || '';
+                }
+                // 如果没有项目颜色，使用默认的 surface-lighter
+                if (projectColor) {
+                    projectHeader.style.backgroundColor = `${projectColor}20`;
+                    projectHeader.style.border = `1px solid ${projectColor}`;
+                }
+
+                // 获取当前象限的折叠项目集合
+                if (!this.collapsedProjects.has(quadrant.key)) {
+                    this.collapsedProjects.set(quadrant.key, new Set());
+                }
+                const collapsedProjectsInQuadrant = this.collapsedProjects.get(quadrant.key)!;
+                const isProjectCollapsed = collapsedProjectsInQuadrant.has(projectKey);
+
+                // 创建折叠/展开按钮
+                const collapseBtn = document.createElement('button');
+                collapseBtn.className = 'project-collapse-btn b3-button b3-button--text';
+                collapseBtn.innerHTML = `<svg class="b3-button__icon" style="width: 12px; height: 12px;"><use xlink:href="#${isProjectCollapsed ? 'iconRight' : 'iconDown'}"></use></svg>`;
+                collapseBtn.title = isProjectCollapsed ? '展开' : '折叠';
+                collapseBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.toggleProjectCollapse(quadrant.key, projectKey);
+                });
+                projectHeader.appendChild(collapseBtn);
+
+                // 项目名称
+                const projectNameSpan = document.createElement('span');
+                projectNameSpan.className = 'project-name';
+                if (projectKey !== 'no-project') {
+                    projectNameSpan.textContent = tasks[0].projectName || i18n('noProject');
+                    projectNameSpan.style.cursor = 'pointer';
+                    projectNameSpan.style.color = 'var(--b3-theme-primary)';
+                    projectNameSpan.title = i18n('openProjectKanban');
 
                     // 添加点击事件打开项目看板
-                    projectHeader.addEventListener('click', () => {
+                    projectNameSpan.addEventListener('click', () => {
                         this.openProjectKanban(projectKey);
                     });
                 } else {
-                    projectHeader.textContent = i18n('noProject');
+                    projectNameSpan.textContent = i18n('noProject');
                 }
+                projectHeader.appendChild(projectNameSpan);
+
+                // 任务计数
+                const taskCountSpan = document.createElement('span');
+                taskCountSpan.className = 'project-task-count';
+                taskCountSpan.textContent = `(${tasks.length})`;
+                taskCountSpan.style.cssText = `
+                    margin-left: 8px;
+                    font-size: 12px;
+                    color: var(--b3-theme-on-surface-light);
+                    opacity: 0.7;
+                `;
+                projectHeader.appendChild(taskCountSpan);
+
                 projectGroup.appendChild(projectHeader);
+
+                // 任务容器（用于折叠/展开）
+                const tasksContainer = document.createElement('div');
+                tasksContainer.className = 'project-tasks-container';
+                tasksContainer.style.display = isProjectCollapsed ? 'none' : 'block';
 
                 // 支持子任务的层级显示
                 const taskMap = new Map(tasks.map(t => [t.id, t]));
@@ -916,7 +963,7 @@ export class EisenhowerMatrixView {
                     }
 
                     const taskEl = this.createTaskElement(task, level);
-                    projectGroup.appendChild(taskEl);
+                    tasksContainer.appendChild(taskEl);
 
                     // 渲染子任务（只渲染未完成的）
                     const childTasks = tasks.filter(t => t.parentId === task.id && !t.completed);
@@ -927,6 +974,7 @@ export class EisenhowerMatrixView {
 
                 topLevelTasks.forEach(task => renderTaskWithChildren(task, 0));
 
+                projectGroup.appendChild(tasksContainer);
                 contentEl.appendChild(projectGroup);
             });
         });
@@ -940,34 +988,39 @@ export class EisenhowerMatrixView {
             taskEl.style.marginLeft = `${level * 20}px`;
         }
         taskEl.setAttribute('data-task-id', task.id);
-        taskEl.setAttribute('draggable', 'false'); // 任务元素本身不可拖拽
+        taskEl.setAttribute('draggable', 'true'); // 整个任务元素可拖拽
         taskEl.setAttribute('data-project-id', task.projectId || 'no-project');
         taskEl.setAttribute('data-priority', task.priority || 'none');
 
-        // 设置任务颜色（根据优先级）
+        // 添加优先级样式类（参考项目看板）
+        if (task.priority && task.priority !== 'none') {
+            taskEl.classList.add(`task-priority-${task.priority}`);
+        }
+
+        // 设置任务颜色（根据优先级）- 参考项目看板的样式
         let backgroundColor = '';
         let borderColor = '';
         switch (task.priority) {
             case 'high':
-                backgroundColor = 'var(--b3-card-error-background)';
+                backgroundColor = 'rgba(from var(--b3-card-error-background) r g b / .5)';
                 borderColor = 'var(--b3-card-error-color)';
                 break;
             case 'medium':
-                backgroundColor = 'var(--b3-card-warning-background)';
+                backgroundColor = 'rgba(from var(--b3-card-warning-background) r g b / .5)';
                 borderColor = 'var(--b3-card-warning-color)';
                 break;
             case 'low':
-                backgroundColor = 'var(--b3-card-info-background)';
+                backgroundColor = 'rgba(from var(--b3-card-info-background) r g b / .7)';
                 borderColor = 'var(--b3-card-info-color)';
                 break;
             default:
-                backgroundColor = 'var(--b3-theme-surface-lighter)';
-                borderColor = 'var(--b3-theme-surface-lighter)';
+                backgroundColor = 'rgba(from var(--b3-theme-background-light) r g b / .1)';
+                borderColor = 'var(--b3-theme-background-light)';
         }
 
-        // 设置任务元素的背景色
+        // 设置任务元素的背景色和边框
         taskEl.style.backgroundColor = backgroundColor;
-        taskEl.style.border = `1px solid ${borderColor}`;
+        taskEl.style.border = `1.5px solid ${borderColor}`;
 
         // 创建任务内容容器
         const taskContent = document.createElement('div');
@@ -997,7 +1050,7 @@ export class EisenhowerMatrixView {
             taskInfo.appendChild(subBadge);
         }
 
-        // 创建控制按钮容器（折叠按钮和拖拽手柄）
+        // 创建控制按钮容器（仅保留折叠按钮）
         const taskControlContainer = document.createElement('div');
         taskControlContainer.className = 'task-control-container';
         taskControlContainer.style.cssText = `
@@ -1026,26 +1079,6 @@ export class EisenhowerMatrixView {
             });
             taskControlContainer.appendChild(collapseBtn);
         }
-
-        // 创建拖拽手柄
-        const dragHandle = document.createElement('div');
-        dragHandle.className = 'task-drag-handle';
-        dragHandle.innerHTML = '⋮⋮';
-        dragHandle.title = '拖拽排序';
-        dragHandle.setAttribute('draggable', 'true');
-        dragHandle.style.cssText = `
-            cursor: grab;
-            color: var(--b3-theme-on-surface-light);
-            font-size: 10px;
-            line-height: 1;
-            user-select: none;
-            padding: 2px 0;
-            height: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        `;
-        taskControlContainer.appendChild(dragHandle);
 
         // 创建任务标题
         const taskTitle = document.createElement('div');
@@ -1087,6 +1120,21 @@ export class EisenhowerMatrixView {
         // 创建任务元数据
         const taskMeta = document.createElement('div');
         taskMeta.className = 'task-meta';
+
+        // 显示优先级标签（参考项目看板样式）
+        if (task.priority && task.priority !== 'none') {
+            const priorityEl = document.createElement('span');
+            priorityEl.className = `task-priority-label priority-label-${task.priority}`;
+
+            const priorityNames: Record<string, string> = {
+                'high': '高优先级',
+                'medium': '中优先级',
+                'low': '低优先级'
+            };
+
+            priorityEl.innerHTML = `<span class="priority-dot ${task.priority}"></span><span>${priorityNames[task.priority]}</span>`;
+            taskMeta.appendChild(priorityEl);
+        }
 
         // 显示看板状态（仅当任务未完成且不是子任务时显示）
         if (!task.completed && level === 0) {
@@ -1396,32 +1444,28 @@ export class EisenhowerMatrixView {
             this.toggleTaskCompletion(task, (e.target as HTMLInputElement).checked);
         });
 
-        // 拖拽手柄事件 - 只在拖拽手柄上触发拖拽
-        dragHandle.addEventListener('mousedown', (e) => {
-            e.stopPropagation();
-        });
-
-        dragHandle.addEventListener('dragstart', (e) => {
+        // 任务元素拖拽事件 - 整个 quick_item 可拖拽
+        taskEl.addEventListener('dragstart', (e) => {
             e.stopPropagation();
             e.dataTransfer!.setData('text/plain', task.id);
             e.dataTransfer!.setData('task/project-id', task.projectId || 'no-project');
             e.dataTransfer!.setData('task/priority', task.priority || 'none');
             taskEl.classList.add('dragging');
-            dragHandle.style.cursor = 'grabbing';
+            taskEl.style.cursor = 'grabbing';
             this.isDragging = true;
             this.draggedTaskId = task.id;
         });
 
-        dragHandle.addEventListener('dragend', (e) => {
+        taskEl.addEventListener('dragend', (e) => {
             e.stopPropagation();
             taskEl.classList.remove('dragging');
-            dragHandle.style.cursor = 'grab';
+            taskEl.style.cursor = 'pointer';
             this.hideDropIndicators();
             this.isDragging = false;
             this.draggedTaskId = null;
         });
 
-        // 添加拖放排序支持
+        // 添加拖放排序支持 - 支持跨优先级排序
         taskEl.addEventListener('dragover', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -1446,10 +1490,20 @@ export class EisenhowerMatrixView {
                 const currentProjectId = task.projectId || 'no-project';
                 const currentPriority = task.priority || 'none';
 
-                // 只允许在同一项目和同一优先级内排序
-                if (draggedProjectId === currentProjectId && draggedPriority === currentPriority) {
+                // 只允许在同一项目内排序（支持跨优先级）
+                if (draggedProjectId === currentProjectId) {
                     this.showDropIndicator(taskEl, e);
                     taskEl.classList.add('drag-over');
+
+                    // 跨优先级拖拽时添加视觉提示
+                    if (draggedPriority !== currentPriority) {
+                        taskEl.classList.add(`priority-drop-${currentPriority}`);
+                        // 添加提示文字
+                        const indicator = taskEl.querySelector('.drop-indicator');
+                        if (indicator) {
+                            (indicator as HTMLElement).style.backgroundColor = this.getPriorityColor(currentPriority);
+                        }
+                    }
                 }
             }
         });
@@ -1457,7 +1511,7 @@ export class EisenhowerMatrixView {
         taskEl.addEventListener('dragleave', (e) => {
             e.stopPropagation();
             this.hideDropIndicators();
-            taskEl.classList.remove('drag-over');
+            taskEl.classList.remove('drag-over', 'priority-drop-high', 'priority-drop-medium', 'priority-drop-low', 'priority-drop-none');
         });
 
         taskEl.addEventListener('drop', (e) => {
@@ -1477,20 +1531,32 @@ export class EisenhowerMatrixView {
                 const draggedTask = this.filteredTasks.find(t => t.id === draggedTaskId);
                 if (draggedTask) {
                     const draggedProjectId = draggedTask.projectId || 'no-project';
-                    const draggedPriority = draggedTask.priority || 'none';
                     const currentProjectId = task.projectId || 'no-project';
-                    const currentPriority = task.priority || 'none';
 
-                    if (draggedProjectId === currentProjectId && draggedPriority === currentPriority) {
+                    // 只允许在同一项目内排序（支持跨优先级）
+                    if (draggedProjectId === currentProjectId) {
                         this.handleTaskReorder(draggedTaskId, task.id, e);
                     }
                 }
             }
             this.hideDropIndicators();
-            taskEl.classList.remove('drag-over');
+            taskEl.classList.remove('drag-over', 'priority-drop-high', 'priority-drop-medium', 'priority-drop-low', 'priority-drop-none');
         });
 
         return taskEl;
+    }
+
+    /**
+     * 获取优先级对应的颜色
+     */
+    private getPriorityColor(priority: string): string {
+        const colors: Record<string, string> = {
+            'high': '#e74c3c',
+            'medium': '#f39c12',
+            'low': '#3498db',
+            'none': '#95a5a6'
+        };
+        return colors[priority] || colors['none'];
     }
 
     private setupEventListeners() {
@@ -2228,7 +2294,7 @@ export class EisenhowerMatrixView {
             }
 
             .quadrant {
-                background: var(--b3-theme-surface);
+                background: var(--b3-theme-background);
                 border: 3px solid;
                 border-radius: 8px;
                 overflow: hidden;
@@ -2323,7 +2389,7 @@ export class EisenhowerMatrixView {
                 margin-bottom: 16px;
             }
 
-            .project-header {
+            .eisenhower-matrix-view .project-header {
                 font-weight: 600;
                 font-size: 14px;
                 color: var(--b3-theme-primary);
@@ -2483,21 +2549,17 @@ export class EisenhowerMatrixView {
                 100% { opacity: 0.6; transform: scaleX(0.8); }
             }
             
-            .task-item.drag-over {
-                background-color: var(--b3-theme-primary-lightest) !important;
-                border-color: var(--b3-theme-primary) !important;
+            /* 跨优先级拖拽时的视觉提示 - 仅改变边框颜色 */
+            .quick_item.priority-drop-high.drag-over {
+                border-color: var(--b3-card-error-color) !important;
             }
-            
-            .task-item.drag-over::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                border: 2px dashed var(--b3-theme-primary);
-                border-radius: 4px;
-                pointer-events: none;
+
+            .quick_item.priority-drop-medium.drag-over {
+                border-color: var(--b3-card-warning-color) !important;
+            }
+
+            .quick_item.priority-drop-low.drag-over {
+                border-color: var(--b3-card-info-color) !important;
             }
             
             
@@ -2536,18 +2598,162 @@ export class EisenhowerMatrixView {
                 margin-top: 2px;
             }
             
-            .task-drag-handle {
+            /* 优先级标签样式 - 参考项目看板 */
+            .task-priority-label {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-size: 11px;
+                font-weight: 500;
+                white-space: nowrap;
+                align-self: flex-start;
+            }
+
+            .priority-label-high {
+                background-color: rgba(231, 76, 60, 0.1);
+                color: #e74c3c;
+            }
+
+            .priority-label-medium {
+                background-color: rgba(243, 156, 18, 0.1);
+                color: #f39c12;
+            }
+
+            .priority-label-low {
+                background-color: rgba(52, 152, 219, 0.1);
+                color: #3498db;
+            }
+
+            .priority-dot {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+            }
+
+            .priority-dot.high {
+                background: #e74c3c;
+            }
+
+            .priority-dot.medium {
+                background: #f39c12;
+            }
+
+            .priority-dot.low {
+                background: #3498db;
+            }
+
+            .priority-dot.none {
+                background: #95a5a6;
+            }
+
+            /* 优先级任务悬停效果 */
+            .task-priority-high:hover {
+                box-shadow: 0 0 0 1px var(--b3-card-error-color), 0 4px 12px rgba(231, 76, 60, 0.25) !important;
+            }
+
+            .task-priority-medium:hover {
+                box-shadow: 0 0 0 1px var(--b3-card-warning-color), 0 4px 12px rgba(243, 156, 18, 0.25) !important;
+            }
+
+            .task-priority-low:hover {
+                box-shadow: 0 0 0 1px var(--b3-card-info-color), 0 4px 12px rgba(52, 152, 219, 0.25) !important;
+            }
+
+            /* 任务拖拽样式 */
+            .quick_item {
+                margin-top: 2px;
+                border-radius: 4px;
+                cursor: grab;
+                transition: all 0.2s ease;
+                position: relative;
+            }
+
+            .quick_item.dragging {
                 opacity: 0.5;
-                transition: opacity 0.2s ease;
+                transform: rotate(2deg);
+                cursor: grabbing;
             }
-            
-            .task-drag-handle:hover {
-                opacity: 0.8;
+
+            .quick_item:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            }
+
+            /* 项目标题栏样式 */
+            .eisenhower-matrix-view .project-header {
+                display: flex;
+                align-items: center;
+                font-weight: 600;
+                font-size: 14px;
+                margin-bottom: 8px;
+                padding: 6px 10px;
+                border-radius: 6px;
+                background: var(--b3-theme-surface-lighter);
+                border: 1.5px solid var(--b3-theme-border);
+                gap: 6px;
+                transition: all 0.2s ease;
+            }
+
+            .eisenhower-matrix-view .project-header:hover {
+                background: var(--b3-theme-surface) !important;
+                border-color: var(--b3-theme-primary) !important;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            }
+
+            .project-name {
+                font-weight: 600;
+                font-size: 14px;
                 color: var(--b3-theme-primary);
+                transition: color 0.2s;
+                line-height: 1.4;
             }
-            
-            .task-item:hover .task-drag-handle {
+
+            .project-name:hover {
+                text-decoration: underline;
+            }
+
+            .project-task-count {
+                font-size: 12px;
+                color: var(--b3-theme-on-surface-light);
                 opacity: 0.7;
+                margin-left: auto;
+                padding-left: 8px;
+            }
+
+            .project-collapse-btn {
+                padding: 2px !important;
+                min-width: 20px !important;
+                min-height: 20px !important;
+                width: 20px !important;
+                height: 20px !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                flex-shrink: 0;
+                border-radius: 4px;
+                border: none;
+                background: transparent !important;
+                color: var(--b3-theme-on-surface-light) !important;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+
+            .project-collapse-btn:hover {
+                background: var(--b3-theme-surface) !important;
+                color: var(--b3-theme-primary) !important;
+            }
+
+            .project-collapse-btn svg {
+                width: 12px;
+                height: 12px;
+                fill: currentColor;
+            }
+
+            .project-tasks-container {
+                transition: all 0.2s ease;
+                padding-left: 4px;
             }
 
             /* 父任务底部进度条 */
@@ -3128,17 +3334,6 @@ export class EisenhowerMatrixView {
         const indicator = document.createElement('div');
         indicator.className = 'drop-indicator';
 
-        // 使用更明显的样式进行测试
-        indicator.style.cssText = `
-            position: absolute;
-            left: 0;
-            right: 0;
-            height: 4px;
-            z-index: 10000;
-            pointer-events: none;
-            border: 1px solid blue;
-        `;
-
         // 确保父元素有相对定位
         if (!element.style.position || element.style.position === 'static') {
             element.style.position = 'relative';
@@ -3159,11 +3354,11 @@ export class EisenhowerMatrixView {
         const indicators = this.container.querySelectorAll('.drop-indicator');
         indicators.forEach(indicator => indicator.remove());
 
-        this.container.querySelectorAll('.task-item').forEach((el: HTMLElement) => {
+        this.container.querySelectorAll('.quick_item').forEach((el: HTMLElement) => {
             if (el.style.position === 'relative') {
                 el.style.position = '';
             }
-            el.classList.remove('drag-over');
+            el.classList.remove('drag-over', 'priority-drop-high', 'priority-drop-medium', 'priority-drop-low', 'priority-drop-none');
         });
     }
 
@@ -3171,63 +3366,58 @@ export class EisenhowerMatrixView {
         try {
             const reminderData = await getAllReminders(this.plugin);
 
-            const draggedTask = reminderData[draggedTaskId];
-            const targetTask = reminderData[targetTaskId];
+            // 处理重复任务实例的情况
+            const isDraggedInstance = draggedTaskId.includes('_') && !reminderData[draggedTaskId];
+            const isTargetInstance = targetTaskId.includes('_') && !reminderData[targetTaskId];
+
+            // 获取原始任务ID（如果是实例）
+            const draggedOriginalId = isDraggedInstance ? draggedTaskId.split('_')[0] : draggedTaskId;
+            const targetOriginalId = isTargetInstance ? targetTaskId.split('_')[0] : targetTaskId;
+
+            const draggedTask = reminderData[draggedOriginalId];
+            const targetTask = reminderData[targetOriginalId];
 
             if (!draggedTask || !targetTask) {
                 console.error('任务不存在');
                 return;
             }
 
-            // 确保在同一项目和同一优先级内
+            // 确保在同一项目内
             const draggedProjectId = draggedTask.projectId || 'no-project';
             const targetProjectId = targetTask.projectId || 'no-project';
-            const draggedPriority = draggedTask.priority || 'none';
-            const targetPriority = targetTask.priority || 'none';
 
-            if (draggedProjectId !== targetProjectId || draggedPriority !== targetPriority) {
+            if (draggedProjectId !== targetProjectId) {
                 return;
             }
 
-            // 获取所有相关任务
-            const relatedTasks = Object.values(reminderData)
-                .filter((task: any) =>
-                    (task.projectId || 'no-project') === draggedProjectId &&
-                    (task.priority || 'none') === draggedPriority
-                )
-                .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+            const oldPriority = draggedTask.priority || 'none';
+            const newPriority = targetTask.priority || 'none';
 
-            // 找到目标任务的索引
-            const targetIndex = relatedTasks.findIndex((task: any) => task.id === targetTaskId);
-
-            // 计算插入位置 - 修复空值检查
-            let insertIndex = targetIndex;
-            if (event.currentTarget instanceof HTMLElement) {
-                const rect = event.currentTarget.getBoundingClientRect();
-                const midpoint = rect.top + rect.height / 2;
-                insertIndex = event.clientY < midpoint ? targetIndex : targetIndex + 1;
-            }
-
-            // 重新排序
-            const draggedTaskObj = relatedTasks.find((task: any) => task.id === draggedTaskId);
-            if (draggedTaskObj) {
-                // 从原位置移除
-                const oldIndex = relatedTasks.findIndex((task: any) => task.id === draggedTaskId);
-                if (oldIndex !== -1) {
-                    relatedTasks.splice(oldIndex, 1);
-                }
-
-                // 插入到新位置，确保索引有效
-                const validInsertIndex = Math.max(0, Math.min(insertIndex, relatedTasks.length));
-                relatedTasks.splice(validInsertIndex, 0, draggedTaskObj);
-
-                // 更新排序值
-                relatedTasks.forEach((task: any, index: number) => {
-                    task.sort = index * 10;
-                });
-
-                await saveReminders(this.plugin, reminderData);
-                await this.refresh();
+            // 检查是否跨优先级拖拽
+            if (oldPriority !== newPriority) {
+                // 跨优先级排序：自动调整优先级
+                await this.handleCrossPriorityReorder(
+                    reminderData,
+                    draggedTask,
+                    targetTask,
+                    draggedOriginalId,
+                    targetOriginalId,
+                    isDraggedInstance,
+                    isTargetInstance,
+                    event
+                );
+            } else {
+                // 同优先级排序
+                await this.handleSamePriorityReorder(
+                    reminderData,
+                    draggedTask,
+                    targetTask,
+                    draggedOriginalId,
+                    targetOriginalId,
+                    isDraggedInstance,
+                    isTargetInstance,
+                    event
+                );
             }
         } catch (error) {
             console.error('重新排序任务失败:', error);
@@ -3235,11 +3425,471 @@ export class EisenhowerMatrixView {
         }
     }
 
+    /**
+     * 处理同优先级排序（包括重复任务实例）
+     */
+    private async handleSamePriorityReorder(
+        reminderData: any,
+        draggedTask: any,
+        _targetTask: any,
+        draggedOriginalId: string,
+        targetOriginalId: string,
+        isDraggedInstance: boolean,
+        isTargetInstance: boolean,
+        event: DragEvent
+    ) {
+        const priority = draggedTask.priority || 'none';
+        const projectId = draggedTask.projectId || 'no-project';
+
+        // 如果是重复实例排序，需要使用特殊的排序逻辑
+        if (isDraggedInstance || isTargetInstance) {
+            await this.handleInstanceReorder(
+                reminderData,
+                draggedTask,
+                draggedOriginalId,
+                targetOriginalId,
+                isDraggedInstance,
+                isTargetInstance,
+                event,
+                priority,
+                projectId
+            );
+            return;
+        }
+
+        // 获取所有相关任务（同一项目和优先级）
+        const relatedTasks = Object.values(reminderData)
+            .filter((task: any) =>
+                (task.projectId || 'no-project') === projectId &&
+                (task.priority || 'none') === priority
+            )
+            .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+        // 找到目标任务的索引
+        const targetIndex = relatedTasks.findIndex((task: any) => task.id === targetOriginalId);
+        const draggedIndex = relatedTasks.findIndex((task: any) => task.id === draggedOriginalId);
+
+        if (targetIndex === -1 || draggedIndex === -1) {
+            console.error('找不到拖拽或目标任务');
+            return;
+        }
+
+        // 计算插入位置（基于鼠标位置）
+        let insertIndex = targetIndex;
+        if (event.currentTarget instanceof HTMLElement) {
+            const rect = event.currentTarget.getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            insertIndex = event.clientY < midpoint ? targetIndex : targetIndex + 1;
+        }
+
+        // 重新排序
+        const draggedTaskObj = relatedTasks[draggedIndex];
+
+        // 从原位置移除
+        relatedTasks.splice(draggedIndex, 1);
+
+        // 调整插入索引（如果拖拽项在插入点之前被移除）
+        if (draggedIndex < insertIndex) {
+            insertIndex--;
+        }
+
+        // 确保索引有效
+        const validInsertIndex = Math.max(0, Math.min(insertIndex, relatedTasks.length));
+
+        // 插入到新位置
+        relatedTasks.splice(validInsertIndex, 0, draggedTaskObj);
+
+        // 更新排序值
+        relatedTasks.forEach((task: any, index: number) => {
+            task.sort = index * 10;
+        });
+
+        await saveReminders(this.plugin, reminderData);
+        await this.refresh();
+    }
+
+    /**
+     * 处理重复任务实例的排序
+     * 重复实例的 sort 值存储在 instanceModifications 中
+     */
+    private async handleInstanceReorder(
+        reminderData: any,
+        draggedTask: any,
+        draggedOriginalId: string,
+        targetOriginalId: string,
+        isDraggedInstance: boolean,
+        isTargetInstance: boolean,
+        event: DragEvent,
+        priority: string,
+        projectId: string
+    ) {
+        // 获取所有重复实例（包括当前项目的所有重复任务实例）
+        const allInstances: Array<{ id: string; originalId: string; date: string; sort: number; isInstance: boolean }> = [];
+
+        // 收集所有普通任务
+        Object.values(reminderData).forEach((task: any) => {
+            if ((task.projectId || 'no-project') === projectId &&
+                (task.priority || 'none') === priority &&
+                !task.id.includes('_')) {
+                allInstances.push({
+                    id: task.id,
+                    originalId: task.id,
+                    date: task.date,
+                    sort: task.sort || 0,
+                    isInstance: false
+                });
+            }
+        });
+
+        // 收集所有重复实例
+        Object.values(reminderData).forEach((task: any) => {
+            if (task.repeat?.enabled && task.repeat?.instanceModifications) {
+                const mods = task.repeat.instanceModifications;
+                Object.entries(mods).forEach(([date, mod]: [string, any]) => {
+                    if (mod && (mod.projectId || task.projectId || 'no-project') === projectId &&
+                        (mod.priority || task.priority || 'none') === priority) {
+                        allInstances.push({
+                            id: `${task.id}_${date}`,
+                            originalId: task.id,
+                            date: date,
+                            sort: mod.sort !== undefined ? mod.sort : (task.sort || 0),
+                            isInstance: true
+                        });
+                    }
+                });
+            }
+        });
+
+        // 按 sort 排序
+        allInstances.sort((a, b) => a.sort - b.sort);
+
+        // 找到目标索引
+        const targetIndex = allInstances.findIndex((inst) => inst.id === targetOriginalId);
+        const draggedIndex = allInstances.findIndex((inst) => inst.id === draggedOriginalId);
+
+        if (targetIndex === -1 || draggedIndex === -1) {
+            console.error('找不到拖拽或目标任务');
+            return;
+        }
+
+        // 计算插入位置
+        let insertIndex = targetIndex;
+        if (event.currentTarget instanceof HTMLElement) {
+            const rect = event.currentTarget.getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            insertIndex = event.clientY < midpoint ? targetIndex : targetIndex + 1;
+        }
+
+        // 重新排序
+        const draggedInst = allInstances[draggedIndex];
+        allInstances.splice(draggedIndex, 1);
+
+        // 调整插入索引（如果拖拽项在插入点之前被移除）
+        if (draggedIndex < insertIndex) {
+            insertIndex--;
+        }
+
+        const validInsertIndex = Math.max(0, Math.min(insertIndex, allInstances.length));
+        allInstances.splice(validInsertIndex, 0, draggedInst);
+
+        // 更新排序值
+        allInstances.forEach((inst, index) => {
+            const newSort = index * 10;
+            if (inst.isInstance) {
+                // 更新 instanceModifications 中的 sort
+                const originalTask = reminderData[inst.originalId];
+                if (originalTask && originalTask.repeat) {
+                    if (!originalTask.repeat.instanceModifications) {
+                        originalTask.repeat.instanceModifications = {};
+                    }
+                    if (!originalTask.repeat.instanceModifications[inst.date]) {
+                        originalTask.repeat.instanceModifications[inst.date] = {};
+                    }
+                    originalTask.repeat.instanceModifications[inst.date].sort = newSort;
+                }
+            } else {
+                // 更新普通任务的 sort
+                if (reminderData[inst.id]) {
+                    reminderData[inst.id].sort = newSort;
+                }
+            }
+        });
+
+        await saveReminders(this.plugin, reminderData);
+        await this.refresh();
+    }
+
+    /**
+     * 处理跨优先级排序：自动调整优先级
+     */
+    private async handleCrossPriorityReorder(
+        reminderData: any,
+        draggedTask: any,
+        targetTask: any,
+        draggedOriginalId: string,
+        targetOriginalId: string,
+        isDraggedInstance: boolean,
+        isTargetInstance: boolean,
+        event: DragEvent
+    ) {
+        const oldPriority = draggedTask.priority || 'none';
+        const newPriority = targetTask.priority || 'none';
+        const projectId = draggedTask.projectId || 'no-project';
+
+        // 如果是重复实例，需要特殊处理
+        if (isDraggedInstance) {
+            await this.handleInstanceCrossPriorityReorder(
+                reminderData,
+                draggedTask,
+                targetTask,
+                draggedOriginalId,
+                targetOriginalId,
+                isDraggedInstance,
+                isTargetInstance,
+                event,
+                oldPriority,
+                newPriority,
+                projectId
+            );
+            return;
+        }
+
+        // 1. 更新被拖拽任务的优先级
+        draggedTask.priority = newPriority;
+
+        // 2. 处理旧优先级分组：移除被拖拽项并重新排序
+        const oldGroup = Object.values(reminderData)
+            .filter((task: any) =>
+                (task.projectId || 'no-project') === projectId &&
+                (task.priority || 'none') === oldPriority &&
+                task.id !== draggedOriginalId
+            )
+            .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+        oldGroup.forEach((task: any, index: number) => {
+            if (reminderData[task.id]) reminderData[task.id].sort = index * 10;
+        });
+
+        // 3. 处理新优先级分组：插入并重新排序
+        const newGroup = Object.values(reminderData)
+            .filter((task: any) =>
+                (task.projectId || 'no-project') === projectId &&
+                (task.priority || 'none') === newPriority &&
+                task.id !== draggedOriginalId
+            )
+            .sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+
+        // 找到目标位置
+        let targetIndex = newGroup.findIndex((task: any) => task.id === targetOriginalId);
+        if (targetIndex === -1) targetIndex = newGroup.length;
+
+        // 计算插入位置（根据鼠标位置决定是在目标之前还是之后）
+        let insertIndex = targetIndex;
+        if (event.currentTarget instanceof HTMLElement) {
+            const rect = event.currentTarget.getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            insertIndex = event.clientY < midpoint ? targetIndex : targetIndex + 1;
+        }
+
+        // 插入被拖拽的任务
+        newGroup.splice(insertIndex, 0, draggedTask);
+
+        // 重新分配排序值
+        newGroup.forEach((task: any, index: number) => {
+            if (reminderData[task.id]) reminderData[task.id].sort = index * 10;
+        });
+
+        await saveReminders(this.plugin, reminderData);
+        showMessage(`优先级已自动调整为: ${this.getPriorityLabel(newPriority)}`);
+        await this.refresh();
+    }
+
+    /**
+     * 处理重复任务实例的跨优先级排序
+     */
+    private async handleInstanceCrossPriorityReorder(
+        reminderData: any,
+        draggedTask: any,
+        targetTask: any,
+        draggedOriginalId: string,
+        targetOriginalId: string,
+        isDraggedInstance: boolean,
+        isTargetInstance: boolean,
+        event: DragEvent,
+        oldPriority: string,
+        newPriority: string,
+        projectId: string
+    ) {
+        // 提取实例日期
+        const draggedInstanceDate = draggedOriginalId.split('_')[1];
+        const targetInstanceDate = isTargetInstance ? targetOriginalId.split('_')[1] : null;
+
+        if (!draggedInstanceDate) {
+            console.error('无法获取实例日期');
+            return;
+        }
+
+        // 1. 更新重复实例的优先级（存储在 instanceModifications 中）
+        if (!draggedTask.repeat.instanceModifications) {
+            draggedTask.repeat.instanceModifications = {};
+        }
+        if (!draggedTask.repeat.instanceModifications[draggedInstanceDate]) {
+            draggedTask.repeat.instanceModifications[draggedInstanceDate] = {};
+        }
+        draggedTask.repeat.instanceModifications[draggedInstanceDate].priority = newPriority;
+
+        // 2. 处理旧优先级分组：收集所有实例和普通任务，移除被拖拽项并重新排序
+        const oldGroup = this.collectTasksAndInstances(reminderData, projectId, oldPriority, draggedOriginalId);
+
+        oldGroup.forEach((item: any, index: number) => {
+            this.updateItemSort(reminderData, item, index * 10);
+        });
+
+        // 3. 处理新优先级分组：插入并重新排序
+        const newGroup = this.collectTasksAndInstances(reminderData, projectId, newPriority, draggedOriginalId);
+
+        // 找到目标位置
+        let targetIndex = -1;
+        if (isTargetInstance && targetInstanceDate) {
+            targetIndex = newGroup.findIndex((item: any) =>
+                item.id === targetOriginalId || (item.originalId === targetOriginalId.split('_')[0] && item.date === targetInstanceDate)
+            );
+        } else {
+            targetIndex = newGroup.findIndex((item: any) => item.id === targetOriginalId);
+        }
+        if (targetIndex === -1) targetIndex = newGroup.length;
+
+        // 计算插入位置
+        let insertIndex = targetIndex;
+        if (event.currentTarget instanceof HTMLElement) {
+            const rect = event.currentTarget.getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            insertIndex = event.clientY < midpoint ? targetIndex : targetIndex + 1;
+        }
+
+        // 构建被拖拽的实例项
+        const draggedItem = {
+            id: draggedOriginalId,
+            originalId: draggedTask.id,
+            date: draggedInstanceDate,
+            sort: draggedTask.repeat.instanceModifications[draggedInstanceDate]?.sort || draggedTask.sort || 0,
+            isInstance: true
+        };
+
+        // 插入被拖拽的任务
+        newGroup.splice(insertIndex, 0, draggedItem);
+
+        // 重新分配排序值
+        newGroup.forEach((item: any, index: number) => {
+            this.updateItemSort(reminderData, item, index * 10);
+        });
+
+        await saveReminders(this.plugin, reminderData);
+        showMessage(`优先级已自动调整为: ${this.getPriorityLabel(newPriority)}`);
+        await this.refresh();
+    }
+
+    /**
+     * 收集指定项目和优先级的所有任务和实例
+     */
+    private collectTasksAndInstances(reminderData: any, projectId: string, priority: string, excludeId?: string): any[] {
+        const items: any[] = [];
+
+        // 收集普通任务
+        Object.values(reminderData).forEach((task: any) => {
+            if ((task.projectId || 'no-project') === projectId &&
+                (task.priority || 'none') === priority &&
+                (!excludeId || task.id !== excludeId)) {
+                items.push({
+                    id: task.id,
+                    originalId: task.id,
+                    date: task.date,
+                    sort: task.sort || 0,
+                    isInstance: false
+                });
+            }
+        });
+
+        // 收集重复实例
+        Object.values(reminderData).forEach((task: any) => {
+            if (task.repeat?.enabled && task.repeat?.instanceModifications) {
+                const mods = task.repeat.instanceModifications;
+                Object.entries(mods).forEach(([date, mod]: [string, any]) => {
+                    const instanceId = `${task.id}_${date}`;
+                    if ((!excludeId || instanceId !== excludeId) &&
+                        (mod.projectId || task.projectId || 'no-project') === projectId &&
+                        (mod.priority || task.priority || 'none') === priority) {
+                        items.push({
+                            id: instanceId,
+                            originalId: task.id,
+                            date: date,
+                            sort: mod.sort !== undefined ? mod.sort : (task.sort || 0),
+                            isInstance: true
+                        });
+                    }
+                });
+            }
+        });
+
+        // 按 sort 排序
+        items.sort((a, b) => a.sort - b.sort);
+
+        return items;
+    }
+
+    /**
+     * 更新任务或实例的 sort 值
+     */
+    private updateItemSort(reminderData: any, item: any, sort: number) {
+        if (item.isInstance) {
+            const originalTask = reminderData[item.originalId];
+            if (originalTask && originalTask.repeat) {
+                if (!originalTask.repeat.instanceModifications) {
+                    originalTask.repeat.instanceModifications = {};
+                }
+                if (!originalTask.repeat.instanceModifications[item.date]) {
+                    originalTask.repeat.instanceModifications[item.date] = {};
+                }
+                originalTask.repeat.instanceModifications[item.date].sort = sort;
+            }
+        } else {
+            if (reminderData[item.id]) {
+                reminderData[item.id].sort = sort;
+            }
+        }
+    }
+
+    /**
+     * 获取优先级显示标签
+     */
+    private getPriorityLabel(priority: string): string {
+        const labels: Record<string, string> = {
+            'high': '高优先级',
+            'medium': '中优先级',
+            'low': '低优先级',
+            'none': '无优先级'
+        };
+        return labels[priority] || priority;
+    }
+
     private toggleTaskCollapse(taskId: string) {
         if (this.collapsedTasks.has(taskId)) {
             this.collapsedTasks.delete(taskId);
         } else {
             this.collapsedTasks.add(taskId);
+        }
+        this.renderMatrix();
+    }
+
+    private toggleProjectCollapse(quadrantKey: string, projectKey: string) {
+        if (!this.collapsedProjects.has(quadrantKey)) {
+            this.collapsedProjects.set(quadrantKey, new Set());
+        }
+        const collapsedProjects = this.collapsedProjects.get(quadrantKey)!;
+        if (collapsedProjects.has(projectKey)) {
+            collapsedProjects.delete(projectKey);
+        } else {
+            collapsedProjects.add(projectKey);
         }
         this.renderMatrix();
     }
@@ -4175,11 +4825,13 @@ export class EisenhowerMatrixView {
             const instanceData = {
                 ...originalReminder,
                 id: task.id,
+                title: instanceMod?.title !== undefined ? instanceMod.title : originalReminder.title,
                 date: task.date,
                 endDate: task.endDate,
                 time: task.time,
                 endTime: task.endTime,
-                note: instanceMod?.note || originalReminder.note || '',  // 复用原始事件备注，实例修改优先
+                note: instanceMod?.note !== undefined ? instanceMod.note : (originalReminder.note || ''),
+                priority: instanceMod?.priority !== undefined ? instanceMod.priority : (originalReminder.priority || 'none'),
                 isInstance: true,
                 originalId: task.originalId,
                 instanceDate: originalInstanceDate  // 使用原始生成日期而非当前显示日期

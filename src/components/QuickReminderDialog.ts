@@ -2895,11 +2895,21 @@ export class QuickReminderDialog {
 
         // 后台持久化
         try {
-            const reminderData = await this.plugin.loadReminderData();
-            if (reminderData[this.reminder.id]) {
-                reminderData[this.reminder.id].note = note;
-                await this.plugin.saveReminderData(reminderData);
-                console.debug('备注已更新 (后台)');
+            if (this.isInstanceEdit && this.reminder.isInstance) {
+                // 实例备注修改
+                await this.saveInstanceModification({
+                    originalId: this.reminder.originalId,
+                    instanceDate: this.reminder.instanceDate,
+                    note: note
+                });
+                console.debug('实例备注已更新 (后台)');
+            } else {
+                const reminderData = await this.plugin.loadReminderData();
+                if (reminderData[this.reminder.id]) {
+                    reminderData[this.reminder.id].note = note;
+                    await this.plugin.saveReminderData(reminderData);
+                    console.debug('备注已更新 (后台)');
+                }
             }
         } catch (error) {
             console.error('保存备注失败:', error);

@@ -4853,7 +4853,6 @@ export class ProjectKanbanView {
 
                     // 过滤实例：保留过去未完成、今天的、未来第一个未完成，以及所有已完成的实例
                     const completedInstances = reminder.repeat?.completedInstances || [];
-                    const instanceModifications = reminder.repeat?.instanceModifications || {};
 
                     // 将实例分类为：过去未完成、今天未完成、未来未完成、未来已完成、过去已完成
                     let pastIncompleteList: any[] = [];
@@ -4867,33 +4866,15 @@ export class ProjectKanbanView {
                         const originalKey = instanceIdStr.split('_').pop() || instance.date;
                         // 对于所有重复事件，只添加实例，不添加原始任务
                         const isInstanceCompleted = completedInstances.includes(originalKey);
-                        const instanceMod = instanceModifications[originalKey];
 
                         const instanceTask = {
                             ...reminder,
+                            ...instance,
                             id: instance.instanceId,
-                            date: instance.date,
-                            endDate: instance.endDate,
-                            time: instance.time,
-                            endTime: instance.endTime,
                             isRepeatInstance: true,
-                            originalId: instance.originalId,
                             completed: isInstanceCompleted,
-                            // 如果实例有修改，使用实例的值；否则使用原始值
-                            note: instanceMod?.note !== undefined ? instanceMod.note : reminder.note,
-                            priority: instanceMod?.priority !== undefined ? instanceMod.priority : reminder.priority,
-                            categoryId: instanceMod?.categoryId !== undefined ? instanceMod.categoryId : reminder.categoryId,
-                            projectId: instanceMod?.projectId !== undefined ? instanceMod.projectId : reminder.projectId,
-                            customGroupId: instanceMod?.customGroupId !== undefined ? instanceMod.customGroupId : reminder.customGroupId,
-                            kanbanStatus: instanceMod?.kanbanStatus !== undefined ? instanceMod.kanbanStatus : reminder.kanbanStatus,
-                            // 实例层标签支持：优先使用 instanceMod 的 tagIds，否则使用原始提醒的 tagIds
-                            tagIds: instanceMod?.tagIds !== undefined ? instanceMod.tagIds : reminder.tagIds,
-                            // 实例层里程碑支持：优先使用 instanceMod 的 milestoneId，否则使用原始提醒的 milestoneId
-                            milestoneId: instanceMod?.milestoneId !== undefined ? instanceMod.milestoneId : reminder.milestoneId,
                             // 为已完成的实例添加完成时间（用于排序）
-                            completedTime: isInstanceCompleted ? (instance.completedTime || reminder.repeat?.instanceCompletedTimes?.[originalKey] || getLocalDateTimeString(new Date(instance.date))) : undefined,
-                            // 支持实例级别的排序字段（优先使用 instanceMod 中的 sort）
-                            sort: (instanceMod && typeof instanceMod.sort === 'number') ? instanceMod.sort : (reminder.sort || 0)
+                            completedTime: isInstanceCompleted ? (instance.completedTime || reminder.repeat?.instanceCompletedTimes?.[originalKey] || getLocalDateTimeString(new Date(instance.date))) : undefined
                         };
 
                         // 按日期和完成状态分类（使用逻辑日期）
@@ -5631,7 +5612,6 @@ export class ProjectKanbanView {
 
             if (r.repeat && r.repeat.enabled) {
                 const completedInstances = r.repeat.completedInstances || [];
-                const instanceModifications = r.repeat.instanceModifications || {};
 
                 const rangeStart = r.startDate || r.date || r.createdTime?.split('T')[0] || '2020-01-01';
                 const futureDate = new Date();
@@ -5653,22 +5633,20 @@ export class ProjectKanbanView {
                     const instanceIdStr = (instance as any).instanceId || `${r.id}_${instance.date}`;
                     const originalKey = instanceIdStr.split('_').pop() || instance.date;
                     const isInstanceCompleted = completedInstances.includes(originalKey);
-                    const instanceMod = instanceModifications[originalKey] || {};
-
                     const instanceLogical = this.getTaskLogicalDate(instance.date, instance.time);
                     const dateComparison = compareDateStrings(instanceLogical, today);
 
                     if (isInstanceCompleted) {
                         counts['completed'] = (counts['completed'] || 0) + 1;
                     } else {
-                        const effectiveStatus = instanceMod.kanbanStatus || r.kanbanStatus || null;
+                        const effectiveStatus = instance.kanbanStatus || null;
                         if (dateComparison <= 0) {
                             // past or today -> prefer a 'doing' status if present
                             if (counts.hasOwnProperty('doing')) safeInc('doing');
                             else safeInc(effectiveStatus);
                             if (dateComparison === 0) hasTodayIncomplete = true;
                         } else {
-                            futureIncompleteList.push({ ...instance, kanbanStatus: effectiveStatus });
+                            futureIncompleteList.push({ ...instance });
                         }
                     }
                 });
@@ -13895,11 +13873,13 @@ export class ProjectKanbanView {
             const instanceData = {
                 ...originalReminder,
                 id: task.id,
+                title: instanceMod?.title !== undefined ? instanceMod.title : originalReminder.title,
                 date: task.date,
                 endDate: task.endDate,
                 time: task.time,
                 endTime: task.endTime,
-                note: instanceMod?.note || originalReminder.note || '',  // 复用原始事件备注，实例修改优先
+                note: instanceMod?.note !== undefined ? instanceMod.note : (originalReminder.note || ''),
+                priority: instanceMod?.priority !== undefined ? instanceMod.priority : (originalReminder.priority || 'none'),
                 isInstance: true,
                 originalId: task.originalId,
                 instanceDate: originalInstanceDate  // 使用原始生成日期而非当前显示日期
