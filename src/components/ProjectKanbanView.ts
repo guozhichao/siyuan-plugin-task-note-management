@@ -4275,9 +4275,9 @@ export class ProjectKanbanView {
 
     private addDropZoneEvents(element: HTMLElement, status: string) {
         element.addEventListener('dragover', (e) => {
+            const isExternalDrag = e.dataTransfer?.types.includes('application/x-reminder') || e.dataTransfer?.types.includes('text/plain');
             if (this.isDragging && this.draggedTask) {
                 // 检查是否可以改变状态或解除父子关系
-                // 使用 getTaskStatus 获取当前任务的实际状态
                 const currentStatus = this.getTaskStatus(this.draggedTask);
                 const canChangeStatus = currentStatus !== status;
                 const canUnsetParent = !!this.draggedTask.parentId;
@@ -4286,15 +4286,15 @@ export class ProjectKanbanView {
                     e.preventDefault();
                     e.dataTransfer.dropEffect = 'move';
                     element.classList.add('kanban-drop-zone-active');
-
-                    // 不显示解除父任务关系的提示，让用户通过拖拽区域自然判断
-                    // 移除了原来的 unsetParent 指示器显示逻辑
                 }
+            } else if (isExternalDrag) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                element.classList.add('kanban-drop-zone-active');
             }
         });
 
         element.addEventListener('dragleave', (_e) => {
-            // 使用 contains 检查离开目标区域时清除样式
             if (!element.contains((_e as any).relatedTarget as Node)) {
                 element.classList.remove('kanban-drop-zone-active');
                 this.updateIndicator('none', null, null);
@@ -4302,26 +4302,44 @@ export class ProjectKanbanView {
         });
 
         element.addEventListener('drop', async (e) => {
+            this.clearDropZoneHighlights();
+
             // 检查批量拖拽
             const multiData = e.dataTransfer?.getData('application/vnd.siyuan.kanban-tasks');
             if (multiData) {
                 e.preventDefault();
-                element.classList.remove('kanban-drop-zone-active');
-                this.updateIndicator('none', null, null);
+                e.stopPropagation();
                 try {
                     const taskIds = JSON.parse(multiData);
-                    await this.batchUpdateTasks(taskIds, { kanbanStatus: status });
+                    await this.batchUpdateTasks(taskIds, { kanbanStatus: status, projectId: this.projectId });
                 } catch (err) { console.error(err); }
                 return;
             }
 
             if (this.isDragging && this.draggedTask) {
                 e.preventDefault();
-                element.classList.remove('kanban-drop-zone-active');
-                this.updateIndicator('none', null, null);
+                e.stopPropagation();
+                // 使用 batchUpdateTasks 处理单个任务拖拽，确保可以自动解除父子关系并同步项目
+                await this.batchUpdateTasks([this.draggedTask.id], { kanbanStatus: status, projectId: this.projectId });
+            } else {
+                let externalTaskId = '';
+                const reminderPayload = e.dataTransfer?.getData('application/x-reminder');
+                if (reminderPayload) {
+                    try {
+                        const payload = JSON.parse(reminderPayload);
+                        externalTaskId = payload.id;
+                    } catch (e) { }
+                }
+                if (!externalTaskId) {
+                    externalTaskId = e.dataTransfer?.getData('text/plain');
+                }
 
-                // 使用 batchUpdateTasks 处理单个任务拖拽，确保可以自动解除父子关系
-                await this.batchUpdateTasks([this.draggedTask.id], { kanbanStatus: status });
+                if (externalTaskId) {
+                    console.log('[Kanban] External Drop on Status:', { externalTaskId, status, projectId: this.projectId });
+                    e.preventDefault();
+                    e.stopPropagation();
+                    await this.batchUpdateTasks([externalTaskId], { kanbanStatus: status, projectId: this.projectId });
+                }
             }
         });
     }
@@ -4331,6 +4349,7 @@ export class ProjectKanbanView {
      */
     private addCustomGroupDropZoneEvents(element: HTMLElement, groupId: string | null) {
         element.addEventListener('dragover', (e) => {
+            const isExternalDrag = e.dataTransfer?.types.includes('application/x-reminder') || e.dataTransfer?.types.includes('text/plain');
             if (this.isDragging && this.draggedTask) {
                 // 将 undefined 或字符串 'ungrouped' 视为 null，对比当前分组是否与目标一致
                 const currentGroupRaw = (this.draggedTask.customGroupId as any);
@@ -4342,6 +4361,10 @@ export class ProjectKanbanView {
                     if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
                     element.classList.add('kanban-drop-zone-active');
                 }
+            } else if (isExternalDrag) {
+                e.preventDefault();
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                element.classList.add('kanban-drop-zone-active');
             }
         });
 
@@ -4353,23 +4376,42 @@ export class ProjectKanbanView {
         });
 
         element.addEventListener('drop', async (e) => {
+            this.clearDropZoneHighlights();
+
             const multiData = e.dataTransfer?.getData('application/vnd.siyuan.kanban-tasks');
             if (multiData) {
                 e.preventDefault();
-                element.classList.remove('kanban-drop-zone-active');
+                e.stopPropagation();
                 try {
                     const taskIds = JSON.parse(multiData);
-                    await this.batchUpdateTasks(taskIds, { customGroupId: groupId });
+                    await this.batchUpdateTasks(taskIds, { customGroupId: groupId, projectId: this.projectId });
                 } catch (err) { console.error(err); }
                 return;
             }
 
             if (this.isDragging && this.draggedTask) {
                 e.preventDefault();
-                element.classList.remove('kanban-drop-zone-active');
+                e.stopPropagation();
+                await this.batchUpdateTasks([this.draggedTask.id], { customGroupId: groupId, projectId: this.projectId });
+            } else {
+                let externalTaskId = '';
+                const reminderPayload = e.dataTransfer?.getData('application/x-reminder');
+                if (reminderPayload) {
+                    try {
+                        const payload = JSON.parse(reminderPayload);
+                        externalTaskId = payload.id;
+                    } catch (e) { }
+                }
+                if (!externalTaskId) {
+                    externalTaskId = e.dataTransfer?.getData('text/plain');
+                }
 
-                // 使用 batchUpdateTasks 处理单个任务拖拽，确保可以自动解除父子关系
-                await this.batchUpdateTasks([this.draggedTask.id], { customGroupId: groupId });
+                if (externalTaskId) {
+                    console.log('[Kanban] External Drop on Group:', { externalTaskId, groupId, projectId: this.projectId });
+                    e.preventDefault();
+                    e.stopPropagation();
+                    await this.batchUpdateTasks([externalTaskId], { customGroupId: groupId, projectId: this.projectId });
+                }
             }
         });
     }
@@ -4381,23 +4423,18 @@ export class ProjectKanbanView {
      */
     private addStatusSubGroupDropEvents(element: HTMLElement, targetStatus: string) {
         element.addEventListener('dragover', (e) => {
+            const isExternalDrag = e.dataTransfer?.types.includes('application/x-reminder') || e.dataTransfer?.types.includes('text/plain');
             if (this.isDragging && this.draggedTask) {
-                // 获取当前任务的状态
                 const currentStatus = this.getTaskStatus(this.draggedTask);
-
-                // 获取目标分组ID（从DOM中提取）
                 const statusGroup = element.closest('.custom-status-group') as HTMLElement;
                 let targetGroupId: string | null | undefined = undefined;
                 if (statusGroup && statusGroup.dataset.groupId) {
                     const groupId = statusGroup.dataset.groupId;
                     targetGroupId = groupId === 'ungrouped' ? null : groupId;
                 }
-
-                // 获取当前任务的分组ID
                 const currentGroupRaw = (this.draggedTask as any).customGroupId;
                 const currentGroupId = (currentGroupRaw === undefined || currentGroupRaw === 'ungrouped') ? null : currentGroupRaw;
 
-                // 允许放置的条件：状态不同 OR 分组不同
                 const statusChanged = currentStatus !== targetStatus;
                 const groupChanged = targetGroupId !== undefined && currentGroupId !== targetGroupId;
 
@@ -4406,18 +4443,21 @@ export class ProjectKanbanView {
                     if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
                     element.classList.add('kanban-drop-zone-active');
                 }
+            } else if (isExternalDrag) {
+                e.preventDefault();
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                element.classList.add('kanban-drop-zone-active');
             }
         });
 
         element.addEventListener('dragleave', (e) => {
-            // 使用 contains 检查是否真正离开目标区域
             if (!element.contains((e as any).relatedTarget as Node)) {
                 element.classList.remove('kanban-drop-zone-active');
             }
         });
 
         element.addEventListener('drop', async (e) => {
-            // 提取目标 customGroupId
+            this.clearDropZoneHighlights();
             const statusGroup = element.closest('.custom-status-group') as HTMLElement;
             let targetGroupId: string | null | undefined = undefined;
             if (statusGroup && statusGroup.dataset.groupId) {
@@ -4429,26 +4469,36 @@ export class ProjectKanbanView {
             if (multiData) {
                 e.preventDefault();
                 e.stopPropagation();
-                element.classList.remove('kanban-drop-zone-active');
                 try {
                     const taskIds = JSON.parse(multiData);
-                    await this.batchUpdateTasks(taskIds, { kanbanStatus: targetStatus, customGroupId: targetGroupId });
+                    await this.batchUpdateTasks(taskIds, { kanbanStatus: targetStatus, customGroupId: targetGroupId, projectId: this.projectId });
                 } catch (err) { console.error(err); }
                 return;
             }
 
             if (this.isDragging && this.draggedTask) {
                 e.preventDefault();
-                // 关键：阻止事件冒泡，防止触发父级（整个自定义分组）的drop事件
                 e.stopPropagation();
-                element.classList.remove('kanban-drop-zone-active');
+                await this.batchUpdateTasks([this.draggedTask.id], { kanbanStatus: targetStatus, customGroupId: targetGroupId, projectId: this.projectId });
+            } else {
+                let externalTaskId = '';
+                const reminderPayload = e.dataTransfer?.getData('application/x-reminder');
+                if (reminderPayload) {
+                    try {
+                        const payload = JSON.parse(reminderPayload);
+                        externalTaskId = payload.id;
+                    } catch (e) { }
+                }
+                if (!externalTaskId) {
+                    externalTaskId = e.dataTransfer?.getData('text/plain');
+                }
 
-                const task = this.draggedTask;
-                // use task.id for batchUpdateTasks, it handles originalId lookup internally
-                const taskId = task.id;
-
-                // 使用 batchUpdateTasks 处理单个任务拖拽，确保可以自动解除父子关系
-                await this.batchUpdateTasks([taskId], { kanbanStatus: targetStatus, customGroupId: targetGroupId });
+                if (externalTaskId) {
+                    console.log('[Kanban] External Drop on SubGroup:', { externalTaskId, targetStatus, targetGroupId, projectId: this.projectId });
+                    e.preventDefault();
+                    e.stopPropagation();
+                    await this.batchUpdateTasks([externalTaskId], { kanbanStatus: targetStatus, customGroupId: targetGroupId, projectId: this.projectId });
+                }
             }
         });
     }
@@ -7178,16 +7228,26 @@ export class ProjectKanbanView {
         });
 
         element.addEventListener('drop', async (e) => {
+            this.clearDropZoneHighlights();
             e.preventDefault();
-            element.classList.remove('kanban-drop-hover');
+            e.stopPropagation();
 
-            let taskId = e.dataTransfer!.getData('text/plain');
-            // Fix: sometimes drag data is just task id, sometimes has prefix? 
-            // Usually in this view it handles raw ID mostly.
+            let taskId = '';
+            const reminderPayload = e.dataTransfer?.getData('application/x-reminder');
+            if (reminderPayload) {
+                try {
+                    const payload = JSON.parse(reminderPayload);
+                    taskId = payload.id;
+                } catch (e) { }
+            }
+            if (!taskId) {
+                taskId = e.dataTransfer?.getData('text/plain');
+            }
 
             if (!taskId) return;
 
             const updates: any = {};
+            updates.projectId = this.projectId; // Ensure project is updated when dragging from sidebar
 
             if (type === 'finished') {
                 updates.completed = true;
@@ -9005,6 +9065,7 @@ export class ProjectKanbanView {
         taskEl.draggable = true;
         this.addTaskDragEvents(taskEl, task);
         taskEl.addEventListener('dragover', (e) => {
+            const isExternalDrag = e.dataTransfer?.types.includes('application/x-reminder') || e.dataTransfer?.types.includes('text/plain');
             if (this.isDragging && this.draggedElement && this.draggedElement !== taskEl) {
                 const targetTask = this.getTaskFromElement(taskEl);
                 if (!targetTask) return;
@@ -9080,6 +9141,11 @@ export class ProjectKanbanView {
                     // 清除所有指示器
                     this.updateIndicator('none', null, null);
                 }
+            } else if (isExternalDrag) {
+                // 允许外部拖拽冒泡到列区域
+                e.preventDefault();
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                this.updateIndicator('none', null, null);
             }
         });
 
@@ -9091,8 +9157,11 @@ export class ProjectKanbanView {
         });
 
         taskEl.addEventListener('drop', (e) => {
-            // Check for batch data first
             const multiData = e.dataTransfer?.getData('application/vnd.siyuan.kanban-tasks');
+            if (this.isDragging || multiData || e.dataTransfer?.types.includes('application/x-reminder')) {
+                this.clearDropZoneHighlights();
+            }
+            // Check for batch data first
             if (multiData) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -9425,8 +9494,13 @@ export class ProjectKanbanView {
     }
 
     private addTaskDragEvents(element: HTMLElement, task: any) {
-        // 支持子任务拖拽到父任务上边缘解除父子关系
         element.addEventListener('dragover', (e) => {
+            const isExternalDrag = e.dataTransfer?.types.includes('application/x-reminder') || e.dataTransfer?.types.includes('text/plain');
+            if (isExternalDrag && !this.isDragging) {
+                // 允许外部拖拽冒泡
+                e.preventDefault();
+                return;
+            }
             if (!this.isDragging || !this.draggedTask || this.draggedTask.id === task.id) return;
             // 仅允许子任务拖拽到父任务上边缘
             if (task.id === this.draggedTask.parentId) {
@@ -13062,7 +13136,7 @@ export class ProjectKanbanView {
      */
     private async handleParentChildDrop(targetTask: any) {
         if (!this.draggedTask) return;
-
+        console.log('[Kanban] handleParentChildDrop:', { dragged: this.draggedTask.id, target: targetTask.id });
         try {
             await this.setParentChildRelation(this.draggedTask, targetTask);
             showMessage(`"${this.draggedTask.title}" 已设置为 "${targetTask.title}" 的子任务`);
@@ -13121,6 +13195,13 @@ export class ProjectKanbanView {
                 }
             }
 
+            // 3. 继承项目 (新增)
+            if (parentInDb.projectId) {
+                childInDb.projectId = parentInDb.projectId;
+            } else if (childInDb.projectId) {
+                delete childInDb.projectId;
+            }
+
             await saveReminders(this.plugin, reminderData);
 
             // 更新本地缓存
@@ -13139,6 +13220,8 @@ export class ProjectKanbanView {
                 }
                 // 同步本地缓存分组
                 localChild.customGroupId = parentInDb.customGroupId;
+                // 同步本地缓存项目 (新增)
+                localChild.projectId = parentInDb.projectId;
             }
 
             this.dispatchReminderUpdate(true);
@@ -13981,6 +14064,11 @@ export class ProjectKanbanView {
                 draggedTaskInDb.priority = newPriority;
             }
 
+            // --- Update Project (New) ---
+            if (draggedTaskInDb.projectId !== this.projectId) {
+                draggedTaskInDb.projectId = this.projectId;
+            }
+
             // --- Update status of dragged task (Enhanced) ---
             if (oldStatus !== newStatus) {
                 if (newStatus === 'completed') {
@@ -14033,11 +14121,20 @@ export class ProjectKanbanView {
                             }
                         }
                     }
+                    // 同步项目 (新增)
+                    if (updates.projectId !== undefined) {
+                        const newProject = updates.projectId;
+                        if (newProject === null) {
+                            delete desc.projectId;
+                        } else {
+                            desc.projectId = newProject;
+                        }
+                    }
+
                     // 同步优先级
                     if (desc.priority !== newPriority) {
                         desc.priority = newPriority;
                     }
-
                 }
             } catch (err) { console.warn('Cascade fallback failed', err); }
             // --- Reorder source list ---
@@ -14063,11 +14160,11 @@ export class ProjectKanbanView {
 
             const targetIndex = targetList.findIndex((t: any) => t.id === targetId);
             const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
-
             targetList.splice(insertIndex, 0, draggedTaskInDb);
             targetList.forEach((task: any, index: number) => {
                 reminderData[task.id].sort = index * 10;
             });
+            console.log('[Kanban] handleSortDrop DB update:', { draggedId, newStatus, newPriority, targetProjectId: this.projectId });
             await saveReminders(this.plugin, reminderData);
 
             // Update local cache for ALL tasks involved
@@ -15805,10 +15902,40 @@ export class ProjectKanbanView {
 
 
 
+    private clearDropZoneHighlights() {
+        this.container.querySelectorAll('.kanban-drop-zone-active, .kanban-drop-hover').forEach(el => {
+            el.classList.remove('kanban-drop-zone-active', 'kanban-drop-hover');
+        });
+        this.updateIndicator('none', null, null);
+    }
+
+    private findOrCreateUiTask(taskId: string, reminderData: any) {
+        let uiTask = this.tasks.find(t => t.id === taskId);
+        if (uiTask) return uiTask;
+
+        // 改进：识别 YYYYMMDD 或 YYYY-MM-DD 格式的实例后缀
+        const isInstance = /_(\d{8}|\d{4}-\d{2}-\d{2})$/.test(taskId);
+        const dbId = isInstance ? taskId.substring(0, taskId.lastIndexOf('_')) : taskId;
+
+        const taskInDb = reminderData[dbId];
+        if (taskInDb) {
+            return {
+                ...taskInDb,
+                id: taskId,
+                isRepeatInstance: isInstance,
+                originalId: isInstance ? dbId : undefined,
+                date: isInstance ? taskId.split('_').pop() : taskInDb.date
+            };
+        }
+        console.warn('[Kanban] findOrCreateUiTask: Task not found in DB', { taskId, dbId, isInstance });
+        return null;
+    }
+
     /**
      * 批量更新任务属性 (用于拖拽)
      */
     private async batchUpdateTasks(taskIds: string[], updates: { kanbanStatus?: string, customGroupId?: string | null, tagIds?: string[], milestoneId?: string | null, projectId?: string | null, priority?: string }) {
+        console.log('[Kanban] batchUpdateTasks called:', { taskIds, updates });
         try {
             const reminderData = await this.getReminders();
             // 如果尝试修改状态（尤其是将任务移出 doing/completed），在执行前先检查是否有未完成且日期为今天或已过的任务。
@@ -15818,7 +15945,7 @@ export class ProjectKanbanView {
                 const offendingTasks: any[] = [];
                 if (updates.kanbanStatus) {
                     for (const tid of taskIds) {
-                        const uiTask = this.tasks.find(t => t.id === tid);
+                        const uiTask = this.findOrCreateUiTask(tid, reminderData);
                         if (!uiTask) continue;
                         if (uiTask.completed) continue;
                         if (uiTask.date && compareDateStrings(this.getTaskLogicalDate(uiTask.date, uiTask.time), today) <= 0) {
@@ -15887,13 +16014,21 @@ export class ProjectKanbanView {
             let updatedCount = 0;
 
             for (const taskId of taskIds) {
-                const uiTask = this.tasks.find(t => t.id === taskId);
-                if (!uiTask) continue;
+                const uiTask = this.findOrCreateUiTask(taskId, reminderData);
+                if (!uiTask) {
+                    console.log('[Kanban] Skipping task (no uiTask):', taskId);
+                    continue;
+                }
 
                 // 确定DB中的ID（兼容重复实例）
                 const dbId = uiTask.isRepeatInstance ? uiTask.originalId : uiTask.id;
                 const taskInDb = reminderData[dbId];
-                if (!taskInDb) continue;
+                if (!taskInDb) {
+                    console.log('[Kanban] Skipping task (not in DB):', { taskId, dbId });
+                    continue;
+                }
+
+                console.log('[Kanban] Processing task update:', { taskId, title: taskInDb.title, dbId });
 
                 if (uiTask.isRepeatInstance && uiTask.originalId) {
                     const instanceDate = uiTask.date;
@@ -15943,11 +16078,94 @@ export class ProjectKanbanView {
                             }
                         }
 
+                        // Series Project Update (Applied to original task definition)
+                        if (updates.projectId !== undefined) {
+                            const newProject = updates.projectId;
+                            if (newProject === null) {
+                                if (originalTask.projectId !== undefined) {
+                                    delete originalTask.projectId;
+                                    instanceChanged = true;
+                                }
+                            } else {
+                                if (originalTask.projectId !== newProject) {
+                                    originalTask.projectId = newProject;
+                                    instanceChanged = true;
+                                }
+                            }
+                        }
+
                         if (instanceChanged) {
                             instanceDescendantChanged = true;
                             if (originalTask.blockId || originalTask.docId) {
                                 blocksToUpdate.add(originalTask.blockId || originalTask.docId);
                             }
+                        }
+                    }
+
+                    // [更正/新增] 同步基准任务定义 (Base Task Definition)
+                    // 确保原始任务 (originalId) 的 projectId, customGroupId, kanbanStatus 也被更新
+                    // 这样未来生成的实例才会继续属于该项目
+                    const baseTask = reminderData[originalId];
+                    if (baseTask) {
+                        let baseTaskChanged = false;
+                        if (updates.projectId !== undefined && baseTask.projectId !== updates.projectId) {
+                            baseTask.projectId = updates.projectId;
+                            baseTaskChanged = true;
+                        }
+                        if (updates.customGroupId !== undefined && baseTask.customGroupId !== updates.customGroupId) {
+                            if (updates.customGroupId === null) delete baseTask.customGroupId;
+                            else baseTask.customGroupId = updates.customGroupId;
+                            baseTaskChanged = true;
+                        }
+                        if (updates.kanbanStatus && updates.kanbanStatus !== 'completed' && baseTask.kanbanStatus !== updates.kanbanStatus) {
+                            baseTask.kanbanStatus = updates.kanbanStatus;
+                            baseTaskChanged = true;
+                        }
+
+                        if (baseTaskChanged) {
+                            if (baseTask.blockId || baseTask.docId) {
+                                blocksToUpdate.add(baseTask.blockId || baseTask.docId);
+                            }
+                            hasChanges = true;
+                        }
+                    }
+
+                    // [新增] 对于重复实例的“普通子任务” (Real Subtasks)，它们是独立的DB记录，需要在此同步更新
+                    // 包括：1. 原始任务系列的子任务 (originalIdsToUpdate)
+                    //       2. 直接挂载在该实例下的子任务 (instance specific subtasks)
+                    const instanceSpecificSubtasks = this.getAllDescendantIds(uiTask.id, reminderData);
+                    const allSubtaskIdsToUpdate = new Set([...originalIdsToUpdate, ...instanceSpecificSubtasks]);
+
+                    for (const oid of allSubtaskIdsToUpdate) {
+                        if (oid === originalId) continue; // 跳过根任务，根任务的普通更新在 instMod 循环外由 normal item 逻辑或后续逻辑处理并不准确，
+                        // 实际上这里的逻辑是处理 “当拖动实例 A 时，A 的子任务 B (也是DB中的一条记录) 该如何更新”。
+
+                        const subTaskInDb = reminderData[oid];
+                        if (!subTaskInDb) continue;
+
+                        let subTaskChanged = false;
+
+                        // 同步项目
+                        if (updates.projectId !== undefined) {
+                            if (subTaskInDb.projectId !== updates.projectId) {
+                                subTaskInDb.projectId = updates.projectId;
+                                subTaskChanged = true;
+                            }
+                        }
+
+                        // 同步状态 (如果不是 completed，我们通常让普通子任务同步系列状态)
+                        if (updates.kanbanStatus && updates.kanbanStatus !== 'completed') {
+                            if (subTaskInDb.kanbanStatus !== updates.kanbanStatus) {
+                                subTaskInDb.kanbanStatus = updates.kanbanStatus;
+                                subTaskChanged = true;
+                            }
+                        }
+
+                        if (subTaskChanged) {
+                            if (subTaskInDb.blockId || subTaskInDb.docId) {
+                                blocksToUpdate.add(subTaskInDb.blockId || subTaskInDb.docId);
+                            }
+                            hasChanges = true;
                         }
                     }
 
@@ -16055,12 +16273,16 @@ export class ProjectKanbanView {
                         }
 
                         // Parent detachment: 仅对被直接拖动的任务执行（保持对子任务的父子关系）
-                        if (uid === dbId && (updates.kanbanStatus || updates.customGroupId !== undefined) && item.parentId) {
+                        // [新增] 当 projectId 发生变化时，如果旧父任务不在新项目中，也应脱离
+                        const projectChanged = updates.projectId !== undefined && item.projectId !== updates.projectId;
+
+                        if (uid === dbId && (updates.kanbanStatus || updates.customGroupId !== undefined || projectChanged) && item.parentId) {
                             delete item.parentId;
                             itemChanged = true;
                         }
 
                         if (itemChanged) {
+                            console.log('[Kanban] Task updated in DB cache:', { taskId: item.id, itemChanged, finalProject: item.projectId, finalStatus: item.kanbanStatus });
                             hasChanges = true;
                             updatedCount++;
                             if (item.blockId || item.docId) {
