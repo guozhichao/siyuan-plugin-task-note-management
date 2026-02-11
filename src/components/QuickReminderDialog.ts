@@ -1325,7 +1325,7 @@ export class QuickReminderDialog {
                             </div>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-form__label">${i18n("reminderDate") || "日期时间"} (可选)</label>
+                            <label class="b3-form__label">${i18n("reminderDate") || "日期时间"}</label>
                             <div style="display: flex; flex-direction: column; gap: 8px;">
                                 <!-- 开始行: responsive, keep date flexible but ensure time + clear button never wrap -->
                                 <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
