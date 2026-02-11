@@ -66,6 +66,7 @@ export class QuickReminderDialog {
     private existingReminders: any[] = [];
     private selectedCategoryIds: string[] = [];
     private currentKanbanStatuses: import('../utils/projectManager').KanbanStatus[] = []; // 当前项目的kanbanStatuses
+    private durationManuallyChanged: boolean = false; // 标记用户是否手动修改了持续天数
 
 
     constructor(
@@ -543,12 +544,6 @@ export class QuickReminderDialog {
                 } else {
                     durationInput.value = '1';
                 }
-            }
-
-            // 如果有开始日期但没有结束日期，根据持续天数自动填充结束日期
-            if (dateInput.value && !endDateInput.value) {
-                const days = parseInt(durationInput?.value || '1', 10) || 1;
-                endDateInput.value = this.addDaysToDate(dateInput.value, days - 1);
             }
         }
 
@@ -1995,8 +1990,9 @@ export class QuickReminderDialog {
             endDateInput.min = startDateInput.value;
         }
 
-        // 如果设置了开始但未设置结束，使用持续天数来自动填充结束日期（默认 1 天）
-        if (startDateInput && startDateInput.value && endDateInput && !endDateInput.value && durationInput) {
+        // 只在编辑模式下，如果设置了开始但未设置结束，才使用持续天数来自动填充结束日期
+        // 新建任务时不自动填充，除非用户手动修改了持续天数
+        if (this.mode === 'edit' && startDateInput && startDateInput.value && endDateInput && !endDateInput.value && durationInput) {
             const days = parseInt(durationInput.value || '1') || 1;
             endDateInput.value = this.addDaysToDate(startDateInput.value, days - 1);
         }
@@ -2006,7 +2002,8 @@ export class QuickReminderDialog {
             if (!startDateInput || !startDateInput.value) return;
             if (endDateInput) endDateInput.min = startDateInput.value;
 
-            if (endDateInput && !endDateInput.value && durationInput) {
+            // 只有在用户手动修改了持续天数，或者编辑模式下结束日期已存在时，才自动填充/更新结束日期
+            if (endDateInput && !endDateInput.value && durationInput && this.durationManuallyChanged) {
                 const days = parseInt(durationInput.value || '1') || 1;
                 endDateInput.value = this.addDaysToDate(startDateInput.value, days - 1);
                 endDateInput.dispatchEvent(new Event('change'));
@@ -2023,6 +2020,8 @@ export class QuickReminderDialog {
             let val = parseInt(durationInput.value || '1', 10) || 1;
             if (val < 1) val = 1;
             durationInput.value = String(val);
+            // 标记用户已手动修改持续天数
+            this.durationManuallyChanged = true;
             if (startDateInput && startDateInput.value && endDateInput) {
                 // 始终覆盖结束日期以保证与持续天数一致（当改为1时会设置为开始日期）
                 endDateInput.value = this.addDaysToDate(startDateInput.value, val - 1);
