@@ -143,7 +143,6 @@ export class EisenhowerMatrixView {
         const headerEl = document.createElement('div');
         headerEl.className = 'matrix-header';
         headerEl.innerHTML = `
-            <h2>${i18n("eisenhowerMatrix")}</h2>
             <div class="matrix-header-buttons">
                 <button class="b3-button b3-button--primary new-task-btn" title="${i18n("newTask")}">
                     <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
@@ -1058,8 +1057,6 @@ export class EisenhowerMatrixView {
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            width: 20px;
-            min-width: 20px;
             flex-shrink: 0;
             gap: 2px;
         `;
@@ -2239,18 +2236,13 @@ export class EisenhowerMatrixView {
                 display: flex;
                 flex-direction: column;
                 justify-content: space-between;
-                padding: 16px;
+                padding: 8px 16px;
                 border-bottom: 1px solid var(--b3-theme-border);
                 background: var(--b3-theme-background);
                 flex-shrink: 0;
                 align-items: center;
             }
 
-            .matrix-header h2 {
-                margin: 0;
-                font-size: 20px;
-                font-weight: 600;
-            }
 
             .matrix-header-buttons {
                 display: flex;
@@ -2280,8 +2272,8 @@ export class EisenhowerMatrixView {
 
             .matrix-grid {
                 display: grid;
-                grid-template-columns: 1fr;
-                grid-auto-rows: minmax(400px, auto);
+                grid-template-columns: 1fr 1fr;
+                grid-auto-rows: minmax(250px, auto);
                 gap: 8px;
                 flex: 1;
                 padding: 8px;
@@ -2289,11 +2281,27 @@ export class EisenhowerMatrixView {
                 min-height: 0;
             }
 
-            /* 容器查询：当容器宽度 >= 768px 时，使用 2x2 布局 */
-            @container matrix-view (min-width: 768px) {
+            /* 容器查询：当容器宽度 < 768px 时，使用横向滚动布局 */
+            @container matrix-view (max-width: 767px) {
                 .matrix-grid {
-                    grid-template-columns: 1fr 1fr;
-                    grid-auto-rows: minmax(250px, auto);
+                    display: flex;
+                    flex-direction: row;
+                    flex-wrap: nowrap;
+                    overflow-x: auto;
+                    overflow-y: hidden;
+                    gap: 12px;
+                    padding: 8px;
+                    scroll-snap-type: x mandatory;
+                    -webkit-overflow-scrolling: touch;
+                }
+                
+                .matrix-grid .quadrant {
+                    flex: 0 0 auto;
+                    width: calc(100% - 32px);
+                    min-width: 280px;
+                    max-width: 360px;
+                    min-height: calc(100% - 16px);
+                    scroll-snap-align: start;
                 }
             }
 
@@ -2305,14 +2313,7 @@ export class EisenhowerMatrixView {
                 display: flex;
                 flex-direction: column;
                 position: relative;
-                min-height: 200px;
-            }
-
-            /* 容器查询：宽容器时增加最小高度 */
-            @container matrix-view (min-width: 768px) {
-                .quadrant {
-                    min-height: 250px;
-                }
+                min-height: 250px;
             }
 
             .quadrant-important-urgent {
@@ -2364,11 +2365,10 @@ export class EisenhowerMatrixView {
                 padding: 8px;
                 overflow-y: auto;
                 min-height: 0;
-                max-height: 400px;
             }
 
-            /* 宽容器时增加内容区域最大高度 */
-            @container matrix-view (min-width: 768px) {
+            /* 窄屏时确保内容区域可以滚动 */
+            @container matrix-view (max-width: 767px) {
                 .quadrant-content {
                     max-height: none;
                 }
@@ -2483,6 +2483,30 @@ export class EisenhowerMatrixView {
                 .add-task-btn {
                     padding: 2px 6px !important;
                     font-size: 11px !important;
+                }
+
+                /* 滚动条美化 */
+                .matrix-grid::-webkit-scrollbar {
+                    height: 6px;
+                }
+                
+                .matrix-grid::-webkit-scrollbar-track {
+                    background: var(--b3-theme-surface-lighter);
+                    border-radius: 3px;
+                }
+                
+                .matrix-grid::-webkit-scrollbar-thumb {
+                    background: var(--b3-theme-primary-lighter);
+                    border-radius: 3px;
+                }
+                
+                .matrix-grid::-webkit-scrollbar-thumb:hover {
+                    background: var(--b3-theme-primary);
+                }
+
+                /* 象限阴影效果 */
+                .matrix-grid .quadrant {
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
                 }
             }
             
