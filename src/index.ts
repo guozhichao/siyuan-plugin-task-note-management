@@ -3805,11 +3805,17 @@ export default class ReminderPlugin extends Plugin {
         // 快捷键：打开日历视图
         this.addCommand({
             langKey: "shortcutOpenCalendarView",
-            hotkey: "Alt+T",
+            hotkey: "",
             editorCallback: () => {
                 this.openCalendarTab();
             },
             callback: () => {
+                this.openCalendarTab();
+            },
+            fileTreeCallback: () => {
+                this.openCalendarTab();
+            },
+            dockCallback: () => {
                 this.openCalendarTab();
             }
         });
