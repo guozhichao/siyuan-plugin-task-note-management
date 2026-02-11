@@ -41,11 +41,11 @@ git pull origin main
 
 # Copy CHANGELOG.md and plugin.json from private-branch
 echo "Copying CHANGELOG.md and plugin.json from private-branch..."
-git checkout private-branch -- CHANGELOG.md plugin.json
+git checkout private-branch -- CHANGELOG.md plugin.json README_en_US.md  README.md
 
 # Commit the updates in main branch
 echo "Committing updates in main branch..."
-git add CHANGELOG.md plugin.json
+git add CHANGELOG.md plugin.json README_en_US.md README.md
 git commit -m "📝 Update CHANGELOG and plugin.json for $version" || echo "No changes to commit"
 
 # Push main branch
