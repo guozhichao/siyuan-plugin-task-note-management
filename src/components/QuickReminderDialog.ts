@@ -1306,22 +1306,23 @@ export class QuickReminderDialog {
                             </div>
                         </div>
                         <div class="b3-form__group">
-                            <label class="b3-checkbox">
-                                <input type="checkbox" class="b3-switch" id="quickIsAvailableToday">
-                                <span class="b3-checkbox__graphic"></span>
-                                <span class="b3-checkbox__label">🍰 每日可做（在任务管理侧栏的「今日任务」每天显示，适合用于推进长期任务）</span>
-                            </label>
-                        </div>
-                        <div class="b3-form__group" id="quickAvailableDateGroup" style="display: none; margin-left: 28px;">
-                            <label class="b3-form__label" style="font-size: 12px;">起始日期</label>
-                            <input type="date" id="quickAvailableStartDate" class="b3-text-field" style="width: 100%;">
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-checkbox">
-                                <input type="checkbox" class="b3-switch" id="quickHideInCalendar">
-                                <span class="b3-checkbox__graphic"></span>
-                                <span class="b3-checkbox__label">📅 不在日历视图显示</span>
-                            </label>
+                            <label class="b3-form__label">显示设置</label>
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                <label class="b3-checkbox">
+                                    <input type="checkbox" class="b3-switch" id="quickIsAvailableToday">
+                                    <span class="b3-checkbox__graphic"></span>
+                                    <span class="b3-checkbox__label">🍰 每日可做（在任务管理侧栏的「今日任务」每天显示，适合用于推进长期任务）</span>
+                                </label>
+                                <div id="quickAvailableDateGroup" style="display: none; margin-left: 28px;">
+                                    <label class="b3-form__label" style="font-size: 12px;">起始日期</label>
+                                    <input type="date" id="quickAvailableStartDate" class="b3-text-field" style="width: 100%;">
+                                </div>
+                                <label class="b3-checkbox">
+                                    <input type="checkbox" class="b3-switch" id="quickHideInCalendar">
+                                    <span class="b3-checkbox__graphic"></span>
+                                    <span class="b3-checkbox__label">📅 不在日历视图显示</span>
+                                </label>
+                            </div>
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">${i18n("reminderDate") || "日期时间"} (可选)</label>
