@@ -2883,7 +2883,18 @@ export class ReminderPanel {
             // 非周期任务仍然保留原始任务
             if (!reminder.repeat?.enabled) {
                 // 如果是重复任务模板的子任务，则跳过（由父任务在处理流程中递归生成）
-                if (reminder.parentId && reminderData[reminder.parentId]?.repeat?.enabled) {
+                let hasRepeatingAncestor = false;
+                let current = reminder;
+                while (current.parentId && reminderData[current.parentId]) {
+                    const parent = reminderData[current.parentId];
+                    if (parent.repeat?.enabled) {
+                        hasRepeatingAncestor = true;
+                        break;
+                    }
+                    current = parent;
+                }
+
+                if (hasRepeatingAncestor) {
                     return;
                 }
                 allReminders.push(reminder);

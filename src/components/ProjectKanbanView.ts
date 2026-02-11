@@ -4890,9 +4890,23 @@ export class ProjectKanbanView {
                     (reminder.repeat.type === 'lunar-monthly' || reminder.repeat.type === 'lunar-yearly');
 
                 // 修改后的逻辑：对于所有重复事件，只显示实例，不显示原始任务
+                // 同时，如果任务有任何祖先是重复任务，也不显示原始任务（因为它会作为 ghost 实例显示）
                 if (!reminder.repeat?.enabled) {
-                    // 非周期任务，正常添加
-                    allTasksWithInstances.push(reminder);
+                    let hasRepeatingAncestor = false;
+                    let current = reminder;
+                    while (current.parentId && taskMap.has(current.parentId)) {
+                        const parent = taskMap.get(current.parentId);
+                        if (parent && parent.repeat?.enabled) {
+                            hasRepeatingAncestor = true;
+                            break;
+                        }
+                        current = parent;
+                    }
+
+                    if (!hasRepeatingAncestor) {
+                        // 既不是周期任务，也没有周期祖先，正常添加
+                        allTasksWithInstances.push(reminder);
+                    }
                 }
                 // 对于所有重复事件（农历和非农历），都不添加原始任务，只添加实例
 

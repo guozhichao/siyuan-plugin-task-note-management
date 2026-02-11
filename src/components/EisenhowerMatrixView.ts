@@ -263,9 +263,23 @@ export class EisenhowerMatrixView {
                     (reminder.repeat.type === 'lunar-monthly' || reminder.repeat.type === 'lunar-yearly');
 
                 // 修改后的逻辑：对于所有重复事件，只显示实例，不显示原始任务
+                // 同时，如果任务有任何祖先是重复任务，也不显示原始任务（因为它会作为 ghost 实例显示）
                 if (!reminder.repeat?.enabled) {
-                    // 非周期任务，正常添加
-                    allRemindersWithInstances.push({ ...reminder, id });
+                    let hasRepeatingAncestor = false;
+                    let current = reminder;
+                    while (current.parentId && reminderData[current.parentId]) {
+                        const parent = reminderData[current.parentId];
+                        if (parent.repeat?.enabled) {
+                            hasRepeatingAncestor = true;
+                            break;
+                        }
+                        current = parent;
+                    }
+
+                    if (!hasRepeatingAncestor) {
+                        // 非周期任务且没有周期祖先，正常添加
+                        allRemindersWithInstances.push({ ...reminder, id });
+                    }
                 }
                 // 对于所有重复事件（农历和非农历），都不添加原始任务，只添加实例
 
@@ -3518,7 +3532,7 @@ export class EisenhowerMatrixView {
         const draggedDate = isDraggedInstance ? draggedTaskId.split('_').pop() : null;
         let priority = draggedTask.priority || 'none';
         let projectId = draggedTask.projectId || 'no-project';
-        
+
         if (isDraggedInstance && draggedDate && draggedTask.repeat?.instanceModifications?.[draggedDate]) {
             const instMod = draggedTask.repeat.instanceModifications[draggedDate];
             if (instMod.priority !== undefined) priority = instMod.priority;
@@ -3671,7 +3685,7 @@ export class EisenhowerMatrixView {
                     }
                 });
             }
-            
+
             // 如果被拖拽或目标的实例还没有被处理，确保它们被包含
             // 这处理那些还没有 instanceModifications 的新实例
             if (isDraggedInstance && draggedDate && task.id === draggedOriginalId && !processedDates.has(draggedDate)) {
@@ -3816,18 +3830,18 @@ export class EisenhowerMatrixView {
         // 获取被拖拽项和目标项的实例日期
         const draggedInstanceDate = isDraggedInstance ? draggedTaskId.split('_').pop() : null;
         const targetInstanceDate = isTargetInstance ? targetTaskId.split('_').pop() : null;
-        
+
         // 获取优先级（如果是实例，从 instanceModifications 中读取）
         let oldPriority = draggedTask.priority || 'none';
         let newPriority = targetTask.priority || 'none';
         let projectId = draggedTask.projectId || 'no-project';
-        
+
         if (isDraggedInstance && draggedInstanceDate && draggedTask.repeat?.instanceModifications?.[draggedInstanceDate]) {
             const instMod = draggedTask.repeat.instanceModifications[draggedInstanceDate];
             if (instMod.priority !== undefined) oldPriority = instMod.priority;
             if (instMod.projectId !== undefined) projectId = instMod.projectId;
         }
-        
+
         if (isTargetInstance && targetInstanceDate && targetTask.repeat?.instanceModifications?.[targetInstanceDate]) {
             const instMod = targetTask.repeat.instanceModifications[targetInstanceDate];
             if (instMod.priority !== undefined) newPriority = instMod.priority;
@@ -4015,7 +4029,7 @@ export class EisenhowerMatrixView {
         // 收集重复实例
         Object.values(reminderData).forEach((task: any) => {
             if (!task.repeat?.enabled) return;
-            
+
             // 从 instanceModifications 收集
             if (task.repeat?.instanceModifications) {
                 const mods = task.repeat.instanceModifications;
