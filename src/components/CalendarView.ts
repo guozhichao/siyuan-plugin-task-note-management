@@ -88,6 +88,7 @@ export class CalendarView {
     private dayBtn: HTMLButtonElement;
     private yearBtn: HTMLButtonElement;
     private multiDaysBtn: HTMLButtonElement;
+    private viewTypeButton: HTMLButtonElement;
 
 
     // 使用全局番茄钟管理器
@@ -136,6 +137,31 @@ export class CalendarView {
             this.calendar.scrollToTime(dayStartTime);
         } catch (e) {
             // ignore
+        }
+
+        // 更新视图类型按钮文本
+        if (this.viewTypeButton && this.calendarConfigManager) {
+            const currentViewType = this.calendarConfigManager.getViewType();
+            const viewTypeOptions = [
+                { value: 'timeline', text: i18n("viewTypeTimeline") },
+                { value: 'kanban', text: i18n("viewTypeKanban") },
+                { value: 'list', text: i18n("viewTypeList") }
+            ];
+            const currentViewTypeText = viewTypeOptions.find(opt => opt.value === currentViewType)?.text;
+            if (currentViewTypeText) {
+                const textSpan = this.viewTypeButton.querySelector('.filter-button-text');
+                if (textSpan) {
+                    textSpan.textContent = currentViewTypeText;
+                }
+            }
+
+            // 同步视图模式
+            const savedViewMode = this.calendarConfigManager.getViewMode();
+            if (this.calendar.view.type !== savedViewMode) {
+                this.calendar.changeView(savedViewMode);
+                this.updateViewButtonStates();
+                this.updatePomodoroButtonVisibility();
+            }
         }
 
         // 刷新事件
@@ -447,15 +473,15 @@ export class CalendarView {
 
         const currentViewTypeText = viewTypeOptions.find(opt => opt.value === currentViewType)?.text || i18n("viewTypeTimeline");
 
-        const viewTypeButton = document.createElement('button');
-        viewTypeButton.className = 'b3-button b3-button--outline';
-        viewTypeButton.style.width = '80px';
-        viewTypeButton.style.display = 'flex';
-        viewTypeButton.style.justifyContent = 'space-between';
-        viewTypeButton.style.alignItems = 'center';
-        viewTypeButton.style.textAlign = 'left';
-        viewTypeButton.innerHTML = `<span class="filter-button-text" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${currentViewTypeText}</span> <span style="margin-left: 4px; flex-shrink: 0;">▼</span>`;
-        viewTypeContainer.appendChild(viewTypeButton);
+        this.viewTypeButton = document.createElement('button');
+        this.viewTypeButton.className = 'b3-button b3-button--outline';
+        this.viewTypeButton.style.width = '80px';
+        this.viewTypeButton.style.display = 'flex';
+        this.viewTypeButton.style.justifyContent = 'space-between';
+        this.viewTypeButton.style.alignItems = 'center';
+        this.viewTypeButton.style.textAlign = 'left';
+        this.viewTypeButton.innerHTML = `<span class="filter-button-text" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${currentViewTypeText}</span> <span style="margin-left: 4px; flex-shrink: 0;">▼</span>`;
+        viewTypeContainer.appendChild(this.viewTypeButton);
 
         const viewTypeDropdown = document.createElement('div');
         viewTypeDropdown.className = 'filter-dropdown-menu';
@@ -553,12 +579,13 @@ export class CalendarView {
                     }
                 }
 
+                await this.calendarConfigManager.setViewType(selectedViewType);
                 await this.calendarConfigManager.setViewMode(newViewMode as any);
                 this.calendar.changeView(newViewMode);
                 this.updateViewButtonStates();
                 this.updatePomodoroButtonVisibility();
 
-                const textSpan = viewTypeButton.querySelector('.filter-button-text');
+                const textSpan = this.viewTypeButton.querySelector('.filter-button-text');
                 if (textSpan) {
                     textSpan.textContent = option.text;
                 }
@@ -924,8 +951,8 @@ export class CalendarView {
         });
 
         // 更新视图类型按钮的点击事件
-        viewTypeButton.onclick = null;
-        viewTypeButton.addEventListener('click', (e) => {
+        this.viewTypeButton.onclick = null;
+        this.viewTypeButton.addEventListener('click', (e) => {
             e.stopPropagation();
             const isVisible = viewTypeDropdown.style.display === 'block';
             viewTypeDropdown.style.display = isVisible ? 'none' : 'block';
