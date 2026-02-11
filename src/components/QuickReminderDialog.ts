@@ -430,7 +430,7 @@ export class QuickReminderDialog {
     private async populateEditForm() {
         if (!this.reminder) return;
 
-        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLTextAreaElement;
         const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
         const urlInput = this.dialog.element.querySelector('#quickUrlInput') as HTMLInputElement;
         const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
@@ -816,7 +816,7 @@ export class QuickReminderDialog {
     // 显示自然语言输入对话框
     private showNaturalLanguageDialog() {
         // 获取标题输入框的内容作为默认值
-        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLTextAreaElement;
         const defaultValue = titleInput?.value?.trim() || '';
 
         const nlDialog = new Dialog({
@@ -1047,8 +1047,8 @@ export class QuickReminderDialog {
                     <div class="b3-dialog__content">
                         <div class="b3-form__group">
                             <label class="b3-form__label">${i18n("eventTitle")}</label>
-                            <div class="title-input-container" style="display: flex; gap: 8px;">
-                                <input type="text" id="quickReminderTitle" class="b3-text-field" placeholder="${i18n("enterReminderTitle")}" style="flex: 1;" required autofocus>
+                            <div class="title-input-container" style="display: flex; gap: 8px; align-items: flex-start;">
+                                <textarea id="quickReminderTitle" class="b3-text-field" rows="1" placeholder="${i18n("enterReminderTitle")}" spellcheck="false" style="flex: 1; max-height: 200px; resize: vertical; overflow-y: auto; padding: 4px 8px; line-height: 1.5;" required autofocus></textarea>
                                 <button type="button" id="quickNlBtn" class="b3-button b3-button--outline" title="✨ 智能日期识别">
                                     ✨
                                 </button>
@@ -1456,7 +1456,7 @@ export class QuickReminderDialog {
             const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
             const timeInput = this.dialog.element.querySelector('#quickReminderTime') as HTMLInputElement;
             const endTimeInput = this.dialog.element.querySelector('#quickReminderEndTime') as HTMLInputElement;
-            const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+            const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLTextAreaElement;
 
             // 设置日期（独立的日期输入框）
             if (this.initialDate) {
@@ -1983,7 +1983,7 @@ export class QuickReminderDialog {
         const nlBtn = this.dialog.element.querySelector('#quickNlBtn') as HTMLButtonElement;
         const createDocBtn = this.dialog.element.querySelector('#quickCreateDocBtn') as HTMLButtonElement;
         const pasteBlockRefBtn = this.dialog.element.querySelector('#quickPasteBlockRefBtn') as HTMLButtonElement;
-        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLTextAreaElement;
         const viewSubtasksBtn = this.dialog.element.querySelector('#quickViewSubtasksBtn') as HTMLButtonElement;
         const editAllInstancesBtn = this.dialog.element.querySelector('#quickEditAllInstancesBtn') as HTMLButtonElement;
         const viewPomodorosBtn = this.dialog.element.querySelector('#quickViewPomodorosBtn') as HTMLButtonElement;
@@ -2394,7 +2394,7 @@ export class QuickReminderDialog {
 
                 if (blockId) {
                     const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
-                    const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+                    const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLTextAreaElement;
 
                     if (blockInput) {
                         blockInput.value = blockId;
@@ -2455,7 +2455,7 @@ export class QuickReminderDialog {
                         quickBlockInput.value = blockId;
 
                         // 如果标题输入框为空，自动设置标题
-                        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+                        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLTextAreaElement;
                         if (titleInput && extractedTitle && (!titleInput.value || titleInput.value.trim().length === 0)) {
                             titleInput.value = extractedTitle;
                         }
@@ -2879,7 +2879,7 @@ export class QuickReminderDialog {
     }
 
     private showCreateDocumentDialog() {
-        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLTextAreaElement;
         const currentTitle = titleInput?.value?.trim() || '';
 
         const blockBindingDialog = new BlockBindingDialog(this.plugin, async (blockId: string) => {
@@ -2959,7 +2959,7 @@ export class QuickReminderDialog {
             return;
         }
 
-        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLTextAreaElement;
         const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
         const urlInput = this.dialog.element.querySelector('#quickUrlInput') as HTMLInputElement;
         const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
