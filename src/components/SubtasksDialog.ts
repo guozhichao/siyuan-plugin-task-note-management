@@ -16,13 +16,17 @@ export class SubtasksDialog {
     private isTempMode: boolean = false; // 是否为临时模式（新建任务的子任务）
     private tempSubtasks: any[] = []; // 临时子任务列表
     private onTempSubtasksUpdate?: (subtasks: any[]) => void; // 临时子任务更新回调
+    private isInstanceEdit: boolean = false; // 是否为编辑单个重复实例模式
+    private isModifyAllInstances: boolean = false; // 是否为编辑所有重复实例模式
 
     constructor(
         parentId: string,
         plugin: any,
         onUpdate?: () => void,
         tempSubtasks: any[] = [],
-        onTempSubtasksUpdate?: (subtasks: any[]) => void
+        onTempSubtasksUpdate?: (subtasks: any[]) => void,
+        isInstanceEdit?: boolean,
+        isModifyAllInstances?: boolean
     ) {
         this.parentId = parentId;
         this.plugin = plugin;
@@ -31,6 +35,8 @@ export class SubtasksDialog {
         this.isTempMode = !parentId;
         this.tempSubtasks = tempSubtasks || [];
         this.onTempSubtasksUpdate = onTempSubtasksUpdate;
+        this.isInstanceEdit = isInstanceEdit || false;
+        this.isModifyAllInstances = isModifyAllInstances || false;
     }
 
     public async show() {
@@ -989,7 +995,25 @@ export class SubtasksDialog {
             }
             
             // 获取原始父任务（支持重复实例）
-            parentTask = reminderData[targetParentId];
+            const originalTask = reminderData[targetParentId];
+            
+            // 判断是否为编辑单个实例模式（非编辑所有实例）
+            const isEditingSingleInstance = this.isInstanceEdit && !this.isModifyAllInstances;
+            
+            if (isEditingSingleInstance) {
+                // 编辑单个实例：创建一个虚拟父任务对象，使用实例ID作为parentId
+                // 这样创建的子任务会是普通子任务，只属于当前实例
+                parentTask = {
+                    ...originalTask,
+                    id: this.parentId, // 使用实例ID
+                    originalId: targetParentId, // 保留原始任务ID
+                    isRepeatInstance: true
+                };
+            } else {
+                // 编辑所有实例或普通任务：使用原始任务
+                // 这样创建的子任务会成为ghost子任务模板
+                parentTask = originalTask;
+            }
         }
 
         const pasteDialog = new PasteTaskDialog({
