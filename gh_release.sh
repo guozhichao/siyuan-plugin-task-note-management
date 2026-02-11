@@ -30,14 +30,14 @@ echo "Switching to main branch..."
 git checkout main
 git pull origin main
 
-# Copy CHANGELOG.md from private-branch
-echo "Copying CHANGELOG.md from private-branch..."
-git checkout private-branch -- CHANGELOG.md
+# Copy CHANGELOG.md and plugin.json from private-branch
+echo "Copying CHANGELOG.md and plugin.json from private-branch..."
+git checkout private-branch -- CHANGELOG.md plugin.json
 
-# Commit the changelog update in main branch
-echo "Committing CHANGELOG.md in main branch..."
-git add CHANGELOG.md
-git commit -m "📝 Update CHANGELOG for $version" || echo "No changes to CHANGELOG.md"
+# Commit the updates in main branch
+echo "Committing updates in main branch..."
+git add CHANGELOG.md plugin.json
+git commit -m "📝 Update CHANGELOG and plugin.json for $version" || echo "No changes to commit"
 
 # Push main branch
 echo "Pushing main branch..."
