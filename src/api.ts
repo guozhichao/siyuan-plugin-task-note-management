@@ -510,8 +510,9 @@ export async function openBlock(blockId: string) {
                 id: blockId,
                 action: ["cb-get-focus", "cb-get-scroll"]
             },
-            keepCursor: true,
-            removeCurrentTab: false
+            keepCursor: false,
+            removeCurrentTab: false,
+            openNewTab: true
         });
     } else {
         openTab({
@@ -520,8 +521,9 @@ export async function openBlock(blockId: string) {
                 id: blockId,
                 action: ["cb-get-focus", "cb-get-context", "cb-get-hl"]
             },
-            keepCursor: true,
-            removeCurrentTab: false
+            keepCursor: false,
+            removeCurrentTab: false,
+            openNewTab: true
         });
 
     }
