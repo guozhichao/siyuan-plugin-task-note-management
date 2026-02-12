@@ -407,10 +407,10 @@
                     key: 'pomodoroEndPopupWindow',
                     value: settings.pomodoroEndPopupWindow,
                     type: 'checkbox',
-                    title: i18n('pomodoroEndPopupWindow') || '启用番茄钟结束全局弹窗提醒',
+                    title: i18n('pomodoroEndPopupWindow') || '番茄钟结束全局弹窗提醒',
                     description:
                         i18n('pomodoroEndPopupWindowDesc') ||
-                        '开启后，番茄钟工作结束时会在屏幕中央显示弹窗提醒，10秒后自动关闭（仅电脑桌面端有效）',
+                        '番茄钟工作结束时会在屏幕中央显示弹窗提醒，10秒后自动关闭（仅电脑桌面端有效）',
                 },
                 {
                     key: 'dailyFocusGoal',
@@ -489,9 +489,9 @@
                     key: 'randomNotificationPopupWindow',
                     value: settings.randomNotificationPopupWindow,
                     type: 'checkbox',
-                    title: '启用全局弹窗提醒',
+                    title: '随机微休息全局弹窗提醒',
                     description:
-                        '开启后，随机微休息开始时会在屏幕中央显示弹窗提醒，结束后自动关闭（仅电脑桌面端有效）',
+                        '随机微休息开始时会在屏幕中央显示弹窗提醒，结束后自动关闭（仅电脑桌面端有效）',
                 },
                 {
                     key: 'randomNotificationMinInterval',
