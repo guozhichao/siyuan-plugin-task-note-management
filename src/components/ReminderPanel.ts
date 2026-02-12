@@ -2437,7 +2437,8 @@ export class ReminderPanel {
                 const projectInfo = document.createElement('div');
                 projectInfo.className = 'reminder-item__project';
                 projectInfo.style.cssText = `
-                    display: inline-flex;
+                    display: flex;
+                    width: fit-content;
                     align-items: center;
                     gap: 4px;
                     font-size: 11px;
