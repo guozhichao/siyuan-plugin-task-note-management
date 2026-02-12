@@ -261,7 +261,7 @@ export async function exportIcsFile(
                                 uid: `${child.id || ''}-${child.date || ''}${child.time ? '-' + child.time.replace(/:/g, '') : ''}@siyuan`,
                                 title: childTitle,
                                 description: childNote,
-                                status: child.completed ? 'CONFIRMED' : 'TENTATIVE',
+                                status: child.completed ? 'TENTATIVE' : 'TENTATIVE', // 不能用CONFIRM，否则outlook会把全天高亮
                             };
 
                             let childMatches = true;
@@ -503,7 +503,7 @@ export async function exportIcsFile(
                 uid: `${id}-${r.date}${r.time ? '-' + r.time.replace(/:/g, '') : ''}@siyuan`,
                 title: title,
                 description: description,
-                status: r.completed ? 'CONFIRMED' : 'TENTATIVE',
+                status: r.completed ? 'TENTATIVE' : 'TENTATIVE',
             };
 
             if (startTimeArray) {
@@ -588,7 +588,7 @@ export async function exportIcsFile(
                                 uid: `${id}-${solar}@siyuan`,
                                 title: title,
                                 description: description,
-                                status: r.completed ? 'CONFIRMED' : 'TENTATIVE',
+                                status: r.completed ? 'TENTATIVE' : 'TENTATIVE',
                             };
 
                             if (startTimeArray) {
@@ -675,7 +675,7 @@ export async function exportIcsFile(
                                             uid: `${id}-${solarStr}@siyuan`,
                                             title: title,
                                             description: description,
-                                            status: r.completed ? 'CONFIRMED' : 'TENTATIVE',
+                                            status: r.completed ? 'TENTATIVE' : 'TENTATIVE',
                                         };
 
                                         if (startTimeArray) {
