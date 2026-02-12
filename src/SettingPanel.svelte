@@ -302,7 +302,9 @@
                     key: 'milestoneDefaultHeadingLevel',
                     value: settings.milestoneDefaultHeadingLevel,
                     type: 'select',
-                    title: i18n('milestoneDefaultHeadingLevel') || '绑定块新建标题默认层级（项目里程碑）',
+                    title:
+                        i18n('milestoneDefaultHeadingLevel') ||
+                        '绑定块新建标题默认层级（项目里程碑）',
                     description:
                         i18n('milestoneDefaultHeadingLevelDesc') || '设置添加标题里程碑的默认层级',
                     options: {
@@ -605,24 +607,11 @@
                     type: 'button',
                     title: '导出 ICS 文件',
                     description:
-                        '将提醒导出为标准 ICS 日历文件，可导入到 Outlook、Google Calendar 等日历应用',
+                        '将提醒导出为标准 ICS 日历文件，可导入到 Outlook、Google Calendar、部分手机系统日历等日历应用',
                     button: {
                         label: '生成 ICS',
                         callback: async () => {
-                            await exportIcsFile(plugin, true, true, false, settings.icsTaskFilter);
-                        },
-                    },
-                },
-                {
-                    key: 'exportIcsXiaomi',
-                    value: '',
-                    type: 'button',
-                    title: '导出 ICS 文件（小米兼容）',
-                    description: '生成适配小米日历的 ICS（将 DURATION:P1DT 替换为 DURATION:P1D）',
-                    button: {
-                        label: '生成 ICS（小米）',
-                        callback: async () => {
-                            await exportIcsFile(plugin, true, true, false, settings.icsTaskFilter);
+                            await exportIcsFile(plugin, true, false, settings.icsTaskFilter);
                         },
                     },
                 },
@@ -721,7 +710,6 @@
                     description: '选择ICS文件的格式',
                     options: {
                         normal: '常规 ICS',
-                        xiaomi: '小米兼容',
                     },
                 },
                 {
