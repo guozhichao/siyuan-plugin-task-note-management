@@ -1281,81 +1281,6 @@ export class QuickReminderDialog {
                                 <span class="b3-checkbox__label">${i18n("pasteAutoDetectDate") || "粘贴自动识别日期"}</span>
                             </label>
                         </div>
-                        <!-- 绑定块/文档输入，允许手动输入块 ID 或文档 ID -->
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">${i18n("bindToBlock") || '块或文档 ID'}</label>
-                            <div style="display: flex; gap: 8px; flex-wrap: wrap; ">
-                                <input type="text" id="quickBlockInput" class="b3-text-field" value="${this.defaultBlockId || ''}" placeholder="${i18n("enterBlockId") || '请输入块或文档 ID'}" style="flex: 1;">
-                                <button type="button" id="quickPasteBlockRefBtn" class="b3-button b3-button--outline" title="${i18n("pasteBlockRef")}">
-                                    <svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg>
-                                </button>
-                                <button type="button" id="quickCreateDocBtn" class="b3-button b3-button--outline" title="${i18n("createNewDocument") || '新建文档'}">
-                                    <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
-                                </button>
-                            </div>
-                        </div>
-                        <!-- 块预览区域 -->
-                        <div id="quickBlockPreview" style="margin-top: 8px; padding: 8px; background: var(--b3-theme-background-light); border: 1px solid var(--b3-border-color); border-radius: 4px; display: none;">
-                            <div id="quickBlockPreviewContent" style="font-size: 13px; color: var(--b3-theme-on-surface);"></div>
-                        </div>
-                        <!-- 网页链接输入 -->
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">${i18n("bindUrl")}</label>
-                            <div style="display: flex; gap: 8px;">
-                                <input type="url" id="quickUrlInput" class="b3-text-field" placeholder="${i18n("enterUrl")}" style="flex: 1;">
-                                <button type="button" id="quickOpenUrlBtn" class="b3-button b3-button--outline" title="${i18n("openUrl") || '在浏览器中打开'}">
-                                    <svg class="b3-button__icon"><use xlink:href="#iconLink"></use></svg>
-                                </button>
-                            </div>
-                        </div>
-                        <!-- 备注 (Vditor) -->
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">${i18n("reminderNoteOptional")}</label>
-                            <div id="quickReminderNote" style="width: 100%; min-height: 50px; border: 1px solid var(--b3-theme-surface-lighter); border-radius: 4px; position: relative;"></div>
-                        </div>
-
-                        <div class="b3-form__group" id="quickParentTaskGroup" style="display: none;">
-                            <label class="b3-form__label">${i18n("parentTask") || "父任务"}</label>
-                            <div style="display: flex; gap: 8px; align-items: center;">
-                                <input type="text" id="quickParentTaskDisplay" class="b3-text-field" readonly style="flex: 1; background: var(--b3-theme-background-light); cursor: default;" placeholder="无父任务">
-                                <button type="button" id="quickViewParentBtn" class="b3-button b3-button--outline" title="${i18n("viewParentTask") || "查看父任务"}" style="display: none;">
-                                    <svg class="b3-button__icon"><use xlink:href="#iconEye"></use></svg>
-                                </button>
-                            </div>
-                            <div class="b3-form__desc" style="font-size: 11px; color: var(--b3-theme-on-surface-light);">
-                                父任务 ID: <span id="quickParentTaskId" style="font-family: monospace;">-</span>
-                            </div>
-                        </div>
-                        <div class="b3-form__group" id="quickEditAllInstancesGroup" style="display: none;">
-                            <label class="b3-form__label">${i18n("recurringTask") || "重复任务"}</label>
-                            <div style="display: flex; gap: 8px; align-items: center;">
-                                <button type="button" id="quickEditAllInstancesBtn" class="b3-button b3-button--outline" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                                    <svg class="b3-button__icon"><use xlink:href="#iconEdit"></use></svg>
-                                    <span>${i18n("editAllInstances") || "编辑所有实例"}</span>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="b3-form__group" id="quickSubtasksGroup" style="display: none; margin-top: 8px;">
-                            <label class="b3-form__label">${i18n("subtasks") || "子任务"}</label>
-                            <div style="display: flex; gap: 8px; align-items: center;">
-                                <button type="button" id="quickViewSubtasksBtn" class="b3-button b3-button--outline" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                                    <svg class="b3-button__icon"><use xlink:href="#iconBulletedList"></use></svg>
-                                    <span id="quickSubtasksCountText">${i18n("viewSubtasks") || "查看子任务"}</span>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">${i18n("estimatedPomodoroDuration")}</label>
-                            <input type="text" id="quickEstimatedPomodoroDuration" class="b3-text-field" placeholder="${i18n("estimatedPomodoroDurationPlaceholder")}" style="width: 100%;">
-                        </div>
-                        <div class="b3-form__group" id="quickPomodorosGroup" style="display: none;">
-                            <label class="b3-form__label">${i18n("pomodoros") || "番茄钟"}</label>
-                            <div style="display: flex; gap: 8px; align-items: center;">
-                                <button type="button" id="quickViewPomodorosBtn" class="b3-button b3-button--outline" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                                    <span id="quickPomodorosCountText">${i18n("viewPomodoros") || "查看番茄钟"}</span>
-                                </button>
-                            </div>
-                        </div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">${i18n("reminderDate") || "日期时间"}</label>
                             <div style="display: flex; flex-direction: column; gap: 8px;">
@@ -1458,6 +1383,82 @@ export class QuickReminderDialog {
                                 </button>
                             </div>
                         </div>
+                        <!-- 绑定块/文档输入，允许手动输入块 ID 或文档 ID -->
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${i18n("bindToBlock") || '块或文档 ID'}</label>
+                            <div style="display: flex; gap: 8px; flex-wrap: wrap; ">
+                                <input type="text" id="quickBlockInput" class="b3-text-field" value="${this.defaultBlockId || ''}" placeholder="${i18n("enterBlockId") || '请输入块或文档 ID'}" style="flex: 1;">
+                                <button type="button" id="quickPasteBlockRefBtn" class="b3-button b3-button--outline" title="${i18n("pasteBlockRef")}">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg>
+                                </button>
+                                <button type="button" id="quickCreateDocBtn" class="b3-button b3-button--outline" title="${i18n("createNewDocument") || '新建文档'}">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconAdd"></use></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <!-- 块预览区域 -->
+                        <div id="quickBlockPreview" style="margin-top: 8px; padding: 8px; background: var(--b3-theme-background-light); border: 1px solid var(--b3-border-color); border-radius: 4px; display: none;">
+                            <div id="quickBlockPreviewContent" style="font-size: 13px; color: var(--b3-theme-on-surface);"></div>
+                        </div>
+                        <!-- 网页链接输入 -->
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${i18n("bindUrl")}</label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="url" id="quickUrlInput" class="b3-text-field" placeholder="${i18n("enterUrl")}" style="flex: 1;">
+                                <button type="button" id="quickOpenUrlBtn" class="b3-button b3-button--outline" title="${i18n("openUrl") || '在浏览器中打开'}">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconLink"></use></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <!-- 备注 (Vditor) -->
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${i18n("reminderNoteOptional")}</label>
+                            <div id="quickReminderNote" style="width: 100%; min-height: 50px; border: 1px solid var(--b3-theme-surface-lighter); border-radius: 4px; position: relative;"></div>
+                        </div>
+
+                        <div class="b3-form__group" id="quickParentTaskGroup" style="display: none;">
+                            <label class="b3-form__label">${i18n("parentTask") || "父任务"}</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="text" id="quickParentTaskDisplay" class="b3-text-field" readonly style="flex: 1; background: var(--b3-theme-background-light); cursor: default;" placeholder="无父任务">
+                                <button type="button" id="quickViewParentBtn" class="b3-button b3-button--outline" title="${i18n("viewParentTask") || "查看父任务"}" style="display: none;">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconEye"></use></svg>
+                                </button>
+                            </div>
+                            <div class="b3-form__desc" style="font-size: 11px; color: var(--b3-theme-on-surface-light);">
+                                父任务 ID: <span id="quickParentTaskId" style="font-family: monospace;">-</span>
+                            </div>
+                        </div>
+                        <div class="b3-form__group" id="quickEditAllInstancesGroup" style="display: none;">
+                            <label class="b3-form__label">${i18n("recurringTask") || "重复任务"}</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <button type="button" id="quickEditAllInstancesBtn" class="b3-button b3-button--outline" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconEdit"></use></svg>
+                                    <span>${i18n("editAllInstances") || "编辑所有实例"}</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="b3-form__group" id="quickSubtasksGroup" style="display: none; margin-top: 8px;">
+                            <label class="b3-form__label">${i18n("subtasks") || "子任务"}</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <button type="button" id="quickViewSubtasksBtn" class="b3-button b3-button--outline" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconBulletedList"></use></svg>
+                                    <span id="quickSubtasksCountText">${i18n("viewSubtasks") || "查看子任务"}</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${i18n("estimatedPomodoroDuration")}</label>
+                            <input type="text" id="quickEstimatedPomodoroDuration" class="b3-text-field" placeholder="${i18n("estimatedPomodoroDurationPlaceholder")}" style="width: 100%;">
+                        </div>
+                        <div class="b3-form__group" id="quickPomodorosGroup" style="display: none;">
+                            <label class="b3-form__label">${i18n("pomodoros") || "番茄钟"}</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <button type="button" id="quickViewPomodorosBtn" class="b3-button b3-button--outline" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                    <span id="quickPomodorosCountText">${i18n("viewPomodoros") || "查看番茄钟"}</span>
+                                </button>
+                            </div>
+                        </div>
+
                         <div class="b3-form__group">
                             <label class="b3-form__label">${i18n("eventCategory")}
                                 <button type="button" id="quickManageCategoriesBtn" class="b3-button b3-button--outline" title="管理分类">
