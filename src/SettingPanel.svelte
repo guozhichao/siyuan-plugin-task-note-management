@@ -703,16 +703,6 @@
                     },
                 },
                 {
-                    key: 'icsFormat',
-                    value: settings.icsFormat,
-                    type: 'select',
-                    title: 'ICS 格式',
-                    description: '选择ICS文件的格式',
-                    options: {
-                        normal: '常规 ICS',
-                    },
-                },
-                {
                     key: 'icsFileName',
                     value: settings.icsFileName,
                     type: 'textinput',
