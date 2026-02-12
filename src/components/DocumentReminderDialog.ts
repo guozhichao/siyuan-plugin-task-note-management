@@ -1180,6 +1180,9 @@ export class DocumentReminderDialog {
             throw new Error(i18n("originalReminderNotExist"));
         }
 
+        // 使用原始日期（从 ID 中提取）作为键，因为 date 可能已被修改
+        const originalInstanceDate = (reminder.id && reminder.id.includes('_')) ? reminder.id.split('_').pop() : reminder.date;
+
         // 如果是删除特定日期的实例，我们需要将其标记为已删除
         // 而不是真正删除，以避免重复生成
         if (!originalReminder.repeat.deletedInstances) {
@@ -1187,13 +1190,13 @@ export class DocumentReminderDialog {
         }
 
         // 添加到已删除实例列表
-        if (!originalReminder.repeat.deletedInstances.includes(reminder.date)) {
-            originalReminder.repeat.deletedInstances.push(reminder.date);
+        if (!originalReminder.repeat.deletedInstances.includes(originalInstanceDate)) {
+            originalReminder.repeat.deletedInstances.push(originalInstanceDate);
         }
 
         // 如果该实例已完成，也需要从已完成列表中移除
         if (originalReminder.repeat.completedInstances) {
-            const completedIndex = originalReminder.repeat.completedInstances.indexOf(reminder.date);
+            const completedIndex = originalReminder.repeat.completedInstances.indexOf(originalInstanceDate);
             if (completedIndex > -1) {
                 originalReminder.repeat.completedInstances.splice(completedIndex, 1);
             }
@@ -1201,12 +1204,12 @@ export class DocumentReminderDialog {
 
         // 删除完成时间记录
         if (originalReminder.repeat.completedTimes) {
-            delete originalReminder.repeat.completedTimes[reminder.date];
+            delete originalReminder.repeat.completedTimes[originalInstanceDate];
         }
 
         // 删除实例修改记录
         if (originalReminder.repeat.instanceModifications) {
-            delete originalReminder.repeat.instanceModifications[reminder.date];
+            delete originalReminder.repeat.instanceModifications[originalInstanceDate];
         }
     }
 

@@ -1,9 +1,10 @@
 import { RepeatConfig } from '../components/RepeatSettingsDialog';
-import { compareDateStrings } from './dateUtils';
+import { compareDateStrings, getLocalDateTimeString } from './dateUtils';
 import { i18n } from '../pluginInstance';
 import { solarToLunar } from './lunarUtils';
 
 export interface RepeatInstance {
+    title?: string; // 实例标题（可选，覆盖原始标题）
     date: string;
     time?: string;
     endDate?: string;
@@ -16,6 +17,16 @@ export interface RepeatInstance {
     isRepeatedInstance: boolean;
     completed?: boolean; // 添加实例级别的完成状态
     completedTime?: string; // 实例完成时间
+    // 实例级别覆盖字段
+    note?: string;
+    priority?: string;
+    categoryId?: string;
+    projectId?: string;
+    customGroupId?: string;
+    kanbanStatus?: string;
+    tagIds?: string[];
+    milestoneId?: string;
+    sort?: number;
 }
 
 /**
@@ -103,6 +114,7 @@ export function generateRepeatInstances(
                     const isInstanceCompleted = completedInstances.includes(currentDateStr);
 
                     const instance: RepeatInstance = {
+                        title: modification?.title !== undefined ? modification.title : reminder.title,
                         date: modification?.date || currentDateStr,
                         time: modification?.time || reminder.time,
                         endDate: modification?.endDate || (reminder.endDate && reminder.date ? addDaysToDate(modification?.date || currentDateStr, getDaysDifference(reminder.date, reminder.endDate)) : undefined),
@@ -114,7 +126,17 @@ export function generateRepeatInstances(
                         originalId: reminder.id,
                         isRepeatedInstance: true,
                         completed: isInstanceCompleted, // 设置实例级别的完成状态
-                        completedTime: isInstanceCompleted ? instanceCompletedTimes[currentDateStr] : undefined
+                        completedTime: isInstanceCompleted ? instanceCompletedTimes[currentDateStr] : undefined,
+                        // 合并覆盖字段
+                        note: modification?.note !== undefined ? modification.note : (reminder.note || ''),
+                        priority: modification?.priority !== undefined ? modification.priority : (reminder.priority || 'none'),
+                        categoryId: modification?.categoryId !== undefined ? modification.categoryId : reminder.categoryId,
+                        projectId: modification?.projectId !== undefined ? modification.projectId : reminder.projectId,
+                        customGroupId: modification?.customGroupId !== undefined ? modification.customGroupId : reminder.customGroupId,
+                        kanbanStatus: modification?.kanbanStatus !== undefined ? modification.kanbanStatus : reminder.kanbanStatus,
+                        tagIds: modification?.tagIds !== undefined ? modification.tagIds : reminder.tagIds,
+                        milestoneId: modification?.milestoneId !== undefined ? modification.milestoneId : reminder.milestoneId,
+                        sort: (modification && typeof modification.sort === 'number') ? modification.sort : (reminder.sort || 0)
                     };
 
                     instances.push(instance);
@@ -142,14 +164,22 @@ function shouldGenerateInstance(currentDate: Date, originalDate: string, repeatC
             return daysDiff >= 0 && daysDiff % (repeatConfig.interval || 1) === 0;
 
         case 'weekly':
-            // 如果设置了weekDays，检查当前日期的星期是否在指定的星期列表中
-            if (repeatConfig.weekDays && repeatConfig.weekDays.length > 0) {
-                return repeatConfig.weekDays.includes(currentDate.getDay()) && currentDate >= originalDateObj;
+            // 支持“每隔 X 周”的逻辑：无论是否指定多个星期几，都以原始日期为基准按周数间隔判断
+            if (currentDate < originalDateObj) {
+                return false;
             }
-            // 否则按原有逻辑：检查与原始日期的星期是否相同
             const weeksDiff = Math.floor((currentDate.getTime() - originalDateObj.getTime()) / (7 * 24 * 60 * 60 * 1000));
+            const interval = repeatConfig.interval || 1;
+
+            // 当指定了 weekDays 时，检查当前日期是否为指定的星期且与原始周数间隔匹配
+            if (repeatConfig.weekDays && repeatConfig.weekDays.length > 0) {
+                const isWeekdayMatched = repeatConfig.weekDays.includes(currentDate.getDay());
+                return isWeekdayMatched && (weeksDiff % interval === 0);
+            }
+
+            // 否则按原有逻辑：检查与原始日期的星期是否相同并满足间隔
             const sameWeekday = currentDate.getDay() === originalDateObj.getDay();
-            return weeksDiff >= 0 && weeksDiff % (repeatConfig.interval || 1) === 0 && sameWeekday;
+            return weeksDiff >= 0 && weeksDiff % interval === 0 && sameWeekday;
 
         case 'monthly':
             // 如果设置了monthDays，检查当前日期是否在指定的日期列表中
@@ -389,4 +419,79 @@ export function isRepeatEnded(reminder: any, currentDate: string): boolean {
 
     // 对于次数限制，需要在使用时检查
     return false;
+}
+
+/**
+ * Recursive generation of template subtask ghost instances
+ */
+export function generateSubtreeInstances(
+    originalParentId: string,
+    instanceParentId: string,
+    instanceDate: string,
+    targetList: any[],
+    reminderData: any,
+    parentCompletionTime?: number
+) {
+    // Find all tasks with this original parent ID
+    const directChildren = (Object.values(reminderData) as any[]).filter((r: any) => r.parentId === originalParentId);
+
+    directChildren.forEach((child: any) => {
+        // If parent instance is completed, skip children created after completion
+        if (parentCompletionTime) {
+            const childCreated = child.created || child.createdTime || child.createdAt;
+            if (childCreated) {
+                const childCreatedTime = new Date(childCreated).getTime();
+                // Add 1 minute buffer to avoid race conditions during batch operations
+                if (childCreatedTime > parentCompletionTime + 60000) {
+                    return;
+                }
+            }
+        }
+
+        // Check if this child is excluded for the current instance date
+        const excludeDates = child.repeat?.excludeDates || [];
+        if (excludeDates.includes(instanceDate)) {
+            // Skip this child and its descendants for this instance date
+            return;
+        }
+
+        const instanceId = `${child.id}_${instanceDate}`;
+        const completedInstances = child.repeat?.completedInstances || [];
+        const isInstanceCompleted = completedInstances.includes(instanceDate);
+        const instanceModifications = child.repeat?.instanceModifications || {};
+        const instanceMod = instanceModifications[instanceDate];
+
+        const instanceTask = {
+            ...child,
+            id: instanceId,
+            parentId: instanceParentId,
+            date: instanceDate,
+            // If subtask has end date, calculate based on original span
+            endDate: instanceMod?.endDate || (child.endDate && child.date ? addDaysToDate(instanceDate, getDaysDifference(child.date, child.endDate)) : undefined),
+            time: instanceMod?.time || child.time,
+            endTime: instanceMod?.endTime || child.endTime,
+            isRepeatInstance: true,
+            originalId: child.id,
+            completed: isInstanceCompleted,
+            // Inherit/override properties
+            note: instanceMod?.note !== undefined ? instanceMod.note : child.note,
+            priority: instanceMod?.priority !== undefined ? instanceMod.priority : child.priority,
+            categoryId: instanceMod?.categoryId !== undefined ? instanceMod.categoryId : child.categoryId,
+            projectId: instanceMod?.projectId !== undefined ? instanceMod.projectId : child.projectId,
+            customGroupId: instanceMod?.customGroupId !== undefined ? instanceMod.customGroupId : child.customGroupId,
+            kanbanStatus: instanceMod?.kanbanStatus !== undefined ? instanceMod.kanbanStatus : child.kanbanStatus,
+            milestoneId: instanceMod?.milestoneId !== undefined ? instanceMod.milestoneId : child.milestoneId,
+            tagIds: instanceMod?.tagIds !== undefined ? instanceMod.tagIds : child.tagIds,
+            reminderTimes: instanceMod?.reminderTimes !== undefined ? instanceMod.reminderTimes : child.reminderTimes,
+            customReminderPreset: instanceMod?.customReminderPreset !== undefined ? instanceMod.customReminderPreset : child.customReminderPreset,
+            completedTime: isInstanceCompleted ? (instanceMod?.completedTime || child.repeat?.completedTimes?.[instanceDate] || getLocalDateTimeString(new Date(instanceDate))) : undefined,
+            sort: (instanceMod && typeof instanceMod.sort === 'number') ? instanceMod.sort : (child.sort || 0)
+        };
+
+        targetList.push(instanceTask);
+
+        // Recurse to children's children
+        // Use the same parentCompletionTime for the entire subtree to maintain the snapshot at completion
+        generateSubtreeInstances(child.id, instanceId, instanceDate, targetList, reminderData, parentCompletionTime);
+    });
 }

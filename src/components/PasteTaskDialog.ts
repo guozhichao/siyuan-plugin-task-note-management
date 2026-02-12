@@ -4,6 +4,17 @@ import { autoDetectDateTimeFromTitle, getLocalDateTimeString } from "../utils/da
 import { getBlockByID, updateBindBlockAtrrs, addBlockProjectId } from "../api";
 import { getAllReminders, saveReminders } from "../utils/icsSubscription";
 import LoadingDialog from './LoadingDialog.svelte';
+import { Editor, rootCtx, defaultValueCtx, editorViewCtx } from "@milkdown/kit/core";
+import { commonmark } from "@milkdown/kit/preset/commonmark";
+import { gfm } from "@milkdown/kit/preset/gfm";
+import { history } from "@milkdown/kit/plugin/history";
+import { cursor } from "@milkdown/kit/plugin/cursor";
+import { clipboard } from "@milkdown/kit/plugin/clipboard";
+import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
+import { $view } from "@milkdown/utils";
+import { listItemSchema } from "@milkdown/kit/preset/commonmark";
+import { Plugin } from "@milkdown/prose/state";
+import { prosePluginsCtx, parserCtx } from "@milkdown/kit/core";
 
 export interface HierarchicalTask {
     title: string;
@@ -36,14 +47,137 @@ export interface PasteTaskDialogConfig {
     projectMilestones?: any[];
     // 看板状态配置
     kanbanStatuses?: any[];
+    // 临时模式：不保存到数据库，通过 onTasksCreated 回调返回任务数组
+    isTempMode?: boolean;
+    // 临时模式回调，参数为创建的任务数组
+    onTasksCreated?: (tasks: any[]) => void;
 }
 
 export class PasteTaskDialog {
     private config: PasteTaskDialogConfig;
     private loadingDialog: Dialog | null = null;
+    private editor?: Editor;
+    private taskListContent: string = '';
 
     constructor(config: PasteTaskDialogConfig) {
         this.config = config;
+    }
+
+    private findMarkRange(doc: any, pos: number, type: any) {
+        let $pos = doc.resolve(pos);
+        let from = pos;
+        let to = pos;
+
+        // 向前找
+        while (from > $pos.start() && type.isInSet(doc.nodeAt(from - 1)?.marks || [])) {
+            from--;
+        }
+        // 向后找
+        while (to < $pos.end() && type.isInSet(doc.nodeAt(to)?.marks || [])) {
+            to++;
+        }
+        return { from, to };
+    }
+
+    private showLinkOptions(view: any, pos: number, mark: any) {
+        const dialog = new Dialog({
+            title: i18n('linkOptions') || '链接选项',
+            content: `
+                <div class="b3-dialog__content" style="display: flex; flex-direction: column; gap: 12px; padding: 16px;">
+                    <div style="font-weight: bold; overflow: hidden; text-overflow: ellipsis; color: var(--b3-theme-primary);">
+                        ${mark.attrs.href}
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="b3-button b3-button--outline" id="jumpBtn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            <svg style="width: 14px; height: 14px;"><use xlink:href="#iconLink"></use></svg>
+                            ${i18n('jump') || '打开链接'}
+                        </button>
+                        <button class="b3-button b3-button--outline" id="editLinkBtn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            <svg style="width: 14px; height: 14px;"><use xlink:href="#iconEdit"></use></svg>
+                            ${i18n('edit') || '编辑'}
+                        </button>
+                        <button class="b3-button b3-button--cancel" id="removeLinkBtn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            <svg style="width: 14px; height: 14px;"><use xlink:href="#iconTrashcan"></use></svg>
+                            ${i18n('remove') || '取消链接'}
+                        </button>
+                    </div>
+                </div>
+            `,
+            width: "400px"
+        });
+
+        const jumpBtn = dialog.element.querySelector('#jumpBtn') as HTMLButtonElement;
+        const editLinkBtn = dialog.element.querySelector('#editLinkBtn') as HTMLButtonElement;
+        const removeLinkBtn = dialog.element.querySelector('#removeLinkBtn') as HTMLButtonElement;
+
+        jumpBtn.onclick = () => {
+            window.open(mark.attrs.href, '_blank');
+            dialog.destroy();
+        };
+
+        editLinkBtn.onclick = () => {
+            dialog.destroy();
+            this.showLinkEditor(view, pos, mark);
+        };
+
+        removeLinkBtn.onclick = () => {
+            const { tr } = view.state;
+            const range = this.findMarkRange(view.state.doc, pos, view.state.schema.marks.link);
+            if (range) {
+                view.dispatch(tr.removeMark(range.from, range.to, view.state.schema.marks.link));
+            }
+            dialog.destroy();
+        };
+    }
+
+    private showLinkEditor(view: any, pos: number, mark: any) {
+        const range = this.findMarkRange(view.state.doc, pos, view.state.schema.marks.link);
+        const currentText = range ? view.state.doc.textBetween(range.from, range.to) : '';
+
+        const dialog = new Dialog({
+            title: i18n('editLink') || '编辑链接',
+            content: `
+                <div class="b3-dialog__content" style="padding: 16px;">
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: block; margin-bottom: 4px; font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8;">${i18n('linkUrl') || '链接地址'}:</label>
+                        <textarea id="linkUrl" class="b3-text-field" style="width: 100%; resize: vertical;" rows="2" placeholder="https://...">${mark.attrs.href}</textarea>
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: block; margin-bottom: 4px; font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8;">${i18n('linkTitle') || '显示文本'}:</label>
+                        <textarea id="linkTitle" class="b3-text-field" style="width: 100%; resize: vertical;" rows="2" placeholder="${i18n('linkTitlePlaceholder') || '输入链接文本'}">${currentText}</textarea>
+                    </div>
+                </div>
+                <div class="b3-dialog__action">
+                    <button class="b3-button b3-button--cancel" id="cancelLinkBtn">${i18n('cancel') || '取消'}</button>
+                    <button class="b3-button b3-button--primary" id="saveLinkBtn">${i18n('save') || '确定'}</button>
+                </div>
+            `,
+            width: "400px"
+        });
+
+        const urlInput = dialog.element.querySelector('#linkUrl') as HTMLInputElement;
+        const titleInput = dialog.element.querySelector('#linkTitle') as HTMLInputElement;
+        const cancelBtn = dialog.element.querySelector('#cancelLinkBtn') as HTMLButtonElement;
+        const saveBtn = dialog.element.querySelector('#saveLinkBtn') as HTMLButtonElement;
+
+        urlInput.focus();
+
+        cancelBtn.onclick = () => dialog.destroy();
+        saveBtn.onclick = () => {
+            const newHref = urlInput.value.trim();
+            const newTitle = titleInput.value.trim();
+            if (newHref && range) {
+                const { tr, schema } = view.state;
+                const linkMark = schema.marks.link.create({ href: newHref });
+
+                // Replace text and apply mark
+                view.dispatch(
+                    tr.replaceWith(range.from, range.to, schema.text(newTitle || newHref))
+                        .addMark(range.from, range.from + (newTitle || newHref).length, linkMark)
+                );
+            }
+            dialog.destroy();
+        };
     }
 
     async show() {
@@ -84,17 +218,17 @@ export class PasteTaskDialog {
                         ${i18n("supportHierarchy") || "支持多层级：使用缩进或多个<code>-</code>符号创建父子任务关系"}
                     </p>
                     ${selectorsHtml}
-                    <textarea id="taskList" class="b3-text-field"
-                        placeholder=""
-                        style="width: 100%; height: 250px; resize: vertical;"></textarea>
+                    <div id="taskList" style="height: 300px; border: 1px solid var(--b3-theme-surface-lighter); border-radius: 4px; overflow-y: auto;"></div>
                     <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;">
-                        <label style="display: flex; align-items: center; cursor: pointer;">
-                            <input id="autoDetectDate" type="checkbox" style="margin-right: 8px;">
-                            <span>${i18n("autoDetectDateTime")}</span>
+                        <label class="b3-checkbox" style="display: flex; align-items: center;">
+                            <input id="autoDetectDate" type="checkbox" class="b3-switch">
+                            <span class="b3-checkbox__graphic"></span>
+                            <span class="b3-checkbox__label">${i18n("autoDetectDateTime")}</span>
                         </label>
-                        <label id="removeDateLabel" style="display: flex; align-items: center; cursor: pointer; margin-left: 20px;">
-                            <input id="removeDate" type="checkbox" style="margin-right: 8px;">
-                            <span>${i18n("removeDateAfterDetection")}</span>
+                        <label id="removeDateLabel" class="b3-checkbox" style="display: flex; align-items: center; margin-left: 24px;">
+                            <input id="removeDate" type="checkbox" class="b3-switch">
+                            <span class="b3-checkbox__graphic"></span>
+                            <span class="b3-checkbox__label">${i18n("removeDateAfterDetection")}</span>
                         </label>
                     </div>
                 </div>
@@ -104,9 +238,14 @@ export class PasteTaskDialog {
                 </div>
             `,
             width: "520px",
+            destroyCallback: () => {
+                if (this.editor) {
+                    this.editor.destroy();
+                }
+            }
         });
 
-        const textArea = dialog.element.querySelector('#taskList') as HTMLTextAreaElement;
+        const taskListContainer = dialog.element.querySelector('#taskList') as HTMLElement;
         const cancelBtn = dialog.element.querySelector('#cancelBtn') as HTMLButtonElement;
         const createBtn = dialog.element.querySelector('#createBtn') as HTMLButtonElement;
         const autoDetectCheckbox = dialog.element.querySelector('#autoDetectDate') as HTMLInputElement;
@@ -164,13 +303,182 @@ export class PasteTaskDialog {
             updateRemoveDateVisibility();
         });
 
+        // Initialize Milkdown Editor
+        setTimeout(() => {
+            if (!taskListContainer) return;
+
+            Editor.make()
+                .config((ctx) => {
+                    ctx.set(rootCtx, taskListContainer);
+                    ctx.set(defaultValueCtx, "");
+                    ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {
+                        this.taskListContent = markdown;
+                    });
+
+                    // 优先获取纯文本 (Markdown)
+                    ctx.update(prosePluginsCtx, (prev) => [
+                        ...prev,
+                        new Plugin({
+                            props: {
+                                handlePaste: (view, event) => {
+                                    let text = event.clipboardData?.getData('text/plain');
+                                    if (text) {
+                                        // 移除首尾多余的换行符（兼容 Windows/Unix），保留空格以维持缩进层级
+                                        text = text.replace(/^[\r\n]+|[\r\n]+$/g, '');
+                                        if (!text) return false;
+
+                                        const parser = ctx.get(parserCtx);
+                                        const node = parser(text);
+                                        if (node) {
+                                            const { tr, doc } = view.state;
+                                            // 如果文档当前几乎为空（只有一个空的段落），则替换整个文档内容
+                                            const isEmpty = doc.childCount === 1 &&
+                                                doc.firstChild?.type.name === 'paragraph' &&
+                                                doc.firstChild.content.size === 0;
+
+                                            // 获取节点内容 fragment
+                                            const content = node.type.name === 'doc' ? node.content : node;
+
+                                            if (isEmpty) {
+                                                // 彻底替换初始的空段落
+                                                view.dispatch(tr.replaceWith(0, doc.content.size, content).scrollIntoView());
+                                            } else {
+                                                view.dispatch(tr.replaceSelectionWith(node).scrollIntoView());
+                                            }
+                                            return true;
+                                        }
+                                    }
+                                    return false;
+                                },
+                                handleTextInput: (view, from, to, text) => {
+                                    const { state } = view;
+                                    const linkMark = state.schema.marks.link;
+                                    if (!linkMark) return false;
+
+                                    const $pos = state.doc.resolve(from);
+                                    if (linkMark.isInSet($pos.marks())) {
+                                        const range = this.findMarkRange(state.doc, from, linkMark);
+                                        // 如果在链接末尾打字，不应继续表现为链接文本
+                                        if (range && range.to === from) {
+                                            const marks = $pos.marks().filter(m => m.type !== linkMark);
+                                            const tr = state.tr.replaceWith(from, to, state.schema.text(text, marks));
+                                            tr.removeStoredMark(linkMark);
+                                            view.dispatch(tr);
+                                            return true;
+                                        }
+                                    }
+                                    return false;
+                                },
+                                handleClick: (view, pos) => {
+                                    const { state } = view;
+                                    const linkMark = state.schema.marks.link;
+                                    if (!linkMark) return false;
+
+                                    const node = state.doc.nodeAt(pos);
+                                    const mark = node ? linkMark.isInSet(node.marks) : null;
+
+                                    if (mark) {
+                                        this.showLinkOptions(view, pos, mark);
+                                        return true;
+                                    }
+                                    return false;
+                                }
+                            }
+                        })
+                    ]);
+                })
+                .use(commonmark)
+                .use(gfm)
+                .use(history)
+                .use(clipboard)
+                .use(cursor)
+                .use(listener)
+                .use($view(listItemSchema.node, () => (node, view, getPos) => {
+                    const dom = document.createElement("li");
+                    const contentDOM = document.createElement("div");
+
+                    if (node.attrs.checked != null) {
+                        dom.classList.add("task-list-item");
+                        dom.style.listStyleType = "none";
+                        dom.style.position = "relative";
+
+                        const checkbox = document.createElement("input");
+                        checkbox.type = "checkbox";
+                        checkbox.checked = node.attrs.checked;
+                        checkbox.style.position = "absolute";
+                        checkbox.style.left = "-1.4em";
+                        checkbox.style.top = "0.3em";
+                        checkbox.style.margin = "0";
+
+                        checkbox.onclick = (e) => {
+                            if (typeof getPos === "function") {
+                                const { tr } = view.state;
+                                tr.setNodeMarkup(getPos(), undefined, {
+                                    ...node.attrs,
+                                    checked: checkbox.checked
+                                });
+                                view.dispatch(tr);
+                            }
+                            e.stopPropagation();
+                        };
+
+                        dom.appendChild(checkbox);
+                        contentDOM.style.minWidth = "0";
+                        dom.appendChild(contentDOM);
+
+                        return {
+                            dom,
+                            contentDOM,
+                            ignoreMutation: (mutation) => {
+                                return mutation.type === 'attributes' && mutation.target === checkbox;
+                            },
+                            update: (updatedNode) => {
+                                if (updatedNode.type.name !== "list_item") return false;
+                                const isTask = node.attrs.checked != null;
+                                const newIsTask = updatedNode.attrs.checked != null;
+                                if (isTask !== newIsTask) return false;
+                                if (newIsTask) {
+                                    checkbox.checked = updatedNode.attrs.checked;
+                                }
+                                return true;
+                            }
+                        };
+                    } else {
+                        return { dom, contentDOM: dom };
+                    }
+                }))
+                .create()
+                .then((editor) => {
+                    this.editor = editor;
+
+                    editor.action((ctx) => {
+                        const view = ctx.get(editorViewCtx);
+                        if (view) {
+                            view.focus();
+                        }
+                    });
+
+                    const editorEl = dialog.element.querySelector('.milkdown') as HTMLElement;
+                    if (editorEl) {
+                        editorEl.style.height = '100%';
+                        editorEl.style.margin = '0px';
+                        const prosemirror = editorEl.querySelector('.ProseMirror') as HTMLElement;
+                        if (prosemirror) {
+                            prosemirror.style.minHeight = '250px';
+                            prosemirror.style.padding = '8px';
+                            prosemirror.style.outline = 'none';
+                        }
+                    }
+                });
+        }, 100);
+
         cancelBtn.addEventListener('click', () => dialog.destroy());
 
         createBtn.addEventListener('click', async () => {
             // 防止重复点击
             if ((createBtn as HTMLButtonElement).disabled) return;
 
-            const text = textArea.value.trim();
+            const text = this.taskListContent.trim();
             if (!text) {
                 showMessage(i18n("contentNotEmpty") || "列表内容不能为空");
                 return;
@@ -217,12 +525,18 @@ export class PasteTaskDialog {
 
             if (hierarchicalTasks.length > 0) {
                 try {
-                    await this.batchCreateTasksWithHierarchy(hierarchicalTasks, selectedStatus, selectedGroupId, selectedMilestoneId);
+                    const createdTasks = await this.batchCreateTasksWithHierarchy(hierarchicalTasks, selectedStatus, selectedGroupId, selectedMilestoneId);
                     dialog.destroy();
                     const totalTasks = this.countTotalTasks(hierarchicalTasks);
+
+                    // 临时模式：通过回调返回创建的任务
+                    if (this.config.isTempMode && this.config.onTasksCreated) {
+                        this.config.onTasksCreated(createdTasks);
+                    }
+
                     if (this.config.onSuccess) {
                         this.config.onSuccess(totalTasks);
-                    } else {
+                    } else if (!this.config.isTempMode) {
                         showMessage(`${totalTasks} ${i18n("tasksCreated") || "个任务已创建"}`);
                     }
                 } catch (error) {
@@ -266,7 +580,7 @@ export class PasteTaskDialog {
             destroyCallback: null
         });
 
-        const loadingComponent = new LoadingDialog({
+        new LoadingDialog({
             target: this.loadingDialog.element.querySelector('#loadingDialogContent'),
             props: {
                 message: message
@@ -292,7 +606,8 @@ export class PasteTaskDialog {
             const level = this.calculateIndentLevel(line);
             const cleanLine = line.trim();
 
-            if (!cleanLine || (!cleanLine.startsWith('-') && level === 0 && !cleanLine.match(/^\s*-/))) {
+            const isListItem = /^([-*+]|\d+\.|\[[ xX]\])/.test(cleanLine);
+            if (!cleanLine || (!isListItem && level === 0)) {
                 if (cleanLine && level === 0) {
                     const taskData = this.parseTaskLine(cleanLine, autoDetect, removeDate);
                     const task: HierarchicalTask = {
@@ -314,7 +629,7 @@ export class PasteTaskDialog {
             }
 
             const combinedLevel = level + levelFromDashes;
-            const taskContent = cleanLine.replace(/^[-*+]+\s*/, '');
+            const taskContent = cleanLine.replace(/^([-*+]|\d+\.)\s*/, '').replace(/^(-{2,})\s*/, '');
             if (!taskContent) continue;
 
             const taskData = this.parseTaskLine(taskContent, autoDetect, removeDate);
@@ -351,7 +666,10 @@ export class PasteTaskDialog {
 
     private parseTaskLine(line: string, autoDetect: boolean = false, removeDate: boolean = true): Omit<HierarchicalTask, 'level' | 'children'> {
         const paramMatch = line.match(/@(.*)$/);
-        let title = line;
+        let title = line.trim();
+
+        // 移除常见的 Markdown 列表标记
+        title = title.replace(/^([-*+]\s+)|(\d+\.\s+)/, '');
         let priority: string | undefined;
         let startDate: string | undefined;
         let time: string | undefined;
@@ -411,19 +729,21 @@ export class PasteTaskDialog {
         return { title: title.trim() || i18n('noContentHint') || '未命名任务', priority, startDate, time, endDate, endTime, blockId, completed };
     }
 
-    private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[], selectedStatus?: string, selectedGroupId?: string | null, selectedMilestoneId?: string) {
-        const reminderData = await getAllReminders(this.config.plugin, undefined, true);
+    private async batchCreateTasksWithHierarchy(tasks: HierarchicalTask[], selectedStatus?: string, selectedGroupId?: string | null, selectedMilestoneId?: string): Promise<any[]> {
         const parentTask = this.config.parentTask;
         const projectId = this.config.projectId || (parentTask ? parentTask.projectId : undefined);
         const categoryId = parentTask ? parentTask.categoryId : undefined;
 
+        // 临时模式下不需要从数据库读取
+        const reminderData = this.config.isTempMode ? {} : await getAllReminders(this.config.plugin, undefined, true);
+
         // 获取当前项目中所有任务的最大排序值
-        const maxSort = Object.values(reminderData)
+        const maxSort = this.config.isTempMode ? 0 : Object.values(reminderData)
             .filter((r: any) => r && r.projectId === projectId && typeof r.sort === 'number')
             .reduce((max: number, task: any) => Math.max(max, task.sort || 0), 0) as number;
 
         let sortCounter = maxSort;
-
+        const createdTasks: any[] = [];
         const boundBlockIds = new Set<string>();
 
         const createTaskRecursively = async (
@@ -477,11 +797,16 @@ export class PasteTaskDialog {
 
             if (inheritedGroupId) {
                 newTask.customGroupId = inheritedGroupId;
-            } else if (parentId) {
+            } else if (parentId && !this.config.isTempMode) {
                 const parent = reminderData[parentId];
                 if (parent && parent.customGroupId) {
                     newTask.customGroupId = parent.customGroupId;
                 }
+            }
+
+            // 临时模式标记
+            if (this.config.isTempMode) {
+                newTask.isTempSubtask = true;
             }
 
             if (task.blockId) {
@@ -495,7 +820,7 @@ export class PasteTaskDialog {
                             newTask.title = block.content || block.fcontent || i18n('noContentHint') || '未命名任务';
                         }
 
-                        if (projectId) {
+                        if (projectId && !this.config.isTempMode) {
                             await addBlockProjectId(task.blockId, projectId);
                         }
 
@@ -507,6 +832,7 @@ export class PasteTaskDialog {
             }
 
             reminderData[taskId] = newTask;
+            createdTasks.push(newTask);
 
             if (task.children && task.children.length > 0) {
                 for (const child of task.children) {
@@ -526,16 +852,21 @@ export class PasteTaskDialog {
             await createTaskRecursively(task, topParentId, parentPriority, groupToUse);
         }
 
-        await saveReminders(this.config.plugin, reminderData);
+        // 临时模式下不保存到数据库，通过回调返回
+        if (!this.config.isTempMode) {
+            await saveReminders(this.config.plugin, reminderData);
 
-        // 更新块属性
-        for (const blockId of boundBlockIds) {
-            try {
-                await updateBindBlockAtrrs(blockId, this.config.plugin);
-            } catch (error) {
-                console.error(`更新块 ${blockId} 属性失败:`, error);
+            // 更新块属性
+            for (const blockId of boundBlockIds) {
+                try {
+                    await updateBindBlockAtrrs(blockId, this.config.plugin);
+                } catch (error) {
+                    console.error(`更新块 ${blockId} 属性失败:`, error);
+                }
             }
         }
+
+        return createdTasks;
     }
 
     private countTotalTasks(tasks: HierarchicalTask[]): number {

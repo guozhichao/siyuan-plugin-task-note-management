@@ -11,19 +11,142 @@ import { BlockBindingDialog } from "./BlockBindingDialog";
 import { SubtasksDialog } from "./SubtasksDialog";
 import { PomodoroRecordManager } from "../utils/pomodoroRecord";
 import { PomodoroSessionsDialog } from "./PomodoroSessionsDialog";
-import { Crepe } from "@milkdown/crepe";
-import "@milkdown/crepe/theme/common/style.css";
-import "@milkdown/crepe/theme/nord.css";
-import { replaceAll } from "@milkdown/utils";
-import { editorViewCtx } from "@milkdown/kit/core";
+import { Editor, rootCtx, defaultValueCtx, editorViewCtx, prosePluginsCtx, parserCtx } from "@milkdown/kit/core";
+import { Plugin } from "@milkdown/prose/state";
+import { commonmark } from "@milkdown/kit/preset/commonmark";
+import { gfm } from "@milkdown/kit/preset/gfm";
+import { history } from "@milkdown/kit/plugin/history";
+import { cursor } from "@milkdown/kit/plugin/cursor";
+import { clipboard } from "@milkdown/kit/plugin/clipboard";
+import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
+import { replaceAll, $view } from "@milkdown/utils";
+import { listItemSchema } from "@milkdown/kit/preset/commonmark";
 
 export class QuickReminderDialog {
     private dialog: Dialog;
-    private crepe?: Crepe;
+    private editor?: Editor;
+    private currentNote: string = '';
     private blockId?: string;
     private reminder?: any;
     private onSaved?: (modifiedReminder?: any) => void;
     private mode: 'quick' | 'block' | 'edit' | 'batch_edit' | 'note' = 'quick'; // 模式：快速创建、块绑定创建、编辑、批量编辑、仅备注
+
+    private findMarkRange(doc: any, pos: number, type: any) {
+        let $pos = doc.resolve(pos);
+        let from = pos;
+        let to = pos;
+
+        // 向前找
+        while (from > $pos.start() && type.isInSet(doc.nodeAt(from - 1)?.marks || [])) {
+            from--;
+        }
+        // 向后找
+        while (to < $pos.end() && type.isInSet(doc.nodeAt(to)?.marks || [])) {
+            to++;
+        }
+        return { from, to };
+    }
+
+    private showLinkOptions(view: any, pos: number, mark: any) {
+        const dialog = new Dialog({
+            title: i18n('linkOptions') || '链接选项',
+            content: `
+                <div class="b3-dialog__content" style="display: flex; flex-direction: column; gap: 12px; padding: 16px;">
+                    <div style="font-weight: bold; overflow: hidden; text-overflow: ellipsis; color: var(--b3-theme-primary);">
+                        ${mark.attrs.href}
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="b3-button b3-button--outline" id="jumpBtn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            <svg style="width: 14px; height: 14px;"><use xlink:href="#iconLink"></use></svg>
+                            ${i18n('jump') || '打开链接'}
+                        </button>
+                        <button class="b3-button b3-button--outline" id="editLinkBtn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            <svg style="width: 14px; height: 14px;"><use xlink:href="#iconEdit"></use></svg>
+                            ${i18n('edit') || '编辑'}
+                        </button>
+                        <button class="b3-button b3-button--cancel" id="removeLinkBtn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            <svg style="width: 14px; height: 14px;"><use xlink:href="#iconTrashcan"></use></svg>
+                            ${i18n('remove') || '取消链接'}
+                        </button>
+                    </div>
+                </div>
+            `,
+            width: "400px"
+        });
+
+        const jumpBtn = dialog.element.querySelector('#jumpBtn') as HTMLButtonElement;
+        const editLinkBtn = dialog.element.querySelector('#editLinkBtn') as HTMLButtonElement;
+        const removeLinkBtn = dialog.element.querySelector('#removeLinkBtn') as HTMLButtonElement;
+
+        jumpBtn.onclick = () => {
+            window.open(mark.attrs.href, '_blank');
+            dialog.destroy();
+        };
+
+        editLinkBtn.onclick = () => {
+            dialog.destroy();
+            this.showLinkEditor(view, pos, mark);
+        };
+
+        removeLinkBtn.onclick = () => {
+            const { tr } = view.state;
+            const range = this.findMarkRange(view.state.doc, pos, view.state.schema.marks.link);
+            if (range) {
+                view.dispatch(tr.removeMark(range.from, range.to, view.state.schema.marks.link));
+            }
+            dialog.destroy();
+        };
+    }
+
+    private showLinkEditor(view: any, pos: number, mark: any) {
+        const range = this.findMarkRange(view.state.doc, pos, view.state.schema.marks.link);
+        const currentText = range ? view.state.doc.textBetween(range.from, range.to) : '';
+
+        const dialog = new Dialog({
+            title: i18n('editLink') || '编辑链接',
+            content: `
+                <div class="b3-dialog__content" style="padding: 16px;">
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: block; margin-bottom: 4px; font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8;">${i18n('linkUrl') || '链接地址'}:</label>
+                        <textarea id="linkUrl" class="b3-text-field" style="width: 100%; resize: vertical;" rows="2" placeholder="https://...">${mark.attrs.href}</textarea>
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: block; margin-bottom: 4px; font-size: 12px; color: var(--b3-theme-on-surface); opacity: 0.8;">${i18n('linkTitle') || '显示文本'}:</label>
+                        <textarea id="linkTitle" class="b3-text-field" style="width: 100%; resize: vertical;" rows="2" placeholder="${i18n('linkTitlePlaceholder') || '输入链接文本'}">${currentText}</textarea>
+                    </div>
+                </div>
+                <div class="b3-dialog__action">
+                    <button class="b3-button b3-button--cancel" id="cancelLinkBtn">${i18n('cancel') || '取消'}</button>
+                    <button class="b3-button b3-button--primary" id="saveLinkBtn">${i18n('save') || '确定'}</button>
+                </div>
+            `,
+            width: "400px"
+        });
+
+        const urlInput = dialog.element.querySelector('#linkUrl') as HTMLInputElement;
+        const titleInput = dialog.element.querySelector('#linkTitle') as HTMLInputElement;
+        const cancelBtn = dialog.element.querySelector('#cancelLinkBtn') as HTMLButtonElement;
+        const saveBtn = dialog.element.querySelector('#saveLinkBtn') as HTMLButtonElement;
+
+        urlInput.focus();
+
+        cancelBtn.onclick = () => dialog.destroy();
+        saveBtn.onclick = () => {
+            const newHref = urlInput.value.trim();
+            const newTitle = titleInput.value.trim();
+            if (newHref && range) {
+                const { tr, schema } = view.state;
+                const linkMark = schema.marks.link.create({ href: newHref });
+
+                // Replace text and apply mark
+                view.dispatch(
+                    tr.replaceWith(range.from, range.to, schema.text(newTitle || newHref))
+                        .addMark(range.from, range.from + (newTitle || newHref).length, linkMark)
+                );
+            }
+            dialog.destroy();
+        };
+    }
     private blockContent: string = '';
     private reminderUpdatedHandler: () => void;
     private sortConfigUpdatedHandler: (event: CustomEvent) => void;
@@ -61,6 +184,9 @@ export class QuickReminderDialog {
     private existingReminders: any[] = [];
     private selectedCategoryIds: string[] = [];
     private currentKanbanStatuses: import('../utils/projectManager').KanbanStatus[] = []; // 当前项目的kanbanStatuses
+    private durationManuallyChanged: boolean = false; // 标记用户是否手动修改了持续天数
+    private tempSubtasks: any[] = []; // 新建模式下的临时子任务列表
+    private skipSave: boolean = false; // 是否跳过保存到数据库（用于临时子任务创建）
 
 
     constructor(
@@ -92,6 +218,7 @@ export class QuickReminderDialog {
             isInstanceEdit?: boolean;
             instanceDate?: string;
             defaultSort?: number;
+            skipSave?: boolean; // 是否跳过保存到数据库
         }
     ) {
         this.initialDate = date;
@@ -126,6 +253,7 @@ export class QuickReminderDialog {
             this.isInstanceEdit = options.isInstanceEdit || false;
             this.instanceDate = options.instanceDate;
             this.defaultSort = options.defaultSort;
+            this.skipSave = options.skipSave || false;
         }
 
         // 如果是编辑模式，确保有reminder
@@ -390,7 +518,7 @@ export class QuickReminderDialog {
         switch (priority) {
             case 'high': return '🔴';
             case 'medium': return '🟡';
-            case 'low': return '🟢';
+            case 'low': return '🔵';
             default: return '⚪';
         }
     }
@@ -406,6 +534,16 @@ export class QuickReminderDialog {
         const month = String(base.getMonth() + 1).padStart(2, '0');
         const day = String(base.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
+    }
+
+    // 自动调整textarea高度以适应内容
+    private autoResizeTextarea(textarea: HTMLTextAreaElement) {
+        // 先重置高度以获取准确的scrollHeight
+        textarea.style.height = 'auto';
+        // 计算新高度：取内容高度和最大高度之间的较小值
+        const maxHeight = 200; // 与CSS中的max-height保持一致
+        const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+        textarea.style.height = newHeight + 'px';
     }
 
     // 辅助：计算包含首尾的持续天数（如果 end < start 返回 0）
@@ -425,7 +563,7 @@ export class QuickReminderDialog {
     private async populateEditForm() {
         if (!this.reminder) return;
 
-        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLTextAreaElement;
         const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
         const urlInput = this.dialog.element.querySelector('#quickUrlInput') as HTMLInputElement;
         const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
@@ -449,10 +587,19 @@ export class QuickReminderDialog {
             availableStartDateInput.value = getLogicalDateString();
         }
 
+        // 填充不在日历视图显示
+        const hideInCalendarCheckbox = this.dialog.element.querySelector('#quickHideInCalendar') as HTMLInputElement;
+        if (hideInCalendarCheckbox && this.reminder.hideInCalendar) {
+            hideInCalendarCheckbox.checked = true;
+        }
 
         // 填充标题
         if (titleInput && this.reminder.title) {
             titleInput.value = this.reminder.title;
+            // 将光标移到开头，显示开头的字
+            titleInput.setSelectionRange(0, 0);
+            // 自动调整高度
+            this.autoResizeTextarea(titleInput);
         }
 
         // 填充块ID
@@ -541,7 +688,7 @@ export class QuickReminderDialog {
             }
         }
 
-        // 填充项目
+        // 填充项目 
         if (projectSelector && this.reminder.projectId) {
             projectSelector.value = this.reminder.projectId;
             // 触发项目选择事件以加载自定义分组
@@ -644,6 +791,7 @@ export class QuickReminderDialog {
         if (this.mode === 'edit' && this.reminder) {
             this.updateSubtasksDisplay();
             this.updatePomodorosDisplay();
+            this.updateEditAllInstancesDisplay();
         }
     }
 
@@ -654,16 +802,100 @@ export class QuickReminderDialog {
         const subtasksGroup = this.dialog.element.querySelector('#quickSubtasksGroup') as HTMLElement;
         const subtasksCountText = this.dialog.element.querySelector('#quickSubtasksCountText') as HTMLElement;
 
-        if (!subtasksGroup || !this.reminder) return;
+        if (!subtasksGroup) return;
+
+        // 如果当前任务是子任务（有 parentId），则不显示子任务按钮
+        if (this.defaultParentId) {
+            subtasksGroup.style.display = 'none';
+            return;
+        }
+
+        // 编辑模式：需要有 reminder.id
+        // 新建模式：使用临时子任务列表
+        if (this.mode === 'edit' && !this.reminder) {
+            subtasksGroup.style.display = 'none';
+            return;
+        }
 
         subtasksGroup.style.display = 'block';
 
-        const reminderData = await this.plugin.loadReminderData();
-        const subtasks = Object.values(reminderData).filter((r: any) => r.parentId === this.reminder.id);
-        const count = subtasks.length;
+        let count = 0;
+        let completedCount = 0;
+        if (this.mode === 'edit' && this.reminder) {
+            // 编辑模式：从数据库获取子任务（包括 ghost 子任务）
+            const reminderData = await this.plugin.loadReminderData();
+
+            // 解析可能存在的实例信息 (id_YYYY-MM-DD)
+            let targetParentId = this.reminder.id;
+            let instanceDate: string | undefined;
+
+            const lastUnderscoreIndex = this.reminder.id.lastIndexOf('_');
+            if (lastUnderscoreIndex !== -1) {
+                const potentialDate = this.reminder.id.substring(lastUnderscoreIndex + 1);
+                if (/^\d{4}-\d{2}-\d{2}$/.test(potentialDate)) {
+                    targetParentId = this.reminder.id.substring(0, lastUnderscoreIndex);
+                    instanceDate = potentialDate;
+                }
+            }
+
+            // 1. 获取直接以当前 reminder.id 为父任务的任务（可能是真正的实例子任务或普通子任务）
+            const directChildren = (Object.values(reminderData) as any[]).filter((r: any) => r.parentId === this.reminder.id);
+
+            // 2. 如果是实例视图，则尝试从模板中获取 ghost 子任务
+            let ghostChildren: any[] = [];
+            if (instanceDate && targetParentId !== this.reminder.id) {
+                const templateChildren = (Object.values(reminderData) as any[]).filter((r: any) => r.parentId === targetParentId);
+                ghostChildren = templateChildren
+                    .filter(child => {
+                        // 过滤掉在当前日期隐藏的 ghost 子任务
+                        const isHidden = child.repeat?.excludeDates?.includes(instanceDate);
+                        return !isHidden;
+                    })
+                    .map(child => {
+                        const ghostId = `${child.id}_${instanceDate}`;
+                        // 检查此 ghost 子任务在当前日期是否已完成
+                        const isCompleted = child.repeat?.completedInstances?.includes(instanceDate) || false;
+                        return {
+                            ...child,
+                            id: ghostId,
+                            parentId: this.reminder.id,
+                            isRepeatInstance: true,
+                            originalId: child.id,
+                            completed: isCompleted,
+                        };
+                    });
+            }
+
+            // 合并数据，避免重复（如果已存在真实的实例子任务，则以真实子任务优先）
+            const combined = [...directChildren];
+            ghostChildren.forEach(ghost => {
+                if (!combined.some(r => r.id === ghost.id)) {
+                    combined.push(ghost);
+                }
+            });
+
+            count = combined.length;
+            completedCount = combined.filter(r => r.completed).length;
+        } else {
+            // 新建模式：使用临时子任务列表
+            count = this.tempSubtasks.length;
+            completedCount = this.tempSubtasks.filter(r => r.completed).length;
+        }
 
         if (subtasksCountText) {
-            subtasksCountText.textContent = `${i18n("viewSubtasks") || "查看子任务"}${count > 0 ? ` (${count})` : ''}`;
+            const label = this.mode === 'edit'
+                ? (i18n("viewSubtasks") || "查看子任务")
+                : (i18n("newSubtasks") || "新建子任务");
+            // 显示格式：查看子任务 (已完成数/总数) 或 查看子任务 (总数)
+            if (count > 0) {
+                if (completedCount > 0) {
+                    subtasksCountText.textContent = `${label} (${completedCount}/${count})`;
+                } else {
+                    subtasksCountText.textContent = `${label} (${count})`;
+                }
+            } else {
+                subtasksCountText.textContent = label;
+            }
         }
     }
 
@@ -680,21 +912,56 @@ export class QuickReminderDialog {
 
         await this.pomodoroRecordManager.initialize();
 
-        // 统计该提醒的番茄钟数量（如果是重复任务，统计所有实例）
-        let targetId = this.reminder.id;
-        if (this.reminder.originalId) {
-            targetId = this.reminder.originalId;
-        }
+        // 确定目标ID：如果是实例，获取原始ID；否则使用当前ID
+        const originalId = this.reminder.originalId || this.reminder.id;
 
-        const count = this.pomodoroRecordManager.getRepeatingEventTotalPomodoroCount(targetId);
-        const totalMinutes = this.pomodoroRecordManager.getRepeatingEventTotalFocusTime(targetId);
+        // 判断是否为"修改全部实例"模式
+        const isModifyAllInstances = !this.isInstanceEdit && this.reminder.repeat?.enabled;
+
+        // 判断是否为实例编辑模式（有 originalId 且是实例）
+        const isInstanceEditMode = this.isInstanceEdit && this.reminder.originalId;
 
         if (pomodorosCountText) {
-            const timeStr = totalMinutes > 0 ? ` (${Math.floor(totalMinutes / 60)}h${totalMinutes % 60}m)` : '';
-            if (count > 0 || totalMinutes > 0) {
-                pomodorosCountText.textContent = `${i18n("viewPomodoros") || "查看番茄钟"} ${count}🍅${timeStr}`;
+            // 如果是实例编辑模式，显示当前实例和系列总数量
+            if (isInstanceEditMode) {
+                // 获取当前实例的番茄钟数量
+                const instanceCount = this.pomodoroRecordManager.getRepeatingEventTotalPomodoroCount(this.reminder.id);
+                const instanceMinutes = this.pomodoroRecordManager.getRepeatingEventTotalFocusTime(this.reminder.id);
+
+                // 获取系列总番茄钟数量（原始任务+所有实例）
+                const seriesCount = this.pomodoroRecordManager.getRepeatingEventTotalPomodoroCount(originalId);
+                const seriesMinutes = this.pomodoroRecordManager.getRepeatingEventTotalFocusTime(originalId);
+
+                const instanceTimeStr = instanceMinutes > 0 ? `(${Math.floor(instanceMinutes / 60)}h${instanceMinutes % 60}m)` : '';
+                const seriesTimeStr = seriesMinutes > 0 ? `(${Math.floor(seriesMinutes / 60)}h${seriesMinutes % 60}m)` : '';
+
+                if (instanceCount > 0 || seriesCount > 0) {
+                    pomodorosCountText.textContent = `${i18n("viewPomodoros") || "查看番茄钟"} ${instanceCount}🍅${instanceTimeStr} / 系列: ${seriesCount}🍅${seriesTimeStr}`;
+                } else {
+                    pomodorosCountText.textContent = `${i18n("viewPomodoros") || "查看番茄钟"}`;
+                }
+            } else if (isModifyAllInstances) {
+                // 修改全部实例模式，显示系列总数
+                const seriesCount = this.pomodoroRecordManager.getRepeatingEventTotalPomodoroCount(originalId);
+                const seriesMinutes = this.pomodoroRecordManager.getRepeatingEventTotalFocusTime(originalId);
+                const seriesTimeStr = seriesMinutes > 0 ? ` (${Math.floor(seriesMinutes / 60)}h${seriesMinutes % 60}m)` : '';
+
+                if (seriesCount > 0 || seriesMinutes > 0) {
+                    pomodorosCountText.textContent = `${i18n("viewPomodoros") || "查看番茄钟"} ${seriesCount}🍅${seriesTimeStr}`;
+                } else {
+                    pomodorosCountText.textContent = `${i18n("viewPomodoros") || "查看番茄钟"}`;
+                }
             } else {
-                pomodorosCountText.textContent = `${i18n("viewPomodoros") || "查看番茄钟"}`;
+                // 普通任务，只显示当前任务的番茄钟
+                const count = this.pomodoroRecordManager.getRepeatingEventTotalPomodoroCount(this.reminder.id);
+                const totalMinutes = this.pomodoroRecordManager.getRepeatingEventTotalFocusTime(this.reminder.id);
+                const timeStr = totalMinutes > 0 ? ` (${Math.floor(totalMinutes / 60)}h${totalMinutes % 60}m)` : '';
+
+                if (count > 0 || totalMinutes > 0) {
+                    pomodorosCountText.textContent = `${i18n("viewPomodoros") || "查看番茄钟"} ${count}🍅${timeStr}`;
+                } else {
+                    pomodorosCountText.textContent = `${i18n("viewPomodoros") || "查看番茄钟"}`;
+                }
             }
         }
     }
@@ -769,7 +1036,7 @@ export class QuickReminderDialog {
     // 显示自然语言输入对话框
     private showNaturalLanguageDialog() {
         // 获取标题输入框的内容作为默认值
-        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLTextAreaElement;
         const defaultValue = titleInput?.value?.trim() || '';
 
         const nlDialog = new Dialog({
@@ -1000,8 +1267,8 @@ export class QuickReminderDialog {
                     <div class="b3-dialog__content">
                         <div class="b3-form__group">
                             <label class="b3-form__label">${i18n("eventTitle")}</label>
-                            <div class="title-input-container" style="display: flex; gap: 8px;">
-                                <input type="text" id="quickReminderTitle" class="b3-text-field" placeholder="${i18n("enterReminderTitle")}" style="flex: 1;" required autofocus>
+                            <div class="title-input-container" style="display: flex; gap: 8px; align-items: flex-start;">
+                                <textarea id="quickReminderTitle" class="b3-text-field" rows="1" placeholder="${i18n("enterReminderTitle")}" spellcheck="false" style="flex: 1; max-height: 200px; resize: vertical; overflow-y: auto; padding: 4px 8px; line-height: 1.5;" required autofocus></textarea>
                                 <button type="button" id="quickNlBtn" class="b3-button b3-button--outline" title="✨ 智能日期识别">
                                     ✨
                                 </button>
@@ -1009,15 +1276,117 @@ export class QuickReminderDialog {
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-checkbox">
-                                <input type="checkbox" id="quickPasteAutoDetect" ${this.autoDetectDateTime ? 'checked' : ''}>
+                                <input type="checkbox" class="b3-switch" id="quickPasteAutoDetect" ${this.autoDetectDateTime ? 'checked' : ''}>
                                 <span class="b3-checkbox__graphic"></span>
                                 <span class="b3-checkbox__label">${i18n("pasteAutoDetectDate") || "粘贴自动识别日期"}</span>
                             </label>
                         </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${i18n("reminderDate") || "日期时间"}</label>
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                <!-- 开始行: responsive, keep date flexible but ensure time + clear button never wrap -->
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <span style="font-size: 13px; color: var(--b3-theme-on-surface); white-space: nowrap; flex: 0 0 auto;">开始：</span>
+                                    <div style="display: flex; align-items: center; gap: 8px; flex: 1 1 140px; min-width: 120px;">
+                                        <input type="date" id="quickReminderDate" class="b3-text-field" value="${this.initialDate || ''}" max="9999-12-31" style="flex: 1; min-width: 0;">
+                                        <button type="button" id="quickClearStartDateBtn" class="b3-button b3-button--outline" title="${i18n("clearDate") || "清除日期"}" style="padding: 4px 8px; font-size: 12px; flex: 0 0 auto;">
+                                            <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconTrashcan"></use></svg>
+                                        </button>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 8px; flex: 0 0 auto; white-space: nowrap; min-width: 110px;margin-left: auto;">
+                                        <input type="time" id="quickReminderTime" class="b3-text-field" value="${this.initialTime || ''}" style="flex: 0 0 auto; min-width: 100px;">
+                                        <button type="button" id="quickClearStartTimeBtn" class="b3-button b3-button--outline" title="${i18n("clearTime") || "清除时间"}" style="padding: 4px 8px; font-size: 12px;">
+                                            <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconTrashcan"></use></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <!-- 持续天数行: allow wrap when narrow -->
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <span style="font-size: 13px; color: var(--b3-theme-on-surface); white-space: nowrap; flex: 0 0 auto;">持续：</span>
+                                    <input type="number" id="quickDurationDays" min="1" step="1" class="b3-text-field" value="1" style="width: 100px; min-width: 80px;">
+                                    <span style="font-size: 13px; color: var(--b3-theme-on-surface-light);">天</span>
+                                </div>
+                                <!-- 结束行: responsive, keep end time + clear button together -->
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <span style="font-size: 13px; color: var(--b3-theme-on-surface); white-space: nowrap; flex: 0 0 auto;">结束：</span>
+                                    <div style="display: flex; align-items: center; gap: 8px; flex: 1 1 140px; min-width: 120px;">
+                                        <input type="date" id="quickReminderEndDate" class="b3-text-field" placeholder="${i18n("endDateOptional")}" title="${i18n("spanningEventDesc")}" max="9999-12-31" style="flex: 1; min-width: 0;">
+                                        <button type="button" id="quickClearEndDateBtn" class="b3-button b3-button--outline" title="${i18n("clearDate") || "清除日期"}" style="padding: 4px 8px; font-size: 12px; flex: 0 0 auto;">
+                                            <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconTrashcan"></use></svg>
+                                        </button>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 8px; flex: 0 0 auto; white-space: nowrap; min-width: 110px;margin-left: auto;">
+                                        <input type="time" id="quickReminderEndTime" class="b3-text-field" placeholder="${i18n("endTimeOptional") || "结束时间"}" style="flex: 0 0 auto; min-width: 100px;">
+                                        <button type="button" id="quickClearEndTimeBtn" class="b3-button b3-button--outline" title="${i18n("clearTime") || "清除时间"}" style="padding: 4px 8px; font-size: 12px;">
+                                            <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconTrashcan"></use></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="b3-form__desc">${i18n("dateTimeOptionalDesc") || "不设置时间则创建为全天任务"}</div>
+                        </div>
+                        <!-- 完成时间显示和编辑 -->
+                        <div class="b3-form__group" id="quickCompletedTimeGroup" style="display: none;">
+                            <label class="b3-form__label">${i18n("completedAt") || "完成时间"}</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="datetime-local" id="quickCompletedTime" class="b3-text-field" style="flex: 1;">
+                                <button type="button" id="quickSetCompletedNowBtn" class="b3-button b3-button--outline" title="${i18n("setToNow") || "设为当前时间"}">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconClock"></use></svg>
+                                </button>
+                                <button type="button" id="quickClearCompletedBtn" class="b3-button b3-button--outline" title="${i18n("clearCompletedTime") || "清除完成时间"}">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconTrashcan"></use></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="b3-form__group">
+                            <label class="b3-form__label">${i18n("customReminderTimes") || "自定义提醒时间"}</label>
+                            <div id="quickCustomTimeList" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+                                <!-- Added times will be shown here -->
+                            </div>
+                            <button type="button" id="quickShowCustomTimeBtn" class="b3-button b3-button--outline" style="width: 100%; margin-bottom: 8px;">
+                                <svg class="b3-button__icon" style="margin-right: 4px;"><use xlink:href="#iconAdd"></use></svg>
+                                <span>${i18n("addReminderTime") || "添加提醒时间"}</span>
+                            </button>
+                            <div id="quickCustomTimeInputArea" style="display: none; padding: 12px; background: var(--b3-theme-background-light); border-radius: 6px; border: 1px solid var(--b3-theme-surface-lighter);">
+                                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                                    <input type="datetime-local" id="quickCustomReminderTime" class="b3-text-field" style="flex: 1;">
+                                    <input type="text" id="quickCustomReminderNote" class="b3-text-field" placeholder="${i18n("note") || "备注"}" style="width: 120px;">
+                                    <button type="button" id="quickConfirmCustomTimeBtn" class="b3-button b3-button--primary" title="${i18n("confirm") || "确认"}">
+                                        <svg class="b3-button__icon"><use xlink:href="#iconCheck"></use></svg>
+                                    </button>
+                                    <button type="button" id="quickCancelCustomTimeBtn" class="b3-button b3-button--outline" title="${i18n("cancel") || "取消"}">
+                                        <svg class="b3-button__icon"><use xlink:href="#iconClose"></use></svg>
+                                    </button>
+                                </div>
+                                <div id="quickPresetContainer" style="width: 100%; display: ${this.initialTime ? 'block' : 'none'};">
+                                    <label class="b3-form__label" style="font-size: 12px;">${i18n("reminderPreset") || "提醒时间预设"}</label>
+                                    <select id="quickCustomReminderPreset" class="b3-select" style="width: 100%;">
+                                        <option value="">${i18n("selectPreset") || "选择预设..."}</option>
+                                        <option value="5m">${i18n("before5m") || "提前 5 分钟"}</option>
+                                        <option value="10m">${i18n("before10m") || "提前 10 分钟"}</option>
+                                        <option value="30m">${i18n("before30m") || "提前 30 分钟"}</option>
+                                        <option value="1h">${i18n("before1h") || "提前 1 小时"}</option>
+                                        <option value="2h">${i18n("before2h") || "提前 2 小时"}</option>
+                                        <option value="1d">${i18n("before1d") || "提前 1 天"}</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 添加重复设置 -->
+                        <div class="b3-form__group" id="repeatSettingsGroup" style="${this.isInstanceEdit ? 'display: none;' : ''}">
+                            <label class="b3-form__label">${i18n("repeatSettings")}</label>
+                            <div class="repeat-setting-container">
+                                <button type="button" id="quickRepeatSettingsBtn" class="b3-button b3-button--outline" style="width: 100%;">
+                                    <span id="quickRepeatDescription">${i18n("noRepeat")}</span>
+                                    <svg class="b3-button__icon" style="margin-left: auto;"><use xlink:href="#iconRight"></use></svg>
+                                </button>
+                            </div>
+                        </div>
                         <!-- 绑定块/文档输入，允许手动输入块 ID 或文档 ID -->
                         <div class="b3-form__group">
                             <label class="b3-form__label">${i18n("bindToBlock") || '块或文档 ID'}</label>
-                            <div style="display: flex; gap: 8px;">
+                            <div style="display: flex; gap: 8px; flex-wrap: wrap; ">
                                 <input type="text" id="quickBlockInput" class="b3-text-field" value="${this.defaultBlockId || ''}" placeholder="${i18n("enterBlockId") || '请输入块或文档 ID'}" style="flex: 1;">
                                 <button type="button" id="quickPasteBlockRefBtn" class="b3-button b3-button--outline" title="${i18n("pasteBlockRef")}">
                                     <svg class="b3-button__icon"><use xlink:href="#iconPaste"></use></svg>
@@ -1034,13 +1403,19 @@ export class QuickReminderDialog {
                         <!-- 网页链接输入 -->
                         <div class="b3-form__group">
                             <label class="b3-form__label">${i18n("bindUrl")}</label>
-                            <input type="url" id="quickUrlInput" class="b3-text-field" placeholder="${i18n("enterUrl")}" style="width: 100%;">
+                            <div style="display: flex; gap: 8px;">
+                                <input type="url" id="quickUrlInput" class="b3-text-field" placeholder="${i18n("enterUrl")}" style="flex: 1;">
+                                <button type="button" id="quickOpenUrlBtn" class="b3-button b3-button--outline" title="${i18n("openUrl") || '在浏览器中打开'}">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconLink"></use></svg>
+                                </button>
+                            </div>
                         </div>
                         <!-- 备注 (Vditor) -->
                         <div class="b3-form__group">
                             <label class="b3-form__label">${i18n("reminderNoteOptional")}</label>
-                            <div id="quickReminderNote" style="width: 100%; min-height: 100px; border: 1px solid var(--b3-theme-surface-lighter); border-radius: 4px; position: relative;"></div>
+                            <div id="quickReminderNote" style="width: 100%; min-height: 50px; border: 1px solid var(--b3-theme-surface-lighter); border-radius: 4px; position: relative;"></div>
                         </div>
+
                         <div class="b3-form__group" id="quickParentTaskGroup" style="display: none;">
                             <label class="b3-form__label">${i18n("parentTask") || "父任务"}</label>
                             <div style="display: flex; gap: 8px; align-items: center;">
@@ -1053,7 +1428,16 @@ export class QuickReminderDialog {
                                 父任务 ID: <span id="quickParentTaskId" style="font-family: monospace;">-</span>
                             </div>
                         </div>
-                        <div class="b3-form__group" id="quickSubtasksGroup" style="display: none;">
+                        <div class="b3-form__group" id="quickEditAllInstancesGroup" style="display: none;">
+                            <label class="b3-form__label">${i18n("recurringTask") || "重复任务"}</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <button type="button" id="quickEditAllInstancesBtn" class="b3-button b3-button--outline" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                    <svg class="b3-button__icon"><use xlink:href="#iconEdit"></use></svg>
+                                    <span>${i18n("editAllInstances") || "编辑所有实例"}</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="b3-form__group" id="quickSubtasksGroup" style="display: none; margin-top: 8px;">
                             <label class="b3-form__label">${i18n("subtasks") || "子任务"}</label>
                             <div style="display: flex; gap: 8px; align-items: center;">
                                 <button type="button" id="quickViewSubtasksBtn" class="b3-button b3-button--outline" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
@@ -1074,6 +1458,7 @@ export class QuickReminderDialog {
                                 </button>
                             </div>
                         </div>
+
                         <div class="b3-form__group">
                             <label class="b3-form__label">${i18n("eventCategory")}
                                 <button type="button" id="quickManageCategoriesBtn" class="b3-button b3-button--outline" title="管理分类">
@@ -1134,106 +1519,26 @@ export class QuickReminderDialog {
                                 </div>
                             </div>
                         </div>
-                        <!-- 完成时间显示和编辑 -->
-                        <div class="b3-form__group" id="quickCompletedTimeGroup" style="display: none;">
-                            <label class="b3-form__label">${i18n("completedAt") || "完成时间"}</label>
-                            <div style="display: flex; gap: 8px; align-items: center;">
-                                <input type="datetime-local" id="quickCompletedTime" class="b3-text-field" style="flex: 1;">
-                                <button type="button" id="quickSetCompletedNowBtn" class="b3-button b3-button--outline" title="${i18n("setToNow") || "设为当前时间"}">
-                                    <svg class="b3-button__icon"><use xlink:href="#iconClock"></use></svg>
-                                </button>
-                                <button type="button" id="quickClearCompletedBtn" class="b3-button b3-button--outline" title="${i18n("clearCompletedTime") || "清除完成时间"}">
-                                    <svg class="b3-button__icon"><use xlink:href="#iconTrashcan"></use></svg>
-                                </button>
-                            </div>
-                        </div>
                         <div class="b3-form__group">
-                            <label class="b3-checkbox">
-                                <input type="checkbox" id="quickIsAvailableToday">
-                                <span class="b3-checkbox__graphic"></span>
-                                <span class="b3-checkbox__label">🍰 每日可做（在任务管理侧栏的「今日任务」每天显示，适合用于推进长期任务）</span>
-                            </label>
-                        </div>
-                        <div class="b3-form__group" id="quickAvailableDateGroup" style="display: none; margin-left: 28px;">
-                            <label class="b3-form__label" style="font-size: 12px;">起始日期</label>
-                            <input type="date" id="quickAvailableStartDate" class="b3-text-field" style="width: 100%;">
-                        </div>
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">${i18n("reminderDate") || "日期时间"} (可选)</label>
+                            <label class="b3-form__label">显示设置</label>
                             <div style="display: flex; flex-direction: column; gap: 8px;">
-                                <!-- 开始行 -->
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <span style="font-size: 13px; color: var(--b3-theme-on-surface); white-space: nowrap; min-width: 45px;">开始：</span>
-                                    <input type="date" id="quickReminderDate" class="b3-text-field" value="${this.initialDate || ''}" max="9999-12-31" style="flex: 1;">
-                                    <input type="time" id="quickReminderTime" class="b3-text-field" value="${this.initialTime || ''}" style="flex: 1;">
-                                    <button type="button" id="quickClearStartTimeBtn" class="b3-button b3-button--outline" title="${i18n("clearTime") || "清除时间"}" style="padding: 4px 8px; font-size: 12px;">
-                                        <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconTrashcan"></use></svg>
-                                    </button>
+                                <label class="b3-checkbox">
+                                    <input type="checkbox" class="b3-switch" id="quickIsAvailableToday">
+                                    <span class="b3-checkbox__graphic"></span>
+                                    <span class="b3-checkbox__label">🍰 每日可做（在任务管理侧栏的「今日任务」每天显示，适合用于推进长期任务）</span>
+                                </label>
+                                <div id="quickAvailableDateGroup" style="display: none; margin-left: 28px;">
+                                    <label class="b3-form__label" style="font-size: 12px;">起始日期</label>
+                                    <input type="date" id="quickAvailableStartDate" class="b3-text-field" style="width: 100%;">
                                 </div>
-                                <!-- 持续天数行 -->
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <span style="font-size: 13px; color: var(--b3-theme-on-surface); white-space: nowrap; min-width: 45px;">持续：</span>
-                                    <input type="number" id="quickDurationDays" min="1" step="1" class="b3-text-field" value="1" style="width: 100px;">
-                                    <span style="font-size: 13px; color: var(--b3-theme-on-surface-light);">天</span>
-                                </div>
-                                <!-- 结束行 -->
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <span style="font-size: 13px; color: var(--b3-theme-on-surface); white-space: nowrap; min-width: 45px;">结束：</span>
-                                    <input type="date" id="quickReminderEndDate" class="b3-text-field" placeholder="${i18n("endDateOptional")}" title="${i18n("spanningEventDesc")}" max="9999-12-31" style="flex: 1;">
-                                    <input type="time" id="quickReminderEndTime" class="b3-text-field" placeholder="${i18n("endTimeOptional") || "结束时间"}" style="flex: 1;">
-                                    <button type="button" id="quickClearEndTimeBtn" class="b3-button b3-button--outline" title="${i18n("clearTime") || "清除时间"}" style="padding: 4px 8px; font-size: 12px;">
-                                        <svg class="b3-button__icon" style="width: 14px; height: 14px;"><use xlink:href="#iconTrashcan"></use></svg>
-                                    </button>
-                                </div>
+                                <label class="b3-checkbox">
+                                    <input type="checkbox" class="b3-switch" id="quickHideInCalendar">
+                                    <span class="b3-checkbox__graphic"></span>
+                                    <span class="b3-checkbox__label">📅 不在日历视图显示</span>
+                                </label>
                             </div>
-                            <div class="b3-form__desc">${i18n("dateTimeOptionalDesc") || "不设置时间则创建为全天任务"}</div>
                         </div>
 
-                        <div class="b3-form__group">
-                            <label class="b3-form__label">${i18n("customReminderTimes") || "自定义提醒时间"}</label>
-                            <div id="quickCustomTimeList" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
-                                <!-- Added times will be shown here -->
-                            </div>
-                            <button type="button" id="quickShowCustomTimeBtn" class="b3-button b3-button--outline" style="width: 100%; margin-bottom: 8px;">
-                                <svg class="b3-button__icon" style="margin-right: 4px;"><use xlink:href="#iconAdd"></use></svg>
-                                <span>${i18n("addReminderTime") || "添加提醒时间"}</span>
-                            </button>
-                            <div id="quickCustomTimeInputArea" style="display: none; padding: 12px; background: var(--b3-theme-background-light); border-radius: 6px; border: 1px solid var(--b3-theme-surface-lighter);">
-                                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
-                                    <input type="datetime-local" id="quickCustomReminderTime" class="b3-text-field" style="flex: 1;">
-                                    <input type="text" id="quickCustomReminderNote" class="b3-text-field" placeholder="${i18n("note") || "备注"}" style="width: 120px;">
-                                    <button type="button" id="quickConfirmCustomTimeBtn" class="b3-button b3-button--primary" title="${i18n("confirm") || "确认"}">
-                                        <svg class="b3-button__icon"><use xlink:href="#iconCheck"></use></svg>
-                                    </button>
-                                    <button type="button" id="quickCancelCustomTimeBtn" class="b3-button b3-button--outline" title="${i18n("cancel") || "取消"}">
-                                        <svg class="b3-button__icon"><use xlink:href="#iconClose"></use></svg>
-                                    </button>
-                                </div>
-                                <div id="quickPresetContainer" style="width: 100%; display: ${this.initialTime ? 'block' : 'none'};">
-                                    <label class="b3-form__label" style="font-size: 12px;">${i18n("reminderPreset") || "提醒时间预设"}</label>
-                                    <select id="quickCustomReminderPreset" class="b3-select" style="width: 100%;">
-                                        <option value="">${i18n("selectPreset") || "选择预设..."}</option>
-                                        <option value="5m">${i18n("before5m") || "提前 5 分钟"}</option>
-                                        <option value="10m">${i18n("before10m") || "提前 10 分钟"}</option>
-                                        <option value="30m">${i18n("before30m") || "提前 30 分钟"}</option>
-                                        <option value="1h">${i18n("before1h") || "提前 1 小时"}</option>
-                                        <option value="2h">${i18n("before2h") || "提前 2 小时"}</option>
-                                        <option value="1d">${i18n("before1d") || "提前 1 天"}</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- 添加重复设置 -->
-                        <div class="b3-form__group" id="repeatSettingsGroup" style="${this.isInstanceEdit ? 'display: none;' : ''}">
-                            <label class="b3-form__label">${i18n("repeatSettings")}</label>
-                            <div class="repeat-setting-container">
-                                <button type="button" id="quickRepeatSettingsBtn" class="b3-button b3-button--outline" style="width: 100%;">
-                                    <span id="quickRepeatDescription">${i18n("noRepeat")}</span>
-                                    <svg class="b3-button__icon" style="margin-left: auto;"><use xlink:href="#iconRight"></use></svg>
-                                </button>
-                            </div>
-                        </div>
                         
                     </div>
                     <div class="b3-dialog__action">
@@ -1242,7 +1547,7 @@ export class QuickReminderDialog {
                     </div>
                 </div>
             `,
-            width: "500px",
+            width: "min(500px, 90%)",
             height: this.mode === 'note' ? "auto" : "81vh"
         });
 
@@ -1258,42 +1563,192 @@ export class QuickReminderDialog {
             const noteContainer = this.dialog.element.querySelector('#quickReminderNote') as HTMLElement;
             if (!noteContainer) return;
 
-            this.crepe = new Crepe({
-                root: noteContainer,
-                defaultValue: initialNote,
-                featureConfigs: {
-                    [Crepe.Feature.Placeholder]: {
-                        text: ""
-                    }
-                }
-            });
-            this.crepe.create().then(() => {
-                // Crepe initialized
-                this.crepe.setReadonly(false);
+            this.currentNote = initialNote;
 
-                // Ensure focus and proper height
-                this.crepe.editor.action((ctx) => {
-                    const view = ctx.get(editorViewCtx);
-                    if (view) {
-                        // Only auto-focus the editor when in 'note' mode (editing note only).
-                        // For other modes (quick, block, edit), keep focus on the title input.
-                        if (this.mode === 'note') {
-                            view.focus();
+
+
+            Editor.make()
+                .config((ctx) => {
+                    ctx.set(rootCtx, noteContainer);
+                    ctx.set(defaultValueCtx, initialNote);
+                    ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {
+                        this.currentNote = markdown;
+                    });
+
+                    // 优先获取纯文本 (Markdown)，并优化粘贴逻辑
+                    ctx.update(prosePluginsCtx, (prev) => [
+                        ...prev,
+                        new Plugin({
+                            props: {
+                                handlePaste: (view, event) => {
+                                    let text = event.clipboardData?.getData('text/plain');
+                                    if (text) {
+                                        // 移除首尾多余的换行符（兼容 Windows/Unix），保留空格以维持缩进层级
+                                        text = text.replace(/^[\r\n]+|[\r\n]+$/g, '');
+                                        if (!text) return false;
+
+                                        const parser = ctx.get(parserCtx);
+                                        const node = parser(text);
+                                        if (node) {
+                                            const { tr, doc } = view.state;
+                                            // 如果文档当前几乎为空（只有一个空的段落），则替换整个文档内容
+                                            const isEmpty = doc.childCount === 1 &&
+                                                doc.firstChild?.type.name === 'paragraph' &&
+                                                doc.firstChild.content.size === 0;
+
+                                            // 获取节点内容 fragment
+                                            const content = node.type.name === 'doc' ? node.content : node;
+
+                                            if (isEmpty) {
+                                                // 彻底替换初始的空段落
+                                                view.dispatch(tr.replaceWith(0, doc.content.size, content).scrollIntoView());
+                                            } else {
+                                                view.dispatch(tr.replaceSelectionWith(node).scrollIntoView());
+                                            }
+                                            return true;
+                                        }
+                                    }
+                                    return false;
+                                },
+                                handleTextInput: (view, from, to, text) => {
+                                    const { state } = view;
+                                    const linkMark = state.schema.marks.link;
+                                    if (!linkMark) return false;
+
+                                    const $pos = state.doc.resolve(from);
+                                    if (linkMark.isInSet($pos.marks())) {
+                                        const range = this.findMarkRange(state.doc, from, linkMark);
+                                        // 如果在链接末尾打字，不应继续表现为链接文本
+                                        if (range && range.to === from) {
+                                            const marks = $pos.marks().filter(m => m.type !== linkMark);
+                                            const tr = state.tr.replaceWith(from, to, state.schema.text(text, marks));
+                                            tr.removeStoredMark(linkMark);
+                                            view.dispatch(tr);
+                                            return true;
+                                        }
+                                    }
+                                    return false;
+                                },
+                                handleClick: (view, pos) => {
+                                    const { state } = view;
+                                    const linkMark = state.schema.marks.link;
+                                    if (!linkMark) return false;
+
+                                    const node = state.doc.nodeAt(pos);
+                                    const mark = node ? linkMark.isInSet(node.marks) : null;
+
+                                    if (mark) {
+                                        this.showLinkOptions(view, pos, mark);
+                                        return true;
+                                    }
+                                    return false;
+                                }
+                            }
+                        })
+                    ]);
+                })
+                .use(commonmark)
+                .use(gfm)
+                .use(history)
+                .use(clipboard)
+                .use(cursor)
+                .use(listener)
+                .use($view(listItemSchema.node, () => (node, view, getPos) => {
+                    const dom = document.createElement("li");
+                    const contentDOM = document.createElement("div");
+
+                    if (node.attrs.checked != null) {
+                        dom.classList.add("task-list-item");
+
+                        // Use absolute positioning for the checkbox to align with native list markers
+                        dom.classList.add("task-list-item");
+                        dom.style.listStyleType = "none";
+                        dom.style.position = "relative";
+
+                        const checkbox = document.createElement("input");
+                        checkbox.type = "checkbox";
+                        checkbox.checked = node.attrs.checked;
+
+                        // Position checkbox to the left, similar to a list marker
+                        checkbox.style.position = "absolute";
+                        checkbox.style.left = "-1.4em";
+                        checkbox.style.top = "0.3em";
+                        checkbox.style.margin = "0";
+
+                        // Handle click
+                        checkbox.onclick = (e) => {
+                            if (typeof getPos === "function") {
+                                const { tr } = view.state;
+                                tr.setNodeMarkup(getPos(), undefined, {
+                                    ...node.attrs,
+                                    checked: checkbox.checked
+                                });
+                                view.dispatch(tr);
+                            }
+                            e.stopPropagation();
+                        };
+
+                        dom.appendChild(checkbox);
+
+                        contentDOM.style.minWidth = "0"; // Flex fix for overflow
+                        dom.appendChild(contentDOM);
+
+                        return {
+                            dom,
+                            contentDOM,
+                            ignoreMutation: (mutation) => {
+                                // Ignore checkbox mutations done by user (we handle validation via onclick)
+                                return mutation.type === 'attributes' && mutation.target === checkbox;
+                            },
+                            update: (updatedNode) => {
+                                if (updatedNode.type.name !== "list_item") return false;
+                                // Force re-render if switching between task and normal list
+                                const isTask = node.attrs.checked != null;
+                                const newIsTask = updatedNode.attrs.checked != null;
+                                if (isTask !== newIsTask) return false;
+
+                                if (newIsTask) {
+                                    checkbox.checked = updatedNode.attrs.checked;
+                                }
+                                return true;
+                            }
+                        };
+                    } else {
+                        // Regular list item: just 'li'
+                        return {
+                            dom,
+                            contentDOM: dom
+                        };
+                    }
+                }))
+                .create()
+                .then((editor) => {
+                    this.editor = editor;
+
+                    // Only auto-focus the editor when in 'note' mode (editing note only).
+                    if (this.mode === 'note') {
+                        editor.action((ctx) => {
+                            const view = ctx.get(editorViewCtx);
+                            if (view) {
+                                view.focus();
+                            }
+                        });
+                    }
+
+                    const editorEl = this.dialog.element.querySelector('.milkdown') as HTMLElement;
+                    if (editorEl) {
+                        editorEl.style.height = '100%';
+                        editorEl.style.minHeight = '50px';
+                        editorEl.style.margin = '0px';
+                        const prosemirror = editorEl.querySelector('.ProseMirror') as HTMLElement;
+                        if (prosemirror) {
+                            prosemirror.style.minHeight = '50px';
+                            // Basic styling to mimic previous look roughly
+                            prosemirror.style.padding = '8px';
+                            prosemirror.style.outline = 'none';
                         }
                     }
                 });
-
-                const editor = this.dialog.element.querySelector('.milkdown') as HTMLElement;
-                if (editor) {
-                    editor.style.height = '100%';
-                    editor.style.minHeight = '100px';
-                    editor.style.margin = '0px';
-                    const prosemirror = editor.querySelector('.ProseMirror') as HTMLElement;
-                    if (prosemirror) {
-                        prosemirror.style.minHeight = '100px';
-                    }
-                }
-            });
         }, 100);
 
         this.bindEvents();
@@ -1308,7 +1763,7 @@ export class QuickReminderDialog {
             const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
             const timeInput = this.dialog.element.querySelector('#quickReminderTime') as HTMLInputElement;
             const endTimeInput = this.dialog.element.querySelector('#quickReminderEndTime') as HTMLInputElement;
-            const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+            const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLTextAreaElement;
 
             // 设置日期（独立的日期输入框）
             if (this.initialDate) {
@@ -1343,6 +1798,10 @@ export class QuickReminderDialog {
             // 设置默认值：优先使用 this.blockContent，其次使用 this.defaultTitle
             if (this.blockContent && titleInput) {
                 titleInput.value = this.blockContent;
+                // 将光标移到开头，显示开头的字
+                titleInput.setSelectionRange(0, 0);
+                // 自动调整高度
+                this.autoResizeTextarea(titleInput);
 
                 // 如果启用了自动识别，从标题中提取日期/时间并填充到输入框
                 if (this.autoDetectDateTime) {
@@ -1366,6 +1825,10 @@ export class QuickReminderDialog {
                             this.plugin.getRemoveDateAfterDetectionEnabled().then((removeEnabled: boolean) => {
                                 if (removeEnabled && detected.cleanTitle !== undefined) {
                                     titleInput.value = detected.cleanTitle || titleInput.value;
+                                    // 将光标移到开头，显示开头的字
+                                    titleInput.setSelectionRange(0, 0);
+                                    // 自动调整高度
+                                    this.autoResizeTextarea(titleInput);
                                 }
                             });
                         }
@@ -1377,6 +1840,10 @@ export class QuickReminderDialog {
 
             else if (this.defaultTitle && titleInput) {
                 titleInput.value = this.defaultTitle;
+                // 将光标移到开头，显示开头的字
+                titleInput.setSelectionRange(0, 0);
+                // 自动调整高度
+                this.autoResizeTextarea(titleInput);
             }
 
             if (this.defaultNote) {
@@ -1387,6 +1854,9 @@ export class QuickReminderDialog {
             if ((this.mode === 'edit' || this.mode === 'batch_edit') && this.reminder) {
                 await this.populateEditForm();
             }
+
+            // 初始化子任务按钮显示（新建模式也显示）
+            await this.updateSubtasksDisplay();
 
             // 自动聚焦标题输入框
             titleInput?.focus();
@@ -1835,8 +2305,9 @@ export class QuickReminderDialog {
         const nlBtn = this.dialog.element.querySelector('#quickNlBtn') as HTMLButtonElement;
         const createDocBtn = this.dialog.element.querySelector('#quickCreateDocBtn') as HTMLButtonElement;
         const pasteBlockRefBtn = this.dialog.element.querySelector('#quickPasteBlockRefBtn') as HTMLButtonElement;
-        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLTextAreaElement;
         const viewSubtasksBtn = this.dialog.element.querySelector('#quickViewSubtasksBtn') as HTMLButtonElement;
+        const editAllInstancesBtn = this.dialog.element.querySelector('#quickEditAllInstancesBtn') as HTMLButtonElement;
         const viewPomodorosBtn = this.dialog.element.querySelector('#quickViewPomodorosBtn') as HTMLButtonElement;
         const durationInput = this.dialog.element.querySelector('#quickDurationDays') as HTMLInputElement;
 
@@ -1846,8 +2317,9 @@ export class QuickReminderDialog {
             endDateInput.min = startDateInput.value;
         }
 
-        // 如果设置了开始但未设置结束，使用持续天数来自动填充结束日期（默认 1 天）
-        if (startDateInput && startDateInput.value && endDateInput && !endDateInput.value && durationInput) {
+        // 只在编辑模式下，如果设置了开始但未设置结束，才使用持续天数来自动填充结束日期
+        // 新建任务时不自动填充，除非用户手动修改了持续天数
+        if (this.mode === 'edit' && startDateInput && startDateInput.value && endDateInput && !endDateInput.value && durationInput) {
             const days = parseInt(durationInput.value || '1') || 1;
             endDateInput.value = this.addDaysToDate(startDateInput.value, days - 1);
         }
@@ -1857,7 +2329,8 @@ export class QuickReminderDialog {
             if (!startDateInput || !startDateInput.value) return;
             if (endDateInput) endDateInput.min = startDateInput.value;
 
-            if (endDateInput && !endDateInput.value && durationInput) {
+            // 只有在用户手动修改了持续天数，或者编辑模式下结束日期已存在时，才自动填充/更新结束日期
+            if (endDateInput && !endDateInput.value && durationInput && this.durationManuallyChanged) {
                 const days = parseInt(durationInput.value || '1') || 1;
                 endDateInput.value = this.addDaysToDate(startDateInput.value, days - 1);
                 endDateInput.dispatchEvent(new Event('change'));
@@ -1874,6 +2347,8 @@ export class QuickReminderDialog {
             let val = parseInt(durationInput.value || '1', 10) || 1;
             if (val < 1) val = 1;
             durationInput.value = String(val);
+            // 标记用户已手动修改持续天数
+            this.durationManuallyChanged = true;
             if (startDateInput && startDateInput.value && endDateInput) {
                 // 始终覆盖结束日期以保证与持续天数一致（当改为1时会设置为开始日期）
                 endDateInput.value = this.addDaysToDate(startDateInput.value, val - 1);
@@ -1888,7 +2363,6 @@ export class QuickReminderDialog {
         durationInput?.addEventListener('click', () => setTimeout(normalizeDuration, 0));
         durationInput?.addEventListener('pointerup', () => setTimeout(normalizeDuration, 0));
         durationInput?.addEventListener('mouseup', () => setTimeout(normalizeDuration, 0));
-        durationInput?.addEventListener('wheel', () => setTimeout(normalizeDuration, 0));
         // 有些浏览器的步进按钮触发 keydown(ArrowUp/Down)，延迟执行以读取最新值
         durationInput?.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowUp' || e.key === 'ArrowDown') setTimeout(normalizeDuration, 0);
@@ -1914,34 +2388,64 @@ export class QuickReminderDialog {
             }
         });
 
-        // 查看子任务
+        // 查看/新建子任务
         viewSubtasksBtn?.addEventListener('click', () => {
-            if (this.reminder && this.reminder.id) {
-                const subtasksDialog = new SubtasksDialog(this.reminder.id, this.plugin, () => {
+            if (this.mode === 'edit' && this.reminder && this.reminder.id) {
+                // 编辑模式：使用正常的子任务对话框
+                // 判断是否编辑所有实例：非实例编辑模式且是重复任务
+                const isModifyAllInstances = !this.isInstanceEdit && this.reminder.repeat?.enabled;
+                const subtasksDialog = new SubtasksDialog(
+                    this.reminder.id,
+                    this.plugin,
+                    () => {
+                        this.updateSubtasksDisplay();
+                    },
+                    [],
+                    undefined,
+                    this.isInstanceEdit,
+                    isModifyAllInstances
+                );
+                subtasksDialog.show();
+            } else if (this.mode !== 'edit') {
+                // 新建模式：使用临时子任务模式
+                const subtasksDialog = new SubtasksDialog('', this.plugin, () => {
+                    this.updateSubtasksDisplay();
+                }, this.tempSubtasks, (updatedSubtasks) => {
+                    this.tempSubtasks = updatedSubtasks;
                     this.updateSubtasksDisplay();
                 });
                 subtasksDialog.show();
             }
         });
 
+        // 编辑所有实例
+        editAllInstancesBtn?.addEventListener('click', () => {
+            this.editAllInstances();
+        });
+
         // 查看番茄钟
         viewPomodorosBtn?.addEventListener('click', () => {
             if (this.reminder && this.reminder.id) {
+                // 判断是否为"修改全部实例"模式
+                // 如果是修改全部实例（非实例编辑模式且是重复任务），显示原始任务及所有实例的番茄钟
+                // 如果是实例编辑模式，只显示本实例的番茄钟
+                const isModifyAllInstances = !this.isInstanceEdit && this.reminder.repeat?.enabled;
+
+
+
+                // 确定目标ID：
+                // - 实例编辑模式：使用实例ID（补录番茄钟关联到实例）
+                // - 修改全部实例模式：使用原始ID（补录番茄钟关联到原始任务）
+                // - 普通任务：使用当前ID
                 let targetId = this.reminder.id;
-                // 如果是重复任务实例，使用 originalId 作为目标ID，以便查看所有相关记录
-                if (this.reminder.originalId) {
+                if (isModifyAllInstances && this.reminder.originalId) {
                     targetId = this.reminder.originalId;
-                } else if (this.reminder.isInstance && this.reminder.id.includes('_')) {
-                    // 尝试从ID中提取原始ID (fallback)
-                    const parts = this.reminder.id.split('_');
-                    if (parts.length > 1 && /^\d{4}-\d{2}-\d{2}$/.test(parts[parts.length - 1])) {
-                        targetId = parts.slice(0, -1).join('_');
-                    }
                 }
+                // 注意：实例编辑模式保持使用 this.reminder.id（实例ID）
 
                 const pomodorosDialog = new PomodoroSessionsDialog(targetId, this.plugin, () => {
                     this.updatePomodorosDisplay();
-                });
+                }, isModifyAllInstances); // 传递 includeInstances 参数
                 pomodorosDialog.show();
             }
         });
@@ -1963,11 +2467,10 @@ export class QuickReminderDialog {
 
                 // 如果有多行，后面的行放到备注
                 if (lines.length > 1) {
-                    // Using Vditor for note
-                    if (this.crepe) {
-                        const existingNote = this.crepe.getMarkdown();
+                    if (this.editor) {
+                        const existingNote = this.currentNote;
                         const newNote = lines.slice(1).join('\n');
-                        this.crepe.editor.action(replaceAll(existingNote ? existingNote + '\n' + newNote : newNote));
+                        this.editor.action(replaceAll(existingNote ? existingNote + '\n' + newNote : newNote));
                     }
                 }
 
@@ -1991,6 +2494,13 @@ export class QuickReminderDialog {
                         });
                     }
                 }
+            }
+        });
+
+        // 标题输入时自动调整高度
+        titleInput?.addEventListener('input', () => {
+            if (titleInput) {
+                this.autoResizeTextarea(titleInput);
             }
         });
 
@@ -2151,6 +2661,17 @@ export class QuickReminderDialog {
             // 结束时间不影响预设计算，只基于开始时间
         });
 
+        // 清除开始日期按钮
+        const clearStartDateBtn = this.dialog.element.querySelector('#quickClearStartDateBtn') as HTMLButtonElement;
+        clearStartDateBtn?.addEventListener('click', () => {
+            const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
+            if (dateInput) {
+                dateInput.value = '';
+                // 更新预设下拉状态
+                this.updatePresetSelectState();
+            }
+        });
+
         // 清除开始时间按钮
         const clearStartTimeBtn = this.dialog.element.querySelector('#quickClearStartTimeBtn') as HTMLButtonElement;
         clearStartTimeBtn?.addEventListener('click', () => {
@@ -2159,6 +2680,15 @@ export class QuickReminderDialog {
                 timeInput.value = '';
                 // 更新预设下拉状态
                 this.updatePresetSelectState();
+            }
+        });
+
+        // 清除结束日期按钮
+        const clearEndDateBtn = this.dialog.element.querySelector('#quickClearEndDateBtn') as HTMLButtonElement;
+        clearEndDateBtn?.addEventListener('click', () => {
+            const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
+            if (endDateInput) {
+                endDateInput.value = '';
             }
         });
 
@@ -2217,7 +2747,7 @@ export class QuickReminderDialog {
 
                 if (blockId) {
                     const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
-                    const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+                    const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLTextAreaElement;
 
                     if (blockInput) {
                         blockInput.value = blockId;
@@ -2278,7 +2808,7 @@ export class QuickReminderDialog {
                         quickBlockInput.value = blockId;
 
                         // 如果标题输入框为空，自动设置标题
-                        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+                        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLTextAreaElement;
                         if (titleInput && extractedTitle && (!titleInput.value || titleInput.value.trim().length === 0)) {
                             titleInput.value = extractedTitle;
                         }
@@ -2408,6 +2938,22 @@ export class QuickReminderDialog {
         clearCompletedBtn?.addEventListener('click', () => {
             if (completedTimeInput) {
                 completedTimeInput.value = '';
+            }
+        });
+
+        // 网页链接打开按钮
+        const openUrlBtn = this.dialog.element.querySelector('#quickOpenUrlBtn') as HTMLButtonElement;
+        const urlInput = this.dialog.element.querySelector('#quickUrlInput') as HTMLInputElement;
+        openUrlBtn?.addEventListener('click', () => {
+            const url = urlInput?.value?.trim();
+            if (url) {
+                if (!/^https?:\/\//i.test(url)) {
+                    window.open('http://' + url, '_blank');
+                } else {
+                    window.open(url, '_blank');
+                }
+            } else {
+                showMessage(i18n("pleaseEnterUrl") || "请输入链接地址");
             }
         });
     }
@@ -2702,7 +3248,7 @@ export class QuickReminderDialog {
     }
 
     private showCreateDocumentDialog() {
-        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLTextAreaElement;
         const currentTitle = titleInput?.value?.trim() || '';
 
         const blockBindingDialog = new BlockBindingDialog(this.plugin, async (blockId: string) => {
@@ -2726,9 +3272,9 @@ export class QuickReminderDialog {
     }
 
     private destroyDialog() {
-        if (this.crepe) {
-            this.crepe.destroy();
-            this.crepe = undefined;
+        if (this.editor) {
+            this.editor.destroy();
+            this.editor = undefined;
         }
         if (this.dialog) {
             this.dialog.destroy();
@@ -2739,7 +3285,7 @@ export class QuickReminderDialog {
     private async saveNoteOnly() {
         if (!this.reminder) return;
 
-        const note = this.crepe ? this.crepe.getMarkdown() : this.reminder.note;
+        const note = this.editor ? this.currentNote : this.reminder.note;
 
         // 乐观更新
         const optimisticReminder = { ...this.reminder };
@@ -2754,11 +3300,21 @@ export class QuickReminderDialog {
 
         // 后台持久化
         try {
-            const reminderData = await this.plugin.loadReminderData();
-            if (reminderData[this.reminder.id]) {
-                reminderData[this.reminder.id].note = note;
-                await this.plugin.saveReminderData(reminderData);
-                console.debug('备注已更新 (后台)');
+            if (this.isInstanceEdit && this.reminder.isInstance) {
+                // 实例备注修改
+                await this.saveInstanceModification({
+                    originalId: this.reminder.originalId,
+                    instanceDate: this.reminder.instanceDate,
+                    note: note
+                });
+                console.debug('实例备注已更新 (后台)');
+            } else {
+                const reminderData = await this.plugin.loadReminderData();
+                if (reminderData[this.reminder.id]) {
+                    reminderData[this.reminder.id].note = note;
+                    await this.plugin.saveReminderData(reminderData);
+                    console.debug('备注已更新 (后台)');
+                }
             }
         } catch (error) {
             console.error('保存备注失败:', error);
@@ -2772,7 +3328,7 @@ export class QuickReminderDialog {
             return;
         }
 
-        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLInputElement;
+        const titleInput = this.dialog.element.querySelector('#quickReminderTitle') as HTMLTextAreaElement;
         const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
         const urlInput = this.dialog.element.querySelector('#quickUrlInput') as HTMLInputElement;
         const dateInput = this.dialog.element.querySelector('#quickReminderDate') as HTMLInputElement;
@@ -2790,7 +3346,7 @@ export class QuickReminderDialog {
         const inputId = rawBlockVal ? (this.extractBlockId(rawBlockVal) || rawBlockVal) : undefined;
         const url = urlInput?.value?.trim() || undefined;
         // const note = noteInput.value.trim() || undefined;
-        const note = this.crepe ? this.crepe.getMarkdown() : undefined;
+        const note = this.editor ? this.currentNote : undefined;
         const priority = selectedPriority?.getAttribute('data-priority') || 'none';
 
         // 获取多分类ID
@@ -2807,13 +3363,16 @@ export class QuickReminderDialog {
         const customGroupId = customGroupSelector?.value || undefined;
         const milestoneSelector = this.dialog.element.querySelector('#quickMilestoneSelector') as HTMLSelectElement;
         const milestoneId = milestoneSelector?.value || undefined;
-        const customReminderTime = (this.dialog.element.querySelector('#quickCustomReminderTime') as HTMLInputElement).value.trim() || undefined;
+
         const customReminderPreset = (this.dialog.element.querySelector('#quickCustomReminderPreset') as HTMLSelectElement)?.value || undefined;
         const estimatedPomodoroDuration = (this.dialog.element.querySelector('#quickEstimatedPomodoroDuration') as HTMLInputElement)?.value.trim() || undefined;
 
         // 每日可做
         const isAvailableToday = (this.dialog.element.querySelector('#quickIsAvailableToday') as HTMLInputElement)?.checked || false;
         const availableStartDate = (this.dialog.element.querySelector('#quickAvailableStartDate') as HTMLInputElement)?.value || undefined;
+
+        // 不在日历视图显示
+        const hideInCalendar = (this.dialog.element.querySelector('#quickHideInCalendar') as HTMLInputElement)?.checked || false;
 
 
         // 获取选中的标签ID（使用 selectedTagIds 属性）
@@ -2885,7 +3444,8 @@ export class QuickReminderDialog {
                 quadrant: this.defaultQuadrant,
                 estimatedPomodoroDuration: estimatedPomodoroDuration,
                 isAvailableToday: isAvailableToday,
-                availableStartDate: availableStartDate
+                availableStartDate: availableStartDate,
+                hideInCalendar: hideInCalendar
             };
 
             // 如果有绑定块，尝试获取并设置 docId
@@ -2951,6 +3511,7 @@ export class QuickReminderDialog {
             optimisticReminder.kanbanStatus = kanbanStatus;
             optimisticReminder.isAvailableToday = isAvailableToday;
             optimisticReminder.availableStartDate = availableStartDate;
+            optimisticReminder.hideInCalendar = hideInCalendar;
 
             // 同步 docId 用于 UI 显示
             optimisticReminder.docId = optimisticDocId !== null ? optimisticDocId : (this.reminder?.docId || undefined);
@@ -2997,6 +3558,12 @@ export class QuickReminderDialog {
             this.onSaved(optimisticReminder);
         }
 
+        // 如果需要跳过保存（临时子任务模式），直接返回，不执行后续保存逻辑
+        if (this.skipSave) {
+            this.destroyDialog();
+            return;
+        }
+
         // 显示“已保存”反馈（乐观），不再等待
 
         this.destroyDialog();
@@ -3028,6 +3595,10 @@ export class QuickReminderDialog {
                             note: note,
                             priority: priority,
                             notified: false, // 重置通知状态
+                            projectId: projectId,
+                            customGroupId: customGroupId,
+                            milestoneId: milestoneId,
+                            kanbanStatus: kanbanStatus,
                             // 提醒时间相关字段
                             reminderTimes: this.customTimes.length > 0 ? [...this.customTimes] : undefined,
                             customReminderPreset: customReminderPreset,
@@ -3082,6 +3653,7 @@ export class QuickReminderDialog {
                         reminder.estimatedPomodoroDuration = estimatedPomodoroDuration;
                         reminder.isAvailableToday = isAvailableToday;
                         reminder.availableStartDate = availableStartDate;
+                        reminder.hideInCalendar = hideInCalendar;
 
                         // 设置或删除 documentId
                         if (inputId) {
@@ -3296,6 +3868,7 @@ export class QuickReminderDialog {
                         kanbanStatus: kanbanStatus, // 添加任务状态（短期/长期）
                         isAvailableToday: isAvailableToday,
                         availableStartDate: availableStartDate,
+                        hideInCalendar: hideInCalendar,
                         // 旧字段 `customReminderTime` 不再写入，新提醒统一保存到 `reminderTimes`
                         reminderTimes: this.customTimes.length > 0 ? [...this.customTimes] : undefined,
                         estimatedPomodoroDuration: estimatedPomodoroDuration
@@ -3450,6 +4023,10 @@ export class QuickReminderDialog {
                     detail: eventDetail
                 }));
 
+                // 如果是新建模式且有临时子任务，保存子任务
+                if (this.mode !== 'edit' && this.tempSubtasks.length > 0) {
+                    await this.saveTempSubtasks(reminderId);
+                }
 
                 // if (this.onSaved) this.onSaved(reminder);
                 // this.dialog.destroy();
@@ -3483,23 +4060,31 @@ export class QuickReminderDialog {
             const modifications = reminderData[originalId].repeat.instanceModifications;
 
             // 如果修改了日期，需要清理可能存在的中间修改记录
-            // 例如：原始日期 12-01 改为 12-03，再改为 12-06
-            // 应该只保留 12-01 的修改记录，删除 12-03 的记录
             if (instanceData.date !== instanceDate) {
-                // 查找所有可能的中间修改记录
                 const keysToDelete: string[] = [];
                 for (const key in modifications) {
-                    // 如果某个修改记录的日期指向当前实例的新日期，且该键不是原始实例日期
-                    // 说明这是之前修改产生的中间记录，需要删除
                     if (key !== instanceDate && modifications[key]?.date === instanceData.date) {
                         keysToDelete.push(key);
                     }
                 }
-                // 删除中间修改记录
                 keysToDelete.forEach(key => delete modifications[key]);
             }
 
-            // 保存此实例的修改数据（始终使用原始实例日期作为键）
+            // 获取旧值以检测变更
+            const oldMod = modifications[instanceDate] || {};
+            const originalTask = reminderData[originalId];
+
+            // 确定是否需要级联更新
+            const oldStatus = oldMod.kanbanStatus !== undefined ? oldMod.kanbanStatus : originalTask.kanbanStatus;
+            const newStatus = instanceData.kanbanStatus;
+
+            const oldGroup = oldMod.customGroupId !== undefined ? oldMod.customGroupId : originalTask.customGroupId;
+            const newGroup = instanceData.customGroupId;
+
+            const oldProject = oldMod.projectId !== undefined ? oldMod.projectId : originalTask.projectId;
+            const newProject = instanceData.projectId;
+
+            // 保存此实例的修改数据
             modifications[instanceDate] = {
                 title: instanceData.title,
                 date: instanceData.date,
@@ -3509,17 +4094,157 @@ export class QuickReminderDialog {
                 note: instanceData.note,
                 priority: instanceData.priority,
                 notified: instanceData.notified,
-                // 提醒时间相关字段
+                projectId: instanceData.projectId,
+                customGroupId: instanceData.customGroupId,
+                milestoneId: instanceData.milestoneId,
+                kanbanStatus: instanceData.kanbanStatus,
                 reminderTimes: instanceData.reminderTimes,
                 customReminderPreset: instanceData.customReminderPreset,
+                estimatedPomodoroDuration: instanceData.estimatedPomodoroDuration,
                 modifiedAt: new Date().toISOString().split('T')[0]
             };
+
+            // 如果状态、分组或项目发生了变更，递归更新所有子任务（ghost tasks）
+            if (oldStatus !== newStatus || oldGroup !== newGroup || oldProject !== newProject) {
+                const descendants = this.getAllDescendants(reminderData, originalId);
+
+                descendants.forEach(desc => {
+                    // 确保 repeat 结构存在
+                    if (!desc.repeat) {
+                        desc.repeat = { enabled: false };
+                    }
+                    if (!desc.repeat.instanceModifications) {
+                        desc.repeat.instanceModifications = {};
+                    }
+
+                    const descMod = desc.repeat.instanceModifications[instanceDate] || {};
+
+                    // 强制子任务跟随父任务的变更
+                    if (newStatus !== undefined) {
+                        descMod.kanbanStatus = newStatus;
+                    }
+
+                    if (newGroup !== undefined) {
+                        descMod.customGroupId = newGroup;
+                    }
+
+                    if (newProject !== undefined) {
+                        descMod.projectId = newProject;
+                    }
+
+                    descMod.modifiedAt = new Date().toISOString().split('T')[0];
+                    desc.repeat.instanceModifications[instanceDate] = descMod;
+                });
+            }
 
             await this.plugin.saveReminderData(reminderData);
 
         } catch (error) {
             console.error('保存实例修改失败:', error);
             throw error;
+        }
+    }
+
+    private getAllDescendants(reminderData: any, parentId: string): any[] {
+        const result: any[] = [];
+        const findChildren = (pid: string) => {
+            for (const key in reminderData) {
+                if (reminderData[key].parentId === pid) {
+                    result.push(reminderData[key]);
+                    findChildren(reminderData[key].id);
+                }
+            }
+        }
+        findChildren(parentId);
+        return result;
+    }
+
+    /**
+     * 保存临时子任务
+     * 在新建父任务时一起保存子任务
+     */
+    private async saveTempSubtasks(parentId: string) {
+        if (this.tempSubtasks.length === 0) return;
+
+        try {
+            const reminderData = await this.plugin.loadReminderData();
+            const nowStr = new Date().toISOString();
+
+            for (const tempSubtask of this.tempSubtasks) {
+                // 生成新的子任务 ID
+                const subtaskId = `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+                // 创建子任务对象
+                const subtask: any = {
+                    id: subtaskId,
+                    parentId: parentId,
+                    blockId: tempSubtask.blockId || null,
+                    docId: tempSubtask.docId || null,
+                    title: tempSubtask.title || '未命名任务',
+                    url: tempSubtask.url || undefined,
+                    date: tempSubtask.date || undefined,
+                    time: tempSubtask.time || undefined,
+                    endDate: tempSubtask.endDate || undefined,
+                    endTime: tempSubtask.endTime || undefined,
+                    completed: tempSubtask.completed || false,
+                    priority: tempSubtask.priority || 'none',
+                    categoryId: tempSubtask.categoryId || undefined,
+                    projectId: tempSubtask.projectId || undefined,
+                    customGroupId: tempSubtask.customGroupId || undefined,
+                    milestoneId: tempSubtask.milestoneId || undefined,
+                    tagIds: tempSubtask.tagIds || undefined,
+                    createdAt: nowStr,
+                    createdTime: nowStr,
+                    kanbanStatus: tempSubtask.kanbanStatus || 'todo',
+                    sort: tempSubtask.sort || 0,
+                    note: tempSubtask.note || undefined,
+                    reminderTimes: tempSubtask.reminderTimes || undefined,
+                    estimatedPomodoroDuration: tempSubtask.estimatedPomodoroDuration || undefined,
+                    notifiedTime: false,
+                    notifiedCustomTime: false
+                };
+
+                // 如果子任务有完成时间，保留它
+                if (tempSubtask.completed && tempSubtask.completedTime) {
+                    subtask.completedTime = tempSubtask.completedTime;
+                }
+
+                // 复制重复设置（如果有）
+                if (tempSubtask.repeat?.enabled) {
+                    subtask.repeat = { ...tempSubtask.repeat };
+                }
+
+                // 如果有绑定块，获取 docId
+                if (subtask.blockId && !subtask.docId) {
+                    try {
+                        const block = await getBlockByID(subtask.blockId);
+                        subtask.docId = block?.root_id || (block?.type === 'd' ? block?.id : null);
+                    } catch (err) {
+                        console.warn('获取子任务绑定块信息失败:', err);
+                    }
+                }
+
+                reminderData[subtaskId] = subtask;
+
+                // 如果绑定了块，添加项目 ID 属性
+                if (subtask.blockId && subtask.projectId) {
+                    try {
+                        const { addBlockProjectId } = await import('../api');
+                        await addBlockProjectId(subtask.blockId, subtask.projectId);
+                    } catch (error) {
+                        console.warn('设置子任务块属性失败:', error);
+                    }
+                }
+            }
+
+            await this.plugin.saveReminderData(reminderData);
+            console.log(`已保存 ${this.tempSubtasks.length} 个子任务`);
+            showMessage(i18n("subtasksSaved") || `已保存 ${this.tempSubtasks.length} 个子任务`);
+
+            // 保存成功后清空临时子任务数组
+            this.tempSubtasks = [];
+        } catch (error) {
+            console.error('保存临时子任务失败:', error);
         }
     }
 
@@ -3568,12 +4293,40 @@ export class QuickReminderDialog {
         try {
             // 读取父任务数据
             const reminderData = await this.plugin.loadReminderData();
-            const parentTask = reminderData[parentId];
+            let parentTask = reminderData[parentId];
+            let instanceDate: string | undefined;
+
+            // 特殊处理：如果父任务ID是重复实例（形式为 reminder_originalId_date）
+            if (!parentTask && parentId.startsWith('reminder_')) {
+                const lastUnderscoreIndex = parentId.lastIndexOf('_');
+                if (lastUnderscoreIndex !== -1) {
+                    const potentialDate = parentId.substring(lastUnderscoreIndex + 1);
+                    // 检查最后一部分是否为 YYYY-MM-DD 格式
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(potentialDate)) {
+                        const originalId = parentId.substring(0, lastUnderscoreIndex);
+                        const originalTask = reminderData[originalId];
+                        if (originalTask) {
+                            instanceDate = potentialDate;
+                            // 构造虚拟的实例对象用于显示
+                            const instanceMod = originalTask.repeat?.instanceModifications?.[instanceDate] || {};
+                            parentTask = {
+                                ...originalTask,
+                                ...instanceMod,
+                                title: instanceMod.title || originalTask.title || '(无标题)',
+                                isInstance: true,
+                                instanceDate: instanceDate,
+                                originalId: originalId
+                            };
+                        }
+                    }
+                }
+            }
 
             if (parentTask) {
                 // 显示父任务标题
-                parentTaskDisplay.value = parentTask.title || '(无标题)';
-                parentTaskDisplay.title = `父任务: ${parentTask.title || '(无标题)'}`;
+                const displayTitle = instanceDate ? `${parentTask.title} (${instanceDate})` : (parentTask.title || '(无标题)');
+                parentTaskDisplay.value = displayTitle;
+                parentTaskDisplay.title = instanceDate ? `父任务实例: ${displayTitle}` : `父任务: ${displayTitle}`;
 
                 // 显示查看按钮
                 viewParentBtn.style.display = '';
@@ -3591,8 +4344,68 @@ export class QuickReminderDialog {
     }
 
     /**
-     * 查看父任务
+     * 编辑所有实例
      */
+    private async editAllInstances() {
+        if (!this.reminder || !this.reminder.originalId) {
+            return;
+        }
+
+        try {
+            // 读取原始任务数据
+            const reminderData = await this.plugin.loadReminderData();
+            const originalTask = reminderData[this.reminder.originalId];
+
+            if (!originalTask) {
+                showMessage(i18n("originalTaskNotExist") || "原始任务不存在");
+                return;
+            }
+
+            // 创建新的QuickReminderDialog来编辑原始任务（非实例编辑模式）
+            const allInstancesDialog = new QuickReminderDialog(
+                originalTask.date,
+                originalTask.time,
+                undefined,
+                originalTask.endDate ? {
+                    isTimeRange: true,
+                    endDate: originalTask.endDate,
+                    endTime: originalTask.endTime
+                } : undefined,
+                {
+                    reminder: originalTask,
+                    mode: 'edit',
+                    plugin: this.plugin,
+                    isInstanceEdit: false, // 明确设置为非实例编辑模式，即修改所有实例
+                    onSaved: async () => {
+                        window.dispatchEvent(new CustomEvent('reminderUpdated'));
+                    }
+                }
+            );
+
+            // 关掉当前实例弹窗
+            this.destroyDialog();
+
+            allInstancesDialog.show();
+        } catch (error) {
+            console.error('编辑所有实例失败:', error);
+            showMessage(i18n("operationFailed") || "操作失败");
+        }
+    }
+
+    /**
+     * 更新“编辑所有实例”按钮显示
+     */
+    private updateEditAllInstancesDisplay() {
+        const group = this.dialog.element.querySelector('#quickEditAllInstancesGroup') as HTMLElement;
+        if (!group) return;
+
+        // 仅在实例编辑模式且有原始ID时显示
+        if (this.isInstanceEdit && this.reminder && this.reminder.originalId) {
+            group.style.display = 'block';
+        } else {
+            group.style.display = 'none';
+        }
+    }
     private async viewParentTask() {
         const parentId = this.reminder?.parentId || this.defaultParentId;
 
@@ -3604,7 +4417,36 @@ export class QuickReminderDialog {
         try {
             // 读取父任务数据
             const reminderData = await this.plugin.loadReminderData();
-            const parentTask = reminderData[parentId];
+            let parentTask = reminderData[parentId];
+            let isInstanceEdit = false;
+            let instanceDate = "";
+
+            // 特殊处理：如果父任务ID是重复实例（形式为 reminder_originalId_date）
+            if (!parentTask && parentId.startsWith('reminder_')) {
+                const lastUnderscoreIndex = parentId.lastIndexOf('_');
+                if (lastUnderscoreIndex !== -1) {
+                    const potentialDate = parentId.substring(lastUnderscoreIndex + 1);
+                    // 检查最后一部分是否为 YYYY-MM-DD 格式
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(potentialDate)) {
+                        const originalId = parentId.substring(0, lastUnderscoreIndex);
+                        const originalTask = reminderData[originalId];
+                        if (originalTask) {
+                            isInstanceEdit = true;
+                            instanceDate = potentialDate;
+                            // 构造虚拟的实例对象
+                            const instanceMod = originalTask.repeat?.instanceModifications?.[instanceDate] || {};
+                            parentTask = {
+                                ...originalTask,
+                                ...instanceMod,
+                                id: parentId,
+                                isInstance: true,
+                                instanceDate: instanceDate,
+                                originalId: originalId
+                            };
+                        }
+                    }
+                }
+            }
 
             if (!parentTask) {
                 showMessage(i18n("parentTaskNotExist") || "父任务不存在");
@@ -3613,7 +4455,7 @@ export class QuickReminderDialog {
 
             // 创建新的QuickReminderDialog来编辑父任务
             const parentDialog = new QuickReminderDialog(
-                parentTask.date,
+                isInstanceEdit ? instanceDate : parentTask.date,
                 parentTask.time,
                 undefined,
                 parentTask.endDate ? {
@@ -3625,6 +4467,8 @@ export class QuickReminderDialog {
                     reminder: parentTask,
                     mode: 'edit',
                     plugin: this.plugin,
+                    isInstanceEdit: isInstanceEdit,
+                    instanceDate: isInstanceEdit ? instanceDate : undefined,
                     onSaved: async () => {
                         // 父任务保存后，刷新当前对话框的父任务显示
                         await this.updateParentTaskDisplay();

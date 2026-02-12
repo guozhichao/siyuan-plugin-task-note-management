@@ -302,7 +302,9 @@
                     key: 'milestoneDefaultHeadingLevel',
                     value: settings.milestoneDefaultHeadingLevel,
                     type: 'select',
-                    title: i18n('milestoneDefaultHeadingLevel') || '绑定块新建标题默认层级（项目里程碑）',
+                    title:
+                        i18n('milestoneDefaultHeadingLevel') ||
+                        '绑定块新建标题默认层级（项目里程碑）',
                     description:
                         i18n('milestoneDefaultHeadingLevelDesc') || '设置添加标题里程碑的默认层级',
                     options: {
@@ -405,10 +407,10 @@
                     key: 'pomodoroEndPopupWindow',
                     value: settings.pomodoroEndPopupWindow,
                     type: 'checkbox',
-                    title: i18n('pomodoroEndPopupWindow') || '启用番茄钟结束全局弹窗提醒',
+                    title: i18n('pomodoroEndPopupWindow') || '番茄钟结束全局弹窗提醒',
                     description:
                         i18n('pomodoroEndPopupWindowDesc') ||
-                        '开启后，番茄钟工作结束时会在屏幕中央显示弹窗提醒，10秒后自动关闭（仅电脑桌面端有效）',
+                        '番茄钟工作结束时会在屏幕中央显示弹窗提醒，10秒后自动关闭（仅电脑桌面端有效）',
                 },
                 {
                     key: 'dailyFocusGoal',
@@ -487,9 +489,9 @@
                     key: 'randomNotificationPopupWindow',
                     value: settings.randomNotificationPopupWindow,
                     type: 'checkbox',
-                    title: '启用全局弹窗提醒',
+                    title: '随机微休息全局弹窗提醒',
                     description:
-                        '开启后，随机微休息开始时会在屏幕中央显示弹窗提醒，结束后自动关闭（仅电脑桌面端有效）',
+                        '随机微休息开始时会在屏幕中央显示弹窗提醒，结束后自动关闭（仅电脑桌面端有效）',
                 },
                 {
                     key: 'randomNotificationMinInterval',
@@ -605,24 +607,11 @@
                     type: 'button',
                     title: '导出 ICS 文件',
                     description:
-                        '将提醒导出为标准 ICS 日历文件，可导入到 Outlook、Google Calendar 等日历应用',
+                        '将提醒导出为标准 ICS 日历文件，可导入到 Outlook、Google Calendar、部分手机系统日历等日历应用',
                     button: {
                         label: '生成 ICS',
                         callback: async () => {
-                            await exportIcsFile(plugin, true, true, false, settings.icsTaskFilter);
-                        },
-                    },
-                },
-                {
-                    key: 'exportIcsXiaomi',
-                    value: '',
-                    type: 'button',
-                    title: '导出 ICS 文件（小米兼容）',
-                    description: '生成适配小米日历的 ICS（将 DURATION:P1DT 替换为 DURATION:P1D）',
-                    button: {
-                        label: '生成 ICS（小米）',
-                        callback: async () => {
-                            await exportIcsFile(plugin, true, true, false, settings.icsTaskFilter);
+                            await exportIcsFile(plugin, true, false, settings.icsTaskFilter);
                         },
                     },
                 },
@@ -711,17 +700,6 @@
                         all: '全部任务',
                         completed: '已完成任务',
                         uncompleted: '未完成任务',
-                    },
-                },
-                {
-                    key: 'icsFormat',
-                    value: settings.icsFormat,
-                    type: 'select',
-                    title: 'ICS 格式',
-                    description: '选择ICS文件的格式',
-                    options: {
-                        normal: '常规 ICS',
-                        xiaomi: '小米兼容',
                     },
                 },
                 {

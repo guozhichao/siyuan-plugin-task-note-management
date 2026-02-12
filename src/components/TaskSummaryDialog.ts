@@ -246,43 +246,49 @@ export class TaskSummaryDialog {
       for (const reminder of Object.values(reminderData) as any[]) {
         if (!reminder || typeof reminder !== 'object') continue;
 
-        // 应用分类过滤
-        if (this.calendarView && !this.calendarView.passesCategoryFilter(reminder)) continue;
-
-        // 添加原始事件
-        this.addEventToList(events, reminder, reminder.id, false);
-
-        // 如果有重复设置，生成重复事件实例
         if (reminder.repeat?.enabled) {
           const repeatInstances = generateRepeatInstances(reminder, startDate, endDate);
+
+          // 检查生成的实例中是否有与原始日期相同的
+          const sameDateInstance = repeatInstances.find(i => i.date === reminder.date);
+
+          // 只有当没有同日期的实例时，才添加原始事件
+          // (如果有了同日期的实例，我们希望使用实例对象代替原始对象，以便具有唯一的实例ID)
+          if (!sameDateInstance) {
+            this.addEventToList(events, reminder, reminder.id, false);
+          }
+
           repeatInstances.forEach(instance => {
-            // 跳过与原始事件相同日期的实例
-            if (instance.date !== reminder.date) {
-              const originalKey = instance.date;
+            // 现在不再跳过与原始事件相同日期的实例
+            // 如果日期相同，上面的逻辑已经阻止了原始事件的添加，所以这里添加实例是安全的替代
 
-              // 检查实例级别的完成状态
-              const completedInstances = reminder.repeat?.completedInstances || [];
-              const isInstanceCompleted = completedInstances.includes(originalKey);
+            const originalKey = instance.date;
 
-              // 检查实例级别的修改
-              const instanceModifications = reminder.repeat?.instanceModifications || {};
-              const instanceMod = instanceModifications[originalKey];
+            // 检查实例级别的完成状态
+            const completedInstances = reminder.repeat?.completedInstances || [];
+            const isInstanceCompleted = completedInstances.includes(originalKey);
 
-              const instanceReminder = {
-                ...reminder,
-                date: instance.date,
-                endDate: instance.endDate,
-                time: instance.time,
-                endTime: instance.endTime,
-                completed: isInstanceCompleted,
-                note: instanceMod?.note || '',
-                docTitle: reminder.docTitle
-              };
+            // 检查实例级别的修改
+            const instanceModifications = reminder.repeat?.instanceModifications || {};
+            const instanceMod = instanceModifications[originalKey];
 
-              const uniqueInstanceId = `${reminder.id}_instance_${originalKey}`;
-              this.addEventToList(events, instanceReminder, uniqueInstanceId, true, reminder.id);
-            }
+            const instanceReminder = {
+              ...reminder,
+              date: instance.date,
+              endDate: instance.endDate,
+              time: instance.time,
+              endTime: instance.endTime,
+              completed: isInstanceCompleted,
+              note: instanceMod?.note || '',
+              docTitle: reminder.docTitle
+            };
+
+            const uniqueInstanceId = `${reminder.id}_${originalKey}`;
+            this.addEventToList(events, instanceReminder, uniqueInstanceId, true, reminder.id);
           });
+        } else {
+          // 非重复任务，直接添加
+          this.addEventToList(events, reminder, reminder.id, false);
         }
       }
 
@@ -339,9 +345,21 @@ export class TaskSummaryDialog {
       const statsToAdd = rawAllTimeStats[sourceId];
       let depth = 0;
       while (depth < 20) {
+        let parentId: string | null = null;
         const reminder = reminderData[currentId];
-        if (!reminder || !reminder.parentId) break;
-        const parentId = reminder.parentId;
+
+        if (reminder && reminder.parentId) {
+          parentId = reminder.parentId;
+        } else if (!reminder && currentId.includes('_')) {
+          // 尝试从实例ID中提取原始ID (instanceId = originalId_date)
+          const lastIdx = currentId.lastIndexOf('_');
+          if (lastIdx > 0) {
+            parentId = currentId.substring(0, lastIdx);
+          }
+        }
+
+        if (!parentId) break;
+
         if (!allTimeTaskStats[parentId]) allTimeTaskStats[parentId] = { count: 0, minutes: 0 };
         allTimeTaskStats[parentId].count += statsToAdd.count;
         allTimeTaskStats[parentId].minutes += statsToAdd.minutes;
@@ -403,10 +421,21 @@ export class TaskSummaryDialog {
           // 防止死循环，设置最大深度
           let depth = 0;
           while (depth < 20) {
+            let parentId: string | null = null;
             const reminder = reminderData[currentId];
-            if (!reminder || !reminder.parentId) break;
 
-            const parentId = reminder.parentId;
+            if (reminder && reminder.parentId) {
+              parentId = reminder.parentId;
+            } else if (!reminder && currentId.includes('_')) {
+              // 尝试从实例ID中提取原始ID
+              const lastIdx = currentId.lastIndexOf('_');
+              if (lastIdx > 0) {
+                parentId = currentId.substring(0, lastIdx);
+              }
+            }
+
+            if (!parentId) break;
+
             if (!aggregatedTaskStats[parentId]) aggregatedTaskStats[parentId] = { count: 0, minutes: 0 };
 
             aggregatedTaskStats[parentId].count += statsToAdd.count;
@@ -770,7 +799,7 @@ export class TaskSummaryDialog {
               };
 
               // 确保实例ID的唯一性，避免重复 — 使用原始实例键作为 id 的后缀
-              const uniqueInstanceId = `${reminder.id}_instance_${originalKey}`;
+              const uniqueInstanceId = `${reminder.id}_${originalKey}`;
               this.addEventToList(events, instanceReminder, uniqueInstanceId, true, instance.originalId);
             }
           });
@@ -1077,7 +1106,7 @@ export class TaskSummaryDialog {
       };
 
       return {
-        id: event.extendedProps.originalId || event.extendedProps.blockId || event.id,
+        id: event.id, // 使用 event.id 而不是 collapsing ID，以区分重复实例
         title: event.originalTitle || event.title,
         // completed will be set per-date when adding to grouped map
         completed: typeof perDateCompleted === 'function' ? perDateCompleted(dateStrForPerDateCompleted) : event.extendedProps.completed,
@@ -1208,11 +1237,6 @@ export class TaskSummaryDialog {
       const eventMap = new Map<string, any>();
       allEvents.forEach(e => {
         // 优先使用 reminder.id (即 startEvent 里的 ID)
-        // 注意：addEventToList生成的 id 可能是 "xxxx" 或 "xxxx_instance_yyyy"
-        // 我们这里主要想通过原始ID查找到任何一个与其关联的事件对象即可，
-        // 最好是原始对象，或者该日期对应的对象
-
-        // 简单起见，我们存储原始ID对应的事件对象。
         // 如果有多个实例，我们优先取原始对象（isRepeated=false），或者随便取一个
         const oid = e.extendedProps.originalId || e.id;
         if (!eventMap.has(oid)) {
@@ -1512,23 +1536,40 @@ export class TaskSummaryDialog {
             }
 
             if (dailyCount > 0 || dailyMinutes > 0) {
+              // 显示本次番茄钟
               pomodoroStr = ` (🍅 ${dailyCount} | 🕒 ${this.formatDuration(dailyMinutes)}`;
 
-              // 检查历史总计，如果总计大于今日，则补充显示总计
-              // 注意：allTimeTaskStats 包含今日，所以应该是 > dailyMinutes 才显示 '总'
-              if (stats.pomodoro.allTimeTaskStats && stats.pomodoro.allTimeTaskStats[task.id]) {
-                const allStat = stats.pomodoro.allTimeTaskStats[task.id];
-                if (allStat.minutes > dailyMinutes + 1) { // +1 避免浮点误差导致的微小差异
+              // 如果是重复任务，或者是普通任务但历史总计大于今日，则显示系列/总计
+              const isRepeated = task.extendedProps?.isRepeated;
+              const isRecurring = task.repeat && task.repeat.enabled;
+              const originalId = task.extendedProps?.originalId;
+              const statsId = (isRepeated && originalId) ? originalId : task.id;
+
+              if (stats.pomodoro.allTimeTaskStats && stats.pomodoro.allTimeTaskStats[statsId]) {
+                const allStat = stats.pomodoro.allTimeTaskStats[statsId];
+
+                // 重复任务（无论是实例还是原始头任务）：总是显示系列总计
+                if (isRecurring || isRepeated) {
+                  pomodoroStr += ` / 系列: 🍅 ${allStat.count} | 🕒 ${this.formatDuration(allStat.minutes)}`;
+                }
+                // 普通任务：只有当总计大于今日时显示
+                else if (allStat.minutes > dailyMinutes + 1) {
                   pomodoroStr += ` / 总: 🍅 ${allStat.count} | 🕒 ${this.formatDuration(allStat.minutes)}`;
                 }
               }
               pomodoroStr += `)`;
             } else {
-              // 如果今日没有数据，但历史有数据（比如多天任务，今天没做，但显示出来了），也显示总计
-              if (stats.pomodoro.allTimeTaskStats && stats.pomodoro.allTimeTaskStats[task.id]) {
-                const allStat = stats.pomodoro.allTimeTaskStats[task.id];
+              // 补充检查：如果是重复任务，即使今日无数据，如果系列有数据也显示
+              const isRepeated = task.extendedProps?.isRepeated;
+              const isRecurring = task.repeat && task.repeat.enabled;
+              const originalId = task.extendedProps?.originalId;
+              const statsId = (isRepeated && originalId) ? originalId : task.id;
+
+              if (stats.pomodoro.allTimeTaskStats && stats.pomodoro.allTimeTaskStats[statsId]) {
+                const allStat = stats.pomodoro.allTimeTaskStats[statsId];
                 if (allStat.minutes > 0) {
-                  pomodoroStr = ` (总: 🍅 ${allStat.count} | 🕒 ${this.formatDuration(allStat.minutes)})`;
+                  const label = (isRecurring || isRepeated) ? '系列' : '总';
+                  pomodoroStr = ` (${label}: 🍅 ${allStat.count} | 🕒 ${this.formatDuration(allStat.minutes)})`;
                 }
               }
             }

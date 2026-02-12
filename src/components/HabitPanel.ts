@@ -170,7 +170,7 @@ export class HabitPanel {
         // 打卡日历按钮
         const calendarBtn = document.createElement('button');
         calendarBtn.className = 'b3-button b3-button--outline';
-        calendarBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconCalendar"></use></svg>';
+        calendarBtn.innerHTML = '📊';
         calendarBtn.title = "打卡日历";
         calendarBtn.addEventListener('click', () => {
             this.showCalendarView();
@@ -988,7 +988,7 @@ export class HabitPanel {
         switch (priority) {
             case 'high': return '🔴';
             case 'medium': return '🟡';
-            case 'low': return '🟢';
+            case 'low': return '🔵';
             default: return '';
         }
     }

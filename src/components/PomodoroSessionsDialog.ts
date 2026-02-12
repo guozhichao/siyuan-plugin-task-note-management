@@ -18,11 +18,19 @@ export class PomodoroSessionsDialog {
     private recordManager: PomodoroRecordManager;
     private sessions: PomodoroSession[] = [];
     private onUpdate?: () => void;
+    private includeInstances: boolean; // 是否包含所有实例的番茄钟
 
-    constructor(reminderId: string, plugin: any, onUpdate?: () => void) {
+    /**
+     * @param reminderId 任务ID
+     * @param plugin 插件实例
+     * @param onUpdate 更新回调
+     * @param includeInstances 是否包含该任务所有实例的番茄钟（用于"修改全部实例"模式）
+     */
+    constructor(reminderId: string, plugin: any, onUpdate?: () => void, includeInstances: boolean = false) {
         this.reminderId = reminderId;
         this.plugin = plugin;
         this.onUpdate = onUpdate;
+        this.includeInstances = includeInstances;
         this.recordManager = PomodoroRecordManager.getInstance(plugin);
     }
 
@@ -67,14 +75,16 @@ export class PomodoroSessionsDialog {
         for (const date in (this.recordManager as any).records) {
             const record = (this.recordManager as any).records[date];
             if (record && record.sessions) {
-                // 筛选出属于当前提醒的会话 (包括作为重复任务实例的会话)
+                // 筛选出属于当前提醒的会话
                 const eventSessions = record.sessions.filter((session: PomodoroSession) => {
                     if (session.eventId === this.reminderId) return true;
-                    // Check if session.eventId is an instance of this.reminderId (reminderId_YYYY-MM-DD)
-                    if (session.eventId.startsWith(this.reminderId + '_')) {
+                    
+                    // 如果启用了 includeInstances，还匹配该任务的所有实例（ID格式: reminderId_YYYY-MM-DD）
+                    if (this.includeInstances && session.eventId.startsWith(this.reminderId + '_')) {
                         const suffix = session.eventId.substring(this.reminderId.length + 1);
                         return /^\d{4}-\d{2}-\d{2}$/.test(suffix);
                     }
+                    
                     return false;
                 });
                 allSessions.push(...eventSessions);
@@ -384,8 +394,25 @@ export class PomodoroSessionsDialog {
             try {
                 // 获取提醒信息
                 const reminderData = await this.plugin.loadReminderData();
-                const reminder = reminderData[this.reminderId];
-                const eventTitle = reminder?.title || "未知任务";
+                let reminder = reminderData[this.reminderId];
+                let eventTitle = reminder?.title;
+                
+                // 如果没有找到，可能是重复任务实例（ID格式: originalId_YYYY-MM-DD）
+                if (!reminder && this.reminderId.includes('_')) {
+                    const parts = this.reminderId.split('_');
+                    const lastPart = parts[parts.length - 1];
+                    // 检查是否是日期格式
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(lastPart)) {
+                        const originalId = parts.slice(0, -1).join('_');
+                        reminder = reminderData[originalId];
+                        eventTitle = reminder?.title;
+                    }
+                }
+                
+                // 如果还是没有找到，使用默认标题
+                if (!eventTitle) {
+                    eventTitle = "未知任务";
+                }
 
                 // 计算开始和结束时间
                 const timePoint = new Date(timePointStr);
@@ -544,8 +571,25 @@ export class PomodoroSessionsDialog {
 
                 // 创建新会话
                 const reminderData = await this.plugin.loadReminderData();
-                const reminder = reminderData[this.reminderId];
-                const eventTitle = reminder?.title || "未知任务";
+                let reminder = reminderData[this.reminderId];
+                let eventTitle = reminder?.title;
+                
+                // 如果没有找到，可能是重复任务实例（ID格式: originalId_YYYY-MM-DD）
+                if (!reminder && this.reminderId.includes('_')) {
+                    const parts = this.reminderId.split('_');
+                    const lastPart = parts[parts.length - 1];
+                    // 检查是否是日期格式
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(lastPart)) {
+                        const originalId = parts.slice(0, -1).join('_');
+                        reminder = reminderData[originalId];
+                        eventTitle = reminder?.title;
+                    }
+                }
+                
+                // 如果还是没有找到，使用原会话的标题
+                if (!eventTitle) {
+                    eventTitle = session.eventTitle || "未知任务";
+                }
 
                 const startTime = new Date(startTimeStr);
                 const endTime = new Date(startTime.getTime() + duration * 60000);

@@ -123,7 +123,6 @@ export const DEFAULT_SETTINGS = {
     icsCloudUrl: '',
     icsLastSyncAt: '', // 上一次上传时间
     icsSyncEnabled: false, // 是否启用ICS云端同步
-    icsFormat: 'normal', // 'normal' | 'xiaomi' - ICS格式
     icsFileName: '', // ICS文件名，默认为空时自动生成
     icsSilentUpload: false, // 是否静默上传ICS文件，不显示成功提示
     icsTaskFilter: 'all', // 'all' | 'completed' | 'uncompleted' - 任务筛选
@@ -3000,6 +2999,7 @@ export default class ReminderPlugin extends Plugin {
             if ('Notification' in window && Notification.permission === 'granted') {
                 // 使用浏览器通知
                 const notification = new Notification(title, {
+                    icon: '/favicon.ico',
                     body: message,
                     requireInteraction: true,
                     silent: false, // 使用我们自己的音频
@@ -3046,8 +3046,8 @@ export default class ReminderPlugin extends Plugin {
             const dialog = new Dialog({
                 title: i18n("calendarView"),
                 content: '<div id="mobileCalendarContainer" style="height: 100%; width: 100%;"></div>',
-                width: "95vw",
-                height: "90vh",
+                width: "99%",
+                height: "100%",
                 destroyCallback: () => {
                     // 清理日历视图实例
                     const calendarContainer = dialog.element.querySelector('#mobileCalendarContainer') as HTMLElement;
@@ -3091,8 +3091,8 @@ export default class ReminderPlugin extends Plugin {
             const dialog = new Dialog({
                 title: projectTitle,
                 content: '<div id="mobileProjectKanbanContainer" style="height: 100%; width: 100%;"></div>',
-                width: "95vw",
-                height: "90vh",
+                width: "99%",
+                height: "100%",
                 destroyCallback: () => {
                     // 清理项目看板实例
                     const kanbanContainer = dialog.element.querySelector('#mobileProjectKanbanContainer') as HTMLElement;
@@ -3138,8 +3138,8 @@ export default class ReminderPlugin extends Plugin {
             const dialog = new Dialog({
                 title: i18n("eisenhowerMatrix"),
                 content: '<div id="mobileEisenhowerContainer" style="height: 100%; width: 100%;"></div>',
-                width: "95vw",
-                height: "90vh",
+                width: "99%",
+                height: "100%",
                 destroyCallback: () => {
                     // 清理四象限矩阵实例
                     const eisenhowerContainer = dialog.element.querySelector('#mobileEisenhowerContainer') as HTMLElement;
@@ -3805,11 +3805,17 @@ export default class ReminderPlugin extends Plugin {
         // 快捷键：打开日历视图
         this.addCommand({
             langKey: "shortcutOpenCalendarView",
-            hotkey: "Alt+T",
+            hotkey: "",
             editorCallback: () => {
                 this.openCalendarTab();
             },
             callback: () => {
+                this.openCalendarTab();
+            },
+            fileTreeCallback: () => {
+                this.openCalendarTab();
+            },
+            dockCallback: () => {
                 this.openCalendarTab();
             }
         });

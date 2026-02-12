@@ -27,7 +27,6 @@ const useShell = async (cmd: 'showItemInFolder' | 'openPath', filePath: string) 
 
 export async function exportIcsFile(
     plugin: any,
-    normalizeForXiaomi: boolean,
     openFolder: boolean = true,
     isSilent: boolean = false,
     filterType: 'all' | 'completed' | 'uncompleted' = 'all'
@@ -261,7 +260,7 @@ export async function exportIcsFile(
                                 uid: `${child.id || ''}-${child.date || ''}${child.time ? '-' + child.time.replace(/:/g, '') : ''}@siyuan`,
                                 title: childTitle,
                                 description: childNote,
-                                status: child.completed ? 'CONFIRMED' : 'TENTATIVE',
+                                status: child.completed ? 'CONFIRMED' : 'TENTATIVE', // 不能用CONFIRM，否则outlook会把全天高亮
                             };
 
                             let childMatches = true;
@@ -281,7 +280,21 @@ export async function exportIcsFile(
                                         ...childEndTimeArray,
                                     ];
                                 } else {
-                                    childEvent.duration = { hours: 1 };
+                                    const startDt = new Date(
+                                        childStartDateArray[0],
+                                        childStartDateArray[1] - 1,
+                                        childStartDateArray[2],
+                                        childStartTimeArray[0],
+                                        childStartTimeArray[1]
+                                    );
+                                    const endDt = new Date(startDt.getTime() + 60 * 60 * 1000);
+                                    childEvent.end = [
+                                        endDt.getFullYear(),
+                                        endDt.getMonth() + 1,
+                                        endDt.getDate(),
+                                        endDt.getHours(),
+                                        endDt.getMinutes(),
+                                    ];
                                 }
                             } else {
                                 childEvent.start = childStartDateArray;
@@ -328,36 +341,6 @@ export async function exportIcsFile(
                                     );
                                     if (childRrule) {
                                         childEvent.recurrenceRule = childRrule;
-                                        if (childStartTimeArray) {
-                                            if (!childEndTimeArray) {
-                                                delete childEvent.end;
-                                                childEvent.duration = { hours: 1 };
-                                            } else {
-                                                const sh = childStartTimeArray[0];
-                                                const sm = childStartTimeArray[1];
-                                                const eh = childEndTimeArray[0];
-                                                const em = childEndTimeArray[1];
-                                                let dh = eh - sh;
-                                                let dm = em - sm;
-                                                if (dm < 0) {
-                                                    dh -= 1;
-                                                    dm += 60;
-                                                }
-                                                if (dh <= 0 && dm <= 0) {
-                                                    childEvent.duration = { hours: 1 };
-                                                    delete childEvent.end;
-                                                } else {
-                                                    const dur: any = {};
-                                                    if (dh > 0) dur.hours = dh;
-                                                    if (dm > 0) dur.minutes = dm;
-                                                    childEvent.duration = dur;
-                                                    delete childEvent.end;
-                                                }
-                                            }
-                                        } else {
-                                            childEvent.duration = { days: 1 };
-                                            delete childEvent.end;
-                                        }
                                     }
                                 } catch (e) {
                                     console.warn('构建子任务 RRULE 失败', e, child);
@@ -511,7 +494,21 @@ export async function exportIcsFile(
                 if (endTimeArray && endDateArray) {
                     event.end = [...endDateArray, ...endTimeArray];
                 } else {
-                    event.duration = { hours: 1 };
+                    const startDt = new Date(
+                        startDateArray[0],
+                        startDateArray[1] - 1,
+                        startDateArray[2],
+                        startTimeArray[0],
+                        startTimeArray[1]
+                    );
+                    const endDt = new Date(startDt.getTime() + 60 * 60 * 1000);
+                    event.end = [
+                        endDt.getFullYear(),
+                        endDt.getMonth() + 1,
+                        endDt.getDate(),
+                        endDt.getHours(),
+                        endDt.getMinutes(),
+                    ];
                 }
             } else {
                 event.start = startDateArray;
@@ -599,7 +596,21 @@ export async function exportIcsFile(
                                         ...endTimeArray,
                                     ];
                                 } else {
-                                    occEvent.duration = { hours: 1 };
+                                    const startDt = new Date(
+                                        occDateArr[0],
+                                        occDateArr[1] - 1,
+                                        occDateArr[2],
+                                        startTimeArray[0],
+                                        startTimeArray[1]
+                                    );
+                                    const endDt = new Date(startDt.getTime() + 60 * 60 * 1000);
+                                    occEvent.end = [
+                                        endDt.getFullYear(),
+                                        endDt.getMonth() + 1,
+                                        endDt.getDate(),
+                                        endDt.getHours(),
+                                        endDt.getMinutes(),
+                                    ];
                                 }
                             } else {
                                 occEvent.start = occDateArr;
@@ -686,7 +697,21 @@ export async function exportIcsFile(
                                                     ...endTimeArray,
                                                 ];
                                             } else {
-                                                occEvent.duration = { hours: 1 };
+                                                const startDt = new Date(
+                                                    occDateArr[0],
+                                                    occDateArr[1] - 1,
+                                                    occDateArr[2],
+                                                    startTimeArray[0],
+                                                    startTimeArray[1]
+                                                );
+                                                const endDt = new Date(startDt.getTime() + 60 * 60 * 1000);
+                                                occEvent.end = [
+                                                    endDt.getFullYear(),
+                                                    endDt.getMonth() + 1,
+                                                    endDt.getDate(),
+                                                    endDt.getHours(),
+                                                    endDt.getMinutes(),
+                                                ];
                                             }
                                         } else {
                                             occEvent.start = occDateArr;
@@ -742,39 +767,7 @@ export async function exportIcsFile(
                 // 处理其他重复类型的 RRULE
                 try {
                     const rrule = buildRRuleFromRepeat(r.repeat, r.date);
-                    if (rrule) {
-                        event.recurrenceRule = rrule;
-                        if (startTimeArray) {
-                            if (!endTimeArray) {
-                                delete event.end;
-                                event.duration = { hours: 1 };
-                            } else {
-                                const sh = startTimeArray[0];
-                                const sm = startTimeArray[1];
-                                const eh = endTimeArray[0];
-                                const em = endTimeArray[1];
-                                let dh = eh - sh;
-                                let dm = em - sm;
-                                if (dm < 0) {
-                                    dh -= 1;
-                                    dm += 60;
-                                }
-                                if (dh <= 0 && dm <= 0) {
-                                    event.duration = { hours: 1 };
-                                    delete event.end;
-                                } else {
-                                    const dur: any = {};
-                                    if (dh > 0) dur.hours = dh;
-                                    if (dm > 0) dur.minutes = dm;
-                                    event.duration = dur;
-                                    delete event.end;
-                                }
-                            }
-                        } else {
-                            event.duration = { days: 1 };
-                            delete event.end;
-                        }
-                    }
+                    event.recurrenceRule = rrule;
                 } catch (e) {
                     console.warn('构建 RRULE 失败', e, r);
                 }
@@ -796,13 +789,6 @@ export async function exportIcsFile(
         }
 
         let normalized = value as string;
-        try {
-            if (typeof normalized === 'string' && normalizeForXiaomi) {
-                normalized = normalized.replace(/DURATION:P(\d+)DT/g, 'DURATION:P$1D');
-            }
-        } catch (e) {
-            console.warn('ICS 替换 DURATION 失败', e);
-        }
 
         const outPath = dataDir + '/reminders.ics';
         await putFile(outPath, false, new Blob([normalized], { type: 'text/calendar' }));
@@ -848,9 +834,8 @@ export async function uploadIcsToCloud(plugin: any, settings: any, silent: boole
         const fullFileName = `${icsFileName}.ics`;
 
         // 1. 调用 exportIcsFile 生成 ICS 文件
-        const isXiaomiFormat = settings.icsFormat === 'xiaomi';
         const filterType = settings.icsTaskFilter || 'all';
-        await exportIcsFile(plugin, isXiaomiFormat, false, true, filterType);
+        await exportIcsFile(plugin, false, true, filterType);
 
         // 2. 读取生成的 reminders.ics 文件
         const dataDir = 'data/storage/petal/siyuan-plugin-task-note-management';

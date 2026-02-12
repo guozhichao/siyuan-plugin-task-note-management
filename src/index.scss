@@ -1165,6 +1165,7 @@
 .reminder-calendar-view-group {
     display: flex;
     gap: 4px;
+    flex-wrap: wrap;
 }
 
 .reminder-calendar-container {
@@ -1952,6 +1953,7 @@
         display: block;
         margin-bottom: 4px;
         font-weight: 500;
+        font-weight: 600;
     }
 
     .b3-form__desc {
@@ -2242,7 +2244,7 @@
     height: 6px;
     background: transparent;
     cursor: row-resize;
-    z-index: 100;
+    z-index: 10;
     transition: background 0.2s;
 
     // 增加鼠标交互区域
@@ -2305,7 +2307,7 @@
         overflow-y: auto !important;
         /* 内部滚动 */
         box-sizing: border-box;
-
+        white-space: pre-wrap;
         blockquote {
             border-left: 4px solid var(--b3-theme-primary-lightest) !important;
             padding-left: 12px !important;
@@ -2345,5 +2347,21 @@
         z-index: 10;
         /* 减少左侧边距 */
         left: 2px !important;
+    }
+}
+.reminder-panel, .reminder-calendar-view,.eisenhower-matrix-view,.project-kanban-view{
+    .vditor-task {
+            list-style: none !important;
+            word-break: break-word;
+            position: relative;
+            line-height: 1;
+        }
+
+    .vditor-task input {
+        left: -1.4em;
+        position: absolute;
+        top: 0.15em;
+        width: 0.8em;
+        height: 0.8em;
     }
 }
