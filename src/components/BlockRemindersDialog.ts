@@ -1,6 +1,6 @@
 import { Dialog, showMessage, confirm } from "siyuan";
 import { getBlockByID, updateBindBlockAtrrs, getBlockReminderIds } from "../api";
-import { getLocalDateTimeString, getRelativeDateString } from "../utils/dateUtils";
+// import { getLocalDateTimeString, getRelativeDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
 
@@ -15,6 +15,7 @@ export class BlockRemindersDialog {
     private categoryManager: CategoryManager;
     private projectManager: ProjectManager;
     private today: string;
+    private reminderUpdatedHandler: (event: CustomEvent) => void;
 
     constructor(blockId: string, plugin: any) {
         this.blockId = blockId;
@@ -59,8 +60,27 @@ export class BlockRemindersDialog {
                 title: `块绑定任务 - ${block.content.substring(0, 30)}${block.content.length > 30 ? '...' : ''}`,
                 content: `<div id="blockRemindersContent" style="min-height: 200px; max-height: 500px; overflow-y: auto;padding: 20px;"></div>`,
                 width: "600px",
-                height: "auto"
+                height: "auto",
+                destroyCallback: () => {
+                    if (this.reminderUpdatedHandler) {
+                        window.removeEventListener('reminderUpdated', this.reminderUpdatedHandler);
+                    }
+                }
             });
+
+            // 监听提醒更新事件
+            this.reminderUpdatedHandler = async () => {
+                const updatedReminderData = await this.plugin.loadReminderData();
+                const updatedReminderIds = await getBlockReminderIds(this.blockId);
+                const updatedReminders = updatedReminderIds
+                    .map(id => updatedReminderData[id])
+                    .filter(r => r);
+                const updatedContainer = this.dialog.element.querySelector("#blockRemindersContent") as HTMLElement;
+                if (updatedContainer) {
+                    await this.renderReminders(updatedContainer, updatedReminders);
+                }
+            };
+            window.addEventListener('reminderUpdated', this.reminderUpdatedHandler);
 
             // 渲染任务列表
             const container = this.dialog.element.querySelector("#blockRemindersContent") as HTMLElement;
@@ -212,13 +232,13 @@ export class BlockRemindersDialog {
         if (reminder.date) {
             const timeEl = document.createElement('div');
             timeEl.className = 'reminder-item__time';
-            const timeText = this.formatReminderTime(reminder.date, reminder.time, this.today, reminder.endDate, reminder.endTime, reminder);
+            const timeText = this.formatReminderTime(reminder.date, reminder.time, this.today, reminder.endDate, reminder.endTime);
             timeEl.textContent = '🗓' + timeText;
             timeEl.style.fontSize = '12px';
             timeEl.style.color = 'var(--b3-theme-on-surface-light)';
             timeContainer.appendChild(timeEl);
 
-            const countdownEl = this.createReminderCountdownElement(reminder, this.today);
+            const countdownEl = this.createReminderCountdownElement(reminder);
             if (countdownEl) {
                 timeContainer.appendChild(countdownEl);
             }
@@ -390,27 +410,16 @@ export class BlockRemindersDialog {
         const actions = document.createElement('div');
         actions.style.cssText = 'display: flex; gap: 4px; flex-shrink: 0;';
 
-        // 删除按钮
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'b3-button b3-button--text';
-        deleteBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconTrashcan"></use></svg>';
-        deleteBtn.title = '删除';
-        deleteBtn.addEventListener('click', async () => {
-            await this.deleteReminder(reminder);
-        });
-        actions.appendChild(deleteBtn);
-
-        contentEl.appendChild(actions);
-        item.appendChild(contentEl);
-
-        // 右键编辑：直接打开 QuickReminderDialog 编辑该任务
-        item.addEventListener('contextmenu', async (e) => {
+        // 编辑按钮
+        const editBtn = document.createElement('button');
+        editBtn.className = 'b3-button b3-button--text';
+        editBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconEdit"></use></svg>';
+        editBtn.title = '编辑';
+        editBtn.addEventListener('click', async (e) => {
             e.preventDefault();
             e.stopPropagation();
             try {
                 const { QuickReminderDialog } = await import('./QuickReminderDialog');
-                // QuickReminderDialog 构造器在代码中通常接受 (reminder?, project?, ... , options)
-                // 这里传入完整 reminder 对象，并以 edit 模式打开
                 const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
                     blockId: this.blockId,
                     reminder: reminder,
@@ -422,6 +431,45 @@ export class BlockRemindersDialog {
                 console.error('打开编辑对话框失败:', err);
                 showMessage('无法打开编辑对话框', 3000, 'error');
             }
+        });
+        actions.appendChild(editBtn);
+
+        // 删除按钮
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'b3-button b3-button--text';
+        deleteBtn.innerHTML = '<svg class="b3-button__icon"><use xlink:href="#iconTrashcan"></use></svg>';
+        deleteBtn.title = '删除';
+        deleteBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            await this.deleteReminder(reminder);
+        });
+        actions.appendChild(deleteBtn);
+
+        contentEl.appendChild(actions);
+        item.appendChild(contentEl);
+
+        const openEditDialog = async () => {
+            try {
+                const { QuickReminderDialog } = await import('./QuickReminderDialog');
+                const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
+                    blockId: this.blockId,
+                    reminder: reminder,
+                    plugin: this.plugin,
+                    mode: 'edit'
+                });
+                dialog.show();
+            } catch (err) {
+                console.error('打开编辑对话框失败:', err);
+                showMessage('无法打开编辑对话框', 3000, 'error');
+            }
+        };
+
+        // 右键编辑：直接打开 QuickReminderDialog 编辑该任务
+        item.addEventListener('contextmenu', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            await openEditDialog();
         });
 
         return item;
@@ -445,14 +493,6 @@ export class BlockRemindersDialog {
                 // 触发更新事件
                 window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
-                // 刷新对话框
-                const container = this.dialog.element.querySelector("#blockRemindersContent") as HTMLElement;
-                const reminderIds = await getBlockReminderIds(this.blockId);
-                const reminders = reminderIds
-                    .map(id => reminderData[id])
-                    .filter(r => r);
-                await this.renderReminders(container, reminders);
-
                 showMessage(completed ? "任务已完成" : "任务已取消完成", 2000);
             }
         } catch (error) {
@@ -461,7 +501,7 @@ export class BlockRemindersDialog {
         }
     }
 
-    private formatReminderTime(date: string, time?: string, today?: string, endDate?: string, endTime?: string, reminder?: any): string {
+    private formatReminderTime(date: string, time?: string, today?: string, endDate?: string, endTime?: string): string {
         // 简化版本，从ReminderPanel复制
         const now = new Date();
         const targetDate = new Date(date + (time ? 'T' + time : ''));
@@ -500,7 +540,7 @@ export class BlockRemindersDialog {
         return `${dateStr} ${timeStr}`.trim();
     }
 
-    private createReminderCountdownElement(reminder: any, today: string): HTMLElement | null {
+    private createReminderCountdownElement(reminder: any): HTMLElement | null {
         if (!reminder.date) return null;
 
         const now = new Date();
@@ -563,8 +603,6 @@ export class BlockRemindersDialog {
                     // 触发更新事件
                     window.dispatchEvent(new CustomEvent('reminderUpdated'));
 
-                    // 刷新对话框
-                    const container = this.dialog.element.querySelector("#blockRemindersContent") as HTMLElement;
                     const reminderIds = await getBlockReminderIds(this.blockId);
                     const reminders = reminderIds
                         .map(id => reminderData[id])
@@ -575,7 +613,6 @@ export class BlockRemindersDialog {
                         this.dialog.destroy();
                         showMessage("所有任务已删除", 2000);
                     } else {
-                        await this.renderReminders(container, reminders);
                         showMessage("任务已删除", 2000);
                     }
                 } catch (error) {
