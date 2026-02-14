@@ -1910,7 +1910,6 @@ export default class ReminderPlugin extends Plugin {
                 const headingId = siblingHeadings[0].id;
                 const headingReminder = Object.values(reminderData).find((r: any) => r.blockId === headingId && r.projectId);
                 if (headingReminder) {
-                    console.log('找到同级标题的提醒:', headingReminder);
                     return {
                         projectId: (headingReminder as any).projectId,
                         groupId: (headingReminder as any).customGroupId,
