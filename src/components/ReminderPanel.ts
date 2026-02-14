@@ -2434,6 +2434,16 @@ export class ReminderPanel {
             // 兼容 title 和 name 字段（项目数据使用 title，但接口定义使用 name）
             const projectName = cachedData.project.title || cachedData.project.name;
             if (projectName) {
+                // Determine display text
+                let displayProjectName = projectName;
+                // 如果任务设置了分组，需要显示分组，格式为“项目/分组”
+                if (reminder.customGroupId && cachedData.project.customGroups && Array.isArray(cachedData.project.customGroups)) {
+                    const group = cachedData.project.customGroups.find((g: any) => g.id === reminder.customGroupId);
+                    if (group) {
+                        displayProjectName = `${projectName}/${group.name}`;
+                    }
+                }
+
                 const projectInfo = document.createElement('div');
                 projectInfo.className = 'reminder-item__project';
                 projectInfo.style.cssText = `
@@ -2463,7 +2473,7 @@ export class ReminderPanel {
 
                 // 添加项目名称
                 const nameSpan = document.createElement('span');
-                nameSpan.textContent = '📂' + projectName;
+                nameSpan.textContent = '📂' + displayProjectName;
                 nameSpan.style.cssText = `
                     text-decoration: underline;
                     text-decoration-style: dotted;
@@ -2471,7 +2481,7 @@ export class ReminderPanel {
                 projectInfo.appendChild(nameSpan);
 
                 // 设置标题提示
-                projectInfo.title = `点击打开项目: ${projectName}`;
+                projectInfo.title = `点击打开项目: ${displayProjectName}`;
 
                 // 点击事件：打开项目看板
                 projectInfo.addEventListener('click', (e) => {

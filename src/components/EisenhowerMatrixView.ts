@@ -18,6 +18,7 @@ interface QuadrantTask {
     isUrgent: boolean;
     projectId?: string;
     projectName?: string;
+    groupName?: string;
     completed: boolean;
     date: string;
     time?: string;
@@ -398,6 +399,21 @@ export class EisenhowerMatrixView {
             // 过滤已归档分组的未完成任务
             const filteredReminders = await this.filterArchivedGroupTasks(allRemindersWithInstances);
 
+            // 预加载项目分组信息
+            const projectIdsToFetch = new Set<string>();
+            filteredReminders.forEach((r: any) => { if (r.projectId) projectIdsToFetch.add(r.projectId); });
+            const projectGroupsMap = new Map<string, any[]>();
+
+            // 并行获取所有涉及项目的分组信息
+            await Promise.all(Array.from(projectIdsToFetch).map(async pid => {
+                try {
+                    const groups = await this.projectManager.getProjectCustomGroups(pid);
+                    projectGroupsMap.set(pid, groups);
+                } catch (e) {
+                    // ignore error
+                }
+            }));
+
             // 第二步：将提醒转换为 QuadrantTask
             for (const reminder of filteredReminders) {
 
@@ -474,9 +490,20 @@ export class EisenhowerMatrixView {
 
                 // 获取项目信息
                 let projectName = '';
+                let groupName = '';
                 if (reminder?.projectId) {
                     const project = this.projectManager.getProjectById(reminder.projectId);
                     projectName = project ? project.name : '';
+
+                    if (reminder?.customGroupId) {
+                        const groups = projectGroupsMap.get(reminder.projectId);
+                        if (groups) {
+                            const group = groups.find((g: any) => g.id === reminder.customGroupId);
+                            if (group) {
+                                groupName = group.name;
+                            }
+                        }
+                    }
                 }
 
                 // 获取正确的排序值（支持重复实例）
@@ -497,6 +524,7 @@ export class EisenhowerMatrixView {
                     isUrgent,
                     projectId: reminder?.projectId,
                     projectName,
+                    groupName,
                     completed: reminder?.completed || false,
                     date: reminder?.date,
                     time: reminder?.time,
@@ -1149,6 +1177,135 @@ export class EisenhowerMatrixView {
             taskTitle.appendChild(childCountSpan);
         }
 
+        // 创建项目/分组信息（单独一行）
+        let projectDiv: HTMLElement | null = null;
+        if (task.projectName) {
+            projectDiv = document.createElement('div');
+            projectDiv.className = 'task-project-info';
+            let projectText = task.projectName;
+            if (task.groupName) {
+                projectText += ` / ${task.groupName}`;
+            }
+            projectDiv.textContent = `📂 ${projectText}`;
+            projectDiv.style.cssText = `
+                 font-size: 11px;
+                 color: var(--b3-theme-on-surface-light);
+                 margin-top: 4px;
+                 display: flex;
+                 align-items: center;
+                 gap: 4px;
+                 opacity: 0.8;
+             `;
+        }
+
+        // 创建时间信息（单独一行）
+        let dateDiv: HTMLElement | null = null;
+        if (task.date) {
+            dateDiv = document.createElement('div');
+            dateDiv.className = 'task-date-info';
+            dateDiv.style.cssText = `
+                 margin-top: 4px;
+                 font-size: 11px;
+                 display: flex;
+                 align-items: center;
+                 flex-wrap: wrap;
+                 gap: 6px;
+                 color: var(--b3-theme-on-surface-light);
+            `;
+
+            const dateSpan = document.createElement('span');
+            dateSpan.className = 'task-date';
+            dateSpan.style.cssText = `
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+            `;
+
+            // 获取当前年份
+            const currentYear = new Date().getFullYear();
+
+            // 辅助函数：格式化日期显示
+            const formatDateWithYear = (dateStr: string): string => {
+                const date = new Date(dateStr);
+                const year = date.getFullYear();
+                return year !== currentYear
+                    ? date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' })
+                    : date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+            };
+
+            // 辅助函数：计算过期天数
+            const getExpiredDays = (targetDate: string): number => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const taskDate = new Date(targetDate);
+                taskDate.setHours(0, 0, 0, 0);
+                const diffTime = today.getTime() - taskDate.getTime();
+                return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            };
+
+            // 辅助函数：创建过期徽章
+            const createExpiredBadge = (days: number): string => {
+                return `<span class="countdown-badge countdown-normal" style="background-color: rgba(231, 76, 60, 0.15); color: #e74c3c; border: 1px solid rgba(231, 76, 60, 0.3); font-size: 11px; padding: 2px 6px; border-radius: 10px; font-weight: 500; margin-left: 4px; display: inline-block;">已过期${days}天</span>`;
+            };
+
+            // 添加周期图标
+            if (task.extendedProps?.repeat?.enabled || task.extendedProps?.isRepeatInstance) {
+                const repeatIcon = document.createElement('span');
+                repeatIcon.textContent = '🔄';
+                repeatIcon.title = task.extendedProps?.repeat?.enabled ? getRepeatDescription(task.extendedProps.repeat) : '周期事件实例';
+                repeatIcon.style.cssText = 'cursor: help;';
+                dateSpan.appendChild(repeatIcon);
+            }
+
+            // 日期显示逻辑
+            let dateText = '';
+            if (task.endDate && task.endDate !== task.date) {
+                // 检查结束日期是否过期
+                if (task.endDate < getLogicalDateString()) {
+                    const daysDiff = getExpiredDays(task.endDate);
+                    const formattedEndDate = formatDateWithYear(task.endDate);
+                    dateText = `${formatDateWithYear(task.date)} ~ ${formattedEndDate} ${createExpiredBadge(daysDiff)}`;
+                } else {
+                    dateText = `${formatDateWithYear(task.date)} ~ ${formatDateWithYear(task.endDate)}`;
+                }
+            } else {
+                // 检查开始日期是否过期
+                if (task.date < getLogicalDateString()) {
+                    const daysDiff = getExpiredDays(task.date);
+                    const formattedDate = formatDateWithYear(task.date);
+                    dateText = `${formattedDate} ${createExpiredBadge(daysDiff)}`;
+                } else {
+                    dateText = formatDateWithYear(task.date);
+                }
+            }
+
+            // 农历显示
+            if (task.extendedProps?.repeat?.enabled &&
+                (task.extendedProps.repeat.type === 'lunar-monthly' || task.extendedProps.repeat.type === 'lunar-yearly')) {
+                try {
+                    const lunarStr = getSolarDateLunarString(task.date);
+                    if (lunarStr) {
+                        dateText = `${dateText} (${lunarStr})`;
+                    }
+                } catch (error) {
+                    console.error('Failed to format lunar date:', error);
+                }
+            }
+
+            const dateTextSpan = document.createElement('span');
+            dateTextSpan.innerHTML = `📅 ${dateText}`;
+            dateSpan.appendChild(dateTextSpan);
+            dateDiv.appendChild(dateSpan);
+
+            // Time
+            if (task.time) {
+                const timeSpan = document.createElement('span');
+                timeSpan.className = 'task-time';
+                timeSpan.textContent = `🕐 ${task.time}`;
+                dateDiv.appendChild(timeSpan);
+            }
+        }
+
         // 创建任务元数据
         const taskMeta = document.createElement('div');
         taskMeta.className = 'task-meta';
@@ -1198,100 +1355,7 @@ export class EisenhowerMatrixView {
             taskMeta.appendChild(statusSpan);
         }
 
-        if (task.date) {
-            const dateSpan = document.createElement('span');
-            dateSpan.className = 'task-date';
-            dateSpan.style.cssText = `
-                display: inline-flex;
-                align-items: center;
-                gap: 4px;
-                flex-wrap: wrap;
-            `;
 
-            // 获取当前年份
-            const currentYear = new Date().getFullYear();
-
-            // 辅助函数：格式化日期显示
-            const formatDateWithYear = (dateStr: string): string => {
-                const date = new Date(dateStr);
-                const year = date.getFullYear();
-                return year !== currentYear
-                    ? date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' })
-                    : date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-            };
-
-            // 辅助函数：计算过期天数
-            const getExpiredDays = (targetDate: string): number => {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const taskDate = new Date(targetDate);
-                taskDate.setHours(0, 0, 0, 0);
-                const diffTime = today.getTime() - taskDate.getTime();
-                return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            };
-
-            // 辅助函数：创建过期徽章
-            const createExpiredBadge = (days: number): string => {
-                return `<span class="countdown-badge countdown-normal" style="background-color: rgba(231, 76, 60, 0.15); color: #e74c3c; border: 1px solid rgba(231, 76, 60, 0.3); font-size: 11px; padding: 2px 6px; border-radius: 10px; font-weight: 500; margin-left: 4px; display: inline-block;">已过期${days}天</span>`;
-            };
-
-            // 添加周期图标（如果是周期事件或周期实例）
-            if (task.extendedProps?.repeat?.enabled || task.extendedProps?.isRepeatInstance) {
-                const repeatIcon = document.createElement('span');
-                repeatIcon.textContent = '🔄';
-                repeatIcon.title = task.extendedProps?.repeat?.enabled ? getRepeatDescription(task.extendedProps.repeat) : '周期事件实例';
-                repeatIcon.style.cssText = 'cursor: help;';
-                dateSpan.appendChild(repeatIcon);
-            }
-
-            // 如果有结束日期，显示日期跨度
-            let dateText = '';
-            if (task.endDate && task.endDate !== task.date) {
-                // 检查结束日期是否过期
-                if (task.endDate < getLogicalDateString()) {
-                    const daysDiff = getExpiredDays(task.endDate);
-                    const formattedEndDate = formatDateWithYear(task.endDate);
-                    dateText = `${formatDateWithYear(task.date)} ~ ${formattedEndDate} ${createExpiredBadge(daysDiff)}`;
-                } else {
-                    dateText = `${formatDateWithYear(task.date)} ~ ${formatDateWithYear(task.endDate)}`;
-                }
-            } else {
-                // 检查开始日期是否过期
-                if (task.date < getLogicalDateString()) {
-                    const daysDiff = getExpiredDays(task.date);
-                    const formattedDate = formatDateWithYear(task.date);
-                    dateText = `${formattedDate} ${createExpiredBadge(daysDiff)}`;
-                } else {
-                    dateText = formatDateWithYear(task.date);
-                }
-            }
-
-            // 如果是农历循环事件，添加农历日期显示
-            if (task.extendedProps?.repeat?.enabled &&
-                (task.extendedProps.repeat.type === 'lunar-monthly' || task.extendedProps.repeat.type === 'lunar-yearly')) {
-                try {
-                    const lunarStr = getSolarDateLunarString(task.date);
-                    if (lunarStr) {
-                        dateText = `${dateText} (${lunarStr})`;
-                    }
-                } catch (error) {
-                    console.error('Failed to format lunar date:', error);
-                }
-            }
-
-            const dateTextSpan = document.createElement('span');
-            dateTextSpan.innerHTML = `📅 ${dateText}`;
-            dateSpan.appendChild(dateTextSpan);
-
-            taskMeta.appendChild(dateSpan);
-        }
-
-        if (task.time) {
-            const timeSpan = document.createElement('span');
-            timeSpan.className = 'task-time';
-            timeSpan.textContent = `🕐 ${task.time}`;
-            taskMeta.appendChild(timeSpan);
-        }
 
         // 如果任务已完成，显示完成时间（从 extendedProps.completedTime 中读取）
         if (task.completed) {
@@ -1332,6 +1396,14 @@ export class EisenhowerMatrixView {
 
         // 组装元素
         taskInfo.appendChild(taskTitle);
+
+        if (projectDiv) {
+            taskInfo.appendChild(projectDiv);
+        }
+
+        if (dateDiv) {
+            taskInfo.appendChild(dateDiv);
+        }
         // 备注 (调整位置到标题后)
         if (task.note) {
             const noteDiv = document.createElement('div');
