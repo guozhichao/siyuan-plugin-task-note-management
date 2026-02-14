@@ -2703,6 +2703,15 @@ export class QuickReminderDialog {
             this.saveReminder();
         });
 
+        // Ctrl+Enter 自动保存关闭弹窗
+        this.dialog.element.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                this.saveReminder();
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        });
+
         // 日期验证
         startDateInput?.addEventListener('change', () => {
             const startDate = startDateInput.value;
