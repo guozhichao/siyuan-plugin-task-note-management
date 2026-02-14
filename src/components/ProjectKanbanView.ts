@@ -6140,6 +6140,21 @@ export class ProjectKanbanView {
         const kanbanContainer = this.container.querySelector('.project-kanban-container') as HTMLElement;
         if (!kanbanContainer) return;
 
+        // [修改/完善] 移除不再存在的分组列（例如已归档或已删除的分组）
+        const activeGroupIds = new Set(activeGroups.map((g: any) => g.id));
+        activeGroupIds.add('ungrouped'); // 虽然未分组在后面单独处理，但这里先排除它防止被提前移除
+
+        const allColumns = Array.from(kanbanContainer.querySelectorAll('.kanban-column')) as HTMLElement[];
+        allColumns.forEach(col => {
+            const gid = (col as HTMLElement).dataset.groupId;
+            // 只有属于自定义分组的列才在这里处理
+            if (gid && (col.classList.contains(`kanban-column-custom-group-${gid}`) || gid === 'ungrouped')) {
+                if (!activeGroupIds.has(gid)) {
+                    col.remove();
+                }
+            }
+        });
+
         // 移除可能存在的空状态提示
         const emptyState = kanbanContainer.querySelector('.empty-custom-group-state');
         if (emptyState) {
@@ -6448,6 +6463,20 @@ export class ProjectKanbanView {
     private async renderStatusKanban() {
         const kanbanContainer = this.container.querySelector('.project-kanban-container') as HTMLElement;
         if (!kanbanContainer) return;
+
+        // [新增] 移除不再存在的状态列
+        const validStatusIds = new Set(this.kanbanStatuses.map(s => s.id));
+        const allColumns = Array.from(kanbanContainer.querySelectorAll('.kanban-column')) as HTMLElement[];
+        allColumns.forEach(col => {
+            const classList = Array.from(col.classList);
+            const statusClass = classList.find(c => c.startsWith('kanban-column-') && !c.includes('-custom-group-'));
+            if (statusClass) {
+                const statusId = statusClass.replace('kanban-column-', '');
+                if (!validStatusIds.has(statusId)) {
+                    col.remove();
+                }
+            }
+        });
 
         // 确保状态列存在，如果不存在才创建
         await this.ensureStatusColumnsExist(kanbanContainer);
