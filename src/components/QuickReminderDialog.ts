@@ -570,7 +570,7 @@ export class QuickReminderDialog {
         const endDateInput = this.dialog.element.querySelector('#quickReminderEndDate') as HTMLInputElement;
         const timeInput = this.dialog.element.querySelector('#quickReminderTime') as HTMLInputElement;
         const endTimeInput = this.dialog.element.querySelector('#quickReminderEndTime') as HTMLInputElement;
-        const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
+        const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLInputElement;
 
         // 填充每日可做
         const isAvailableTodayCheckbox = this.dialog.element.querySelector('#quickIsAvailableToday') as HTMLInputElement;
@@ -691,6 +691,17 @@ export class QuickReminderDialog {
         // 填充项目 
         if (projectSelector && this.reminder.projectId) {
             projectSelector.value = this.reminder.projectId;
+
+            // 更新搜索框显示文本
+            const searchInput = this.dialog.element.querySelector('#quickProjectSearchInput') as HTMLInputElement;
+            const dropdown = this.dialog.element.querySelector('#quickProjectDropdown');
+            if (searchInput && dropdown) {
+                const item = dropdown.querySelector(`.b3-menu__item[data-value="${this.reminder.projectId}"]`);
+                if (item) {
+                    searchInput.value = item.getAttribute('data-label') || '';
+                }
+            }
+
             // 触发项目选择事件以加载自定义分组
             await this.onProjectChange(this.reminder.projectId);
         }
@@ -1492,24 +1503,39 @@ export class QuickReminderDialog {
                         </div>
                         <div class="b3-form__group" id="quickProjectGroup" style="${this.hideProjectSelector ? 'display: none;' : ''}">
                             <label class="b3-form__label">设置所属项目</label>
-                            <select id="quickProjectSelector" class="b3-select" style="width: 100%;">
-                                <option value="">${i18n("noProject")}</option>
-                                <!-- 项目选择器将在这里渲染 -->
-                            </select>
+                            <div class="custom-select" id="quickProjectSelectCustom" style="position: relative;">
+                                <div style="position: relative;">
+                                    <input type="text" id="quickProjectSearchInput" class="b3-text-field" placeholder="${i18n("searchProject") || "搜索项目"}" autocomplete="off" style="width: 100%; padding-right: 30px;  background: var(--b3-select-background);">
+                                    <input type="hidden" id="quickProjectSelector">
+                                </div>
+                                <div id="quickProjectDropdown" class="b3-menu" style="display: none; position: absolute; width: 100%; max-height: 200px; overflow-y: auto; z-index: 10; margin-top: 4px; box-shadow: var(--b3-menu-shadow); background: var(--b3-menu-background); border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius);">
+                                    <!-- 项目选项将在这里渲染 -->
+                                </div>
+                            </div>
                         </div>
                         <div class="b3-form__group" id="quickCustomGroup" style="display: none;">
                             <label class="b3-form__label">设置任务分组</label>
-                            <select id="quickCustomGroupSelector" class="b3-select" style="width: 100%;">
-                                <option value="">${i18n("noGroup") || '无分组'}</option>
-                                <!-- 自定义分组选择器将在这里渲染 -->
-                            </select>
+                            <div class="custom-select" id="quickCustomGroupSelectCustom" style="position: relative;">
+                                <div style="position: relative;">
+                                    <input type="text" id="quickCustomGroupSearchInput" class="b3-text-field" placeholder="${i18n("searchGroup") || "搜索分组"}" autocomplete="off" style="width: 100%; padding-right: 30px; background: var(--b3-select-background);">
+                                    <input type="hidden" id="quickCustomGroupSelector">
+                                </div>
+                                <div id="quickCustomGroupDropdown" class="b3-menu" style="display: none; position: absolute; width: 100%; max-height: 200px; overflow-y: auto; z-index: 10; margin-top: 4px; box-shadow: var(--b3-menu-shadow); background: var(--b3-menu-background); border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius);">
+                                    <!-- 自定义分组选择器将在这里渲染 -->
+                                </div>
+                            </div>
                         </div>
                         <div class="b3-form__group" id="quickMilestoneGroup" style="display: none;">
                             <label class="b3-form__label">${i18n("milestone") || "里程碑"}</label>
-                            <select id="quickMilestoneSelector" class="b3-select" style="width: 100%;">
-                                <option value="">${i18n("noMilestone") || "无里程碑"}</option>
-                                <!-- 里程碑选择器将在这里渲染 -->
-                            </select>
+                            <div class="custom-select" id="quickMilestoneSelectCustom" style="position: relative;">
+                                <div style="position: relative;">
+                                    <input type="text" id="quickMilestoneSearchInput" class="b3-text-field" placeholder="${i18n("searchMilestone") || "搜索里程碑"}" autocomplete="off" style="width: 100%; padding-right: 30px; background: var(--b3-select-background);">
+                                    <input type="hidden" id="quickMilestoneSelector">
+                                </div>
+                                <div id="quickMilestoneDropdown" class="b3-menu" style="display: none; position: absolute; width: 100%; max-height: 200px; overflow-y: auto; z-index: 10; margin-top: 4px; box-shadow: var(--b3-menu-shadow); background: var(--b3-menu-background); border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius);">
+                                    <!-- 里程碑选择器将在这里渲染 -->
+                                </div>
+                            </div>
                         </div>
                         <!-- 任务状态渲染 -->
                         ${this.renderStatusSelector()}
@@ -2095,7 +2121,7 @@ export class QuickReminderDialog {
         if (!tagsSelector) return;
 
         // 获取当前选中的项目ID
-        const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
+        const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLInputElement;
         const projectId = projectSelector?.value;
 
         if (!projectId) {
@@ -3075,21 +3101,21 @@ export class QuickReminderDialog {
     }
 
     private async renderProjectSelector() {
-        const projectSelector = this.dialog.element.querySelector('#quickProjectSelector') as HTMLSelectElement;
-        if (!projectSelector) return;
+        const searchInput = this.dialog.element.querySelector('#quickProjectSearchInput') as HTMLInputElement;
+        const hiddenInput = this.dialog.element.querySelector('#quickProjectSelector') as HTMLInputElement;
+        const dropdown = this.dialog.element.querySelector('#quickProjectDropdown') as HTMLElement;
+
+        if (!searchInput || !hiddenInput || !dropdown) return;
 
         try {
             await this.projectManager.initialize();
             const groupedProjects = this.projectManager.getProjectsGroupedByStatus();
 
-            // 清空并重新构建项目选择器
-            projectSelector.innerHTML = '';
+            // 生成内容
+            let html = '';
 
-            // 添加无项目选项
-            const noProjectOption = document.createElement('option');
-            noProjectOption.value = '';
-            noProjectOption.textContent = i18n('noProject');
-            projectSelector.appendChild(noProjectOption);
+            // 无项目选项
+            html += `<div class="b3-menu__item" data-value="" data-label="${i18n('noProject')}"><span class="b3-menu__label">${i18n('noProject')}</span></div>`;
 
             // 按状态分组添加项目
             Object.keys(groupedProjects).forEach(statusKey => {
@@ -3100,60 +3126,121 @@ export class QuickReminderDialog {
                 });
 
                 if (nonArchivedProjects.length > 0) {
-                    // 在每个状态组内排序：先按优先级，再按sort字段，再按时间
+                    // 排序逻辑 (Reuse existing sort logic)
                     nonArchivedProjects.sort((a, b) => {
-                        // 1. 按优先级排序
                         const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1, 'none': 0 };
                         const priorityA = priorityOrder[(a as any).priority || 'none'] || 0;
                         const priorityB = priorityOrder[(b as any).priority || 'none'] || 0;
                         if (priorityA !== priorityB) {
-                            return priorityB - priorityA; // 高优先级在前
+                            return priorityB - priorityA;
                         }
-
-                        // 2. 同优先级内按手动排序字段
                         const sortA = (a as any).sort || 0;
                         const sortB = (b as any).sort || 0;
                         if (sortA !== sortB) {
-                            return sortA - sortB; // sort值小的在前
+                            return sortA - sortB;
                         }
-
-                        // 3. 如果sort也相同，按时间排序
                         const dateA = (a as any).startDate || (a as any).createdTime || '';
                         const dateB = (b as any).startDate || (b as any).createdTime || '';
                         return dateA.localeCompare(dateB);
                     });
 
-                    // 添加状态分组
                     const statusName = this.getStatusDisplayName(statusKey);
-                    const optgroup = document.createElement('optgroup');
-                    optgroup.label = statusName;
 
-                    nonArchivedProjects.forEach(project => {
-                        const option = document.createElement('option');
-                        option.value = project.id;
-                        option.textContent = project.name;
-
-                        // 如果设置了默认项目，选中它
-                        if (this.defaultProjectId === project.id) {
-                            option.selected = true;
-                        }
-
-                        optgroup.appendChild(option);
-                    });
-
-                    projectSelector.appendChild(optgroup);
+                    // 使用分组包裹以便于搜索过滤时处理标题显示
+                    html += `<div class="project-group">
+                        <div class="b3-menu__separator"></div>
+                        <div class="b3-menu__item b3-menu__item--readonly" style="font-size: 12px; opacity: 0.6; cursor: default;">${statusName}</div>
+                        ${nonArchivedProjects.map(p =>
+                        `<div class="b3-menu__item" data-value="${p.id}" data-label="${p.name}"><span class="b3-menu__label">${p.name}</span></div>`
+                    ).join('')}
+                    </div>`;
                 }
             });
 
-            // 添加项目选择器改变事件监听器
-            projectSelector.addEventListener('change', async () => {
-                await this.onProjectChange(projectSelector.value);
+            dropdown.innerHTML = html;
+
+            // 事件绑定
+            // 事件绑定
+            const showAllOptions = () => {
+                dropdown.style.display = 'block';
+                // 显示所有选项，忽略当前输入框的值
+                const items = dropdown.querySelectorAll('.b3-menu__item[data-value]');
+                items.forEach((item: HTMLElement) => {
+                    item.style.display = 'block';
+                });
+                // 显示所有分组
+                const groups = dropdown.querySelectorAll('.project-group');
+                groups.forEach((group: HTMLElement) => {
+                    group.style.display = 'block';
+                });
+            };
+
+            const hideDropdown = () => {
+                // 延迟隐藏，允许点击事件发生
+                setTimeout(() => {
+                    dropdown.style.display = 'none';
+                    // 如果输入框内容不是有效的选项，重置为当前选中项的标签
+                    const currentId = hiddenInput.value;
+                    const item = dropdown.querySelector(`.b3-menu__item[data-value="${currentId}"]`);
+                    if (item) {
+                        searchInput.value = item.getAttribute('data-label') || '';
+                    } else if (!currentId) {
+                        searchInput.value = '';
+                    }
+                }, 200);
+            };
+
+            const filterOptions = (term: string) => {
+                // Support multiple search terms separated by space
+                const terms = term.toLowerCase().split(/\s+/).filter(t => t);
+                const items = dropdown.querySelectorAll('.b3-menu__item[data-value]');
+                items.forEach((item: HTMLElement) => {
+                    const label = item.getAttribute('data-label')?.toLowerCase() || '';
+                    // Check if all terms are present in the label
+                    const match = terms.length === 0 || terms.every(t => label.includes(t));
+                    item.style.display = match ? 'block' : 'none';
+                });
+
+                // 处理分组标题显示：如果分组内有可见项，则显示分组
+                const groups = dropdown.querySelectorAll('.project-group');
+                groups.forEach((group: HTMLElement) => {
+                    const visibleItems = group.querySelectorAll('.b3-menu__item[data-value]:not([style*="display: none"])');
+                    group.style.display = visibleItems.length > 0 ? 'block' : 'none';
+                });
+            };
+
+            searchInput.addEventListener('focus', showAllOptions);
+            searchInput.addEventListener('click', showAllOptions);
+            searchInput.addEventListener('blur', hideDropdown);
+            searchInput.addEventListener('input', () => {
+                dropdown.style.display = 'block';
+                filterOptions(searchInput.value);
             });
 
-            // 初始化时检查默认项目
+            dropdown.addEventListener('click', async (e) => {
+                const target = (e.target as HTMLElement).closest('.b3-menu__item');
+                if (target && !target.classList.contains('b3-menu__item--readonly')) {
+                    const val = target.getAttribute('data-value');
+                    const label = target.getAttribute('data-label');
+
+                    hiddenInput.value = val || '';
+                    searchInput.value = val ? (label || '') : '';
+
+                    // 触发变更
+                    await this.onProjectChange(val || '');
+                }
+            });
+
+            // 初始化默认值
             if (this.defaultProjectId) {
+                hiddenInput.value = this.defaultProjectId;
+                const item = dropdown.querySelector(`.b3-menu__item[data-value="${this.defaultProjectId}"]`);
+                if (item) {
+                    searchInput.value = item.getAttribute('data-label') || '';
+                }
                 await this.onProjectChange(this.defaultProjectId);
             }
+
         } catch (error) {
             console.error('渲染项目选择器失败:', error);
         }
@@ -3186,7 +3273,7 @@ export class QuickReminderDialog {
                     await this.renderCustomGroupSelector(projectId);
 
                     // 渲染里程碑（根据当前选中的分组）
-                    const groupSelector = this.dialog.element.querySelector('#quickCustomGroupSelector') as HTMLSelectElement;
+                    const groupSelector = this.dialog.element.querySelector('#quickCustomGroupSelector') as HTMLInputElement;
                     await this.renderMilestoneSelector(projectId, groupSelector?.value);
                 } else {
                     // 隐藏分组选择器
@@ -3220,8 +3307,11 @@ export class QuickReminderDialog {
      * 渲染自定义分组选择器
      */
     private async renderCustomGroupSelector(projectId: string) {
-        const groupSelector = this.dialog.element.querySelector('#quickCustomGroupSelector') as HTMLSelectElement;
-        if (!groupSelector) return;
+        const searchInput = this.dialog.element.querySelector('#quickCustomGroupSearchInput') as HTMLInputElement;
+        const hiddenInput = this.dialog.element.querySelector('#quickCustomGroupSelector') as HTMLInputElement;
+        const dropdown = this.dialog.element.querySelector('#quickCustomGroupDropdown') as HTMLElement;
+
+        if (!searchInput || !hiddenInput || !dropdown) return;
 
         try {
             const { ProjectManager } = await import('../utils/projectManager');
@@ -3231,35 +3321,85 @@ export class QuickReminderDialog {
             const activeGroups = projectGroups.filter((g: any) => !g.archived);
 
             // 清空并重新构建分组选择器
-            groupSelector.innerHTML = '';
+            let html = '';
 
             // 添加无分组选项
-            const noGroupOption = document.createElement('option');
-            noGroupOption.value = '';
-            noGroupOption.textContent = i18n('noGroup') || '无分组';
-            groupSelector.appendChild(noGroupOption);
+            html += `<div class="b3-menu__item" data-value="" data-label="${i18n('noGroup') || '无分组'}"><span class="b3-menu__label">${i18n('noGroup') || '无分组'}</span></div>`;
 
             // 添加所有未归档分组选项
             activeGroups.forEach((group: any) => {
-                const option = document.createElement('option');
-                option.value = group.id;
-                option.textContent = `${group.icon || '📋'} ${group.name}`.trim();
-                groupSelector.appendChild(option);
+                const label = `${group.icon || '📋'} ${group.name}`.trim();
+                html += `<div class="b3-menu__item" data-value="${group.id}" data-label="${label}"><span class="b3-menu__label">${label}</span></div>`;
             });
 
-            // 如果传入了默认 custom group id，则预选（注意：null 表示明确不分组）
+            dropdown.innerHTML = html;
+
+            // 事件绑定
+            // 事件绑定
+            const showAllOptions = () => {
+                dropdown.style.display = 'block';
+                // 显示所有选项
+                const items = dropdown.querySelectorAll('.b3-menu__item[data-value]');
+                items.forEach((item: HTMLElement) => {
+                    item.style.display = 'block';
+                });
+            };
+
+            const hideDropdown = () => {
+                setTimeout(() => {
+                    dropdown.style.display = 'none';
+                    // 如果输入框内容不是有效的选项，重置
+                    const currentId = hiddenInput.value;
+                    const item = dropdown.querySelector(`.b3-menu__item[data-value="${currentId}"]`);
+                    if (item) {
+                        searchInput.value = item.getAttribute('data-label') || '';
+                    } else if (!currentId) {
+                        searchInput.value = '';
+                    }
+                }, 200);
+            };
+
+            const filterOptions = (term: string) => {
+                const terms = term.toLowerCase().split(/\s+/).filter(t => t);
+                const items = dropdown.querySelectorAll('.b3-menu__item[data-value]');
+                items.forEach((item: HTMLElement) => {
+                    const label = item.getAttribute('data-label')?.toLowerCase() || '';
+                    const match = terms.length === 0 || terms.every(t => label.includes(t));
+                    item.style.display = match ? 'block' : 'none';
+                });
+            };
+
+            searchInput.addEventListener('focus', showAllOptions);
+            searchInput.addEventListener('click', showAllOptions);
+            searchInput.addEventListener('blur', hideDropdown);
+            searchInput.addEventListener('input', () => {
+                dropdown.style.display = 'block';
+                filterOptions(searchInput.value);
+            });
+
+            dropdown.addEventListener('click', async (e) => {
+                const target = (e.target as HTMLElement).closest('.b3-menu__item');
+                if (target) {
+                    const val = target.getAttribute('data-value');
+                    const label = target.getAttribute('data-label');
+
+                    hiddenInput.value = val || '';
+                    searchInput.value = val ? (label || '') : '';
+
+                    // 触发变更：更新里程碑
+                    await this.renderMilestoneSelector(projectId, val || '');
+                }
+            });
+
+            // Set default value
             if (this['defaultCustomGroupId'] !== undefined) {
-                if (this['defaultCustomGroupId'] === null) {
-                    groupSelector.value = '';
-                } else {
-                    groupSelector.value = this['defaultCustomGroupId'];
+                const val = this['defaultCustomGroupId'] === null ? '' : this['defaultCustomGroupId'];
+                hiddenInput.value = val;
+                const item = dropdown.querySelector(`.b3-menu__item[data-value="${val}"]`);
+                if (item) {
+                    searchInput.value = item.getAttribute('data-label') || '';
                 }
             }
-
-            // 监听分组变更，更新里程碑
-            groupSelector.onchange = async () => {
-                await this.renderMilestoneSelector(projectId, groupSelector.value);
-            };
 
         } catch (error) {
             console.error('渲染自定义分组选择器失败:', error);
