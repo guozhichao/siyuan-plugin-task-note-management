@@ -604,7 +604,7 @@ export class DocumentReminderDialog {
         const timeEl = document.createElement('div');
         timeEl.className = 'doc-reminder-item__time';
         const timeText = this.formatReminderTime(reminder.date, reminder.time, today, reminder.endDate);
-        timeEl.textContent = '🕐' + timeText;
+        timeEl.textContent = timeText ? '🕐' + timeText : '';
 
         // 添加优先级标签
         if (priority !== 'none') {
@@ -617,6 +617,13 @@ export class DocumentReminderDialog {
             };
             priorityLabel.innerHTML = `<div class="priority-dot ${priority}"></div>${priorityNames[priority]}`;
             timeEl.appendChild(priorityLabel);
+        }
+
+        // 如果没有时间信息且没有优先级标签，则不显示时间容器
+        if (timeEl.textContent.trim() === '' && timeEl.children.length === 0) {
+            // 不添加到timeContainer
+        } else {
+            timeContainer.appendChild(timeEl);
         }
 
         // 过期标签
@@ -820,6 +827,10 @@ export class DocumentReminderDialog {
     }
 
     private formatReminderTime(date: string, time?: string, today?: string, endDate?: string): string {
+        if (!date || date.trim() === '') {
+            return '';
+        }
+
         if (!today) {
             today = getLogicalDateString();
         }
