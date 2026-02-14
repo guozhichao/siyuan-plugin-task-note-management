@@ -15,6 +15,8 @@ import { BlockBindingDialog } from "./BlockBindingDialog";
 import { getAllReminders, saveReminders } from '../utils/icsSubscription';
 
 import { PasteTaskDialog } from "./PasteTaskDialog";
+import { ProjectDialog } from "./ProjectDialog";
+
 
 export class ProjectKanbanView {
     private container: HTMLElement;
@@ -3531,6 +3533,15 @@ export class ProjectKanbanView {
 
             menu.addItem({
                 icon: "iconSettings",
+                label: i18n('editProject') || '项目设置',
+                click: () => {
+                    const dialog = new ProjectDialog(this.projectId, this.plugin);
+                    dialog.show();
+                }
+            });
+
+            menu.addItem({
+                icon: "iconSettings",
                 label: i18n('manageKanbanStatuses') || '管理项目状态',
                 click: () => {
                     this.showManageKanbanStatusesDialog();
@@ -3546,7 +3557,7 @@ export class ProjectKanbanView {
             });
 
             menu.addItem({
-                icon: "iconTags",
+                icon: "iconSettings",
                 label: i18n('manageProjectTags') || '管理标签',
                 click: () => {
                     this.showManageTagsDialog();
