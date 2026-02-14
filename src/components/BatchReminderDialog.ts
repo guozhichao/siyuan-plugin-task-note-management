@@ -47,23 +47,28 @@ export class BatchReminderDialog {
 
 
 
-    async show(blockIds: string[]) {
+    async show(blockIds: string[], defaultSettings?: {
+        defaultProjectId?: string;
+        defaultCustomGroupId?: string;
+        defaultMilestoneId?: string;
+    }) {
         if (blockIds.length === 1) {
             const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
                 blockId: blockIds[0],
                 mode: 'block',
-                plugin: this.plugin
+                plugin: this.plugin,
+                ...defaultSettings
             });
             dialog.show();
         } else {
             // 直接显示智能批量设置
-            this.showSmartBatchDialog(blockIds);
+            this.showSmartBatchDialog(blockIds, defaultSettings);
         }
     }
 
-    private async showSmartBatchDialog(blockIds: string[]) {
+    private async showSmartBatchDialog(blockIds: string[], defaultSettings?: any) {
         const autoDetectedData = await this.autoDetectBatchDateTime(blockIds);
-        const smartBatchDialog = new SmartBatchDialog(this.plugin, blockIds, autoDetectedData);
+        const smartBatchDialog = new SmartBatchDialog(this.plugin, blockIds, autoDetectedData, defaultSettings);
         smartBatchDialog.show();
     }
 
@@ -206,12 +211,13 @@ class SmartBatchDialog {
     private blockSettings: Map<string, BlockSetting> = new Map();
     private categoryManager: CategoryManager;
     private projectManager: ProjectManager;
-    private loadingDialog: Dialog | null = null;
+    private defaultSettings?: any;
 
-    constructor(plugin: any, blockIds: string[], autoDetectedData: AutoDetectResult[]) {
+    constructor(plugin: any, blockIds: string[], autoDetectedData: AutoDetectResult[], defaultSettings?: any) {
         this.plugin = plugin;
         this.blockIds = blockIds;
         this.autoDetectedData = autoDetectedData;
+        this.defaultSettings = defaultSettings;
         this.categoryManager = CategoryManager.getInstance(this.plugin);
         this.projectManager = ProjectManager.getInstance(this.plugin);
 
@@ -232,8 +238,8 @@ class SmartBatchDialog {
                 endTime: data.endTime || '',
                 hasEndTime: data.hasEndTime || false,
                 priority: 'none',
-                categoryId: '',
-                projectId: '',
+                categoryId: this.defaultSettings?.defaultCategoryId || '',
+                projectId: this.defaultSettings?.defaultProjectId || '',
                 note: data.note || '',
                 repeatConfig: {
                     enabled: false,

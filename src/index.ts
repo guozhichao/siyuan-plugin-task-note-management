@@ -1853,7 +1853,156 @@ export default class ReminderPlugin extends Plugin {
         }
     }
 
-    // 获取自动识别日期时间设置
+    // 获取已继承的项目、分组、里程碑和分类
+    private async getInheritedProjectAndGroup(blockId: string) {
+        const { getBlockByID, sql } = await import("./api");
+        const block = await getBlockByID(blockId);
+        if (!block) return { projectId: undefined, groupId: undefined, milestoneId: undefined, categoryId: undefined };
+
+        const reminderData = await this.loadReminderData();
+        const rootId = block.root_id;
+        const parentId = block.parent_id;
+
+        // 1. 优先检查父块
+        // 1. 优先检查父块（递归向上直到rootId）
+        let currentParentId = parentId;
+        while (currentParentId && currentParentId !== rootId) {
+            const parentReminder = Object.values(reminderData).find((r: any) => r.blockId === currentParentId && r.projectId);
+            if (parentReminder) {
+                return {
+                    projectId: (parentReminder as any).projectId,
+                    groupId: (parentReminder as any).customGroupId,
+                    milestoneId: (parentReminder as any).milestoneId,
+                    categoryId: (parentReminder as any).categoryId
+                };
+            }
+            // 获取上一级父块
+            const parentBlock = await getBlockByID(currentParentId);
+            if (!parentBlock) break;
+            currentParentId = parentBlock.parent_id;
+        }
+
+        // 2. 检查最近的同级标题
+        if (block.type === 'h' && (block as any).subtype) {
+            const siblingHeadings = await sql(`
+                SELECT b.id
+                FROM blocks AS b
+                WHERE b.root_id = '${rootId}' 
+                AND b.parent_id = '${block.parent_id}'
+                AND b.subtype = '${(block as any).subtype}'
+                AND (EXISTS (
+                    SELECT 1 FROM attributes 
+                    WHERE block_id = b.id 
+                        AND name = 'custom-bind-reminders' 
+                        AND value != ''
+                )
+                OR EXISTS (
+                    SELECT 1 FROM attributes 
+                    WHERE block_id = b.id 
+                        AND name = 'custom-task-projectid' 
+                        AND value != ''
+                ))
+                ORDER BY updated DESC 
+                LIMIT 1
+
+        `);
+            if (siblingHeadings && siblingHeadings.length > 0) {
+                const headingId = siblingHeadings[0].id;
+                const headingReminder = Object.values(reminderData).find((r: any) => r.blockId === headingId && r.projectId);
+                if (headingReminder) {
+                    console.log('找到同级标题的提醒:', headingReminder);
+                    return {
+                        projectId: (headingReminder as any).projectId,
+                        groupId: (headingReminder as any).customGroupId,
+                        milestoneId: (headingReminder as any).milestoneId,
+                        categoryId: (headingReminder as any).categoryId
+                    };
+                }
+            }
+        }
+
+
+
+        // 3. 检查文档根块
+        if (rootId) {
+            const rootReminder = Object.values(reminderData).find((r: any) => r.blockId === rootId && r.projectId);
+            if (rootReminder) {
+                return {
+                    projectId: (rootReminder as any).projectId,
+                    groupId: (rootReminder as any).customGroupId,
+                    milestoneId: (rootReminder as any).milestoneId,
+                    categoryId: (rootReminder as any).categoryId
+                };
+            }
+        }
+
+        // 4. Fallback: 检查文档是否本身是项目，或者是否绑定了某个项目分组
+        const projectData = await this.loadProjectData();
+        if (projectData) {
+            // 4.0 先检查父块路径是否是项目或者项目分组的绑定块
+            let checkParentId = parentId;
+            while (checkParentId && checkParentId !== rootId) {
+                // Check if this parent block is a project main block
+                const parentProject = Object.values(projectData).find((p: any) => p.blockId === checkParentId);
+                if (parentProject) {
+                    return {
+                        projectId: (parentProject as any).id,
+                        groupId: undefined,
+                        milestoneId: undefined,
+                        categoryId: undefined
+                    };
+                }
+
+                // Check if this parent block is a project group block
+                for (const p of Object.values(projectData) as any[]) {
+                    if (p.customGroups && Array.isArray(p.customGroups)) {
+                        const group = p.customGroups.find((g: any) => g.blockId === checkParentId);
+                        if (group) {
+                            return {
+                                projectId: p.id,
+                                groupId: group.id,
+                                milestoneId: undefined,
+                                categoryId: undefined
+                            };
+                        }
+                    }
+                }
+
+                // Move up
+                const parentBlock = await getBlockByID(checkParentId);
+                if (!parentBlock) break;
+                checkParentId = parentBlock.parent_id;
+            }
+
+            // 4.1 检查是否是项目主文档
+            const project = Object.values(projectData).find((p: any) => p.blockId === rootId);
+            if (project) {
+                return {
+                    projectId: (project as any).id,
+                    groupId: undefined,
+                    milestoneId: undefined,
+                    categoryId: undefined
+                };
+            }
+
+            // 4.2 检查是否是项目分组的绑定文档
+            for (const p of Object.values(projectData) as any[]) {
+                if (p.customGroups && Array.isArray(p.customGroups)) {
+                    const group = p.customGroups.find((g: any) => g.blockId === rootId);
+                    if (group) {
+                        return {
+                            projectId: p.id,
+                            groupId: group.id,
+                            milestoneId: undefined,
+                            categoryId: undefined
+                        };
+                    }
+                }
+            }
+        }
+
+        return { projectId: undefined, groupId: undefined, milestoneId: undefined, categoryId: undefined };
+    }
 
     private handleDocumentTreeMenu({ detail }) {
         const elements = detail.elements;
@@ -1892,12 +2041,14 @@ export default class ReminderPlugin extends Plugin {
                     const autoDetect = await this.getAutoDetectDateTimeEnabled();
                     // 如果文档本身是一个项目，传入该项目ID作为默认项目
                     try {
-                        const projectData = await this.loadProjectData();
-                        const projectId = projectData && projectData[firstDocumentId] ? projectData[firstDocumentId].blockId || projectData[firstDocumentId].id : undefined;
+                        const { projectId, groupId, milestoneId, categoryId } = await this.getInheritedProjectAndGroup(firstDocumentId);
                         const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
                             blockId: firstDocumentId,
                             autoDetectDateTime: autoDetect,
                             defaultProjectId: projectId,
+                            defaultCustomGroupId: groupId,
+                            defaultMilestoneId: milestoneId,
+                            defaultCategoryId: categoryId,
                             mode: 'block',
                             plugin: this
                         });
@@ -1906,7 +2057,8 @@ export default class ReminderPlugin extends Plugin {
                         const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
                             blockId: firstDocumentId,
                             autoDetectDateTime: autoDetect,
-                            mode: 'block'
+                            mode: 'block',
+                            plugin: this
                         });
                         dialog.show();
                     }
@@ -1960,12 +2112,14 @@ export default class ReminderPlugin extends Plugin {
                 if (documentId) {
                     const autoDetect = await this.getAutoDetectDateTimeEnabled();
                     try {
-                        const projectData = await this.loadProjectData();
-                        const projectId = projectData && projectData[documentId] ? projectData[documentId].blockId || projectData[documentId].id : undefined;
+                        const { projectId, groupId, milestoneId, categoryId } = await this.getInheritedProjectAndGroup(documentId);
                         const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
                             blockId: documentId,
                             autoDetectDateTime: autoDetect,
                             defaultProjectId: projectId,
+                            defaultCustomGroupId: groupId,
+                            defaultMilestoneId: milestoneId,
+                            defaultCategoryId: categoryId,
                             mode: 'block',
                             plugin: this
                         });
@@ -2062,17 +2216,14 @@ export default class ReminderPlugin extends Plugin {
             // 单个块时使用普通对话框，应用自动检测设置
             const autoDetect = await this.getAutoDetectDateTimeEnabled();
             try {
-
-                // blockIds[0] 所在文档是否为项目（需要读取块以确定根文档ID）
-                const { getBlockByID } = await import("./api");
-                const block = await getBlockByID(blockIds[0]);
-                const docId = block?.root_id || blockIds[0];
-                const projectData = await this.loadProjectData();
-                const projectId = projectData && projectData[docId] ? projectData[docId].blockId || projectData[docId].id : undefined;
+                const { projectId, groupId, milestoneId, categoryId } = await this.getInheritedProjectAndGroup(blockIds[0]);
                 const dialog = new QuickReminderDialog(undefined, undefined, undefined, undefined, {
                     blockId: blockIds[0],
                     autoDetectDateTime: autoDetect,
                     defaultProjectId: projectId,
+                    defaultCustomGroupId: groupId,
+                    defaultMilestoneId: milestoneId,
+                    defaultCategoryId: categoryId,
                     mode: 'block',
                     plugin: this
                 });
@@ -2092,8 +2243,22 @@ export default class ReminderPlugin extends Plugin {
                 this.batchReminderDialog = new BatchReminderDialog(this);
             }
 
+            // 尝试获取第一个块的继承信息作为默认值
+            let defaultSettings = {};
+            try {
+                const { projectId, groupId, milestoneId, categoryId } = await this.getInheritedProjectAndGroup(blockIds[0]);
+                defaultSettings = {
+                    defaultProjectId: projectId,
+                    defaultCustomGroupId: groupId,
+                    defaultMilestoneId: milestoneId,
+                    defaultCategoryId: categoryId
+                };
+            } catch (err) {
+                console.warn('获取继承设置失败:', err);
+            }
+
             // 使用新的批量设置组件
-            await this.batchReminderDialog.show(blockIds);
+            await this.batchReminderDialog.show(blockIds, defaultSettings);
         }
     }
 
