@@ -2660,13 +2660,13 @@ export class ProjectKanbanView {
 
             // 1. 默认里程碑
             (project?.milestones || []).forEach((ms: any) => {
-                this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon, blockId: ms.blockId, startTime: ms.startTime, endTime: ms.endTime });
+                this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon, blockId: ms.blockId, startTime: ms.startTime, endTime: ms.endTime, archived: ms.archived });
             });
 
             // 2. 分组里程碑
             projectGroups.forEach((group: any) => {
                 (group.milestones || []).forEach((ms: any) => {
-                    this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon, blockId: ms.blockId, startTime: ms.startTime, endTime: ms.endTime });
+                    this.milestoneMap.set(ms.id, { name: ms.name, icon: ms.icon, blockId: ms.blockId, startTime: ms.startTime, endTime: ms.endTime, archived: ms.archived });
                 });
             });
         } catch (error) {
@@ -3715,8 +3715,8 @@ export class ProjectKanbanView {
             const isUngrouped = targetGroupId === 'ungrouped';
 
             if (isCustomGroup) {
-                // 如果是特定自定义分组，只显示该分组的任务所使用的里程碑（包含已归档）
-                const ms = (targetGroup.milestones || []).filter((m: any) => usedMilestoneIds.has(m.id));
+                // 如果是特定自定义分组，只显示该分组的任务所使用的里程碑（排除已归档）
+                const ms = (targetGroup.milestones || []).filter((m: any) => usedMilestoneIds.has(m.id) && !m.archived);
                 if (ms.length > 0) {
                     milestonesToShow.push({
                         title: targetGroup.name,
@@ -3725,8 +3725,8 @@ export class ProjectKanbanView {
                     });
                 }
             } else if (isUngrouped && this.kanbanMode !== 'status') {
-                // 如果是 ungrouped 且不是 Status 视图，只显示被使用的默认里程碑
-                const ms = defaultMilestones.filter((m: any) => usedMilestoneIds.has(m.id));
+                // 如果是 ungrouped 且不是 Status 视图，只显示被使用的默认里程碑（排除已归档）
+                const ms = defaultMilestones.filter((m: any) => usedMilestoneIds.has(m.id) && !m.archived);
                 if (ms.length > 0) {
                     milestonesToShow.push({
                         title: i18n('defaultMilestones') || '默认里程碑',
@@ -3738,10 +3738,12 @@ export class ProjectKanbanView {
                 // Status 视图逻辑：只显示当前状态列中任务实际使用的里程碑
                 // 获取当前 status 列中实际使用的里程碑 ID
                 const statusMilestoneIds = this._statusMilestonesInView.get(targetGroupId) || new Set<string>();
+                // 项目状态分组模式下，或者“已完成”列，允许显示已归档里程碑
+                const allowArchived = targetGroupId === 'completed' || this.kanbanMode === 'status';
 
-                // 默认里程碑 - 只显示当前 status 列中实际使用的
+                // 默认里程碑 - 只显示当前 status 列中实际使用的（除非是已完成列或状态看板模式，否则排除已归档）
                 if (defaultMilestones.length > 0 && allowedGroups.has('ungrouped')) {
-                    const ms = defaultMilestones.filter(m => statusMilestoneIds.has(m.id));
+                    const ms = defaultMilestones.filter(m => statusMilestoneIds.has(m.id) && (!m.archived || allowArchived));
                     if (ms.length > 0) {
                         milestonesToShow.push({
                             title: i18n('defaultMilestones') || '默认里程碑',
@@ -3751,12 +3753,12 @@ export class ProjectKanbanView {
                     }
                 }
 
-                // 分组里程碑 - 只显示当前 status 列中实际使用的（包含已归档的，以便筛选历史任务）
+                // 分组里程碑 - 只显示当前 status 列中实际使用的（除非是已完成列或状态看板模式，否则排除已归档）
                 projectGroups
                     .filter((g: any) => !g.archived)
                     .forEach((g: any) => {
                         if (!allowedGroups.has(g.id)) return;
-                        const ms = (g.milestones || []).filter((m: any) => statusMilestoneIds.has(m.id));
+                        const ms = (g.milestones || []).filter((m: any) => statusMilestoneIds.has(m.id) && (!m.archived || allowArchived));
                         if (ms.length > 0) {
                             milestonesToShow.push({
                                 title: g.name,
@@ -3850,20 +3852,18 @@ export class ProjectKanbanView {
             });
             btnsContainer.appendChild(clearBtn);
 
-            // 管理按钮（仅自定义分组显示）
-            if (targetGroup) {
-                const manageBtn = document.createElement('button');
-                manageBtn.className = 'b3-button b3-button--text b3-button--small';
-                manageBtn.style.flex = '1';
-                manageBtn.textContent = i18n('manage') || '管理';
-                manageBtn.addEventListener('click', () => {
-                    // 关闭筛选菜单
-                    menu.remove();
-                    // 打开管理对话框，只显示当前分组的里程碑
-                    this.showManageMilestonesDialog(targetGroupId);
-                });
-                btnsContainer.appendChild(manageBtn);
-            }
+            // 管理按钮
+            const manageBtn = document.createElement('button');
+            manageBtn.className = 'b3-button b3-button--text b3-button--small';
+            manageBtn.style.flex = '1';
+            manageBtn.textContent = i18n('manage') || '管理';
+            manageBtn.addEventListener('click', () => {
+                // 关闭筛选菜单
+                menu.remove();
+                // 如果 targetGroup 存在，则只管理该分组；否则管理全部（Status 视图下显示全部）
+                this.showManageMilestonesDialog(targetGroup ? targetGroupId : undefined);
+            });
+            btnsContainer.appendChild(manageBtn);
 
             menu.appendChild(btnsContainer);
 
@@ -5232,19 +5232,25 @@ export class ProjectKanbanView {
                 }
 
                 if (effectiveMilestoneId) {
-                    this._statusHasMilestoneTasks.add(status);
-                    this._statusHasMilestoneTasks.add(customGroup);
-                    this._availableMilestonesInView.add(effectiveMilestoneId);
-                    // 统计每个状态列下使用的里程碑
-                    if (!this._statusMilestonesInView.has(status)) {
-                        this._statusMilestonesInView.set(status, new Set());
+                    // 检查是否为已归档里程碑
+                    const msInfo = this.milestoneMap.get(effectiveMilestoneId);
+                    // 已完成任务或任务状态看板模式下，允许显示已归档里程碑
+                    const allowArchived = status === 'completed' || this.kanbanMode === 'status';
+                    if (msInfo && (!msInfo.archived || allowArchived)) {
+                        this._statusHasMilestoneTasks.add(status);
+                        this._statusHasMilestoneTasks.add(customGroup);
+                        this._availableMilestonesInView.add(effectiveMilestoneId);
+                        // 统计每个状态列下使用的里程碑
+                        if (!this._statusMilestonesInView.has(status)) {
+                            this._statusMilestonesInView.set(status, new Set());
+                        }
+                        this._statusMilestonesInView.get(status)!.add(effectiveMilestoneId);
+                        // 同时统计自定义分组下的里程碑（用于自定义分组视图）
+                        if (!this._statusMilestonesInView.has(customGroup)) {
+                            this._statusMilestonesInView.set(customGroup, new Set());
+                        }
+                        this._statusMilestonesInView.get(customGroup)!.add(effectiveMilestoneId);
                     }
-                    this._statusMilestonesInView.get(status)!.add(effectiveMilestoneId);
-                    // 同时统计自定义分组下的里程碑（用于自定义分组视图）
-                    if (!this._statusMilestonesInView.has(customGroup)) {
-                        this._statusMilestonesInView.set(customGroup, new Set());
-                    }
-                    this._statusMilestonesInView.get(customGroup)!.add(effectiveMilestoneId);
                 }
             });
 
