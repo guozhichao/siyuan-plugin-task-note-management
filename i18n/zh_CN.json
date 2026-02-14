@@ -147,6 +147,8 @@
     "selectBlockFirst": "请先在文档中选择一个块，然后为其创建任务。\n「防弹笔记法」不推荐凭空创建任务，应该在任务笔记或者项目笔记规划事项再安排时间提醒",
     "existingReminders": "现有任务",
     "noExistingReminders": "暂无现有提醒",
+    "syncBlockTitle": "更新标题为绑定块内容",
+    "syncTitleToBlock": "更新绑定块内容为当前标题",
     "subtasks": "子任务",
     "viewSubtasks": "查看子任务",
     "noSubtasks": "暂无子任务",

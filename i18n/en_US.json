@@ -143,6 +143,8 @@
     "selectBlockFirst": "Please select a block in the document first, then create a reminder for it",
     "existingReminders": "Existing Reminders",
     "noExistingReminders": "No existing reminders",
+    "syncBlockTitle": "Update title to bound block content",
+    "syncTitleToBlock": "Update bound block content to current title",
     "subtasks": "Subtasks",
     "viewSubtasks": "View Subtasks",
     "noSubtasks": "No Subtasks",

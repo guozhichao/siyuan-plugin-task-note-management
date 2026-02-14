@@ -1,5 +1,5 @@
 import { showMessage, Dialog } from "siyuan";
-import { getBlockByID, getBlockDOM, refreshSql, updateBindBlockAtrrs } from "../api";
+import { getBlockByID, getBlockDOM, refreshSql, updateBindBlockAtrrs, updateBlock } from "../api";
 import { compareDateStrings, getLogicalDateString, parseNaturalDateTime, autoDetectDateTimeFromTitle } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
 import { ProjectManager } from "../utils/projectManager";
@@ -975,14 +975,20 @@ export class QuickReminderDialog {
 
         if (!blockId) {
             preview.style.display = 'none';
+            const syncTitleContainer = this.dialog.element.querySelector('#quickSyncBlockTitleContainer') as HTMLElement;
+            if (syncTitleContainer) syncTitleContainer.style.display = 'none';
             return;
         }
 
         try {
-            const { getBlockByID } = await import("../api");
             const block = await getBlockByID(blockId);
+            const syncTitleContainer = this.dialog.element.querySelector('#quickSyncBlockTitleContainer') as HTMLElement;
 
             if (block) {
+                this.blockContent = block.content || '';
+                if (syncTitleContainer) {
+                    syncTitleContainer.style.display = this.blockContent ? 'block' : 'none';
+                }
                 content.innerHTML = `
                     <span style="font-weight: 500; margin-bottom: 4px; cursor: pointer; color: var(--b3-protyle-inline-blockref-color); border-bottom: 1px dashed var(--b3-protyle-inline-blockref-color); padding-bottom: 2px; max-width: 100%; word-wrap: break-word; overflow-wrap: break-word;" id="quickBlockPreviewHover">${(block.content || '无内容').length > 50 ? (block.content || '无内容').substring(0, 50) + '...' : (block.content || '无内容')}</span>
                     <div style="font-size: 12px; color: var(--b3-theme-on-surface-light);">
@@ -1024,12 +1030,15 @@ export class QuickReminderDialog {
                     });
                 }
             } else {
-                content.innerHTML = '<div style="color: var(--b3-theme-error);">块不存在</div>';
+                content.innerHTML = `<div style="color: var(--b3-theme-error);">${i18n("blockNotExist") || '块不存在'}</div>`;
                 preview.style.display = 'block';
+                if (syncTitleContainer) syncTitleContainer.style.display = 'none';
             }
         } catch (error) {
             console.error('获取块信息失败:', error);
             preview.style.display = 'none';
+            const syncTitleContainer = this.dialog.element.querySelector('#quickSyncBlockTitleContainer') as HTMLElement;
+            if (syncTitleContainer) syncTitleContainer.style.display = 'none';
         }
     }
 
@@ -1274,12 +1283,18 @@ export class QuickReminderDialog {
                                 </button>
                             </div>
                         </div>
-                        <div class="b3-form__group">
-                            <label class="b3-checkbox">
+                        <div class="b3-form__group" style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                            <label class="b3-checkbox" style="display: flex; align-items: center;">
                                 <input type="checkbox" class="b3-switch" id="quickPasteAutoDetect" ${this.autoDetectDateTime ? 'checked' : ''}>
                                 <span class="b3-checkbox__graphic"></span>
                                 <span class="b3-checkbox__label">${i18n("pasteAutoDetectDate") || "粘贴自动识别日期"}</span>
                             </label>
+                            <div id="quickSyncBlockTitleContainer" style="display: none;">
+                                <button type="button" id="quickSyncBlockTitleBtn" class="b3-button b3-button--outline b3-button--small" style="display: flex; align-items: center; gap: 4px; font-size: 12px; padding: 2px 8px;">
+                                    <svg style="width: 12px; height: 12px;"><use xlink:href="#iconRefresh"></use></svg>
+                                    <span>${i18n("syncBlockTitle") || '更新标题为绑定块内容'}</span>
+                                </button>
+                            </div>
                         </div>
                         <div class="b3-form__group">
                             <label class="b3-form__label">${i18n("reminderDate") || "日期时间"}</label>
@@ -1399,6 +1414,12 @@ export class QuickReminderDialog {
                         <!-- 块预览区域 -->
                         <div id="quickBlockPreview" style="margin-top: 8px; padding: 8px; background: var(--b3-theme-background-light); border: 1px solid var(--b3-border-color); border-radius: 4px; display: none;">
                             <div id="quickBlockPreviewContent" style="font-size: 13px; color: var(--b3-theme-on-surface);"></div>
+                            <div id="quickSyncTitleToBlockContainer" style="margin-top: 8px;">
+                                <button type="button" id="quickSyncTitleToBlockBtn" class="b3-button b3-button--outline b3-button--small" style="display: flex; align-items: center; gap: 4px; font-size: 12px; padding: 2px 8px;">
+                                    <svg style="width: 12px; height: 12px;"><use xlink:href="#iconRefresh"></use></svg>
+                                    <span>${i18n("syncTitleToBlock") || '更新绑定块内容为当前标题'}</span>
+                                </button>
+                            </div>
                         </div>
                         <!-- 网页链接输入 -->
                         <div class="b3-form__group">
@@ -2310,6 +2331,51 @@ export class QuickReminderDialog {
         const editAllInstancesBtn = this.dialog.element.querySelector('#quickEditAllInstancesBtn') as HTMLButtonElement;
         const viewPomodorosBtn = this.dialog.element.querySelector('#quickViewPomodorosBtn') as HTMLButtonElement;
         const durationInput = this.dialog.element.querySelector('#quickDurationDays') as HTMLInputElement;
+        const syncBlockTitleBtn = this.dialog.element.querySelector('#quickSyncBlockTitleBtn') as HTMLButtonElement;
+        const syncTitleToBlockBtn = this.dialog.element.querySelector('#quickSyncTitleToBlockBtn') as HTMLButtonElement;
+
+        // 更新标题为绑定块内容
+        syncBlockTitleBtn?.addEventListener('click', () => {
+            if (this.blockContent && titleInput) {
+                titleInput.value = this.blockContent.trim();
+                this.autoResizeTextarea(titleInput);
+                // 触发 input 事件以触发可能的联动（如自动日期识别）
+                titleInput.dispatchEvent(new Event('input'));
+                showMessage(i18n('reminderUpdated'));
+            }
+        });
+
+        // 更新绑定块内容为当前标题
+        syncTitleToBlockBtn?.addEventListener('click', async () => {
+            const blockInput = this.dialog.element.querySelector('#quickBlockInput') as HTMLInputElement;
+            const blockId = blockInput?.value?.trim();
+            const title = titleInput?.value?.trim();
+            if (blockId && title) {
+                try {
+                    // 获取当前块的 Markdown 以保留前缀（如 >, -, - [ ], 1. 等）
+                    const block = await getBlockByID(blockId);
+                    const originalMd = block?.markdown || '';
+
+                    // 匹配前缀正则：包含空格、嵌套列表、引用、任务列表、标题等
+                    // 注意：SiYuan 的任务列表在 SQL 的 markdown 字段中通常包含前缀
+                    const prefixMatch = originalMd.match(/^(\s*(?:#+\s+|>|[-*+]\s+\[(?: |x|X)\]|[-*+]|\d+\.)\s*)/);
+                    const prefix = prefixMatch ? prefixMatch[1] : '';
+
+                    const newMarkdown = prefix + title;
+
+                    await updateBlock("markdown", newMarkdown, blockId);
+                    await refreshSql(); // 强制刷新 SQL 索引以确保后续 getBlockByID 获取最新内容
+                    this.blockContent = title;
+                    await this.updateBlockPreview(blockId);
+                    showMessage(i18n('reminderUpdated'));
+                } catch (error) {
+                    console.error('更新块内容失败:', error);
+                    showMessage(i18n('updateFailed') || '更新失败', 3000, 'error');
+                }
+            } else {
+                showMessage(i18n('selectBlockFirst'), 3000, 'error');
+            }
+        });
 
         // 持续天数与日期的联动逻辑
         // 初始约束：结束日期不能早于开始日期
