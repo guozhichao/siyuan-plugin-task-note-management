@@ -1,6 +1,6 @@
-import { showMessage, confirm, Menu, Dialog } from "siyuan";
+import { showMessage, confirm, Menu, Dialog, Constants } from "siyuan";
 
-import { refreshSql, getBlockByID, updateBindBlockAtrrs, openBlock } from "../api";
+import { refreshSql, getBlockByID, updateBindBlockAtrrs, openBlock, addBlockProjectId } from "../api";
 import { i18n } from "../pluginInstance";
 import { getLocalDateString, getLocalDateTimeString, compareDateStrings, getLogicalDateString, getRelativeDateString } from "../utils/dateUtils";
 import { CategoryManager } from "../utils/categoryManager";
@@ -4286,7 +4286,12 @@ export class ProjectKanbanView {
 
     private addDropZoneEvents(element: HTMLElement, status: string) {
         element.addEventListener('dragover', (e) => {
+            const types = e.dataTransfer?.types || [];
+            const isSiYuanDrag = types.some(t => t.startsWith(Constants.SIYUAN_DROP_GUTTER)) ||
+                types.includes(Constants.SIYUAN_DROP_FILE) ||
+                types.includes(Constants.SIYUAN_DROP_TAB);
             const isExternalDrag = e.dataTransfer?.types.includes('application/x-reminder') || e.dataTransfer?.types.includes('text/plain');
+
             if (this.isDragging && this.draggedTask) {
                 // 检查是否可以改变状态或解除父子关系
                 const currentStatus = this.getTaskStatus(this.draggedTask);
@@ -4298,7 +4303,7 @@ export class ProjectKanbanView {
                     e.dataTransfer.dropEffect = 'move';
                     element.classList.add('kanban-drop-zone-active');
                 }
-            } else if (isExternalDrag) {
+            } else if (isExternalDrag || isSiYuanDrag) {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
                 element.classList.add('kanban-drop-zone-active');
@@ -4314,6 +4319,19 @@ export class ProjectKanbanView {
 
         element.addEventListener('drop', async (e) => {
             this.clearDropZoneHighlights();
+
+            // 检查思源拖拽
+            const types = e.dataTransfer?.types || [];
+            const isSiYuanDrag = types.some(t => t.startsWith(Constants.SIYUAN_DROP_GUTTER)) ||
+                types.includes(Constants.SIYUAN_DROP_FILE) ||
+                types.includes(Constants.SIYUAN_DROP_TAB);
+
+            if (isSiYuanDrag) {
+                e.preventDefault();
+                e.stopPropagation();
+                await this.handleDrop(e, status, null);
+                return;
+            }
 
             // 检查批量拖拽
             const multiData = e.dataTransfer?.getData('application/vnd.siyuan.kanban-tasks');
@@ -4360,7 +4378,12 @@ export class ProjectKanbanView {
      */
     private addCustomGroupDropZoneEvents(element: HTMLElement, groupId: string | null) {
         element.addEventListener('dragover', (e) => {
+            const types = e.dataTransfer?.types || [];
+            const isSiYuanDrag = types.some(t => t.startsWith(Constants.SIYUAN_DROP_GUTTER)) ||
+                types.includes(Constants.SIYUAN_DROP_FILE) ||
+                types.includes(Constants.SIYUAN_DROP_TAB);
             const isExternalDrag = e.dataTransfer?.types.includes('application/x-reminder') || e.dataTransfer?.types.includes('text/plain');
+
             if (this.isDragging && this.draggedTask) {
                 // 将 undefined 或字符串 'ungrouped' 视为 null，对比当前分组是否与目标一致
                 const currentGroupRaw = (this.draggedTask.customGroupId as any);
@@ -4372,7 +4395,7 @@ export class ProjectKanbanView {
                     if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
                     element.classList.add('kanban-drop-zone-active');
                 }
-            } else if (isExternalDrag) {
+            } else if (isExternalDrag || isSiYuanDrag) {
                 e.preventDefault();
                 if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
                 element.classList.add('kanban-drop-zone-active');
@@ -4388,6 +4411,20 @@ export class ProjectKanbanView {
 
         element.addEventListener('drop', async (e) => {
             this.clearDropZoneHighlights();
+
+            // 检查思源拖拽
+            const types = e.dataTransfer?.types || [];
+            const isSiYuanDrag = types.some(t => t.startsWith(Constants.SIYUAN_DROP_GUTTER)) ||
+                types.includes(Constants.SIYUAN_DROP_FILE) ||
+                types.includes(Constants.SIYUAN_DROP_TAB);
+
+            if (isSiYuanDrag) {
+                e.preventDefault();
+                e.stopPropagation();
+                // 在自定义分组列上放下，尝试使用之前的状态或默认状态
+                await this.handleDrop(e, this.lastSelectedStatus || 'short_term', groupId);
+                return;
+            }
 
             const multiData = e.dataTransfer?.getData('application/vnd.siyuan.kanban-tasks');
             if (multiData) {
@@ -4434,7 +4471,12 @@ export class ProjectKanbanView {
      */
     private addStatusSubGroupDropEvents(element: HTMLElement, targetStatus: string) {
         element.addEventListener('dragover', (e) => {
+            const types = e.dataTransfer?.types || [];
+            const isSiYuanDrag = types.some(t => t.startsWith(Constants.SIYUAN_DROP_GUTTER)) ||
+                types.includes(Constants.SIYUAN_DROP_FILE) ||
+                types.includes(Constants.SIYUAN_DROP_TAB);
             const isExternalDrag = e.dataTransfer?.types.includes('application/x-reminder') || e.dataTransfer?.types.includes('text/plain');
+
             if (this.isDragging && this.draggedTask) {
                 const currentStatus = this.getTaskStatus(this.draggedTask);
                 const statusGroup = element.closest('.custom-status-group') as HTMLElement;
@@ -4454,7 +4496,7 @@ export class ProjectKanbanView {
                     if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
                     element.classList.add('kanban-drop-zone-active');
                 }
-            } else if (isExternalDrag) {
+            } else if (isExternalDrag || isSiYuanDrag) {
                 e.preventDefault();
                 if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
                 element.classList.add('kanban-drop-zone-active');
@@ -4474,6 +4516,19 @@ export class ProjectKanbanView {
             if (statusGroup && statusGroup.dataset.groupId) {
                 const groupId = statusGroup.dataset.groupId;
                 targetGroupId = groupId === 'ungrouped' ? null : groupId;
+            }
+
+            // 检查思源拖拽
+            const types = e.dataTransfer?.types || [];
+            const isSiYuanDrag = types.some(t => t.startsWith(Constants.SIYUAN_DROP_GUTTER)) ||
+                types.includes(Constants.SIYUAN_DROP_FILE) ||
+                types.includes(Constants.SIYUAN_DROP_TAB);
+
+            if (isSiYuanDrag) {
+                e.preventDefault();
+                e.stopPropagation();
+                await this.handleDrop(e, targetStatus, targetGroupId || null);
+                return;
             }
 
             const multiData = e.dataTransfer?.getData('application/vnd.siyuan.kanban-tasks');
@@ -7300,6 +7355,11 @@ export class ProjectKanbanView {
 
     private addListSectionDropEvents(element: HTMLElement, type: 'unfinished' | 'finished', groupId: string | null) {
         element.addEventListener('dragover', (e) => {
+            const types = e.dataTransfer?.types || [];
+            const isSiYuanDrag = types.some(t => t.startsWith(Constants.SIYUAN_DROP_GUTTER)) ||
+                types.includes(Constants.SIYUAN_DROP_FILE) ||
+                types.includes(Constants.SIYUAN_DROP_TAB);
+
             e.preventDefault();
             e.dataTransfer!.dropEffect = 'move';
             if (this._columnDropIndicator && this._columnDropIndicator.parentNode) {
@@ -7317,6 +7377,18 @@ export class ProjectKanbanView {
             this.clearDropZoneHighlights();
             e.preventDefault();
             e.stopPropagation();
+
+            // 检查思源拖拽
+            const types = e.dataTransfer?.types || [];
+            const isSiYuanDrag = types.some(t => t.startsWith(Constants.SIYUAN_DROP_GUTTER)) ||
+                types.includes(Constants.SIYUAN_DROP_FILE) ||
+                types.includes(Constants.SIYUAN_DROP_TAB);
+
+            if (isSiYuanDrag) {
+                const status = type === 'finished' ? 'completed' : 'doing';
+                await this.handleDrop(e, status, groupId);
+                return;
+            }
 
             let taskId = '';
             const reminderPayload = e.dataTransfer?.getData('application/x-reminder');
@@ -9582,13 +9654,28 @@ export class ProjectKanbanView {
 
     private addTaskDragEvents(element: HTMLElement, task: any) {
         element.addEventListener('dragover', (e) => {
-            const isExternalDrag = e.dataTransfer?.types.includes('application/x-reminder') || e.dataTransfer?.types.includes('text/plain');
+            const types = e.dataTransfer?.types || [];
+            const isExternalDrag = e.dataTransfer?.types.includes('application/x-reminder') || e.dataTransfer?.types.includes('text/plain') ||
+                types.some(t => t.startsWith(Constants.SIYUAN_DROP_GUTTER)) || types.includes('application/vnd.siyuan-gutter') ||
+                types.includes(Constants.SIYUAN_DROP_FILE) || types.includes('application/vnd.siyuan-file') ||
+                types.includes(Constants.SIYUAN_DROP_TAB) || types.includes('application/vnd.siyuan-tab');
+
             if (isExternalDrag && !this.isDragging) {
-                // 允许外部拖拽冒泡
                 e.preventDefault();
+                e.dataTransfer!.dropEffect = 'move'; // Explicitly set dropEffect
+
+                // Draw external drop sort indicator
+                const rect = element.getBoundingClientRect();
+                const midPoint = rect.top + rect.height / 2;
+                if (e.clientY < midPoint) {
+                    this.updateIndicator('sort', element, 'top', e);
+                } else {
+                    this.updateIndicator('sort', element, 'bottom', e);
+                }
                 return;
             }
             if (!this.isDragging || !this.draggedTask || this.draggedTask.id === task.id) return;
+            // ... internal task drag logic ...
             // 仅允许子任务拖拽到父任务上边缘
             if (task.id === this.draggedTask.parentId) {
                 const rect = element.getBoundingClientRect();
@@ -9607,6 +9694,38 @@ export class ProjectKanbanView {
         });
 
         element.addEventListener('drop', async (e) => {
+            // Handle external drop on task (for sorting)
+            const types = e.dataTransfer?.types || [];
+            const isExternalDrag = e.dataTransfer?.types.includes('application/x-reminder') || e.dataTransfer?.types.includes('text/plain') ||
+                types.some(t => t.startsWith(Constants.SIYUAN_DROP_GUTTER)) || types.includes('application/vnd.siyuan-gutter') ||
+                types.includes(Constants.SIYUAN_DROP_FILE) || types.includes('application/vnd.siyuan-file') ||
+                types.includes(Constants.SIYUAN_DROP_TAB) || types.includes('application/vnd.siyuan-tab');
+
+            if (isExternalDrag && !this.isDragging) {
+                this.clearAllIndicators();
+                e.preventDefault();
+                e.stopPropagation();
+                // Determine sort position based on drop
+                // Logic delegates to handleDrop on the column/group/status which called this creation, or we handle it here if possible.
+                // However, external drop handling is currently in the container/column 'drop' event.
+                // But the 'drop' event bubbles. The column handler will catch it.
+                // To support sorting, we need to pass the target task info to handleDrop.
+                // We can attach the target info to the event object or use a shared state, 
+                // but since handleDrop is called by the container 'drop' listener, we can modify handleDrop to check for the drop target.
+
+                // Let's manually trigger handleDrop with target context
+                const rect = element.getBoundingClientRect();
+                const midPoint = rect.top + rect.height / 2;
+                const insertBefore = e.clientY < midPoint;
+
+                // Find parameters for handleDrop
+                const status = this.getTaskStatus(task);
+                const customGroupId = task.customGroupId;
+
+                await this.handleDrop(e, status, customGroupId, { targetTask: task, insertBefore });
+                return;
+            }
+
             if (!this.isDragging || !this.draggedTask || this.draggedTask.id === task.id) return;
             if (task.id === this.draggedTask.parentId) {
                 const rect = element.getBoundingClientRect();
@@ -14732,7 +14851,272 @@ export class ProjectKanbanView {
      * 触发reminderUpdated事件，带源标识
      * @param skipSelfUpdate 是否跳过自己的更新（默认true）
      */
+    private async handleDrop(event: DragEvent, status: string, customGroupId: string | null = null, options?: { targetTask?: any, insertBefore?: boolean }) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const dt = event.dataTransfer;
+        if (!dt) return;
+
+        let blockIds: string[] = [];
+        const types = Array.from(dt.types);
+
+        // helper to extract IDs from dragElement for file drops (handling multi-select)
+        const getIdsFromDragElement = () => {
+            const ele: HTMLElement = (window as any).siyuan?.dragElement;
+            if (ele && ele.innerText) {
+                const blockIdStr = ele.innerText;
+                return blockIdStr.split(',').map(id => id.trim()).filter(id => id && id !== '/');
+            }
+            return [];
+        };
+
+        const gutterType = types.find(t => t.startsWith(Constants.SIYUAN_DROP_GUTTER));
+        if (gutterType) {
+            const data = dt.getData(gutterType) || dt.getData(Constants.SIYUAN_DROP_GUTTER);
+            if (data) {
+                try {
+                    const parsed = JSON.parse(data);
+                    if (Array.isArray(parsed)) {
+                        blockIds = parsed.map(item => item.id);
+                    } else if (parsed && parsed.id) {
+                        blockIds = [parsed.id];
+                    }
+                } catch (e) {
+                    // Try parsing from the type string itself as fallback
+                    const meta = gutterType.replace(Constants.SIYUAN_DROP_GUTTER, '');
+                    const info = meta.split('\u200b'); // ZWSP
+                    if (info && info.length >= 3) {
+                        const blockIdStr = info[2];
+                        if (blockIdStr) {
+                            blockIds = blockIdStr.split(',').map(id => id.trim()).filter(id => id && id !== '/');
+                        }
+                    }
+                    if (blockIds.length === 0) {
+                        console.error('Parse SIYUAN_DROP_GUTTER failed', e);
+                    }
+                }
+            } else {
+                // No data but type matches, try parsing from the type string
+                const meta = gutterType.replace(Constants.SIYUAN_DROP_GUTTER, '');
+                const info = meta.split('\u200b'); // ZWSP
+                if (info && info.length >= 3) {
+                    const blockIdStr = info[2];
+                    if (blockIdStr) {
+                        blockIds = blockIdStr.split(',').map(id => id.trim()).filter(id => id && id !== '/');
+                    }
+                }
+            }
+        } else if (types.includes(Constants.SIYUAN_DROP_FILE)) {
+            // 优先尝试从 dragElement 获取ID，这对于多选拖拽更可靠
+            const idsFromEle = getIdsFromDragElement();
+            if (idsFromEle.length > 0) {
+                blockIds = idsFromEle;
+            } else {
+                const data = dt.getData(Constants.SIYUAN_DROP_FILE);
+                if (data) {
+                    try {
+                        const parsed = JSON.parse(data);
+                        if (Array.isArray(parsed)) {
+                            blockIds = parsed.map(item => item.id || item);
+                        } else if (parsed && parsed.id) {
+                            blockIds = [parsed.id];
+                        } else {
+                            if (typeof parsed === 'string') blockIds = [parsed];
+                        }
+                    } catch (e) {
+                        blockIds = [data];
+                    }
+                }
+            }
+        } else if (types.includes(Constants.SIYUAN_DROP_TAB)) {
+            const data = dt.getData(Constants.SIYUAN_DROP_TAB);
+            if (data) {
+                try {
+                    const parsed = JSON.parse(data);
+                    if (parsed && parsed.id) {
+                        blockIds = [parsed.id];
+                    } else if (typeof parsed === 'string') {
+                        blockIds = [parsed];
+                    }
+                } catch (e) {
+                    blockIds = [data];
+                }
+            }
+        }
+
+        if (blockIds.length > 0) {
+            // Calculate sort order if dropping onto a target task
+            let targetSortPercentage = 0; // default for no target
+            let useSort = false;
+            let targetPriority = 'none';
+
+            if (options?.targetTask) {
+                const targetTask = options.targetTask;
+                // If dropping onto a task, we might want to adopt its priority if it's not the default
+                if (targetTask.priority && targetTask.priority !== 'none') {
+                    targetPriority = targetTask.priority;
+                }
+
+                if (options.insertBefore) {
+                    // Insert before target task.
+                    // IMPORTANT: siblings must be sorted to match VISUAL order.
+                    // sortTasks logic:
+                    // DESC (default): Small sort value first -> sort by (a.sort - b.sort)
+                    // ASC: Large sort value first -> sort by (b.sort - a.sort)
+                    const siblings = this.tasks.filter(t =>
+                        this.getTaskStatus(t) === status &&
+                        (t.customGroupId || 'ungrouped') === (customGroupId || 'ungrouped')
+                    ).sort((a, b) => (this.currentSortOrder === 'asc' ? b.sort - a.sort : a.sort - b.sort));
+
+                    const targetIndex = siblings.findIndex(t => t.id === targetTask.id);
+                    if (targetIndex !== -1) {
+                        const targetSort = targetTask.sort;
+                        if (this.currentSortOrder === 'asc') {
+                            // In Priority-ASC mode, larger sort values actually appear visually BEFORE smaller ones.
+                            // So "Before" means LARGER.
+                            const prevTask = siblings[targetIndex - 1];
+                            const prevSort = prevTask ? prevTask.sort : targetSort + 2000;
+                            targetSortPercentage = (targetSort + prevSort) / 2;
+                        } else {
+                            // In Priority-DESC (default) mode, smaller sort values appear VISUALLY FIRST (on top).
+                            // So "Before" (above) means a SMALLER sort value. (Target - offset)
+                            const prevTask = siblings[targetIndex - 1]; // Visually above
+                            const prevSort = prevTask ? prevTask.sort : targetSort - 2000;
+                            targetSortPercentage = (targetSort + prevSort) / 2;
+                        }
+                        useSort = true;
+                    }
+                } else {
+                    // Insert After
+                    const siblings = this.tasks.filter(t =>
+                        this.getTaskStatus(t) === status &&
+                        (t.customGroupId || 'ungrouped') === (customGroupId || 'ungrouped')
+                    ).sort((a, b) => (this.currentSortOrder === 'asc' ? b.sort - a.sort : a.sort - b.sort));
+
+                    const targetIndex = siblings.findIndex(t => t.id === targetTask.id);
+                    if (targetIndex !== -1) {
+                        const targetSort = targetTask.sort;
+                        if (this.currentSortOrder === 'asc') {
+                            // In ASC, After means SMALLER
+                            const nextTask = siblings[targetIndex + 1];
+                            const nextSort = nextTask ? nextTask.sort : targetSort - 2000;
+                            targetSortPercentage = (targetSort + nextSort) / 2;
+                        } else {
+                            // In DESC (default), After (below) means LARGER sort value.
+                            const nextTask = siblings[targetIndex + 1];
+                            const nextSort = nextTask ? nextTask.sort : targetSort + 2000;
+                            targetSortPercentage = (targetSort + nextSort) / 2;
+                        }
+                        useSort = true;
+                    }
+                }
+            }
+
+            // Iterate and add/update
+            // If multiple items, we need to distribute their sort values so they appear in order
+            let currentSort = useSort ? targetSortPercentage : 0;
+            // In DESC (default): top=smaller, bottom=larger. To keep dropped items in order (1, 2, 3), 
+            // each subsequent item needs a LARGER sort value. So sortStep = +10.
+            const sortStep = (this.currentSortOrder === 'asc' ? -10 : 10); // Spacing
+
+            // Reverse blockIds if we are inserting 'before' in DESC mode or 'after' in ASC mode?
+            // Dragging multiple items usually keeps their relative order.
+            // If we calculate `currentSort` as the starting point, we should increment/decrement for subsequent items.
+
+            for (let i = 0; i < blockIds.length; i++) {
+                const id = blockIds[i];
+                const itemSort = useSort ? (currentSort + (i * sortStep)) : undefined; // distribute
+                await this.addItemByBlockId(id, status, customGroupId, itemSort, targetPriority);
+            }
+            // Explicitly reload to ensure UI reflects new tasks
+            this.dispatchReminderUpdate(true);
+
+            // Immediate UI update sequence
+            this.sortTasks();
+            this.renderKanban();
+
+            // Sync with storage fully
+            this.queueLoadTasks();
+
+            showMessage(i18n('taskCreated') || '任务已创建');
+        }
+    }
+
+    private async addItemByBlockId(blockId: string, status: string, customGroupId: string | null = null, sort?: number, priority: string = 'none') {
+        if (!blockId) return;
+        try {
+            await refreshSql();
+            const block = await getBlockByID(blockId);
+            if (!block) {
+                // Since this might happen in loop, just log warn to avoid spamming UI
+                console.warn(`Block ${blockId} not found`);
+                return;
+            }
+
+            const reminderData = await this.plugin.loadReminderData();
+
+            // Check if already bound
+            const existingReminder = Object.values(reminderData).find((r: any) => r && r.blockId === blockId && r.projectId === this.projectId);
+            if (existingReminder) {
+                // If exists in same project, just update its status and group
+                const updates: any = {
+                    kanbanStatus: status,
+                    customGroupId: customGroupId,
+                    projectId: this.projectId
+                };
+                if (sort !== undefined) updates.sort = sort;
+                if (priority !== 'none') updates.priority = priority;
+
+                await this.batchUpdateTasks([(existingReminder as any).id], updates);
+                // showMessage(i18n('taskUpdated') || '任务已更新');
+                return;
+            }
+
+            const reminderId = window.Lute?.NewNodeID?.() || `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+            let title = block.content || i18n('unnamedNote') || '未命名任务';
+            if (title.length > 100) title = title.substring(0, 100) + '...';
+
+            const newReminder: any = {
+                id: reminderId,
+                title: title.trim(),
+                blockId: blockId,
+                docId: block.root_id || (block.type === 'd' ? block.id : null),
+                projectId: this.projectId,
+                categoryId: this.project?.categoryId || undefined,
+                kanbanStatus: status,
+                customGroupId: customGroupId,
+                priority: priority,
+                createdAt: new Date().toISOString(),
+                createdTime: new Date().toISOString(),
+                completed: status === 'completed',
+                sort: sort !== undefined ? sort : ((this.tasks.reduce((max, t) => Math.max(max, t.sort || 0), 0)) + 10)
+            };
+
+            reminderData[reminderId] = newReminder;
+            await this.plugin.saveReminderData(reminderData);
+
+            // Update local cache to prevent task disappearing on next loadTasks
+            if (!this.reminderData) {
+                this.reminderData = reminderData;
+            } else {
+                this.reminderData[reminderId] = newReminder;
+            }
+
+            await updateBindBlockAtrrs(blockId, this.plugin);
+            await addBlockProjectId(blockId, this.projectId);
+
+            this.tasks.push(newReminder);
+            // Don't full sort here, we handle bulk refresh later or queueLoadTasks will do it
+        } catch (error) {
+            console.error('addItemByBlockId failed:', error);
+            showMessage(i18n('createFailed') || '创建失败', 3000, 'error');
+        }
+    }
+
     private dispatchReminderUpdate(skipSelfUpdate: boolean = true) {
+
         window.dispatchEvent(new CustomEvent('reminderUpdated', {
             detail: {
                 source: skipSelfUpdate ? this.kanbanInstanceId : null,
