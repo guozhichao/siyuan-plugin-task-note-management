@@ -1,4 +1,4 @@
-import { showMessage, confirm, Dialog, Menu } from "siyuan";
+import { showMessage, confirm, Dialog, Menu, Constants } from "siyuan";
 import { refreshSql, sql, getBlockKramdown, getBlockByID, updateBindBlockAtrrs, openBlock } from "../api";
 import { getLocalDateString, compareDateStrings, getLocalDateTimeString, getLogicalDateString, getRelativeDateString } from "../utils/dateUtils";
 import { loadSortConfig, saveSortConfig, getSortMethodName } from "../utils/sortConfig";
@@ -4344,6 +4344,9 @@ export class ReminderPanel {
                         time: reminder.time || null,
                         endDate: reminder.endDate || null,
                         endTime: reminder.endTime || null,
+                        priority: reminder.priority || 'none',
+                        projectId: reminder.projectId || null,
+                        categoryId: reminder.categoryId || null,
                         durationMinutes: (() => {
                             try {
                                 if (reminder.time && reminder.endTime) {
@@ -4428,12 +4431,22 @@ export class ReminderPanel {
     // 容器拖拽事件：处理外部拖入（如从看板拖入）
     private addContainerDragEvents() {
         this.remindersContainer.addEventListener('dragover', (e) => {
-            // 仅处理外部拖拽（内部拖拽有专门的处理逻辑）且当前视图支持放置
-            if (!this.isDragging && !this.draggedElement && e.dataTransfer?.types.includes('application/x-reminder')) {
-                // 仅允许在 "今天" 和 "明天" 视图中放置
-                if (['today', 'tomorrow'].includes(this.currentTab)) {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
+            const types = e.dataTransfer?.types || [];
+            const isSiYuanDrag = Array.from(types).some(t => t.startsWith(Constants.SIYUAN_DROP_GUTTER)) ||
+                types.includes(Constants.SIYUAN_DROP_FILE) ||
+                types.includes(Constants.SIYUAN_DROP_TAB);
+            const isInternalDrag = types.includes('application/x-reminder');
+
+            if (!this.isDragging && !this.draggedElement && (isSiYuanDrag || isInternalDrag)) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+
+                const targetElement = (e.target as HTMLElement).closest('.reminder-item') as HTMLElement;
+                if (targetElement) {
+                    this.showDropIndicator(targetElement, e);
+                    this.remindersContainer.classList.remove('drag-over-active');
+                } else {
+                    this.hideDropIndicator();
                     this.remindersContainer.classList.add('drag-over-active');
                 }
             }
@@ -4444,65 +4457,347 @@ export class ReminderPanel {
         });
 
         this.remindersContainer.addEventListener('drop', async (e) => {
+            this.hideDropIndicator();
             this.remindersContainer.classList.remove('drag-over-active');
 
-            // 仅处理外部拖拽
+            // 获取拖拽目标信息（用于排序）
+            const targetElement = (e.target as HTMLElement).closest('.reminder-item') as HTMLElement;
+            let targetInfo: { id: string, isBefore: boolean } | undefined = undefined;
+            if (targetElement) {
+                const rect = targetElement.getBoundingClientRect();
+                const isBefore = e.clientY < rect.top + rect.height / 2;
+                const targetId = targetElement.dataset.reminderId;
+                if (targetId) {
+                    targetInfo = { id: targetId, isBefore };
+                }
+            }
+
+            // 处理内部拖拽 (application/x-reminder)
             if (!this.isDragging && !this.draggedElement && e.dataTransfer?.types.includes('application/x-reminder')) {
                 e.preventDefault();
-
-                // 检查视图有效性
-                if (!['today', 'tomorrow'].includes(this.currentTab)) {
-                    return;
-                }
-
                 try {
                     const dataStr = e.dataTransfer.getData('application/x-reminder');
                     if (!dataStr) return;
 
                     const data = JSON.parse(dataStr);
                     const taskId = data.id;
-
                     if (!taskId) return;
 
-                    // 计算目标日期
-                    let targetDate = '';
-                    if (this.currentTab === 'today') {
-                        targetDate = getLogicalDateString();
-                    } else if (this.currentTab === 'tomorrow') {
-                        targetDate = getRelativeDateString(1);
-                    }
+                    // 计算目标属性
+                    const { defaultDate, defaultEndDate, defaultCategoryId, defaultProjectId, defaultPriority } = await this.getFilterAttributes();
 
-                    if (!targetDate) return;
+                    // 如果有默认属性，则更新任务
+                    if (defaultDate || defaultProjectId || defaultPriority || defaultCategoryId) {
+                        const reminderData = await getAllReminders(this.plugin);
+                        const reminder = reminderData[taskId];
+                        if (reminder) {
+                            let changed = false;
 
-                    // 执行更新
-                    const reminderData = await getAllReminders(this.plugin);
-                    const reminder = reminderData[taskId];
+                            // Date
+                            if (defaultDate && reminder.date !== defaultDate) {
+                                reminder.date = defaultDate;
+                                changed = true;
+                            }
+                            if (defaultEndDate && reminder.endDate !== defaultEndDate) {
+                                reminder.endDate = defaultEndDate;
+                                changed = true;
+                            } else if (defaultDate && !defaultEndDate && reminder.endDate) {
+                                // If setting to a single day (defaultEndDate empty), clear endDate if it exists
+                                delete reminder.endDate;
+                                changed = true;
+                            }
 
-                    if (reminder) {
-                        // 如果日期发生变化，则更新
-                        if (reminder.date !== targetDate) {
-                            reminder.date = targetDate;
-                            // 保持原有时间，或者如果是全天任务则保持全天
-                            // 如果原任务没有时间，这里也不添加时间
+                            // Priority
+                            if (defaultPriority && (reminder.priority || 'none') !== defaultPriority) {
+                                reminder.priority = defaultPriority;
+                                changed = true;
+                            }
 
-                            await saveReminders(this.plugin, reminderData);
+                            // Project
+                            if (defaultProjectId && reminder.projectId !== defaultProjectId) {
+                                reminder.projectId = defaultProjectId;
+                                changed = true;
+                            }
 
-                            // 刷新界面
-                            // 通知其他组件
-                            window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
-                            await this.loadReminders();
-                            showMessage(i18n("reminderUpdated") || "任务已更新");
+                            // Category
+                            if (defaultCategoryId && reminder.categoryId !== defaultCategoryId) {
+                                reminder.categoryId = defaultCategoryId;
+                                changed = true;
+                            }
+
+                            // Support sorting for internal drag if dropped on an item
+                            if (targetInfo) {
+                                // Resolve target reminder (including instances)
+                                const targetRem = this.currentRemindersCache.find(r => r.id === targetInfo.id);
+                                if (targetRem) {
+                                    // If target has specific priority and we didn't force one from filter, adopt target's priority?
+                                    // User request: "based on current filters".
+                                    // But typically dropping ON an item implies sorting.
+                                    // If we conform to filter, we might conflict with target item's group if filter is 'all'?
+                                    // Let's stick to filter first. If filter didn't specify priority, maybe use target's?
+                                    if (!defaultPriority) {
+                                        const targetPriority = targetRem.priority || 'none';
+                                        if ((reminder.priority || 'none') !== targetPriority) {
+                                            reminder.priority = targetPriority;
+                                            changed = true;
+                                        }
+                                    }
+
+                                    if (changed) {
+                                        await saveReminders(this.plugin, reminderData);
+                                        // Reset changed flag because we just saved
+                                        changed = false;
+                                    }
+
+                                    await this.reorderReminders(reminder, targetRem, targetInfo.isBefore, reminderData);
+                                }
+                            }
+
+                            if (changed) {
+                                await saveReminders(this.plugin, reminderData);
+                                window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
+                                await this.loadReminders();
+                                showMessage(i18n("reminderUpdated") || "任务已更新");
+                            }
                         }
-                    } else {
-                        showMessage(i18n("reminderNotExist"));
                     }
-
+                    // 如果不在特定日期视图（如全部、逾期等），仅允许拖拽（可能用于排序，但此处未实现跨列表排序逻辑，暂不操作）
+                    // 用户需求是"不限制视图"，所以解除之前的 return 限制即可。
                 } catch (error) {
                     console.error('处理拖放失败:', error);
                     showMessage(i18n("operationFailed"));
                 }
+                return;
+            }
+
+            // 处理思源内部拖拽 (Gutter, File, Tab)
+            const types = e.dataTransfer?.types || [];
+            if (Array.from(types).some(t => t.startsWith(Constants.SIYUAN_DROP_GUTTER)) ||
+                types.includes(Constants.SIYUAN_DROP_FILE) ||
+                types.includes(Constants.SIYUAN_DROP_TAB)) {
+
+                e.preventDefault();
+                const dt = e.dataTransfer;
+                let blockIds: string[] = [];
+
+                // 解析拖拽数据
+                const gutterType = Array.from(types).find(t => t.startsWith(Constants.SIYUAN_DROP_GUTTER));
+                if (gutterType) {
+                    const data = dt.getData(gutterType) || dt.getData(Constants.SIYUAN_DROP_GUTTER);
+                    if (data) {
+                        try {
+                            const parsed = JSON.parse(data);
+                            if (Array.isArray(parsed)) blockIds = parsed.map(item => item.id);
+                            else if (parsed && parsed.id) blockIds = [parsed.id];
+                        } catch (e) {
+                            const meta = gutterType.replace(Constants.SIYUAN_DROP_GUTTER, '');
+                            const info = meta.split('\u200b');
+                            if (info && info.length >= 3) {
+                                const idStr = info[2];
+                                if (idStr) blockIds = idStr.split(',').map(id => id.trim()).filter(id => id && id !== '/');
+                            }
+                        }
+                    } else {
+                        // 尝试从类型字符串解析
+                        const meta = gutterType.replace(Constants.SIYUAN_DROP_GUTTER, '');
+                        const info = meta.split('\u200b');
+                        if (info && info.length >= 3) {
+                            const idStr = info[2];
+                            if (idStr) blockIds = idStr.split(',').map(id => id.trim()).filter(id => id && id !== '/');
+                        }
+                    }
+                } else if (types.includes(Constants.SIYUAN_DROP_FILE)) {
+                    const ele: HTMLElement = (window as any).siyuan?.dragElement;
+                    if (ele && ele.innerText) {
+                        blockIds = ele.innerText.split(',').map(id => id.trim()).filter(id => id && id !== '/');
+                    }
+                    if (blockIds.length === 0) {
+                        const data = dt.getData(Constants.SIYUAN_DROP_FILE);
+                        if (data) {
+                            try {
+                                const parsed = JSON.parse(data);
+                                if (Array.isArray(parsed)) blockIds = parsed.map(item => item.id || item);
+                                else if (parsed && parsed.id) blockIds = [parsed.id];
+                                else if (typeof parsed === 'string') blockIds = [parsed];
+                            } catch (e) { blockIds = [data]; }
+                        }
+                    }
+                } else if (types.includes(Constants.SIYUAN_DROP_TAB)) {
+                    const data = dt.getData(Constants.SIYUAN_DROP_TAB);
+                    if (data) {
+                        try {
+                            const parsed = JSON.parse(data);
+                            if (parsed && parsed.id) blockIds = [parsed.id];
+                            else if (typeof parsed === 'string') blockIds = [parsed];
+                        } catch (e) { blockIds = [data]; }
+                    }
+                }
+
+                if (blockIds.length > 0) {
+                    for (const bid of blockIds) {
+                        await this.addItemByBlockId(bid, targetInfo);
+                    }
+                    // 刷新列表
+                    window.dispatchEvent(new CustomEvent('reminderUpdated', { detail: { source: this.panelId } }));
+                    await this.loadReminders();
+                }
             }
         });
+    }
+
+
+
+    private async addItemByBlockId(blockId: string, targetInfo?: { id: string, isBefore: boolean }) {
+        try {
+            const block = await getBlockByID(blockId);
+            if (!block) return;
+
+            const reminderData = await getAllReminders(this.plugin);
+            const { defaultDate, defaultEndDate, defaultCategoryId, defaultProjectId, defaultPriority } = await this.getFilterAttributes();
+
+            // 不需要去重，直接创建新任务
+
+            const reminderId = window.Lute?.NewNodeID?.() || `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            let title = block.content || i18n('unnamedNote') || '未命名任务';
+            if (title.length > 100) title = title.substring(0, 100) + '...';
+
+            const newReminder: any = {
+                id: reminderId,
+                title: title.trim(),
+                blockId: blockId,
+                docId: block.root_id || (block.type === 'd' ? block.id : null),
+                date: defaultDate || getLogicalDateString(), // 默认为今天
+                endDate: defaultEndDate || undefined,
+                time: '', // 默认不设置时间
+                categoryId: defaultCategoryId,
+                projectId: defaultProjectId,
+                priority: defaultPriority,
+                createdAt: new Date().toISOString(),
+                createdTime: new Date().toISOString(),
+                completed: false
+            };
+
+            // 如果是“明天”视图，设置为明天
+            // (已在 getFilterAttributes 中处理)
+            // if (this.currentTab === 'tomorrow') {
+            //     newReminder.date = getRelativeDateString(1);
+            // }
+
+            // Apply priority from target if available (handling repeating instances via cache)
+            let targetRemObject = null;
+            if (targetInfo) {
+                targetRemObject = this.currentRemindersCache.find(r => r.id === targetInfo.id);
+                if (targetRemObject) {
+                    newReminder.priority = targetRemObject.priority || 'none';
+                }
+            }
+
+            reminderData[reminderId] = newReminder;
+
+            // Apply sorting if target exists, otherwise just save
+            // We pass reminderData to reorderReminders to avoid stale data issues (since we just added the new item but haven't saved yet)
+            if (targetInfo && targetRemObject) {
+                await this.reorderReminders(newReminder, targetRemObject, targetInfo.isBefore, reminderData);
+            } else {
+                await saveReminders(this.plugin, reminderData);
+            }
+
+            // Update block attributes after saving so the reminder exists
+            await updateBindBlockAtrrs(blockId, this.plugin);
+        } catch (error) {
+            console.error('addItemByBlockId failed:', error);
+            showMessage(i18n('createFailed') || '创建失败');
+        }
+    }
+
+    private async getFilterAttributes() {
+        let defaultDate = '';
+        let defaultEndDate = '';
+        let defaultCategoryId: string | undefined = undefined;
+        let defaultProjectId: string | undefined = undefined;
+        let defaultPriority: string | undefined = undefined;
+
+        // 1. 处理日期 Tab
+        if (this.currentTab === 'today') {
+            defaultDate = getLogicalDateString();
+        } else if (this.currentTab === 'tomorrow') {
+            defaultDate = getRelativeDateString(1);
+        } else if (this.currentTab === 'thisWeek') {
+            const today = getLogicalDateString();
+            const todayDate = new Date(today + 'T00:00:00');
+            const day = todayDate.getDay();
+            const offsetToMonday = (day + 6) % 7;
+            const weekStartDate = new Date(todayDate);
+            weekStartDate.setDate(weekStartDate.getDate() - offsetToMonday);
+            const weekEndDate = new Date(weekStartDate);
+            weekEndDate.setDate(weekEndDate.getDate() + 6);
+
+            defaultDate = getLocalDateString(weekStartDate);
+            defaultEndDate = getLocalDateString(weekEndDate);
+        } else if (this.currentTab === 'future7') {
+            defaultDate = getRelativeDateString(1);
+            defaultEndDate = getRelativeDateString(7);
+        } else if (['futureAll', 'all', 'completed', 'overdue'].includes(this.currentTab)) {
+            // 对于这些宽泛视图，默认使用今天
+            defaultDate = getLogicalDateString();
+        }
+
+        // 2. 处理分类筛选
+        if (this.currentCategoryFilter && this.currentCategoryFilter !== 'all' && this.currentCategoryFilter !== 'none') {
+            defaultCategoryId = this.currentCategoryFilter;
+        }
+
+        // 3. 处理自定义过滤器
+        if (this.currentTab.startsWith('custom_')) {
+            const filterId = this.currentTab.replace('custom_', '');
+            const filter = this.getCustomFilterConfig(filterId);
+            if (filter) {
+                // Priority
+                if (filter.priorityFilters && filter.priorityFilters.length === 1 && filter.priorityFilters[0] !== 'all') {
+                    defaultPriority = filter.priorityFilters[0];
+                }
+
+                // Project
+                if (filter.projectFilters && filter.projectFilters.length === 1 && filter.projectFilters[0] !== 'all' && filter.projectFilters[0] !== 'none') {
+                    defaultProjectId = filter.projectFilters[0];
+                }
+
+                // Category
+                if (filter.categoryFilters && filter.categoryFilters.length === 1 && filter.categoryFilters[0] !== 'all' && filter.categoryFilters[0] !== 'none') {
+                    defaultCategoryId = filter.categoryFilters[0];
+                }
+
+                // Date
+                if (filter.dateFilters && filter.dateFilters.length > 0) {
+                    const df = filter.dateFilters[0];
+                    if (df.type === 'today') defaultDate = getLogicalDateString();
+                    else if (df.type === 'tomorrow') defaultDate = getRelativeDateString(1);
+                    else if (df.type === 'custom_range' && df.startDate && df.endDate) {
+                        defaultDate = df.startDate;
+                        defaultEndDate = df.endDate;
+                    } else if (df.type === 'this_week') {
+                        const today = getLogicalDateString();
+                        const todayDate = new Date(today + 'T00:00:00');
+                        const day = todayDate.getDay();
+                        const offsetToMonday = (day + 6) % 7;
+                        const weekStartDate = new Date(todayDate);
+                        weekStartDate.setDate(weekStartDate.getDate() - offsetToMonday);
+                        const weekEndDate = new Date(weekStartDate);
+                        weekEndDate.setDate(weekEndDate.getDate() + 6);
+                        defaultDate = getLocalDateString(weekStartDate);
+                        defaultEndDate = getLocalDateString(weekEndDate);
+                    } else if (df.type === 'next_7_days') {
+                        defaultDate = getLogicalDateString(); // Start today or tomorrow? definition varies. usually "Next 7 days" includes today in some contexts, or starts tomorrow. 
+                        // applyDateFilters uses: compareDateStrings(next7Start, today) >= 0 && compareDateStrings(next7Start, future7Days) <= 0;
+                        // So it is Today to Today+7
+                        defaultDate = getLogicalDateString();
+                        defaultEndDate = getRelativeDateString(7);
+                    }
+                }
+            }
+        }
+
+        return { defaultDate, defaultEndDate, defaultCategoryId, defaultProjectId, defaultPriority };
     }
 
     // 新增:移除父子关系
@@ -5039,9 +5334,9 @@ export class ReminderPanel {
     }
 
     // 新增：重新排序提醒（支持重复实例）
-    private async reorderReminders(draggedReminder: any, targetReminder: any, insertBefore: boolean) {
+    private async reorderReminders(draggedReminder: any, targetReminder: any, insertBefore: boolean, providedReminderData?: any) {
         try {
-            const reminderData = await getAllReminders(this.plugin);
+            const reminderData = providedReminderData || await getAllReminders(this.plugin);
 
             // 判断是否为重复实例
             const isDraggedInstance = draggedReminder.isRepeatInstance || draggedReminder.id.includes('_');
