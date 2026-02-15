@@ -4,7 +4,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import multiMonthPlugin from '@fullcalendar/multimonth';
 import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
-import { showMessage, confirm, openTab, Menu, Dialog } from "siyuan";
+import { showMessage, confirm, openTab, Menu, Dialog, Constants } from "siyuan";
 import { refreshSql, getBlockByID, sql, updateBlock, getBlockKramdown, updateBindBlockAtrrs, openBlock } from "../api";
 import { getLocalDateString, getLocalDateTime, getLocalDateTimeString, compareDateStrings, getLogicalDateString, getRelativeDateString, getDayStartAdjustedDate } from "../utils/dateUtils";
 import { QuickReminderDialog } from "./QuickReminderDialog";
@@ -1448,13 +1448,21 @@ export class CalendarView {
         // 支持从提醒面板将任务拖拽到日历上以调整任务时间
         // 接受 mime-type: 'application/x-reminder' (JSON) 或纯文本 reminder id
         calendarEl.addEventListener('dragover', (e: DragEvent) => {
-            e.preventDefault();
-            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-            // 更新并显示放置指示器
-            try {
-                this.updateDropIndicator(e.clientX, e.clientY, calendarEl);
-            } catch (err) {
-                // ignore
+            const types = e.dataTransfer?.types || [];
+            const isSiYuanDrag = Array.from(types).some(t => t.startsWith(Constants.SIYUAN_DROP_GUTTER)) ||
+                types.includes(Constants.SIYUAN_DROP_FILE) ||
+                types.includes(Constants.SIYUAN_DROP_TAB);
+            const isExternalDrag = e.dataTransfer?.types.includes('application/x-reminder') || e.dataTransfer?.types.includes('text/plain');
+
+            if (isSiYuanDrag || isExternalDrag) {
+                e.preventDefault();
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                // 更新并显示放置指示器
+                try {
+                    this.updateDropIndicator(e.clientX, e.clientY, calendarEl);
+                } catch (err) {
+                    // ignore
+                }
             }
         });
 
@@ -1471,21 +1479,77 @@ export class CalendarView {
                 const dt = e.dataTransfer;
                 if (!dt) return;
 
-                let payloadStr = dt.getData('application/x-reminder') || dt.getData('text/plain') || '';
-                if (!payloadStr) return;
+                const types = Array.from(dt.types);
+                let blockIds: string[] = [];
 
-                let payload: any;
-                try {
-                    payload = JSON.parse(payloadStr);
-                } catch (err) {
-                    // 如果只是 id 字符串
-                    payload = { id: payloadStr };
+                // 1. 处理思源内部拖拽 (Gutter, File, Tab)
+                const gutterType = types.find(t => t.startsWith(Constants.SIYUAN_DROP_GUTTER));
+                if (gutterType) {
+                    const data = dt.getData(gutterType) || dt.getData(Constants.SIYUAN_DROP_GUTTER);
+                    if (data) {
+                        try {
+                            const parsed = JSON.parse(data);
+                            if (Array.isArray(parsed)) blockIds = parsed.map(item => item.id);
+                            else if (parsed && parsed.id) blockIds = [parsed.id];
+                        } catch (e) {
+                            const meta = gutterType.replace(Constants.SIYUAN_DROP_GUTTER, '');
+                            const info = meta.split('\u200b');
+                            if (info && info.length >= 3) {
+                                const idStr = info[2];
+                                if (idStr) blockIds = idStr.split(',').map(id => id.trim()).filter(id => id && id !== '/');
+                            }
+                        }
+                    } else {
+                        const meta = gutterType.replace(Constants.SIYUAN_DROP_GUTTER, '');
+                        const info = meta.split('\u200b');
+                        if (info && info.length >= 3) {
+                            const idStr = info[2];
+                            if (idStr) blockIds = idStr.split(',').map(id => id.trim()).filter(id => id && id !== '/');
+                        }
+                    }
+                } else if (types.includes(Constants.SIYUAN_DROP_FILE)) {
+                    const ele: HTMLElement = (window as any).siyuan?.dragElement;
+                    if (ele && ele.innerText) {
+                        blockIds = ele.innerText.split(',').map(id => id.trim()).filter(id => id && id !== '/');
+                    }
+                    if (blockIds.length === 0) {
+                        const data = dt.getData(Constants.SIYUAN_DROP_FILE);
+                        if (data) {
+                            try {
+                                const parsed = JSON.parse(data);
+                                if (Array.isArray(parsed)) blockIds = parsed.map(item => item.id || item);
+                                else if (parsed && parsed.id) blockIds = [parsed.id];
+                                else if (typeof parsed === 'string') blockIds = [parsed];
+                            } catch (e) { blockIds = [data]; }
+                        }
+                    }
+                } else if (types.includes(Constants.SIYUAN_DROP_TAB)) {
+                    const data = dt.getData(Constants.SIYUAN_DROP_TAB);
+                    if (data) {
+                        try {
+                            const parsed = JSON.parse(data);
+                            if (parsed && parsed.id) blockIds = [parsed.id];
+                            else if (typeof parsed === 'string') blockIds = [parsed];
+                        } catch (e) { blockIds = [data]; }
+                    }
                 }
 
-                const reminderId = payload.id;
-                if (!reminderId) return;
+                // 2. 处理已有提醒拖拽 (提醒面板拖入)
+                let reminderId = '';
+                if (blockIds.length === 0) {
+                    let payloadStr = dt.getData('application/x-reminder') || dt.getData('text/plain') || '';
+                    if (!payloadStr) return;
+                    try {
+                        const payload = JSON.parse(payloadStr);
+                        reminderId = payload.id;
+                    } catch (err) {
+                        reminderId = payloadStr;
+                    }
+                }
 
-                // 找到放置位置对应的日期（通过坐标查找所有带 data-date 的元素）
+                if (blockIds.length === 0 && !reminderId) return;
+
+                // 找到放置位置对应的日期
                 const pointX = e.clientX;
                 const pointY = e.clientY;
                 const dateEls = Array.from(calendarEl.querySelectorAll('[data-date]')) as HTMLElement[];
@@ -1577,7 +1641,7 @@ export class CalendarView {
                     isAllDay = true;
                 }
 
-                const durationMinutes = payload.durationMinutes || 60;
+                const durationMinutes = 60; // Default duration for new events
                 let endDate: Date;
                 if (isAllDay) {
                     // 对于全天事件，FullCalendar 要求 end 为排他日期（next day midnight）
@@ -1589,8 +1653,15 @@ export class CalendarView {
                     endDate = this.snapToMinutes(endDate, 5);
                 }
 
-                // 使用已有的方法更新提醒时间（复用现有逻辑）
-                await this.updateEventTime(reminderId, { event: { start: startDate, end: endDate, allDay: isAllDay } }, false);
+                if (reminderId) {
+                    // 更新已有提醒
+                    await this.updateEventTime(reminderId, { event: { start: startDate, end: endDate, allDay: isAllDay } }, false);
+                } else if (blockIds.length > 0) {
+                    // 创建新任务
+                    for (const bid of blockIds) {
+                        await this.addItemByBlockId(bid, startDate, isAllDay);
+                    }
+                }
 
                 // 通知全局提醒更新，触发 ReminderPanel 刷新
                 try {
@@ -3420,7 +3491,7 @@ export class CalendarView {
         // 2. 最后一次同步释放点（即使失败也不影响后续清理）
         if (info && info.jsEvent) {
             try {
-                // 注意：此时 isLocked 还是 false，允许最后一次更新位置
+                // 注意：此时 isLocked 是 false，允许最后一次更新位置
                 this.handleAllDayDragMove(info.jsEvent);
             } catch (err) {
                 console.warn('Final drag sync failed:', err);
@@ -7212,10 +7283,46 @@ export class CalendarView {
         }
     }
 
-    /**
-     * 应用周开始日设置到日历
-     */
+    private async addItemByBlockId(blockId: string, startDate: Date, isAllDay: boolean) {
+        try {
+            const block = await getBlockByID(blockId);
+            if (!block) return;
 
+            const reminderData = await getAllReminders(this.plugin);
+            const dateStr = getLocalDateString(startDate);
+            const timeStr = isAllDay ? "" : startDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+            const reminderId = window.Lute?.NewNodeID?.() || `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            let title = block.content || i18n('unnamedNote') || '未命名任务';
+            if (title.length > 100) title = title.substring(0, 100) + '...';
+
+            const newReminder: any = {
+                id: reminderId,
+                title: title.trim(),
+                blockId: blockId,
+                docId: block.root_id || (block.type === 'd' ? block.id : null),
+                date: dateStr,
+                time: timeStr,
+                createdAt: new Date().toISOString(),
+                createdTime: new Date().toISOString(),
+                completed: false
+            };
+
+            reminderData[reminderId] = newReminder;
+            await saveReminders(this.plugin, reminderData);
+            await updateBindBlockAtrrs(blockId, this.plugin);
+        } catch (error) {
+            console.error('addItemByBlockId failed:', error);
+            showMessage(i18n('createFailed') || '创建失败');
+        }
+    }
+
+    private escapeHtml(unsafe: string): string {
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
 }
-
-
